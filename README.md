@@ -10,18 +10,19 @@ panel de administración web.
 
 ## Estructura
 
-| Carpeta | Módulo | Stack |
-| --- | --- | --- |
-| `intake/` | Ingesta de datos (Excel, Google Sheets, IA) | Python |
-| `billing/` | Facturación electrónica (AFIP/ARCA) | Python |
-| `payments/` | Cobros (MercadoPago) | Python |
-| `agent/` | Agente conversacional (WhatsApp) | Python |
-| `reports/` | Reportes y paquetes contables | Python |
-| `core/` | Orquestación y lógica central / API | Python |
-| `dashboard/` | Panel de administración web | Next.js |
-| `tests/` | Casos de prueba por módulo | pytest |
-| `docs/` | Documentación técnica interna | — |
-| `.github/` | CI (GitHub Actions) y plantilla de PR | — |
+> **Pendiente de definir.** La estructura de carpetas final dependerá de la
+> arquitectura, que aún no está decidida. Por ahora el repo solo contiene la
+> infraestructura de configuración (CI, plantillas, documentación y archivos raíz).
+
+Stacks previstos: **Python** para el backend / módulos del sistema y **Next.js** para
+el panel de administración web. La organización por módulos propuesta en el plan
+(ingesta, facturación, cobros, agente, reportes, core, dashboard) se materializará
+cuando se defina la arquitectura.
+
+| Carpeta | Contenido |
+| --- | --- |
+| `docs/` | Documentación técnica interna (incluye el plan de configuración) |
+| `.github/` | CI (GitHub Actions) y plantilla de PR |
 
 ## Branching (GitFlow)
 
