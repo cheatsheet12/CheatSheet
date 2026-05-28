@@ -1,0 +1,88 @@
+# ==========================================================================
+# Credenciales y variables de entorno — NUNCA versionar (sección 4.1 del plan)
+# ==========================================================================
+.env
+*.env
+.env.*
+!.env.example
+
+# Certificados y claves (AFIP/ARCA y otros)
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ==========================================================================
+# Python
+# ==========================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Testing / cobertura
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.cache/
+
+# Type checkers / linters
+.mypy_cache/
+.ruff_cache/
+
+# ==========================================================================
+# Node.js / Next.js (dashboard)
+# ==========================================================================
+node_modules/
+.npm/
+.pnp.*
+.yarn/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Build de frontend
+dashboard/build/
+dashboard/dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# ==========================================================================
+# Sistema operativo / editores
+# ==========================================================================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

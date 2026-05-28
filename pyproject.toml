@@ -1,0 +1,22 @@
+# Configuración de herramientas Python compartidas por los módulos del backend.
+# (No declara dependencias de aplicación; el proyecto aún no codifica lógica.)
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = [
+    ".venv",
+    "venv",
+    "node_modules",
+    "dashboard",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# E/F: pyflakes + estilo; I: imports ordenados; UP: modernizaciones; B: bugbear.
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]

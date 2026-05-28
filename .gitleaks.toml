@@ -1,0 +1,11 @@
+# Configuración de gitleaks para la detección de credenciales en CI (sección 6).
+# Extiende el conjunto de reglas por defecto de gitleaks.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Rutas sin secretos reales (plantillas y documentación)."
+paths = [
+    '''\.env\.example$''',
+    '''.*\.md$''',
+]

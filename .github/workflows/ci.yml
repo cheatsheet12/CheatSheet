@@ -1,0 +1,114 @@
+name: CI
+
+# Pipeline de integración continua (sección 6 del plan de configuración).
+# Se ejecuta automáticamente ante cada Pull Request dirigido a develop o main.
+# Un PR no puede fusionarse si alguno de estos jobs falla.
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ----------------------------------------------------------------------
+  # Análisis estático de código — Python (módulos core/intake/billing/...)
+  # Condición de falla: el código no cumple las convenciones de estilo.
+  # ----------------------------------------------------------------------
+  lint-python:
+    name: Lint (Python / ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar ruff
+        run: pip install ruff
+      - name: Ejecutar ruff
+        run: ruff check .
+
+  # ----------------------------------------------------------------------
+  # Análisis estático de código — Frontend (dashboard, Next.js)
+  # Solo corre si el dashboard ya tiene package.json.
+  # ----------------------------------------------------------------------
+  lint-dashboard:
+    name: Lint (dashboard / ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ¿Existe dashboard/package.json?
+        id: check
+        run: |
+          if [ -f dashboard/package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "dashboard/package.json aún no existe — se omite el lint del frontend."
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.exists == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Instalar dependencias
+        if: steps.check.outputs.exists == 'true'
+        working-directory: dashboard
+        run: npm ci
+      - name: Ejecutar ESLint
+        if: steps.check.outputs.exists == 'true'
+        working-directory: dashboard
+        run: npm run lint
+
+  # ----------------------------------------------------------------------
+  # Ejecución de tests automáticos (pytest)
+  # Condición de falla: al menos un test falla.
+  # ----------------------------------------------------------------------
+  tests:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar dependencias de test
+        run: |
+          pip install pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+      - name: Ejecutar pytest
+        run: |
+          # exit code 5 = "no se recolectaron tests"; aceptable mientras el
+          # proyecto está vacío. Cualquier test fallido (1) sí rompe el pipeline.
+          pytest
+          code=$?
+          if [ $code -eq 5 ]; then
+            echo "No hay tests todavía — OK."
+            exit 0
+          fi
+          exit $code
+
+  # ----------------------------------------------------------------------
+  # Verificación de variables de entorno / credenciales hardcodeadas
+  # Condición de falla: se detecta un patrón de credencial en el código.
+  # ----------------------------------------------------------------------
+  secret-scan:
+    name: Detección de credenciales (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Instalar gitleaks
+        run: |
+          VERSION=8.21.2
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+      - name: Escanear el árbol de trabajo
+        run: gitleaks detect --source . --no-git --redact -v
