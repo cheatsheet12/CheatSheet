@@ -1,0 +1,57 @@
+# Checks that run before every commit, on each team member's machine.
+# They are the same ones CI runs: catching a problem here costs seconds,
+# catching it in the PR costs a review cycle.
+#
+# Installation (once, after creating the virtual environment):
+#     pre-commit install
+#
+# Skipping them with --no-verify is forbidden (CLAUDE.md §3.4) and blocked by a hook.
+
+repos:
+  # ------------------------------------------------------------------
+  # Basic file hygiene
+  # ------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      # Prevents committing a private key by accident.
+      - id: detect-private-key
+      # Nobody commits directly onto the protected branches.
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, develop]
+
+  # ------------------------------------------------------------------
+  # Python — the same rules as CI (see pyproject.toml)
+  # ------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.2
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        args: [--strict]
+        # No Python files yet; once they exist, list here the type dependencies
+        # mypy needs in order to resolve them.
+        additional_dependencies: []
+
+  # ------------------------------------------------------------------
+  # Credentials — the same tool as the CI job
+  # ------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
