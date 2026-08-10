@@ -72,6 +72,13 @@ next-env.d.ts
 dashboard/build/
 dashboard/dist/
 
+# Frontend test coverage
+coverage/
+*.lcov
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

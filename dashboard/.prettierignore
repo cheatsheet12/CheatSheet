@@ -1,0 +1,8 @@
+node_modules/
+.next/
+coverage/
+next-env.d.ts
+package-lock.json
+
+# Markdown keeps its hand-authored line breaks; prose is not reflowed by a formatter.
+*.md

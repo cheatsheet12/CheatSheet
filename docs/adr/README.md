@@ -42,6 +42,7 @@ No ADR needed for: naming a function, adding a test, fixing a bug.
 | # | Title | Status | Date |
 | --- | --- | --- | --- |
 | [0001](0001-repository-structure.md) | Lay the repository out by bounded context, with enforced boundaries | Accepted | 2026-08-10 |
+| [0002](0002-frontend-structure.md) | Organize the dashboard by bounded context, and gate it like the backend | Accepted | 2026-08-10 |
 
 > The architecture itself (modular monolith, hexagonal, multi-tenancy, sync model,
 > ACLs, processing guarantees, security) was decided during Etapa 5 and is recorded as
