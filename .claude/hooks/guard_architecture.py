@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Enforces the hexagonal and bounded-context boundaries of the backend.
+"""Enforces the module boundaries on both sides of the monorepo.
 
 The architecture (ADR-001 in the design documents) is a modular monolith whose
 DDD boundaries exist *only at the code level*. That ADR states the boundaries
 "hold only if the team respects the dependency rules, and this must be verified in
 code review". Code review does not catch this reliably. This does.
 
-Four rules, applied to backend/src/cheatsheet/**:
+Backend — backend/src/cheatsheet/** (ADR-0001):
 
   R1. `domain/` imports nothing from `application/`, `infrastructure/`, or any
       infrastructure framework. The domain is pure Python.
@@ -15,6 +15,12 @@ Four rules, applied to backend/src/cheatsheet/**:
   R3. No module imports another bounded context's `domain/` or `infrastructure/`.
       Cross-context communication goes through `application/` or domain events.
   R4. `shared/` (the Shared Kernel) imports nothing from `contexts/`.
+
+Frontend — dashboard/src/** (ADR-0002):
+
+  R5. A feature never imports another feature's internals, only its `index.ts`;
+      `shared/` imports no feature. A screen composing several contexts does so
+      in the route, not through a cross-feature import.
 
 Two modes:
 
@@ -38,7 +44,12 @@ from pathlib import Path
 BACKEND_PACKAGE = "backend/src/cheatsheet"
 ROOT_MODULE = "cheatsheet"
 
+FRONTEND_PACKAGE = "dashboard/src"
+
 LAYERS = ("domain", "application", "infrastructure")
+
+# The feature's public entry point. Everything else under a feature is internal.
+FEATURE_ENTRY_POINT = "index"
 
 # Frameworks and drivers that must never appear inside a domain layer. The domain
 # describes the business, not how it is stored, served or transported.
@@ -104,8 +115,101 @@ def _target_of(module: str) -> tuple[str | None, str | None]:
     return context, layer
 
 
+TS_IMPORT = re.compile(
+    r"""(?mx)
+    (?: ^\s* import \s+ (?:[^'"]*?\s+from\s+)? | ^\s* export \s+ .*? \s+ from \s+
+      | \b (?: import | require ) \s* \( )
+    ['"](?P<spec>[^'"]+)['"]
+    """
+)
+
+
+def _feature_of(rel_path: str) -> str | None:
+    """Feature that a dashboard/src path belongs to, if any."""
+    parts = Path(rel_path).parts
+    try:
+        i = parts.index("features")
+    except ValueError:
+        return None
+    return parts[i + 1] if len(parts) > i + 1 else None
+
+
+def _resolve_spec(spec: str, from_path: str) -> str | None:
+    """Turn an import specifier into a dashboard/src-relative path, if it is internal."""
+    if spec.startswith("@/"):
+        return f"{FRONTEND_PACKAGE}/{spec[2:]}"
+    if spec.startswith("."):
+        resolved = (Path(from_path).parent / spec).as_posix()
+        # Normalise the .. segments without touching the filesystem.
+        stack: list[str] = []
+        for part in resolved.split("/"):
+            if part in ("", "."):
+                continue
+            if part == "..":
+                if stack:
+                    stack.pop()
+                continue
+            stack.append(part)
+        return "/".join(stack)
+    return None  # bare specifier: a node_modules package
+
+
+def check_frontend(rel_path: str, content: str) -> list[Violation]:
+    """R5: features do not reach into each other; shared/ depends on no feature."""
+    if not rel_path.endswith((".ts", ".tsx")):
+        return []
+    normalized = rel_path.replace(os.sep, "/")
+    if not normalized.startswith(FRONTEND_PACKAGE):
+        return []
+
+    feature = _feature_of(normalized)
+    in_shared = normalized.startswith(f"{FRONTEND_PACKAGE}/shared/")
+    violations: list[Violation] = []
+
+    for match in TS_IMPORT.finditer(content):
+        target = _resolve_spec(match.group("spec"), normalized)
+        if target is None:
+            continue
+        target_feature = _feature_of(target)
+        if target_feature is None:
+            continue
+
+        if in_shared:
+            violations.append(
+                Violation(
+                    f"R5  shared/ imports '{match.group('spec')}' from feature "
+                    f"'{target_feature}'.\n"
+                    "    Every feature depends on shared/, so shared/ must depend on none of\n"
+                    "    them. Move this code into the feature that owns it."
+                )
+            )
+            continue
+
+        if feature is None or target_feature == feature:
+            continue
+
+        # Reaching past the other feature's public entry point.
+        tail = target[len(f"{FRONTEND_PACKAGE}/features/{target_feature}") :].strip("/")
+        if tail and Path(tail).stem != FEATURE_ENTRY_POINT:
+            violations.append(
+                Violation(
+                    f"R5  feature '{feature}' imports '{match.group('spec')}', reaching into\n"
+                    f"    the internals of feature '{target_feature}'.\n"
+                    "    Features talk through the other feature's public entry point only.\n"
+                    f'    Allowed:  import {{ … }} from "@/features/{target_feature}"\n'
+                    "    If the code is genuinely common, it belongs in @/shared instead.\n"
+                    "    A screen that composes several contexts does that in the route\n"
+                    "    (src/app/…), not through a cross-feature import."
+                )
+            )
+
+    return violations
+
+
 def check(rel_path: str, content: str) -> list[Violation]:
     """Return every boundary violation the given file content introduces."""
+    if rel_path.endswith((".ts", ".tsx")):
+        return check_frontend(rel_path, content)
     if not rel_path.endswith(".py"):
         return []
     normalized = rel_path.replace(os.sep, "/")
@@ -253,16 +357,28 @@ def run_hook() -> None:
 # --------------------------------------------------------------------------
 
 
+def _files_to_scan(root: Path) -> list[Path]:
+    found: list[Path] = []
+    backend = root / BACKEND_PACKAGE
+    if backend.exists():
+        found.extend(sorted(backend.rglob("*.py")))
+    frontend = root / FRONTEND_PACKAGE
+    if frontend.exists():
+        for pattern in ("*.ts", "*.tsx"):
+            found.extend(
+                f for f in sorted(frontend.rglob(pattern)) if "node_modules" not in f.parts
+            )
+    return found
+
+
 def run_scan(root: Path) -> int:
-    package = root / BACKEND_PACKAGE
-    if not package.exists():
-        print(f"No backend package at {BACKEND_PACKAGE} — nothing to check.")
+    files = _files_to_scan(root)
+    if not files:
+        print("Neither package exists yet — nothing to check.")
         return 0
 
-    total = 0
     offending = 0
-    for file in sorted(package.rglob("*.py")):
-        total += 1
+    for file in files:
         rel = str(file.relative_to(root))
         violations = check(rel, file.read_text(encoding="utf-8"))
         if violations:
@@ -273,9 +389,9 @@ def run_scan(root: Path) -> int:
                     print(f"    {line}")
 
     if offending:
-        print(f"\n{offending} of {total} file(s) violate the architecture boundaries.")
+        print(f"\n{offending} of {len(files)} file(s) violate the architecture boundaries.")
         return 1
-    print(f"{total} file(s) checked — architecture boundaries intact.")
+    print(f"{len(files)} file(s) checked — architecture boundaries intact.")
     return 0
 
 

@@ -140,8 +140,24 @@ arch_case ALLOW "$B/contexts/billing/infrastructure/arca.py" \
   'import zeep' 'infrastructure using a SOAP client'
 arch_case ALLOW "$B/api/main.py" \
   'from fastapi import FastAPI' 'composition root using FastAPI'
-arch_case ALLOW 'dashboard/app/page.tsx' \
-  'import React from "react"' 'frontend file, out of scope'
+D="dashboard/src"
+arch_case deny "$D/features/billing/components/Form.tsx" \
+  'import { x } from "@/features/payments/api/client";' 'R5 reaches into another feature via alias'
+arch_case deny "$D/features/billing/components/Form.tsx" \
+  'import { x } from "../../payments/hooks/useCobro";' 'R5 reaches into another feature via relative path'
+arch_case deny "$D/shared/table.tsx" \
+  'import { x } from "@/features/billing";' 'R5 shared depends on a feature'
+arch_case ALLOW "$D/features/billing/components/Form.tsx" \
+  'import { x } from "@/features/payments";' 'cross-feature via public entry point'
+arch_case ALLOW "$D/features/billing/components/Form.tsx" \
+  'import { Button } from "@/shared";' 'feature using shared'
+arch_case ALLOW "$D/features/billing/components/Form.tsx" \
+  'import { api } from "../api/client";' 'internal import within the same feature'
+arch_case ALLOW "$D/app/(panel)/billing/page.tsx" \
+  'import { B } from "@/features/billing";
+import { P } from "@/features/payments";' 'a route composing several contexts'
+arch_case ALLOW "$D/features/billing/api/client.ts" \
+  'import { z } from "zod";' 'third-party package'
 
 echo
 if [ "$failures" -eq 0 ]; then

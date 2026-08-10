@@ -57,8 +57,20 @@ backend/src/cheatsheet/
 ├── api/                  # FastAPI composition root
 ├── workers/              # the 5 Celery workers + Beat
 └── platform/             # settings, database session, Redis, storage, telemetry
-dashboard/                # Next.js 14 admin panel
+dashboard/src/
+├── app/                  # Next.js routes (App Router) — thin, they compose features
+│   ├── (panel)/          # authenticated admin panel
+│   └── (public)/         # login, token-gated accountant access
+├── features/<context>/   # the same twelve names as the backend
+│   ├── api/ components/ hooks/     # internal
+│   └── index.ts          # the feature's PUBLIC entry point
+├── shared/               # design system, common types, cross-feature utilities
+└── lib/                  # BFF helpers, auth, fetch wrapper
 ```
+
+The frontend mirrors the backend contexts on purpose ([ADR-0002](docs/adr/0002-frontend-structure.md)):
+the API is organized by bounded context, so the client is too, and both sides share one
+vocabulary.
 
 The twelve contexts: `identity` · `master_data` · `business_config` · `integrations` ·
 `spreadsheet_sync` · `billing` · `payments` · `scheduling` · `conversational` ·
@@ -78,6 +90,7 @@ Dependencies point inwards only: `infrastructure → application → domain`.
 | **R2** | `application/` imports nothing from `infrastructure/` |
 | **R3** | No module imports another context's `domain/` or `infrastructure/` — contexts talk through `application/` or domain events |
 | **R4** | `shared/` imports nothing from `contexts/` |
+| **R5** | *(frontend)* a feature never imports another feature's internals — only its `index.ts`; `shared/` imports no feature |
 
 Blocked locally by `.claude/hooks/guard_architecture.py`, and on merge by the
 `architecture` CI job. Which context may depend on which is in the Context Map

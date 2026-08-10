@@ -156,46 +156,40 @@ jobs:
         run: python .claude/hooks/guard_architecture.py --scan .
 
   # ----------------------------------------------------------------------
-  # Static analysis — frontend (dashboard, Next.js).
-  # Only runs once the dashboard has a package.json.
+  # Frontend gates (dashboard, Next.js) — ADR-0002.
+  # Fails when: formatting, lint, types or the 80% coverage threshold fail.
   # ----------------------------------------------------------------------
   lint-dashboard:
-    name: Lint (dashboard / ESLint)
+    name: Frontend gates (dashboard)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Does dashboard/package.json exist?
-        id: check
-        run: |
-          if [ -f dashboard/package.json ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "dashboard/package.json does not exist yet — skipping frontend lint."
-          fi
-
       - uses: actions/setup-node@v4
-        if: steps.check.outputs.exists == 'true'
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
 
       - name: Install dependencies
-        if: steps.check.outputs.exists == 'true'
         working-directory: dashboard
         run: npm ci
 
+      - name: Check formatting
+        working-directory: dashboard
+        run: npm run format:check
+
       - name: Run ESLint
-        if: steps.check.outputs.exists == 'true'
         working-directory: dashboard
         run: npm run lint
 
       - name: Check TypeScript types
-        if: steps.check.outputs.exists == 'true'
         working-directory: dashboard
-        run: npx tsc --noEmit
+        run: npm run typecheck
+
+      - name: Run tests with coverage
+        working-directory: dashboard
+        run: npm run test:coverage
 
   # ----------------------------------------------------------------------
   # Automated tests and minimum coverage (80%, defined in pyproject.toml).

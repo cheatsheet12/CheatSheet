@@ -20,22 +20,21 @@ rules do **not** cover them equally today.
 | --- | --- | --- |
 | Branch protection, branch naming, commit format, PR flow | 🔒 ⛔ | 🔒 ⛔ |
 | Secrets, credential files, `.env` discipline | 🔒 ⛔ | 🔒 ⛔ |
-| Top-level structure (ADR required for new root dirs) | 🔒 | 🔒 |
+| Root versus package structure | 🔒 | 🔒 |
 | File hygiene, large files, merge markers | ⛔ | ⛔ |
-| Formatting and linting | ⛔ `ruff` | ⛔ ESLint — **inert until `dashboard/package.json` exists** |
-| Strict typing | ⛔ `mypy --strict` | ⛔ `tsc --noEmit` — **inert, same reason** |
-| Tests and 80% coverage gate | ⛔ `pytest` | ✗ no runner chosen |
-| Architecture boundaries R1–R4 | 🔒 ⛔ | ✗ backend only |
+| Formatting | ⛔ `ruff format` | ⛔ `prettier` |
+| Linting, including security rules | ⛔ `ruff` (bandit, complexity) | ⛔ ESLint (`any` banned, cross-feature imports banned) |
+| Strict typing | ⛔ `mypy --strict` | ⛔ `tsc --noEmit`, `strict` + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes` |
+| Tests and 80% coverage gate | ⛔ `pytest` | ⛔ `vitest` |
+| Architecture boundaries | 🔒 ⛔ R1–R4 | 🔒 ⛔ R5 |
 
-Read the right-hand column honestly: **the governance layer is language-agnostic and
-already protects the frontend; the quality layer is backend-only.** The
-`lint-dashboard` CI job reports green today because it skips itself, not because it
-checked anything.
+Both halves are now gated. The asymmetry that remains is in the *shape* of the rules,
+not in their strength: the backend enforces a three-ring hexagon per bounded context
+(R1–R4), the frontend enforces one boundary between features (R5), because a UI has no
+domain layer to protect.
 
-Whoever scaffolds the dashboard scaffolds its gates in the same PR — ESLint, Prettier,
-`tsconfig` with `strict: true`, and a test runner wired into CI. Landing the frontend
-without them means the frontend is governed by review alone, which is the exact failure
-mode this repository exists to prevent.
+Two thresholds are armed but idle until the code exists: the coverage gate has nothing
+to measure while there are no tests, on either side.
 
 ---
 

@@ -1,49 +1,89 @@
 # dashboard — Admin panel (Next.js 14)
 
-**Not scaffolded yet.** This directory exists because the repository layout is decided
-(ADR-0001) and the structure should be visible before the code arrives.
+The whole frontend lives here: one Next.js 14 application (App Router) deployed on
+Vercel, serving the SPA and acting as the BFF that holds the JWT in HttpOnly cookies.
+It is containers 1 and 2 of the C4 level 2 diagram — the browser runtime and the Vercel
+deployable are the same app. There is no second frontend.
 
-Planned per the design documents: React 18 / Next.js 14 (App Router) on Vercel, serving
-the SPA with SSR/ISR and acting as a minimal BFF — it holds the JWT in HttpOnly cookies
-and is the only thing that talks to the API backend (ADR-011).
+Structure and rules: [ADR-0002](../docs/adr/0002-frontend-structure.md).
 
-## Which repository rules already apply here
+## Structure
 
-Everything in [`../CLAUDE.md`](../CLAUDE.md) that is not language-specific applies to
-this directory **today**, before a single line of TypeScript exists:
+```
+src/
+├── app/                  # routes (App Router) — thin, they compose features
+│   ├── (panel)/          # authenticated admin panel
+│   └── (public)/         # login, token-gated accountant access
+├── features/<context>/   # the same twelve names as the backend
+│   ├── api/              # typed client for that context's endpoints
+│   ├── components/
+│   ├── hooks/
+│   └── index.ts          # PUBLIC entry point — the only thing other features may import
+├── shared/               # design system, common types, cross-feature utilities
+└── lib/                  # BFF helpers, auth, fetch wrapper
+```
 
-| Rule | Applies | Enforced by |
-| --- | --- | --- |
-| No writing on `main` / `develop` | Yes | `guard_edit.py` hook |
-| Branch naming, commit format, PR flow | Yes | `guard_bash.py` hook + `conventions` CI job |
-| No hardcoded secrets, no credential files | Yes | `guard_edit.py` hook + `gitleaks` (CI and pre-commit) |
-| No new top-level directories without an ADR | Yes | `guard_edit.py` hook |
-| PR template and Definition of Done | Yes | GitHub |
-| File hygiene (trailing whitespace, large files, merge markers) | Yes | `pre-commit` |
+The twelve features mirror the backend bounded contexts on purpose: the API is organized
+by context, so the client is too, and both sides share one vocabulary. `identity`,
+`master_data`, `business_config`, `integrations`, `spreadsheet_sync`, `billing`,
+`payments`, `scheduling`, `conversational`, `observability`, `reporting`,
+`reference_data`.
 
-## Which rules do NOT apply yet — the honest part
+**Screens** (design documents §20.3): ONB · CFG · DM · ING-CARGA · ING-MAPEO · FAC ·
+COB-LIST · COB-DET · AGE · WA-CONV · WA-CONFIG · LOG-LIST · LOG-DET · REP-DASH ·
+REP-CONFIG · REP-IVA · DSH, plus the public PAN-REP pages for the external accountant.
 
-| Rule | Status |
+## R5 — the one boundary
+
+> A feature never imports another feature's internals. Cross-feature use goes through
+> the other feature's `index.ts`. `shared/` imports no feature.
+
+```ts
+// BLOCKED — reaching into another feature
+import { useCobro } from "@/features/payments/hooks/useCobro";
+
+// ALLOWED — the public entry point
+import { useCobro } from "@/features/payments";
+```
+
+A screen that composes several contexts does that **in the route**, not through a
+cross-feature import. If code is genuinely common, it belongs in `@/shared`.
+
+Enforced by `.claude/hooks/guard_architecture.py` (blocks the write), the `architecture`
+CI job, and an ESLint `no-restricted-imports` rule so it also surfaces in the editor.
+
+## Gates
+
+Every one of these blocks the merge. `npm run <script>`:
+
+| Script | What it enforces |
 | --- | --- |
-| ESLint + `tsc --noEmit` | The `lint-dashboard` CI job exists but **skips itself** while `dashboard/package.json` is absent. It reports green without checking anything. |
-| Prettier on save | The `format_file.sh` hook is wired for `.ts/.tsx/.js/.jsx/.css/.json` but does nothing until `dashboard/node_modules/.bin/prettier` exists. |
-| Test coverage ≥ 80% | Backend only (`pytest`). No frontend test runner is chosen yet. |
-| Architecture boundaries (R1–R4) | Backend only. `guard_architecture.py` ignores everything outside `backend/src/cheatsheet/`. The frontend has **no** structural enforcement. |
-| Strict typing | The `tsconfig.json` rules in [`../docs/code-standards.md`](../docs/code-standards.md) §3 are written but unenforced until the project exists. |
+| `format:check` | Prettier. Markdown is excluded — prose keeps its hand-authored line breaks. |
+| `lint` | ESLint with `--max-warnings=0`. `any` is banned, so is `console.log`, so are cross-feature imports. |
+| `typecheck` | `tsc --noEmit` with `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noUnusedLocals`. |
+| `test:coverage` | Vitest, 80% threshold — the same as the backend. |
 
-**Read that as a gap, not as permission.** Until the scaffold lands with its ESLint,
-Prettier, `tsconfig` (`strict: true`) and test runner wired into CI, frontend code is
-held to the standards by review alone — which is exactly the failure mode this
-repository was built to avoid. Scaffolding the dashboard means scaffolding its gates in
-the same PR.
+Loosening any of them is an ADR, not a convenience. They are the frontend equivalent of
+`ruff` + `mypy --strict` + the backend coverage gate.
 
-## Non-negotiable once it exists
+The coverage threshold is armed but idle: there is nothing to measure until the first
+component exists.
 
-- `"strict": true`, plus `noUncheckedIndexedAccess` and `noImplicitOverride`.
-- No `any`, no `@ts-ignore`. Unknown shapes use `unknown` + schema validation.
-- **No business logic here.** Taxes, totals, fiscal validation and payment rules live
-  in the backend, which is the only auditable side. The panel renders what the API
-  returns.
-- No secrets in `NEXT_PUBLIC_*` — those are inlined into the browser bundle.
+## Non-negotiable
+
+- **No business logic here.** Taxes, totals, fiscal validation and payment rules live in
+  the backend, which is the only auditable side. The panel renders what the API returns.
+- **No secrets in `NEXT_PUBLIC_*`** — Next.js inlines those into the browser bundle.
   Variables live in [`.env.example`](./.env.example); anything secret belongs in
   `backend/.env.example` and is read only by the backend.
+- **The JWT is never read from client JavaScript.** It travels in an HttpOnly cookie
+  issued by the BFF, which is the only thing that talks to the API (design ADR-011).
+
+## Local setup
+
+```bash
+cd dashboard
+npm ci
+cp .env.example .env.local
+npm run dev
+```
