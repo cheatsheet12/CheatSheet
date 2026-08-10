@@ -69,8 +69,9 @@ fails.
 ## Local setup
 
 ```bash
-# 1. Copy the environment variable template and fill it in
-cp .env.example .env        # NEVER committed
+# 1. Copy the environment variable template of each application and fill it in
+cp backend/.env.example backend/.env              # NEVER committed
+cp dashboard/.env.example dashboard/.env.local    # NEVER committed
 
 # 2. Backend (Python 3.11)
 python -m venv .venv && source .venv/bin/activate

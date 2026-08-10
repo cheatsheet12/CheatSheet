@@ -16,28 +16,41 @@ centralized hosting platform for the repository.
 
 ## 2. Repository structure
 
-> **Pending definition.** The final directory layout depends on the architecture, which
-> has not been decided yet. Until an approved ADR in [`adr/`](adr/) defines it, the only
-> valid root directories are `docs/`, `.github/` and `.claude/`, and this is enforced by
-> the `guard_edit.py` hook (see [`../CLAUDE.md`](../CLAUDE.md) §2).
-
-The intended organization is by functional module, mirroring the split of
-responsibilities across the team:
+A **monorepo** holding both applications, organised by bounded context per
+[ADR-0001](adr/0001-repository-structure.md). The reasoning is in
+[`architecture.md`](architecture.md); the rules are in [`../CLAUDE.md`](../CLAUDE.md) §2.
 
 ```
 cheatsheet/
-├── intake/            # Data ingestion module (Excel, Google Sheets, AI)
-├── billing/           # Electronic invoicing module (AFIP/ARCA)
-├── payments/          # Payment collection module (MercadoPago)
-├── agent/             # Conversational agent (WhatsApp)
-├── dashboard/         # Web admin panel (frontend)
-├── reports/           # Reporting and accounting packages module
-├── core/              # Orchestration engine and central logic
-├── tests/             # Test cases per module
-├── docs/              # Internal technical documentation
-├── .claude/           # Shared agent configuration and enforcement hooks
-└── .github/           # GitHub Actions configuration and PR templates
+├── backend/                    # Python 3.11 / FastAPI — API and workers
+│   ├── src/cheatsheet/
+│   │   ├── contexts/<context>/{domain,application,infrastructure}/
+│   │   ├── shared/             # Shared Kernel
+│   │   ├── api/                # FastAPI composition root
+│   │   ├── workers/            # 5 Celery workers + Beat
+│   │   └── platform/           # settings, database, Redis, storage, telemetry
+│   ├── migrations/             # Alembic
+│   ├── tests/
+│   ├── pyproject.toml          # packaging + application dependencies
+│   └── .env.example
+├── dashboard/                  # Next.js 14 admin panel
+│   └── .env.example
+├── docs/                       # Internal technical documentation, ADRs
+├── .claude/                    # Shared agent configuration and enforcement hooks
+├── .github/                    # GitHub Actions and PR template
+├── pyproject.toml              # ruff / mypy / pytest for ALL Python in the repo
+├── requirements-dev.txt        # repo-wide tooling, pinned
+└── .pre-commit-config.yaml
 ```
+
+The twelve contexts: `identity`, `master_data`, `business_config`, `integrations`,
+`spreadsheet_sync`, `billing`, `payments`, `scheduling`, `conversational`,
+`observability`, `reporting`, `reference_data`.
+
+**Root versus package.** The root holds what governs the whole repository (tooling
+configuration, repo-wide policy, documentation); an application's own configuration
+lives inside its directory. Both rules — no new root directories, and no app-scoped
+config file at the root — are enforced by the `guard_edit.py` hook.
 
 ---
 
@@ -86,8 +99,12 @@ is a critical legal and security risk.
 
 ### 4.2 Environment variable structure
 
-Every member working on an external integration has a versioned `.env.example` file in
-the repository, listing the required variables without their real values:
+Each application carries its own versioned `.env.example`, listing the required
+variables without their real values: `backend/.env.example` for the API and the
+workers, and `dashboard/.env.example` for the panel. An env file lives next to the
+process that reads it, and these are two separately deployed processes.
+
+The backend template covers:
 
 ```bash
 # AFIP/ARCA integration
@@ -167,5 +184,5 @@ cannot be bypassed manually.
 | CI pipeline configuration and maintenance | Software Architect |
 | Auditing compliance with the configuration policies | QA Analyst |
 | Managing and distributing environment credentials | Software Architect |
-| Updating `.env.example` when integrations are added | Integrations Analyst |
+| Updating the relevant `.env.example` when integrations are added | Integrations Analyst |
 | Periodically verifying that no credential was pushed to the repository | QA Analyst |

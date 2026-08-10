@@ -87,7 +87,7 @@ bash_case ALLOW 'rm -rf .venv'                           'narrowly scoped delete
 echo "guard_edit.py — paths and content"
 edit_case deny  '.env'          'X=1'                'a .env file'
 edit_case deny  '.env.production' 'X=1'              'an environment-specific .env file'
-edit_case ALLOW '.env.example'  'MP_ACCESS_TOKEN='   'the versioned .env template'
+edit_case ALLOW 'backend/.env.example' 'MP_ACCESS_TOKEN=' 'the versioned .env template is exempt from the credential-file rule'
 edit_case deny  'docs/afip.key' 'x'                  'private key by extension'
 edit_case deny  'billing/x.py'  'x = 1'              'unauthorized top-level directory'
 edit_case deny  'docs/a.py'     "MP = \"$MP_TOKEN\"" 'MercadoPago token'
@@ -98,7 +98,17 @@ edit_case ALLOW 'docs/a.md'     "wrong: $FLOAT_DECIMAL" 'the antipattern quoted 
 edit_case ALLOW 'docs/a.py'     'api_key = "<your-token-here>"' 'placeholder value'
 edit_case ALLOW 'docs/a.py'     'api_key = os.environ["K"]'     'read from the environment'
 edit_case ALLOW 'docs/adr/1.md' 'text'               'subdirectory of docs/'
-edit_case ALLOW 'setup.cfg'     '[x]'                'loose file at the root'
+edit_case ALLOW 'setup.cfg'     '[x]'                'repo-wide loose file at the root'
+
+echo "guard_edit.py — monorepo root versus package"
+edit_case deny  'package.json'   '{}'                'dashboard config dropped at the root'
+edit_case deny  'requirements.txt' 'fastapi'         'backend app dependencies at the root'
+edit_case deny  'tsconfig.json'  '{}'                'TypeScript config at the root'
+edit_case deny  '.env.example'   'X='                'env template at the root instead of per package'
+edit_case ALLOW 'dashboard/package.json'    '{}'     'dashboard config inside its package'
+edit_case ALLOW 'backend/requirements.txt'  'fastapi' 'backend dependencies inside its package'
+edit_case ALLOW 'dashboard/.env.example'    'NEXT_PUBLIC_API_BASE_URL=' 'dashboard env template'
+edit_case ALLOW 'pyproject.toml' '[tool.ruff]'       'repo-wide tooling config at the root'
 
 echo "guard_architecture.py — hexagonal and bounded-context boundaries"
 B="backend/src/cheatsheet"

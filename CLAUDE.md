@@ -17,7 +17,6 @@ hook or a CI job that blocks it.
 ## 1. What this system is
 
 **CheatSheet** — a platform for small and medium businesses in Argentina.
-Planned modules:
 
 Twelve bounded contexts. The five **Core** ones carry the competitive advantage and
 the risk:
@@ -98,6 +97,29 @@ class Comprobante:                      # a Comprobante is not an "invoice"
 `Comprobante`, `Cobro`, `Turno`, `Mapeo`, `CUIT`, `CAE`, `CondicionIVA` are the
 business's own terms and Argentine fiscal terms. Translating them breaks traceability
 with the design documents and with ARCA.
+
+### 2.3 What lives at the root, and what lives in a package
+
+This is a monorepo. The rule is about **scope, not language**:
+
+> The root holds what governs the **whole repository**.
+> A package's own configuration lives **inside that package**.
+
+| At the root | Why |
+| --- | --- |
+| `pyproject.toml` | Configures `ruff`, `mypy`, `pytest` and coverage for **every** Python file in the repo — including the guards in `.claude/hooks/`, which are not backend code. One set of rules for all Python. |
+| `requirements-dev.txt` | Pins the tooling that checks the whole repo (`ruff`, `mypy`, `pytest`, `pre-commit`). Not application dependencies. |
+| `.gitignore`, `.gitleaks.toml`, `.pre-commit-config.yaml` | Repo-wide policy. |
+| `CLAUDE.md`, `README.md`, `docs/`, `.claude/`, `.github/` | Govern the repository. |
+
+| Inside its package | Why |
+| --- | --- |
+| `backend/pyproject.toml` | Packaging and **application** dependencies. Deliberately has no `[tool.ruff]` — ruff and mypy walk past it to the root config. |
+| `backend/.env.example`, `dashboard/.env.example` | An env file exists to be copied next to the process that reads it. These are two separately deployed processes. |
+| `dashboard/package.json`, `tsconfig.json`, ESLint/Prettier config | Configure one application. |
+
+Creating an app-scoped config file at the root is blocked by hook. The test: **if it
+only affects one of `backend/` or `dashboard/`, it does not go at the root.**
 
 ---
 
@@ -216,7 +238,7 @@ A change is **not finished** until:
 - [ ] `mypy .` passes with no new errors
 - [ ] `pytest` passes and coverage for the touched module did not drop
 - [ ] No secrets or personal data in the diff (`gitleaks` green)
-- [ ] If an external integration was added: `.env.example` updated
+- [ ] If an external integration was added: the right `.env.example` updated (`backend/` or `dashboard/`)
 - [ ] If an architectural decision was made: ADR written in `docs/adr/`
 - [ ] The PR template is filled in
 

@@ -110,7 +110,7 @@ terms. Accents are dropped for identifier safety.
 - [x] [`docs/code-standards.md`](../code-standards.md) — naming rule for domain terms
 - [x] `ALLOWED_TOPLEVEL` in `.claude/hooks/guard_edit.py` — `backend`, `dashboard` added
 - [x] [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — `architecture` job added
-- [x] [`.env.example`](../../.env.example) — variables for the containers of ADR-004/005
+- [x] `.env.example` split into [`backend/`](../../backend/.env.example) and [`dashboard/`](../../dashboard/.env.example)
 - [x] New: [`docs/architecture.md`](../architecture.md), `.claude/hooks/guard_architecture.py`
 
 ## References
