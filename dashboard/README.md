@@ -44,4 +44,6 @@ the same PR.
 - **No business logic here.** Taxes, totals, fiscal validation and payment rules live
   in the backend, which is the only auditable side. The panel renders what the API
   returns.
-- No secrets in `NEXT_PUBLIC_*` — those are shipped to the browser.
+- No secrets in `NEXT_PUBLIC_*` — those are inlined into the browser bundle.
+  Variables live in [`.env.example`](./.env.example); anything secret belongs in
+  `backend/.env.example` and is read only by the backend.

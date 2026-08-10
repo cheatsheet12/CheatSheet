@@ -51,7 +51,7 @@ Does this decision require updating any of these? Tick them and do it in the sam
 - [ ] `ALLOWED_TOPLEVEL` in `.claude/hooks/guard_edit.py`
 - [ ] [`pyproject.toml`](../../pyproject.toml) or the linter configuration
 - [ ] [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
-- [ ] [`.env.example`](../../.env.example)
+- [ ] `backend/.env.example` or `dashboard/.env.example`
 - [ ] None
 
 ## References

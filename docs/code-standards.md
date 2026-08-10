@@ -342,8 +342,8 @@ proposes; the code decides.
   (`ruff S608` catches it).
 - AFIP certificates are referenced by path from an environment variable; they are never
   included in the repository.
-- When adding an integration: update `.env.example` **with the variable empty**, in the
-  same PR.
+- When adding an integration: update the `.env.example` of the application that reads it (`backend/` or `dashboard/`) **with the variable empty**, in the same PR.
+- Never put a secret behind `NEXT_PUBLIC_*`: Next.js inlines those into the browser bundle.
 
 ---
 

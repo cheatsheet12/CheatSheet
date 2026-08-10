@@ -44,6 +44,28 @@ ALLOWED_TOPLEVEL = {
     "docs",
 }
 
+# Files that configure ONE application and therefore belong inside its package,
+# never at the repository root. The root is for what governs the whole repository
+# (see CLAUDE.md §2.3); a package's own config belongs next to the package.
+MISPLACED_AT_ROOT: dict[str, str] = {
+    ".env.example": "backend/ and dashboard/ each keep their own — an env file lives "
+    "next to the process that reads it",
+    "package.json": "dashboard/",
+    "package-lock.json": "dashboard/",
+    "tsconfig.json": "dashboard/",
+    "next.config.js": "dashboard/",
+    "next.config.mjs": "dashboard/",
+    "next.config.ts": "dashboard/",
+    "tailwind.config.ts": "dashboard/",
+    "postcss.config.js": "dashboard/",
+    "eslint.config.js": "dashboard/",
+    ".eslintrc.json": "dashboard/",
+    "requirements.txt": "backend/ — the root only pins the tooling that checks the "
+    "whole repository, not the application's dependencies",
+    "alembic.ini": "backend/",
+    "dockerfile": "backend/ or dashboard/ — each application builds its own image",
+}
+
 # Credential files that are never committed.
 FORBIDDEN_FILES = re.compile(
     r"(^|/)(\.env(\.[\w-]+)?$|.*\.(pem|key|p12|pfx|crt|cer|jks|keystore)$)",
@@ -210,6 +232,21 @@ def check_path(rel_path: str) -> None:
         )
 
     parts = Path(rel_path).parts
+
+    # A file sitting loose at the root that only configures one application.
+    if len(parts) == 1:
+        belongs = MISPLACED_AT_ROOT.get(parts[0].lower())
+        if belongs:
+            deny(
+                f"BLOCKED — '{rel_path}' configures a single application, so it does not "
+                "belong at the repository root.\n\n"
+                f"    It belongs in: {belongs}\n\n"
+                "The root is reserved for what governs the whole repository: the tooling\n"
+                "configuration that checks every package (pyproject.toml,\n"
+                "requirements-dev.txt), the repo-wide policies (.gitignore, .gitleaks.toml,\n"
+                ".pre-commit-config.yaml) and the documentation. See CLAUDE.md §2.3."
+            )
+
     if len(parts) > 1 and parts[0] not in ALLOWED_TOPLEVEL:
         allowed = ", ".join(sorted(ALLOWED_TOPLEVEL))
         deny(
