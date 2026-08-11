@@ -55,7 +55,14 @@ def main() -> None:
             "pip install -r requirements-dev.txt"
         )
 
-    if not list((root / "docs" / "adr").glob("[1-9]*.md")):
+    # ADRs are zero-padded (0001-…), so a leading [1-9] never matched one. Match any
+    # numbered file and exclude 0000-template.md, which is the template, not a decision.
+    adrs = [
+        path
+        for path in (root / "docs" / "adr").glob("[0-9][0-9][0-9][0-9]-*.md")
+        if not path.name.startswith("0000-")
+    ]
+    if not adrs:
         lines.append(
             "- There is no accepted ADR yet, so the architecture is undefined and new "
             "top-level directories are blocked (CLAUDE.md §2)."
