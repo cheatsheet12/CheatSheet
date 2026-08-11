@@ -1,12 +1,12 @@
 # ==========================================================================
-# Credenciales y variables de entorno — NUNCA versionar (sección 4.1 del plan)
+# Credentials and environment variables — NEVER commit (section 4.1 of the plan)
 # ==========================================================================
 .env
 *.env
 .env.*
 !.env.example
 
-# Certificados y claves (AFIP/ARCA y otros)
+# Certificates and keys (AFIP/ARCA and others)
 *.pem
 *.key
 *.crt
@@ -37,13 +37,13 @@ wheels/
 .installed.cfg
 *.egg
 
-# Entornos virtuales
+# Virtual environments
 .venv/
 venv/
 env/
 ENV/
 
-# Testing / cobertura
+# Testing / coverage
 .pytest_cache/
 .coverage
 .coverage.*
@@ -56,7 +56,7 @@ htmlcov/
 .ruff_cache/
 
 # ==========================================================================
-# Node.js / Next.js (dashboard)
+# Node.js / Next.js (frontend)
 # ==========================================================================
 node_modules/
 .npm/
@@ -68,9 +68,16 @@ node_modules/
 out/
 next-env.d.ts
 
-# Build de frontend
-dashboard/build/
-dashboard/dist/
+# Frontend build
+frontend/build/
+frontend/dist/
+
+# Frontend test coverage
+coverage/
+*.lcov
+
+# TypeScript incremental build cache
+*.tsbuildinfo
 
 # Logs
 npm-debug.log*
@@ -79,7 +86,15 @@ yarn-error.log*
 *.log
 
 # ==========================================================================
-# Sistema operativo / editores
+# Claude Code
+# The shared team configuration (.claude/settings.json and the hooks) IS
+# committed: it holds the repository rules. Only each member's personal
+# overrides are excluded.
+# ==========================================================================
+.claude/settings.local.json
+
+# ==========================================================================
+# Operating system / editors
 # ==========================================================================
 .DS_Store
 Thumbs.db

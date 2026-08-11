@@ -1,82 +1,119 @@
 # CheatSheet
 
-Plataforma para PyMEs: ingesta de datos, facturación electrónica (AFIP/ARCA),
-cobros (MercadoPago), agente conversacional (WhatsApp), reportes contables y un
-panel de administración web.
+Platform for small and medium businesses in Argentina: data ingestion, electronic
+invoicing (AFIP/ARCA), payment collection (MercadoPago), a conversational agent
+(WhatsApp), accounting reports, and a web admin panel.
 
-> Este repositorio arranca con la **gestión de la configuración** ya montada
-> (estructura, branching, manejo de credenciales, entornos y CI). El plan completo
-> está en [`docs/gestion-configuracion-software.md`](docs/gestion-configuracion-software.md).
+> This repository ships with **software configuration management** already in place
+> (structure, branching, credential handling, environments and CI). The full plan is in
+> [`docs/configuration-management.md`](docs/configuration-management.md).
 
-## Estructura
+> **Language policy.** Everything in this repository — code, comments, documentation,
+> commit messages, branch names — is written in **English**.
 
-> **Pendiente de definir.** La estructura de carpetas final dependerá de la
-> arquitectura, que aún no está decidida. Por ahora el repo solo contiene la
-> infraestructura de configuración (CI, plantillas, documentación y archivos raíz).
+## Before you write a single line
 
-Stacks previstos: **Python** para el backend / módulos del sistema y **Next.js** para
-el panel de administración web. La organización por módulos propuesta en el plan
-(ingesta, facturación, cobros, agente, reportes, core, dashboard) se materializará
-cuando se defina la arquitectura.
+This repository has **code rules that are enforced automatically**, not by convention.
+Read them before starting:
 
-| Carpeta | Contenido |
+| Document | Contents |
 | --- | --- |
-| `docs/` | Documentación técnica interna (incluye el plan de configuración) |
-| `.github/` | CI (GitHub Actions) y plantilla de PR |
+| [`CLAUDE.md`](CLAUDE.md) | **Repository constitution.** Absolute rules, workflow and Definition of Done. Normative. |
+| [`docs/code-standards.md`](docs/code-standards.md) | The detail: typing, errors, money, logging, tests, AI components, security. |
+| [`docs/adr/`](docs/adr/) | Architecture decisions and the reasoning behind them. |
+
+Three layers enforce those rules:
+
+1. **Local hooks** (`.claude/hooks/`) — block the write *before* it happens: commits on
+   protected branches, hardcoded secrets, unauthorized structure.
+2. **`pre-commit`** — runs lint, types and credential detection before every commit.
+3. **CI** (`.github/workflows/ci.yml`) — blocks the PR merge if anything fails.
+
+## Structure
+
+A **monorepo** with two applications, organised by bounded context
+([ADR-0001](docs/adr/0001-repository-structure.md),
+[ADR-0002](docs/adr/0002-frontend-structure.md)).
+
+| Directory | Contents |
+| --- | --- |
+| `backend/` | Python 3.11 / FastAPI — the API, five Celery workers and the scheduler |
+| `frontend/` | Next.js 14 — the admin panel and its BFF |
+| `docs/` | Internal technical documentation, architecture reference and ADRs |
+| `.github/` | CI (GitHub Actions) and PR template |
+| `.claude/` | Shared team configuration and hooks that block rule violations |
+
+Both applications are organised by the same twelve bounded contexts:
+`identity`, `master_data`, `business_config`, `integrations`, `spreadsheet_sync`,
+`billing`, `payments`, `scheduling`, `conversational`, `observability`, `reporting`,
+`reference_data`.
 
 ## Branching (GitFlow)
 
-- `main` — producción / entrega formal. **Nadie escribe directo.**
-- `develop` — integración continua. **Nadie escribe directo.**
-- `feature/[módulo]-[descripción]` — nueva funcionalidad → PR a `develop`
-- `fix/[módulo]-[descripción]` — corrección de bug → PR a `develop`
-- `hotfix/[descripción]` — urgencia en producción → PR a `main` (y luego a `develop`)
+- `main` — production / formal delivery. **Nobody writes directly.**
+- `develop` — continuous integration. **Nobody writes directly.**
+- `feature/[module]-[description]` — new feature → PR to `develop`
+- `fix/[module]-[description]` — bug fix → PR to `develop`
+- `hotfix/[description]` — production emergency → PR to `main` (then to `develop`)
 
-Todo cambio entra **exclusivamente por Pull Request revisado**; no se fusiona si el CI falla.
+Every change lands **exclusively through a reviewed Pull Request**; nothing merges if CI
+fails.
 
-## Entornos
+## Environments
 
-| Entorno | Uso | APIs externas |
+| Environment | Use | External APIs |
 | --- | --- | --- |
-| `dev` | Local de cada integrante | sandbox / homologación |
-| `staging` | Validación integrada del equipo (demos) | sandbox / homologación |
-| `prod` | PyMEs piloto reales | producción |
+| `dev` | Each member's local machine | sandbox / homologation |
+| `staging` | Integrated team validation (demos) | sandbox / homologation |
+| `prod` | Real pilot businesses | production |
 
-Las **demos ante la cátedra siempre se hacen sobre `staging`**.
+**Demos are always run against `staging`.**
 
-## Puesta en marcha local
+## Local setup
 
 ```bash
-# 1. Copiar la plantilla de variables de entorno y completarla
-cp .env.example .env        # NUNCA se versiona
+# 1. Copy the environment variable template of each application and fill it in
+cp backend/.env.example backend/.env              # NEVER committed
+cp frontend/.env.example frontend/.env.local    # NEVER committed
 
 # 2. Backend (Python 3.11)
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 
-# 3. Linter y tests
-ruff check .
-pytest
+# 3. Enable the automatic pre-commit checks (once)
+pre-commit install
+
+# 4. Verification cycle — always run before committing
+ruff format .          # format
+ruff check . --fix     # lint (style, security, complexity)
+mypy .                 # types, strict mode
+pytest                 # tests + minimum 80% coverage
 ```
 
-> Las credenciales reales se distribuyen por un **canal privado y cifrado**, nunca por
-> WhatsApp, Discord ni correo en texto plano (ver sección 4.3 del plan).
+> Real credentials are distributed over a **private, encrypted channel** — never over
+> WhatsApp, Discord or plaintext email (see section 4.3 of the plan).
 
-## Integración continua
+## Continuous integration
 
-El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre en cada PR a
-`develop` o `main` y verifica:
+The [`.github/workflows/ci.yml`](.github/workflows/ci.yml) workflow runs on every PR to
+`develop` or `main`. **No PR merges if any job fails.**
 
-1. **Lint** — `ruff` (Python) y `ESLint` (dashboard).
-2. **Tests** — `pytest`.
-3. **Credenciales** — `gitleaks` detecta secretos hardcodeados.
+| Job | Checks | Fails when |
+| --- | --- | --- |
+| `conventions` | Branch name, target branch and commit messages | They do not follow GitFlow or Conventional Commits |
+| `lint-python` | `ruff format --check` + `ruff check` | Style, security (bandit), complexity or missing annotations |
+| `typecheck` | `mypy --strict` | Untyped or inconsistently typed code |
+| `lint-frontend` | ESLint + `tsc --noEmit` | Only runs once `frontend/package.json` exists |
+| `tests` | `pytest` + coverage | A test fails or coverage drops below 80% |
+| `secret-scan` | `gitleaks` | A credential is detected in the code |
+| `guards` | Integrity of the local hooks | A hook stopped blocking, or `settings.json` is invalid |
 
-## Configuración pendiente en GitHub (lado servidor)
+## Pending GitHub-side configuration
 
-Estos ajustes viven en GitHub y se aplican una sola vez por el **Arquitecto de Software**
-(ver [`docs/gestion-configuracion-software.md`](docs/gestion-configuracion-software.md)):
+These settings live in GitHub and are applied once by the **Software Architect**
+(see [`docs/configuration-management.md`](docs/configuration-management.md)):
 
-- Repositorio **privado** bajo la organización del proyecto.
-- **Protección de ramas** en `main` y `develop`: prohibir push directo, exigir PR con
-  al menos una aprobación y que los checks de CI pasen antes de fusionar.
-- Distribución de credenciales de `staging` y `prod` por canal seguro.
+- **Private** repository under the project's GitHub organization.
+- **Branch protection** on `main` and `develop`: forbid direct pushes, require a PR with
+  at least one approval, and require CI checks to pass before merging.
+- Distribution of `staging` and `prod` credentials over a secure channel.

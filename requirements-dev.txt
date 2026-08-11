@@ -1,3 +1,9 @@
-# Dependencias de desarrollo y CI (herramientas, no librerías de aplicación).
-ruff
-pytest
+# Development and CI dependencies (tooling, not application libraries).
+# Versions are pinned: CI and every team machine must see exactly the same thing.
+# Updating them is a deliberate change, with its own PR.
+
+ruff==0.14.2
+mypy==1.18.2
+pytest==8.4.2
+pytest-cov==7.0.0
+pre-commit==4.3.0

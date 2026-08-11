@@ -1,0 +1,28 @@
+# Backend package: distribution metadata and application dependencies.
+#
+# Deliberately WITHOUT a [tool.ruff] / [tool.mypy] / [tool.pytest] section.
+# Those configure every Python file in the repository — including the guards in
+# .claude/hooks/ — so they live in the root pyproject.toml. Ruff and mypy walk up
+# past this file to find them, which keeps one single set of rules for all Python.
+#
+# What belongs here: what makes `cheatsheet` an installable package, and what the
+# application needs at runtime. What belongs at the root: how the code is checked.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cheatsheet"
+version = "0.1.0"
+description = "CheatSheet backend — modular monolith with hexagonal bounded contexts"
+requires-python = ">=3.11"
+
+# Runtime dependencies are added as each bounded context needs them, pinned, in
+# the PR that introduces the use. The containers they correspond to are decided
+# (see docs/architecture.md §2): FastAPI/Uvicorn, SQLAlchemy + asyncpg, Alembic,
+# Celery + Redis, boto3 (Cloudflare R2), PyAfipWs (ADR-012).
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cheatsheet"]

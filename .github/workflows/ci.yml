@@ -1,8 +1,12 @@
 name: CI
 
-# Pipeline de integración continua (sección 6 del plan de configuración).
-# Se ejecuta automáticamente ante cada Pull Request dirigido a develop o main.
-# Un PR no puede fusionarse si alguno de estos jobs falla.
+# Continuous integration pipeline (section 6 of the configuration plan).
+# Runs on every Pull Request targeting develop or main.
+# A PR cannot be merged if any of these jobs fails.
+#
+# The rules this pipeline enforces live in CLAUDE.md and docs/code-standards.md.
+# Tool versions are pinned in requirements-dev.txt so CI and the team's machines
+# see exactly the same thing.
 
 on:
   pull_request:
@@ -13,10 +17,75 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHON_VERSION: "3.11"
+
 jobs:
   # ----------------------------------------------------------------------
-  # Análisis estático de código — Python (módulos core/intake/billing/...)
-  # Condición de falla: el código no cumple las convenciones de estilo.
+  # Repository conventions: branch name, target branch and commit messages.
+  # Fails when: the PR does not follow GitFlow or Conventional Commits.
+  # ----------------------------------------------------------------------
+  conventions:
+    name: Conventions (branch and commits)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate branch naming and target
+        env:
+          BRANCH: ${{ github.head_ref }}
+          TARGET: ${{ github.base_ref }}
+        run: |
+          echo "Branch: $BRANCH  ->  Target: $TARGET"
+
+          if [[ "$BRANCH" =~ ^(feature|fix)/[a-z0-9_]+-[a-z0-9-]+$ ]]; then
+            if [[ "$TARGET" != "develop" ]]; then
+              echo "::error::feature/ and fix/ branches may only target develop (got: $TARGET)."
+              exit 1
+            fi
+          elif [[ "$BRANCH" =~ ^hotfix/[a-z0-9-]+$ ]]; then
+            if [[ "$TARGET" != "main" ]]; then
+              echo "::error::hotfix/ branches may only target main (got: $TARGET)."
+              exit 1
+            fi
+          elif [[ "$BRANCH" == "develop" && "$TARGET" == "main" ]]; then
+            echo "develop -> main integration: OK."
+          else
+            echo "::error::'$BRANCH' does not follow the project naming scheme."
+            echo "Valid formats: feature/<module>-<desc>, fix/<module>-<desc>, hotfix/<desc>"
+            exit 1
+          fi
+
+      - name: Validate commit message format
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='^(feat|fix|docs|refactor|test|chore|perf|ci)(\([a-z_]+\))?: .{10,}'
+          failed=0
+          while IFS= read -r message; do
+            [ -n "$message" ] || continue
+            case "$message" in
+              "Merge "*) continue ;;   # GitHub merge commits do not follow the format
+            esac
+            if ! echo "$message" | grep -Eq "$pattern"; then
+              echo "::error::Invalid commit message: '$message'"
+              failed=1
+            fi
+          done < <(git log --format=%s "$BASE_SHA".."$HEAD_SHA")
+
+          if [ "$failed" -ne 0 ]; then
+            echo "Required format: <type>(<module>): <description>  — see CLAUDE.md §6"
+            exit 1
+          fi
+          echo "All commit messages follow Conventional Commits."
+
+  # ----------------------------------------------------------------------
+  # Static analysis — Python. Formatting and linting (ruff, strict config).
+  # Fails when: the code does not meet the defined conventions.
   # ----------------------------------------------------------------------
   lint-python:
     name: Lint (Python / ruff)
@@ -25,90 +94,204 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Instalar ruff
-        run: pip install ruff
-      - name: Ejecutar ruff
-        run: ruff check .
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install tooling
+        run: pip install -r requirements-dev.txt
+
+      - name: Check formatting
+        run: ruff format --check --diff .
+
+      - name: Run linter
+        run: ruff check --output-format=github .
 
   # ----------------------------------------------------------------------
-  # Análisis estático de código — Frontend (dashboard, Next.js)
-  # Solo corre si el dashboard ya tiene package.json.
+  # Type checking (mypy --strict).
+  # Fails when: there is untyped code or inconsistent types.
   # ----------------------------------------------------------------------
-  lint-dashboard:
-    name: Lint (dashboard / ESLint)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: ¿Existe dashboard/package.json?
-        id: check
-        run: |
-          if [ -f dashboard/package.json ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "dashboard/package.json aún no existe — se omite el lint del frontend."
-          fi
-      - uses: actions/setup-node@v4
-        if: steps.check.outputs.exists == 'true'
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: dashboard/package-lock.json
-      - name: Instalar dependencias
-        if: steps.check.outputs.exists == 'true'
-        working-directory: dashboard
-        run: npm ci
-      - name: Ejecutar ESLint
-        if: steps.check.outputs.exists == 'true'
-        working-directory: dashboard
-        run: npm run lint
-
-  # ----------------------------------------------------------------------
-  # Ejecución de tests automáticos (pytest)
-  # Condición de falla: al menos un test falla.
-  # ----------------------------------------------------------------------
-  tests:
-    name: Tests (pytest)
+  typecheck:
+    name: Types (mypy --strict)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Instalar dependencias de test
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install tooling
+        run: pip install -r requirements-dev.txt
+
+      - name: Run mypy
         run: |
-          pip install pytest
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-      - name: Ejecutar pytest
-        run: |
-          # exit code 5 = "no se recolectaron tests"; aceptable mientras el
-          # proyecto está vacío. Cualquier test fallido (1) sí rompe el pipeline.
-          pytest
-          code=$?
-          if [ $code -eq 5 ]; then
-            echo "No hay tests todavía — OK."
+          # Files are passed explicitly: `mypy .` skips hidden directories, and the
+          # hooks under .claude/hooks/ are code we maintain too.
+          find_py() {
+            find . -name '*.py' -not -path './.venv/*' -not -path './.git/*' "$@"
+          }
+          if [ -z "$(find_py -print -quit)" ]; then
+            echo "No Python code yet — nothing to check."
             exit 0
           fi
-          exit $code
+          find_py -print0 | xargs -0 mypy
 
   # ----------------------------------------------------------------------
-  # Verificación de variables de entorno / credenciales hardcodeadas
-  # Condición de falla: se detecta un patrón de credencial en el código.
+  # Architecture boundaries (hexagonal layering + bounded contexts).
+  # Fails when: a module reaches across a boundary the Context Map forbids.
+  # This is what keeps the modular monolith modular (ADR-0001).
+  # ----------------------------------------------------------------------
+  architecture:
+    name: Architecture boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Check hexagonal and bounded-context boundaries
+        run: python .claude/hooks/guard_architecture.py --scan .
+
+  # ----------------------------------------------------------------------
+  # Frontend gates (frontend/, Next.js) — ADR-0002.
+  # Fails when: formatting, lint, types or the 80% coverage threshold fail.
+  # ----------------------------------------------------------------------
+  lint-frontend:
+    name: Frontend gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Check formatting
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Check TypeScript types
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Verify the R5 ESLint rule still fires
+        working-directory: frontend
+        run: |
+          # A misconfigured pattern here fails open: lint stays green while the rule
+          # matches nothing. That happened once already, so it is now checked.
+          mkdir -p src/features/payments/components
+          fixture=src/features/payments/components/__r5_fixture.tsx
+          printf 'import { x } from "@/features/billing/api/client";\nexport const a = x;\n' \
+            > "$fixture"
+          if npm run lint --silent > /dev/null 2>&1; then
+            rm -f "$fixture"
+            echo "::error::The R5 ESLint rule no longer flags a deep cross-feature import."
+            exit 1
+          fi
+          rm -f "$fixture"
+          echo "R5 ESLint rule is live."
+
+      - name: Run tests with coverage
+        working-directory: frontend
+        run: npm run test:coverage
+
+  # ----------------------------------------------------------------------
+  # Automated tests and minimum coverage (80%, defined in pyproject.toml).
+  # Fails when: a test fails, or coverage drops below the threshold.
+  # ----------------------------------------------------------------------
+  tests:
+    name: Tests and coverage (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run tests with coverage
+        run: |
+          # While the project has no tests, this job passes. As soon as the first one
+          # exists, the coverage threshold from pyproject.toml applies.
+          if ! pytest --collect-only -q 2>/dev/null | grep -qE '^[^ ]+::'; then
+            echo "No collectable tests yet — nothing to run."
+            exit 0
+          fi
+          pytest --cov --cov-report=term-missing --cov-report=xml
+
+  # ----------------------------------------------------------------------
+  # Hardcoded credential detection.
+  # Fails when: a credential pattern is found in the code.
   # ----------------------------------------------------------------------
   secret-scan:
-    name: Detección de credenciales (gitleaks)
+    name: Credential detection (gitleaks)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Instalar gitleaks
+
+      - name: Install gitleaks
         run: |
           VERSION=8.21.2
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
             | tar -xz gitleaks
           sudo mv gitleaks /usr/local/bin/
-      - name: Escanear el árbol de trabajo
+
+      - name: Scan the working tree
         run: gitleaks detect --source . --no-git --redact -v
+
+  # ----------------------------------------------------------------------
+  # Repository configuration integrity.
+  # Fails when: the local hooks are broken, or the Claude Code configuration is
+  # not valid JSON (which would silently disable every rule for the whole team).
+  # ----------------------------------------------------------------------
+  guards:
+    name: Local guard integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Validate .claude/settings.json
+        run: |
+          jq -e '.hooks.PreToolUse' .claude/settings.json > /dev/null \
+            || { echo "::error::.claude/settings.json is invalid or lost its hooks."; exit 1; }
+          echo "settings.json is valid and declares its hooks."
+
+      - name: Validate that the hooks still compile
+        run: |
+          for h in .claude/hooks/*.py; do
+            python -m py_compile "$h" || { echo "::error::$h does not compile."; exit 1; }
+          done
+          for s in .claude/hooks/*.sh; do
+            bash -n "$s" || { echo "::error::$s does not compile."; exit 1; }
+          done
+          echo "All hooks are syntactically valid."
+
+      - name: Verify the guards still block
+        run: |
+          git config --global user.email "ci@cheatsheet.local"
+          git config --global user.name "CI"
+          bash .claude/hooks/test_guards.sh
