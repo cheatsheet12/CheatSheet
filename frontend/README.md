@@ -49,8 +49,11 @@ import { useCobro } from "@/features/payments";
 A screen that composes several contexts does that **in the route**, not through a
 cross-feature import. If code is genuinely common, it belongs in `@/shared`.
 
-Enforced by `.claude/hooks/guard_architecture.py` (blocks the write), the `architecture`
-CI job, and an ESLint `no-restricted-imports` rule so it also surfaces in the editor.
+Enforced by `.claude/hooks/guard_architecture.py` (blocks the write) and the
+`architecture` CI job — both resolve the path, so they catch the alias form and the
+relative form alike. ESLint adds a `no-restricted-imports` rule that surfaces the alias
+form in the editor; it matches the literal specifier, so a relative cross-feature import
+slips past it. ESLint is the convenience, the hook is the gate.
 
 ## Gates
 

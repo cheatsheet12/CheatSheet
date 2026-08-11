@@ -56,9 +56,10 @@ Routes stay thin: a page composes from a feature, it does not hold business logi
 goes through the other feature's `index.ts`, and anything genuinely common moves to
 `shared/`. `shared/` imports nothing from `features/`.
 
-This is the frontend counterpart of R3/R4 and is enforced the same way: blocked locally
-by `.claude/hooks/guard_architecture.py` and scanned in CI, plus an ESLint
-`no-restricted-imports` rule as a second net inside the editor.
+This is the frontend counterpart of R3/R4, blocked locally by
+`.claude/hooks/guard_architecture.py` and scanned in CI. ESLint adds a
+`no-restricted-imports` rule that surfaces the alias form in the editor; it cannot see
+the relative form, so it is a convenience rather than the gate.
 
 **3. The gates land with this ADR, not later.** `package.json`, `tsconfig.json` with
 `strict` plus `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`, ESLint

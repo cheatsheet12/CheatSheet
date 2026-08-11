@@ -20,8 +20,8 @@
       {
         "patterns": [
           {
-            "group": ["../../features/*", "../../../features/*", "@/features/*/!(index)*"],
-            "message": "Cross-feature imports must go through the feature's public entry point (see R5 in docs/architecture.md). Shared code belongs in @/shared."
+            "group": ["@/features/*/**"],
+            "message": "R5: import the feature's public entry point (@/features/<name>), not its internals. See docs/architecture.md §5. Genuinely shared code belongs in @/shared; generic HTTP plumbing belongs in @/lib."
           }
         ]
       }

@@ -113,9 +113,13 @@ and by the `architecture` CI job (`--scan`, blocks the merge):
 
 Dependencies point inwards only: `infrastructure → application → domain`.
 
-R1–R4 apply to `backend/src/cheatsheet/**`, R5 to `frontend/src/**`. ESLint carries a
-`no-restricted-imports` rule as a second net, so the violation also shows up in the
-editor.
+R1–R4 apply to `backend/src/cheatsheet/**`, R5 to `frontend/src/**`.
+
+ESLint carries a `no-restricted-imports` rule so the **alias** form
+(`@/features/x/...`) also surfaces in the editor. It cannot catch the **relative**
+form (`../../payments/hooks/x`): ESLint matches the literal specifier, and a relative
+path into another feature contains no marker to match on. The hook and the CI scan
+resolve the path, so they catch both — ESLint is a convenience, not the gate.
 
 ---
 
