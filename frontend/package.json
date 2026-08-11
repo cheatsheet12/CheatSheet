@@ -1,5 +1,5 @@
 {
-  "name": "cheatsheet-dashboard",
+  "name": "cheatsheet-frontend",
   "version": "0.1.0",
   "private": true,
   "description": "CheatSheet admin panel — Next.js 14 App Router, deployed on Vercel",

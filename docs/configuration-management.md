@@ -33,7 +33,7 @@ cheatsheet/
 │   ├── tests/
 │   ├── pyproject.toml          # packaging + application dependencies
 │   └── .env.example
-├── dashboard/                  # Next.js 14 admin panel
+├── frontend/                  # Next.js 14 admin panel
 │   └── .env.example
 ├── docs/                       # Internal technical documentation, ADRs
 ├── .claude/                    # Shared agent configuration and enforcement hooks
@@ -101,7 +101,7 @@ is a critical legal and security risk.
 
 Each application carries its own versioned `.env.example`, listing the required
 variables without their real values: `backend/.env.example` for the API and the
-workers, and `dashboard/.env.example` for the panel. An env file lives next to the
+workers, and `frontend/.env.example` for the panel. An env file lives next to the
 process that reads it, and these are two separately deployed processes.
 
 The backend template covers:
@@ -166,9 +166,10 @@ that runs automatically on every Pull Request targeting `develop` or `main`.
 | Repository conventions | Branch name, target branch and commit message format | They do not follow GitFlow or Conventional Commits |
 | Static analysis | `ruff format --check` and `ruff check` over the PR code | The code does not meet the defined style, security or complexity rules |
 | Type checking | `mypy --strict` over the whole codebase | There is untyped code or inconsistent types |
-| Frontend analysis | ESLint and `tsc --noEmit` on the dashboard | Only runs once `dashboard/package.json` exists |
+| Frontend gates | Prettier, ESLint, `tsc --noEmit` and Vitest on `frontend/` | Formatting, lint, types or the 80% coverage threshold fail |
 | Automated tests | The test suite for the affected module, with coverage | At least one test fails, or coverage drops below 80% |
 | Credential detection | `gitleaks` scanning for hardcoded credentials | A credential pattern is detected in the code |
+| Architecture boundaries | Rules R1–R5 across both applications | A module reaches across a boundary the Context Map forbids |
 | Guard integrity | The local hooks still block what they should | A hook stopped blocking, or `.claude/settings.json` became invalid |
 
 **A Pull Request cannot be merged if the pipeline fails.** This rule is automatic and

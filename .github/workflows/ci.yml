@@ -156,11 +156,11 @@ jobs:
         run: python .claude/hooks/guard_architecture.py --scan .
 
   # ----------------------------------------------------------------------
-  # Frontend gates (dashboard, Next.js) — ADR-0002.
+  # Frontend gates (frontend/, Next.js) — ADR-0002.
   # Fails when: formatting, lint, types or the 80% coverage threshold fail.
   # ----------------------------------------------------------------------
-  lint-dashboard:
-    name: Frontend gates (dashboard)
+  lint-frontend:
+    name: Frontend gates
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -169,26 +169,26 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: dashboard/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        working-directory: dashboard
+        working-directory: frontend
         run: npm ci
 
       - name: Check formatting
-        working-directory: dashboard
+        working-directory: frontend
         run: npm run format:check
 
       - name: Run ESLint
-        working-directory: dashboard
+        working-directory: frontend
         run: npm run lint
 
       - name: Check TypeScript types
-        working-directory: dashboard
+        working-directory: frontend
         run: npm run typecheck
 
       - name: Run tests with coverage
-        working-directory: dashboard
+        working-directory: frontend
         run: npm run test:coverage
 
   # ----------------------------------------------------------------------

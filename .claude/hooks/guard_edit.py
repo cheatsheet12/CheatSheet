@@ -40,7 +40,7 @@ ALLOWED_TOPLEVEL = {
     ".claude",
     ".github",
     "backend",
-    "dashboard",
+    "frontend",
     "docs",
 }
 
@@ -48,22 +48,22 @@ ALLOWED_TOPLEVEL = {
 # never at the repository root. The root is for what governs the whole repository
 # (see CLAUDE.md §2.3); a package's own config belongs next to the package.
 MISPLACED_AT_ROOT: dict[str, str] = {
-    ".env.example": "backend/ and dashboard/ each keep their own — an env file lives "
+    ".env.example": "backend/ and frontend/ each keep their own — an env file lives "
     "next to the process that reads it",
-    "package.json": "dashboard/",
-    "package-lock.json": "dashboard/",
-    "tsconfig.json": "dashboard/",
-    "next.config.js": "dashboard/",
-    "next.config.mjs": "dashboard/",
-    "next.config.ts": "dashboard/",
-    "tailwind.config.ts": "dashboard/",
-    "postcss.config.js": "dashboard/",
-    "eslint.config.js": "dashboard/",
-    ".eslintrc.json": "dashboard/",
+    "package.json": "frontend/",
+    "package-lock.json": "frontend/",
+    "tsconfig.json": "frontend/",
+    "next.config.js": "frontend/",
+    "next.config.mjs": "frontend/",
+    "next.config.ts": "frontend/",
+    "tailwind.config.ts": "frontend/",
+    "postcss.config.js": "frontend/",
+    "eslint.config.js": "frontend/",
+    ".eslintrc.json": "frontend/",
     "requirements.txt": "backend/ — the root only pins the tooling that checks the "
     "whole repository, not the application's dependencies",
     "alembic.ini": "backend/",
-    "dockerfile": "backend/ or dashboard/ — each application builds its own image",
+    "dockerfile": "backend/ or frontend/ — each application builds its own image",
 }
 
 # Credential files that are never committed.
@@ -214,7 +214,7 @@ def check_branch(root: Path) -> None:
         "Create a working branch with a valid name to continue:\n"
         "    git checkout -b feature/<module>-<kebab-description>\n"
         "    git checkout -b fix/<module>-<kebab-description>\n\n"
-        "Modules: identity, master_data, business_config, integrations, spreadsheet_sync, billing, payments, scheduling, conversational, observability, reporting, reference_data, dashboard, infra.\n"
+        "Modules: identity, master_data, business_config, integrations, spreadsheet_sync, billing, payments, scheduling, conversational, observability, reporting, reference_data, frontend, infra.\n"
         "Example:  git checkout -b feature/billing-cuit-validation"
     )
 

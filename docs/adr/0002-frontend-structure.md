@@ -1,9 +1,9 @@
-# ADR-0002 — Organize the dashboard by bounded context, and gate it like the backend
+# ADR-0002 — Organize the frontend by bounded context, and gate it like the backend
 
 - **Status:** Accepted
 - **Date:** 2026-08-10
 - **Decided by:** Software Architect
-- **Modules affected:** `dashboard` (all twelve contexts, from the client side)
+- **Modules affected:** `frontend` (all twelve contexts, from the client side)
 
 ---
 
@@ -19,12 +19,12 @@ What it did **not** settle is how that single application is organized internall
 the backend there are twelve ADRs with alternatives and trade-offs; for the frontend
 there is a container, a framework and a screen list.
 
-That left two problems, both already documented as gaps in `dashboard/README.md`:
+That left two problems, both already documented as gaps in `frontend/README.md`:
 
 1. **No structure.** Nothing said where a feature's code belongs, so the first person
    to write a screen would decide it by accident for everyone.
-2. **No gates.** `lint-dashboard` reported green because it skipped itself while
-   `dashboard/package.json` was absent. Coverage, strict typing and the architecture
+2. **No gates.** `lint-frontend` reported green because it skipped itself while
+   `frontend/package.json` was absent. Coverage, strict typing and the architecture
    rules did not reach the frontend at all. The frontend was governed by review alone —
    the exact failure mode [ADR-0001](0001-repository-structure.md) exists to prevent.
 
@@ -33,11 +33,11 @@ that grew for three months without a type checker cannot be retrofitted cheaply.
 
 ## Decision
 
-**1. `dashboard/src/features/<context>/` mirrors the twelve backend bounded contexts**,
+**1. `frontend/src/features/<context>/` mirrors the twelve backend bounded contexts**,
 using the same names:
 
 ```
-dashboard/src/
+frontend/src/
 ├── app/                        # Next.js routes (App Router) — thin
 │   ├── (panel)/…               # authenticated admin panel
 │   └── (public)/…              # token-gated accountant access, login
@@ -63,7 +63,7 @@ by `.claude/hooks/guard_architecture.py` and scanned in CI, plus an ESLint
 **3. The gates land with this ADR, not later.** `package.json`, `tsconfig.json` with
 `strict` plus `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`, ESLint
 (including a ban on `any`), Prettier, and Vitest with the same 80% coverage threshold as
-the backend. `lint-dashboard` now runs lint, format check and `tsc --noEmit` for real.
+the backend. `lint-frontend` now runs lint, format check and `tsc --noEmit` for real.
 
 **4. No application code in this ADR.** No pages, no components, no layout. The scaffold
 is the rules and the toolchain; the screens are built by whoever owns each one, already
@@ -84,8 +84,8 @@ inside the gates.
 
 - One vocabulary end to end. The API is organized by bounded context, so the client is
   too: a developer moving between `backend/contexts/billing/` and
-  `dashboard/src/features/billing/` carries the same mental model.
-- The frontend stops being the ungoverned half of the monorepo. `lint-dashboard` now
+  `frontend/src/features/billing/` carries the same mental model.
+- The frontend stops being the ungoverned half of the monorepo. `lint-frontend` now
   fails on a real problem instead of passing on an absent one.
 - R5 gives the frontend a boundary that can actually be checked, so feature coupling
   surfaces at write time rather than during a refactor.
@@ -106,9 +106,9 @@ inside the gates.
 - [x] [`CLAUDE.md`](../../CLAUDE.md) — §2 frontend structure and R5
 - [x] [`docs/architecture.md`](../architecture.md) — R5 added to the dependency rules
 - [x] [`docs/code-standards.md`](../code-standards.md) — §0 scope table updated: the frontend column is no longer empty
-- [x] `.claude/hooks/guard_architecture.py` — R5 for `dashboard/src/`
-- [x] [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — `lint-dashboard` runs for real; `architecture` scans the frontend
-- [x] [`dashboard/README.md`](../../dashboard/README.md) — the gap table replaced by what is now enforced
+- [x] `.claude/hooks/guard_architecture.py` — R5 for `frontend/src/`
+- [x] [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — `lint-frontend` runs for real; `architecture` scans the frontend
+- [x] [`frontend/README.md`](../../frontend/README.md) — the gap table replaced by what is now enforced
 
 ## References
 

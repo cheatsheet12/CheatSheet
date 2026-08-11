@@ -13,7 +13,7 @@ Core: · Supporting: · Generic:
 - [ ] `master_data` — [ ] `business_config` — [ ] `reporting` — [ ] `reference_data`
 - [ ] `identity` — [ ] `integrations` — [ ] `observability`
 - [ ] `shared` / `api` / `workers` / `platform`
-- [ ] `dashboard`
+- [ ] `frontend`
 - [ ] tests / docs / infra
 
 ## Type of change
@@ -36,7 +36,7 @@ Configuration and security:
 
 - [ ] **No hardcoded credentials, tokens or secrets**
 - [ ] No real personal or tax data added (not in code, not in tests, not in logs)
-- [ ] If an external integration was added, the right **`.env.example` was updated** (`backend/` or `dashboard/`, empty values)
+- [ ] If an external integration was added, the right **`.env.example` was updated** (`backend/` or `frontend/`, empty values)
 - [ ] Every new external call defines **timeout, retry and idempotency**
 
 Architecture (see [`docs/architecture.md`](../docs/architecture.md)):

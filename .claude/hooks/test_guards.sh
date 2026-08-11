@@ -101,13 +101,13 @@ edit_case ALLOW 'docs/adr/1.md' 'text'               'subdirectory of docs/'
 edit_case ALLOW 'setup.cfg'     '[x]'                'repo-wide loose file at the root'
 
 echo "guard_edit.py — monorepo root versus package"
-edit_case deny  'package.json'   '{}'                'dashboard config dropped at the root'
+edit_case deny  'package.json'   '{}'                'frontend config dropped at the root'
 edit_case deny  'requirements.txt' 'fastapi'         'backend app dependencies at the root'
 edit_case deny  'tsconfig.json'  '{}'                'TypeScript config at the root'
 edit_case deny  '.env.example'   'X='                'env template at the root instead of per package'
-edit_case ALLOW 'dashboard/package.json'    '{}'     'dashboard config inside its package'
+edit_case ALLOW 'frontend/package.json'    '{}'     'frontend config inside its package'
 edit_case ALLOW 'backend/requirements.txt'  'fastapi' 'backend dependencies inside its package'
-edit_case ALLOW 'dashboard/.env.example'    'NEXT_PUBLIC_API_BASE_URL=' 'dashboard env template'
+edit_case ALLOW 'frontend/.env.example'    'NEXT_PUBLIC_API_BASE_URL=' 'frontend env template'
 edit_case ALLOW 'pyproject.toml' '[tool.ruff]'       'repo-wide tooling config at the root'
 
 echo "guard_architecture.py — hexagonal and bounded-context boundaries"
@@ -140,7 +140,7 @@ arch_case ALLOW "$B/contexts/billing/infrastructure/arca.py" \
   'import zeep' 'infrastructure using a SOAP client'
 arch_case ALLOW "$B/api/main.py" \
   'from fastapi import FastAPI' 'composition root using FastAPI'
-D="dashboard/src"
+D="frontend/src"
 arch_case deny "$D/features/billing/components/Form.tsx" \
   'import { x } from "@/features/payments/api/client";' 'R5 reaches into another feature via alias'
 arch_case deny "$D/features/billing/components/Form.tsx" \

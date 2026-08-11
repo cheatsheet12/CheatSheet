@@ -109,11 +109,11 @@ and by the `architecture` CI job (`--scan`, blocks the merge):
 | **R2** | `application/` imports nothing from `infrastructure/` | Application defines ports; infrastructure implements them. Dependency Inversion. |
 | **R3** | No module imports another context's `domain/` or `infrastructure/` | Contexts talk through the other's `application/` layer or through domain events. This is the boundary that makes extraction possible later. |
 | **R4** | `shared/` imports nothing from `contexts/` | Everyone depends on the Shared Kernel, so it must depend on nobody. |
-| **R5** | *(frontend)* `dashboard/src/features/X` never imports the internals of `features/Y` — only its `index.ts`; `shared/` imports no feature | The frontend counterpart of R3/R4. A screen composing several contexts does so in the route, not through a cross-feature import (ADR-0002). |
+| **R5** | *(frontend)* `frontend/src/features/X` never imports the internals of `features/Y` — only its `index.ts`; `shared/` imports no feature | The frontend counterpart of R3/R4. A screen composing several contexts does so in the route, not through a cross-feature import (ADR-0002). |
 
 Dependencies point inwards only: `infrastructure → application → domain`.
 
-R1–R4 apply to `backend/src/cheatsheet/**`, R5 to `dashboard/src/**`. ESLint carries a
+R1–R4 apply to `backend/src/cheatsheet/**`, R5 to `frontend/src/**`. ESLint carries a
 `no-restricted-imports` rule as a second net, so the violation also shows up in the
 editor.
 

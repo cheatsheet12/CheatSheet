@@ -3,7 +3,7 @@
 - **Status:** Proposed | Accepted | Rejected | Superseded by [ADR-NNNN](NNNN-....md)
 - **Date:** YYYY-MM-DD
 - **Decided by:** <responsible role — e.g. Software Architect>
-- **Modules affected:** <intake | billing | payments | agent | dashboard | reports | core | infra>
+- **Modules affected:** <identity | master_data | business_config | integrations | spreadsheet_sync | billing | payments | scheduling | conversational | observability | reporting | reference_data | frontend | infra>
 
 ---
 
@@ -51,7 +51,7 @@ Does this decision require updating any of these? Tick them and do it in the sam
 - [ ] `ALLOWED_TOPLEVEL` in `.claude/hooks/guard_edit.py`
 - [ ] [`pyproject.toml`](../../pyproject.toml) or the linter configuration
 - [ ] [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
-- [ ] `backend/.env.example` or `dashboard/.env.example`
+- [ ] `backend/.env.example` or `frontend/.env.example`
 - [ ] None
 
 ## References
