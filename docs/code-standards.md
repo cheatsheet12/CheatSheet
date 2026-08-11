@@ -13,10 +13,10 @@ Each rule states how it is enforced:
 
 ## 0. Scope — this is a monorepo, and coverage is uneven
 
-`backend/` (Python) and `dashboard/` (Next.js) live in the same repository, but the
+`backend/` (Python) and `frontend/` (Next.js) live in the same repository, but the
 rules do **not** cover them equally today.
 
-| Rule family | `backend/` | `dashboard/` |
+| Rule family | `backend/` | `frontend/` |
 | --- | --- | --- |
 | Branch protection, branch naming, commit format, PR flow | 🔒 ⛔ | 🔒 ⛔ |
 | Secrets, credential files, `.env` discipline | 🔒 ⛔ | 🔒 ⛔ |
@@ -218,17 +218,17 @@ resp = await client.post(
 
 ---
 
-## 3. TypeScript / Next.js (dashboard)
+## 3. TypeScript / Next.js (frontend)
 
-> Applies once the dashboard is scaffolded. The ESLint CI job is already in place and
-> activates itself as soon as `dashboard/package.json` appears.
+> Enforced today ([ADR-0002](adr/0002-frontend-structure.md)): the `lint-frontend` CI
+> job runs Prettier, ESLint, `tsc --noEmit` and Vitest on every PR.
 
 - `tsconfig.json` with `"strict": true`, `noUncheckedIndexedAccess`,
   `noImplicitOverride`.
 - `any` and `@ts-ignore` are forbidden. If something cannot be typed, use `unknown` and
   validate it against a schema (zod or equivalent).
 - ESLint + Prettier, with the same policy as `ruff`: no style debate in PRs.
-- **No business logic in the frontend.** The dashboard renders what the API gives it.
+- **No business logic in the frontend.** The panel renders what the API gives it.
   Taxes, totals, tax validations and payment rules live in the backend, which is the
   only auditable side.
 - Sensitive data (tokens, API keys) never reaches the client bundle. No secrets in
@@ -341,7 +341,7 @@ proposes; the code decides.
   (`ruff S608` catches it).
 - AFIP certificates are referenced by path from an environment variable; they are never
   included in the repository.
-- When adding an integration: update the `.env.example` of the application that reads it (`backend/` or `dashboard/`) **with the variable empty**, in the same PR.
+- When adding an integration: update the `.env.example` of the application that reads it (`backend/` or `frontend/`) **with the variable empty**, in the same PR.
 - Never put a secret behind `NEXT_PUBLIC_*`: Next.js inlines those into the browser bundle.
 
 ---

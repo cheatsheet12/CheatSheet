@@ -28,8 +28,8 @@ case "$file" in
     "$ruff_bin" check --quiet --fix-only "$file" 2> /dev/null
     ;;
   *.ts | *.tsx | *.js | *.jsx | *.css | *.json)
-    [ -x "$root/dashboard/node_modules/.bin/prettier" ] || exit 0
-    "$root/dashboard/node_modules/.bin/prettier" --write --log-level error "$file" 2> /dev/null
+    [ -x "$root/frontend/node_modules/.bin/prettier" ] || exit 0
+    "$root/frontend/node_modules/.bin/prettier" --write --log-level error "$file" 2> /dev/null
     ;;
 esac
 

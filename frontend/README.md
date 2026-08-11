@@ -1,4 +1,4 @@
-# dashboard — Admin panel (Next.js 14)
+# frontend — Admin panel (Next.js 14)
 
 The whole frontend lives here: one Next.js 14 application (App Router) deployed on
 Vercel, serving the SPA and acting as the BFF that holds the JWT in HttpOnly cookies.
@@ -82,7 +82,7 @@ component exists.
 ## Local setup
 
 ```bash
-cd dashboard
+cd frontend
 npm ci
 cp .env.example .env.local
 npm run dev

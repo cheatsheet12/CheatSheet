@@ -57,7 +57,7 @@ backend/src/cheatsheet/
 ├── api/                  # FastAPI composition root
 ├── workers/              # the 5 Celery workers + Beat
 └── platform/             # settings, database session, Redis, storage, telemetry
-dashboard/src/
+frontend/src/
 ├── app/                  # Next.js routes (App Router) — thin, they compose features
 │   ├── (panel)/          # authenticated admin panel
 │   └── (public)/         # login, token-gated accountant access
@@ -128,11 +128,11 @@ This is a monorepo. The rule is about **scope, not language**:
 | Inside its package | Why |
 | --- | --- |
 | `backend/pyproject.toml` | Packaging and **application** dependencies. Deliberately has no `[tool.ruff]` — ruff and mypy walk past it to the root config. |
-| `backend/.env.example`, `dashboard/.env.example` | An env file exists to be copied next to the process that reads it. These are two separately deployed processes. |
-| `dashboard/package.json`, `tsconfig.json`, ESLint/Prettier config | Configure one application. |
+| `backend/.env.example`, `frontend/.env.example` | An env file exists to be copied next to the process that reads it. These are two separately deployed processes. |
+| `frontend/package.json`, `tsconfig.json`, ESLint/Prettier config | Configure one application. |
 
 Creating an app-scoped config file at the root is blocked by hook. The test: **if it
-only affects one of `backend/` or `dashboard/`, it does not go at the root.**
+only affects one of `backend/` or `frontend/`, it does not go at the root.**
 
 ---
 
@@ -196,10 +196,10 @@ Branch naming — the hook rejects anything else:
 - Every call to an external service: **explicit timeout + retry with backoff +
   failure handling**. No exceptions.
 
-**TypeScript / Next.js (dashboard)**
+**TypeScript / Next.js (frontend)**
 
 - `strict: true` in `tsconfig.json`. `any` and `@ts-ignore` are forbidden.
-- Typed functional components. No business logic in the frontend: the dashboard
+- Typed functional components. No business logic in the frontend: the panel
   consumes the API, it does not compute taxes.
 
 **Testing**
@@ -232,7 +232,7 @@ Full detail, with right-and-wrong examples:
 ```
 
 Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `ci`.
-Modules: the twelve context names (§2), plus `dashboard` and `infra`.
+Modules: the twelve context names (§2), plus `frontend` and `infra`.
 
 ```
 GOOD  feat(payments): handle duplicate MercadoPago webhooks
@@ -251,7 +251,7 @@ A change is **not finished** until:
 - [ ] `mypy .` passes with no new errors
 - [ ] `pytest` passes and coverage for the touched module did not drop
 - [ ] No secrets or personal data in the diff (`gitleaks` green)
-- [ ] If an external integration was added: the right `.env.example` updated (`backend/` or `dashboard/`)
+- [ ] If an external integration was added: the right `.env.example` updated (`backend/` or `frontend/`)
 - [ ] If an architectural decision was made: ADR written in `docs/adr/`
 - [ ] The PR template is filled in
 

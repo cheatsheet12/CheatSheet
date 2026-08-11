@@ -56,7 +56,7 @@ htmlcov/
 .ruff_cache/
 
 # ==========================================================================
-# Node.js / Next.js (dashboard)
+# Node.js / Next.js (frontend)
 # ==========================================================================
 node_modules/
 .npm/
@@ -69,8 +69,8 @@ out/
 next-env.d.ts
 
 # Frontend build
-dashboard/build/
-dashboard/dist/
+frontend/build/
+frontend/dist/
 
 # Frontend test coverage
 coverage/

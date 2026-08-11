@@ -31,19 +31,22 @@ Three layers enforce those rules:
 
 ## Structure
 
-> **Pending definition.** The final directory layout depends on the architecture, which
-> has not been decided yet. For now the repository only contains the configuration
-> infrastructure (CI, templates, documentation and root files).
-
-Planned stacks: **Python** for the backend / system modules and **Next.js** for the web
-admin panel. The module split proposed in the plan (intake, billing, payments, agent,
-reports, core, dashboard) will materialize once the architecture is decided.
+A **monorepo** with two applications, organised by bounded context
+([ADR-0001](docs/adr/0001-repository-structure.md),
+[ADR-0002](docs/adr/0002-frontend-structure.md)).
 
 | Directory | Contents |
 | --- | --- |
-| `docs/` | Internal technical documentation (including the configuration plan) |
+| `backend/` | Python 3.11 / FastAPI — the API, five Celery workers and the scheduler |
+| `frontend/` | Next.js 14 — the admin panel and its BFF |
+| `docs/` | Internal technical documentation, architecture reference and ADRs |
 | `.github/` | CI (GitHub Actions) and PR template |
 | `.claude/` | Shared team configuration and hooks that block rule violations |
+
+Both applications are organised by the same twelve bounded contexts:
+`identity`, `master_data`, `business_config`, `integrations`, `spreadsheet_sync`,
+`billing`, `payments`, `scheduling`, `conversational`, `observability`, `reporting`,
+`reference_data`.
 
 ## Branching (GitFlow)
 
@@ -71,7 +74,7 @@ fails.
 ```bash
 # 1. Copy the environment variable template of each application and fill it in
 cp backend/.env.example backend/.env              # NEVER committed
-cp dashboard/.env.example dashboard/.env.local    # NEVER committed
+cp frontend/.env.example frontend/.env.local    # NEVER committed
 
 # 2. Backend (Python 3.11)
 python -m venv .venv && source .venv/bin/activate
@@ -100,7 +103,7 @@ The [`.github/workflows/ci.yml`](.github/workflows/ci.yml) workflow runs on ever
 | `conventions` | Branch name, target branch and commit messages | They do not follow GitFlow or Conventional Commits |
 | `lint-python` | `ruff format --check` + `ruff check` | Style, security (bandit), complexity or missing annotations |
 | `typecheck` | `mypy --strict` | Untyped or inconsistently typed code |
-| `lint-dashboard` | ESLint + `tsc --noEmit` | Only runs once `dashboard/package.json` exists |
+| `lint-frontend` | ESLint + `tsc --noEmit` | Only runs once `frontend/package.json` exists |
 | `tests` | `pytest` + coverage | A test fails or coverage drops below 80% |
 | `secret-scan` | `gitleaks` | A credential is detected in the code |
 | `guards` | Integrity of the local hooks | A hook stopped blocking, or `settings.json` is invalid |

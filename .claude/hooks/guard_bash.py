@@ -25,7 +25,7 @@ PROTECTED_BRANCHES = {"main", "develop"}
 # The module segment may contain underscores (e.g. spreadsheet_sync).
 BRANCH_NAMING = re.compile(r"^(feature|fix)/[a-z0-9_]+-[a-z0-9-]+$|^hotfix/[a-z0-9-]+$")
 
-MODULES = "identity, master_data, business_config, integrations, spreadsheet_sync, billing, payments, scheduling, conversational, observability, reporting, reference_data, dashboard, infra"
+MODULES = "identity, master_data, business_config, integrations, spreadsheet_sync, billing, payments, scheduling, conversational, observability, reporting, reference_data, frontend, infra"
 
 BRANCH_HELP = (
     "Required naming scheme (CLAUDE.md §4):\n"

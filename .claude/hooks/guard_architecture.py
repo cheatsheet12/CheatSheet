@@ -16,7 +16,7 @@ Backend — backend/src/cheatsheet/** (ADR-0001):
       Cross-context communication goes through `application/` or domain events.
   R4. `shared/` (the Shared Kernel) imports nothing from `contexts/`.
 
-Frontend — dashboard/src/** (ADR-0002):
+Frontend — frontend/src/** (ADR-0002):
 
   R5. A feature never imports another feature's internals, only its `index.ts`;
       `shared/` imports no feature. A screen composing several contexts does so
@@ -44,7 +44,7 @@ from pathlib import Path
 BACKEND_PACKAGE = "backend/src/cheatsheet"
 ROOT_MODULE = "cheatsheet"
 
-FRONTEND_PACKAGE = "dashboard/src"
+FRONTEND_PACKAGE = "frontend/src"
 
 LAYERS = ("domain", "application", "infrastructure")
 
@@ -125,7 +125,7 @@ TS_IMPORT = re.compile(
 
 
 def _feature_of(rel_path: str) -> str | None:
-    """Feature that a dashboard/src path belongs to, if any."""
+    """Feature that a frontend/src path belongs to, if any."""
     parts = Path(rel_path).parts
     try:
         i = parts.index("features")
@@ -135,7 +135,7 @@ def _feature_of(rel_path: str) -> str | None:
 
 
 def _resolve_spec(spec: str, from_path: str) -> str | None:
-    """Turn an import specifier into a dashboard/src-relative path, if it is internal."""
+    """Turn an import specifier into a frontend/src-relative path, if it is internal."""
     if spec.startswith("@/"):
         return f"{FRONTEND_PACKAGE}/{spec[2:]}"
     if spec.startswith("."):

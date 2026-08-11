@@ -37,8 +37,26 @@ deserve the same treatment.
 
 ## Decision
 
-**1. Two top-level stacks.** `backend/` (Python) and `dashboard/` (Next.js). They are
+**1. Two top-level stacks.** `backend/` (Python) and `frontend/` (Next.js). They are
 different runtimes with different tooling; a shared root would force one to bend.
+
+**1b. The two are named by tier, not by role: `backend/` and `frontend/`.**
+
+The design documents use both vocabularies — the structure listing says `dashboard/`,
+while the C4 container is called *"Aplicación Web Frontend"*. Naming by tier was chosen
+because the alternatives do not survive contact with what is actually inside:
+
+- `api/` would be **wrong** for the backend: it holds the API *and* five Celery workers
+  *and* the Beat scheduler. It is not just an API.
+- `dashboard/` was the original name and reads well, but it collides with a screen:
+  MOD-11 (Reportería) is literally *"KPIs y dashboard"*, screen REP-DASH. Under that
+  name, `dashboard/src/features/reporting/` contained "the dashboard".
+- Mixing the two conventions — `backend/` by tier, `dashboard/` by role — left the pair
+  asymmetric, which is what made the naming a recurring question rather than an
+  obvious fact.
+
+`backend/` + `frontend/` is symmetric, matches the C4 container name, and leaves
+"dashboard" free to mean the screen it already means.
 
 **2. One `src/` package for the backend**, so tests import the installed package
 rather than relative paths:
@@ -108,9 +126,9 @@ terms. Accents are dropped for identifier safety.
 
 - [x] [`CLAUDE.md`](../../CLAUDE.md) — §2 replaced with the real structure and the four rules
 - [x] [`docs/code-standards.md`](../code-standards.md) — naming rule for domain terms
-- [x] `ALLOWED_TOPLEVEL` in `.claude/hooks/guard_edit.py` — `backend`, `dashboard` added
+- [x] `ALLOWED_TOPLEVEL` in `.claude/hooks/guard_edit.py` — `backend`, `frontend` added
 - [x] [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — `architecture` job added
-- [x] `.env.example` split into [`backend/`](../../backend/.env.example) and [`dashboard/`](../../dashboard/.env.example)
+- [x] `.env.example` split into [`backend/`](../../backend/.env.example) and [`frontend/`](../../frontend/.env.example)
 - [x] New: [`docs/architecture.md`](../architecture.md), `.claude/hooks/guard_architecture.py`
 
 ## References
