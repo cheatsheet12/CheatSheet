@@ -187,6 +187,23 @@ jobs:
         working-directory: frontend
         run: npm run typecheck
 
+      - name: Verify the R5 ESLint rule still fires
+        working-directory: frontend
+        run: |
+          # A misconfigured pattern here fails open: lint stays green while the rule
+          # matches nothing. That happened once already, so it is now checked.
+          mkdir -p src/features/payments/components
+          fixture=src/features/payments/components/__r5_fixture.tsx
+          printf 'import { x } from "@/features/billing/api/client";\nexport const a = x;\n' \
+            > "$fixture"
+          if npm run lint --silent > /dev/null 2>&1; then
+            rm -f "$fixture"
+            echo "::error::The R5 ESLint rule no longer flags a deep cross-feature import."
+            exit 1
+          fi
+          rm -f "$fixture"
+          echo "R5 ESLint rule is live."
+
       - name: Run tests with coverage
         working-directory: frontend
         run: npm run test:coverage
