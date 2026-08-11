@@ -11,6 +11,32 @@ hook or a CI job that blocks it.
 > **Language policy.** Everything in this repository — code, comments, documentation,
 > commit messages, branch names, ADRs, hook output — is written in **English**.
 > Spanish is used only when talking to the user.
+>
+> **One declared exception:** the AI-DLC work products under [`docs/aidlc/`](docs/aidlc/)
+> (PRD, requisitos, historias de usuario, diseños, casos de prueba, planes, estado y
+> auditoría) are written in **Spanish**, because they are academic deliverables presented
+> to the cátedra. This exception covers `docs/aidlc/` and nothing else — not code, not
+> commits, not branches, not ADRs, not the workflow rule files themselves. Do not
+> "correct" those documents into English.
+
+---
+
+## 0. How work is done here — AI-DLC
+
+Development in this repository follows **AI-DLC**, the workflow defined in
+[`.claude/aidlc/AIDLC.md`](.claude/aidlc/AIDLC.md). It is the default path for any feature,
+module, fix, refactor or migration — not something the user has to ask for.
+
+@.claude/aidlc/AIDLC.md
+
+Three gates, and nothing else stops the work: the **unit plan** before any code, the
+**verification** after implementing, and the **Pull Request**. The analysis that precedes
+them (architecture, requirements, user stories, prototypes, standards) is already done and
+is consumed, never regenerated.
+
+The workflow governs *how work is planned, approved and documented*. This constitution
+governs *what the code may look like*. **Where the two conflict, this file wins** and the
+workflow adapts.
 
 ---
 
