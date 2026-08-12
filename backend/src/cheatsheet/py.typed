@@ -1,0 +1,6 @@
+# PEP 561 marker: this package ships inline type information.
+#
+# Without this file mypy treats `cheatsheet` as an untyped third-party library the
+# moment it is imported from outside the source tree — which is exactly what the test
+# suite does. Every import then degrades to `Any` and `mypy --strict` checks nothing
+# while reporting success, which is the worst possible failure mode for a type gate.

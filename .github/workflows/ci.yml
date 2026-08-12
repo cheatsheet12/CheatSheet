@@ -125,12 +125,22 @@ jobs:
       - name: Install tooling
         run: pip install -r requirements-dev.txt
 
+      - name: Install the backend package
+        # Without this, `import fastapi` is an unresolved import and mypy --strict
+        # fails on every module of the application. The package is installed rather
+        # than a requirements file because its dependencies live in backend/pyproject.
+        run: pip install -e backend/
+
       - name: Run mypy
         run: |
           # Files are passed explicitly: `mypy .` skips hidden directories, and the
-          # hooks under .claude/hooks/ are code we maintain too.
+          # hooks under .claude/hooks/ are code we maintain too. node_modules is
+          # excluded because it ships Python of its own that is nobody's to fix.
           find_py() {
-            find . -name '*.py' -not -path './.venv/*' -not -path './.git/*' "$@"
+            find . -name '*.py' \
+              -not -path './.venv/*' \
+              -not -path './.git/*' \
+              -not -path './frontend/node_modules/*' "$@"
           }
           if [ -z "$(find_py -print -quit)" ]; then
             echo "No Python code yet — nothing to check."
@@ -215,6 +225,39 @@ jobs:
   tests:
     name: Tests and coverage (pytest)
     runs-on: ubuntu-latest
+
+    services:
+      # Row-Level Security is a feature of the engine: it cannot be faked, and a test
+      # against SQLite would pass while proving nothing. pgvector's image because
+      # migration 0001 installs the `vector` extension.
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: cheatsheet_owner
+          POSTGRES_PASSWORD: test-only-ci-container
+          POSTGRES_DB: cheatsheet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cheatsheet_owner -d cheatsheet"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      # The application connects as a role that owns nothing, so RLS actually applies
+      # to it; migrations connect as the owner. Test-only values for a container that
+      # lives for the length of this job.
+      DATABASE_URL: postgresql+asyncpg://cheatsheet_app:test-only-ci-container@localhost:5432/cheatsheet
+      DATABASE_URL_MIGRATIONS: postgresql+asyncpg://cheatsheet_owner:test-only-ci-container@localhost:5432/cheatsheet
+      REDIS_URL: redis://localhost:6379/0
+      APP_ENV: test
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -224,9 +267,24 @@ jobs:
           cache-dependency-path: requirements-dev.txt
 
       - name: Install dependencies
+        # `pip install -e backend/` and not a root requirements.txt: application
+        # dependencies live in backend/pyproject.toml, and guard_edit.py blocks a
+        # requirements.txt at the root precisely so there is one answer to this.
         run: |
           pip install -r requirements-dev.txt
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -e backend/
+
+      - name: Provision the application role
+        # Same SQL the local docker-compose runs, so the two environments cannot drift.
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+          PGPASSWORD=test-only-ci-container psql -h localhost -U cheatsheet_owner -d cheatsheet \
+            -v ON_ERROR_STOP=1 -f backend/scripts/init-db.sql
+          PGPASSWORD=test-only-ci-container psql -h localhost -U cheatsheet_owner -d cheatsheet \
+            -v ON_ERROR_STOP=1 -c "ALTER ROLE cheatsheet_app PASSWORD 'test-only-ci-container'"
+
+      - name: Apply migrations
+        run: alembic -c backend/alembic.ini upgrade head
 
       - name: Run tests with coverage
         run: |
@@ -237,6 +295,21 @@ jobs:
             exit 0
           fi
           pytest --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Verify the integration tests actually ran
+        # The database tests skip themselves when DATABASE_URL is unset. That is right
+        # on a laptop and wrong here: a misconfigured service container would turn the
+        # isolation suite into a green no-op, which is the worst kind of passing build.
+        run: |
+          if pytest backend/tests/integracion -q --collect-only 2>/dev/null | grep -q "no tests ran"; then
+            echo "::error::No se recolectaron los tests de integración."
+            exit 1
+          fi
+          pytest backend/tests/integracion -q -p no:cacheprovider | tee /tmp/integracion.txt
+          if grep -q "skipped" /tmp/integracion.txt; then
+            echo "::error::Los tests de integración se saltearon: la base no está configurada en CI."
+            exit 1
+          fi
 
   # ----------------------------------------------------------------------
   # Hardcoded credential detection.

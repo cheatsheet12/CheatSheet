@@ -22,7 +22,22 @@ requires-python = ">=3.11"
 # the PR that introduces the use. The containers they correspond to are decided
 # (see docs/architecture.md §2): FastAPI/Uvicorn, SQLAlchemy + asyncpg, Alembic,
 # Celery + Redis, boto3 (Cloudflare R2), PyAfipWs (ADR-012).
-dependencies = []
+#
+# Still absent, and deliberately: boto3 (R2 is first used by the report generator,
+# epic 9) and PyAfipWs (ARCA, epic 2). A dependency arrives with its first caller.
+dependencies = [
+    "fastapi==0.115.4",
+    "uvicorn[standard]==0.32.0",
+    "sqlalchemy[asyncio]==2.0.36",
+    "asyncpg==0.30.0",
+    "alembic==1.14.0",
+    "celery[redis]==5.4.0",
+    "redis==5.2.0",
+    "structlog==24.4.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cheatsheet"]
+# PEP 561: ship the marker so consumers (starting with the test suite) see the types
+# instead of silently degrading every import to Any.
+artifacts = ["src/cheatsheet/py.typed"]

@@ -7,6 +7,11 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  // tsconfig.json sets `jsx: preserve` because Next.js does its own transform. esbuild,
+  // which is what Vitest uses, would then hand raw JSX to the runtime. Telling it to
+  // use the automatic runtime here keeps component tests possible without adding a
+  // React plugin whose only job would be this.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],

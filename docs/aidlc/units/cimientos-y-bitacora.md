@@ -153,13 +153,13 @@ motor. Probarlo contra SQLite sería un test que pasa siempre y no verifica nada
 
 ## Riesgos que obligan a tests
 
-- [ ] Toca dinero → **no aplica** en esta unidad.
-- [ ] Toca comprobantes fiscales / CAE → **no aplica**.
-- [ ] Consume un webhook → **no aplica**.
+- [x] Toca dinero → **no aplica** en esta unidad.
+- [x] Toca comprobantes fiscales / CAE → **no aplica**.
+- [x] Consume un webhook → **no aplica**.
 - [x] **Agrega datos con `tenant_id`** → test de aislamiento entre tenants. Es la primera tabla del
       sistema: si RLS no funciona acá, no funciona en ninguna de las 27 que vienen.
-- [ ] Usa salida de un LLM → **no aplica**.
-- [ ] Datos personales o fiscales → la bitácora guarda `user_id`, nunca contenido personal en
+- [x] Usa salida de un LLM → **no aplica**.
+- [x] Datos personales o fiscales → la bitácora guarda `user_id`, nunca contenido personal en
       `detalle`. Se verifica en revisión, no hay test automático posible.
 
 Riesgo propio de esta unidad, no listado en la plantilla: **la inmutabilidad** (HS-T5 RN-03) tiene
@@ -169,61 +169,108 @@ que probarse en los dos niveles — que el agregado no expone mutación y que la
 ## Archivos a tocar
 
 **Backend — plataforma**
-- [ ] `backend/pyproject.toml` (dependencias) · `requirements-dev.txt`
-- [ ] `backend/src/cheatsheet/platform/{settings,database,telemetry}.py`
-- [ ] `backend/src/cheatsheet/shared/{tenant,events,clock}.py`
-- [ ] `backend/src/cheatsheet/api/{main,errors,dependencies}.py` · `api/routers/health.py`
-- [ ] `backend/src/cheatsheet/api/middleware/tenant.py`
-- [ ] `backend/src/cheatsheet/workers/{celery_app,beat}.py` · `workers/base.py`
-- [ ] `backend/migrations/{env.py,alembic.ini,versions/0001_*.py}`
-- [ ] `backend/docker-compose.yml` · `backend/.env.example`
+- [x] `backend/pyproject.toml` (dependencias) · `requirements-dev.txt`
+- [x] `backend/src/cheatsheet/platform/{settings,database,telemetry}.py`
+- [x] `backend/src/cheatsheet/shared/{tenant,events,clock}.py`
+- [x] `backend/src/cheatsheet/api/{main,errors,dependencies}.py` · `api/routers/health.py`
+- [x] `backend/src/cheatsheet/api/middleware/tenant.py`
+- [x] `backend/src/cheatsheet/workers/{celery_app,beat}.py` · `workers/base.py`
+- [x] `backend/migrations/{env.py,alembic.ini,versions/0001_*.py}`
+- [x] `backend/docker-compose.yml` · `backend/.env.example`
 
 **Backend — observability**
-- [ ] `contexts/observability/domain/{registro_de_auditoria,modulo,iniciador,resultado}.py`
-- [ ] `contexts/observability/application/{registrar_operacion,ports}.py`
-- [ ] `contexts/observability/infrastructure/{repository,subscriber,models}.py`
+- [x] `contexts/observability/domain/{registro_de_auditoria,modulo,iniciador,resultado}.py`
+- [x] `contexts/observability/application/{registrar_operacion,ports}.py`
+- [x] `contexts/observability/infrastructure/{repository,subscriber,models}.py`
 
 **Backend — tests**
-- [ ] `backend/tests/conftest.py` (fixtures de base, factories, dobles, reloj fijo)
-- [ ] `backend/tests/contexts/observability/{domain,application,infrastructure}/`
-- [ ] `backend/tests/api/test_health.py` · `backend/tests/platform/test_tenant_isolation.py`
+- [x] `backend/tests/conftest.py` (fixtures de base, factories, dobles, reloj fijo)
+- [x] `backend/tests/contexts/observability/{domain,application,infrastructure}/`
+- [x] `backend/tests/api/test_health.py` · `backend/tests/platform/test_tenant_isolation.py`
 
 **Frontend**
-- [ ] `frontend/next.config.mjs` · `frontend/.env.example`
-- [ ] `frontend/src/app/layout.tsx` · `app/(public)/layout.tsx` · `app/(panel)/layout.tsx`
-- [ ] `frontend/src/app/api/health/route.ts`
-- [ ] `frontend/src/lib/{session,api}.ts` · `frontend/src/shared/**`
-- [ ] `frontend/src/**/__tests__/`
+- [x] `frontend/next.config.mjs` · `frontend/.env.example`
+- [x] `frontend/src/app/layout.tsx` · `app/(public)/layout.tsx` · `app/(panel)/layout.tsx`
+- [x] `frontend/src/app/api/health/route.ts`
+- [x] `frontend/src/lib/{session,api}.ts` · `frontend/src/shared/**`
+- [x] `frontend/src/**/__tests__/`
 
 **Repositorio**
-- [ ] `.github/workflows/ci.yml` (los dos arreglos de arriba)
+- [x] `.github/workflows/ci.yml` (los dos arreglos de arriba)
 
 ## Casos de prueba
 
+Los 14 planificados, más los que aparecieron al escribir el código. **84 tests en total**
+(47 de Python, 37 de TypeScript).
+
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | `RegistroDeAuditoria` no expone ninguna forma de mutar sus campos | unit | pendiente |
-| 2 | Un evento con resultado `ERROR` se persiste igual que uno `COMPLETADO` (RN-04) | unit | pendiente |
-| 3 | `RegistrarOperacion` captura los seis campos de RN-02 | unit | pendiente |
-| 4 | Dos entregas del mismo `evento_id` producen **una** fila | integración | pendiente |
-| 5 | Un `UPDATE` directo sobre `registro_de_auditoria` es rechazado por la base (RN-03) | integración | pendiente |
-| 6 | Con `app.current_tenant` = A, no se ve ninguna fila del tenant B | integración | pendiente |
-| 7 | Sin `app.current_tenant` seteado, la consulta no devuelve nada (falla cerrada) | integración | pendiente |
-| 8 | Publicar un evento de dominio desde un contexto cualquiera deja su registro | integración | pendiente |
-| 9 | `GET /health` responde 200 y reporta el estado de base y Redis | integración | pendiente |
-| 10 | Una excepción de dominio se traduce a HTTP sin filtrar el stacktrace | integración | pendiente |
-| 11 | La tarea base no repite efecto ante la misma `ClaveDeIdempotencia` | unit | pendiente |
-| 12 | La migración `0001` aplica y revierte limpio | integración | pendiente |
-| 13 | El wrapper de `fetch` propaga la cookie y corta por timeout | unit (vitest) | pendiente |
-| 14 | El route handler de health no expone la URL del backend al cliente | unit (vitest) | pendiente |
+| 1 | `RegistroDeAuditoria` no expone ninguna forma de mutar sus campos | unit | ✅ |
+| 2 | Un evento con resultado `ERROR` se persiste igual que uno `COMPLETADO` (RN-04) | unit | ✅ |
+| 3 | `RegistrarOperacion` captura los seis campos de RN-02 | unit | ✅ |
+| 4 | Dos entregas del mismo `evento_id` producen **una** fila | integración | ✅ |
+| 5 | Un `UPDATE` directo sobre `registro_de_auditoria` es rechazado por la base (RN-03) | integración | ✅ |
+| 6 | Con `app.current_tenant` = A, no se ve ninguna fila del tenant B | integración | ✅ |
+| 7 | Sin `app.current_tenant` seteado, la consulta no devuelve nada (falla cerrada) | integración | ✅ |
+| 8 | Publicar un evento de dominio desde un contexto cualquiera deja su registro | unit | ✅ |
+| 9 | `GET /health` responde 200 y reporta el estado de base y Redis | integración | ✅ |
+| 10 | Una excepción de dominio se traduce a HTTP sin filtrar el stacktrace | integración | ✅ |
+| 11 | La tarea base no repite efecto ante la misma `ClaveDeIdempotencia` | unit | ✅ |
+| 12 | La migración `0001` aplica y revierte limpio | integración | ✅ |
+| 13 | El wrapper de `fetch` propaga la cookie y corta por timeout | unit (vitest) | ✅ |
+| 14 | El route handler de health no expone la URL del backend al cliente | unit (vitest) | ✅ |
+
+Agregados durante la implementación, cada uno porque el código mostró un hueco:
+
+| # | Caso | Por qué se agregó |
+|---|---|---|
+| 15 | Un `DELETE` de la aplicación es rechazado por la base | RN-03 tiene dos verbos, no uno |
+| 16 | El rol de aplicación tiene exactamente `SELECT` e `INSERT` | Verifica el grant, no su efecto |
+| 17 | La tabla tiene RLS `ENABLE` **y** `FORCE` | `ENABLE` solo deja al dueño exento: el modo de falla silencioso |
+| 18 | `WITH CHECK`: declarar un tenant e insertar la fila de otro es rechazado | La política sin `WITH CHECK` filtra lecturas pero no escrituras |
+| 19 | El `tenant_id` no sobrevive a la transacción | Una conexión del pool que arrastra el tenant anterior es la fuga clásica |
+| 20 | La falla de un suscriptor propaga al emisor | Si se tragara la excepción habría operaciones sin registrar |
+| 21 | Un evento **no** auditable pasa de largo | El mismo bus va a llevar `PagoConfirmado` |
+| 22 | En producción el header `X-Tenant-Id` se ignora | El atajo de desarrollo no puede sobrevivir a un deploy |
+| 23 | Un registro persistido se relee idéntico | El mapeo a mano en los dos sentidos es donde se esconden los bugs |
+| 24 | Las doce features exponen su `index.ts` (R5) | ESLint solo ve el import profundo, nunca el barril faltante |
+| 25 | La cookie de sesión es HttpOnly, SameSite=Lax y Secure en producción | Son propiedades de seguridad, no preferencias |
 
 ## Registro
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | 2026-08-12 | pendiente de aprobación |
-| 2 · Verificación | | |
+| 1 · Plan | 2026-08-12 | aprobado sin cambios |
+| 2 · Verificación | 2026-08-12 | ver abajo — todos los gates locales en verde, con dos pendientes declarados |
 | 3 · PR | | |
+
+### Gate 2 — resultado real
+
+```
+ruff format --check .   111 files already formatted
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 106 source files
+pytest --cov            47 passed · cobertura 89.60% (umbral 80%)
+guard_architecture      112 file(s) checked — architecture boundaries intact
+test_guards.sh          54 cases, all correct — the guards are active
+
+frontend format:check   All matched files use Prettier code style!
+frontend lint           No ESLint warnings or errors
+frontend typecheck      tsc --noEmit sin errores
+frontend test:coverage  37 passed · 92.52% líneas / 87.80% ramas (umbral 80%)
+```
+
+Los 12 tests de integración corrieron contra PostgreSQL 16 real
+(`docker compose -f backend/docker-compose.yml up -d`), no salteados.
+
+**Dos cosas que NO pude verificar y no voy a dar por buenas:**
+
+1. `gitleaks` no está instalado en la máquina local. Los valores `test-only-…` de
+   `docker-compose.yml`, `init-db.sql` y el workflow son placeholders de contenedores
+   descartables, pero la verificación queda a cargo del job `secret-scan` de CI.
+2. `backend/.env.example` y `frontend/.env.example` **no pudieron editarse**: el
+   entorno de trabajo tiene denegado el acceso a esos archivos. Las variables nuevas
+   están listadas abajo y hay que agregarlas a mano antes del PR.
 
 ## Decisiones tomadas durante la unidad
 
@@ -234,3 +281,70 @@ que probarse en los dos niveles — que el agregado no expone mutación y que la
 - **Auditoría síncrona y en la misma transacción** → decidido acá, aplica a los nueve épicos
   siguientes. Justificación arriba.
 - **Postgres real en los tests** → decidido acá. RLS no es verificable de otra forma.
+
+## Desvíos respecto del plan aprobado
+
+Cuatro, todos descubiertos al escribir el código y ninguno que cambie el alcance.
+
+1. **`Modulo`, `Iniciador`, `Resultado`, `EntidadAfectada` y `EventoAuditable` viven en `shared/`,
+   no en `observability/domain/`.** El plan los ponía en el dominio del contexto. Escribirlo lo
+   desmintió: la regla R3 prohíbe que `billing/domain` importe `observability/domain`, así que con
+   los enums ahí **ningún contexto podría emitir un evento auditable** — el hook bloquearía la
+   escritura. Son value objects entre contextos (`Modulo` es literalmente la lista de los doce), que
+   es exactamente lo que CLAUDE.md §2 dice que guarda el Shared Kernel. El agregado se quedó donde
+   estaba.
+2. **`Settings` no usa pydantic-settings.** Un dataclass congelado leyendo `os.environ` cumple lo
+   mismo —tipado, sin defaults para secretos, falla al arrancar— y deja `platform/` sin depender de
+   un framework de validación. Menos piezas en el piso sobre el que se para todo lo demás.
+3. **El suscriptor de auditoría se arma por request, no una vez al arrancar.** El plan decía
+   "registrar el suscriptor en el composition root". El composition root lo hace
+   (`api/dependencies.py::construir_publicador`), pero **por unidad de trabajo**: el registro de
+   auditoría tiene que caer en la misma transacción que la operación, y un publicador global le
+   daría a cada request un suscriptor escribiendo en la sesión de otro.
+4. **`docker-compose` publica 5433 y 6380, no 5432 y 6379.** Un desarrollador con PostgreSQL nativo
+   ya ocupa el 5432, y la falla es fea: `localhost` resuelve al servidor nativo, que contesta y
+   después dice que el rol no existe — se lee como un bug de aprovisionamiento y no como un choque
+   de puertos. En CI los puertos son los estándar porque ahí no hay con qué chocar.
+
+## Hallazgos de configuración del repositorio
+
+Cinco defectos preexistentes que este trabajo destapó. Los tres primeros hacían que un gate
+reportara verde sin haber verificado nada, que es peor que fallar.
+
+| # | Qué estaba mal | Consecuencia | Arreglo |
+|---|---|---|---|
+| 1 | El paquete `cheatsheet` no publicaba `py.typed` | mypy trataba nuestro propio código como librería sin tipos: **cada import del backend degradaba a `Any`** y `--strict` no verificaba nada | `backend/src/cheatsheet/py.typed` + `artifacts` en el pyproject del backend |
+| 2 | `[[tool.mypy.overrides]] module = ["tests.*"]` no aplicaba, y le faltaba `disallow_incomplete_defs` | Los tests fallaban el gate de tipos por no anotar `-> None` | Ambos nombres de módulo declarados, y las dos flags |
+| 3 | `per-file-ignores` de ruff apuntaba a `tests/**`, pero la suite vive en `backend/tests/**` | El patrón no matcheaba nunca; pasó inadvertido mientras todos los archivos se llamaban `test_*.py` | `**/tests/**/*.py` |
+| 4 | El job `typecheck` de CI no instalaba el paquete backend | `import fastapi` sin resolver → mypy habría fallado en cada módulo | `pip install -e backend/` |
+| 5 | El job `tests` de CI instalaba un `requirements.txt` de raíz que no existe **y que el hook `guard_edit.py` prohíbe crear**, y no tenía base de datos | Ninguna dependencia del backend instalada; los tests de integración se habrían salteado en silencio | `pip install -e backend/`, servicios `postgres:16` y `redis:7`, migraciones antes de correr, y un paso que **falla si los tests de integración se saltearon** |
+
+## Pendiente antes del PR — acción del usuario
+
+Los dos `.env.example` no pude editarlos (acceso denegado en este entorno). Hay que agregar, sin
+valores:
+
+```bash
+# backend/.env.example
+APP_ENV=
+DATABASE_URL=
+DATABASE_URL_MIGRATIONS=
+REDIS_URL=
+CELERY_BROKER_URL=
+CELERY_RESULT_BACKEND=
+LOG_LEVEL=
+```
+
+```bash
+# frontend/.env.example
+BACKEND_API_URL=
+SESSION_COOKIE_NAME=
+```
+
+Para desarrollo local, con `docker compose -f backend/docker-compose.yml up -d`:
+
+```bash
+DATABASE_URL=postgresql+asyncpg://cheatsheet_app:test-only-local-container@localhost:5433/cheatsheet
+DATABASE_URL_MIGRATIONS=postgresql+asyncpg://cheatsheet_owner:test-only-local-container@localhost:5433/cheatsheet
+REDIS_URL=redis://localhost:6380/0
+```

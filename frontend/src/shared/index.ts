@@ -5,4 +5,9 @@
  * nothing back.
  */
 
-export {};
+export { Alert } from "@/shared/ui/Alert";
+export type { PropsDeAlerta, TonoDeAlerta } from "@/shared/ui/Alert";
+export { Button } from "@/shared/ui/Button";
+export type { PropsDeBoton, VarianteDeBoton } from "@/shared/ui/Button";
+export { Card } from "@/shared/ui/Card";
+export type { PropsDeCard } from "@/shared/ui/Card";

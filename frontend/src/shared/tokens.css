@@ -1,0 +1,77 @@
+/*
+ * Design tokens.
+ *
+ * The minimum a design system needs to stop being a pile of ad-hoc values: one scale
+ * for spacing, one for type, one palette. Components below consume these variables and
+ * never hard-code a colour, so a later restyle is one file.
+ *
+ * Two decisions that are not cosmetic:
+ * - The danger colour is reserved for destructive and irreversible actions. In this
+ *   product that means issuing a tax document or refunding money, and it should never
+ *   be spent on a validation hint.
+ * - Everything respects the reader's colour scheme. An admin panel is looked at for
+ *   eight hours a day.
+ */
+
+:root {
+  --color-fondo: #ffffff;
+  --color-superficie: #f7f8fa;
+  --color-borde: #dfe3e8;
+  --color-texto: #16191d;
+  --color-texto-suave: #5b6472;
+  --color-primario: #1f5eff;
+  --color-primario-contraste: #ffffff;
+  --color-exito: #0f7b4f;
+  --color-atencion: #9a6400;
+  --color-peligro: #b3261e;
+
+  --espacio-1: 0.25rem;
+  --espacio-2: 0.5rem;
+  --espacio-3: 0.75rem;
+  --espacio-4: 1rem;
+  --espacio-6: 1.5rem;
+  --espacio-8: 2rem;
+
+  --radio: 8px;
+  --borde: 1px solid var(--color-borde);
+
+  --tipo-familia: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --tipo-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --tipo-chico: 0.8125rem;
+  --tipo-base: 0.9375rem;
+  --tipo-titulo: 1.375rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-fondo: #101317;
+    --color-superficie: #181c22;
+    --color-borde: #2a3039;
+    --color-texto: #eef1f5;
+    --color-texto-suave: #9aa4b2;
+    --color-primario: #6f9bff;
+    --color-primario-contraste: #0b1020;
+    --color-exito: #4ecb8f;
+    --color-atencion: #e0ab3a;
+    --color-peligro: #ff6b61;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: var(--tipo-familia);
+  font-size: var(--tipo-base);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
