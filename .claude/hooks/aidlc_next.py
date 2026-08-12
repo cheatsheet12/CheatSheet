@@ -17,6 +17,7 @@ If anything is missing or malformed this stays quiet rather than guessing: a wro
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import unicodedata
@@ -24,6 +25,8 @@ from pathlib import Path
 
 ROADMAP = Path("docs") / "aidlc" / "roadmap.md"
 UNITS = Path("docs") / "aidlc" / "units.md"
+
+EMPHASIS = re.compile(r"\*\*|__|(?<!\w)[*_](?!\s)|(?<!\s)[*_](?!\w)")
 
 DONE = "mergeada"
 IN_PROGRESS = "en curso"
@@ -39,7 +42,9 @@ def norm(text: str) -> str:
 
 
 def split_row(line: str) -> list[str]:
-    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+    # Emphasis is stripped because an epic name must match between roadmap.md and
+    # units.md, and whether an author bolded one of the two is not a difference.
+    return [EMPHASIS.sub("", cell).strip() for cell in line.strip().strip("|").split("|")]
 
 
 def is_separator(cells: list[str]) -> bool:
