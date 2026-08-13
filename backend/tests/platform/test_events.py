@@ -14,15 +14,9 @@ import pytest
 from cheatsheet.contexts.observability.application.registrar_operacion import RegistrarOperacion
 from cheatsheet.contexts.observability.infrastructure.subscriber import SuscriptorDeAuditoria
 from cheatsheet.platform.events import PublicadorEnProceso
-from cheatsheet.shared.auditoria import (
-    EntidadAfectada,
-    EventoAuditable,
-    Iniciador,
-    Modulo,
-    Resultado,
-)
+from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
+from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import EventoDeDominio
-from cheatsheet.shared.tenant import TenantId
 
 from tests.conftest import INSTANTE_FIJO, RepositorioDeAuditoriaEnMemoria
 
@@ -35,16 +29,15 @@ def _publicador(repositorio: RepositorioDeAuditoriaEnMemoria) -> PublicadorEnPro
 
 @pytest.mark.asyncio
 async def test_publicar_un_evento_auditable_deja_su_registro(
-    repositorio: RepositorioDeAuditoriaEnMemoria, tenant_id: TenantId
+    repositorio: RepositorioDeAuditoriaEnMemoria, empresa_id: EmpresaId
 ):
     evento = EventoAuditable(
         evento_id=uuid4(),
-        tenant_id=tenant_id,
+        empresa_id=empresa_id,
         ocurrido_en=INSTANTE_FIJO,
         modulo=Modulo.BILLING,
-        operacion="emitir_comprobante",
-        entidad_afectada=EntidadAfectada(tipo="Comprobante", identificador="A-0001-42"),
-        iniciador=Iniciador.sistema("worker"),
+        accion="emitir_comprobante",
+        entidad_afectada="Comprobante:A-0001-42",
         resultado=Resultado.COMPLETADO,
     )
 
@@ -56,10 +49,10 @@ async def test_publicar_un_evento_auditable_deja_su_registro(
 
 @pytest.mark.asyncio
 async def test_un_evento_no_auditable_pasa_de_largo(
-    repositorio: RepositorioDeAuditoriaEnMemoria, tenant_id: TenantId
+    repositorio: RepositorioDeAuditoriaEnMemoria, empresa_id: EmpresaId
 ):
     """The same bus carries PagoConfirmado; the audit sink has no opinion about it."""
-    evento = EventoDeDominio(evento_id=uuid4(), tenant_id=tenant_id, ocurrido_en=INSTANTE_FIJO)
+    evento = EventoDeDominio(evento_id=uuid4(), empresa_id=empresa_id, ocurrido_en=INSTANTE_FIJO)
 
     await _publicador(repositorio).publicar(evento)
 
@@ -67,14 +60,14 @@ async def test_un_evento_no_auditable_pasa_de_largo(
 
 
 @pytest.mark.asyncio
-async def test_sin_suscriptores_publicar_no_falla(tenant_id: TenantId):
-    evento = EventoDeDominio(evento_id=uuid4(), tenant_id=tenant_id, ocurrido_en=INSTANTE_FIJO)
+async def test_sin_suscriptores_publicar_no_falla(empresa_id: EmpresaId):
+    evento = EventoDeDominio(evento_id=uuid4(), empresa_id=empresa_id, ocurrido_en=INSTANTE_FIJO)
 
     await PublicadorEnProceso().publicar(evento)
 
 
 @pytest.mark.asyncio
-async def test_la_falla_de_un_suscriptor_propaga_al_emisor(tenant_id: TenantId):
+async def test_la_falla_de_un_suscriptor_propaga_al_emisor(empresa_id: EmpresaId):
     """HS-T5 makes the record a requirement, not a side effect.
 
     If the audit write fails, the operation must fail with it — a silently swallowed
@@ -90,5 +83,5 @@ async def test_la_falla_de_un_suscriptor_propaga_al_emisor(tenant_id: TenantId):
 
     with pytest.raises(RuntimeError, match="la base se cayo"):
         await publicador.publicar(
-            EventoDeDominio(evento_id=uuid4(), tenant_id=tenant_id, ocurrido_en=INSTANTE_FIJO)
+            EventoDeDominio(evento_id=uuid4(), empresa_id=empresa_id, ocurrido_en=INSTANTE_FIJO)
         )

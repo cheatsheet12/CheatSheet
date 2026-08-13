@@ -1,18 +1,21 @@
 """`RegistroDeAuditoria` — the aggregate behind HS-T5.
 
-The whole design of this file follows from RN-03: **audit records are immutable**.
-Immutability is not a convention to be respected here; it is enforced three times,
-because it only takes one of the three to be missing for the guarantee to be a lie:
+Its shape is the DER's (`docs/aidlc/inputs/der.md`, BC10) plus `modulo` and
+`evento_id`; the reason for each addition is in `shared/auditoria.py`.
+
+The rest of this file follows from RN-03: **audit records are immutable**. That is not
+a convention to be respected here, it is enforced three times, because it takes only
+one of the three to be missing for the guarantee to be a lie:
 
 1. **Here**, as a frozen dataclass with no method that changes anything. There is no
    `marcar_como`, no setter, no `evolucionar`. The type system says no.
 2. **In the port** (`application/ports.py`), which offers `agregar` and reads, and
    deliberately does not offer `actualizar` or `eliminar`.
-3. **In the database** (migration 0001), where the application role holds `SELECT`
-   and `INSERT` on this table and nothing else.
+3. **In the database** (migration 0001), where the application role holds `SELECT` and
+   `INSERT` on this table and nothing else.
 
-Level 1 is what a developer meets first; level 3 is what holds when someone writes
-raw SQL at three in the morning during an incident.
+Level 1 is what a developer meets first; level 3 is what holds when someone opens a
+`psql` session at three in the morning during an incident.
 
 The aggregate carries no behaviour beyond validating itself. That is not an anaemic
 model by accident — an audit record has no lifecycle. It happened, and that is all it
@@ -21,17 +24,18 @@ will ever do.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from types import MappingProxyType
 from uuid import UUID
 
-from cheatsheet.shared.auditoria import EntidadAfectada, Iniciador, Modulo, Resultado
+from cheatsheet.shared.auditoria import (
+    Modulo,
+    Resultado,
+    validar_accion,
+    validar_entidad_afectada,
+)
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
-from cheatsheet.shared.tenant import TenantId
-
-LARGO_MAXIMO_OPERACION = 120
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -42,30 +46,28 @@ class RegistroDeAuditoria:
     #: Identity of the *occurrence* that produced this record. Unique in the table, and
     #: what makes a redelivered event leave one row instead of two (ADR-009).
     evento_id: UUID
-    tenant_id: TenantId
+    empresa_id: EmpresaId
+    #: `None` means the system acted: a scheduled task, a webhook, the agent.
+    usuario_id: UsuarioId | None
     modulo: Modulo
-    operacion: str
-    entidad_afectada: EntidadAfectada
-    iniciador: Iniciador
+    accion: str
+    entidad_afectada: str
     resultado: Resultado
-    ocurrido_en: datetime
-    detalle: Mapping[str, str] = field(default_factory=dict)
+    direccion_ip: str | None
+    timestamp: datetime
 
     def __post_init__(self) -> None:
-        operacion = self.operacion.strip()
-        if not operacion:
-            raise EntradaInvalida("Un registro de auditoria requiere una operacion")
-        if len(operacion) > LARGO_MAXIMO_OPERACION:
-            raise EntradaInvalida(
-                f"La operacion excede {LARGO_MAXIMO_OPERACION} caracteres: {operacion[:40]}…"
-            )
-        if self.ocurrido_en.tzinfo is None:
-            raise EntradaInvalida("ocurrido_en debe tener zona horaria (UTC)")
-        object.__setattr__(self, "operacion", operacion)
-        # A frozen dataclass still hands out the *same* dict it was given, which the
-        # caller can then mutate. Copying it behind a read-only view closes that door.
-        object.__setattr__(self, "detalle", MappingProxyType(dict(self.detalle)))
+        if self.timestamp.tzinfo is None:
+            raise EntradaInvalida("timestamp debe tener zona horaria (UTC)")
+        object.__setattr__(self, "accion", validar_accion(self.accion))
+        object.__setattr__(
+            self, "entidad_afectada", validar_entidad_afectada(self.entidad_afectada)
+        )
 
     @property
     def fue_exitosa(self) -> bool:
         return self.resultado is Resultado.COMPLETADO
+
+    @property
+    def fue_del_sistema(self) -> bool:
+        return self.usuario_id is None

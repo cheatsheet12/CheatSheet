@@ -1,35 +1,27 @@
 """Shared test fixtures.
 
 The doubles here are hand-written rather than `unittest.mock` objects, and that is a
-choice, not an omission: a `Mock` satisfies any interface, including one that no
-longer exists. `RepositorioDeAuditoriaEnMemoria` implements `PortRegistroDeAuditoria`
-for real, so the day the port changes, these tests fail — which is the whole point of
-having a port.
+choice, not an omission: a `Mock` satisfies any interface, including one that no longer
+exists. `RepositorioDeAuditoriaEnMemoria` implements `PortRegistroDeAuditoria` for real,
+so the day the port changes, these tests fail — which is the whole point of having a
+port.
 
 Integration tests need a real PostgreSQL, because Row-Level Security is a feature of
-the engine and cannot be faked. They are skipped when the database is not configured,
-so `pytest` passes on a laptop without Docker; CI always configures it, so the gate
-never silently stops checking. See `backend/docker-compose.yml`.
+the engine and cannot be faked. They live under `tests/integracion/` with their own
+conftest, and skip themselves when the database is not configured.
 """
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
-from cheatsheet.shared.auditoria import (
-    EntidadAfectada,
-    EventoAuditable,
-    Iniciador,
-    Modulo,
-    Resultado,
-)
+from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.clock import RelojFijo
-from cheatsheet.shared.tenant import TenantId
+from cheatsheet.shared.empresa import EmpresaId
 
 INSTANTE_FIJO = datetime(2026, 8, 12, 15, 30, tzinfo=UTC)
 
@@ -62,8 +54,8 @@ def reloj() -> RelojFijo:
 
 
 @pytest.fixture
-def tenant_id() -> TenantId:
-    return TenantId(uuid4())
+def empresa_id() -> EmpresaId:
+    return EmpresaId(uuid4())
 
 
 @pytest.fixture
@@ -72,24 +64,13 @@ def repositorio() -> RepositorioDeAuditoriaEnMemoria:
 
 
 @pytest.fixture
-def evento_auditable(tenant_id: TenantId) -> EventoAuditable:
+def evento_auditable(empresa_id: EmpresaId) -> EventoAuditable:
     return EventoAuditable(
         evento_id=uuid4(),
-        tenant_id=tenant_id,
+        empresa_id=empresa_id,
         ocurrido_en=INSTANTE_FIJO,
         modulo=Modulo.IDENTITY,
-        operacion="cambiar_rol_de_usuario",
-        entidad_afectada=EntidadAfectada(tipo="Usuario", identificador=str(uuid4())),
-        iniciador=Iniciador.sistema("test"),
+        accion="cambiar_rol_de_usuario",
+        entidad_afectada=f"Usuario:{uuid4()}",
         resultado=Resultado.COMPLETADO,
     )
-
-
-def url_de_migraciones() -> str | None:
-    return os.environ.get("DATABASE_URL_MIGRATIONS", "").strip() or None
-
-
-requiere_base = pytest.mark.skipif(
-    url_de_migraciones() is None,
-    reason="Necesita PostgreSQL: levantá backend/docker-compose.yml y exportá DATABASE_URL*",
-)

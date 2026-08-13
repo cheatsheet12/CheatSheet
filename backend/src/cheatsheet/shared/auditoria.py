@@ -1,34 +1,40 @@
 """Shared Kernel — the vocabulary of an auditable operation (HS-T5).
 
-**Why this is in `shared/` and not in `observability/domain/`.** The unit plan put
-`Modulo`, `Iniciador` and `Resultado` in the audit context's domain. Writing it
-proved that wrong in the only way that counts: rule R3 forbids `billing/domain` from
-importing `observability/domain`, so with the enums there, *no context could emit an
-auditable event without breaking the architecture*. The guard would block the write.
+**Why this is in `shared/` and not in `observability/domain/`.** Rule R3 forbids
+`billing/domain` from importing `observability/domain`, so with these types there,
+*no context could emit an auditable event without breaking the architecture* — the
+guard would block the write. They are cross-context value objects, which is exactly
+what CLAUDE.md §2 says the Shared Kernel holds. The aggregate that stores them stays
+in `observability/domain/`.
 
-These are cross-context value objects — `Modulo` is literally the list of the twelve
-bounded contexts — which is exactly what CLAUDE.md §2 says the Shared Kernel holds.
-The aggregate that stores them stays in `observability/domain/`, where it belongs.
+**The shape follows the DER** (`docs/aidlc/inputs/der.md`, BC10): `usuario_id`
+nullable, `accion`, `entidad_afectada` as a single string, `direccion_ip`. Two fields
+sit on top of it, each because a rule demands it and neither on taste:
+
+- **`modulo`** — HS-T5 RN-02 lists it among the six data points the log must capture,
+  and HU-E12-01 filters the audit panel by it. The DER has no such column; the conflict
+  is recorded as gap H2 in `der.md`.
+- **`evento_id`** (inherited from `EventoDeDominio`) — ADR-009. Delivery is
+  at-least-once, so without an identity for the *occurrence*, a retried task writes the
+  row twice and the log stops being a count of what happened.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
-from types import MappingProxyType
 
+from cheatsheet.shared.empresa import UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.events import EventoDeDominio
-from cheatsheet.shared.tenant import UserId
 
 
 class Modulo(StrEnum):
     """Which bounded context executed the operation.
 
-    A closed catalogue, not a free string: the audit panel of epic 10 filters by
-    module (HU-E12-01), and a filter over free text is a filter that silently misses
-    the rows someone spelled differently.
+    A closed catalogue, not a free string: the audit panel of epic 10 filters by module
+    (HU-E12-01), and a filter over free text silently misses the rows somebody spelled
+    differently.
     """
 
     IDENTITY = "identity"
@@ -52,85 +58,53 @@ class Resultado(StrEnum):
     ERROR = "error"
 
 
-class TipoDeIniciador(StrEnum):
-    """Who set the operation in motion.
-
-    `AGENTE` exists from day one although the conversational context is epic 8. It
-    costs one enum member now and spares a migration over an append-only table later.
-    """
-
-    USUARIO = "usuario"
-    SISTEMA = "sistema"
-    AGENTE = "agente"
+LARGO_MAXIMO_ACCION = 120
+LARGO_MAXIMO_ENTIDAD = 200
 
 
-@dataclass(frozen=True, slots=True)
-class Iniciador:
-    """The actor behind an operation, in the three shapes this system has.
-
-    Built through the factories rather than the constructor so the pairing of type and
-    reference cannot be got wrong.
-    """
-
-    tipo: TipoDeIniciador
-    user_id: UserId | None = None
-    referencia: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.tipo is TipoDeIniciador.USUARIO and self.user_id is None:
-            raise EntradaInvalida("Un iniciador de tipo USUARIO requiere user_id")
-        if self.tipo is not TipoDeIniciador.USUARIO and not self.referencia:
-            raise EntradaInvalida(f"Un iniciador {self.tipo} requiere una referencia")
-
-    @classmethod
-    def usuario(cls, user_id: UserId) -> Iniciador:
-        return cls(tipo=TipoDeIniciador.USUARIO, user_id=user_id)
-
-    @classmethod
-    def sistema(cls, referencia: str) -> Iniciador:
-        """`referencia` is the task or scheduler entry, e.g. `despachar_recordatorios`."""
-        return cls(tipo=TipoDeIniciador.SISTEMA, referencia=referencia)
-
-    @classmethod
-    def agente(cls, referencia: str) -> Iniciador:
-        """`referencia` identifies the conversation, never the customer's phone number."""
-        return cls(tipo=TipoDeIniciador.AGENTE, referencia=referencia)
+def validar_accion(accion: str) -> str:
+    """Shared by the event and the aggregate, so the two cannot drift apart."""
+    limpia = accion.strip()
+    if not limpia:
+        raise EntradaInvalida("Una operacion auditable requiere una accion")
+    if len(limpia) > LARGO_MAXIMO_ACCION:
+        raise EntradaInvalida(f"La accion excede {LARGO_MAXIMO_ACCION} caracteres: {limpia[:40]}…")
+    return limpia
 
 
-@dataclass(frozen=True, slots=True)
-class EntidadAfectada:
-    """What the operation acted upon: aggregate type plus its identifier."""
-
-    tipo: str
-    identificador: str
-
-    def __post_init__(self) -> None:
-        if not self.tipo.strip() or not self.identificador.strip():
-            raise EntradaInvalida("EntidadAfectada requiere tipo e identificador")
-
-
-def _congelar(detalle: Mapping[str, str]) -> Mapping[str, str]:
-    return MappingProxyType(dict(detalle))
+def validar_entidad_afectada(entidad: str) -> str:
+    limpia = entidad.strip()
+    if not limpia:
+        raise EntradaInvalida("Una operacion auditable requiere la entidad afectada")
+    if len(limpia) > LARGO_MAXIMO_ENTIDAD:
+        raise EntradaInvalida(f"La entidad afectada excede {LARGO_MAXIMO_ENTIDAD} caracteres")
+    return limpia
 
 
 @dataclass(frozen=True, kw_only=True)
 class EventoAuditable(EventoDeDominio):
     """The event any context publishes when it does something worth remembering.
 
-    Carries exactly the six data points HS-T5 RN-02 demands. `detalle` is for context
-    that helps a human reading the log — never personal or tax data (CLAUDE.md §3.6),
-    and never a credential.
+    `usuario_id` being `None` is not missing data — it is the statement that **the
+    system** acted: a Beat schedule, an inbound webhook, the conversational agent. The
+    DER models it exactly that way, with a nullable FK, and so does this.
     """
 
     modulo: Modulo
-    operacion: str
-    entidad_afectada: EntidadAfectada
-    iniciador: Iniciador
+    accion: str
+    entidad_afectada: str
     resultado: Resultado
-    detalle: Mapping[str, str] = field(default_factory=dict)
+    usuario_id: UsuarioId | None = None
+    #: Origin of the request. Personal data under most readings, so it stays inside the
+    #: audit trail and never leaves it — in particular it is never sent to an LLM
+    #: (CLAUDE.md §3.6).
+    direccion_ip: str | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        if not self.operacion.strip():
-            raise EntradaInvalida("Un evento auditable requiere una operacion")
-        object.__setattr__(self, "detalle", _congelar(self.detalle))
+        validar_accion(self.accion)
+        validar_entidad_afectada(self.entidad_afectada)
+
+    @property
+    def fue_del_sistema(self) -> bool:
+        return self.usuario_id is None

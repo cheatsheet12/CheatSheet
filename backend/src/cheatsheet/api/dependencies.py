@@ -29,11 +29,11 @@ from cheatsheet.platform.cache import (
     RegistroDeIdempotenciaRedis,
     crear_redis,
 )
-from cheatsheet.platform.database import crear_engine, crear_sessionmaker, sesion_del_tenant
+from cheatsheet.platform.database import crear_engine, crear_sessionmaker, sesion_de_empresa
 from cheatsheet.platform.events import PublicadorEnProceso
 from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.clock import Reloj, RelojDelSistema
-from cheatsheet.shared.tenant import TenantId
+from cheatsheet.shared.empresa import EmpresaId
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,10 +88,10 @@ class UnidadDeTrabajo:
 
 
 async def unidad_de_trabajo(
-    recursos: Recursos, tenant_id: TenantId
+    recursos: Recursos, empresa_id: EmpresaId
 ) -> AsyncIterator[UnidadDeTrabajo]:
-    """Open a tenant-scoped transaction with its event publisher attached."""
-    async with sesion_del_tenant(recursos.sesiones, tenant_id) as sesion:
+    """Open a company-scoped transaction with its event publisher attached."""
+    async with sesion_de_empresa(recursos.sesiones, empresa_id) as sesion:
         yield UnidadDeTrabajo(
             sesion=sesion,
             publicador=construir_publicador(sesion),

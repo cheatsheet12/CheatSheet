@@ -5,18 +5,25 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-from cheatsheet.shared.auditoria import (
-    EntidadAfectada,
-    EventoAuditable,
-    Iniciador,
-    Modulo,
-    Resultado,
-    TipoDeIniciador,
-)
+from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
-from cheatsheet.shared.tenant import TenantId, UserId
 
 from tests.conftest import INSTANTE_FIJO
+
+
+def _evento(**overrides: object) -> EventoAuditable:
+    base: dict[str, object] = {
+        "evento_id": uuid4(),
+        "empresa_id": EmpresaId(uuid4()),
+        "ocurrido_en": INSTANTE_FIJO,
+        "modulo": Modulo.BILLING,
+        "accion": "emitir_comprobante",
+        "entidad_afectada": "Comprobante:A-0001-42",
+        "resultado": Resultado.COMPLETADO,
+    }
+    base.update(overrides)
+    return EventoAuditable(**base)  # type: ignore[arg-type]  # kwargs built above
 
 
 def test_el_catalogo_de_modulos_son_los_doce_bounded_contexts():
@@ -25,45 +32,51 @@ def test_el_catalogo_de_modulos_son_los_doce_bounded_contexts():
     assert Modulo.BILLING.value == "billing"
 
 
-def test_un_iniciador_usuario_exige_user_id():
-    with pytest.raises(EntradaInvalida, match="user_id"):
-        Iniciador(tipo=TipoDeIniciador.USUARIO)
+def test_los_modulos_coinciden_con_los_directorios_del_backend():
+    """The enum is what the audit panel filters by; a typo here is a filter that misses."""
+    esperados = {
+        "identity",
+        "master_data",
+        "business_config",
+        "integrations",
+        "spreadsheet_sync",
+        "billing",
+        "payments",
+        "scheduling",
+        "conversational",
+        "observability",
+        "reporting",
+        "reference_data",
+    }
+
+    assert {modulo.value for modulo in Modulo} == esperados
 
 
-def test_un_iniciador_sistema_exige_referencia():
-    with pytest.raises(EntradaInvalida, match="referencia"):
-        Iniciador(tipo=TipoDeIniciador.SISTEMA)
+def test_un_evento_sin_usuario_es_del_sistema():
+    assert _evento().fue_del_sistema is True
 
 
-def test_las_fabricas_construyen_los_tres_tipos_de_iniciador():
-    usuario = Iniciador.usuario(UserId(uuid4()))
-    sistema = Iniciador.sistema("despachar_recordatorios")
-    agente = Iniciador.agente("conv-42")
-
-    assert usuario.tipo is TipoDeIniciador.USUARIO
-    assert sistema.referencia == "despachar_recordatorios"
-    assert agente.tipo is TipoDeIniciador.AGENTE
+def test_un_evento_con_usuario_no_es_del_sistema():
+    assert _evento(usuario_id=UsuarioId(uuid4())).fue_del_sistema is False
 
 
-def test_una_entidad_afectada_sin_identificador_es_rechazada():
-    with pytest.raises(EntradaInvalida):
-        EntidadAfectada(tipo="Comprobante", identificador="  ")
+def test_un_evento_sin_accion_es_rechazado():
+    with pytest.raises(EntradaInvalida, match="accion"):
+        _evento(accion="")
 
 
-def test_un_evento_auditable_congela_su_detalle():
-    detalle = {"cae": "75123456789012"}
-    evento = EventoAuditable(
-        evento_id=uuid4(),
-        tenant_id=TenantId(uuid4()),
-        ocurrido_en=INSTANTE_FIJO,
-        modulo=Modulo.BILLING,
-        operacion="emitir_comprobante",
-        entidad_afectada=EntidadAfectada(tipo="Comprobante", identificador="A-0001-42"),
-        iniciador=Iniciador.sistema("worker"),
-        resultado=Resultado.COMPLETADO,
-        detalle=detalle,
-    )
+def test_un_evento_sin_entidad_afectada_es_rechazado():
+    with pytest.raises(EntradaInvalida, match="entidad afectada"):
+        _evento(entidad_afectada="")
 
-    detalle["cae"] = "otro"
 
-    assert evento.detalle["cae"] == "75123456789012"
+def test_un_evento_sin_zona_horaria_es_rechazado():
+    from datetime import datetime
+
+    with pytest.raises(ValueError, match="zona horaria"):
+        _evento(ocurrido_en=datetime(2026, 8, 12))  # noqa: DTZ001 — that is the case
+
+
+def test_la_direccion_ip_por_defecto_es_ausente():
+    """Most events do not come from a request, so the default must not invent one."""
+    assert _evento().direccion_ip is None

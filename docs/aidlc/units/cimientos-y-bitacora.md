@@ -242,15 +242,16 @@ Agregados durante la implementación, cada uno porque el código mostró un huec
 |---|---|---|
 | 1 · Plan | 2026-08-12 | aprobado sin cambios |
 | 2 · Verificación | 2026-08-12 | ver abajo — todos los gates locales en verde, con dos pendientes declarados |
+| 2b · Realineación con el DER | 2026-08-12 | el DER se importó **después** de implementar; la unidad se rehízo contra él y se volvió a verificar |
 | 3 · PR | | |
 
-### Gate 2 — resultado real
+### Gate 2 — resultado real (tras la realineación con el DER)
 
 ```
 ruff format --check .   111 files already formatted
 ruff check .            All checks passed!
 mypy .                  Success: no issues found in 106 source files
-pytest --cov            47 passed · cobertura 89.60% (umbral 80%)
+pytest --cov            53 passed · cobertura 89.69% (umbral 80%)
 guard_architecture      112 file(s) checked — architecture boundaries intact
 test_guards.sh          54 cases, all correct — the guards are active
 
@@ -261,7 +262,47 @@ frontend test:coverage  37 passed · 92.52% líneas / 87.80% ramas (umbral 80%)
 ```
 
 Los 12 tests de integración corrieron contra PostgreSQL 16 real
-(`docker compose -f backend/docker-compose.yml up -d`), no salteados.
+(`docker compose -f backend/docker-compose.yml up -d`), no salteados. La API arrancó de
+verdad y `GET /health` respondió `{"estado":"ok","base_de_datos":true,"redis":true}`.
+
+La tabla realmente creada, verificada con `\d registro_de_auditoria`:
+
+```
+id · evento_id · empresa_id · usuario_id · modulo · accion · entidad_afectada
+resultado · direccion_ip · timestamp
+Policies (forced row security enabled): aislamiento_por_empresa
+```
+
+### Realineación con el DER
+
+El DER de Etapa 5 **no estaba importado** cuando se planificó ni cuando se implementó esta
+unidad: las columnas de `registro_de_auditoria` se habían derivado de la prosa de HS-T5 RN-02 y
+de la lista de agregados de `docs/architecture.md` §3. Al importarlo
+(`docs/aidlc/inputs/`) aparecieron diferencias reales y la unidad se rehízo contra él.
+
+**Decisión A — `empresa_id` en todo, también en el código.** El DER llama `empresa_id` a la
+columna de aislamiento en las 25 tablas con dueño; `CLAUDE.md` §2 y `architecture.md` §8 decían
+`tenant_id`. Ganó el DER, y con él la lengua del negocio: `TenantId` → `EmpresaId`, `UserId` →
+`UsuarioId`, `app.current_tenant` → `app.current_empresa`, `shared/tenant.py` →
+`shared/empresa.py`. Llevar `tenant_id` en el código y `empresa_id` en la base obligaría a
+traducir en cada repositorio, que es justo la costura donde se esconde un mapeo mal hecho y se
+filtran los datos de una empresa a otra. **Se modificaron `CLAUDE.md` §2.2 y
+`docs/architecture.md` §4/§8** en consecuencia.
+
+**Decisión B — la bitácora es el DER más dos columnas.** Se adoptaron `accion`,
+`entidad_afectada` como un solo varchar, `usuario_id` nullable, `direccion_ip` y `timestamp`. Se
+descartó `detalle`, que era invención mía. Se agregaron solo dos cosas, cada una con su regla
+detrás:
+
+- **`modulo`** — HS-T5 RN-02 lo enumera entre los seis datos que el registro captura, y
+  HU-E12-01 filtra por él. El DER no lo tiene: conflicto entre dos insumos de Etapa 5, anotado
+  como hueco **H2**.
+- **`evento_id` único** — ADR-009. Sin identidad de la *ocurrencia*, una tarea reintentada
+  escribe la fila dos veces y la bitácora deja de ser un conteo de lo que pasó.
+
+Lo que se fue con el rediseño: el value object `Iniciador` con sus tres formas. El DER lo
+resuelve con `usuario_id` nullable, donde nulo significa «actuó el sistema», y esa es ahora la
+semántica — más pobre que la que yo había inventado, pero es la que el diseño decidió.
 
 **Dos cosas que NO pude verificar y no voy a dar por buenas:**
 

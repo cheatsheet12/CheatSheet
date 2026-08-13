@@ -53,7 +53,7 @@ async def test_la_politica_de_aislamiento_existe(engine_dueno: AsyncEngine):
             )
         ).scalars()
 
-    assert "aislamiento_por_tenant" in list(politicas)
+    assert "aislamiento_por_empresa" in list(politicas)
 
 
 @pytest.mark.asyncio

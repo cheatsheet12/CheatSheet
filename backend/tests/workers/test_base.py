@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import pytest
 from cheatsheet.platform.cache import RegistroDeIdempotenciaEnMemoria
+from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
-from cheatsheet.shared.tenant import TenantId
 from cheatsheet.workers.base import EjecutorIdempotente, PoliticaDeReintentos
 
 
 @pytest.mark.asyncio
-async def test_la_misma_clave_no_repite_el_efecto(tenant_id: TenantId):
+async def test_la_misma_clave_no_repite_el_efecto(empresa_id: EmpresaId):
     """The one guarantee that keeps a retried task from charging a customer twice."""
     ejecutor = EjecutorIdempotente(RegistroDeIdempotenciaEnMemoria())
-    clave = ClaveDeIdempotencia.de(tenant_id=tenant_id, tipo="cobrar", payload={"monto": "100.00"})
+    clave = ClaveDeIdempotencia.de(
+        empresa_id=empresa_id, tipo="cobrar", payload={"monto": "100.00"}
+    )
     ejecuciones: list[int] = []
 
     async def efecto() -> str:
@@ -29,7 +31,7 @@ async def test_la_misma_clave_no_repite_el_efecto(tenant_id: TenantId):
 
 
 @pytest.mark.asyncio
-async def test_claves_distintas_ejecutan_cada_una(tenant_id: TenantId):
+async def test_claves_distintas_ejecutan_cada_una(empresa_id: EmpresaId):
     ejecutor = EjecutorIdempotente(RegistroDeIdempotenciaEnMemoria())
     ejecuciones: list[int] = []
 
@@ -37,16 +39,18 @@ async def test_claves_distintas_ejecutan_cada_una(tenant_id: TenantId):
         ejecuciones.append(1)
 
     for monto in ("100.00", "200.00"):
-        clave = ClaveDeIdempotencia.de(tenant_id=tenant_id, tipo="cobrar", payload={"monto": monto})
+        clave = ClaveDeIdempotencia.de(
+            empresa_id=empresa_id, tipo="cobrar", payload={"monto": monto}
+        )
         await ejecutor.ejecutar(clave, efecto)
 
     assert len(ejecuciones) == 2
 
 
-def test_el_orden_de_las_claves_del_payload_no_cambia_la_huella(tenant_id: TenantId):
+def test_el_orden_de_las_claves_del_payload_no_cambia_la_huella(empresa_id: EmpresaId):
     """The same delivery serialised differently is still the same delivery."""
-    una = ClaveDeIdempotencia.de(tenant_id=tenant_id, tipo="t", payload={"a": 1, "b": 2})
-    otra = ClaveDeIdempotencia.de(tenant_id=tenant_id, tipo="t", payload={"b": 2, "a": 1})
+    una = ClaveDeIdempotencia.de(empresa_id=empresa_id, tipo="t", payload={"a": 1, "b": 2})
+    otra = ClaveDeIdempotencia.de(empresa_id=empresa_id, tipo="t", payload={"b": 2, "a": 1})
 
     assert una == otra
 
@@ -56,8 +60,8 @@ def test_tenants_distintos_nunca_comparten_clave():
     from uuid import uuid4
 
     payload = {"evento": "payment.updated"}
-    una = ClaveDeIdempotencia.de(tenant_id=TenantId(uuid4()), tipo="t", payload=payload)
-    otra = ClaveDeIdempotencia.de(tenant_id=TenantId(uuid4()), tipo="t", payload=payload)
+    una = ClaveDeIdempotencia.de(empresa_id=EmpresaId(uuid4()), tipo="t", payload=payload)
+    otra = ClaveDeIdempotencia.de(empresa_id=EmpresaId(uuid4()), tipo="t", payload=payload)
 
     assert una != otra
 

@@ -20,8 +20,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida
-from cheatsheet.shared.tenant import TenantId
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +35,7 @@ class ClaveDeIdempotencia:
             raise EntradaInvalida("La clave de idempotencia no puede estar vacia")
 
     @classmethod
-    def de(cls, *, tenant_id: TenantId, tipo: str, payload: Any) -> ClaveDeIdempotencia:
+    def de(cls, *, empresa_id: EmpresaId, tipo: str, payload: Any) -> ClaveDeIdempotencia:
         """Build the key from the company, the kind of work and its payload.
 
         `payload` must be JSON-serialisable; anything reaching a task queue already is.
@@ -43,7 +43,7 @@ class ClaveDeIdempotencia:
         if not tipo.strip():
             raise EntradaInvalida("El tipo de la clave de idempotencia es obligatorio")
         huella = hashlib.sha256(_canonico(payload).encode("utf-8")).hexdigest()[:32]
-        return cls(f"{tenant_id}:{tipo}:{huella}")
+        return cls(f"{empresa_id}:{tipo}:{huella}")
 
     def __str__(self) -> str:
         return self.valor

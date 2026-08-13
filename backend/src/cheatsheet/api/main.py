@@ -19,7 +19,7 @@ from fastapi import FastAPI
 
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.errors import registrar_manejadores
-from cheatsheet.api.middleware.tenant import TenantMiddleware
+from cheatsheet.api.middleware.empresa import EmpresaMiddleware
 from cheatsheet.api.routers import health
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging, obtener_logger
@@ -57,7 +57,7 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
         redoc_url=None,
     )
 
-    app.add_middleware(TenantMiddleware, settings=settings)
+    app.add_middleware(EmpresaMiddleware, settings=settings)
     registrar_manejadores(app)
 
     # One line per bounded context. `observability` exposes no HTTP surface yet: its

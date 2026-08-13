@@ -1,20 +1,19 @@
 """PostgreSQL adapter for `PortRegistroDeAuditoria`.
 
 The mapping between the ORM row and the aggregate is written by hand, in both
-directions, and that is deliberate: the aggregate is a frozen dataclass with value
-objects and the row is flat columns. Letting SQLAlchemy hydrate the aggregate
-directly would mean giving the domain a mutable identity map and a framework
-dependency — which rule R1 forbids, for exactly this reason.
+directions, and that is deliberate: the aggregate is a frozen dataclass and the row is
+a mutable ORM instance. Letting SQLAlchemy hydrate the aggregate directly would mean
+giving the domain an identity map and a framework dependency — which rule R1 forbids,
+for exactly this reason.
 
-`tenant_id` is never added to a `WHERE` clause here. Row-Level Security already
-scopes every statement to `app.current_tenant` (see `platform/database.py`), and
-writing the filter again in the application would create a second, weaker copy of the
-rule that can drift from the policy.
+`empresa_id` is never added to a `WHERE` clause here. Row-Level Security already scopes
+every statement to `app.current_empresa` (see `platform/database.py`), and writing the
+filter again in the application would create a second, weaker copy of the rule that can
+drift from the policy.
 """
 
 from __future__ import annotations
 
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -24,53 +23,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.contexts.observability.infrastructure.models import RegistroDeAuditoriaORM
-from cheatsheet.shared.auditoria import (
-    EntidadAfectada,
-    Iniciador,
-    Modulo,
-    Resultado,
-    TipoDeIniciador,
-)
-from cheatsheet.shared.tenant import TenantId, UserId
+from cheatsheet.shared.auditoria import Modulo, Resultado
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 
 
 def _a_orm(registro: RegistroDeAuditoria) -> RegistroDeAuditoriaORM:
     return RegistroDeAuditoriaORM(
         id=registro.id,
         evento_id=registro.evento_id,
-        tenant_id=registro.tenant_id,
+        empresa_id=registro.empresa_id,
+        usuario_id=registro.usuario_id,
         modulo=registro.modulo.value,
-        operacion=registro.operacion,
-        entidad_tipo=registro.entidad_afectada.tipo,
-        entidad_identificador=registro.entidad_afectada.identificador,
-        iniciador_tipo=registro.iniciador.tipo.value,
-        iniciador_user_id=registro.iniciador.user_id,
-        iniciador_referencia=registro.iniciador.referencia,
+        accion=registro.accion,
+        entidad_afectada=registro.entidad_afectada,
         resultado=registro.resultado.value,
-        ocurrido_en=registro.ocurrido_en,
-        detalle=dict(registro.detalle),
+        direccion_ip=registro.direccion_ip,
+        timestamp=registro.timestamp,
     )
 
 
 def _a_dominio(fila: RegistroDeAuditoriaORM) -> RegistroDeAuditoria:
-    detalle: dict[str, Any] = fila.detalle or {}
     return RegistroDeAuditoria(
         id=fila.id,
         evento_id=fila.evento_id,
-        tenant_id=TenantId(fila.tenant_id),
+        empresa_id=EmpresaId(fila.empresa_id),
+        usuario_id=UsuarioId(fila.usuario_id) if fila.usuario_id is not None else None,
         modulo=Modulo(fila.modulo),
-        operacion=fila.operacion,
-        entidad_afectada=EntidadAfectada(
-            tipo=fila.entidad_tipo, identificador=fila.entidad_identificador
-        ),
-        iniciador=Iniciador(
-            tipo=TipoDeIniciador(fila.iniciador_tipo),
-            user_id=UserId(fila.iniciador_user_id) if fila.iniciador_user_id else None,
-            referencia=fila.iniciador_referencia,
-        ),
+        accion=fila.accion,
+        entidad_afectada=fila.entidad_afectada,
         resultado=Resultado(fila.resultado),
-        ocurrido_en=fila.ocurrido_en,
-        detalle={clave: str(valor) for clave, valor in detalle.items()},
+        direccion_ip=fila.direccion_ip,
+        timestamp=fila.timestamp,
     )
 
 

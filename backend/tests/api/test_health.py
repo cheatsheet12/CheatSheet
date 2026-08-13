@@ -12,7 +12,7 @@ import httpx
 import pytest
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
-from cheatsheet.api.middleware.tenant import HEADER_TENANT
+from cheatsheet.api.middleware.empresa import HEADER_EMPRESA
 from cheatsheet.platform.settings import Entorno, Settings
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.errors import InvarianteViolada
@@ -102,7 +102,7 @@ async def test_health_responde_503_si_la_base_esta_caida(parchar_sondas):
 
 
 @pytest.mark.asyncio
-async def test_health_no_exige_tenant(parchar_sondas):
+async def test_health_no_exige_empresa(parchar_sondas):
     """It is reachable before any company exists, and without authentication."""
     parchar_sondas(base_ok=True, redis_ok=True)
     app = create_app(_settings(), _recursos(_settings()))
@@ -114,7 +114,7 @@ async def test_health_no_exige_tenant(parchar_sondas):
 
 
 @pytest.mark.asyncio
-async def test_una_ruta_de_negocio_sin_tenant_es_rechazada(parchar_sondas):
+async def test_una_ruta_de_negocio_sin_empresa_es_rechazada(parchar_sondas):
     parchar_sondas(base_ok=True, redis_ok=True)
     settings = _settings()
     app = create_app(settings, _recursos(settings))
@@ -127,7 +127,7 @@ async def test_una_ruta_de_negocio_sin_tenant_es_rechazada(parchar_sondas):
 
 
 @pytest.mark.asyncio
-async def test_en_produccion_el_header_de_tenant_es_ignorado(parchar_sondas):
+async def test_en_produccion_el_header_de_empresa_es_ignorado(parchar_sondas):
     """The development shortcut must not survive a deploy. This is what proves it."""
     parchar_sondas(base_ok=True, redis_ok=True)
     settings = _settings(Entorno.PRODUCTION)
@@ -136,7 +136,7 @@ async def test_en_produccion_el_header_de_tenant_es_ignorado(parchar_sondas):
 
     async with _cliente(app) as cliente:
         respuesta = await cliente.get(
-            "/prueba/eco", headers={HEADER_TENANT: "3f1c2b8e-0000-4000-8000-000000000001"}
+            "/prueba/eco", headers={HEADER_EMPRESA: "3f1c2b8e-0000-4000-8000-000000000001"}
         )
 
     assert respuesta.status_code == 401
@@ -151,7 +151,7 @@ async def test_un_error_de_dominio_se_traduce_sin_filtrar_internals(parchar_sond
 
     async with _cliente(app) as cliente:
         respuesta = await cliente.get(
-            "/prueba/romper", headers={HEADER_TENANT: "3f1c2b8e-0000-4000-8000-000000000001"}
+            "/prueba/romper", headers={HEADER_EMPRESA: "3f1c2b8e-0000-4000-8000-000000000001"}
         )
 
     assert respuesta.status_code == 409

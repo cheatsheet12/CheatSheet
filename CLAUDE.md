@@ -79,7 +79,7 @@ backend/src/cheatsheet/
 │   ├── domain/           # aggregates, entities, value objects, domain events
 │   ├── application/      # Application Services (one use case each) + ports.py
 │   └── infrastructure/   # adapters: repositories, external clients, routers, tasks
-├── shared/               # Shared Kernel: tenant_id, user_id, cross-context value objects
+├── shared/               # Shared Kernel: empresa_id, usuario_id, cross-context value objects
 ├── api/                  # FastAPI composition root
 ├── workers/              # the 5 Celery workers + Beat
 └── platform/             # settings, database session, Redis, storage, telemetry
@@ -136,6 +136,14 @@ class Comprobante:                      # a Comprobante is not an "invoice"
 `Comprobante`, `Cobro`, `Turno`, `Mapeo`, `CUIT`, `CAE`, `CondicionIVA` are the
 business's own terms and Argentine fiscal terms. Translating them breaks traceability
 with the design documents and with ARCA.
+
+**The multi-tenant identifier is `EmpresaId` / `empresa_id`, not `tenant_id`.** The DER
+([`docs/aidlc/inputs/der.md`](docs/aidlc/inputs/der.md)) names that column `empresa_id`
+in all 25 company-scoped tables, and it is the ubiquitous language: the business says
+"empresa". Carrying `tenant_id` in the code and `empresa_id` in the database would mean
+translating at every repository — the exact seam where a wrong mapping hides and a
+company's data leaks into another's. Same for `usuario_id`. The PostgreSQL setting the
+RLS policies read is `app.current_empresa`.
 
 ### 2.3 What lives at the root, and what lives in a package
 

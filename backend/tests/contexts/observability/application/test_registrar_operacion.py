@@ -9,7 +9,7 @@ import pytest
 from cheatsheet.contexts.observability.application.registrar_operacion import RegistrarOperacion
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
-from cheatsheet.shared.tenant import TenantId
+from cheatsheet.shared.empresa import EmpresaId
 
 from tests.conftest import RepositorioDeAuditoriaEnMemoria
 
@@ -22,11 +22,12 @@ async def test_registra_los_seis_datos_que_exige_rn02(
 
     registro = repositorio.registros[resultado.registro_id]
     assert registro.modulo is evento_auditable.modulo
-    assert registro.operacion == evento_auditable.operacion
+    assert registro.accion == evento_auditable.accion
     assert registro.entidad_afectada == evento_auditable.entidad_afectada
-    assert registro.iniciador == evento_auditable.iniciador
+    assert registro.usuario_id == evento_auditable.usuario_id
     assert registro.resultado is evento_auditable.resultado
-    assert registro.ocurrido_en == evento_auditable.ocurrido_en
+    assert registro.direccion_ip == evento_auditable.direccion_ip
+    assert registro.timestamp == evento_auditable.ocurrido_en
 
 
 @pytest.mark.asyncio
@@ -97,7 +98,7 @@ async def test_eventos_distintos_producen_registros_distintos(
         evento_auditable,
         evento_id=uuid4(),
         modulo=Modulo.PAYMENTS,
-        tenant_id=TenantId(uuid4()),
+        empresa_id=EmpresaId(uuid4()),
     )
     caso = RegistrarOperacion(repositorio)
 

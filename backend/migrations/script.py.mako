@@ -5,7 +5,7 @@ Revises: ${down_revision | comma,n}
 Create Date: ${create_date}
 
 Checklist before merging this migration (backend/migrations/README.md):
-- Does every new tenant-scoped table carry tenant_id AND its RLS policy?
+- Does every new company-scoped table carry empresa_id AND its RLS policy?
 - Is money NUMERIC, never FLOAT?
 - Is downgrade() real, and does it leave no fiscal data behind (ADR-007)?
 """

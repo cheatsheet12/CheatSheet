@@ -2,12 +2,12 @@
 
 Alembic migrations for the single PostgreSQL 16 database (ADR-004).
 
-One shared schema for every tenant, so **one set of migrations for the whole system**
+One shared schema for every company, so **one set of migrations for the whole system**
 (ADR-002) — there is no per-company schema to keep in step.
 
 What a migration in this project must not forget:
 
-- **Row-Level Security.** Any new table holding tenant data carries the tenant column
+- **Row-Level Security.** Any new table holding company data carries `empresa_id`
   *and* its RLS policy, in the same migration. A table without a policy is a data leak
   waiting for the first bug in the application layer.
 - **Money is `NUMERIC(precision, scale)`**, never `FLOAT` or `DOUBLE PRECISION`.

@@ -8,10 +8,10 @@ them up:
 the same path as one reporting success.
 
 **It is idempotent on `evento_id`.** The same occurrence delivered twice leaves one
-row. The check is done twice on purpose: a read first, because that is the common
-case and it costs nothing, and then the unique index in the database, because between
-the read and the insert two workers can interleave and only the index is atomic. The
-second one is the guarantee; the first one just keeps the logs quiet.
+row. The check happens twice on purpose: a read first, because that is the common case
+and it costs nothing, and then the unique index in the database, because between the
+read and the insert two workers can interleave and only the index is atomic. The second
+one is the guarantee; the first only keeps the logs quiet.
 """
 
 from __future__ import annotations
@@ -49,14 +49,16 @@ class RegistrarOperacion:
         registro = RegistroDeAuditoria(
             id=uuid4(),
             evento_id=evento.evento_id,
-            tenant_id=evento.tenant_id,
+            empresa_id=evento.empresa_id,
+            usuario_id=evento.usuario_id,
             modulo=evento.modulo,
-            operacion=evento.operacion,
+            accion=evento.accion,
             entidad_afectada=evento.entidad_afectada,
-            iniciador=evento.iniciador,
             resultado=evento.resultado,
-            ocurrido_en=evento.ocurrido_en,
-            detalle=evento.detalle,
+            direccion_ip=evento.direccion_ip,
+            # The event's own instant, read from the emitter's injected clock. The row
+            # records when the operation happened, not when it got persisted.
+            timestamp=evento.ocurrido_en,
         )
         try:
             await self._registros.agregar(registro)

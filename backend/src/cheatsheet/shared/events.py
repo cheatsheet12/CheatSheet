@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
-from cheatsheet.shared.tenant import TenantId
+from cheatsheet.shared.empresa import EmpresaId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -35,7 +35,7 @@ class EventoDeDominio:
     """
 
     evento_id: UUID
-    tenant_id: TenantId
+    empresa_id: EmpresaId
     ocurrido_en: datetime
 
     def __post_init__(self) -> None:
