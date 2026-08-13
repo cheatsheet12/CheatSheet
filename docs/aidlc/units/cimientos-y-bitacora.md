@@ -1,6 +1,8 @@
 # Unidad: cimientos-y-bitacora
 
-**HUs**: HS-T5   **Contexto dueño**: observability   **Rama**: feature/infra-cimientos-y-bitacora
+**HUs**: HS-T5   **Contexto dueño**: observability
+**Rama**: `feature/identity-cimientos-identidad-y-bitacora` — compartida por las tres unidades del
+épico, que entran a `develop` en un solo PR (ver `units.md` § Notas).
 
 ## Qué hace
 

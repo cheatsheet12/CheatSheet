@@ -10,9 +10,9 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 
 | Épico | Unidad | Contexto dueño | HUs | Depende de | Responsable | Rama | Estado |
 |---|---|---|---|---|---|---|---|
-| Cimientos, identidad y bitácora | cimientos-y-bitacora | observability | HS-T5 | — | Cristian | feature/infra-cimientos-y-bitacora | en curso |
-| Cimientos, identidad y bitácora | identidad-y-onboarding | identity | HU-E1-01, HU-E1-02, HU-E1-03 | cimientos-y-bitacora | Cristian | — | pendiente |
-| Cimientos, identidad y bitácora | usuarios-y-preferencias | identity | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07 | identidad-y-onboarding | Cristian | — | pendiente |
+| Cimientos, identidad y bitácora | cimientos-y-bitacora | observability | HS-T5 | — | Cristian | feature/identity-cimientos-identidad-y-bitacora | en curso |
+| Cimientos, identidad y bitácora | identidad-y-onboarding | identity | HU-E1-01, HU-E1-02, HU-E1-03 | cimientos-y-bitacora | Cristian | feature/identity-cimientos-identidad-y-bitacora | pendiente |
+| Cimientos, identidad y bitácora | usuarios-y-preferencias | identity | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07 | identidad-y-onboarding | Cristian | feature/identity-cimientos-identidad-y-bitacora | pendiente |
 
 ---
 
@@ -20,11 +20,11 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 
 ### Qué hace cada unidad
 
-| Unidad | Alcance | Rama prevista |
-|---|---|---|
-| **cimientos-y-bitacora** | **Las seis unidades técnicas del roadmap §5, completas, más HS-T5.** Backend: composition root de FastAPI (`api/`), healthcheck y manejo uniforme de errores; `platform/settings.py` y sesión de base de datos; migraciones (Alembic); aislamiento multi-tenant con RLS por `tenant_id` (ADR-002); esqueleto de Celery + Beat con las cinco colas (ADR-003), `ClaveDeIdempotencia` y reintentos con backoff (ADR-009); esqueleto de tests (fixtures de base, factories, dobles de servicios externos) con el umbral del 80% corriendo en CI. Dominio: el agregado `RegistroDeAuditoria`, su tabla inmutable y el mecanismo por el que cualquier contexto publica un evento auditable (`observability` como OHS). Frontend: BFF de Next.js, cookie HttpOnly del JWT, layouts `(panel)` y `(public)`, wrapper de fetch y sistema de diseño mínimo. **Sin pantalla de negocio**: leer la bitácora es el épico 10 | `feature/infra-cimientos-y-bitacora` |
-| **identidad-y-onboarding** | HU-E1-01, HU-E1-02 y HU-E1-03 — el onboarding entero de punta a punta: agregados `Empresa` y `Usuario`; alta con email/contraseña (Argon2id) y con OAuth2 de Google; login; JWT corto + refresh opaco rotativo con detección de reuso (ADR-011); aceptación de términos con versión y fecha; datos fiscales de la empresa con CUIT y `CondicionIVA` (ver D1); bloqueo del dashboard hasta completar los pasos 1 y 2. Pantallas PAN-ONB-01 y PAN-ONB-02 | `feature/identity-identidad-y-onboarding` |
-| **usuarios-y-preferencias** | HU-E1-04, HU-E1-05, HU-E1-06 y HU-E1-07 — todo lo que un Administrador hace sobre los usuarios de su empresa, más lo que cada usuario hace sobre sí mismo: invitación por email y su aceptación, catálogo cerrado de tres roles con RBAC, cambio de rol, desactivación y reactivación, el invariante «siempre al menos un Administrador activo», y `pref_idioma` / `pref_zona_horaria` / `pref_suscripciones`. Pantallas PAN-USR-01 y PAN-USR-02 | `feature/identity-usuarios-y-preferencias` |
+| Unidad | Alcance |
+|---|---|
+| **cimientos-y-bitacora** | **Las seis unidades técnicas del roadmap §5, completas, más HS-T5.** Backend: composition root de FastAPI (`api/`), healthcheck y manejo uniforme de errores; `platform/settings.py` y sesión de base de datos; migraciones (Alembic); aislamiento multi-empresa con RLS por `empresa_id` (ADR-002); esqueleto de Celery + Beat con las cinco colas (ADR-003), `ClaveDeIdempotencia` y reintentos con backoff (ADR-009); esqueleto de tests (fixtures de base, factories, dobles de servicios externos) con el umbral del 80% corriendo en CI. Dominio: el agregado `RegistroDeAuditoria`, su tabla inmutable y el mecanismo por el que cualquier contexto publica un evento auditable (`observability` como OHS). Frontend: BFF de Next.js, cookie HttpOnly del JWT, layouts `(panel)` y `(public)`, wrapper de fetch y sistema de diseño mínimo. **Sin pantalla de negocio**: leer la bitácora es el épico 10 |
+| **identidad-y-onboarding** | HU-E1-01, HU-E1-02 y HU-E1-03 — el onboarding entero de punta a punta: agregados `Empresa` y `Usuario`; alta con email/contraseña (Argon2id) y con OAuth2 de Google; login; JWT corto + refresh opaco rotativo con detección de reuso (ADR-011); aceptación de términos con versión y fecha; datos fiscales de la empresa con CUIT y `CondicionIVA` (ver D1); bloqueo del dashboard hasta completar los pasos 1 y 2. Pantallas PAN-ONB-01 y PAN-ONB-02 |
+| **usuarios-y-preferencias** | HU-E1-04, HU-E1-05, HU-E1-06 y HU-E1-07 — todo lo que un Administrador hace sobre los usuarios de su empresa, más lo que cada usuario hace sobre sí mismo: invitación por email y su aceptación, catálogo cerrado de tres roles con RBAC, cambio de rol, desactivación y reactivación, el invariante «siempre al menos un Administrador activo», y `pref_idioma` / `pref_zona_horaria` / `pref_suscripciones`. Pantallas PAN-USR-01 y PAN-USR-02 |
 
 ### Orden
 
@@ -51,16 +51,22 @@ tercera opera sobre los usuarios de esa empresa.
 - **La bitácora entra en la unidad de cimientos y eso la mejora, no la infla.** HS-T5 no tiene
   pantalla y `observability` es OHS: no depende de nadie. Su tabla `registro_de_auditoria` es además
   la **primera tabla real** del sistema, o sea contra qué se prueban de verdad las migraciones, el
-  RLS por `tenant_id` y las fixtures. Sin ella, los cimientos se verificarían contra nada. Y va
+  RLS por `empresa_id` y las fixtures. Sin ella, los cimientos se verificarían contra nada. Y va
   antes que identity porque HU-E1-05 RN-04 y HU-E1-06 RN-02 exigen registro en el Log de
   Operaciones: si el sumidero llegara después, identity se entregaría con un criterio incumplido.
 - **`cimientos-y-bitacora` cruza `observability` + `platform` + frontend.** Declara `observability`
   como contexto dueño porque es el único que recibe código de dominio; el resto es infraestructura
-  sin dueño de negocio. La rama va bajo el módulo `infra` por la misma razón.
+  sin dueño de negocio.
 - **Trabajo en paralelo: no aplica.** Un solo responsable (Cristian). La regla 1c del workflow sigue
   vigente por si eso cambia.
-- **Responsable declarado, rama no.** Cada fila fija su `Rama` al reclamarse (estado → `en curso`),
-  no en el mapeo. La columna de arriba es la rama prevista, no la reclamada.
+- **Las tres unidades comparten una sola rama** (decisión del 2026-08-13), en lugar de una rama y
+  un PR cada una como pide la regla 1a. El épico entero entra a `develop` de una vez.
+  **Lo que se gana:** una sola ceremonia de PR en lugar de tres encadenadas, sin rebases entre
+  ramas que dependen unas de otras. **Lo que se paga:** un PR con las ocho historias, y un revert
+  que se lleva el épico completo. Los **gates 1 y 2 siguen siendo por unidad** — lo que se unificó
+  es la rama y el gate 3, no la planificación ni la verificación.
+- **Esto no habilita a partir unidades dentro de la rama.** Si la descomposición resulta mala, se
+  dice y se re-corta el mapa deliberadamente (regla 1c), que es lo mismo de antes.
 
 ### Decisión D1 — resuelta
 
