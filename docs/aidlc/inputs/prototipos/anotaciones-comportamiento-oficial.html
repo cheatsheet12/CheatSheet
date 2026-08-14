@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Anotaciones de Comportamiento (formato documento)</title>
+<link rel="stylesheet" href="estilo-doc.css">
+<style>
+  .screen-block{ margin-bottom:22px; }
+  .req-inline{ margin:0 0 10px; }
+</style>
+</head>
+<body>
+
+<!-- ===== PÁGINA 1 ===== -->
+<div class="page">
+  <div class="doc-title">Anotaciones de Comportamiento</div>
+  <div class="doc-subtitle">CheatSheet — Plataforma iPaaS para PyMEs</div>
+  <hr class="doc-rule">
+  <p class="doc-meta"><b>Versión:</b> 2.4 &nbsp;·&nbsp; <b>Fecha:</b> Junio 2026</p>
+  <p class="intro">Para cada pantalla crítica se describe qué hace cada acción principal, qué campos son obligatorios y qué mensajes muestra el sistema ante un error o una acción exitosa. Todo deriva de las reglas de negocio y los criterios de aceptación de las historias de usuario. La convención de mensajes es: <span class="s-ok">✓ éxito</span> &nbsp; <span class="s-err">✗ error</span> &nbsp; <span class="s-warn">! advertencia</span>.</p>
+
+  <h1 class="h">1. Onboarding (Épica 1)</h1>
+
+  <h2 class="h">PAN-ONB-01 — Inicio de sesión</h2>
+  <table class="w">
+    <thead><tr><th style="width:190px;">Acción principal</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td><b>Ingresar</b></td><td>Valida las credenciales e inicia sesión; redirige al dashboard o al paso pendiente del onboarding.</td></tr>
+      <tr><td><b>Continuar con Google</b></td><td>Registro/ingreso vía OAuth2; solo solicita email y nombre del perfil.</td></tr>
+      <tr><td><b>Registrate</b></td><td>Crea una cuenta nueva y avanza al registro de empresa.</td></tr>
+      <tr><td><b>¿Olvidaste tu contraseña?</b></td><td>Inicia el flujo de recuperación por email.</td></tr>
+    </tbody>
+  </table>
+  <p class="req-inline"><span class="label">Campos obligatorios:</span> Email (formato válido) · Contraseña (mín. 8 caracteres) · Aceptar Términos y Condiciones.</p>
+  <table class="w">
+    <thead><tr><th style="width:70px;">Tipo</th><th>Mensaje del sistema</th></tr></thead>
+    <tbody>
+      <tr><td class="s-ok">✓ Éxito</td><td>Sesión iniciada — redirige al panel.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>La contraseña debe tener al menos 8 caracteres.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Ese email ya tiene una cuenta. ¿Iniciar sesión?</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Email o contraseña incorrectos.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Debés aceptar los Términos y Condiciones.</td></tr>
+    </tbody>
+  </table>
+  <p class="ref">Ref. HU-E1-01 · RN-01 contraseña ≥ 8 · RN-03 email único · RN-04 sin panel hasta completar onboarding.</p>
+
+  <h2 class="h">PAN-ONB-02 — Registro de empresa</h2>
+  <table class="w">
+    <thead><tr><th style="width:190px;">Acción principal</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td><b>Continuar</b></td><td>Valida el CUIT contra ARCA, autocompleta razón social y condición IVA, y avanza a integraciones.</td></tr>
+      <tr><td><b>Volver</b></td><td>Regresa al paso anterior sin perder lo cargado.</td></tr>
+    </tbody>
+  </table>
+  <p class="req-inline"><span class="label">Campos obligatorios:</span> Nombre comercial · CUIT (11 dígitos + verificador) · Condición IVA (autocompletado) · Razón social (autocompletado).</p>
+  <table class="w">
+    <thead><tr><th style="width:70px;">Tipo</th><th>Mensaje del sistema</th></tr></thead>
+    <tbody>
+      <tr><td class="s-ok">✓ Éxito</td><td>CUIT válido — datos verificados contra ARCA.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>El CUIT no supera la validación del dígito verificador.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Ingresá los 11 dígitos del CUIT.</td></tr>
+      <tr><td class="s-warn">! Aviso</td><td>«Continuar» permanece deshabilitado mientras el CUIT no sea válido.</td></tr>
+    </tbody>
+  </table>
+  <p class="ref">Ref. HU-E1-02 · validación de CUIT en tiempo real contra ARCA.</p>
+
+  <div class="page__foot">CheatSheet · Anotaciones de Comportamiento</div>
+  <div class="page__num">1</div>
+</div>
+
+<!-- ===== PÁGINA 2 ===== -->
+<div class="page">
+  <h1 class="h">2. Ingesta y Facturación (Épicas 3 y 5)</h1>
+
+  <h2 class="h">PAN-ING — Ingesta de datos</h2>
+  <table class="w">
+    <thead><tr><th style="width:210px;">Acción principal</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td><b>Seleccionar archivo / Conectar Sheets</b></td><td>Sube la planilla y dispara el análisis automático de columnas con IA.</td></tr>
+      <tr><td><b>Confirmar y procesar</b></td><td>Valida que las columnas obligatorias estén asignadas y procesa las filas.</td></tr>
+      <tr><td><b>Reprocesar filas corregidas</b></td><td>Reincorpora solo las filas con error, sin duplicar las ya procesadas.</td></tr>
+      <tr><td><b>Descargar listado de errores</b></td><td>Exporta las filas rechazadas con su motivo.</td></tr>
+    </tbody>
+  </table>
+  <p class="req-inline"><span class="label">Campos obligatorios:</span> Archivo (.xlsx/.xls/.csv ≤ 25 MB) · Columnas mapeadas: Cliente, CUIT, Fecha, Monto.</p>
+  <table class="w">
+    <thead><tr><th style="width:70px;">Tipo</th><th>Mensaje del sistema</th></tr></thead>
+    <tbody>
+      <tr><td class="s-ok">✓ Éxito</td><td>Archivo analizado — revisá el mapeo.</td></tr>
+      <tr><td class="s-ok">✓ Éxito</td><td>138 de 142 filas procesadas correctamente.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Formato no soportado / el archivo supera 25 MB.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Hay columnas obligatorias sin asignar.</td></tr>
+      <tr><td class="s-warn">! Aviso</td><td>4 filas con CUIT inválido — revisá antes de continuar.</td></tr>
+    </tbody>
+  </table>
+  <p class="ref">Ref. HU-E3-03/05/06 · mapeo IA con niveles de confianza · reproceso sin duplicar.</p>
+
+  <h2 class="h">PAN-FAC-03 — Nueva emisión de comprobante</h2>
+  <table class="w">
+    <thead><tr><th style="width:190px;">Acción principal</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td><b>Emitir comprobante</b></td><td>Solicita el CAE a ARCA y, si se autoriza, genera el PDF del comprobante.</td></tr>
+      <tr><td><b>Guardar borrador</b></td><td>Conserva la emisión sin enviarla a ARCA.</td></tr>
+    </tbody>
+  </table>
+  <p class="req-inline"><span class="label">Campos obligatorios:</span> Cliente receptor · Tipo de comprobante · Punto de venta · Al menos un ítem (descripción, cantidad, precio).</p>
+  <table class="w">
+    <thead><tr><th style="width:70px;">Tipo</th><th>Mensaje del sistema</th></tr></thead>
+    <tbody>
+      <tr><td class="s-ok">✓ Éxito</td><td>Comprobante autorizado — CAE 74028591034726.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>ARCA rechazó la solicitud: [motivo devuelto].</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Agregá al menos un ítem para emitir.</td></tr>
+      <tr><td class="s-warn">! Aviso</td><td>Sin conexión con ARCA — la emisión queda pendiente y se reintenta.</td></tr>
+    </tbody>
+  </table>
+  <p class="ref">Ref. HU-E5-03 · EmitirComprobante · requiere ARCA conectado y punto de venta configurado.</p>
+
+  <div class="page__foot">CheatSheet · Anotaciones de Comportamiento</div>
+  <div class="page__num">2</div>
+</div>
+
+<!-- ===== PÁGINA 3 ===== -->
+<div class="page">
+  <h1 class="h">3. Cobros (Épica 6)</h1>
+
+  <h2 class="h">PAN-COB-03 — Nuevo cobro</h2>
+  <table class="w">
+    <thead><tr><th style="width:210px;">Acción principal</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td><b>Generar link de cobro</b></td><td>Crea un link de pago de MercadoPago y lo envía al cliente por WhatsApp.</td></tr>
+      <tr><td><b>Asociar a comprobante / turno</b></td><td>(Opcional) vincula el cobro a un documento fiscal con saldo o a un turno como seña.</td></tr>
+    </tbody>
+  </table>
+  <p class="req-inline"><span class="label">Campos obligatorios:</span> Cliente · Concepto · Monto (mayor a $0).</p>
+  <table class="w">
+    <thead><tr><th style="width:70px;">Tipo</th><th>Mensaje del sistema</th></tr></thead>
+    <tbody>
+      <tr><td class="s-ok">✓ Éxito</td><td>Link de pago generado y enviado por WhatsApp.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>El monto debe ser mayor a $0.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>MercadoPago no está conectado.</td></tr>
+    </tbody>
+  </table>
+  <p class="ref">Ref. HU-E6-03/06/07 · GenerarCobro · requiere MercadoPago conectado.</p>
+
+  <h2 class="h">PAN-COB-02 — Detalle de cobro</h2>
+  <table class="w">
+    <thead><tr><th style="width:210px;">Acción principal</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td><b>Enviar recordatorio ahora</b></td><td>Dispara un recordatorio de pago por WhatsApp fuera del ciclo automático.</td></tr>
+      <tr><td><b>Registrar pago manual</b></td><td>Marca el cobro como pagado cuando se cobró por otro medio.</td></tr>
+      <tr><td><b>Cancelar cobro</b></td><td>Da de baja una deuda pendiente o en mora; invalida el link de pago.</td></tr>
+      <tr><td><b>Reembolsar</b> <span class="badge badge--info">Solo Admin</span></td><td>Devuelve total o parcialmente un cobro ya pagado.</td></tr>
+    </tbody>
+  </table>
+  <p class="req-inline"><span class="label">Campos obligatorios:</span> Motivo de cancelación (mín. 10 caracteres) · Monto a reembolsar (≤ monto cobrado).</p>
+  <table class="w">
+    <thead><tr><th style="width:70px;">Tipo</th><th>Mensaje del sistema</th></tr></thead>
+    <tbody>
+      <tr><td class="s-ok">✓ Éxito</td><td>Recordatorio enviado · Cobro cancelado · Reembolso en proceso.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Ingresá un motivo de al menos 10 caracteres.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Solo se pueden reembolsar cobros con estado Pagado.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>El reembolso no puede superar el monto cobrado.</td></tr>
+    </tbody>
+  </table>
+  <p class="ref">Ref. HU-E6-04 cancelar (motivo ≥ 10) · HU-E6-05 reembolso solo Admin, solo Pagado, asíncrono.</p>
+
+  <div class="page__foot">CheatSheet · Anotaciones de Comportamiento</div>
+  <div class="page__num">3</div>
+</div>
+
+<!-- ===== PÁGINA 4 ===== -->
+<div class="page">
+  <h1 class="h">4. Agente WhatsApp y Reportes (Épicas 8, 9 y 10)</h1>
+
+  <h2 class="h">PAN-WA-01 — Conversaciones</h2>
+  <table class="w">
+    <thead><tr><th style="width:210px;">Acción principal</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td><b>Tomar control manualmente</b></td><td>El operador asume la conversación escalada; el agente deja de responder en ese hilo.</td></tr>
+      <tr><td><b>Responder</b></td><td>Envía un mensaje al cliente; se distingue visualmente de los del agente.</td></tr>
+      <tr><td><b>Cerrar escalamiento</b></td><td>Devuelve la conversación al agente o la da por finalizada.</td></tr>
+    </tbody>
+  </table>
+  <p class="req-inline"><span class="label">Campos obligatorios:</span> Mensaje no vacío (para responder).</p>
+  <table class="w">
+    <thead><tr><th style="width:70px;">Tipo</th><th>Mensaje del sistema</th></tr></thead>
+    <tbody>
+      <tr><td class="s-ok">✓ Éxito</td><td>Tomaste la conversación — el agente se pausó en este hilo.</td></tr>
+      <tr><td class="s-ok">✓ Éxito</td><td>Escalamiento cerrado — conversación devuelta al agente.</td></tr>
+      <tr><td class="s-warn">! Aviso</td><td>Otro operador ya está atendiendo esta conversación.</td></tr>
+    </tbody>
+  </table>
+  <p class="ref">Ref. HU-E9-01/02 · la toma registra operador + timestamp en el Log de Operaciones.</p>
+
+  <h2 class="h">PAN-WA-02 — Configuración del agente y FAQ <span class="badge badge--info">Solo Admin</span></h2>
+  <table class="w">
+    <thead><tr><th style="width:210px;">Acción principal</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td><b>Agregar / Editar / Eliminar FAQ</b></td><td>Gestiona las preguntas frecuentes que el agente responde automáticamente.</td></tr>
+      <tr><td><b>Activar agente / horarios</b></td><td>Enciende o pausa el agente y define la franja de atención automática.</td></tr>
+    </tbody>
+  </table>
+  <p class="req-inline"><span class="label">Campos obligatorios:</span> Pregunta de la FAQ · Respuesta de la FAQ.</p>
+  <table class="w">
+    <thead><tr><th style="width:70px;">Tipo</th><th>Mensaje del sistema</th></tr></thead>
+    <tbody>
+      <tr><td class="s-ok">✓ Éxito</td><td>FAQ agregada — disponible para el agente.</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>La FAQ necesita una pregunta y una respuesta.</td></tr>
+    </tbody>
+  </table>
+  <p class="ref">Ref. HU-E9-04 · administración del repositorio de FAQ.</p>
+
+  <h2 class="h">PAN-REP-02 — Configuración automática de reportes <span class="badge badge--info">Solo Admin</span></h2>
+  <table class="w">
+    <thead><tr><th style="width:210px;">Acción principal</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td><b>Activar envío automático</b></td><td>Programa el armado y envío del paquete contable al contador cada mes.</td></tr>
+      <tr><td><b>Enviar paquete ahora</b></td><td>Genera y despacha el ZIP del período en el momento.</td></tr>
+      <tr><td><b>Revocar acceso</b></td><td>Quita al contador externo el acceso de solo lectura a los reportes.</td></tr>
+    </tbody>
+  </table>
+  <p class="req-inline"><span class="label">Campos obligatorios:</span> Email del contador (formato válido) · Día del mes de envío · Formato del paquete.</p>
+  <table class="w">
+    <thead><tr><th style="width:70px;">Tipo</th><th>Mensaje del sistema</th></tr></thead>
+    <tbody>
+      <tr><td class="s-ok">✓ Éxito</td><td>Cambios guardados automáticamente.</td></tr>
+      <tr><td class="s-ok">✓ Éxito</td><td>Paquete enviado a contador@estudio…</td></tr>
+      <tr><td class="s-err">✗ Error</td><td>Ingresá un email válido para el contador.</td></tr>
+    </tbody>
+  </table>
+  <p class="ref">Ref. HU-E10-04/05 · envío automático · acceso de solo lectura revocable.</p>
+
+  <div class="page__foot">CheatSheet · Anotaciones de Comportamiento · Fin del documento</div>
+  <div class="page__num">4</div>
+</div>
+
+</body>
+</html>

@@ -9,6 +9,8 @@ trabajo suyo: se importa una vez, se consume siempre y se cita por `HU-ID`.
 | `DER.pdf` | Diagrama entidad-relación: 34 tablas, 21 enums, con tipos, nulabilidad y claves. **Fuente de verdad del modelo físico** | Etapa 5 — export de dbdiagram.io |
 | `der-por-contexto.jpg` | El mismo modelo **agrupado por bounded context** (BC1…BC12), marcando cuáles son Core. Vista lógica: omite `created_at` / `updated_at` | Etapa 5 |
 | `der.md` | Transcripción de los dos, organizada por contexto | Derivado de los anteriores |
+| `prototipos/` | Maquetación de Etapa 5: la especificación escrita del sistema de diseño (PDF, 32 páginas), el CSS implementado con sus 157 tokens, las ocho pantallas en HTML funcional, la guía visual, el mapa de navegación y las anotaciones de comportamiento | Etapa 5 |
+| `prototipos.md` | Índice de lo anterior: qué gobierna cada archivo, qué `PAN-…` cubre cada pantalla, la tabla de tokens y los huecos | Derivado |
 
 Copia textual: ni un `HU-ID`, ni un código de pantalla (`PAN-…`), ni una regla de negocio
 fue tocada al importar. Si una historia está mal, se corrige acá **y se dice**, nunca en
@@ -39,10 +41,9 @@ Los huecos ya detectados están al final de [`der.md`](der.md).
 ## Qué falta importar
 
 - **Requisitos** (funcionales y no funcionales) de Etapa 5.
-- **Prototipos** — las pantallas `PAN-…` que las HUs referencian.
 
-Ambos siguen fuera del repositorio. Mientras no estén, un plan de unidad que necesite el
-detalle de una pantalla tiene que pedirlo, no inventarlo.
+Siguen fuera del repositorio. Mientras no estén, un plan de unidad que los necesite tiene
+que pedirlos, no inventarlos.
 
 ## Numeración: dos ejes distintos
 

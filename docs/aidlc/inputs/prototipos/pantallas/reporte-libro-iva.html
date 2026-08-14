@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Libro IVA Ventas</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .crumb { font-family: var(--mono); font-size: 11.5px; color: var(--ink-400); margin-bottom: 14px; }
+  .crumb a { color: var(--ink-400); }
+  .crumb b { color: var(--ink-700); }
+
+  .rep-toolbar { display: flex; align-items: center; gap: 10px; margin: 22px 0 18px; flex-wrap: wrap; }
+  .filter-box { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 13px; font-size: 12.5px; font-weight: 600; color: var(--ink-700); cursor: pointer; box-shadow: var(--shadow); }
+  .filter-box svg { width: 14px; height: 14px; color: var(--ink-400); }
+
+  /* report summary strip */
+  .iva-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 20px; }
+  .iva-summary > div { padding: 18px 22px; border-left: 1px solid var(--line-2); }
+  .iva-summary > div:first-child { border-left: 0; }
+  .iva-summary .l { font-size: 12px; color: var(--ink-500); display: flex; align-items: center; gap: 7px; }
+  .iva-summary .l i { width: 8px; height: 8px; border-radius: 2px; display: block; }
+  .iva-summary .v { font-size: 23px; font-weight: 800; letter-spacing: -.6px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .iva-summary .s { font-size: 11px; color: var(--ink-400); margin-top: 3px; }
+  .iva-summary .v.accent { color: var(--accent-700); }
+
+  /* report sheet */
+  .sheet { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .sheet__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 22px 26px; border-bottom: 1px solid var(--line); }
+  .sheet__title { font-size: 17px; font-weight: 800; letter-spacing: -.2px; }
+  .sheet__meta { font-family: var(--mono); font-size: 11.5px; color: var(--ink-400); margin-top: 4px; }
+  .sheet__org { text-align: right; font-size: 12px; }
+  .sheet__org b { font-size: 13px; }
+  .sheet__org .mono { font-family: var(--mono); font-size: 11px; color: var(--ink-500); }
+
+  table.iva { width: 100%; border-collapse: collapse; }
+  table.iva thead th { text-align: left; font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-400); font-weight: 600; padding: 12px 12px; background: var(--bg); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.iva th.num, table.iva td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.iva tbody td { padding: 11px 12px; border-bottom: 1px solid var(--line-2); font-size: 12.5px; vertical-align: middle; }
+  table.iva tbody tr:hover td { background: #fbfbfe; }
+  table.iva td.mono, table.iva td.num { font-family: var(--mono); font-size: 12px; }
+  table.iva td:first-child, table.iva th:first-child { padding-left: 26px; }
+  table.iva td:last-child, table.iva th:last-child { padding-right: 26px; }
+  .cbte { display: inline-flex; align-items: center; gap: 8px; }
+  .cbte__t { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-weight: 800; font-size: 11px; color: #fff; flex: none; }
+  .t-a { background: #2A6FDB; } .t-b { background: var(--accent-700); } .t-c { background: #8E44AD; } .t-nc { background: var(--err); }
+  .razon { font-weight: 600; color: var(--ink-900); }
+
+  tfoot td { padding: 14px 12px; font-weight: 700; font-size: 13px; border-top: 2px solid var(--primary); font-variant-numeric: tabular-nums; }
+  tfoot td:first-child { padding-left: 26px; }
+  tfoot td:last-child { padding-right: 26px; }
+  tfoot .grand { color: var(--accent-700); }
+  .subtot td { background: var(--bg); font-size: 11.5px; color: var(--ink-500); font-weight: 600; padding: 8px 12px; font-variant-numeric: tabular-nums; }
+  .subtot td:first-child { padding-left: 26px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; font-size: 10px; }
+
+  .sheet__foot { display: flex; align-items: center; justify-content: space-between; padding: 14px 26px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--ink-400); }
+</style>
+</head>
+<body data-active="reportes">
+<div id="page" class="page" data-screen-label="Reporte Libro IVA Ventas">
+
+  <div class="crumb"><a href="reportes.html">Reportes</a> › <b>Libro IVA Ventas</b></div>
+
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px;">
+    <div>
+      <div class="eyebrow">Reporte tabular · Salida fiscal</div>
+      <h1 class="page-title" style="margin-top:8px;">Libro IVA Ventas</h1>
+      <p class="page-sub" style="max-width:600px;">Detalle de comprobantes emitidos en el período, con neto gravado e IVA discriminado. Listo para presentar o entregar al contador.</p>
+    </div>
+    <div style="display:flex; gap:12px; flex:none;">
+      <button class="btn btn--ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> Exportar CSV</button>
+      <button class="btn btn--cta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M14 2v5h5"/></svg> Descargar PDF</button>
+    </div>
+  </div>
+
+  <div class="rep-toolbar">
+    <div class="filter-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg> Período: Abril 2026 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div class="filter-box">Tipo: Todos los comprobantes <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div class="filter-box">Punto de venta: 0001 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div style="flex:1;"></div>
+    <span class="muted mono" style="font-size:12px;">10 comprobantes · generado 01/05/2026 09:00</span>
+  </div>
+
+  <!-- summary -->
+  <div class="iva-summary">
+    <div><div class="l"><i style="background:var(--ink-400)"></i> Neto gravado</div><div class="v">$ 6.214.800</div><div class="s">Base imponible del período</div></div>
+    <div><div class="l"><i style="background:#2A6FDB"></i> IVA 21%</div><div class="v">$ 1.243.119</div><div class="s">Alícuota general</div></div>
+    <div><div class="l"><i style="background:var(--alert)"></i> IVA 10,5%</div><div class="v">$ 89.355</div><div class="s">Alícuota reducida</div></div>
+    <div><div class="l"><i style="background:var(--accent)"></i> Total facturado</div><div class="v accent">$ 7.547.274</div><div class="s">Débito fiscal incluido</div></div>
+  </div>
+
+  <!-- report sheet -->
+  <div class="sheet">
+    <div class="sheet__head">
+      <div>
+        <div class="sheet__title">Libro IVA Ventas — Abril 2026</div>
+        <div class="sheet__meta">Período 01/04/2026 al 30/04/2026 · Punto de venta 0001</div>
+      </div>
+      <div class="sheet__org">
+        <b>Distribuidora La Esquina</b>
+        <div class="mono">CUIT 30-71428953-1</div>
+        <div class="mono">Resp. Inscripto</div>
+      </div>
+    </div>
+
+    <table class="iva">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Comprobante</th>
+          <th>Cliente</th>
+          <th>CUIT</th>
+          <th>Cond. IVA</th>
+          <th class="num">Neto gravado</th>
+          <th class="num">IVA 21%</th>
+          <th class="num">IVA 10,5%</th>
+          <th class="num">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">02/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-a">A</span> <span class="mono">0001-00012471</span></span></td>
+          <td class="razon">Almacén Don Carlos S.R.L.</td>
+          <td class="mono">30-68745123-4</td>
+          <td>RI</td>
+          <td class="num">154.892,56</td>
+          <td class="num">32.527,44</td>
+          <td class="num">—</td>
+          <td class="num">187.420,00</td>
+        </tr>
+        <tr>
+          <td class="mono">05/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-a">A</span> <span class="mono">0001-00012472</span></span></td>
+          <td class="razon">Supermercado Avellaneda S.A.</td>
+          <td class="mono">30-71092845-7</td>
+          <td>RI</td>
+          <td class="num">452.314,05</td>
+          <td class="num">94.985,95</td>
+          <td class="num">—</td>
+          <td class="num">547.300,00</td>
+        </tr>
+        <tr>
+          <td class="mono">08/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-b">B</span> <span class="mono">0001-00012473</span></span></td>
+          <td class="razon">Kiosko Moreno</td>
+          <td class="mono">20-28456701-3</td>
+          <td>CF</td>
+          <td class="num">23.925,62</td>
+          <td class="num">5.024,38</td>
+          <td class="num">—</td>
+          <td class="num">28.950,00</td>
+        </tr>
+        <tr>
+          <td class="mono">11/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-a">A</span> <span class="mono">0001-00012474</span></span></td>
+          <td class="razon">Panadería San Justo S.R.L.</td>
+          <td class="mono">30-70845127-9</td>
+          <td>RI</td>
+          <td class="num">257.851,24</td>
+          <td class="num">—</td>
+          <td class="num">27.074,76</td>
+          <td class="num">284.926,00</td>
+        </tr>
+        <tr>
+          <td class="mono">14/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-c">C</span> <span class="mono">0001-00012475</span></span></td>
+          <td class="razon">Rotisería La Plaza</td>
+          <td class="mono">27-32158974-5</td>
+          <td>Mono</td>
+          <td class="num">78.400,00</td>
+          <td class="num">—</td>
+          <td class="num">—</td>
+          <td class="num">78.400,00</td>
+        </tr>
+        <tr>
+          <td class="mono">17/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-a">A</span> <span class="mono">0001-00012476</span></span></td>
+          <td class="razon">Bar Notable Rivadavia S.R.L.</td>
+          <td class="mono">30-71558204-1</td>
+          <td>RI</td>
+          <td class="num">189.173,55</td>
+          <td class="num">39.726,45</td>
+          <td class="num">—</td>
+          <td class="num">228.900,00</td>
+        </tr>
+        <tr>
+          <td class="mono">21/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-b">B</span> <span class="mono">0001-00012477</span></span></td>
+          <td class="razon">Despensa La Económica</td>
+          <td class="mono">27-30992184-6</td>
+          <td>CF</td>
+          <td class="num">112.561,98</td>
+          <td class="num">23.638,02</td>
+          <td class="num">—</td>
+          <td class="num">136.200,00</td>
+        </tr>
+        <tr>
+          <td class="mono">24/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-a">A</span> <span class="mono">0001-00012478</span></span></td>
+          <td class="razon">Pizzería Los Hermanos S.R.L.</td>
+          <td class="mono">30-71203948-2</td>
+          <td>RI</td>
+          <td class="num">129.090,91</td>
+          <td class="num">27.109,09</td>
+          <td class="num">—</td>
+          <td class="num">156.200,00</td>
+        </tr>
+        <tr>
+          <td class="mono">28/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-a">A</span> <span class="mono">0001-00012479</span></span></td>
+          <td class="razon">Vinoteca El Pasaje S.A.</td>
+          <td class="mono">30-70994561-8</td>
+          <td>RI</td>
+          <td class="num">164.256,20</td>
+          <td class="num">34.493,80</td>
+          <td class="num">—</td>
+          <td class="num">198.750,00</td>
+        </tr>
+        <tr>
+          <td class="mono">30/04/2026</td>
+          <td><span class="cbte"><span class="cbte__t t-nc">NC</span> <span class="mono">0001-00000412</span></span></td>
+          <td class="razon">Almacén Don Carlos S.R.L.</td>
+          <td class="mono">30-68745123-4</td>
+          <td>RI</td>
+          <td class="num">−12.396,69</td>
+          <td class="num">−2.603,31</td>
+          <td class="num">—</td>
+          <td class="num">−15.000,00</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr class="subtot"><td colspan="5">Subtotal Factura A</td><td class="num">1.336.842,86</td><td class="num">280.757,14</td><td class="num">27.074,76</td><td class="num">1.616.496,00</td></tr>
+        <tr class="subtot"><td colspan="5">Subtotal Factura B</td><td class="num">136.487,60</td><td class="num">28.662,40</td><td class="num">—</td><td class="num">165.150,00</td></tr>
+        <tr class="subtot"><td colspan="5">Subtotal Factura C / NC</td><td class="num">66.003,31</td><td class="num">−2.603,31</td><td class="num">—</td><td class="num">63.400,00</td></tr>
+        <tr>
+          <td colspan="5" style="text-align:right;">TOTALES DEL PERÍODO</td>
+          <td class="num">6.214.800,00</td>
+          <td class="num">1.243.119,00</td>
+          <td class="num">89.355,00</td>
+          <td class="num grand">7.547.274,00</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="sheet__foot">
+      <span>Generado automáticamente por CheatSheet · Conciliado con ARCA (WSFEv1)</span>
+      <span class="mono">Ref. RPT-IVA-2026-04 · 10 de 10 comprobantes</span>
+    </div>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Reportes · Libro IVA Ventas · Los subtotales por tipo y los totales del período se recalculan según los filtros aplicados</div>
+
+</div>
+<script src="chrome.js"></script>
+</body>
+</html>
