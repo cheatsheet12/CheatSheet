@@ -204,9 +204,59 @@ Riesgos propios, que la plantilla no lista:
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | 2026-08-13 | pendiente de aprobación |
-| 2 · Verificación | | |
+| 1 · Plan | 2026-08-13 | aprobado — opción A para el conflicto estructural |
+| 1b · Prototipos | 2026-08-14 | los prototipos y la paleta se importaron **después** de aprobar el plan; la unidad se ajustó a ellos antes de escribir las pantallas |
+| 2 · Verificación | 2026-08-14 | todos los gates en verde — ver abajo |
 | 3 · PR | | al final del épico, junto con las otras dos unidades |
+
+### Gate 2 — resultado real
+
+```
+ruff format --check .   136 files already formatted
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 131 source files
+pytest --cov            140 passed · cobertura 84.24%
+guard_architecture      144 files checked — boundaries intact
+test_guards.sh          54 cases, all correct
+
+frontend format:check   All matched files use Prettier code style!
+frontend lint           No ESLint warnings or errors
+frontend typecheck      sin errores
+frontend test:coverage  99 passed · 89.01% líneas / 90.86% ramas
+```
+
+La comprobación que CI hace del R5 —crear un import cruzado entre features y verificar que
+lint lo rechace— se corrió a mano y **sigue disparando**.
+
+### Ajustes por los prototipos (2026-08-14)
+
+Los prototipos llegaron con el plan ya aprobado y el backend ya escrito. Lo que cambiaron:
+
+- **El sistema de diseño que había era inventado y se descartó entero.** `tokens.css` se
+  reescribió con los valores del PDF y los componentes se rehicieron contra el catálogo del §1.3.
+- **Decisión: ante la discrepancia entre el PDF y `styles.css`, gana el PDF** (8 valores, huecos
+  P1–P8 de `prototipos.md`). Consecuencia asumida: el panel **no** se ve igual que el prototipo
+  HTML, y las capturas de entrega quedan desactualizadas.
+- **DM Sans y JetBrains Mono vía `next/font`**, que las auto-hospeda en el build. Sin request a
+  Google en runtime. El build necesita red una vez; CI no corre `next build`, así que solo afecta
+  a un deploy.
+- **Dos diferencias deliberadas respecto del prototipo en PAN-ONB-02**, ambas trazables a
+  decisiones previas: no hay autocompletado desde ARCA (D1 lo mandó al épico 2, y el mensaje de
+  éxito dice lo que es cierto en vez de «datos verificados contra ARCA»), y se piden **nombre del
+  responsable y email de contacto**, que HU-E1-02 RN-03 exige y el prototipo no muestra (hueco H7).
+- **El checkbox de términos aparece solo al registrarse.** Las anotaciones lo listan entre los
+  campos obligatorios de la pantalla, pero HU-E1-03 RN-02 lo ata a *completar el registro*: pedir
+  re-aceptar el contrato en cada ingreso sería ruido.
+
+### Falso positivo del R5 encontrado y resuelto sin tocar la regla
+
+La regla de ESLint que implementa R5 no distingue «los internos de **otra** feature» —lo único que
+R5 prohíbe— de «mis propios internos», que R5 permite explícitamente. Disparaba sobre el barril de
+la propia feature, que por definición tiene que importar lo que exporta.
+
+Se resolvió **sin debilitar la regla**: dentro de una feature los imports son relativos
+(`./components/…`), y el alias `@/features/<name>/…` queda significando una sola cosa —alguien
+metiendo mano desde afuera—, que es exactamente lo que debe fallar.
 
 ## Decisiones pendientes — bloquean el inicio
 
@@ -227,4 +277,13 @@ Riesgos propios, que la plantilla no lista:
 
 ## Decisiones tomadas durante la unidad
 
-- (se completa a medida que aparecen)
+- **Conflicto estructural → opción A**: `razon_social`, `cuit` y `condicion_iva` son nullable hasta
+  completar el onboarding. La cuenta existe desde el paso 1, como dice HU-E1-01.
+- **Sign-up y sign-in ocurren antes de que exista empresa**, y RLS no puede expresarlo. En vez de
+  `BYPASSRLS` —apagar la barrera en todos lados para resolver dos consultas— la migración 0002
+  agrega dos funciones `SECURITY DEFINER` acotadas: `buscar_usuario_para_login` devuelve un usuario
+  por email, `existe_cuit_registrado` devuelve un booleano.
+- **El email es único en toda la plataforma, no por empresa.** El login es solo por email, así que
+  dos usuarios compartiéndolo harían la autenticación ambigua.
+- **Ante la discrepancia PDF vs `styles.css`, gana el PDF** (ver arriba).
+- **DM Sans y JetBrains Mono con `next/font`**, auto-hospedadas.

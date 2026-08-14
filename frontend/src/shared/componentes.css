@@ -1,0 +1,275 @@
+/*
+ * The component catalogue of the design specification (§1.3), as classes.
+ *
+ * Written as a stylesheet rather than inline styles for the same reason the prototype
+ * is: a design system that lives in `style={{}}` objects cannot express `:hover`,
+ * `:disabled` or `:focus-visible`, which is where half of the specified behaviour is.
+ *
+ * Every state named in §1.3 has a rule here. Where the document specifies a colour, the
+ * token comes from tokens.css and never a literal.
+ */
+
+/* ── Action elements ─────────────────────────────────────────────────────── */
+
+.boton {
+  font-family: inherit;
+  font-size: var(--text-body);
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  padding: 0 var(--space-4);
+  /* §1.4: the minimum touch target is 44 x 44 px. */
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.boton:disabled {
+  /* §1.3: disabled is 40% opacity and non-interactive. */
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.boton--primario {
+  background: var(--color-accent);
+  color: var(--color-text-on-dark);
+}
+
+.boton--primario:hover:not(:disabled) {
+  background: #00a879;
+}
+
+.boton--secundario {
+  background: transparent;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.boton--secundario:hover:not(:disabled) {
+  background: var(--color-success-light);
+}
+
+/*
+ * §1.3: destructive actions ask for confirmation before running. The colour is the
+ * warning; the confirmation is the guard rail, and it lives in the component.
+ */
+.boton--destructivo {
+  background: transparent;
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.boton--destructivo:hover:not(:disabled) {
+  background: var(--color-error-bg);
+}
+
+.boton__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: boton-girar 700ms linear infinite;
+}
+
+@keyframes boton-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Anybody who asked the system to reduce motion gets a static indicator instead. */
+@media (prefers-reduced-motion: reduce) {
+  .boton__spinner {
+    animation: none;
+  }
+}
+
+/* ── Form fields ─────────────────────────────────────────────────────────── */
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+}
+
+/* §1.4: every field carries a visible label. Placeholders are not labels. */
+.campo__etiqueta {
+  font-size: var(--text-h3);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.campo__control {
+  font-family: inherit;
+  font-size: var(--text-body);
+  color: var(--color-text-body);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  padding: 0 var(--space-3);
+  min-height: var(--touch-min);
+}
+
+.campo__control::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.campo--con-error .campo__control {
+  border-color: var(--color-error);
+}
+
+.campo__error {
+  font-size: var(--text-caption);
+  color: var(--color-error);
+}
+
+.campo__ayuda {
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+
+.campo--mono .campo__control {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono);
+}
+
+.campo--casilla {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+/* ── State elements ──────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-pill);
+  padding: 2px var(--space-2);
+  /* §1.2 allows 11 px here only because a colour indicator carries the meaning too. */
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge--ok {
+  background: var(--color-success-light);
+  color: var(--color-accent);
+}
+
+.badge--atencion {
+  background: var(--color-warning-bg);
+  /* Not --color-warning: amber on a light background is unreadable (§1.1). */
+  color: var(--color-warning-text);
+}
+
+.badge--error {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.badge--pendiente {
+  background: var(--color-pending-bg);
+  color: var(--color-mid);
+}
+
+/* §1.3: a 4 px left border, coloured by kind. */
+.caja {
+  border-left: 4px solid var(--color-mid);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-body);
+}
+
+.caja--exito {
+  border-left-color: var(--color-accent);
+  background: var(--color-success-light);
+}
+
+.caja--advertencia {
+  border-left-color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.caja--error {
+  border-left-color: var(--color-error);
+  background: var(--color-error-bg);
+}
+
+.caja__titulo {
+  display: block;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: var(--space-1);
+}
+
+/* ── Content elements ────────────────────────────────────────────────────── */
+
+.tarjeta {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6);
+}
+
+.tarjeta__titulo {
+  margin-bottom: var(--space-4);
+}
+
+/* ── Navigation elements ─────────────────────────────────────────────────── */
+
+/*
+ * §1.3: completed is a green circle with a tick, active is a circle with its number,
+ * pending is grey. Used by the onboarding and the ingest flows.
+ */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.stepper__paso {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+
+.stepper__marca {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-border);
+  color: var(--color-surface);
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+
+.stepper__paso--activo {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.stepper__paso--activo .stepper__marca {
+  background: var(--color-mid);
+}
+
+.stepper__paso--completado .stepper__marca {
+  background: var(--color-accent);
+}

@@ -1,14 +1,17 @@
 /**
- * Inline message.
+ * Information box — specification §1.3, "Caja de información".
+ *
+ * A 4 px left border coloured by kind. Used for business rules, access notes and
+ * context messages.
  *
  * `tono="error"` renders with `role="alert"`, so a screen reader announces it without
- * the user having to go looking. A validation failure the user cannot perceive is a
- * validation failure that did not happen.
+ * the user going to look for it. A validation failure nobody perceives is a validation
+ * failure that did not happen.
  */
 
 import type { ReactNode } from "react";
 
-export type TonoDeAlerta = "info" | "exito" | "atencion" | "error";
+export type TonoDeAlerta = "neutral" | "exito" | "advertencia" | "error";
 
 export interface PropsDeAlerta {
   readonly tono?: TonoDeAlerta;
@@ -16,28 +19,17 @@ export interface PropsDeAlerta {
   readonly children: ReactNode;
 }
 
-const COLOR: Record<TonoDeAlerta, string> = {
-  info: "var(--color-primario)",
-  exito: "var(--color-exito)",
-  atencion: "var(--color-atencion)",
-  error: "var(--color-peligro)",
+const CLASE: Record<TonoDeAlerta, string> = {
+  neutral: "caja",
+  exito: "caja caja--exito",
+  advertencia: "caja caja--advertencia",
+  error: "caja caja--error",
 };
 
-export function Alert({ tono = "info", titulo, children }: PropsDeAlerta): JSX.Element {
+export function Alert({ tono = "neutral", titulo, children }: PropsDeAlerta): JSX.Element {
   return (
-    <div
-      role={tono === "error" ? "alert" : "status"}
-      style={{
-        borderLeft: `3px solid ${COLOR[tono]}`,
-        background: "var(--color-superficie)",
-        borderRadius: "var(--radio)",
-        padding: "var(--espacio-3) var(--espacio-4)",
-        color: "var(--color-texto)",
-      }}
-    >
-      {titulo !== undefined && (
-        <strong style={{ display: "block", color: COLOR[tono] }}>{titulo}</strong>
-      )}
+    <div className={CLASE[tono]} role={tono === "error" ? "alert" : "status"}>
+      {titulo !== undefined && <strong className="caja__titulo">{titulo}</strong>}
       {children}
     </div>
   );

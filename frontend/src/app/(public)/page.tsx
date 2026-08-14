@@ -1,21 +1,13 @@
 /**
- * Landing route (`/`).
+ * `/` — PAN-ONB-01.
  *
- * A placeholder, and it says so rather than pretending: PAN-ONB-01 is built by the
- * `identidad-y-onboarding` unit. What it does prove is that the shell holds together
- * — root layout, route group, design tokens and the shared components.
+ * The route composes the feature and nothing else. All the behaviour lives in
+ * `features/identity`, which is what keeps a screen from turning into the place where
+ * business rules accumulate.
  */
 
-import { Alert, Card } from "@/shared";
+import { FormularioDeIngreso } from "@/features/identity";
 
-export default function Landing(): JSX.Element {
-  return (
-    <Card titulo="CheatSheet">
-      <Alert tono="info" titulo="Cimientos en pie">
-        La plataforma está montada: API, base de datos con aislamiento por empresa, bitácora de
-        operaciones y cola de tareas. El registro y el inicio de sesión (PAN-ONB-01) llegan con la
-        unidad de identidad.
-      </Alert>
-    </Card>
-  );
+export default function Ingreso(): JSX.Element {
+  return <FormularioDeIngreso />;
 }
