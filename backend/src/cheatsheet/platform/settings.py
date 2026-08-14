@@ -47,6 +47,16 @@ def _opcional(nombre: str, por_defecto: str) -> str:
     return os.environ.get(nombre, "").strip() or por_defecto
 
 
+def _entero(nombre: str, por_defecto: int) -> int:
+    crudo = os.environ.get(nombre, "").strip()
+    if not crudo:
+        return por_defecto
+    try:
+        return int(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(f"{nombre} debe ser un numero entero, no '{crudo}'") from exc
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Everything the backend needs to know about where it is running."""
@@ -58,6 +68,13 @@ class Settings:
     celery_broker_url: str
     celery_result_backend: str
     log_level: str
+    jwt_secret: str
+    jwt_access_ttl_minutos: int
+    refresh_ttl_dias: int
+    terminos_version_vigente: str
+    google_oauth_client_id: str
+    google_oauth_client_secret: str
+    google_oauth_redirect_uri: str
 
     @property
     def es_produccion(self) -> bool:
@@ -77,4 +94,20 @@ class Settings:
             celery_broker_url=_opcional("CELERY_BROKER_URL", redis_url),
             celery_result_backend=_opcional("CELERY_RESULT_BACKEND", redis_url),
             log_level=_opcional("LOG_LEVEL", "INFO"),
+            # No default: a JWT secret that falls back to a constant is every
+            # deployment signing tokens the world can forge.
+            jwt_secret=_requerida("JWT_SECRET"),
+            jwt_access_ttl_minutos=_entero("JWT_ACCESS_TTL_MINUTOS", 15),
+            refresh_ttl_dias=_entero("REFRESH_TTL_DIAS", 30),
+            terminos_version_vigente=_opcional("TERMINOS_VERSION_VIGENTE", "1.0"),
+            # Platform-wide OAuth client, not per company. Optional so the API can boot
+            # without Google configured; the endpoint refuses instead of the process
+            # failing to start.
+            google_oauth_client_id=_opcional("GOOGLE_OAUTH_CLIENT_ID", ""),
+            google_oauth_client_secret=_opcional("GOOGLE_OAUTH_CLIENT_SECRET", ""),
+            google_oauth_redirect_uri=_opcional("GOOGLE_OAUTH_REDIRECT_URI", ""),
         )
+
+    @property
+    def google_oauth_configurado(self) -> bool:
+        return bool(self.google_oauth_client_id and self.google_oauth_client_secret)

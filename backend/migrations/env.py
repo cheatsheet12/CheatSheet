@@ -21,6 +21,9 @@ from logging.config import fileConfig
 from alembic import context
 
 # Imported for their side effect: registering their tables on Base.metadata.
+from cheatsheet.contexts.identity.infrastructure import (
+    models as _identity_models,  # noqa: F401
+)
 from cheatsheet.contexts.observability.infrastructure import (
     models as _observability_models,  # noqa: F401
 )

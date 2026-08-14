@@ -6,15 +6,18 @@ and exception handlers are exercised — in process, without opening a socket.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import cast
+from uuid import uuid4
 
 import httpx
 import pytest
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
-from cheatsheet.api.middleware.empresa import HEADER_EMPRESA
+from cheatsheet.contexts.identity.infrastructure.seguridad import EmisorDeTokensJWT
 from cheatsheet.platform.settings import Entorno, Settings
 from cheatsheet.shared.clock import RelojFijo
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import InvarianteViolada
 from fastapi import APIRouter, FastAPI
 from redis.asyncio import Redis
@@ -32,6 +35,13 @@ def _settings(entorno: Entorno = Entorno.TEST) -> Settings:
         celery_broker_url="redis://localhost:6380/0",
         celery_result_backend="redis://localhost:6380/0",
         log_level="WARNING",
+        jwt_secret="fake-secret-for-tests",
+        jwt_access_ttl_minutos=15,
+        refresh_ttl_dias=30,
+        terminos_version_vigente="1.0",
+        google_oauth_client_id="",
+        google_oauth_client_secret="",
+        google_oauth_redirect_uri="",
     )
 
 
@@ -127,8 +137,8 @@ async def test_una_ruta_de_negocio_sin_empresa_es_rechazada(parchar_sondas):
 
 
 @pytest.mark.asyncio
-async def test_en_produccion_el_header_de_empresa_es_ignorado(parchar_sondas):
-    """The development shortcut must not survive a deploy. This is what proves it."""
+async def test_un_token_invalido_no_abre_la_puerta(parchar_sondas):
+    """The development header is gone: only a signed token identifies a company now."""
     parchar_sondas(base_ok=True, redis_ok=True)
     settings = _settings(Entorno.PRODUCTION)
     app = create_app(settings, _recursos(settings))
@@ -136,7 +146,7 @@ async def test_en_produccion_el_header_de_empresa_es_ignorado(parchar_sondas):
 
     async with _cliente(app) as cliente:
         respuesta = await cliente.get(
-            "/prueba/eco", headers={HEADER_EMPRESA: "3f1c2b8e-0000-4000-8000-000000000001"}
+            "/prueba/eco", headers={"Authorization": "Bearer no-es-un-jwt"}
         )
 
     assert respuesta.status_code == 401
@@ -150,14 +160,24 @@ async def test_un_error_de_dominio_se_traduce_sin_filtrar_internals(parchar_sond
     app.include_router(_router_de_prueba())
 
     async with _cliente(app) as cliente:
-        respuesta = await cliente.get(
-            "/prueba/romper", headers={HEADER_EMPRESA: "3f1c2b8e-0000-4000-8000-000000000001"}
-        )
+        respuesta = await cliente.get("/prueba/romper", headers=_autorizacion(settings))
 
     assert respuesta.status_code == 409
     cuerpo = respuesta.json()
     assert cuerpo["error"] == "InvarianteViolada"
     assert "Traceback" not in str(cuerpo)
+
+
+def _autorizacion(settings: Settings) -> dict[str, str]:
+    """A genuinely signed token, so the middleware is exercised and not bypassed."""
+    emisor = EmisorDeTokensJWT(secreto=settings.jwt_secret, vida_acceso=timedelta(minutes=15))
+    token = emisor.emitir_acceso(
+        usuario_id=UsuarioId(uuid4()),
+        empresa_id=EmpresaId(uuid4()),
+        rol="ADMINISTRADOR",
+        ahora=datetime.now(UTC),
+    )
+    return {"Authorization": f"Bearer {token.valor}"}
 
 
 def _router_de_prueba() -> APIRouter:

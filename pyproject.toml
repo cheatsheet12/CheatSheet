@@ -42,8 +42,11 @@ ignore = [
 # so the anchored form matched nothing at all. It went unnoticed while the only test
 # files were named test_*.py — which the second pattern catches — and surfaced with the
 # first conftest.py that used `assert`.
-"**/tests/**/*.py" = ["S101", "ANN201", "ANN001", "ARG001"]
-"**/test_*.py" = ["S101", "ANN201", "ANN001", "ARG001"]
+# S105/S106: a test has to pass a fake secret somewhere. The values are named
+# "fake-…-for-tests" and the guard in .claude/hooks/guard_edit.py still blocks a real
+# one, so the rule buys nothing here and costs a noqa on every auth test.
+"**/tests/**/*.py" = ["S101", "S105", "S106", "ANN201", "ANN001", "ARG001"]
+"**/test_*.py" = ["S101", "S105", "S106", "ANN201", "ANN001", "ARG001"]
 "**/*_test.py" = ["S101", "ANN201", "ANN001", "ARG001"]
 # Claude Code hooks are not application code: they talk to the harness by writing
 # JSON to stdout (T201) and invoke git from PATH on purpose (S603/S607), because
