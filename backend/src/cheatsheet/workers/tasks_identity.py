@@ -19,7 +19,6 @@ live invitation link in an aggregated log is an account waiting to be taken.
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 from functools import lru_cache
 from typing import Any
@@ -43,6 +42,7 @@ from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 from cheatsheet.workers.base import EjecutorIdempotente, PoliticaDeReintentos
 from cheatsheet.workers.celery_app import Cola, crear_celery
+from cheatsheet.workers.ejecucion import ejecutar_tarea
 
 logger = obtener_logger(__name__)
 
@@ -157,11 +157,12 @@ async def encolar_invitacion(
         )
 
 
-def registrar_en(app: Celery, recursos: Recursos) -> None:
+def registrar_en(app: Celery, settings: Settings) -> None:
     """Register the task on a worker's Celery application.
 
-    Called from `workers/main.py`, which is the only module that has both a configured
-    environment and a reason to hold process-lifetime `Recursos`.
+    Takes `Settings`, not `Recursos`: each execution builds its own inside its own event
+    loop (see `workers/ejecucion.py`). Holding an engine across executions is what made
+    the second invitation of every worker fail.
 
     `autoretry_for` covers the two failures worth retrying — the mail server refused, or
     the socket did — with the exponential backoff and jitter of ADR-009. A
@@ -181,11 +182,11 @@ def registrar_en(app: Celery, recursos: Recursos) -> None:
         max_retries=REINTENTOS.max_intentos,
     )
     def _tarea(**kwargs: str) -> Any:
-        return enviar_invitacion_sync(recursos, **kwargs)
+        return enviar_invitacion_sync(settings, **kwargs)
 
 
 def enviar_invitacion_sync(
-    recursos: Recursos,
+    settings: Settings,
     empresa_id: str,
     invitacion_id: str,
     destinatario: str,
@@ -194,8 +195,9 @@ def enviar_invitacion_sync(
     expira_en: str,
 ) -> Any:
     """Celery's bridge into the async world, same shape as `tasks.registrar_latido_sync`."""
-    return asyncio.run(
-        enviar_invitacion(
+    return ejecutar_tarea(
+        settings,
+        lambda recursos: enviar_invitacion(
             recursos,
             empresa_id=EmpresaId(UUID(empresa_id)),
             invitacion_id=UUID(invitacion_id),
@@ -203,5 +205,5 @@ def enviar_invitacion_sync(
             invitado_por_id=UsuarioId(UUID(invitado_por_id)),
             token=token,
             expira_en=datetime.fromisoformat(expira_en),
-        )
+        ),
     )

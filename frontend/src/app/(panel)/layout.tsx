@@ -22,6 +22,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { BotonDeSalida } from "@/features/identity";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
@@ -57,6 +58,7 @@ export default async function PanelLayout({
           <Link href="/panel">Inicio</Link>
           <Link href="/configuracion/usuarios">Usuarios</Link>
           <Link href="/configuracion/preferencias">Mis preferencias</Link>
+          <BotonDeSalida />
         </nav>
       </header>
       <main className="panel__contenido">{children}</main>

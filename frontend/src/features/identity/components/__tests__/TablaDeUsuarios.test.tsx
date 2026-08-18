@@ -96,6 +96,9 @@ describe("caso 38 — el rol gobierna lo que se ve", () => {
     expect(screen.queryByRole("button", { name: "Invitar usuario" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Desactivar" })).toBeNull();
     expect(screen.queryByLabelText(/^Rol de/)).toBeNull();
+    // And the column itself is gone: a header over blank cells looks like a screen that
+    // failed to load its buttons. Found in QA.
+    expect(screen.queryByRole("columnheader", { name: "Acciones" })).toBeNull();
   });
 
   it("un Solo Lectura tampoco puede cambiar un rol", () => {
@@ -110,6 +113,7 @@ describe("caso 38 — el rol gobierna lo que se ve", () => {
     expect(screen.getByRole("button", { name: "Invitar usuario" })).toBeDefined();
     expect(screen.getAllByRole("button", { name: "Desactivar" })).toHaveLength(2);
     expect(screen.getByLabelText("Rol de Beto Gomez")).toBeDefined();
+    expect(screen.getByRole("columnheader", { name: "Acciones" })).toBeDefined();
   });
 
   it("una invitación pendiente ofrece reenviar y revocar, no desactivar", () => {

@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Alert, Button, Card, Select, formatearFechaHora } from "@/shared";
 
@@ -57,6 +57,16 @@ export function FormularioDePreferencias({
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [montado, setMontado] = useState(false);
+
+  // The preview renders **after hydration only**, and that is not a stylistic choice.
+  // `Intl.DateTimeFormat` is backed by ICU, and Node's copy and the browser's disagree
+  // on details as small as which space character separates the time from "p. m."
+  // (U+202F vs U+00A0). React compares the two strings, finds them different, discards
+  // the server HTML and re-renders the entire root on the client — a hydration error on
+  // every single load. Rendering it here, where only the browser ever does, is the fix
+  // that does not depend on two ICU builds agreeing.
+  useEffect(() => setMontado(true), []);
 
   const recibe = (categoria: string, canal: string): boolean =>
     (suscripciones[categoria] ?? []).includes(canal);
@@ -125,10 +135,12 @@ export function FormularioDePreferencias({
 
         <p className="campo__ayuda">
           Así vas a ver las fechas:{" "}
-          <strong>{formatearFechaHora(EJEMPLO, { idioma, zonaHoraria: zona })}</strong>
+          <strong>
+            {montado ? formatearFechaHora(EJEMPLO, { idioma, zonaHoraria: zona }) : "…"}
+          </strong>
         </p>
 
-        <fieldset style={{ border: "none", padding: 0, margin: "var(--space-4) 0" }}>
+        <fieldset className="suscripciones__grupo">
           <legend className="campo__etiqueta">Avisos que querés recibir</legend>
           <div className="suscripciones">
             {CATEGORIAS.map((categoria) => (

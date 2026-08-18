@@ -374,6 +374,7 @@ Riesgos propios de esta unidad, que también obligan a test:
 |---|---|---|
 | 1 · Plan | 2026-08-14 | aprobado, sin cambios pedidos — incluido el arreglo del camino pre-tenant |
 | 2 · Verificación | 2026-08-18 | todos los gates en verde — ver abajo |
+| 2b · QA en navegador | 2026-08-18 | 7 defectos encontrados y corregidos — ver abajo |
 | 3 · PR | | (unificado para el épico) |
 
 ---
@@ -441,6 +442,63 @@ tokens de diseño que dejaron de existir** cuando se importaron los prototipos d
 Está todo en [`../TODO.md`](../TODO.md). En una línea: los dos `.env.example` (denegados por
 permisos en mi entorno), credenciales reales de Google y de SMTP —hoy ambas corren simuladas, con
 el simulado prohibido en producción— y el Gate 3.
+
+---
+
+## Gate 2b — QA manual en el navegador (2026-08-18)
+
+Recorrido completo con la aplicación levantada de verdad: PostgreSQL y Redis en
+contenedor, la API en uvicorn, Next en modo desarrollo y **un worker consumiendo la cola
+`notifications`**. Se ejerció el camino entero — alta, onboarding, invitación, mail,
+aceptación, ingreso del invitado, RBAC como Operador, preferencias, alta con Google
+simulada, cierre de sesión — más los rechazos por API.
+
+**Siete defectos, todos corregidos y con test de regresión.** Cinco de ellos no los podía
+ver ninguna suite: aparecen solo cuando el proceso corre de verdad.
+
+| # | Defecto | Por qué ningún test lo veía |
+|---|---|---|
+| 1 | **La segunda invitación nunca se enviaba.** El worker construía `Recursos` una vez al importar; cada tarea de Celery corre en un event loop nuevo, así que la segunda ejecución tomaba del pool una conexión de un loop ya cerrado: `got Future attached to a different loop` | Los tests unitarios doblan `_contexto` y corren dentro de un solo loop; los de integración no pasan por el puente síncrono de Celery. Hace falta ejecutar **dos veces** contra conexiones reales |
+| 2 | **Error de hidratación en `/configuracion/preferencias`.** `Intl.DateTimeFormat` no coincide entre el ICU de Node y el del navegador (U+202F vs U+00A0 antes de «p. m.»), React descartaba el HTML del servidor y volvía a renderizar toda la raíz en el cliente, con error en consola en cada carga | jsdom no hidrata: renderiza una sola vez. Se necesita `renderToString` para verlo |
+| 3 | **No había forma de cerrar sesión.** `/api/auth/logout` existía desde la unidad 2 y ninguna pantalla lo llamaba | Un endpoint sin llamador no rompe ningún test: los suyos pasan |
+| 4 | La etiqueta del `<select>` de rol se dibujaba dentro de la celda («Rol de Ana Perez»), duplicando el encabezado de columna | Es visual. `getByLabelText` la encuentra igual, esté oculta o no |
+| 5 | La columna **Acciones** se dibujaba vacía para Operador y Solo lectura | Ídem: los tests verificaban que no hubiera botones, no que no hubiera columna |
+| 6 | El `<legend>` de las suscripciones quedaba pegado a la primera fila y con sangría distinta, por el padding que un `fieldset` trae de fábrica | Ídem |
+| 7 | El contenido del panel ocupaba los 1500 px de la pantalla: un selector de zona horaria de ancho completo | Ídem |
+
+**El 1 se verificó dos veces:** con un script que reproduce la forma vieja —falla en la
+segunda vuelta, `Event loop is closed`— y con el worker real enviando tres invitaciones
+seguidas sin un solo error. El test de regresión
+(`tests/integracion/test_tareas_en_loops_distintos.py`) corre la tarea tres veces contra
+la base y Redis reales.
+
+### Lo que se verificó y estaba bien
+
+Alta con email y con Google (proveedor simulado), onboarding con CUIT y `CondicionIVA`,
+bloqueo del panel hasta completarlo, invitación → mail con el link → aceptación con
+contraseña propia → ingreso, **el Operador ve la lista y ninguna acción**, la API le
+responde 403, el invariante del último Administrador devuelve 409 y la pantalla lo
+explica en castellano, reenvío de invitación, preferencias que persisten, rotación de
+refresh y detección de reuso (409 al reutilizar).
+
+### Anotado, no corregido
+
+- **`Button variante="destructivo"` usa `window.confirm`.** Funciona y está testeado, pero
+  ahora que esta unidad agregó `Modal` al sistema de diseño, la confirmación debería usarlo.
+  Cambiarlo toca **todas** las acciones destructivas del sistema, así que es una decisión
+  de alcance, no un arreglo de QA. Queda en `TODO.md`.
+- **La sesión sigue muriendo a los 15 minutos.** Lo sufrí durante el propio QA: el panel
+  te saca aunque haya una cookie de refresh válida al lado. El arreglo natural
+  —renovar en el middleware— tiene una carrera real: dos peticiones en paralelo rotarían
+  el mismo token y la detección de reuso revocaría la familia entera. No se improvisa al
+  final de un QA. Ya estaba declarado en `TODO.md` §4 y ahí sigue, ahora con el riesgo escrito.
+
+### Un detalle del entorno, no del producto
+
+La suite de integración **borra las tablas de la base local** al terminar cada test
+(`base_limpia`). Si se corre `pytest` en medio de una sesión de QA manual, los datos de
+prueba desaparecen. En CI es un contenedor descartable y da igual; en la máquina de uno,
+conviene levantar una segunda base o hacer el QA después de los tests.
 
 ## Decisiones tomadas durante la unidad
 

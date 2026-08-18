@@ -290,9 +290,16 @@
   border-collapse: collapse;
 }
 
+/*
+ * Present for a screen reader, invisible on screen. Used by the table caption — the
+ * section already carries a heading — and by a select inside a cell, whose column header
+ * says the same thing the label would.
+ *
+ * `display: none` would be the obvious way and the wrong one: it removes the element
+ * from the accessibility tree too, which is the exact opposite of the point.
+ */
+.solo-lectores,
 .tabla__caption {
-  /* Present for a screen reader, invisible on screen: the section already has a heading
-     and repeating it would be noise. */
   position: absolute;
   width: 1px;
   height: 1px;
@@ -393,6 +400,19 @@
 
 /* ── Subscription grid — HU-E1-07 RN-02 ──────────────────────────────────── */
 
+.suscripciones__grupo {
+  /* A `fieldset` carries a border and a legend with its own inline padding by default.
+     Both have to go, or the legend sits indented and flush against the first row. */
+  border: none;
+  padding: 0;
+  margin: var(--space-6) 0 var(--space-4);
+}
+
+.suscripciones__grupo legend {
+  padding-inline: 0;
+  margin-bottom: var(--space-3);
+}
+
 .suscripciones {
   display: grid;
   gap: var(--space-3);
@@ -462,4 +482,30 @@
 
 .panel__contenido {
   padding: var(--space-6);
+  /* A form is not more usable for being 1500 px wide: a time-zone select spanning the
+     whole screen is harder to read, not easier. The specification's reading measure. */
+  max-width: 72rem;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.panel__salir {
+  background: transparent;
+  border: 1px solid var(--color-mid);
+  color: var(--color-text-on-dark);
+  font-family: inherit;
+  font-size: var(--text-body);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--touch-min);
+  cursor: pointer;
+}
+
+.panel__salir:hover:not(:disabled) {
+  background: var(--color-sidebar-hover);
+}
+
+.panel__salir:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

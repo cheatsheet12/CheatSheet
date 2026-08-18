@@ -20,6 +20,15 @@ export interface PropsDeSelect
   readonly opciones: readonly OpcionDeSelect[];
   readonly error?: string | undefined;
   readonly ayuda?: string | undefined;
+  /**
+   * Keeps the label in the accessibility tree and off the screen.
+   *
+   * For a select inside a table cell: the column header already says "Rol", so showing
+   * the label again makes the row taller and reads as noise — but a control whose only
+   * name is its column is unusable with a screen reader, which announces cells one at a
+   * time. Hidden, not removed.
+   */
+  readonly etiquetaOculta?: boolean;
 }
 
 export function Select({
@@ -28,6 +37,7 @@ export function Select({
   opciones,
   error,
   ayuda,
+  etiquetaOculta = false,
   ...resto
 }: PropsDeSelect): JSX.Element {
   const idError = `${id}-error`;
@@ -38,7 +48,7 @@ export function Select({
 
   return (
     <div className={`campo${error !== undefined ? " campo--con-error" : ""}`}>
-      <label className="campo__etiqueta" htmlFor={id}>
+      <label className={`campo__etiqueta${etiquetaOculta ? " solo-lectores" : ""}`} htmlFor={id}>
         {etiqueta}
       </label>
       <select

@@ -12,16 +12,17 @@ because a scheduled task has no user behind it.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 from uuid import UUID, uuid4
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 from cheatsheet.workers.base import EjecutorIdempotente
+from cheatsheet.workers.ejecucion import ejecutar_tarea
 
 logger = obtener_logger(__name__)
 
@@ -57,10 +58,14 @@ async def registrar_latido(
     return await ejecutor.ejecutar(clave, efecto)
 
 
-def registrar_latido_sync(recursos: Recursos, empresa_id: str, referencia: str) -> Any:
+def registrar_latido_sync(settings: Settings, empresa_id: str, referencia: str) -> Any:
     """Celery's bridge into the async world.
 
     Celery tasks are synchronous; everything below them is not. One event loop per task
-    execution is the simple, correct answer at this volume.
+    execution, **and one set of resources inside it** — see `workers/ejecucion.py` for the
+    defect that taught us the second half.
     """
-    return asyncio.run(registrar_latido(recursos, EmpresaId(UUID(empresa_id)), referencia))
+    return ejecutar_tarea(
+        settings,
+        lambda recursos: registrar_latido(recursos, EmpresaId(UUID(empresa_id)), referencia),
+    )

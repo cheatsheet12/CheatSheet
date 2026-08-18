@@ -10,6 +10,7 @@
  * uses relative paths and the rule stays unambiguous instead of needing an exception.
  */
 
+export { BotonDeSalida } from "./components/BotonDeSalida";
 export { FormularioDeAceptacion } from "./components/FormularioDeAceptacion";
 export { FormularioDeEmpresa } from "./components/FormularioDeEmpresa";
 export { FormularioDeIngreso } from "./components/FormularioDeIngreso";

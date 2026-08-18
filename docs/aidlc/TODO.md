@@ -59,7 +59,7 @@ proveedor OAuth simulado **lanza al construirse**.
 
 | Gate | Qué falta |
 |---|---|
-| **2 · Verificación** de `usuarios-y-preferencias` | Corrida y en verde (abajo el detalle). Falta que **vos la des por buena**. |
+| **2 · Verificación** de `usuarios-y-preferencias` | Corrida y en verde, más un **QA manual en el navegador** que encontró y dejó corregidos 7 defectos (detalle en el plan de la unidad). Falta que **vos la des por buena**. |
 | **3 · Pull Request** | El push de la rama y la apertura del PR. Por regla del repositorio **no los hago sin que los pidas**. Son 4 commits sobre `feature/identity-cimientos-identidad-y-bitacora`, que entra a `develop` con las ocho historias del épico. |
 
 Estado de la verificación local, al día de hoy:
@@ -67,11 +67,11 @@ Estado de la verificación local, al día de hoy:
 ```
 ruff format --check .   sin cambios
 ruff check .            All checks passed!
-mypy .                  Success: no issues found in 150 source files
-guard_architecture      188 file(s) checked — architecture boundaries intact
-pytest --cov            235 passed · cobertura 87.8%  (umbral 80%)
+mypy .                  Success: no issues found in 152 source files
+guard_architecture      192 file(s) checked — architecture boundaries intact
+pytest --cov            239 passed · cobertura 89.1%  (umbral 80%)
 frontend lint/typecheck limpios
-frontend vitest         176 passed · cobertura 91.2%
+frontend vitest         181 passed · cobertura 91.3%
 frontend build          compila, 21 rutas registradas
 ```
 
@@ -138,9 +138,19 @@ Ninguna de estas bloquea el cierre. Están acá para que nadie las descubra desp
 - **`GET /auth/empresa`** se agregó para que el layout del panel sepa si el onboarding está
   completo. Cuesta una llamada por navegación. Si el panel crece, conviene un endpoint de
   «contexto de sesión» que devuelva empresa + usuario + rol de una vez, en lugar de tres.
-- **La renovación de sesión es manual.** `/api/auth/refresh` existe y funciona, pero nadie lo llama
-  solo: hoy hay que invocarlo desde el cliente cuando una respuesta vuelve 401. Un interceptor en
-  `lib/api.ts` sería lo natural, y no lo hice porque cae fuera de lo que pide este épico.
+- **La renovación de sesión es manual, y se nota.** `/api/auth/refresh` existe y funciona, pero
+  nadie lo llama solo: **el panel te saca a los 15 minutos** aunque tengas la cookie de refresh al
+  lado. Apareció en el QA del 2026-08-18, en carne propia.
+  **Por qué no lo arreglé ahí mismo:** el lugar natural es el middleware de Next, y ahí hay una
+  carrera real — dos peticiones en paralelo rotarían el mismo token de un solo uso, y la detección
+  de reuso revocaría **la familia entera**, que es peor que el problema. Necesita un candado o un
+  único punto de renovación, y eso es una decisión de diseño, no un parche de QA.
+- **`Button variante="destructivo"` confirma con `window.confirm`.** Funciona y está testeado, pero
+  esta unidad agregó `Modal` al sistema de diseño y la confirmación debería usarlo. Cambiarlo toca
+  todas las acciones destructivas del sistema: es alcance, no defecto.
+- **La suite de integración borra la base local al terminar.** Correr `pytest` en medio de un QA
+  manual se lleva puestos los datos de prueba. En CI es un contenedor descartable; en una laptop,
+  conviene una segunda base o hacer el QA después de los tests.
 - **El invariante del último Administrador se serializa con `SELECT … FOR UPDATE`** sobre la fila de
   `empresa`. Es correcto y está probado con dos operaciones concurrentes de verdad, pero es un
   candado por empresa: si alguna vez hay operaciones masivas sobre usuarios, ese es el cuello.

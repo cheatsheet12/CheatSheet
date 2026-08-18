@@ -95,7 +95,7 @@ export function TablaDeUsuarios({
     setFilas((previas) => previas.map((fila) => (fila.id === actualizado.id ? actualizado : fila)));
   };
 
-  const columnas: readonly Columna<UsuarioDeLaEmpresa>[] = [
+  const columnas: Columna<UsuarioDeLaEmpresa>[] = [
     { clave: "nombre", titulo: "Nombre", celda: (fila) => fila.nombre },
     { clave: "email", titulo: "Email", celda: (fila) => fila.email },
     {
@@ -106,6 +106,7 @@ export function TablaDeUsuarios({
           <Select
             id={`rol-${fila.id}`}
             etiqueta={`Rol de ${fila.nombre}`}
+            etiquetaOculta
             opciones={ROLES}
             value={fila.rol}
             disabled={ocupado === fila.id}
@@ -129,13 +130,18 @@ export function TablaDeUsuarios({
         <Badge estado={TONO_DE_ESTADO[fila.estado]}>{ETIQUETA_DE_ESTADO[fila.estado]}</Badge>
       ),
     },
-    {
+  ];
+
+  // The actions column is not rendered empty for somebody who has no actions: a header
+  // over five blank cells looks like a screen that failed to load its buttons.
+  if (esAdministrador) {
+    columnas.push({
       clave: "acciones",
       titulo: "Acciones",
       alDerecha: true,
       celda: (fila) => <span className="tabla__acciones">{acciones(fila)}</span>,
-    },
-  ];
+    });
+  }
 
   function acciones(fila: UsuarioDeLaEmpresa): JSX.Element | null {
     if (!esAdministrador) {

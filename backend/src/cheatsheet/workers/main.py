@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from celery import Celery
 
-from cheatsheet.api.dependencies import Recursos
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging
 from cheatsheet.workers.beat import configurar_beat
@@ -24,7 +23,8 @@ configurar_logging(settings)
 
 app: Celery = configurar_beat(crear_celery(settings))
 
-# Process-lifetime resources, shared by every task this worker runs — the same split as
-# the API: engine and Redis client live as long as the process, sessions do not.
-recursos = Recursos.crear(settings)
-registrar_en(app, recursos)
+# Tasks get `Settings`, not resources. The API can hold an engine for the life of the
+# process because it serves every request on one event loop; a Celery worker runs each
+# task in a fresh one, and a connection pool does not survive that. See
+# `workers/ejecucion.py` — this is the defect QA found by sending two invitations.
+registrar_en(app, settings)

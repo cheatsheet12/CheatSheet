@@ -125,6 +125,23 @@ describe("Select", () => {
     expect((control as HTMLSelectElement).value).toBe("OPERADOR");
   });
 
+  it("etiquetaOculta la saca de la pantalla y la deja en el árbol", () => {
+    // Inside a table cell the column header already says "Rol"; a screen reader, which
+    // announces one cell at a time, still needs the name. Found in QA.
+    render(
+      <Select
+        id="rol"
+        etiqueta="Rol de Ana Perez"
+        etiquetaOculta
+        opciones={[{ valor: "OPERADOR", etiqueta: "Operador" }]}
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(screen.getByLabelText("Rol de Ana Perez")).toBeDefined();
+    expect(screen.getByText("Rol de Ana Perez").className).toContain("solo-lectores");
+  });
+
   it("con error lo anuncia y se marca inválido", () => {
     render(
       <Select
