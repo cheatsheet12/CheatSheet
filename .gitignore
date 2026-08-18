@@ -16,26 +16,49 @@
 # ==========================================================================
 # Python
 # ==========================================================================
+# The directory patterns below are ANCHORED on purpose.
+#
+# They are ordinary English words — lib, build, dist, var, parts — and a gitignore
+# pattern without a slash matches at EVERY depth, in every language. That is not a
+# hypothetical: an unanchored `lib/` silently swallowed `frontend/src/lib/`, the BFF
+# layer of ADR-0002. The code type-checked on a laptop, where the files exist, and
+# did not exist at all in CI, where only what git tracks is checked out.
+#
+# A Python distribution is only ever built where a pyproject.toml lives, so these are
+# matched there and nowhere else.
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+/build/
+/develop-eggs/
+/dist/
+/downloads/
+/eggs/
+/lib/
+/lib64/
+/parts/
+/sdist/
+/var/
+/wheels/
+
+backend/build/
+backend/develop-eggs/
+backend/dist/
+backend/downloads/
+backend/eggs/
+backend/lib/
+backend/lib64/
+backend/parts/
+backend/sdist/
+backend/var/
+backend/wheels/
 
 # Virtual environments
 .venv/
