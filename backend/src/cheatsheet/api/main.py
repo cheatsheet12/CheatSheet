@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.errors import registrar_manejadores
 from cheatsheet.api.middleware.empresa import EmpresaMiddleware
-from cheatsheet.api.routers import auth, health, usuarios
+from cheatsheet.api.routers import auth, health, integraciones, usuarios
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging, obtener_logger
 
@@ -65,5 +65,6 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(health.crear_router(recursos))
     app.include_router(auth.crear_router(recursos))
     app.include_router(usuarios.crear_router(recursos))
+    app.include_router(integraciones.crear_router(recursos))
 
     return app

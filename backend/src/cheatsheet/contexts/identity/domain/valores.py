@@ -15,6 +15,7 @@ from enum import StrEnum
 from typing import TypeVar
 
 from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.roles import RolUsuario as RolUsuario
 
 LARGO_CUIT = 11
 LARGO_MINIMO_CONTRASENA = 8
@@ -37,12 +38,16 @@ class CondicionIVA(StrEnum):
     CONSUMIDOR_FINAL = "CONSUMIDOR_FINAL"
 
 
-class RolUsuario(StrEnum):
-    """DER enum `rol_usuario`. Closed catalogue — HU-E1-04 RN-01: not configurable."""
-
-    ADMINISTRADOR = "ADMINISTRADOR"
-    OPERADOR = "OPERADOR"
-    SOLO_LECTURA = "SOLO_LECTURA"
+# `RolUsuario` now lives in the Shared Kernel and is re-exported here.
+#
+# `identity` still owns the concept — the DER enum is `rol_usuario`, the three roles are
+# created during invitation, and HU-E1-05's last-Administrator invariant is enforced in
+# this context. What changed is that `integrations` also has to authorize (HU-E2-05 lets
+# an Operador read but not connect), and importing this module from there would break R3
+# and contradict ADR-0003. See `shared/roles.py` for the full reasoning.
+#
+# Re-exported rather than moved-and-updated so the ~100 existing imports of
+# `identity.domain.valores.RolUsuario` keep working untouched.
 
 
 class EstadoUsuario(StrEnum):

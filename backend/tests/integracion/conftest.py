@@ -96,6 +96,7 @@ def sesiones(engine_aplicacion: AsyncEngine) -> async_sessionmaker[AsyncSession]
 #: constant, and the linter is right to say so.
 BORRADOS = (
     "DELETE FROM registro_de_auditoria",
+    "DELETE FROM configuracion_de_integracion",
     "DELETE FROM invitacion",
     "DELETE FROM refresh_token",
     "DELETE FROM usuario",
