@@ -13,6 +13,7 @@ conftest, and skip themselves when the database is not configured.
 
 from __future__ import annotations
 
+import base64
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -68,10 +69,13 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         jwt_access_ttl_minutos=15,
         refresh_ttl_dias=30,
         terminos_version_vigente="1.0",
-        # A real 32-byte key, generated once and hardcoded: the cipher validates its
-        # length at construction, so a placeholder string would fail every test that
-        # builds `Settings`. It protects nothing — it encrypts fixtures.
-        secrets_encryption_key="dGVzdC1rZXktMzItYnl0ZXMtZm9yLWFlczI1Ni1hYmM=",
+        # `CifradoAesGcm` validates the length at construction, so this has to decode to
+        # exactly 32 bytes — a placeholder string would fail every test that builds
+        # `Settings`. Encoded here rather than pasted as base64 on purpose: a literal
+        # blob is high-entropy, and `gitleaks` is right to flag one in a source file even
+        # when it protects nothing. Readable ASCII says what it is, like `jwt_secret`
+        # above, and the scanner has nothing to report.
+        secrets_encryption_key=base64.b64encode(b"fake-encryption-key-for-tests-32").decode(),
         integracion_timeout_segundos=1,
         google_oauth_client_id="",
         google_oauth_client_secret="",
