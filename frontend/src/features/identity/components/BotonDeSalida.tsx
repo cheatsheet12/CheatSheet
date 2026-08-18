@@ -24,9 +24,16 @@ export function BotonDeSalida(): JSX.Element {
     setSaliendo(true);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Swallowed deliberately: leaving is what the person asked for, and a failed
+      // request is no reason to trap them in the panel.
+      //
+      // `finally` on its own was not enough. It runs on the way out and then lets the
+      // rejection keep going, straight into `void salir()`, where nothing is left to
+      // catch it — an unhandled rejection in every browser console, and a failed CI
+      // run, while both tests still reported green.
     } finally {
-      // Even if the call failed, this browser is done with the session: the handler
-      // clears the cookies whatever the backend answered.
+      // Whatever happened above, this browser is done with the session.
       router.refresh();
       router.push("/");
     }
