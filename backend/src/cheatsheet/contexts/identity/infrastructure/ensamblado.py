@@ -18,6 +18,7 @@ from cheatsheet.contexts.identity.application.ports import (
     PortEmisorDeTokens,
     PortEnvioDeEmail,
     PortHashDeContrasena,
+    PortProveedorOAuth,
     PortRepositorioEmpresa,
     PortRepositorioInvitacion,
     PortRepositorioRefreshToken,
@@ -30,6 +31,7 @@ from cheatsheet.contexts.identity.infrastructure.email_invitacion import (
     EnviadorDeConsola,
     EnviadorSMTP,
 )
+from cheatsheet.contexts.identity.infrastructure.oauth_falso import ProveedorOAuthSimulado
 from cheatsheet.contexts.identity.infrastructure.oauth_google import (
     ConfiguracionOAuthGoogle,
     ProveedorOAuthGoogle,
@@ -44,7 +46,7 @@ from cheatsheet.contexts.identity.infrastructure.seguridad import EmisorDeTokens
 from cheatsheet.contexts.identity.infrastructure.tokens_invitacion import (
     TokenDeInvitacionAleatorio,
 )
-from cheatsheet.platform.settings import AdaptadorDeEmail, Settings
+from cheatsheet.platform.settings import AdaptadorDeEmail, Entorno, Settings
 
 #: Argon2 builds its parameter table on construction. One instance per process is plenty
 #: and saves that work on every sign-in.
@@ -112,14 +114,25 @@ def crear_enviador(settings: Settings) -> PortEnvioDeEmail:
     )
 
 
-def proveedor_google(settings: Settings) -> ProveedorOAuthGoogle | None:
-    """`None` when Google is not configured.
+def proveedor_google(settings: Settings) -> PortProveedorOAuth | None:
+    """The real adapter, the simulated one, or `None`.
 
-    The process still boots without it: a missing OAuth client should make one endpoint
-    refuse, not stop the whole API from starting in an environment that does not use it.
+    Outside production, an environment with no OAuth client gets `ProveedorOAuthSimulado`
+    instead of a dead endpoint: HU-E1-01 RN-02 is one of the two ways to create an
+    account, and a path nobody can exercise locally is a path that ships broken. The
+    simulated provider refuses to be constructed in production, so this cannot silently
+    become the way real accounts are created.
+
+    `None` only happens in production without credentials, and there the endpoint
+    refuses rather than the process failing to start: one missing integration should not
+    stop an API that serves eleven other contexts.
     """
     if not settings.google_oauth_configurado:
-        return None
+        if settings.entorno is Entorno.PRODUCTION:
+            return None
+        return ProveedorOAuthSimulado(
+            url_base_de_la_app=settings.app_base_url, entorno=settings.entorno
+        )
     return ProveedorOAuthGoogle(
         ConfiguracionOAuthGoogle(
             client_id=settings.google_oauth_client_id,

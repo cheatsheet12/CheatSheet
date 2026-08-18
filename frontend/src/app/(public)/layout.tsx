@@ -15,7 +15,7 @@ export default function PublicLayout({ children }: { readonly children: ReactNod
         minHeight: "100dvh",
         display: "grid",
         placeItems: "center",
-        padding: "var(--espacio-6)",
+        padding: "var(--space-6)",
       }}
     >
       <div style={{ width: "100%", maxWidth: "26rem" }}>{children}</div>

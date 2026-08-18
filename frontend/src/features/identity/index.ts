@@ -10,6 +10,17 @@
  * uses relative paths and the rule stays unambiguous instead of needing an exception.
  */
 
+export { FormularioDeAceptacion } from "./components/FormularioDeAceptacion";
 export { FormularioDeEmpresa } from "./components/FormularioDeEmpresa";
 export { FormularioDeIngreso } from "./components/FormularioDeIngreso";
+export { FormularioDePreferencias } from "./components/FormularioDePreferencias";
+export { ModalDeInvitacion } from "./components/ModalDeInvitacion";
+export { TablaDeUsuarios } from "./components/TablaDeUsuarios";
+export type {
+  EstadoUsuario,
+  Preferencias,
+  RolUsuario,
+  Suscripciones,
+  UsuarioDeLaEmpresa,
+} from "./api/cliente";
 export { errorDeCuit, esCuitValido, formatearCuit, normalizarCuit } from "./validacion/cuit";

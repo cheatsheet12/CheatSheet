@@ -232,3 +232,39 @@ async def test_una_preferencia_que_el_catalogo_no_nombra_devuelve_422(
     )
 
     assert respuesta.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_el_alta_con_google_crea_la_cuenta_y_despues_la_reconoce(
+    cliente: httpx.AsyncClient,
+):
+    """HU-E1-01 RN-02, through the simulated provider.
+
+    Sign-up and sign-in are the same endpoint: whoever comes back from Google does not
+    know whether they already have an account, and the second call must not create a
+    second company for the same person.
+    """
+    url = await cliente.get("/auth/google/url", params={"state": "un-state"})
+    assert url.status_code == 200
+    assert "state=un-state" in url.json()["url"]
+
+    primera = await cliente.post(
+        "/auth/google/callback", json={"codigo": "simulado:ana@empresa.com"}
+    )
+    assert primera.status_code == 201, primera.text
+    assert primera.json()["onboarding_completo"] is False
+
+    segunda = await cliente.post(
+        "/auth/google/callback", json={"codigo": "simulado:ana@empresa.com"}
+    )
+    assert segunda.status_code == 201
+    assert segunda.json()["empresa_id"] == primera.json()["empresa_id"]
+    assert segunda.json()["usuario_id"] == primera.json()["usuario_id"]
+
+
+@pytest.mark.asyncio
+async def test_un_codigo_de_google_invalido_no_crea_nada(cliente: httpx.AsyncClient):
+    respuesta = await cliente.post("/auth/google/callback", json={"codigo": "4/0AY0e-g7"})
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["error"] == "OAuthFallido"

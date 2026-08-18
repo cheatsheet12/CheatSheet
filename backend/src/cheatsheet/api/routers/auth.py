@@ -22,13 +22,15 @@ from cheatsheet.contexts.identity.application.errors import (
 )
 from cheatsheet.contexts.identity.application.invitaciones import AceptarInvitacion
 from cheatsheet.contexts.identity.application.onboarding import CompletarDatosDeEmpresa
-from cheatsheet.contexts.identity.application.registro import RegistrarEmpresa
+from cheatsheet.contexts.identity.application.ports import PortProveedorOAuth
+from cheatsheet.contexts.identity.application.registro import RegistrarConGoogle, RegistrarEmpresa
 from cheatsheet.contexts.identity.application.sesiones import (
     CerrarSesion,
     IniciarSesion,
     RefrescarSesion,
     Sesion,
 )
+from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import CUIT, CondicionIVA, Email
 from cheatsheet.contexts.identity.infrastructure.ensamblado import Identidad, proveedor_google
 from cheatsheet.contexts.identity.infrastructure.resolucion import (
@@ -38,6 +40,7 @@ from cheatsheet.contexts.identity.infrastructure.resolucion import (
 )
 from cheatsheet.contexts.identity.infrastructure.seguridad import hashear_token_opaco
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import EntradaInvalida
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
 
@@ -65,12 +68,23 @@ class AceptacionEntrada(BaseModel):
     contrasena: str = Field(min_length=LARGO_MINIMO_CONTRASENA)
 
 
+class GoogleEntrada(BaseModel):
+    """The authorization code Google handed to the browser, relayed by the BFF."""
+
+    codigo: str
+
+
 class DatosDeEmpresaEntrada(BaseModel):
     razon_social: str
     cuit: str
     condicion_iva: CondicionIVA
     nombre_responsable: str
     email_contacto: str
+
+
+class EmpresaSalida(BaseModel):
+    razon_social: str | None
+    onboarding_completo: bool
 
 
 class SesionSalida(BaseModel):
@@ -261,17 +275,95 @@ def _rutas_de_invitacion(recursos: Recursos) -> APIRouter:
 
     @router.get("/google/url")
     async def url_de_google(state: str) -> dict[str, str]:
-        proveedor = proveedor_google(recursos.settings)
-        if proveedor is None:
-            raise OAuthFallido("Google OAuth no esta configurado en este entorno")
-        return {"url": proveedor.url_de_autorizacion(state)}
+        return {"url": _proveedor(recursos).url_de_autorizacion(state)}
+
+    @router.post("/google/callback", status_code=status.HTTP_201_CREATED)
+    async def callback_de_google(entrada: GoogleEntrada, request: Request) -> SesionSalida:
+        """Exchange the authorization code for a session (HU-E1-01 RN-02).
+
+        **Sign-up and sign-in are the same endpoint here, on purpose.** Whoever comes back
+        from Google does not know whether they have an account, and asking them to pick
+        the right button before finding out would be a worse version of the account
+        enumeration the sign-in form already avoids. An existing user gets a session; a
+        new one gets a company first.
+        """
+        perfil = await _proveedor(recursos).perfil_desde_codigo(entrada.codigo)
+
+        empresa_id = await empresa_de_email(recursos.sesiones, perfil.email)
+        nueva = empresa_id is None
+        if empresa_id is None:
+            empresa_id = EmpresaId(uuid4())
+
+        salida: SesionSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Identidad.armar(unidad, recursos.settings)
+            usuario = (
+                (
+                    await RegistrarConGoogle(
+                        empresas=piezas.empresas,
+                        usuarios=piezas.usuarios,
+                        publicador=unidad.publicador,
+                    ).ejecutar(
+                        empresa_id=empresa_id,
+                        email=perfil.email,
+                        nombre=perfil.nombre,
+                        version_terminos=recursos.settings.terminos_version_vigente,
+                        ahora=unidad.reloj.ahora(),
+                        direccion_ip=_ip(request),
+                    )
+                ).usuario
+                if nueva
+                else await _usuario_de_google(piezas, perfil.email)
+            )
+            sesion = await piezas.emisor.emitir(usuario, unidad.reloj.ahora())
+            salida = await _salida_de(piezas, empresa_id, sesion)
+        return _exigir(salida)
 
     return router
+
+
+def _proveedor(recursos: Recursos) -> PortProveedorOAuth:
+    proveedor = proveedor_google(recursos.settings)
+    if proveedor is None:
+        raise OAuthFallido("Google OAuth no esta configurado en este entorno")
+    return proveedor
+
+
+async def _usuario_de_google(piezas: Identidad, email: Email) -> Usuario:
+    """The returning user. A deactivated account does not get a session back."""
+    usuario = await piezas.usuarios.buscar_por_email(email)
+    if usuario is None:  # pragma: no cover — the company was just resolved from this email
+        raise OAuthFallido("La cuenta de Google no corresponde a ningun usuario")
+    usuario.exigir_activo()
+    return usuario
 
 
 def _rutas_autenticadas(recursos: Recursos) -> APIRouter:
     """Needs a valid access token; `EmpresaMiddleware` has already resolved the company."""
     router = APIRouter()
+
+    @router.get("/empresa")
+    async def ver_empresa(request: Request) -> EmpresaSalida:
+        """What the panel needs before rendering: does this company still owe the onboarding.
+
+        It exists because the alternative was putting `onboarding_completo` in the access
+        token, where it would be stale for fifteen minutes — long enough to bounce someone
+        back to a form they just finished.
+        """
+        empresa_id: EmpresaId = request.state.empresa_id
+        salida: EmpresaSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Identidad.armar(unidad, recursos.settings)
+            empresa = await piezas.empresas.buscar_por_id(empresa_id)
+            if empresa is None:  # pragma: no cover — the token was issued for it
+                raise EntradaInvalida("La empresa no existe")
+            salida = EmpresaSalida(
+                razon_social=empresa.razon_social,
+                onboarding_completo=empresa.onboarding_completo,
+            )
+        if salida is None:  # pragma: no cover — the unit of work always yields once
+            raise RuntimeError("La unidad de trabajo no produjo un resultado")
+        return salida
 
     @router.put("/empresa")
     async def completar_empresa(
