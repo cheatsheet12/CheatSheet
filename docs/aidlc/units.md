@@ -14,6 +14,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cimientos, identidad y bitácora | identidad-y-onboarding | identity | HU-E1-01, HU-E1-02, HU-E1-03 | cimientos-y-bitacora | Cristian | feature/identity-cimientos-identidad-y-bitacora | en curso |
 | Cimientos, identidad y bitácora | usuarios-y-preferencias | identity | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07 | identidad-y-onboarding | Cristian | feature/identity-cimientos-identidad-y-bitacora | en curso |
 
+
 ---
 
 ## Épico 1 — Cimientos, identidad y bitácora
@@ -86,6 +87,12 @@ Consecuencias, explícitas para que nadie las descubra después:
   Eso se mapeará como unidad del épico 2, no acá.
 - Un CUIT estructuralmente válido pero inexistente en ARCA **entra al sistema** hasta entonces. Es
   aceptable porque ningún comprobante se emite antes del épico 5, y la emisión revalida contra ARCA.
+
+### Estado
+
+Las tres unidades están implementadas y con el Gate 2 en verde (2026-08-18). El épico entero
+espera el Gate 3 — un solo PR a `develop`, por la decisión del 2026-08-13. Lo que falta para
+poder cerrarlo está en [`TODO.md`](TODO.md).
 
 ### Fuera de alcance de este épico
 

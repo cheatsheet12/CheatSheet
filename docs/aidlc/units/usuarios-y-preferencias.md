@@ -276,44 +276,44 @@ Riesgos propios de esta unidad, que también obligan a test:
 ## Archivos a tocar
 
 **Backend — dominio**
-- [ ] `identity/domain/valores.py` — `EstadoUsuario`, `CanalDeNotificacion`, `CategoriaDeNotificacion`, `PreferenciasDeNotificacion`
-- [ ] `identity/domain/usuario.py` — `estado`, transiciones, suscripciones
-- [ ] `identity/domain/invitacion.py` — nuevo
+- [x] `identity/domain/valores.py` — `EstadoUsuario`, `CanalDeNotificacion`, `CategoriaDeNotificacion`, `PreferenciasDeNotificacion`
+- [x] `identity/domain/usuario.py` — `estado`, transiciones, suscripciones
+- [x] `identity/domain/invitacion.py` — nuevo
 
 **Backend — aplicación**
-- [ ] `identity/application/errors.py` — `UltimoAdministradorActivo`, `InvitacionInvalida`, `PermisoDenegado`
-- [ ] `identity/application/ports.py` — los seis puertos de arriba
-- [ ] `identity/application/autorizacion.py` — `exigir_administrador`
-- [ ] `identity/application/usuarios.py` — listar, cambiar rol, desactivar, reactivar
-- [ ] `identity/application/invitaciones.py` — invitar, reenviar, revocar, aceptar
-- [ ] `identity/application/preferencias.py` — actualizar
+- [x] `identity/application/errors.py` — `UltimoAdministradorActivo`, `InvitacionInvalida`, `PermisoDenegado`
+- [x] `identity/application/ports.py` — los seis puertos de arriba
+- [x] `identity/application/autorizacion.py` — `exigir_administrador`
+- [x] `identity/application/usuarios.py` — listar, cambiar rol, desactivar, reactivar
+- [x] `identity/application/invitaciones.py` — invitar, reenviar, revocar, aceptar
+- [x] `identity/application/preferencias.py` — actualizar
 
 **Backend — infraestructura**
-- [ ] `identity/infrastructure/models.py` · `repositories.py` · `ensamblado.py`
-- [ ] `identity/infrastructure/email_smtp.py` — SMTP + consola
-- [ ] `identity/infrastructure/plantillas/invitacion.{txt,html}`
-- [ ] `identity/infrastructure/tokens_invitacion.py`
+- [x] `identity/infrastructure/models.py` · `repositories.py` · `ensamblado.py`
+- [x] `identity/infrastructure/email_invitacion.py` — SMTP + consola *(el plan lo llamaba `email_smtp.py`; el nombre dice qué manda, no por dónde)*
+- [x] `identity/infrastructure/plantillas/invitacion.{txt,html}`
+- [x] `identity/infrastructure/tokens_invitacion.py`
 
 **Backend — API, workers, migraciones, settings**
-- [ ] `api/routers/usuarios.py` — nuevo · `api/routers/auth.py` — aceptación · `api/main.py`
-- [ ] `api/middleware/empresa.py` — la ruta pública de aceptación
-- [ ] `api/dependencies.py` — `unidad_para_empresa_resuelta` (el arreglo de arriba)
-- [ ] `workers/tasks_identity.py`
-- [ ] `migrations/versions/0003_usuarios_y_preferencias.py`
-- [ ] `platform/settings.py` — las diez variables
+- [x] `api/routers/usuarios.py` — nuevo · `api/routers/auth.py` — aceptación · `api/main.py`
+- [x] `api/middleware/empresa.py` — la ruta pública de aceptación
+- [x] `identity/infrastructure/resolucion.py` — el arreglo del camino pre-tenant *(el plan lo ponía en `api/dependencies.py`; vive en el contexto porque consulta las funciones `SECURITY DEFINER` de identity, y la raíz de composición no tiene por qué conocerlas)*
+- [x] `workers/tasks_identity.py`
+- [x] `migrations/versions/0003_usuarios_y_preferencias.py`
+- [x] `platform/settings.py` — las diez variables
 
 **Backend — tests**
-- [ ] `tests/contexts/identity/{domain,application,infrastructure}/…`
-- [ ] `tests/integracion/test_aislamiento_invitacion.py`
-- [ ] `tests/integracion/test_camino_pre_tenant.py` — el que reproduce el defecto del login
+- [x] `tests/contexts/identity/{domain,application,infrastructure}/…`
+- [x] `tests/integracion/test_aislamiento_invitacion.py`
+- [x] `tests/integracion/test_camino_pre_tenant.py` — el que reproduce el defecto del login
 
 **Frontend**
-- [ ] `shared/ui/{Tabla,Modal,Select}.tsx` · `shared/componentes.css` · `shared/formato.ts`
-- [ ] `features/identity/components/{TablaDeUsuarios,ModalDeInvitacion,FormularioDePreferencias,FormularioDeAceptacion}.tsx`
-- [ ] `features/identity/api/cliente.ts` · `index.ts`
-- [ ] `app/(panel)/configuracion/{usuarios,preferencias}/page.tsx` · `app/(public)/invitacion/[token]/page.tsx`
-- [ ] `app/api/usuarios/…` y `app/api/auth/invitaciones/aceptar/route.ts` — BFF
-- [ ] Tests de todo lo anterior
+- [x] `shared/ui/{Tabla,Modal,Select}.tsx` · `shared/componentes.css` · `shared/formato.ts`
+- [x] `features/identity/components/{TablaDeUsuarios,ModalDeInvitacion,FormularioDePreferencias,FormularioDeAceptacion}.tsx`
+- [x] `features/identity/api/cliente.ts` · `index.ts`
+- [x] `app/(panel)/configuracion/{usuarios,preferencias}/page.tsx` · `app/(public)/invitacion/[token]/page.tsx`
+- [x] `app/api/usuarios/…` y `app/api/auth/invitaciones/aceptar/route.ts` — BFF
+- [x] Tests de todo lo anterior
 
 ---
 
@@ -321,50 +321,50 @@ Riesgos propios de esta unidad, que también obligan a test:
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | `EstadoUsuario` — las transiciones válidas y las que no | unit | pendiente |
-| 2 | Reactivar devuelve el rol previo, no uno por defecto (HU-E1-06 RN-04) | unit | pendiente |
-| 3 | `PreferenciasDeNotificacion` — ida y vuelta a jsonb sin pérdida | unit | pendiente |
-| 4 | `PreferenciasDeNotificacion` rechaza categoría o canal desconocido | unit | pendiente |
-| 5 | `Invitacion.esta_vigente` — vencida, usada, revocada, vigente | unit | pendiente |
-| 6 | Invitar con un email que ya existe en la empresa se rechaza (RN-03) | aplicación | pendiente |
-| 7 | Invitar con un email de **otra** empresa también se rechaza (email único global) | aplicación | pendiente |
-| 8 | Invitar crea el usuario en `INVITADO` y **sin** hash de contraseña | aplicación | pendiente |
-| 9 | Un Operador que invita recibe `PermisoDenegado` | aplicación | pendiente |
-| 10 | Un Solo Lectura que cambia un rol recibe `PermisoDenegado` (RN-03) | aplicación | pendiente |
-| 11 | Reenviar invalida el token anterior | aplicación | pendiente |
-| 12 | Revocar libera el email para volver a invitar a la misma persona | aplicación | pendiente |
-| 13 | Reenviar o revocar una invitación **ya aceptada** se rechaza (RN-04) | aplicación | pendiente |
-| 14 | Aceptar fija la contraseña, pasa a `ACTIVO` y devuelve sesión | aplicación | pendiente |
-| 15 | El mismo token no se puede usar dos veces | aplicación | pendiente |
-| 16 | Un token vencido se rechaza | aplicación | pendiente |
-| 17 | Aceptar con contraseña de menos de 8 caracteres se rechaza | aplicación | pendiente |
-| 18 | **Quitarle Administrador al único activo se bloquea** (HU-E1-05 RN-02) | aplicación | pendiente |
-| 19 | **Desactivar al único Administrador activo se bloquea** (HU-E1-06 RN-03) | aplicación | pendiente |
-| 20 | **Un Administrador `INVITADO` no cuenta para el invariante** | aplicación | pendiente |
-| 21 | Con dos Administradores activos, degradar a uno sí se permite | aplicación | pendiente |
-| 22 | Desactivar revoca los refresh tokens del usuario (RN-01) | aplicación | pendiente |
-| 23 | Cambiar rol y desactivar publican su `EventoAuditable` con ejecutor, afectado y valores (RN-04) | aplicación | pendiente |
-| 24 | El listado solo trae usuarios de la empresa del ejecutor | aplicación | pendiente |
-| 25 | Las preferencias de un usuario no tocan las de otro (HU-E1-07 RN-01) | aplicación | pendiente |
-| 26 | El token de invitación se guarda hasheado: el valor en claro no aparece en la fila | infra | pendiente |
-| 27 | El adaptador de consola no abre ningún socket | infra | pendiente |
-| 28 | El adaptador SMTP aplica timeout y reintenta con backoff | infra | pendiente |
-| 29 | El envío falla y la invitación **igual queda creada** y reenviable | infra | pendiente |
-| 30 | La tarea es idempotente: dos ejecuciones, un solo mail | infra | pendiente |
-| 31 | La plantilla del mail no filtra el token en el log | infra | pendiente |
-| 32 | **`invitacion` aísla por empresa** contra PostgreSQL real | integración | pendiente |
-| 33 | **Login escribe su `refresh_token`** contra PostgreSQL real *(el defecto de arriba)* | integración | pendiente |
-| 34 | **Logout revoca de verdad** contra PostgreSQL real *(íd.)* | integración | pendiente |
-| 35 | Aceptar una invitación funciona sin sesión previa, con RLS activo | integración | pendiente |
-| 36 | La migración 0003 sube y baja limpia | integración | pendiente |
-| 37 | La carrera del último Administrador: dos operaciones simultáneas, una falla | integración | pendiente |
-| 38 | `TablaDeUsuarios` — un Operador no ve las acciones de administración | frontend | pendiente |
-| 39 | El modal de invitación valida el email y no envía vacío | frontend | pendiente |
-| 40 | Desactivar pide confirmación antes de ejecutar | frontend | pendiente |
-| 41 | `FormularioDePreferencias` carga las actuales y guarda los cambios | frontend | pendiente |
-| 42 | `shared/formato` respeta la zona horaria del usuario | frontend | pendiente |
-| 43 | `FormularioDeAceptacion` exige 8 caracteres y confirma la contraseña | frontend | pendiente |
-| 44 | Las rutas BFF de usuarios no devuelven ningún token al navegador | frontend | pendiente |
+| 1 | `EstadoUsuario` — las transiciones válidas y las que no | unit | ✅ |
+| 2 | Reactivar devuelve el rol previo, no uno por defecto (HU-E1-06 RN-04) | unit | ✅ |
+| 3 | `PreferenciasDeNotificacion` — ida y vuelta a jsonb sin pérdida | unit | ✅ |
+| 4 | `PreferenciasDeNotificacion` rechaza categoría o canal desconocido | unit | ✅ |
+| 5 | `Invitacion.esta_vigente` — vencida, usada, revocada, vigente | unit | ✅ |
+| 6 | Invitar con un email que ya existe en la empresa se rechaza (RN-03) | aplicación | ✅ |
+| 7 | Invitar con un email de **otra** empresa también se rechaza (email único global) | aplicación | ✅ |
+| 8 | Invitar crea el usuario en `INVITADO` y **sin** hash de contraseña | aplicación | ✅ |
+| 9 | Un Operador que invita recibe `PermisoDenegado` | aplicación | ✅ |
+| 10 | Un Solo Lectura que cambia un rol recibe `PermisoDenegado` (RN-03) | aplicación | ✅ |
+| 11 | Reenviar invalida el token anterior | aplicación | ✅ |
+| 12 | Revocar libera el email para volver a invitar a la misma persona | aplicación | ✅ |
+| 13 | Reenviar o revocar una invitación **ya aceptada** se rechaza (RN-04) | aplicación | ✅ |
+| 14 | Aceptar fija la contraseña, pasa a `ACTIVO` y devuelve sesión | aplicación | ✅ |
+| 15 | El mismo token no se puede usar dos veces | aplicación | ✅ |
+| 16 | Un token vencido se rechaza | aplicación | ✅ |
+| 17 | Aceptar con contraseña de menos de 8 caracteres se rechaza | aplicación | ✅ |
+| 18 | **Quitarle Administrador al único activo se bloquea** (HU-E1-05 RN-02) | aplicación | ✅ |
+| 19 | **Desactivar al único Administrador activo se bloquea** (HU-E1-06 RN-03) | aplicación | ✅ |
+| 20 | **Un Administrador `INVITADO` no cuenta para el invariante** | aplicación | ✅ |
+| 21 | Con dos Administradores activos, degradar a uno sí se permite | aplicación | ✅ |
+| 22 | Desactivar revoca los refresh tokens del usuario (RN-01) | aplicación | ✅ |
+| 23 | Cambiar rol y desactivar publican su `EventoAuditable` con ejecutor, afectado y valores (RN-04) | aplicación | ✅ |
+| 24 | El listado solo trae usuarios de la empresa del ejecutor | aplicación | ✅ |
+| 25 | Las preferencias de un usuario no tocan las de otro (HU-E1-07 RN-01) | aplicación | ✅ |
+| 26 | El token de invitación se guarda hasheado: el valor en claro no aparece en la fila | infra | ✅ |
+| 27 | El adaptador de consola no abre ningún socket | infra | ✅ |
+| 28 | El adaptador SMTP aplica timeout y reintenta con backoff | infra | ✅ |
+| 29 | El envío falla y la invitación **igual queda creada** y reenviable | infra | ✅ |
+| 30 | La tarea es idempotente: dos ejecuciones, un solo mail | infra | ✅ |
+| 31 | La plantilla del mail no filtra el token en el log | infra | ✅ |
+| 32 | **`invitacion` aísla por empresa** contra PostgreSQL real | integración | ✅ |
+| 33 | **Login escribe su `refresh_token`** contra PostgreSQL real *(el defecto de arriba)* | integración | ✅ |
+| 34 | **Logout revoca de verdad** contra PostgreSQL real *(íd.)* | integración | ✅ |
+| 35 | Aceptar una invitación funciona sin sesión previa, con RLS activo | integración | ✅ |
+| 36 | La migración 0003 sube y baja limpia | integración | ✅ |
+| 37 | La carrera del último Administrador: dos operaciones simultáneas, una falla | integración | ✅ |
+| 38 | `TablaDeUsuarios` — un Operador no ve las acciones de administración | frontend | ✅ |
+| 39 | El modal de invitación valida el email y no envía vacío | frontend | ✅ |
+| 40 | Desactivar pide confirmación antes de ejecutar | frontend | ✅ |
+| 41 | `FormularioDePreferencias` carga las actuales y guarda los cambios | frontend | ✅ |
+| 42 | `shared/formato` respeta la zona horaria del usuario | frontend | ✅ |
+| 43 | `FormularioDeAceptacion` exige 8 caracteres y confirma la contraseña | frontend | ✅ |
+| 44 | Las rutas BFF de usuarios no devuelven ningún token al navegador | frontend | ✅ |
 
 ---
 
@@ -373,10 +373,74 @@ Riesgos propios de esta unidad, que también obligan a test:
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-08-14 | aprobado, sin cambios pedidos — incluido el arreglo del camino pre-tenant |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-08-18 | todos los gates en verde — ver abajo |
 | 3 · PR | | (unificado para el épico) |
 
 ---
+
+---
+
+## Gate 2 — verificación (2026-08-18)
+
+Corrido sobre PostgreSQL 16 y Redis reales en contenedor (`backend/docker-compose.yml`, puertos
+5433 y 6380). Ninguna prueba toca la red fuera de eso: SMTP, Google y Celery están detrás de
+dobles.
+
+```
+ruff format --check .   sin cambios
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 150 source files
+guard_architecture      188 file(s) checked — architecture boundaries intact
+pytest --cov            235 passed · cobertura 87.79%  (umbral 80%)
+
+frontend: next lint     ✔ No ESLint warnings or errors
+frontend: tsc --noEmit  limpio
+frontend: vitest        176 passed · cobertura 91.24%
+frontend: next build    compila; 21 rutas registradas
+```
+
+Los 44 casos de prueba del plan están escritos y pasan. Seis corren contra PostgreSQL de verdad,
+porque el RLS y el `FOR UPDATE` no tienen doble posible.
+
+### Lo que la implementación encontró y el plan no preveía
+
+**Un segundo defecto del mismo tipo que el del login.** La migración 0003 elimina `usuario.activo`,
+y la función `SECURITY DEFINER` `buscar_usuario_para_login` de la 0002 seguía seleccionando esa
+columna. PostgreSQL no recompila una función cuando cambia la tabla de abajo, así que el esquema
+migraba limpio y **el primer login fallaba** con «column u.activo does not exist». Lo encontró el
+test de integración del camino pre-tenant, que es exactamente para lo que se escribió. La función
+se redefine en la 0003 y el `downgrade` restaura la forma de la 0002.
+
+**El router de usuarios no arrancaba.** `GET /usuarios` no tiene path propio, y FastAPI rechaza un
+path vacío cuando el router se incluye sin prefijo. El prefijo pasó a aplicarse en la inclusión.
+
+### Apartamientos del plan, y por qué
+
+| Plan | Implementación | Motivo |
+|---|---|---|
+| `api/dependencies.py` → `unidad_para_empresa_resuelta` | `identity/infrastructure/resolucion.py` | Consulta funciones `SECURITY DEFINER` propias de identity. La raíz de composición no tiene por qué conocerlas |
+| `identity/infrastructure/email_smtp.py` | `email_invitacion.py` | El nombre dice qué manda, no por dónde. Cuando llegue el segundo correo del sistema, el archivo por transporte sería el lugar equivocado |
+
+### Alcance que se agregó, declarado
+
+Tres cosas que el plan no pedía y que se hicieron igual, porque eran deuda de la unidad anterior
+que esta unidad se comprometió a saldar (sección «Deuda de la unidad anterior que esta salda»):
+
+- **`/api/auth/google` y su callback.** El link existía en PAN-ONB-01 desde la unidad 2 y no tenía
+  nada detrás. Incluye la validación de `state` — la única defensa contra un callback forjado.
+- **`/api/auth/refresh`.** Sin él la sesión moría a los quince minutos.
+- **El layout `(panel)` exige onboarding completo**, no solo la cookie. Hizo falta un
+  `GET /auth/empresa` para saberlo sin meter el flag en el JWT, donde estaría vencido.
+
+Y una cuarta, que no era deuda declarada pero era una rotura silenciosa: **los dos layouts usaban
+tokens de diseño que dejaron de existir** cuando se importaron los prototipos de Etapa 5
+(`--espacio-*`, `--color-texto-suave`). Renderizaban sin espaciado y nadie lo había visto.
+
+### Lo que queda pendiente
+
+Está todo en [`../TODO.md`](../TODO.md). En una línea: los dos `.env.example` (denegados por
+permisos en mi entorno), credenciales reales de Google y de SMTP —hoy ambas corren simuladas, con
+el simulado prohibido en producción— y el Gate 3.
 
 ## Decisiones tomadas durante la unidad
 
