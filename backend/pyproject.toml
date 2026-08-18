@@ -43,6 +43,10 @@ dependencies = [
     # identity: the invitation email (HU-E1-04 RN-02). SMTP rather than a provider SDK,
     # so the choice of transactional provider stays a deployment decision.
     "aiosmtplib==3.0.2",
+    # integrations: AES-256-GCM for the credentials at rest (DER BC4, ADR-0003). The
+    # primitive comes from a library rather than from `hashlib` and a mode written here,
+    # because a hand-rolled AEAD is how a nonce gets reused.
+    "cryptography==43.0.3",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -132,6 +132,8 @@ class Settings:
     smtp_remitente: str
     smtp_tls: bool
     smtp_timeout_segundos: int
+    secrets_encryption_key: str
+    integracion_timeout_segundos: int
 
     @property
     def es_produccion(self) -> bool:
@@ -172,6 +174,11 @@ class Settings:
             smtp_port=_entero("SMTP_PORT", 587),
             smtp_usuario=_opcional("SMTP_USUARIO", ""),
             smtp_password=_opcional("SMTP_PASSWORD", ""),
+            # No default, for the same reason as JWT_SECRET: a fallback key means every
+            # deployment encrypts company tax credentials with a constant the repository
+            # knows. See contexts/integrations/infrastructure/cifrado.py.
+            secrets_encryption_key=_requerida("SECRETS_ENCRYPTION_KEY"),
+            integracion_timeout_segundos=_entero("INTEGRACION_TIMEOUT_SEGUNDOS", 5),
             smtp_remitente=_opcional("SMTP_REMITENTE", "CheatSheet <no-reply@localhost>"),
             smtp_tls=_booleano("SMTP_TLS", True),
             smtp_timeout_segundos=_entero("SMTP_TIMEOUT_SEGUNDOS", 10),

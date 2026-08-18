@@ -68,6 +68,11 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         jwt_access_ttl_minutos=15,
         refresh_ttl_dias=30,
         terminos_version_vigente="1.0",
+        # A real 32-byte key, generated once and hardcoded: the cipher validates its
+        # length at construction, so a placeholder string would fail every test that
+        # builds `Settings`. It protects nothing — it encrypts fixtures.
+        secrets_encryption_key="dGVzdC1rZXktMzItYnl0ZXMtZm9yLWFlczI1Ni1hYmM=",
+        integracion_timeout_segundos=1,
         google_oauth_client_id="",
         google_oauth_client_secret="",
         google_oauth_redirect_uri="",
