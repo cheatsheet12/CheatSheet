@@ -89,12 +89,20 @@ block the issuance of a tax document, and a slow LLM call cannot starve reminder
 | `scheduling` | billing | C/S | A completed `Turno` may request issuance |
 | `conversational` | scheduling, payments, billing | C/S | The agent translates intents into use-case calls |
 | all | `observability` | OHS | Auditable events and notifications |
+| `integrations` | identity, spreadsheet_sync, billing, payments, conversational | OHS | Validated external credentials and connection status ([ADR-0003](adr/0003-integrations-open-host-service.md)) |
 | Core contexts | `reporting` | C/S | Consolidated data for reports and accounting packages |
 
 `billing` ↔ `payments` is **one-directional Customer/Supplier, not a Partnership**.
 `payments` does not need `billing` to exist. `billing` reacts to `PagoConfirmado` to
 keep the document's derived balance; `payments` never writes into the billing
 aggregate.
+
+The two **OHS** rows describe opposite flows, which is worth reading twice.
+`observability` is written into: audit events travel one way and nothing comes back.
+`integrations` is read from: a context asks for a credential and gets a usable one —
+never the ciphertext, never the key, which stay inside that context. Both are Generic,
+both depend on nobody, and neither knows who its clients are. The downstream list on
+the `integrations` row is informative, not a whitelist ([ADR-0003](adr/0003-integrations-open-host-service.md)).
 
 ---
 
