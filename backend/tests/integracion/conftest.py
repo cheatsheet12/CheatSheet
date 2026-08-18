@@ -89,13 +89,28 @@ def sesiones(engine_aplicacion: AsyncEngine) -> async_sessionmaker[AsyncSession]
     return crear_sessionmaker(engine_aplicacion)
 
 
+#: Children first: `invitacion` and `refresh_token` point at `usuario`, which points at
+#: `empresa`. The cascades would handle it, but an explicit order does not depend on them.
+#: Written as literal statements rather than interpolated table names — the same reason
+#: the migrations are: a `f"DELETE FROM {x}"` is a SQL injection shape even when `x` is a
+#: constant, and the linter is right to say so.
+BORRADOS = (
+    "DELETE FROM registro_de_auditoria",
+    "DELETE FROM invitacion",
+    "DELETE FROM refresh_token",
+    "DELETE FROM usuario",
+    "DELETE FROM empresa",
+)
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def base_limpia(engine_dueno: AsyncEngine) -> AsyncIterator[None]:
-    """Empty the audit table between tests, as the owner.
+    """Empty the tables between tests, as the owner.
 
-    The application role cannot do this — it holds no DELETE, which is the point of
-    HS-T5 RN-03 — so the cleanup runs with the role that owns the table.
+    The application role cannot do this to `registro_de_auditoria` — it holds no DELETE,
+    which is the point of HS-T5 RN-03 — so the cleanup runs with the role that owns them.
     """
     yield
     async with engine_dueno.begin() as conexion:
-        await conexion.execute(text("DELETE FROM registro_de_auditoria"))
+        for sentencia in BORRADOS:
+            await conexion.execute(text(sentencia))

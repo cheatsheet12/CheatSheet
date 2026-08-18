@@ -35,6 +35,20 @@ ALGORITMO_JWT = "HS256"
 BYTES_DE_REFRESH = 32
 
 
+def hashear_token_opaco(token: str) -> str:
+    """The digest stored for a refresh token and for an invitation token.
+
+    **SHA-256 is right here and Argon2 would be wrong.** Argon2's cost exists to slow down
+    guessing a *human-chosen* password. These tokens are 256 random bits: there is nothing
+    to guess, and paying 19 MiB per verification would only make the endpoints that verify
+    them easy to overload.
+
+    One function for both, so the two can never drift into different digests — the kind of
+    difference that shows up as "some tokens stop working" long after the change.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 class HasherArgon2:
     """Implements `PortHashDeContrasena`."""
 
@@ -89,13 +103,7 @@ class EmisorDeTokensJWT:
         return TokenEmitido(valor=secrets.token_urlsafe(BYTES_DE_REFRESH), expira_en=ahora)
 
     def hashear_refresh(self, token: str) -> str:
-        """SHA-256 is right here and Argon2 would be wrong.
-
-        Argon2's cost exists to slow down guessing a *human-chosen* password. This token
-        is 256 random bits: there is nothing to guess, and paying 19 MiB on every refresh
-        would only make the endpoint easy to overload.
-        """
-        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+        return hashear_token_opaco(token)
 
 
 def decodificar_acceso(token: str, secreto: str) -> dict[str, str]:

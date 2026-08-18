@@ -86,6 +86,33 @@ async def sesion_de_empresa(
             raise
 
 
+@asynccontextmanager
+async def sesion_sin_empresa(
+    fabrica: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[AsyncSession]:
+    """A read-only session for the handful of lookups that happen before there is a tenant.
+
+    Signing in, refreshing and accepting an invitation all have the same shape: the caller
+    holds a credential and the company is what has to be *discovered* from it. Those
+    lookups go through the `SECURITY DEFINER` functions, which are unaffected by
+    Row-Level Security by design and return the bare minimum.
+
+    **`app.current_empresa` is deliberately left unset**, so every ordinary query through
+    this session sees nothing at all — `test_sin_empresa_declarada_no_se_ve_nada` is the
+    proof. Announcing an invented UUID instead, which is what this code used to do, is
+    strictly worse: it looks like a tenant, and any write attempted under it is rejected
+    by the policy — silently, in the case of an `UPDATE`.
+
+    Nothing is written here and nothing is committed. The caller opens a real unit of work
+    with the company this returns.
+    """
+    async with fabrica() as sesion:
+        try:
+            yield sesion
+        finally:
+            await sesion.rollback()
+
+
 async def verificar_conexion(engine: AsyncEngine) -> bool:
     """Cheapest possible liveness probe, for the healthcheck."""
     async with engine.connect() as conexion:

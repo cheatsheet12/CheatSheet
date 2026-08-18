@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
 from cheatsheet.contexts.identity.domain.empresa import Empresa
+from cheatsheet.contexts.identity.domain.invitacion import Invitacion
 from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import Email, HashDeContrasena
@@ -19,14 +21,49 @@ class PortRepositorioEmpresa(Protocol):
     async def guardar(self, empresa: Empresa) -> None: ...
     async def buscar_por_id(self, empresa_id: EmpresaId) -> Empresa | None: ...
     async def existe_cuit(self, cuit: str) -> bool: ...
+    async def bloquear(self, empresa_id: EmpresaId) -> None:
+        """Serialise the operations that can leave a company without an Administrator.
+
+        Counting active administrators and then acting on the count is a check-then-act:
+        two administrators demoting each other at the same moment both pass the count and
+        the company ends up with none. This takes a row lock on the company first, so the
+        second one waits and then reads a count that already includes the first one's
+        change. It is the one place in the system where losing a race means being locked
+        out of your own account.
+        """
+        ...
 
 
 class PortRepositorioUsuario(Protocol):
     async def agregar(self, usuario: Usuario) -> None: ...
     async def guardar(self, usuario: Usuario) -> None: ...
+    async def eliminar(self, usuario_id: UsuarioId) -> None:
+        """Only ever used on a revoked invitation — see `RevocarInvitacion`."""
+        ...
+
     async def buscar_por_id(self, usuario_id: UsuarioId) -> Usuario | None: ...
     async def buscar_por_email(self, email: Email) -> Usuario | None:
         """Global lookup, outside any company: sign-in happens before there is a tenant."""
+        ...
+
+    async def listar_de_empresa(self, empresa_id: EmpresaId) -> Sequence[Usuario]:
+        """PAN-USR-01's list. Row-Level Security is what keeps it to one company."""
+        ...
+
+    async def contar_administradores_activos(self, empresa_id: EmpresaId) -> int:
+        """HU-E1-05 RN-02. Counts `ADMINISTRADOR` **and** `ACTIVO`, never a pending invite."""
+        ...
+
+
+class PortRepositorioInvitacion(Protocol):
+    async def agregar(self, invitacion: Invitacion) -> None: ...
+    async def guardar(self, invitacion: Invitacion) -> None: ...
+    async def buscar_por_id(self, invitacion_id: UUID) -> Invitacion | None: ...
+    async def buscar_por_hash(self, hash_del_token: str) -> Invitacion | None: ...
+    async def listar_pendientes_de_empresa(self, empresa_id: EmpresaId) -> Sequence[Invitacion]:
+        """All at once, not one query per row: PAN-USR-01 needs an id on every pending row
+        to offer "resend" and "revoke", and asking per user would be an N+1 on the one
+        screen that lists users."""
         ...
 
 
@@ -36,6 +73,10 @@ class PortRepositorioRefreshToken(Protocol):
     async def buscar_por_hash(self, hash_del_token: str) -> RefreshToken | None: ...
     async def revocar_familia(self, familia_id: UUID) -> int:
         """Revoke every token of a family. Returns how many were revoked."""
+        ...
+
+    async def revocar_de_usuario(self, usuario_id: UsuarioId) -> int:
+        """Every live session of one user, for HU-E1-06 RN-01."""
         ...
 
 
@@ -78,3 +119,46 @@ class PortEmisorDeTokens(Protocol):
         ...
 
     def hashear_refresh(self, token: str) -> str: ...
+
+
+class PortTokenDeInvitacion(Protocol):
+    """Separate from `PortEmisorDeTokens` even though both make random strings.
+
+    They answer different questions and change for different reasons: one is the session
+    lifecycle of ADR-011, the other is a single-use link with a configurable expiry that
+    travels by email. Folding them together would make a change to either affect both.
+    """
+
+    def emitir(self) -> str: ...
+    def hashear(self, token: str) -> str: ...
+
+
+@dataclass(frozen=True, slots=True)
+class MensajeDeInvitacion:
+    """Everything the email needs, with the token separated on purpose.
+
+    The token is the credential. Keeping it as its own field — instead of letting each
+    caller paste a URL together — is what lets the adapter build the link one way and
+    lets the logging never print it.
+    """
+
+    destinatario: Email
+    nombre_de_empresa: str
+    invitado_por: str
+    token: str
+    expira_en: datetime
+
+
+class PortEnvioDeEmail(Protocol):
+    """Transactional email.
+
+    `docs/architecture.md` §7 declares `PortNotificacionEmail` for `reporting` and
+    `payments` and it was never implemented. This one is declared **here**, because that
+    is what hexagonal asks for: a context declares the ports its own use cases need.
+    Whether the adapter is worth extracting somewhere shared is a question for the second
+    consumer — answering it now, with one, would be guessing the shape the second needs.
+    """
+
+    async def enviar_invitacion(self, mensaje: MensajeDeInvitacion) -> None:
+        """Raises `EnvioDeEmailFallido`. The caller decides whether that is fatal."""
+        ...

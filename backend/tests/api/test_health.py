@@ -23,26 +23,11 @@ from fastapi import APIRouter, FastAPI
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from tests.conftest import INSTANTE_FIJO
+from tests.conftest import INSTANTE_FIJO, settings_de_prueba
 
 
 def _settings(entorno: Entorno = Entorno.TEST) -> Settings:
-    return Settings(
-        entorno=entorno,
-        database_url="postgresql+asyncpg://x/y",
-        database_url_migrations="postgresql+asyncpg://x/y",
-        redis_url="redis://localhost:6380/0",
-        celery_broker_url="redis://localhost:6380/0",
-        celery_result_backend="redis://localhost:6380/0",
-        log_level="WARNING",
-        jwt_secret="fake-secret-for-tests",
-        jwt_access_ttl_minutos=15,
-        refresh_ttl_dias=30,
-        terminos_version_vigente="1.0",
-        google_oauth_client_id="",
-        google_oauth_client_secret="",
-        google_oauth_redirect_uri="",
-    )
+    return settings_de_prueba(entorno)
 
 
 def _recursos(settings: Settings) -> Recursos:

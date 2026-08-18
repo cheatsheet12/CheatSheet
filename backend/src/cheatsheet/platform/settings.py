@@ -29,6 +29,18 @@ class Entorno(StrEnum):
     PRODUCTION = "production"
 
 
+class AdaptadorDeEmail(StrEnum):
+    """Which implementation of `PortEnvioDeEmail` gets wired.
+
+    `CONSOLA` writes the invitation link to the log instead of sending it, so the flow is
+    completable on a laptop with no mail server. `Settings` refuses it in production —
+    see `desde_entorno`.
+    """
+
+    SMTP = "smtp"
+    CONSOLA = "consola"
+
+
 class ConfiguracionFaltante(RuntimeError):
     """A required environment variable is absent. Raised at boot, never later."""
 
@@ -47,6 +59,13 @@ def _opcional(nombre: str, por_defecto: str) -> str:
     return os.environ.get(nombre, "").strip() or por_defecto
 
 
+def _booleano(nombre: str, por_defecto: bool) -> bool:
+    crudo = os.environ.get(nombre, "").strip().lower()
+    if not crudo:
+        return por_defecto
+    return crudo in {"1", "true", "yes", "si"}
+
+
 def _entero(nombre: str, por_defecto: int) -> int:
     crudo = os.environ.get(nombre, "").strip()
     if not crudo:
@@ -55,6 +74,34 @@ def _entero(nombre: str, por_defecto: int) -> int:
         return int(crudo)
     except ValueError as exc:
         raise ConfiguracionFaltante(f"{nombre} debe ser un numero entero, no '{crudo}'") from exc
+
+
+def _adaptador_de_email(entorno: Entorno) -> AdaptadorDeEmail:
+    """Defaults to the console outside production, and is forbidden inside it.
+
+    An invitation that silently goes to a log file instead of to a person is the kind of
+    misconfiguration nobody notices until somebody asks why they never got their email.
+    In production the variable has to say `smtp`, or the process does not start.
+    """
+    crudo = _opcional("EMAIL_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno EMAIL_ADAPTADOR. En produccion debe valer 'smtp'."
+            )
+        return AdaptadorDeEmail.CONSOLA
+    try:
+        adaptador = AdaptadorDeEmail(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"EMAIL_ADAPTADOR debe ser 'smtp' o 'consola', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeEmail.CONSOLA and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "EMAIL_ADAPTADOR=consola no es valido en produccion: "
+            "las invitaciones quedarian sin enviar."
+        )
+    return adaptador
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +122,16 @@ class Settings:
     google_oauth_client_id: str
     google_oauth_client_secret: str
     google_oauth_redirect_uri: str
+    app_base_url: str
+    invitacion_ttl_dias: int
+    email_adaptador: AdaptadorDeEmail
+    smtp_host: str
+    smtp_port: int
+    smtp_usuario: str
+    smtp_password: str
+    smtp_remitente: str
+    smtp_tls: bool
+    smtp_timeout_segundos: int
 
     @property
     def es_produccion(self) -> bool:
@@ -106,6 +163,18 @@ class Settings:
             google_oauth_client_id=_opcional("GOOGLE_OAUTH_CLIENT_ID", ""),
             google_oauth_client_secret=_opcional("GOOGLE_OAUTH_CLIENT_SECRET", ""),
             google_oauth_redirect_uri=_opcional("GOOGLE_OAUTH_REDIRECT_URI", ""),
+            # The invitation email carries a link back into the panel; without this it
+            # would carry a broken one, which is a support ticket per invitation.
+            app_base_url=_opcional("APP_BASE_URL", "http://localhost:3000"),
+            invitacion_ttl_dias=_entero("INVITACION_TTL_DIAS", 7),
+            email_adaptador=_adaptador_de_email(entorno),
+            smtp_host=_opcional("SMTP_HOST", ""),
+            smtp_port=_entero("SMTP_PORT", 587),
+            smtp_usuario=_opcional("SMTP_USUARIO", ""),
+            smtp_password=_opcional("SMTP_PASSWORD", ""),
+            smtp_remitente=_opcional("SMTP_REMITENTE", "CheatSheet <no-reply@localhost>"),
+            smtp_tls=_booleano("SMTP_TLS", True),
+            smtp_timeout_segundos=_entero("SMTP_TIMEOUT_SEGUNDOS", 10),
         )
 
     @property

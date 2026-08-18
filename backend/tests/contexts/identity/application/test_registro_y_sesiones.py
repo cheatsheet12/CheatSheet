@@ -29,7 +29,13 @@ from cheatsheet.contexts.identity.application.sesiones import (
 )
 from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.usuario import Usuario
-from cheatsheet.contexts.identity.domain.valores import CUIT, CondicionIVA, Email, RolUsuario
+from cheatsheet.contexts.identity.domain.valores import (
+    CUIT,
+    CondicionIVA,
+    Email,
+    EstadoUsuario,
+    RolUsuario,
+)
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
@@ -242,7 +248,8 @@ async def test_todo_fallo_de_login_devuelve_el_mismo_error(
     usuarios, hasher, emisor, contrasena: str, activo: bool, con_contrasena: bool
 ):
     """Distinguishing them would turn the login form into an account enumerator."""
-    usuario = usuario_de_prueba(EmpresaId(uuid4()), activo=activo, con_contrasena=con_contrasena)
+    estado = EstadoUsuario.ACTIVO if activo else EstadoUsuario.INACTIVO
+    usuario = usuario_de_prueba(EmpresaId(uuid4()), estado=estado, con_contrasena=con_contrasena)
     await usuarios.agregar(usuario)
 
     with pytest.raises(CredencialesInvalidas):
@@ -329,7 +336,7 @@ async def test_un_usuario_desactivado_no_puede_refrescar(
     usuarios, hasher, emisor, refrescos, tokens
 ):
     usuario, sesion = await _sesion_inicial(usuarios, hasher, emisor)
-    usuario.activo = False
+    usuario.desactivar()
     await usuarios.guardar(usuario)
 
     with pytest.raises(SesionInvalida):

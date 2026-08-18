@@ -13,6 +13,7 @@ from cheatsheet.contexts.identity.domain.valores import (
     CUIT,
     CondicionIVA,
     Email,
+    EstadoUsuario,
     HashDeContrasena,
     RolUsuario,
 )
@@ -170,8 +171,8 @@ def test_un_usuario_con_contrasena_si_puede():
 
 def test_un_usuario_desactivado_no_puede_operar():
     """HU-E1-06 RN-01."""
-    with pytest.raises(InvarianteViolada, match="desactivado"):
-        _usuario(activo=False).exigir_activo()
+    with pytest.raises(InvarianteViolada, match="no esta activo"):
+        _usuario(estado=EstadoUsuario.INACTIVO).exigir_activo()
 
 
 def test_quien_registra_la_empresa_la_administra():

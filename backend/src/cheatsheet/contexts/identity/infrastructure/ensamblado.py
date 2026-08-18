@@ -16,23 +16,35 @@ from datetime import timedelta
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.identity.application.ports import (
     PortEmisorDeTokens,
+    PortEnvioDeEmail,
     PortHashDeContrasena,
     PortRepositorioEmpresa,
+    PortRepositorioInvitacion,
     PortRepositorioRefreshToken,
     PortRepositorioUsuario,
+    PortTokenDeInvitacion,
 )
 from cheatsheet.contexts.identity.application.sesiones import EmisorDeSesiones
+from cheatsheet.contexts.identity.infrastructure.email_invitacion import (
+    ConfiguracionSMTP,
+    EnviadorDeConsola,
+    EnviadorSMTP,
+)
 from cheatsheet.contexts.identity.infrastructure.oauth_google import (
     ConfiguracionOAuthGoogle,
     ProveedorOAuthGoogle,
 )
 from cheatsheet.contexts.identity.infrastructure.repositories import (
     RepositorioEmpresaPostgres,
+    RepositorioInvitacionPostgres,
     RepositorioRefreshTokenPostgres,
     RepositorioUsuarioPostgres,
 )
 from cheatsheet.contexts.identity.infrastructure.seguridad import EmisorDeTokensJWT, HasherArgon2
-from cheatsheet.platform.settings import Settings
+from cheatsheet.contexts.identity.infrastructure.tokens_invitacion import (
+    TokenDeInvitacionAleatorio,
+)
+from cheatsheet.platform.settings import AdaptadorDeEmail, Settings
 
 #: Argon2 builds its parameter table on construction. One instance per process is plenty
 #: and saves that work on every sign-in.
@@ -45,10 +57,13 @@ class Identidad:
 
     empresas: PortRepositorioEmpresa
     usuarios: PortRepositorioUsuario
+    invitaciones: PortRepositorioInvitacion
     refrescos: PortRepositorioRefreshToken
     hasher: PortHashDeContrasena
     tokens: PortEmisorDeTokens
+    tokens_de_invitacion: PortTokenDeInvitacion
     emisor: EmisorDeSesiones
+    vida_invitacion: timedelta
 
     @classmethod
     def armar(cls, unidad: UnidadDeTrabajo, settings: Settings) -> Identidad:
@@ -60,15 +75,41 @@ class Identidad:
         return cls(
             empresas=RepositorioEmpresaPostgres(unidad.sesion),
             usuarios=RepositorioUsuarioPostgres(unidad.sesion),
+            invitaciones=RepositorioInvitacionPostgres(unidad.sesion),
             refrescos=refrescos,
             hasher=_HASHER,
             tokens=tokens,
+            tokens_de_invitacion=TokenDeInvitacionAleatorio(),
             emisor=EmisorDeSesiones(
                 tokens=tokens,
                 refrescos=refrescos,
                 vida_refresh=timedelta(days=settings.refresh_ttl_dias),
             ),
+            vida_invitacion=timedelta(days=settings.invitacion_ttl_dias),
         )
+
+
+def crear_enviador(settings: Settings) -> PortEnvioDeEmail:
+    """Pick the email adapter. Process-lifetime: it holds no transaction.
+
+    `Settings` has already refused `consola` in production, so this does not have to
+    second-guess the choice — a validation that lives in two places gets relaxed in one
+    of them eventually.
+    """
+    if settings.email_adaptador is AdaptadorDeEmail.CONSOLA:
+        return EnviadorDeConsola(settings.app_base_url)
+    return EnviadorSMTP(
+        ConfiguracionSMTP(
+            host=settings.smtp_host,
+            puerto=settings.smtp_port,
+            usuario=settings.smtp_usuario,
+            contrasena=settings.smtp_password,
+            remitente=settings.smtp_remitente,
+            usar_tls=settings.smtp_tls,
+            timeout_segundos=settings.smtp_timeout_segundos,
+            url_base_de_la_app=settings.app_base_url,
+        )
+    )
 
 
 def proveedor_google(settings: Settings) -> ProveedorOAuthGoogle | None:

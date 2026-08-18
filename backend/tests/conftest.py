@@ -19,6 +19,7 @@ from uuid import UUID, uuid4
 import pytest
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
+from cheatsheet.platform.settings import AdaptadorDeEmail, Entorno, Settings
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
@@ -46,6 +47,46 @@ class RepositorioDeAuditoriaEnMemoria:
 
     async def buscar_por_id(self, registro_id: UUID) -> RegistroDeAuditoria | None:
         return self.registros.get(registro_id)
+
+
+def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
+    """A complete `Settings` with nothing real in it.
+
+    Built here rather than in each test file: `Settings` grows a field every time a unit
+    adds an integration, and a constructor repeated across files means every one of them
+    breaks on that day. No credential is real and no host resolves.
+    """
+    return Settings(
+        entorno=entorno,
+        database_url="postgresql+asyncpg://x/y",
+        database_url_migrations="postgresql+asyncpg://x/y",
+        redis_url="redis://localhost:6380/0",
+        celery_broker_url="redis://localhost:6380/0",
+        celery_result_backend="redis://localhost:6380/0",
+        log_level="WARNING",
+        jwt_secret="fake-secret-for-tests",
+        jwt_access_ttl_minutos=15,
+        refresh_ttl_dias=30,
+        terminos_version_vigente="1.0",
+        google_oauth_client_id="",
+        google_oauth_client_secret="",
+        google_oauth_redirect_uri="",
+        app_base_url="http://localhost:3000",
+        invitacion_ttl_dias=7,
+        email_adaptador=AdaptadorDeEmail.CONSOLA,
+        smtp_host="",
+        smtp_port=587,
+        smtp_usuario="",
+        smtp_password="",
+        smtp_remitente="no-reply@cheatsheet.test",
+        smtp_tls=True,
+        smtp_timeout_segundos=10,
+    )
+
+
+@pytest.fixture
+def settings() -> Settings:
+    return settings_de_prueba()
 
 
 @pytest.fixture

@@ -41,6 +41,9 @@ RUTAS_PUBLICAS = frozenset(
         "/auth/google/callback",
         "/auth/refresh",
         "/auth/logout",
+        # HU-E1-04: the invited person has no session — obtaining one is what accepting
+        # gives them. The token in the body is the credential.
+        "/auth/invitaciones/aceptar",
     }
 )
 

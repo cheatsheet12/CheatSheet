@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.errors import registrar_manejadores
 from cheatsheet.api.middleware.empresa import EmpresaMiddleware
-from cheatsheet.api.routers import auth, health
+from cheatsheet.api.routers import auth, health, usuarios
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging, obtener_logger
 
@@ -64,5 +64,6 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     # panel is HU-E12-01, epic 10.
     app.include_router(health.crear_router(recursos))
     app.include_router(auth.crear_router(recursos))
+    app.include_router(usuarios.crear_router(recursos))
 
     return app

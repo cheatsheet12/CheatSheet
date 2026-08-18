@@ -6,6 +6,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, Index, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +15,7 @@ from cheatsheet.platform.database import Base
 TABLA_EMPRESA = "empresa"
 TABLA_USUARIO = "usuario"
 TABLA_REFRESH = "refresh_token"
+TABLA_INVITACION = "invitacion"
 
 
 class EmpresaORM(Base):
@@ -47,9 +49,15 @@ class UsuarioORM(Base):
     nombre: Mapped[str] = mapped_column(String(200), nullable=False)
     hash_de_contrasena: Mapped[str | None] = mapped_column(String(255), nullable=True)
     rol: Mapped[str] = mapped_column(String(20), nullable=False)
-    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Three states where the DER has `activo boolean` — extension of gap H1, see
+    # `EstadoUsuario`. PAN-USR-01 shows three, and the last-Administrator invariant must
+    # not count somebody who was invited and never accepted.
+    estado: Mapped[str] = mapped_column(String(20), nullable=False)
     pref_idioma: Mapped[str] = mapped_column(String(10), nullable=False)
     pref_zona_horaria: Mapped[str] = mapped_column(String(60), nullable=False)
+    # The DER declares this column and no schema; `PreferenciasDeNotificacion` is the
+    # schema, and it is validated on the way back in.
+    pref_suscripciones: Mapped[dict[str, list[str]]] = mapped_column(JSONB, nullable=False)
 
     __table_args__ = (Index("ix_usuario_empresa", "empresa_id"),)
 
@@ -70,3 +78,22 @@ class RefreshTokenORM(Base):
     revocado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (Index("ix_refresh_familia", "familia_id"),)
+
+
+class InvitacionORM(Base):
+    """Gap H1: the DER models no pending-invitation state, and HU-E1-04 RN-02 needs one."""
+
+    __tablename__ = TABLA_INVITACION
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    usuario_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    # Same treatment as the refresh token: whoever holds this string can set a password
+    # inside somebody's company, so only its digest is stored.
+    hash_del_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    invitado_por: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    aceptada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revocada: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (Index("ix_invitacion_empresa", "empresa_id"),)

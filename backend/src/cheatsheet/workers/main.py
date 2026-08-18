@@ -12,12 +12,19 @@ from __future__ import annotations
 
 from celery import Celery
 
+from cheatsheet.api.dependencies import Recursos
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging
 from cheatsheet.workers.beat import configurar_beat
 from cheatsheet.workers.celery_app import crear_celery
+from cheatsheet.workers.tasks_identity import registrar_en
 
 settings = Settings.desde_entorno()
 configurar_logging(settings)
 
 app: Celery = configurar_beat(crear_celery(settings))
+
+# Process-lifetime resources, shared by every task this worker runs — the same split as
+# the API: engine and Redis client live as long as the process, sessions do not.
+recursos = Recursos.crear(settings)
+registrar_en(app, recursos)

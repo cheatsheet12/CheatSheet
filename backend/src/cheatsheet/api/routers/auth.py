@@ -14,7 +14,13 @@ from __future__ import annotations
 from uuid import uuid4
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
-from cheatsheet.contexts.identity.application.errors import OAuthFallido
+from cheatsheet.contexts.identity.application.errors import (
+    CredencialesInvalidas,
+    InvitacionInvalida,
+    OAuthFallido,
+    SesionInvalida,
+)
+from cheatsheet.contexts.identity.application.invitaciones import AceptarInvitacion
 from cheatsheet.contexts.identity.application.onboarding import CompletarDatosDeEmpresa
 from cheatsheet.contexts.identity.application.registro import RegistrarEmpresa
 from cheatsheet.contexts.identity.application.sesiones import (
@@ -25,6 +31,12 @@ from cheatsheet.contexts.identity.application.sesiones import (
 )
 from cheatsheet.contexts.identity.domain.valores import CUIT, CondicionIVA, Email
 from cheatsheet.contexts.identity.infrastructure.ensamblado import Identidad, proveedor_google
+from cheatsheet.contexts.identity.infrastructure.resolucion import (
+    empresa_de_email,
+    empresa_de_invitacion,
+    empresa_de_refresh,
+)
+from cheatsheet.contexts.identity.infrastructure.seguridad import hashear_token_opaco
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
@@ -45,6 +57,12 @@ class LoginEntrada(BaseModel):
 
 class RefreshEntrada(BaseModel):
     refresh_token: str
+
+
+class AceptacionEntrada(BaseModel):
+    token: str
+    nombre: str
+    contrasena: str = Field(min_length=LARGO_MINIMO_CONTRASENA)
 
 
 class DatosDeEmpresaEntrada(BaseModel):
@@ -82,6 +100,7 @@ def crear_router(recursos: Recursos) -> APIRouter:
     router = APIRouter(prefix="/auth", tags=["identity"])
     router.include_router(_rutas_de_alta(recursos))
     router.include_router(_rutas_de_sesion(recursos))
+    router.include_router(_rutas_de_invitacion(recursos))
     router.include_router(_rutas_autenticadas(recursos))
     return router
 
@@ -117,31 +136,58 @@ def _rutas_de_alta(recursos: Recursos) -> APIRouter:
     return router
 
 
+async def _salida_de(piezas: Identidad, empresa_id: EmpresaId, sesion: Sesion) -> SesionSalida:
+    """The session plus whether the company still owes the onboarding.
+
+    Read from the database rather than assumed: it used to be hardcoded `False`, which
+    sent every returning user back to step 1.
+    """
+    empresa = await piezas.empresas.buscar_por_id(empresa_id)
+    return _a_salida(sesion, empresa is not None and empresa.onboarding_completo)
+
+
 def _rutas_de_sesion(recursos: Recursos) -> APIRouter:
-    """The token lifecycle: obtain, rotate, revoke."""
+    """The token lifecycle: obtain, rotate, revoke.
+
+    **Every route here is pre-tenant**, and each one resolves the company *before* opening
+    its transaction. Opening it with an invented `EmpresaId(uuid4())` — which is what this
+    module used to do — makes Row-Level Security reject the write that follows, and in the
+    case of sign-out reject it silently. See `infrastructure/resolucion.py`.
+    """
     router = APIRouter()
 
     @router.post("/login")
     async def login(entrada: LoginEntrada) -> SesionSalida:
-        # Sign-in happens before there is a company: the lookup goes through the
-        # SECURITY DEFINER function, so the transaction can be opened with any id.
+        email = Email(entrada.email)
+        empresa_id = await empresa_de_email(recursos.sesiones, email)
+        if empresa_id is None:
+            # Same error as a wrong password: a different one here would turn the form
+            # into an account enumerator.
+            raise CredencialesInvalidas("Email o contrasena incorrectos")
+
         salida: SesionSalida | None = None
-        async for unidad in unidad_de_trabajo(recursos, EmpresaId(uuid4())):
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Identidad.armar(unidad, recursos.settings)
             sesion = await IniciarSesion(
                 usuarios=piezas.usuarios, hasher=piezas.hasher, emisor=piezas.emisor
             ).ejecutar(
-                email=Email(entrada.email),
+                email=email,
                 contrasena=entrada.contrasena,
                 ahora=unidad.reloj.ahora(),
             )
-            salida = _a_salida(sesion, onboarding_completo=False)
+            salida = await _salida_de(piezas, empresa_id, sesion)
         return _exigir(salida)
 
     @router.post("/refresh")
     async def refresh(entrada: RefreshEntrada) -> SesionSalida:
+        empresa_id = await empresa_de_refresh(
+            recursos.sesiones, hashear_token_opaco(entrada.refresh_token)
+        )
+        if empresa_id is None:
+            raise SesionInvalida("El refresh token no existe")
+
         salida: SesionSalida | None = None
-        async for unidad in unidad_de_trabajo(recursos, EmpresaId(uuid4())):
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Identidad.armar(unidad, recursos.settings)
             sesion = await RefrescarSesion(
                 usuarios=piezas.usuarios,
@@ -149,19 +195,69 @@ def _rutas_de_sesion(recursos: Recursos) -> APIRouter:
                 tokens=piezas.tokens,
                 emisor=piezas.emisor,
             ).ejecutar(refresh_token=entrada.refresh_token, ahora=unidad.reloj.ahora())
-            salida = _a_salida(sesion, onboarding_completo=False)
+            salida = await _salida_de(piezas, empresa_id, sesion)
         return _exigir(salida)
 
     # `response_class=Response`: a 204 carries no body, and FastAPI refuses to build a
     # response model for one.
     @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
     async def logout(entrada: RefreshEntrada) -> Response:
-        async for unidad in unidad_de_trabajo(recursos, EmpresaId(uuid4())):
-            piezas = Identidad.armar(unidad, recursos.settings)
-            await CerrarSesion(refrescos=piezas.refrescos, tokens=piezas.tokens).ejecutar(
-                refresh_token=entrada.refresh_token
-            )
+        empresa_id = await empresa_de_refresh(
+            recursos.sesiones, hashear_token_opaco(entrada.refresh_token)
+        )
+        # An unknown token is already signed out. Answering 204 rather than an error is
+        # deliberate: sign-out must never leave a client stuck holding a session it
+        # believes is open.
+        if empresa_id is not None:
+            async for unidad in unidad_de_trabajo(recursos, empresa_id):
+                piezas = Identidad.armar(unidad, recursos.settings)
+                await CerrarSesion(refrescos=piezas.refrescos, tokens=piezas.tokens).ejecutar(
+                    refresh_token=entrada.refresh_token
+                )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    return router
+
+
+def _rutas_de_invitacion(recursos: Recursos) -> APIRouter:
+    """Accepting an invitation, and the Google authorization URL.
+
+    Both are public and both are pre-tenant, so they sit apart from the token lifecycle
+    rather than inside it — the session router was over the complexity limit.
+    """
+    router = APIRouter()
+
+    @router.post("/invitaciones/aceptar", status_code=status.HTTP_201_CREATED)
+    async def aceptar_invitacion(entrada: AceptacionEntrada, request: Request) -> SesionSalida:
+        """HU-E1-04: the invited person sets a password and the account becomes real.
+
+        Public by necessity — they have no session yet, which is the whole point.
+        """
+        empresa_id = await empresa_de_invitacion(
+            recursos.sesiones, hashear_token_opaco(entrada.token)
+        )
+        if empresa_id is None:
+            raise InvitacionInvalida("La invitacion no es valida o ya fue utilizada")
+
+        salida: SesionSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Identidad.armar(unidad, recursos.settings)
+            sesion = await AceptarInvitacion(
+                usuarios=piezas.usuarios,
+                invitaciones=piezas.invitaciones,
+                tokens=piezas.tokens_de_invitacion,
+                hasher=piezas.hasher,
+                emisor=piezas.emisor,
+                publicador=unidad.publicador,
+            ).ejecutar(
+                token=entrada.token,
+                nombre=entrada.nombre,
+                contrasena=entrada.contrasena,
+                ahora=unidad.reloj.ahora(),
+                direccion_ip=_ip(request),
+            )
+            salida = await _salida_de(piezas, empresa_id, sesion)
+        return _exigir(salida)
 
     @router.get("/google/url")
     async def url_de_google(state: str) -> dict[str, str]:

@@ -14,24 +14,29 @@ blanket one.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cheatsheet.contexts.identity.domain.empresa import Empresa
+from cheatsheet.contexts.identity.domain.invitacion import Invitacion
 from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import (
     CUIT,
     CondicionIVA,
     Email,
+    EstadoUsuario,
     HashDeContrasena,
+    PreferenciasDeNotificacion,
     RolUsuario,
     TerminosAceptados,
 )
 from cheatsheet.contexts.identity.infrastructure.models import (
     EmpresaORM,
+    InvitacionORM,
     RefreshTokenORM,
     UsuarioORM,
 )
@@ -102,6 +107,20 @@ class RepositorioEmpresaPostgres:
         )
         return bool(resultado.scalar())
 
+    async def bloquear(self, empresa_id: EmpresaId) -> None:
+        """`SELECT … FOR UPDATE` on the company row, to serialise the last-Administrator check.
+
+        The company row is the lock rather than the user rows because the rule is about
+        the company: the set of users being counted is exactly what a concurrent
+        transaction might be changing, so locking the rows we can see would not stop it
+        from changing one we cannot.
+
+        The lock is released when the transaction ends, which the unit of work owns.
+        """
+        await self._sesion.execute(
+            select(EmpresaORM.id).where(EmpresaORM.id == empresa_id).with_for_update()
+        )
+
 
 def _usuario_a_dominio(fila: UsuarioORM) -> Usuario:
     return Usuario(
@@ -110,12 +129,13 @@ def _usuario_a_dominio(fila: UsuarioORM) -> Usuario:
         email=Email(fila.email),
         nombre=fila.nombre,
         rol=RolUsuario(fila.rol),
-        activo=fila.activo,
+        estado=EstadoUsuario(fila.estado),
         hash_de_contrasena=(
             HashDeContrasena(fila.hash_de_contrasena) if fila.hash_de_contrasena else None
         ),
         pref_idioma=fila.pref_idioma,
         pref_zona_horaria=fila.pref_zona_horaria,
+        pref_suscripciones=PreferenciasDeNotificacion.desde_json(fila.pref_suscripciones),
     )
 
 
@@ -134,9 +154,10 @@ class RepositorioUsuarioPostgres:
                     usuario.hash_de_contrasena.valor if usuario.hash_de_contrasena else None
                 ),
                 rol=usuario.rol.value,
-                activo=usuario.activo,
+                estado=usuario.estado.value,
                 pref_idioma=usuario.pref_idioma,
                 pref_zona_horaria=usuario.pref_zona_horaria,
+                pref_suscripciones=usuario.pref_suscripciones.a_json(),
             )
         )
         await self._sesion.flush()
@@ -148,17 +169,50 @@ class RepositorioUsuarioPostgres:
             return
         fila.nombre = usuario.nombre
         fila.rol = usuario.rol.value
-        fila.activo = usuario.activo
+        fila.estado = usuario.estado.value
         fila.pref_idioma = usuario.pref_idioma
         fila.pref_zona_horaria = usuario.pref_zona_horaria
+        fila.pref_suscripciones = usuario.pref_suscripciones.a_json()
         fila.hash_de_contrasena = (
             usuario.hash_de_contrasena.valor if usuario.hash_de_contrasena else None
         )
         await self._sesion.flush()
 
+    async def eliminar(self, usuario_id: UsuarioId) -> None:
+        """Only for a revoked invitation — see `RevocarInvitacion` for why it is a delete."""
+        fila = await self._sesion.get(UsuarioORM, usuario_id)
+        if fila is not None:
+            await self._sesion.delete(fila)
+            await self._sesion.flush()
+
     async def buscar_por_id(self, usuario_id: UsuarioId) -> Usuario | None:
         fila = await self._sesion.get(UsuarioORM, usuario_id)
         return _usuario_a_dominio(fila) if fila is not None else None
+
+    async def listar_de_empresa(self, empresa_id: EmpresaId) -> Sequence[Usuario]:
+        """The `WHERE` is redundant under Row-Level Security and stays anyway.
+
+        RLS is the barrier; this makes the intent readable and keeps the query correct if
+        it is ever run as the owner role, as a migration or a fixture would.
+        """
+        consulta = (
+            select(UsuarioORM)
+            .where(UsuarioORM.empresa_id == empresa_id)
+            .order_by(UsuarioORM.nombre)
+        )
+        filas = (await self._sesion.execute(consulta)).scalars().all()
+        return [_usuario_a_dominio(fila) for fila in filas]
+
+    async def contar_administradores_activos(self, empresa_id: EmpresaId) -> int:
+        """HU-E1-05 RN-02. `INVITADO` is not `ACTIVO`, so a pending admin never counts."""
+        consulta = (
+            select(func.count())
+            .select_from(UsuarioORM)
+            .where(UsuarioORM.empresa_id == empresa_id)
+            .where(UsuarioORM.rol == RolUsuario.ADMINISTRADOR.value)
+            .where(UsuarioORM.estado == EstadoUsuario.ACTIVO.value)
+        )
+        return int((await self._sesion.execute(consulta)).scalar_one())
 
     async def buscar_por_email(self, email: Email) -> Usuario | None:
         """Pre-tenant lookup — see the module docstring."""
@@ -172,11 +226,76 @@ class RepositorioUsuarioPostgres:
             email=Email(fila["email"]),
             nombre=fila["nombre"],
             rol=RolUsuario(fila["rol"]),
-            activo=fila["activo"],
+            estado=EstadoUsuario(fila["estado"]),
             hash_de_contrasena=(
                 HashDeContrasena(fila["hash_de_contrasena"]) if fila["hash_de_contrasena"] else None
             ),
         )
+
+
+def _invitacion_a_dominio(fila: InvitacionORM) -> Invitacion:
+    return Invitacion(
+        id=fila.id,
+        empresa_id=EmpresaId(fila.empresa_id),
+        usuario_id=UsuarioId(fila.usuario_id),
+        hash_del_token=fila.hash_del_token,
+        expira_en=fila.expira_en,
+        invitado_por=UsuarioId(fila.invitado_por),
+        aceptada_en=fila.aceptada_en,
+        revocada=fila.revocada,
+    )
+
+
+class RepositorioInvitacionPostgres:
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._sesion = sesion
+
+    async def agregar(self, invitacion: Invitacion) -> None:
+        self._sesion.add(
+            InvitacionORM(
+                id=invitacion.id,
+                empresa_id=invitacion.empresa_id,
+                usuario_id=invitacion.usuario_id,
+                hash_del_token=invitacion.hash_del_token,
+                expira_en=invitacion.expira_en,
+                invitado_por=invitacion.invitado_por,
+                aceptada_en=invitacion.aceptada_en,
+                revocada=invitacion.revocada,
+            )
+        )
+        await self._sesion.flush()
+
+    async def guardar(self, invitacion: Invitacion) -> None:
+        fila = await self._sesion.get(InvitacionORM, invitacion.id)
+        if fila is None:
+            await self.agregar(invitacion)
+            return
+        # `hash_del_token` and `expira_en` are here because resending replaces them; that
+        # overwrite is what makes the previous link stop working.
+        fila.hash_del_token = invitacion.hash_del_token
+        fila.expira_en = invitacion.expira_en
+        fila.aceptada_en = invitacion.aceptada_en
+        fila.revocada = invitacion.revocada
+        await self._sesion.flush()
+
+    async def buscar_por_id(self, invitacion_id: UUID) -> Invitacion | None:
+        fila = await self._sesion.get(InvitacionORM, invitacion_id)
+        return _invitacion_a_dominio(fila) if fila is not None else None
+
+    async def buscar_por_hash(self, hash_del_token: str) -> Invitacion | None:
+        consulta = select(InvitacionORM).where(InvitacionORM.hash_del_token == hash_del_token)
+        fila = (await self._sesion.execute(consulta)).scalar_one_or_none()
+        return _invitacion_a_dominio(fila) if fila is not None else None
+
+    async def listar_pendientes_de_empresa(self, empresa_id: EmpresaId) -> Sequence[Invitacion]:
+        consulta = (
+            select(InvitacionORM)
+            .where(InvitacionORM.empresa_id == empresa_id)
+            .where(InvitacionORM.aceptada_en.is_(None))
+            .where(InvitacionORM.revocada.is_(False))
+        )
+        filas = (await self._sesion.execute(consulta)).scalars().all()
+        return [_invitacion_a_dominio(fila) for fila in filas]
 
 
 class RepositorioRefreshTokenPostgres:
@@ -227,6 +346,21 @@ class RepositorioRefreshTokenPostgres:
         resultado = await self._sesion.execute(
             update(RefreshTokenORM)
             .where(RefreshTokenORM.familia_id == familia_id)
+            .where(RefreshTokenORM.revocado.is_(False))
+            .values(revocado=True)
+        )
+        await self._sesion.flush()
+        return int(resultado.rowcount or 0)
+
+    async def revocar_de_usuario(self, usuario_id: UsuarioId) -> int:
+        """Every live session of one user — HU-E1-06 RN-01.
+
+        Families, not just the current one: someone signed in on a phone and a laptop has
+        two, and deactivating them has to reach both.
+        """
+        resultado = await self._sesion.execute(
+            update(RefreshTokenORM)
+            .where(RefreshTokenORM.usuario_id == usuario_id)
             .where(RefreshTokenORM.revocado.is_(False))
             .values(revocado=True)
         )

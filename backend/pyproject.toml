@@ -40,6 +40,9 @@ dependencies = [
     # Outbound HTTP for the Google OAuth2 adapter. It is also a test dependency, but a
     # runtime caller now exists, so it belongs here too.
     "httpx==0.27.2",
+    # identity: the invitation email (HU-E1-04 RN-02). SMTP rather than a provider SDK,
+    # so the choice of transactional provider stays a deployment decision.
+    "aiosmtplib==3.0.2",
 ]
 
 [tool.hatch.build.targets.wheel]
