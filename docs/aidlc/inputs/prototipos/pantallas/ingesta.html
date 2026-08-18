@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Ingesta de Datos</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .crumb { font-family: var(--mono); font-size: 11.5px; color: var(--ink-400); margin-bottom: 14px; }
+  .crumb b { color: var(--ink-700); }
+  .src-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0 18px; }
+  .src { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--card); cursor: pointer; box-shadow: var(--shadow); }
+  .src.is-on { border-color: var(--accent); background: var(--accent-050); }
+  .src .ic { width: 42px; height: 42px; border-radius: 11px; background: var(--info-bg); color: var(--info); display: grid; place-items: center; flex: none; }
+  .src.is-on .ic { background: var(--accent); color: #fff; }
+  .src .ic svg { width: 21px; height: 21px; }
+  .src b { font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+  .src span { font-size: 12px; color: var(--ink-400); }
+  .src .radio { margin-left: auto; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); flex: none; }
+  .src.is-on .radio { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 5px, #fff 5px 100%); }
+
+  .dropzone { border: 1.5px dashed var(--line); border-radius: var(--radius); background: var(--card); padding: 44px; text-align: center; box-shadow: var(--shadow); }
+  .dz-ico { width: 64px; height: 64px; border-radius: 16px; background: var(--accent-050); color: var(--accent-700); display: grid; place-items: center; margin: 0 auto 16px; }
+  .dz-ico svg { width: 30px; height: 30px; }
+  .dz-title { font-size: 17px; font-weight: 700; }
+  .dz-sub { font-size: 12.5px; color: var(--ink-400); margin: 6px 0 20px; }
+  .dz-actions { display: flex; gap: 12px; justify-content: center; align-items: center; }
+  .lock-note { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--ink-400); margin-top: 18px; }
+  .lock-note svg { width: 13px; height: 13px; }
+
+  .detect { display: flex; align-items: center; gap: 14px; padding: 16px 20px; margin-top: 18px; background: var(--accent-050); border: 1px solid var(--accent-100); border-radius: var(--radius); }
+  .detect .ico { width: 36px; height: 36px; border-radius: 9px; background: var(--accent); color: #fff; display: grid; place-items: center; flex: none; }
+  .detect .ico svg { width: 18px; height: 18px; }
+  .detect b { font-size: 13.5px; font-weight: 700; display: block; }
+  .detect span { font-size: 12px; color: var(--ink-500); }
+  .col-chips { display: flex; gap: 7px; flex-wrap: wrap; margin-left: auto; max-width: 560px; justify-content: flex-end; }
+  .col-chip { font-family: var(--mono); font-size: 11px; padding: 4px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); color: var(--ink-700); }
+
+  .recent-state { display: inline-flex; align-items: center; }
+
+  /* Mapeo */
+  .map-table th { padding-bottom: 14px; }
+  .map-src { display: flex; align-items: center; gap: 12px; }
+  .map-n { font-family: var(--mono); font-size: 11px; color: var(--ink-300); width: 18px; }
+  .map-src b { font-size: 13px; font-weight: 700; display: block; }
+  .map-src span { font-size: 11px; color: var(--ink-400); }
+  .map-arrow { display: flex; align-items: center; gap: 12px; }
+  .map-arrow .arr { color: var(--accent-700); font-size: 16px; }
+  .map-arrow b { font-size: 13.5px; font-weight: 600; display: block; }
+  .map-arrow span { font-size: 11px; color: var(--ink-400); }
+  .map-unassigned { display: inline-flex; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--err); border: 1px solid var(--err); border-radius: var(--radius-sm); padding: 7px 12px; background: var(--err-bg); }
+  .map-warn td { background: #fdf6f6 !important; }
+  .conf { font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; }
+  .conf::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .conf--hi { background: var(--ok-bg); color: var(--ok); }
+  .conf--mid { background: var(--warn-bg); color: var(--warn); }
+  .conf--lo { background: var(--err-bg); color: var(--err); }
+  .map-foot { display: flex; align-items: center; gap: 20px; padding: 16px 24px; border-top: 1px solid var(--line); }
+  .map-stat { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-600); }
+  .map-stat b { color: var(--ink-900); }
+  .map-stat__ic { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+  .map-stat__ic svg { width: 12px; height: 12px; }
+  .map-stat__ic.ok { background: var(--accent); }
+  .map-stat__ic.warn { background: var(--alert); color: var(--primary); font-weight: 800; font-size: 12px; }
+
+  /* PAN-ING-03 detalle de procesamiento */
+  .proc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .proc-stat { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 16px; text-align: center; }
+  .proc-stat__n { font-size: 26px; font-weight: 800; letter-spacing: -.5px; }
+  .proc-stat__l { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+  .proc-stat--ok .proc-stat__n { color: var(--accent-700); }
+  .proc-stat--ok { background: var(--accent-050); border-color: var(--accent-100); }
+  .proc-stat--err .proc-stat__n { color: var(--err); }
+  .proc-stat--err { background: var(--err-bg); border-color: var(--err-bg); }
+  .err-row { display: flex; gap: 14px; align-items: flex-start; padding: 13px 0; border-bottom: 1px solid var(--line-2); }
+  .err-n { font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--err); background: var(--err-bg); padding: 3px 9px; border-radius: 6px; flex: none; }
+  .err-body b { font-size: 13.5px; font-weight: 600; display: block; }
+  .err-body span { font-size: 12.5px; color: var(--ink-500); }
+</style>
+</head>
+<body data-active="ingesta">
+<div id="page" class="page" data-screen-label="Ingesta de Datos">
+
+  <!-- ===================== VISTA: CARGA ===================== -->
+  <div data-view="carga" class="is-shown">
+  <div class="crumb">Operaciones › <b>Ingesta de Datos</b></div>
+  <h1 class="page-title" style="font-size:27px;">Ingesta de Datos</h1>
+  <p class="page-sub" style="max-width:680px;">Subí tu planilla de ventas, cobros y clientes y CheatSheet la interpreta automáticamente para alimentar el resto de la plataforma.</p>
+
+  <div style="display:flex; justify-content:flex-end; margin-top:-36px;">
+    <button class="btn btn--ghost btn--sm" data-goto="mapeo">Simular: pasar al mapeo →</button>
+  </div>
+
+  <div class="src-grid">
+    <div class="src">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div>
+      <div><b>Plantilla estándar CheatSheet <span class="badge badge--ok" style="font-weight:600;">Recomendado</span></b><span>Descargá el formato oficial y pegá tus datos</span></div>
+      <div class="radio"></div>
+    </div>
+    <div class="src is-on">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+      <div><b>Mi propio archivo</b><span class="mono">Excel · CSV · Google Sheets</span></div>
+      <div class="radio"></div>
+    </div>
+  </div>
+
+  <div class="dropzone">
+    <div class="dz-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V7m0 0L8 11m4-4 4 4"/><path d="M20 16.5A4.5 4.5 0 0 0 17 8a6 6 0 0 0-11.6 1.5A4 4 0 0 0 6 17"/></svg></div>
+    <div class="dz-title">Arrastrá tu archivo acá</div>
+    <div class="dz-sub">Formatos aceptados: .xlsx, .xls, .csv, Google Sheets · Tamaño máximo 25 MB</div>
+    <div class="dz-actions">
+      <button class="btn btn--cta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/></svg> Seleccionar archivo</button>
+      <span class="muted">o</span>
+      <button class="btn btn--ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg> Conectar Google Sheets directamente</button>
+    </div>
+    <div class="lock-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Tus archivos viajan cifrados y nunca se comparten con terceros.</div>
+  </div>
+
+  <div class="detect">
+    <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg></div>
+    <div><b>La IA va a detectar automáticamente</b><span>Sin importar el orden o el nombre exacto de tus columnas</span></div>
+    <div class="col-chips">
+      <span class="col-chip">Cliente</span><span class="col-chip">CUIT / DNI</span><span class="col-chip">Fecha</span><span class="col-chip">Monto</span><span class="col-chip">Producto</span><span class="col-chip">Condición IVA</span><span class="col-chip">N° comprobante</span><span class="col-chip">Forma de pago</span>
+    </div>
+  </div>
+
+  <div class="card card--pad" style="margin-top:26px;">
+    <div class="section-head">
+      <div><h2>Cargas recientes</h2><p>Tus últimas 3 ingestas de datos</p></div>
+      <a class="mono" style="color:var(--accent-700); font-size:12.5px; font-weight:600;">Ver historial completo →</a>
+    </div>
+    <table class="table">
+      <thead><tr><th>Archivo</th><th>Filas</th><th>Estado</th><th>Fecha</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td><div class="op-cell" style="display:flex;align-items:center;gap:12px;"><div class="op-ico" style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--info-bg);color:var(--info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:17px;height:17px;"><path d="M21 12a9 9 0 1 1-2.6-6.3M21 4v4h-4"/></svg></div><div><b style="font-size:13.5px;">ventas-abril-semana3.xlsx</b><div class="mono muted" style="font-size:10.5px;">204 KB · procesamiento asíncrono en curso</div></div></div></td>
+          <td class="tnum"><b>61</b> <span class="muted">/ 158</span></td>
+          <td><span class="badge badge--info">Procesando</span></td>
+          <td class="mono muted">Hoy · 10:14</td>
+          <td class="muted">⋮</td>
+        </tr>
+        <tr id="ingErrRow" style="cursor:pointer;">
+          <td><div class="op-cell" style="display:flex;align-items:center;gap:12px;"><div class="op-ico" style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--accent-050);color:var(--accent-700)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:17px;height:17px;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div><div><b style="font-size:13.5px;">ventas-abril-semana2.xlsx</b><div class="mono muted" style="font-size:10.5px;">186 KB · 4 filas con CUIT inválido</div></div></div></td>
+          <td class="tnum"><b>138</b> <span class="muted">/ 142</span></td>
+          <td><span class="badge badge--warn">Con errores</span></td>
+          <td class="mono muted">Hoy · 09:33</td>
+          <td class="muted">›</td>
+        </tr>
+        <tr>
+          <td><div class="op-cell" style="display:flex;align-items:center;gap:12px;"><div class="op-ico" style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--info-bg);color:var(--info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:17px;height:17px;"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M14 2v5h5"/></svg></div><div><b style="font-size:13.5px;">cobranzas-marzo-2026.csv</b><div class="mono muted" style="font-size:10.5px;">92 KB · Procesado sin errores</div></div></div></td>
+          <td class="tnum"><b>84</b> <span class="muted">/ 84</span></td>
+          <td><span class="badge badge--ok">Procesado</span></td>
+          <td class="mono muted">Ayer · 17:18</td>
+          <td class="muted">⋮</td>
+        </tr>
+        <tr>
+          <td><div class="op-cell" style="display:flex;align-items:center;gap:12px;"><div class="op-ico" style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:#E8F5EE;color:#1F8A5B"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:17px;height:17px;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div><div><b style="font-size:13.5px;">Clientes activos – Marzo (Sheets)</b><div class="mono muted" style="font-size:10.5px;">Google Sheets</div></div></div></td>
+          <td class="tnum"><b>312</b> <span class="muted">/ 312</span></td>
+          <td><span class="badge badge--ok">Procesado</span></td>
+          <td class="mono muted">Lun. 27 abr · 11:02</td>
+          <td class="muted">⋮</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  </div>
+
+  <!-- ===================== VISTA: MAPEO ===================== -->
+  <div data-view="mapeo">
+    <div class="crumb">Operaciones › Ingesta de Datos › <b>Mapeo</b></div>
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px;">
+      <div>
+        <h1 class="page-title" style="font-size:27px;">Revisá el mapeo de tu planilla</h1>
+        <p class="page-sub" style="max-width:720px;">La IA interpretó la estructura de tu archivo. Revisá que las columnas estén correctamente asignadas antes de continuar — vas a poder editar cualquier fila.</p>
+      </div>
+      <button class="btn btn--ghost" data-goto="carga" style="flex:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 12H5m0 0 6-6m-6 6 6 6"/></svg> Volver a la carga</button>
+    </div>
+
+    <div class="stepper" style="margin:26px 0 22px;">
+      <div class="step is-done"><span class="step__dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="step__label">Cargar archivo</span></div>
+      <div class="step__bar is-done"></div>
+      <div class="step is-current"><span class="step__dot">2</span><span class="step__label">Revisar mapeo</span></div>
+      <div class="step__bar"></div>
+      <div class="step"><span class="step__dot">3</span><span class="step__label">Procesar y validar</span></div>
+      <div class="step__bar"></div>
+      <div class="step"><span class="step__dot">4</span><span class="step__label">Sincronizar</span></div>
+    </div>
+
+    <div class="card" style="display:flex; align-items:center; gap:14px; padding:16px 20px; margin-bottom:18px;">
+      <div class="op-ico" style="width:40px;height:40px;border-radius:10px;background:var(--accent-050);color:var(--accent-700);display:grid;place-items:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:20px;height:20px;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div>
+      <div style="flex:1;"><b style="font-size:14px;">ventas-abril-2026.xlsx</b> <span class="badge badge--plain mono" style="font-size:10px;">HOJA: VENTAS_Q2</span><div class="mono muted" style="font-size:11px; margin-top:3px;">186 KB · 247 filas · 9 columnas detectadas · analizado en 2.3s</div></div>
+      <div style="display:flex; gap:10px;"><span class="chip" style="cursor:default;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;color:var(--accent-700)"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg> Analizado por IA</span><button class="btn btn--ghost btn--sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Vista previa</button></div>
+    </div>
+
+    <div class="card">
+      <table class="table map-table">
+        <thead><tr><th style="padding-left:24px;">Tu columna</th><th>⚡ Interpretado como</th><th>Ejemplo de dato</th><th style="text-align:right; padding-right:24px;">Confianza</th><th></th></tr></thead>
+        <tbody>
+          <tr><td style="padding-left:24px;"><div class="map-src"><span class="map-n">01</span><div><b class="mono">NOMBRE_CLIENTE</b><span>Columna A de tu archivo</span></div></div></td><td class="map-arrow"><span class="arr">→</span><div><b>Cliente</b><span class="mono">cliente.razon_social</span></div></td><td class="mono muted">Almacén Don Carlos S.R.L.</td><td style="text-align:right; padding-right:24px;"><span class="conf conf--hi">Alta 98%</span></td><td class="muted">⋮</td></tr>
+          <tr><td style="padding-left:24px;"><div class="map-src"><span class="map-n">02</span><div><b class="mono">CUIT/DNI</b><span>Columna B de tu archivo</span></div></div></td><td class="map-arrow"><span class="arr">→</span><div><b>CUIT</b><span class="mono">cliente.cuit</span></div></td><td class="mono muted">30-71428953-1</td><td style="text-align:right; padding-right:24px;"><span class="conf conf--hi">Alta 98%</span></td><td class="muted">⋮</td></tr>
+          <tr><td style="padding-left:24px;"><div class="map-src"><span class="map-n">03</span><div><b class="mono">FECHA_OPERACION</b><span>Columna C de tu archivo</span></div></div></td><td class="map-arrow"><span class="arr">→</span><div><b>Fecha de operación</b><span class="mono">operacion.fecha</span></div></td><td class="mono muted">14/04/2026</td><td style="text-align:right; padding-right:24px;"><span class="conf conf--hi">Alta 96%</span></td><td class="muted">⋮</td></tr>
+          <tr><td style="padding-left:24px;"><div class="map-src"><span class="map-n">04</span><div><b class="mono">IMPORTE_TOTAL</b><span>Columna D de tu archivo</span></div></div></td><td class="map-arrow"><span class="arr">→</span><div><b>Monto total</b><span class="mono">operacion.monto_total</span></div></td><td class="mono muted">$ 187.420</td><td style="text-align:right; padding-right:24px;"><span class="conf conf--hi">Alta 98%</span></td><td class="muted">⋮</td></tr>
+          <tr><td style="padding-left:24px;"><div class="map-src"><span class="map-n">05</span><div><b class="mono">IVA_21</b><span>Columna E de tu archivo</span></div></div></td><td class="map-arrow"><span class="arr">→</span><div><b>IVA discriminado</b><span class="mono">operacion.iva</span></div></td><td class="mono muted">$ 32.521</td><td style="text-align:right; padding-right:24px;"><span class="conf conf--mid">Media 76%</span></td><td class="muted">⋮</td></tr>
+          <tr><td style="padding-left:24px;"><div class="map-src"><span class="map-n">06</span><div><b class="mono">PROD_DESC</b><span>Columna F de tu archivo</span></div></div></td><td class="map-arrow"><span class="arr">→</span><div><b>Detalle de producto</b><span class="mono">item.descripcion</span></div></td><td class="mono muted">Mercadería varios</td><td style="text-align:right; padding-right:24px;"><span class="conf conf--hi">Alta 95%</span></td><td class="muted">⋮</td></tr>
+          <tr><td style="padding-left:24px;"><div class="map-src"><span class="map-n">07</span><div><b class="mono">COND_PAGO</b><span>Columna G de tu archivo</span></div></div></td><td class="map-arrow"><span class="arr">→</span><div><b>Condición de pago</b><span class="mono">operacion.condicion_pago</span></div></td><td class="mono muted">Cta. Cte. 30 días</td><td style="text-align:right; padding-right:24px;"><span class="conf conf--mid">Media 74%</span></td><td class="muted">⋮</td></tr>
+          <tr class="map-warn"><td style="padding-left:24px;"><div class="map-src"><span class="map-n">08</span><div><b class="mono">OBSERVAC</b><span>Columna H de tu archivo</span></div></div></td><td class="map-arrow"><span class="arr">→</span><div class="map-unassigned"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg> Sin asignar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;margin-left:6px;"><path d="m6 9 6 6 6-6"/></svg></div></td><td class="mono muted">“entrega lunes pm”</td><td style="text-align:right; padding-right:24px;"><span class="conf conf--lo">Baja 34%</span></td><td class="muted">⋮</td></tr>
+        </tbody>
+      </table>
+      <div class="map-foot">
+        <span class="map-stat"><span class="map-stat__ic ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><b>8</b> filas listas para procesar</span>
+        <span class="map-stat"><span class="map-stat__ic warn">!</span><b>1</b> con advertencias · revisión manual</span>
+        <span class="muted" style="flex:1; font-size:12.5px;"><b>Sugerencia:</b> revisá la fila con confianza baja antes de continuar.</span>
+        <button class="btn btn--ghost" data-goto="carga">Cancelar</button>
+        <button class="btn btn--cta">Confirmar y procesar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m0 0-6-6m6 6-6 6"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Ingesta de Datos · Motor de interpretación IA v3 · Cifrado extremo a extremo</div>
+
+</div>
+
+<!-- ===================== DRAWER: Detalle de procesamiento (PAN-ING-03) ===================== -->
+<div class="drawer-scrim" id="ingScrim"></div>
+<div class="drawer" id="ingDrawer" style="width:580px;">
+  <div class="drawer__head">
+    <div>
+      <div class="mono muted" style="font-size:11px;">Detalle de procesamiento · <span style="color:var(--ink-600)">PL-2604-019</span></div>
+      <div style="display:flex; align-items:center; gap:11px; margin-top:10px;">
+        <div class="op-ico" style="width:38px;height:38px;border-radius:9px;background:var(--accent-050);color:var(--accent-700);display:grid;place-items:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:19px;height:19px;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div>
+        <div><b style="font-size:16px; font-weight:800;">ventas-abril-semana2.xlsx</b><div class="mono muted" style="font-size:11.5px;">186 KB · procesado Hoy · 09:33</div></div>
+      </div>
+    </div>
+    <button class="drawer__close" id="ingClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="drawer__body">
+    <div class="proc-stats">
+      <div class="proc-stat"><div class="proc-stat__n">142</div><div class="proc-stat__l">Filas totales</div></div>
+      <div class="proc-stat proc-stat--ok"><div class="proc-stat__n">138</div><div class="proc-stat__l">Procesadas</div></div>
+      <div class="proc-stat proc-stat--err"><div class="proc-stat__n">4</div><div class="proc-stat__l">Con error</div></div>
+    </div>
+
+    <div class="kv-label">Errores por fila <span class="muted" style="font-weight:500; text-transform:none; letter-spacing:0; font-family:var(--sans); margin-left:8px;">Número de fila del archivo original y motivo</span></div>
+    <div class="err-row"><div class="err-n">Fila 14</div><div class="err-body"><b>Almacén Sánchez</b><span>CUIT 30-99999999-9 — no supera la validación del dígito verificador</span></div></div>
+    <div class="err-row"><div class="err-n">Fila 38</div><div class="err-body"><b>Kiosco 24hs</b><span>CUIT vacío — campo obligatorio sin completar</span></div></div>
+    <div class="err-row"><div class="err-n">Fila 91</div><div class="err-body"><b>Despensa El Sol</b><span>CUIT 20-1234-5 — formato inválido (no tiene 11 dígitos)</span></div></div>
+    <div class="err-row"><div class="err-n">Fila 120</div><div class="err-body"><b>(sin nombre)</b><span>CUIT 27-88888888-8 — no encontrado en el padrón de ARCA</span></div></div>
+
+    <div class="info-note" style="display:flex; gap:10px; align-items:flex-start; margin-top:18px; padding:12px 15px; background:var(--info-bg); border-radius:var(--radius-sm); font-size:12.5px; color:var(--ink-700); line-height:1.5;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;color:var(--info);flex:none;margin-top:1px;"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg> Corregí los datos en la fuente y reprocesá: el sistema reutiliza el mapeo confirmado e incorpora solo las filas corregidas, sin duplicar las ya procesadas.</div>
+
+    <div style="display:flex; gap:10px; margin-top:22px;">
+      <button class="btn btn--cta" style="flex:1; justify-content:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.3M21 4v4h-4"/></svg> Reprocesar filas corregidas</button>
+      <button class="btn btn--ghost" style="justify-content:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14"/></svg> Descargar listado de errores</button>
+    </div>
+  </div>
+</div>
+
+<script src="chrome.js"></script>
+<script>
+  document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => {
+    const t = b.dataset.goto;
+    document.querySelectorAll('[data-view]').forEach(v => v.classList.toggle('is-shown', v.dataset.view === t));
+    window.scrollTo(0,0);
+  }));
+  const ingDrawer = document.getElementById('ingDrawer'), ingScrim = document.getElementById('ingScrim');
+  function openIng(){ ingDrawer.classList.add('is-open'); ingScrim.classList.add('is-open'); }
+  function closeIng(){ ingDrawer.classList.remove('is-open'); ingScrim.classList.remove('is-open'); }
+  document.getElementById('ingErrRow').addEventListener('click', openIng);
+  document.getElementById('ingClose').addEventListener('click', closeIng);
+  ingScrim.addEventListener('click', closeIng);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeIng(); });
+</script>
+</body>
+</html>

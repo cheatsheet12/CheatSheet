@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Reportes</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .rep-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin: 24px 0 22px; }
+  .rep-kpi .kpi__top { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+  .rep-kpi .ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; }
+  .rep-kpi .ic svg { width: 15px; height: 15px; }
+  .charts { display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px; }
+  .bars { display: flex; align-items: flex-end; gap: 26px; height: 300px; padding: 0 10px; border-bottom: 1px solid var(--line); margin: 10px 0 0; position: relative; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .bar { width: 64%; max-width: 78px; background: var(--accent); border-radius: 7px 7px 0 0; transition: height .3s; }
+  .bar.empty { background: var(--line-2); height: 0; }
+  .bar-x { font-size: 13px; color: var(--ink-500); margin-top: 12px; font-weight: 500; }
+  .y-labels { position: absolute; left: -52px; top: 0; bottom: 24px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--ink-300); }
+  .chart-foot { display: flex; justify-content: space-between; border-top: 1px solid var(--line); margin-top: 18px; padding-top: 16px; }
+  .chart-foot div span { font-size: 11.5px; color: var(--ink-400); display: block; }
+  .chart-foot div b { font-size: 13.5px; }
+  .donut-wrap { display: flex; align-items: center; gap: 26px; margin-top: 14px; }
+  .donut { width: 168px; height: 168px; border-radius: 50%; flex: none; position: relative;
+    background: conic-gradient(var(--accent) 0 53.8%, var(--info) 53.8% 89.7%, var(--alert) 89.7% 100%); }
+  .donut::after { content: ""; position: absolute; inset: 30px; border-radius: 50%; background: var(--card); }
+  .donut .center { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; z-index: 1; }
+  .donut .center span { font-size: 11px; color: var(--ink-400); display: block; }
+  .donut .center b { font-size: 26px; font-weight: 800; }
+  .legend { flex: 1; }
+  .legend-row { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-bottom: 1px solid var(--line-2); }
+  .legend-row:last-child { border-bottom: 0; }
+  .legend-row .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .legend-row b { font-size: 13.5px; }
+  .legend-row .desc { font-size: 11.5px; color: var(--ink-400); }
+  .legend-row .num { margin-left: auto; text-align: right; }
+  .legend-row .num b { font-size: 15px; }
+  .legend-row .num span { font-size: 11px; color: var(--ink-400); display: block; }
+
+  .rep-link { display: flex; align-items: center; gap: 13px; padding: 15px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); text-decoration: none; color: inherit; transition: border-color .14s; cursor: pointer; }
+  .rep-link[href]:hover { border-color: var(--accent); }
+  .rep-link__ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+  .rep-link__ic svg { width: 19px; height: 19px; }
+  .rep-link b { font-size: 13.5px; font-weight: 600; display: block; }
+  .rep-link span { font-size: 11.5px; color: var(--ink-400); }
+
+  /* Configuración automática */
+  .cfg-layout { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: start; }
+  .cfg-hero { display: flex; align-items: center; gap: 14px; background: var(--accent-050); border: 1px solid var(--accent-100); border-radius: var(--radius); padding: 16px 20px; }
+  .cfg-hero__ic { width: 40px; height: 40px; border-radius: 10px; background: var(--accent); color: #fff; display: grid; place-items: center; flex: none; }
+  .cfg-hero__ic svg { width: 20px; height: 20px; }
+  .cfg-hero b { font-size: 14px; font-weight: 700; display: block; }
+  .cfg-hero span { font-size: 12.5px; color: var(--ink-600); }
+  .cfg-sec-head { display: flex; align-items: center; gap: 12px; }
+  .cfg-num { width: 36px; height: 36px; border-radius: 9px; background: var(--info-bg); color: var(--info); display: grid; place-items: center; flex: none; }
+  .cfg-num svg { width: 18px; height: 18px; }
+  .ok-banner { display: flex; align-items: center; gap: 9px; margin-top: 18px; padding: 12px 15px; background: var(--accent-050); border-radius: var(--radius-sm); font-size: 12.5px; color: var(--ink-700); }
+  .ok-banner svg { width: 15px; height: 15px; color: var(--accent-700); flex: none; }
+  .inc-item { display: flex; align-items: flex-start; gap: 13px; padding: 15px 0; border-bottom: 1px solid var(--line-2); }
+  .inc-item b { font-size: 13.5px; font-weight: 600; }
+  .info-note { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 12px 15px; background: var(--info-bg); border-radius: var(--radius-sm); font-size: 12.5px; color: var(--ink-700); line-height: 1.5; }
+  .info-note svg { width: 16px; height: 16px; color: var(--info); flex: none; margin-top: 1px; }
+  .perm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .perm { display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 600; padding: 11px 14px; border-radius: var(--radius-sm); }
+  .perm svg { width: 15px; height: 15px; flex: none; }
+  .perm--on { background: var(--accent-050); color: var(--accent-700); }
+  .perm--off { background: var(--bg); color: var(--ink-300); border: 1px solid var(--line); }
+  .cfg-aside { position: sticky; top: 88px; display: flex; flex-direction: column; gap: 16px; }
+  .zip-row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 12px; }
+  .zip-row .mono:first-child::before { content: "■ "; color: var(--info); font-size: 8px; vertical-align: 2px; }
+  .zip-row--off { opacity: .4; text-decoration: line-through; }
+  .help-card { display: flex; gap: 11px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); font-size: 12.5px; color: var(--ink-600); line-height: 1.5; }
+  .help-card svg { width: 18px; height: 18px; color: var(--info); flex: none; margin-top: 1px; }
+  .help-card b { color: var(--ink-900); }
+  .cfg-bar { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 14px 20px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); position: sticky; bottom: 16px; }
+</style>
+</head>
+<body data-active="reportes">
+<div id="page" class="page" data-screen-label="Reportes">
+
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px;">
+    <div>
+      <div class="eyebrow">Análisis</div>
+      <h1 class="page-title" style="margin-top:8px;">Reportes</h1>
+      <p class="page-sub" style="max-width:560px;">Actividad comercial del período y paquetes contables generados automáticamente para tu contador.</p>
+    </div>
+    <div style="display:flex; gap:12px; flex:none; align-items:center;">
+      <div class="seg" id="repTabs"><button class="is-active" data-tab="dash">Dashboard</button><button data-tab="cfg">Configuración automática</button></div>
+      <div class="select-box" style="display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 13px;font-size:12.5px;font-weight:600;box-shadow:var(--shadow);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:15px;height:15px;color:var(--ink-400)"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg> Abril 2026 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="m6 9 6 6 6-6"/></svg></div>
+    </div>
+  </div>
+
+  <div data-view="dash" class="is-shown">
+  <div class="rep-kpi">
+    <div class="kpi">
+      <div class="kpi__top"><div class="ic" style="background:var(--accent-050);color:var(--accent-700)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M14 2v5h5"/></svg></div><span class="label" style="font-size:12.5px;color:var(--ink-500)">Total facturado</span><span style="margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent-700)">↗ +12,4%</span></div>
+      <div class="kpi__value tnum">$ 8.742.500</div>
+      <div class="kpi__foot">vs. mes anterior · 312 facturas</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi__top"><div class="ic" style="background:var(--accent-050);color:var(--accent-700)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 9.5h19"/></svg></div><span class="label" style="font-size:12.5px;color:var(--ink-500)">Total cobrado</span><span style="margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent-700)">↗ +8,9%</span></div>
+      <div class="kpi__value tnum">$ 7.891.200</div>
+      <div class="kpi__foot">90,3% del facturado · $851k pendiente</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi__top"><div class="ic" style="background:var(--alert-050);color:var(--warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></div><span class="label" style="font-size:12.5px;color:var(--ink-500)">Turnos gestionados</span><span style="margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--warn)">↘ −3,1%</span></div>
+      <div class="kpi__value tnum">184</div>
+      <div class="kpi__foot">23 cancelaciones · 161 confirmados</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi__top"><div class="ic" style="background:var(--info-bg);color:var(--info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><span class="label" style="font-size:12.5px;color:var(--ink-500)">Operaciones totales</span><span style="margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent-700)">↗ +5,2%</span></div>
+      <div class="kpi__value tnum">1.247</div>
+      <div class="kpi__foot">Facturas, cobros, turnos y planillas</div>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="card card--pad">
+      <div class="section-head">
+        <div><h2>Facturación por semana</h2><p>Abril 2026 · 5 semanas</p></div>
+        <span class="badge badge--ok" style="font-weight:600;">Facturado neto</span>
+      </div>
+      <div class="bars">
+        <div class="y-labels"><span>$2800k</span><span>$2100k</span><span>$1400k</span><span>$700k</span><span>$0k</span></div>
+        <div class="bar-col"><div class="bar" style="height:60.7%"></div><div class="bar-x">Sem 1</div></div>
+        <div class="bar-col"><div class="bar" style="height:83.9%"></div><div class="bar-x">Sem 2</div></div>
+        <div class="bar-col"><div class="bar" style="height:75%"></div><div class="bar-x">Sem 3</div></div>
+        <div class="bar-col"><div class="bar" style="height:88.5%"></div><div class="bar-x">Sem 4</div></div>
+        <div class="bar-col"><div class="bar empty"></div><div class="bar-x">Sem 5</div></div>
+      </div>
+      <div class="chart-foot">
+        <div><span>Mejor semana</span><b>Sem 4 · <span class="mono">$ 2.477.500</span></b></div>
+        <div style="text-align:center;"><span>Promedio semanal</span><b class="mono">$ 2.185.625</b></div>
+        <div style="text-align:right;"><span>Tickets emitidos</span><b>312 facturas</b></div>
+      </div>
+    </div>
+
+    <div class="card card--pad">
+      <div class="section-head"><div><h2>Distribución por comprobante</h2><p>Tipo de factura emitida</p></div></div>
+      <div class="donut-wrap">
+        <div class="donut"><div class="center"><div><span>Total</span><b>312</b></div></div></div>
+        <div class="legend">
+          <div class="legend-row"><span class="sw" style="background:var(--accent)"></span><div><b>Factura A</b><div class="desc">Resp. inscripto</div></div><div class="num"><b class="tnum">168</b><span>53,8%</span></div></div>
+          <div class="legend-row"><span class="sw" style="background:var(--info)"></span><div><b>Factura B</b><div class="desc">Consumidor final</div></div><div class="num"><b class="tnum">112</b><span>35,9%</span></div></div>
+          <div class="legend-row"><span class="sw" style="background:var(--alert)"></span><div><b>Factura C</b><div class="desc">Monotributo</div></div><div class="num"><b class="tnum">32</b><span>10,3%</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card--pad" style="margin-top:24px;">
+    <div class="section-head">
+      <div><h2>Reportes disponibles</h2><p>Generá y descargá reportes con los datos del período</p></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;">
+      <a href="reporte-libro-iva.html" class="rep-link">
+        <div class="rep-link__ic" style="background:var(--accent-050); color:var(--accent-700);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 4h11M8 9h11M8 14h11M8 19h11"/><circle cx="3.5" cy="4" r="1.2"/><circle cx="3.5" cy="9" r="1.2"/><circle cx="3.5" cy="14" r="1.2"/><circle cx="3.5" cy="19" r="1.2"/></svg></div>
+        <div style="flex:1;"><b>Libro IVA Ventas</b><span>Tabular · neto e IVA discriminado por comprobante</span></div>
+        <span class="badge badge--ok" style="font-weight:600;">Tabular</span>
+      </a>
+      <div class="rep-link">
+        <div class="rep-link__ic" style="background:var(--info-bg); color:var(--info);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+        <div style="flex:1;"><b>Resumen ejecutivo</b><span>Indicadores y gráficos del período</span></div>
+        <span class="badge badge--info" style="font-weight:600;">Gráfico</span>
+      </div>
+      <div class="rep-link">
+        <div class="rep-link__ic" style="background:var(--alert-050); color:var(--warn);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 9.5h19"/></svg></div>
+        <div style="flex:1;"><b>Detalle de cobros</b><span>Pagos recibidos por medio de pago</span></div>
+        <span class="badge badge--plain">Tabular</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card--pad" style="margin-top:18px;">
+    <div class="section-head">
+      <div><h2>Paquetes contables disponibles</h2><p>Generados automáticamente el primer día de cada mes · enviados a tu contador</p></div>
+      <span class="badge badge--ok" style="font-weight:600;">Sistema al día</span>
+    </div>
+    <table class="table">
+      <thead><tr><th>Período</th><th>Contenido</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><div style="display:flex;align-items:center;gap:12px;"><div class="mono" style="width:42px;height:42px;border-radius:9px;background:var(--info-bg);color:var(--info);display:grid;place-items:center;font-size:10px;font-weight:700;text-align:center;line-height:1.1;">ABR<br>2026</div><div><b style="font-size:13.5px;">Abril 2026</b><div class="muted" style="font-size:12px;">Mes en curso · cierre el 30</div></div></div></td>
+          <td><b class="tnum">247</b> comprobantes<div class="muted" style="font-size:12px;">actualizado en tiempo real</div></td>
+          <td><span class="badge badge--info">En generación</span></td>
+          <td style="text-align:right;"><button class="btn btn--ghost btn--sm">Disponible el 1° de Mayo</button></td>
+        </tr>
+        <tr>
+          <td><div style="display:flex;align-items:center;gap:12px;"><div class="mono" style="width:42px;height:42px;border-radius:9px;background:var(--accent-050);color:var(--accent-700);display:grid;place-items:center;font-size:10px;font-weight:700;text-align:center;line-height:1.1;">MAR<br>2026</div><div><b style="font-size:13.5px;">Marzo 2026</b><div class="muted" style="font-size:12px;">Cerrado · enviado al contador</div></div></div></td>
+          <td><b class="tnum">312</b> comprobantes<div class="muted" style="font-size:12px;">paquete-cs-2026-03.zip · 4,1 MB</div></td>
+          <td><span class="badge badge--ok">Enviado al contador</span></td>
+          <td style="text-align:right;"><div style="display:inline-flex;gap:8px;"><button class="btn btn--ghost btn--sm">→ Reenviar</button><button class="btn btn--cta btn--sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14"/></svg> Descargar ZIP</button></div></td>
+        </tr>
+        <tr>
+          <td><div style="display:flex;align-items:center;gap:12px;"><div class="mono" style="width:42px;height:42px;border-radius:9px;background:var(--accent-050);color:var(--accent-700);display:grid;place-items:center;font-size:10px;font-weight:700;text-align:center;line-height:1.1;">FEB<br>2026</div><div><b style="font-size:13.5px;">Febrero 2026</b><div class="muted" style="font-size:12px;">Cerrado · enviado al contador</div></div></div></td>
+          <td><b class="tnum">289</b> comprobantes<div class="muted" style="font-size:12px;">paquete-cs-2026-02.zip · 3,8 MB</div></td>
+          <td><span class="badge badge--ok">Enviado al contador</span></td>
+          <td style="text-align:right;"><div style="display:inline-flex;gap:8px;"><button class="btn btn--ghost btn--sm">→ Reenviar</button><button class="btn btn--cta btn--sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14"/></svg> Descargar ZIP</button></div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  </div>
+
+  <!-- ===================== CONFIGURACIÓN AUTOMÁTICA ===================== -->
+  <div data-view="cfg">
+    <div class="cfg-layout">
+      <div>
+        <div class="cfg-hero">
+          <div class="cfg-hero__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg></div>
+          <div style="flex:1;"><b>Tu contador recibe el cierre mensual sin que tengas que hacer nada</b><span>CheatSheet arma el ZIP el día 1 de cada mes y lo envía automáticamente. Vos solo descargás cuando lo necesites.</span></div>
+          <span class="badge badge--ok" style="font-weight:600;">Activo</span>
+        </div>
+
+        <div class="card card--pad" style="margin-top:18px;">
+          <div class="cfg-sec-head"><span class="cfg-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14m0 0-6-6m6 6-6 6"/></svg></span><div><h2 style="margin:0; font-size:16px;">01 · Envío automático al contador</h2><p style="margin:2px 0 0; font-size:12.5px; color:var(--ink-400);">CheatSheet arma y envía el paquete cada mes — vos no movés un dedo.</p></div></div>
+          <hr class="divider" style="margin:18px 0;">
+          <div style="display:flex; align-items:center; gap:16px;"><div style="flex:1;"><b style="font-size:13.5px;">Enviar paquete mensual automáticamente</b><div class="muted" style="font-size:12.5px; margin-top:2px;">Una vez generado, lo despachamos por email al contador en la fecha elegida.</div></div><span style="font-size:12.5px; font-weight:600; color:var(--accent-700);">Activo</span><div class="toggle is-on"></div></div>
+          <hr class="divider" style="margin:18px 0;">
+          <div class="field"><label>Email del contador</label><div class="muted" style="font-size:12px; margin:-2px 0 8px;">A esta dirección se envía el ZIP cada mes. Podés agregar copias en Gestionar permisos.</div><div class="input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><input value="contador@estudio-gonzalez.com.ar"></div></div>
+          <div style="margin:18px 0;"><label style="font-size:13px; font-weight:600; display:block; margin-bottom:3px;">Día del mes para el envío</label><div class="muted" style="font-size:12px; margin-bottom:10px;">Recomendado: día 1 — apenas cierra el mes anterior, antes de fechas de presentación.</div><div class="pill-pick" id="dayPick"><button class="is-active">Día 1</button><button>Día 2</button><button>Día 3</button><button>Día 5</button><button>Día 10</button><button>Día 15</button></div></div>
+          <div style="margin-top:18px;"><label style="font-size:13px; font-weight:600; display:block; margin-bottom:3px;">Formato del paquete</label><div class="muted" style="font-size:12px; margin-bottom:10px;">¿En qué formato querés que viaje el ZIP?</div>
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;" id="fmtPick">
+              <div class="radio-card"><div><b>ZIP con PDFs</b><span>Recomendado para revisión humana</span></div><div class="rd"></div></div>
+              <div class="radio-card"><div><b>ZIP con XMLs</b><span>Formato oficial ARCA · para imports</span></div><div class="rd"></div></div>
+              <div class="radio-card is-on"><div><b>Ambos formatos</b><span>PDFs + XMLs en un mismo ZIP</span></div><div class="rd"></div></div>
+            </div>
+          </div>
+          <div class="ok-banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg> <b>Próximo envío automático:</b> 1° de Mayo de 2026 a las 09:00 — paquete de Abril 2026.</div>
+        </div>
+
+        <div class="card card--pad" style="margin-top:18px;">
+          <div class="cfg-sec-head"><span class="cfg-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M14 2v5h5"/></svg></span><div><h2 style="margin:0; font-size:16px;">02 · Contenido del paquete contable</h2><p style="margin:2px 0 0; font-size:12.5px; color:var(--ink-400);">Marcá qué documentos incluir en cada ZIP mensual.</p></div></div>
+          <hr class="divider" style="margin:18px 0;">
+          <div class="inc-item"><div class="cbx is-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div><div style="flex:1;"><b>Facturas emitidas <span class="badge badge--plain mono" style="font-size:10px;">PDF</span></b><div class="muted" style="font-size:12px;">Todas las facturas A, B y C generadas durante el período.</div><div class="mono muted" style="font-size:11px; margin-top:4px;">≈ 268 archivos · estimado 3,1 MB</div></div></div>
+          <div class="inc-item"><div class="cbx is-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div><div style="flex:1;"><b>Notas de crédito <span class="badge badge--plain mono" style="font-size:10px;">PDF</span></b><div class="muted" style="font-size:12px;">Devoluciones y ajustes emitidos en el mes.</div><div class="mono muted" style="font-size:11px; margin-top:4px;">≈ 14 archivos · estimado 180 KB</div></div></div>
+          <div class="inc-item"><div class="cbx is-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div><div style="flex:1;"><b>Reporte de cobros del período <span class="badge badge--plain mono" style="font-size:10px;">PDF + CSV</span></b><div class="muted" style="font-size:12px;">Detalle de pagos recibidos por MercadoPago, transferencia y efectivo.</div><div class="mono muted" style="font-size:11px; margin-top:4px;">2 archivos consolidados</div></div></div>
+          <div class="inc-item"><div class="cbx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div><div style="flex:1;"><b>Log de operaciones del período <span class="badge badge--plain mono" style="font-size:10px;">CSV</span></b><div class="muted" style="font-size:12px;">Bitácora completa: planillas procesadas, eventos del agente WhatsApp y reintentos.</div><div class="mono muted" style="font-size:11px; margin-top:4px;">1 archivo · ≈ 1.247 filas</div></div></div>
+          <div class="inc-item" style="border-bottom:0;"><div class="cbx is-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></div><div style="flex:1;"><b>Resumen ejecutivo del mes <span class="badge badge--plain mono" style="font-size:10px;">PDF</span></b><div class="muted" style="font-size:12px;">Una página con totales, gráficos y observaciones clave para el contador.</div><div class="mono muted" style="font-size:11px; margin-top:4px;">1 archivo · 1 página</div></div></div>
+        </div>
+
+        <div class="card card--pad" style="margin-top:18px;">
+          <div class="cfg-sec-head"><span class="cfg-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 7a4 4 0 1 0-8 0M4 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6"/></svg></span><div><h2 style="margin:0; font-size:16px;">03 · Acceso para el contador externo</h2><p style="margin:2px 0 0; font-size:12.5px; color:var(--ink-400);">Tu contador entra una vez por mes a descargar — solo lo necesario, nada más.</p></div></div>
+          <hr class="divider" style="margin:18px 0;">
+          <div style="display:flex; align-items:center; gap:12px; padding:13px 15px; border:1px solid var(--line); border-radius:var(--radius-sm);"><div class="avatar-sm" style="background:var(--alert); color:var(--primary);">RG</div><div style="flex:1;"><b style="font-size:13.5px;">Roberto González</b> <span class="badge badge--warn" style="font-weight:600; margin-left:4px;">Invitado con acceso limitado</span><div class="mono muted" style="font-size:11.5px; margin-top:2px;">contador@estudio-gonzalez.com.ar</div></div><div style="display:flex; gap:8px;"><button class="btn btn--ghost btn--sm">Gestionar permisos</button><button class="btn btn--ghost btn--sm" style="color:var(--err); border-color:var(--err-bg);">Revocar acceso</button></div></div>
+          <div class="info-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> El contador <b>solo puede ver y descargar reportes.</b> No tiene acceso a la configuración del sistema, datos de clientes, ni a los módulos de facturación, cobros o WhatsApp.</div>
+          <div class="perm-grid">
+            <div class="perm perm--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg> Ver reportes mensuales</div>
+            <div class="perm perm--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg> Descargar paquetes contables</div>
+            <div class="perm perm--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg> Ver gráficos del período</div>
+            <div class="perm perm--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg> Recibir paquetes por email</div>
+            <div class="perm perm--off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg> Editar configuración</div>
+            <div class="perm perm--off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg> Ver datos de clientes</div>
+            <div class="perm perm--off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg> Acceso a Facturación / Cobros</div>
+            <div class="perm perm--off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg> Generar nuevas facturas</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- preview sidebar -->
+      <aside class="cfg-aside">
+        <div class="card card--pad">
+          <div class="mono muted" style="font-size:10.5px; letter-spacing:.1em;">VISTA PREVIA DEL PRÓXIMO PAQUETE</div>
+          <div style="display:flex; align-items:center; gap:12px; margin:14px 0 16px;"><div class="op-ico" style="width:38px;height:38px;border-radius:9px;background:var(--info-bg);color:var(--info);display:grid;place-items:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:19px;height:19px;"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M14 2v5h5"/></svg></div><div><b class="mono" style="font-size:13px;">paquete-cs-2026-04.zip</b><div class="muted mono" style="font-size:11px;">Estimado · 4,3 MB · PDFs + XMLs</div></div></div>
+          <hr class="divider" style="margin-bottom:14px;">
+          <div class="zip-row"><span class="mono">/facturas/</span><span class="mono muted">268 PDFs</span></div>
+          <div class="zip-row"><span class="mono">/notas-credito/</span><span class="mono muted">14 PDFs</span></div>
+          <div class="zip-row"><span class="mono">/cobros/</span><span class="mono muted">2 archivos</span></div>
+          <div class="zip-row zip-row--off"><span class="mono">/operaciones.csv</span><span class="mono muted">1 archivo</span></div>
+          <div class="zip-row"><span class="mono">/resumen-abril.pdf</span><span class="mono muted">1 archivo</span></div>
+          <hr class="divider" style="margin:14px 0;">
+          <div class="kv" style="padding:9px 0;"><span class="k">Próximo envío</span><span class="v">1° de Mayo · 09:00</span></div>
+          <div class="kv" style="padding:9px 0;"><span class="k">Destino</span><span class="v mono" style="font-size:11px;">contador@estudio-g…</span></div>
+          <div class="kv" style="padding:9px 0;"><span class="k">Frecuencia</span><span class="v">Mensual · día 1</span></div>
+          <div class="kv" style="padding:9px 0;"><span class="k">Estado</span><span class="v" style="color:var(--accent-700)">● Programado</span></div>
+        </div>
+        <div class="help-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3.5"/><circle cx="12" cy="17.5" r=".6" fill="currentColor"/></svg><div><b>¿Tu contador todavía no se sumó?</b> Cuando active el envío automático, le llega un email con un link de acceso limitado. No necesita usuario en CheatSheet.</div></div>
+      </aside>
+    </div>
+
+    <div class="cfg-bar">
+      <span class="muted" style="font-size:12.5px;"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-700)" stroke-width="2.4" style="width:14px;height:14px;vertical-align:-2px;"><path d="M5 13l4 4L19 7"/></svg> Cambios guardados automáticamente · hace 2 min</span>
+      <div style="flex:1;"></div>
+      <button class="btn btn--ghost">Generar paquete de prueba</button>
+      <button class="btn btn--cta">Enviar paquete ahora</button>
+    </div>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Reportes · Cierre contable automático · Próximo paquete: 1° de Mayo 09:00</div>
+
+</div>
+<script src="chrome.js"></script>
+<script>
+  document.getElementById('repTabs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-tab]'); if (!b) return;
+    document.querySelectorAll('#repTabs button').forEach(x => x.classList.toggle('is-active', x === b));
+    document.querySelectorAll('[data-view]').forEach(v => v.classList.toggle('is-shown', v.dataset.view === b.dataset.tab));
+    window.scrollTo(0,0);
+  });
+  document.getElementById('dayPick').addEventListener('click', e => { const b=e.target.closest('button'); if(!b)return; document.querySelectorAll('#dayPick button').forEach(x=>x.classList.toggle('is-active',x===b)); });
+  document.getElementById('fmtPick').addEventListener('click', e => { const c=e.target.closest('.radio-card'); if(!c)return; document.querySelectorAll('#fmtPick .radio-card').forEach(x=>x.classList.toggle('is-on',x===c)); });
+  document.querySelectorAll('.inc-item .cbx').forEach(c => c.addEventListener('click', () => c.classList.toggle('is-on')));
+</script>
+</body>
+</html>

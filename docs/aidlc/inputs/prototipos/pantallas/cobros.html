@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Cobros</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin: 24px 0 26px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); }
+  .kpi__top { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .kpi__top .ic { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; }
+  .kpi__top .ic svg { width: 15px; height: 15px; }
+  .kpi__top .label { font-size: 12.5px; color: var(--ink-500); font-weight: 500; }
+  .kpi__top .delta { margin-left: auto; font-family: var(--mono); font-size: 11px; font-weight: 600; }
+  .kpi__value { font-size: 27px; font-weight: 800; letter-spacing: -.8px; }
+  .kpi__foot { font-size: 11.5px; color: var(--ink-400); margin-top: 4px; }
+
+  .cobros-toolbar { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .mini-search { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 12px; color: var(--ink-400); min-width: 230px; }
+  .mini-search svg { width: 15px; height: 15px; }
+  .mini-search input { border: 0; background: transparent; outline: 0; font: inherit; font-size: 12.5px; flex: 1; }
+  .select-box { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 13px; font-size: 12.5px; font-weight: 600; color: var(--ink-700); cursor: pointer; }
+  .rem-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 4px 9px; border-radius: 999px; background: var(--alert-050); color: var(--warn); }
+  .rem-pill svg { width: 13px; height: 13px; }
+  .rem-none { color: var(--ink-300); }
+  .client-cell { display: flex; align-items: center; gap: 11px; }
+  .client-cell b { font-size: 13.5px; font-weight: 600; display: block; }
+  .client-cell .mono { font-size: 10.5px; color: var(--ink-400); }
+  .due-soon { color: var(--accent-700); font-size: 11px; }
+  .due-late { color: var(--err); font-size: 11px; }
+  .due-ok { color: var(--ink-400); font-size: 11px; }
+
+  .amount-box { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--err-bg); border-radius: var(--radius); padding: 18px 20px; }
+  .mp-link { display: flex; align-items: center; gap: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 14px; }
+  .mp-ic { width: 32px; height: 32px; border-radius: 8px; background: #00B1EA; color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 11px; font-family: var(--mono); flex: none; }
+  .rem { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: 9px; }
+  .rem--next { border-style: dashed; border-color: var(--alert); background: var(--alert-050); }
+  .rem__ic { width: 32px; height: 32px; border-radius: 8px; background: var(--accent-050); color: var(--accent-700); display: grid; place-items: center; flex: none; }
+  .rem__ic svg { width: 16px; height: 16px; }
+  .rem__body { flex: 1; }
+  .rem__body b { font-size: 13px; font-weight: 600; display: block; }
+  .rem__body span { font-size: 11px; color: var(--ink-400); }
+</style>
+</head>
+<body data-active="cobros">
+<div id="page" class="page" data-screen-label="Cobros">
+
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px;">
+    <div>
+      <h1 class="page-title">Cobros</h1>
+      <p class="page-sub">Estado de los links de pago, cobranzas pendientes y seguimiento por WhatsApp.</p>
+    </div>
+    <div style="display:flex; gap:12px; flex:none;">
+      <button class="btn btn--ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> Exportar</button>
+      <button class="btn btn--cta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nuevo cobro</button>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi__top"><div class="ic" style="background:var(--accent-050);color:var(--accent-700)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 13l4 4L19 7"/></svg></div><span class="label">Cobrado este mes</span><span class="delta" style="color:var(--accent-700)">↗ +12,4%</span></div>
+      <div class="kpi__value tnum">$ 4.287.500</div>
+      <div class="kpi__foot">Sobre <span class="mono">$ 5.980.000</span> facturado · abril 2026</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi__top"><div class="ic" style="background:var(--alert-050);color:var(--warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><span class="label">Pendiente de cobro</span></div>
+      <div class="kpi__value tnum">$ 1.284.200</div>
+      <div class="kpi__foot">14 operaciones abiertas</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi__top"><div class="ic" style="background:var(--err-bg);color:var(--err)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></div><span class="label">En mora</span></div>
+      <div class="kpi__value tnum" style="color:var(--err)">$ 408.300</div>
+      <div class="kpi__foot">3 clientes · más de 7 días</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi__top"><div class="ic" style="background:var(--info-bg);color:var(--info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div><span class="label">Tasa de cobro</span><span class="delta" style="color:var(--accent-700)">↗ +3,5pp</span></div>
+      <div class="kpi__value tnum">71,7%</div>
+      <div class="kpi__foot">Promedio de los últimos 90 días: 68%</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cobros-toolbar">
+      <span class="chip is-active" data-group="c">Todos <span class="n">9</span></span>
+      <span class="chip" data-group="c"><span style="color:var(--accent-700)">●</span> Pagados <span class="n">3</span></span>
+      <span class="chip" data-group="c"><span style="color:var(--warn)">●</span> Pendientes <span class="n">4</span></span>
+      <span class="chip" data-group="c"><span style="color:var(--err)">●</span> En mora <span class="n">2</span></span>
+      <div style="flex:1;"></div>
+      <div class="mini-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="Buscar cliente, concepto o OP..."></div>
+      <div class="select-box">Abril 2026 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="m6 9 6 6 6-6"/></svg></div>
+      <button class="btn btn--cta btn--sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Generar link de cobro</button>
+    </div>
+
+    <table class="table" style="padding:0 8px;">
+      <thead><tr><th style="padding-left:24px;">Cliente</th><th>Concepto</th><th style="text-align:right;">Monto</th><th>Vencimiento</th><th>Estado</th><th>Recordatorios</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="padding-left:24px;"><div class="client-cell"><div class="avatar-sm" style="background:#7C5CDB">DV</div><div><b>Almacén Don Vicente</b><span class="mono">CB-2604-018</span></div></div></td>
+          <td>Reposición mensual · Abril<div class="mono muted" style="font-size:10.5px">OP #4821</div></td>
+          <td style="text-align:right;" class="tnum"><b>$ 184.500</b></td>
+          <td>02 abr 2026<div class="due-late">hace 8 días</div></td>
+          <td><span class="badge badge--err">En mora</span></td>
+          <td><span class="rem-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg> 3 envíos</span></td>
+          <td class="muted">›</td>
+        </tr>
+        <tr>
+          <td style="padding-left:24px;"><div class="client-cell"><div class="avatar-sm" style="background:#DB4D6D">LE</div><div><b>Kiosco La Estación</b><span class="mono">CB-2604-017</span></div></div></td>
+          <td>Pedido golosinas + bebidas<div class="mono muted" style="font-size:10.5px">OP #4813</div></td>
+          <td style="text-align:right;" class="tnum"><b>$ 96.800</b></td>
+          <td>05 abr 2026<div class="due-late">hace 5 días</div></td>
+          <td><span class="badge badge--err">En mora</span></td>
+          <td><span class="rem-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg> 2 envíos</span></td>
+          <td class="muted">›</td>
+        </tr>
+        <tr>
+          <td style="padding-left:24px;"><div class="client-cell"><div class="avatar-sm" style="background:#2A6FDB">SJ</div><div><b>Panadería San Justo</b><span class="mono">CB-2604-016</span></div></div></td>
+          <td>Harina 000 · 12 bolsas 25kg<div class="mono muted" style="font-size:10.5px">OP #4815</div></td>
+          <td style="text-align:right;" class="tnum"><b>$ 312.000</b></td>
+          <td>12 abr 2026<div class="due-soon">en 2 días</div></td>
+          <td><span class="badge badge--warn">Pendiente</span></td>
+          <td><span class="rem-pill" style="background:var(--info-bg);color:var(--info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg> 1 envío</span></td>
+          <td class="muted">›</td>
+        </tr>
+        <tr>
+          <td style="padding-left:24px;"><div class="client-cell"><div class="avatar-sm" style="background:#16A085">SA</div><div><b>Supermercado Avellaneda</b><span class="mono">CB-2604-015</span></div></div></td>
+          <td>Lácteos y fiambres · semana 14<div class="mono muted" style="font-size:10.5px">OP #4812</div></td>
+          <td style="text-align:right;" class="tnum"><b>$ 547.300</b></td>
+          <td>08 abr 2026<div class="due-ok">hoy</div></td>
+          <td><span class="badge badge--warn">Pendiente</span></td>
+          <td><span class="rem-none">—</span></td>
+          <td class="muted">›</td>
+        </tr>
+        <tr>
+          <td style="padding-left:24px;"><div class="client-cell"><div class="avatar-sm" style="background:#C0392B">BR</div><div><b>Bar Notable Rivadavia</b><span class="mono">CB-2604-014</span></div></div></td>
+          <td>Bebidas y vinos · pedido 23<div class="mono muted" style="font-size:10.5px">OP #4806</div></td>
+          <td style="text-align:right;" class="tnum"><b>$ 228.900</b></td>
+          <td>03 abr 2026<div class="due-ok">pagado el 04 abr</div></td>
+          <td><span class="badge badge--ok">Pagado</span></td>
+          <td><span class="rem-pill" style="background:var(--accent-050);color:var(--accent-700)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg> 1 envío</span></td>
+          <td class="muted">›</td>
+        </tr>
+        <tr>
+          <td style="padding-left:24px;"><div class="client-cell"><div class="avatar-sm" style="background:#E67E22">RP</div><div><b>Rotisería La Plaza</b><span class="mono">CB-2604-013</span></div></div></td>
+          <td>Aceites y especias<div class="mono muted" style="font-size:10.5px">OP #4801</div></td>
+          <td style="text-align:right;" class="tnum"><b>$ 78.400</b></td>
+          <td>01 abr 2026<div class="due-ok">pagado el 01 abr</div></td>
+          <td><span class="badge badge--ok">Pagado</span></td>
+          <td><span class="rem-none">—</span></td>
+          <td class="muted">›</td>
+        </tr>
+        <tr>
+          <td style="padding-left:24px;"><div class="client-cell"><div class="avatar-sm" style="background:#D35400">LH</div><div><b>Pizzería Los Hermanos</b><span class="mono">CB-2604-012</span></div></div></td>
+          <td>Mozzarella y tomate triturado<div class="mono muted" style="font-size:10.5px">OP #4795</div></td>
+          <td style="text-align:right;" class="tnum"><b>$ 156.200</b></td>
+          <td>14 abr 2026<div class="due-soon">en 4 días</div></td>
+          <td><span class="badge badge--warn">Pendiente</span></td>
+          <td><span class="rem-none">—</span></td>
+          <td class="muted">›</td>
+        </tr>
+        <tr>
+          <td style="padding-left:24px;"><div class="client-cell"><div class="avatar-sm" style="background:#8E44AD">EP</div><div><b>Vinoteca El Pasaje</b><span class="mono">CB-2604-011</span></div></div></td>
+          <td>Vinos malbec · caja x6<div class="mono muted" style="font-size:10.5px">OP #4798</div></td>
+          <td style="text-align:right;" class="tnum"><b>$ 198.750</b></td>
+          <td>06 abr 2026<div class="due-late">hace 4 días</div></td>
+          <td><span class="badge badge--warn">Pendiente</span></td>
+          <td><span class="rem-pill" style="background:var(--info-bg);color:var(--info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg> 1 envío</span></td>
+          <td class="muted">›</td>
+        </tr>
+        <tr>
+          <td style="padding-left:24px;"><div class="client-cell"><div class="avatar-sm" style="background:#C0392B">DR</div><div><b>Almacén Doña Rosa</b><span class="mono">CB-2604-010</span></div></div></td>
+          <td>Limpieza y perfumería<div class="mono muted" style="font-size:10.5px">OP #4786</div></td>
+          <td style="text-align:right;" class="tnum"><b>$ 64.500</b></td>
+          <td>07 abr 2026<div class="due-ok">pagado el 07 abr</div></td>
+          <td><span class="badge badge--ok">Pagado</span></td>
+          <td><span class="rem-none">—</span></td>
+          <td class="muted">›</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Cobros · 9 operaciones en abril 2026 · Conciliación automática vía MercadoPago</div>
+
+</div>
+
+<!-- ===================== DRAWER: Detalle de cobro ===================== -->
+<div class="drawer-scrim" id="cbScrim"></div>
+<div class="drawer" id="cbDrawer">
+  <div class="drawer__head">
+    <div>
+      <div class="mono muted" style="font-size:11px;">● Detalle de cobro · <span style="color:var(--ink-600)">CB-2604-018</span></div>
+      <div style="display:flex; align-items:center; gap:12px; margin-top:10px;">
+        <div class="avatar-sm" style="background:#7C5CDB; width:38px; height:38px;">DV</div>
+        <div><b style="font-size:17px; font-weight:800; letter-spacing:-.3px;">Almacén Don Vicente</b><div class="muted" style="font-size:12.5px;">Reposición mensual · Abril</div></div>
+      </div>
+    </div>
+    <button class="drawer__close" id="cbClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="drawer__body">
+    <div class="amount-box">
+      <div><div class="mono" style="font-size:10.5px; letter-spacing:.1em; color:var(--err); font-weight:600;">MONTO ADEUDADO</div><div class="tnum" style="font-size:30px; font-weight:800; letter-spacing:-1px; margin-top:4px;">$ 184.500</div></div>
+      <div style="text-align:right;"><span class="badge badge--err">En mora</span><div class="muted" style="font-size:12px; margin-top:6px;">8 días de atraso</div></div>
+    </div>
+
+    <div class="kv-label">Datos del cliente</div>
+    <div class="kv"><span class="k">Razón social</span><span class="v">Almacén Don Vicente</span></div>
+    <div class="kv"><span class="k">CUIT</span><span class="v mono">30-71245837-2</span></div>
+    <div class="kv"><span class="k">WhatsApp</span><span class="v mono">+54 9 11 4628-3091</span></div>
+    <div class="kv"><span class="k">Cliente desde</span><span class="v">Marzo 2024</span></div>
+
+    <div class="kv-label">Detalle del cobro</div>
+    <div class="kv"><span class="k">Concepto</span><span class="v">Reposición mensual · Abril</span></div>
+    <div class="kv"><span class="k">Operación</span><span class="v mono">OP #4821</span></div>
+    <div class="kv"><span class="k">Fecha de emisión</span><span class="v">26 mar 2026</span></div>
+    <div class="kv"><span class="k">Vencimiento original</span><span class="v" style="color:var(--err)">02 abr 2026</span></div>
+
+    <div class="kv-label">Link de pago — MercadoPago <span class="badge badge--ok" style="font-weight:600; margin-left:8px;">Activo</span></div>
+    <div class="mp-link">
+      <div class="mp-ic">MP</div>
+      <span class="mono" style="flex:1; font-size:12.5px;">mpago.la/cs-2604-018</span>
+      <button class="btn btn--ghost btn--sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg> Copiar link</button>
+    </div>
+    <div class="muted mono" style="font-size:11px; margin-top:8px;">Generado el 26 mar 2026 · 14:28 · 14 vistas · 0 intentos</div>
+
+    <div class="kv-label">Recordatorios automáticos <span class="muted" style="font-weight:500; text-transform:none; letter-spacing:0; font-family:var(--sans); margin-left:8px;">Cada 3 días</span></div>
+    <div class="rem">
+      <div class="rem__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg></div>
+      <div class="rem__body"><b>Recordatorio 1 · Vencimiento +1d</b><span class="mono">03 abr 2026 · 09:15 · WhatsApp</span></div>
+      <span class="badge badge--ok" style="font-weight:600;">Leído</span>
+    </div>
+    <div class="rem">
+      <div class="rem__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg></div>
+      <div class="rem__body"><b>Recordatorio 2 · +4 días</b><span class="mono">06 abr 2026 · 09:15 · WhatsApp</span></div>
+      <span class="badge badge--ok" style="font-weight:600;">Leído</span>
+    </div>
+    <div class="rem">
+      <div class="rem__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg></div>
+      <div class="rem__body"><b>Recordatorio 3 · +7 días</b><span class="mono">09 abr 2026 · 09:15 · WhatsApp</span></div>
+      <span class="badge badge--plain">No leído</span>
+    </div>
+    <div class="rem rem--next">
+      <div class="rem__ic" style="background:var(--alert-050); color:var(--warn);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+      <div class="rem__body"><b>Próximo recordatorio · +10 días</b><span class="mono">12 abr 2026 · 09:15</span></div>
+      <span class="badge badge--warn" style="font-weight:600;">Programado</span>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:24px;">
+      <button class="btn btn--cta" style="flex:1; justify-content:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg> Enviar recordatorio ahora</button>
+      <button class="btn btn--ghost" style="justify-content:center;">Registrar pago manual</button>
+    </div>
+    <button class="btn btn--ghost" id="cbCancel" style="width:100%; justify-content:center; margin-top:10px; color:var(--err); border-color:var(--err-bg);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg> Cancelar cobro</button>
+    <p class="muted" style="font-size:11px; text-align:center; margin:8px 0 0;">Cancelar requiere un motivo de al menos 10 caracteres e invalida el link de pago.</p>
+  </div>
+</div>
+
+<script src="chrome.js"></script>
+<script>
+  const cbDrawer = document.getElementById('cbDrawer'), cbScrim = document.getElementById('cbScrim');
+  function openCb(){ cbDrawer.classList.add('is-open'); cbScrim.classList.add('is-open'); }
+  function closeCb(){ cbDrawer.classList.remove('is-open'); cbScrim.classList.remove('is-open'); }
+  document.querySelectorAll('table.table tbody tr').forEach(tr => { tr.style.cursor='pointer'; tr.addEventListener('click', openCb); });
+  document.getElementById('cbClose').addEventListener('click', closeCb);
+  cbScrim.addEventListener('click', closeCb);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCb(); });
+</script>
+</body>
+</html>

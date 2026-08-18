@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Log de Operaciones</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .crumb { font-family: var(--mono); font-size: 11.5px; color: var(--ink-400); margin-bottom: 14px; }
+  .crumb b { color: var(--ink-700); }
+  .log-filters { display: flex; align-items: center; gap: 10px; margin: 22px 0 18px; flex-wrap: wrap; }
+  .filter-box { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 13px; font-size: 12.5px; font-weight: 600; color: var(--ink-700); cursor: pointer; box-shadow: var(--shadow); }
+  .filter-box svg { width: 14px; height: 14px; color: var(--ink-400); }
+  .filter-box .reg { margin-left: auto; }
+  .mod-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink-700); }
+  .mod-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .by { display: inline-flex; align-items: center; gap: 7px; }
+  .by .tag { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; font-family: var(--mono); font-size: 9px; font-weight: 700; color: #fff; }
+  .by span { font-size: 12.5px; color: var(--ink-600); }
+  .ts b { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+  .ts span { font-family: var(--mono); font-size: 10.5px; color: var(--ink-400); display: block; }
+  .op b { font-size: 13.5px; font-weight: 600; display: block; }
+  .op span { font-family: var(--mono); font-size: 10.5px; color: var(--ink-400); }
+  .ent b { font-size: 13px; font-weight: 600; display: block; }
+  .ent span { font-family: var(--mono); font-size: 10.5px; color: var(--ink-400); }
+  .pager { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-top: 1px solid var(--line); }
+  .pager .pages { display: flex; gap: 6px; align-items: center; }
+  .pager .pg { min-width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); display: grid; place-items: center; font-size: 12.5px; font-weight: 600; color: var(--ink-600); cursor: pointer; }
+  .pager .pg.is-active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .op-meta { display: grid; grid-template-columns: 1.4fr .8fr .8fr .7fr; gap: 16px; padding-bottom: 4px; }
+  .op-meta__l { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-400); font-weight: 600; margin-bottom: 7px; }
+  .op-meta__v { font-size: 13px; font-weight: 600; }
+  .op-summary { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px 16px; font-size: 13.5px; line-height: 1.55; color: var(--ink-700); }
+  .op-entity { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 13px 15px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+  .op-entity__ic { width: 34px; height: 34px; border-radius: 8px; background: var(--info-bg); color: var(--info); display: grid; place-items: center; flex: none; }
+  .op-entity__ic svg { width: 17px; height: 17px; }
+  .tl { position: relative; padding-left: 4px; }
+  .tl__row { display: flex; align-items: flex-start; gap: 14px; position: relative; padding-bottom: 20px; }
+  .tl__row::before { content: ""; position: absolute; left: 9px; top: 20px; bottom: 0; width: 2px; background: var(--line); }
+  .tl__row--last::before { display: none; }
+  .tl__dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--accent); background: var(--card); flex: none; margin-top: 1px; z-index: 1; }
+  .tl__dot--ok { background: var(--accent); display: grid; place-items: center; }
+  .tl__dot--ok svg { width: 11px; height: 11px; color: #fff; }
+  .tl__body { flex: 1; }
+  .tl__body b { font-size: 13.5px; font-weight: 600; display: block; }
+  .tl__body span { font-size: 12px; color: var(--ink-400); }
+  .tl__t { font-size: 11px; margin-top: 2px; }
+</style>
+</head>
+<body data-active="logs">
+<div id="page" class="page" data-screen-label="Log de Operaciones">
+
+  <div class="crumb">Sistema › <b>Bitácora de Operaciones</b></div>
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px;">
+    <div>
+      <h1 class="page-title" style="font-size:27px;">Bitácora de Operaciones</h1>
+      <p class="page-sub" style="max-width:720px;">Historial completo de todo lo que CheatSheet ejecutó en tu nombre. La fuente de verdad sobre qué hizo el sistema, cuándo y con qué resultado.</p>
+    </div>
+    <div style="display:flex; gap:12px; flex:none;">
+      <button class="btn btn--ghost btn--sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.3M21 4v4h-4"/></svg> Actualizar</button>
+      <button class="btn btn--ghost btn--sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> Exportar log</button>
+    </div>
+  </div>
+
+  <div class="log-filters">
+    <div class="filter-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg> 01 May 2026 — 04 May 2026 <span class="muted" style="font-weight:500;">· últimos 4 días</span> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div class="filter-box">Módulo: Todos <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div class="filter-box">Estado: Todos <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div class="filter-box">Iniciado por: Todos <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div class="mini-search" style="flex:1;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 13px;color:var(--ink-400);box-shadow:var(--shadow);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input style="border:0;background:transparent;outline:0;font:inherit;font-size:12.5px;flex:1;" placeholder="Buscar por operación, cliente, archivo, CAE..."></div>
+    <span class="muted mono" style="font-size:12px;">12 registros</span>
+  </div>
+
+  <div class="card">
+    <table class="table" style="padding:0 8px;">
+      <thead><tr><th style="padding-left:24px;">Timestamp</th><th>Módulo</th><th>Operación</th><th>Entidad afectada</th><th>Iniciado por</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 14:32:08</b><span>hace 4 min · 1.8s</span></td><td><span class="mod-badge"><span class="dot" style="background:var(--info)"></span>Facturación</span></td><td class="op"><b>Factura B emitida</b><span>Factura B N° 0003-00012847</span></td><td class="ent"><b>Distribuidora Norte S.R.L.</b><span>CUIT 30-71523498-2</span></td><td><span class="by"><span class="tag" style="background:var(--accent)">IA</span><span>IA</span></span></td><td><span class="badge badge--ok">Completado</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 14:28:51</b><span>hace 7 min · 0.9s</span></td><td><span class="mod-badge"><span class="dot" style="background:var(--accent)"></span>Cobros</span></td><td class="op"><b>Link de pago enviado</b><span>MercadoPago · ARS 89.400,00</span></td><td class="ent"><b>Panadería Don Aldo</b><span>CUIT 27-32158974-5</span></td><td><span class="by"><span class="tag" style="background:var(--accent)">IA</span><span>IA</span></span></td><td><span class="badge badge--ok">Completado</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 14:21:03</b><span>hace 15 min · 2.4s</span></td><td><span class="mod-badge"><span class="dot" style="background:var(--alert)"></span>Agente WhatsApp</span></td><td class="op"><b>Turno confirmado</b><span>Conversación #4821</span></td><td class="ent"><b>María Soledad Pereyra</b><span>+54 9 351 612-4408</span></td><td><span class="by"><span class="tag" style="background:var(--accent)">IA</span><span>IA</span></span></td><td><span class="badge badge--ok">Completado</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 14:15:42</b><span>hace 21 min · 8.7s</span></td><td><span class="mod-badge"><span class="dot" style="background:var(--info)"></span>Facturación</span></td><td class="op"><b>Emisión de factura A — falló</b><span>Factura A N° 0003-00012846</span></td><td class="ent"><b>Logística Sur S.A.</b><span>CUIT 30-69874012-3</span></td><td><span class="by"><span class="tag" style="background:var(--accent)">IA</span><span>IA</span></span></td><td><span class="badge badge--err">Error</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 14:08:19</b><span>hace 28 min · 4.1s</span></td><td><span class="mod-badge"><span class="dot" style="background:#2A6FDB"></span>Ingesta</span></td><td class="op"><b>Planilla procesada</b><span>ventas-abril-2026.xlsx · 142 filas</span></td><td class="ent"><b>ventas-abril-2026.xlsx</b><span>142 filas · 28.4 KB</span></td><td><span class="by"><span class="tag" style="background:var(--info)">US</span><span>Usuario</span></span></td><td><span class="badge badge--ok">Completado</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 13:55:02</b><span>hace 41 min · 0.6s</span></td><td><span class="mod-badge"><span class="dot" style="background:var(--accent)"></span>Cobros</span></td><td class="op"><b>Recordatorio de pago enviado</b><span>Vencimiento en 3 días</span></td><td class="ent"><b>Ferretería El Tornillo</b><span>CUIT 30-70812345-9</span></td><td><span class="by"><span class="tag" style="background:var(--ink-400)">SY</span><span>Sistema</span></span></td><td><span class="badge badge--ok">Completado</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 13:42:18</b><span>hace 54 min · 3.2s</span></td><td><span class="mod-badge"><span class="dot" style="background:#7C5CDB"></span>Reportes</span></td><td class="op"><b>Reporte mensual generado</b><span>IVA Ventas — Abril 2026</span></td><td class="ent"><b>IVA-Ventas-Abr2026.pdf</b><span>PDF · 12 páginas</span></td><td><span class="by"><span class="tag" style="background:var(--info)">US</span><span>Usuario</span></span></td><td><span class="badge badge--ok">Completado</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 13:30:00</b><span>hace 1 h · 1.1s</span></td><td><span class="mod-badge"><span class="dot" style="background:var(--alert)"></span>Agente WhatsApp</span></td><td class="op"><b>Consulta de saldo respondida</b><span>Conversación #4818</span></td><td class="ent"><b>Carlos Domínguez</b><span>+54 9 11 5538-2104</span></td><td><span class="by"><span class="tag" style="background:var(--accent)">IA</span><span>IA</span></span></td><td><span class="badge badge--ok">Completado</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 13:18:47</b><span>hace 1 h · 0.4s</span></td><td><span class="mod-badge"><span class="dot" style="background:var(--accent)"></span>Cobros</span></td><td class="op"><b>Cobro confirmado</b><span>MercadoPago · ARS 312.000,00</span></td><td class="ent"><b>Vidriería Cristal Norte</b><span>CUIT 30-71290845-1</span></td><td><span class="by"><span class="tag" style="background:var(--ink-400)">SY</span><span>Sistema</span></span></td><td><span class="badge badge--ok">Completado</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 12:50:11</b><span>hace 2 h · 12.0s</span></td><td><span class="mod-badge"><span class="dot" style="background:#2A6FDB"></span>Ingesta</span></td><td class="op"><b>Sincronización de planilla — falló</b><span>Google Sheets · Stock Mayo</span></td><td class="ent"><b>Stock-Mayo-2026</b><span>Google Sheets · 18×9...</span></td><td><span class="by"><span class="tag" style="background:var(--ink-400)">SY</span><span>Sistema</span></span></td><td><span class="badge badge--err">Error</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 12:30:08</b><span>hace 2 h · 1.6s</span></td><td><span class="mod-badge"><span class="dot" style="background:var(--info)"></span>Facturación</span></td><td class="op"><b>Nota de crédito emitida</b><span>NC B N° 0003-00000412</span></td><td class="ent"><b>Almacén La Esquina</b><span>CUIT 23-32567812-9</span></td><td><span class="by"><span class="tag" style="background:var(--info)">US</span><span>Usuario</span></span></td><td><span class="badge badge--ok">Completado</span></td><td class="muted">›</td></tr>
+        <tr><td style="padding-left:24px;" class="ts"><b>04 May 2026 · 11:58:22</b><span>hace 3 h · —</span></td><td><span class="mod-badge"><span class="dot" style="background:var(--alert)"></span>Agente WhatsApp</span></td><td class="op"><b>Mensaje pendiente de respuesta</b><span>Conversación #4815 · escalada</span></td><td class="ent"><b>Roberto Iglesias</b><span>+54 9 11 6722-9183</span></td><td><span class="by"><span class="tag" style="background:var(--accent)">IA</span><span>IA</span></span></td><td><span class="badge badge--warn">Pendiente</span></td><td class="muted">›</td></tr>
+      </tbody>
+    </table>
+    <div class="pager">
+      <span class="muted" style="font-size:12.5px;">Mostrando <b>1–12</b> de <b>2.847</b> registros</span>
+      <div class="pages">
+        <span class="pg">‹ Anterior</span>
+        <span class="pg is-active">1</span><span class="pg">2</span><span class="pg">3</span>
+        <span class="muted" style="padding:0 4px;">…</span>
+        <span class="pg">238</span>
+        <span class="pg">Siguiente ›</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Bitácora de Operaciones · 2.847 registros · Retención 24 meses</div>
+
+</div>
+
+<!-- ===================== DRAWER: Detalle de operación ===================== -->
+<div class="drawer-scrim" id="opScrim"></div>
+<div class="drawer" id="opDrawer" style="width:600px;">
+  <div class="drawer__head">
+    <div>
+      <div style="display:flex; align-items:center; gap:10px;"><span class="badge badge--info" style="font-weight:600;">Facturación</span><span class="mono muted" style="font-size:11px;">op_8f4a21</span></div>
+      <div style="font-size:19px; font-weight:800; letter-spacing:-.3px; margin-top:10px;">Factura B emitida</div>
+      <div class="muted mono" style="font-size:12.5px; margin-top:2px;">Factura B N° 0003-00012847</div>
+    </div>
+    <button class="drawer__close" id="opClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="drawer__body">
+    <div class="op-meta">
+      <div><div class="op-meta__l">⏱ Timestamp</div><div class="op-meta__v mono">04 May 2026 · 14:32:08</div></div>
+      <div><div class="op-meta__l">Estado</div><div class="op-meta__v"><span class="badge badge--ok" style="font-weight:600;">Completado</span></div></div>
+      <div><div class="op-meta__l">Iniciado por</div><div class="op-meta__v"><span class="by"><span class="tag" style="background:var(--accent); width:22px; height:22px; border-radius:6px; display:inline-grid; place-items:center; color:#fff; font-family:var(--mono); font-size:9px; font-weight:700;">IA</span> IA</span></div></div>
+      <div><div class="op-meta__l">Duración</div><div class="op-meta__v mono">1.8s</div></div>
+    </div>
+
+    <div class="kv-label">Resumen de la operación</div>
+    <div class="op-summary">Se emitió electrónicamente una Factura B ante ARCA por el servicio mensual de mantenimiento a Distribuidora Norte S.R.L.</div>
+    <div class="op-entity">
+      <div class="op-entity__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+      <div style="flex:1;"><b style="font-size:13.5px;">Distribuidora Norte S.R.L.</b><div class="mono muted" style="font-size:11px;">CUIT 30-71523498-2</div></div>
+      <a class="mono" style="color:var(--accent-700); font-size:12.5px; font-weight:600;">Ver entidad →</a>
+    </div>
+
+    <div class="kv-label">Datos de entrada <span class="muted" style="font-weight:500; text-transform:none; letter-spacing:0; font-family:var(--sans); margin-left:8px;">Valores que dispararon la operación</span></div>
+    <div class="kv"><span class="k">Cliente</span><span class="v mono">Distribuidora Norte S.R.L.</span></div>
+    <div class="kv"><span class="k">CUIT</span><span class="v mono">30-71523498-2</span></div>
+    <div class="kv"><span class="k">Tipo comprobante</span><span class="v mono">Factura B</span></div>
+    <div class="kv"><span class="k">Punto de venta</span><span class="v mono">0003</span></div>
+    <div class="kv"><span class="k">Concepto</span><span class="v mono">Servicios</span></div>
+    <div class="kv"><span class="k">Subtotal</span><span class="v mono">$ 184.500,00</span></div>
+    <div class="kv"><span class="k">IVA 21%</span><span class="v mono">$ 38.745,00</span></div>
+    <div class="kv"><span class="k">Total</span><span class="v mono" style="color:var(--accent-700)">$ 223.245,00</span></div>
+
+    <div class="kv-label">Datos de salida <span class="muted" style="font-weight:500; text-transform:none; letter-spacing:0; font-family:var(--sans); margin-left:8px;">Respuesta del servicio externo y resultado final</span></div>
+    <div class="kv"><span class="k">Comprobante N°</span><span class="v mono">0003-00012847</span></div>
+    <div class="kv"><span class="k">CAE</span><span class="v mono">74028591034726</span></div>
+    <div class="kv"><span class="k">Vto. CAE</span><span class="v mono">14/05/2026</span></div>
+    <div class="kv"><span class="k">Estado ARCA</span><span class="v"><span class="badge badge--ok" style="font-weight:600;">Aprobado</span></span></div>
+    <div class="kv"><span class="k">PDF</span><span class="v mono" style="color:var(--accent-700)">factura-12847.pdf</span></div>
+
+    <div class="kv-label">Timeline de ejecución <span class="muted" style="font-weight:500; text-transform:none; letter-spacing:0; font-family:var(--sans); margin-left:8px;">Pasos internos con sus timestamps</span></div>
+    <div class="tl">
+      <div class="tl__row"><span class="tl__dot"></span><div class="tl__body"><b>Trigger recibido</b><span>Solicitud desde planilla mensual</span></div><span class="mono muted tl__t">14:32:06.412</span></div>
+      <div class="tl__row"><span class="tl__dot"></span><div class="tl__body"><b>Datos validados</b><span>CUIT y condición IVA verificados en padrón</span></div><span class="mono muted tl__t">14:32:06.580</span></div>
+      <div class="tl__row"><span class="tl__dot"></span><div class="tl__body"><b>Solicitud enviada a ARCA</b><span>WSFEv1 · solicitarCAE</span></div><span class="mono muted tl__t">14:32:07.120</span></div>
+      <div class="tl__row tl__row--last"><span class="tl__dot tl__dot--ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><div class="tl__body"><b>CAE otorgado · PDF generado</b><span>Comprobante emitido y archivado</span></div><span class="mono muted tl__t">14:32:08.190</span></div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:24px;">
+      <button class="btn btn--cta" style="flex:1; justify-content:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14"/></svg> Descargar PDF</button>
+      <button class="btn btn--ghost" style="justify-content:center;">Reintentar</button>
+      <button class="btn btn--ghost" style="justify-content:center;">Ver JSON</button>
+    </div>
+  </div>
+</div>
+
+<script src="chrome.js"></script>
+<script>
+  const opDrawer = document.getElementById('opDrawer'), opScrim = document.getElementById('opScrim');
+  function openOp(){ opDrawer.classList.add('is-open'); opScrim.classList.add('is-open'); }
+  function closeOp(){ opDrawer.classList.remove('is-open'); opScrim.classList.remove('is-open'); }
+  document.querySelectorAll('table.table tbody tr').forEach(tr => { tr.style.cursor='pointer'; tr.addEventListener('click', openOp); });
+  document.getElementById('opClose').addEventListener('click', closeOp);
+  opScrim.addEventListener('click', closeOp);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOp(); });
+</script>
+</body>
+</html>

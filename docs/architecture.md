@@ -78,7 +78,7 @@ block the issuance of a tax document, and a slow LLM call cannot starve reminder
 
 | Upstream | Downstream | Type | What flows |
 | --- | --- | --- | --- |
-| `identity` | all | SK | `tenant_id`, `user_id` |
+| `identity` | all | SK | `empresa_id`, `usuario_id` |
 | `master_data` | billing, payments, scheduling, conversational | C/S | `Cliente`, `Servicio` as reference data |
 | `reference_data` | billing, reporting | C/S | Effective `ParametroFiscal` for issuance validation |
 | `business_config` | payments, scheduling, conversational | C/S | `ReglaDeNegocio`, `PlantillaDeNotificacion` |
@@ -163,9 +163,24 @@ names or protocols.
 ## 8. Rules that constrain everyday code
 
 **Multi-tenancy (ADR-002).** Shared schema + PostgreSQL Row-Level Security by
-`tenant_id`. Every request and every task sets `SET LOCAL app.current_tenant` from the
-authenticated context. RLS is the second barrier: application authorization can have a
-bug and tenant data still will not leak.
+`empresa_id` — the column name the DER uses, and the word the business uses. Every
+request and every task sets `app.current_empresa` from the authenticated context, for
+the duration of that transaction only. RLS is the second barrier: application
+authorization can have a bug and one company's data still will not reach another.
+
+Two conditions have to hold or the policies are decorative, and both are easy to get
+silently wrong:
+
+- **The application must not own the tables.** PostgreSQL exempts a table's owner from
+  its own policies, so migrations run as the owner and the application connects as
+  `cheatsheet_app`. Tables also carry `FORCE ROW LEVEL SECURITY`.
+- **The failure must be closed.** A session that never announces its company sees no
+  rows at all, rather than erroring in a way somebody is tempted to "fix" by disabling
+  the policy.
+
+Of the 34 tables, **25 carry `empresa_id` and a policy**; the 7 internal entities are
+protected through their parent; `empresa` is the tenant itself and `parametro_fiscal` is
+ARCA's global catalogue.
 
 **Source of truth is partitioned (ADR-006).**
 

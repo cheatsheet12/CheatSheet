@@ -1,0 +1,98 @@
+/* ===========================================================
+   Estilo de documento oficial — CheatSheet
+   Replica la tipografía y formato del entregable Word:
+   Arial · títulos azules (Heading 1/2/3) · cuerpo negro 11pt
+   · tablas con encabezado azul · listas con viñetas
+   =========================================================== */
+:root{
+  --azul1:#1F3864;   /* Heading 1 / Título */
+  --azul2:#2E75B6;   /* Heading 2 */
+  --azul3:#1F4D78;   /* Heading 3 */
+  --azul-fill:#D9E2F3;   /* relleno encabezado de tabla claro */
+  --azul-fill2:#EAF0FA;  /* fila alterna */
+  --tbl-border:#AFAFAF;
+  --ink:#1a1a1a;
+  --muted:#5a5a5a;
+  --ok:#2e7d32; --ok-bg:#E7F2E8;
+  --err:#c62828; --err-bg:#FbE9E9;
+  --warn:#9a7400; --warn-bg:#FBF1D9;
+  --page-pad: 78px 86px;
+}
+*{ box-sizing:border-box; }
+body{
+  margin:0; background:#EDEBE3;
+  font-family: Arial, Helvetica, sans-serif;
+  color:var(--ink); font-size:11pt; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.page{
+  width:816px; min-height:1056px; margin:26px auto; background:#fff;
+  padding:var(--page-pad); box-shadow:0 2px 12px rgba(0,0,0,.10);
+  position:relative;
+}
+.page__num{ position:absolute; bottom:34px; right:86px; font-size:8.5pt; color:#9a9a9a; }
+.page__foot{ position:absolute; bottom:34px; left:86px; font-size:8.5pt; color:#9a9a9a; }
+
+/* ---- Título de documento (Word "Title") ---- */
+.doc-title{ font-size:26pt; font-weight:700; color:var(--azul1); letter-spacing:-.5px; margin:0 0 4px; line-height:1.1; }
+.doc-subtitle{ font-size:13pt; color:var(--muted); font-weight:400; margin:0 0 20px; }
+.doc-rule{ border:0; border-top:2px solid var(--azul1); margin:0 0 22px; }
+.doc-meta{ font-size:10pt; color:var(--muted); margin:0 0 4px; }
+.doc-meta b{ color:var(--ink); }
+
+/* ---- Encabezados (Word Heading 1/2/3) ---- */
+h1.h{ font-size:16pt; color:var(--azul1); font-weight:700; margin:30px 0 10px; padding-bottom:5px; border-bottom:1px solid #c9d3e6; }
+h1.h:first-of-type{ margin-top:6px; }
+h2.h{ font-size:13pt; color:var(--azul2); font-weight:700; margin:20px 0 8px; }
+h3.h{ font-size:11.5pt; color:var(--azul3); font-weight:700; margin:16px 0 6px; }
+p{ margin:0 0 10px; }
+p.intro{ color:#333; }
+.small{ font-size:9.5pt; color:var(--muted); }
+.label{ font-weight:700; color:var(--ink); }
+
+/* ---- Listas con viñetas (Word ListParagraph) ---- */
+ul.doc, ol.doc{ margin:0 0 12px; padding-left:22px; }
+ul.doc li, ol.doc li{ margin:0 0 5px; }
+ul.doc li::marker{ color:var(--azul2); }
+ul.tight li{ margin:0 0 2px; }
+
+/* ---- Tablas (estilo Word "Grid Table Accent 1") ---- */
+table.w{ width:100%; border-collapse:collapse; margin:6px 0 16px; font-size:10pt; }
+table.w caption{ caption-side:top; text-align:left; font-size:9.5pt; color:var(--muted); margin-bottom:5px; }
+table.w th{ background:var(--azul2); color:#fff; font-weight:700; text-align:left; padding:7px 10px; border:1px solid var(--azul2); font-size:9.5pt; }
+table.w td{ padding:7px 10px; border:1px solid var(--tbl-border); vertical-align:top; }
+table.w tr:nth-child(even) td{ background:var(--azul-fill2); }
+table.w td.mono, table.w th.mono{ font-family:Consolas,"Courier New",monospace; font-size:9.5pt; }
+table.w .num{ text-align:right; font-family:Consolas,"Courier New",monospace; }
+
+/* color chip inside a table cell */
+.chip-c{ display:inline-block; width:30px; height:16px; border-radius:3px; border:1px solid rgba(0,0,0,.15); vertical-align:middle; }
+.chip-lg{ display:inline-block; width:46px; height:22px; border-radius:3px; border:1px solid rgba(0,0,0,.15); vertical-align:middle; }
+
+/* status text in tables */
+.s-ok{ color:var(--ok); font-weight:700; }
+.s-err{ color:var(--err); font-weight:700; }
+.s-warn{ color:var(--warn); font-weight:700; }
+
+/* sample badges (kept for the few places that need a visual) */
+.badge{ display:inline-block; font-size:9pt; font-weight:700; padding:2px 8px; border-radius:3px; }
+.badge--ok{ background:var(--ok-bg); color:var(--ok); }
+.badge--err{ background:var(--err-bg); color:var(--err); }
+.badge--warn{ background:var(--warn-bg); color:var(--warn); }
+.badge--info{ background:var(--azul-fill); color:var(--azul1); }
+
+/* note / callout block, Word-like shaded paragraph */
+.note{ border-left:3px solid var(--azul2); background:#F3F7FC; padding:9px 13px; font-size:10pt; margin:6px 0 14px; }
+.note.warn{ border-left-color:#E0A800; background:#FBF6E8; }
+.ref{ font-size:9pt; color:var(--muted); font-style:italic; margin-top:4px; }
+
+@media print{
+  body{ background:#fff; }
+  .page{ width:auto; min-height:0; margin:0; padding:0; box-shadow:none; break-after:page; }
+  .page:last-child{ break-after:auto; }
+  .page__num,.page__foot{ position:static; }
+  @page{ margin:0.8in; }
+  table.w, table.w tr, ul.doc li, h1.h, h2.h, h3.h, .note{ break-inside:avoid; }
+  h1.h, h2.h, h3.h{ break-after:avoid; }
+  *{ print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+}

@@ -15,7 +15,7 @@ dependencia. Las dos numeraciones conviven; la tabla de trazabilidad (§4) las v
 | # | Épico | Historias | Contextos | Termina en (demo) |
 |---|---|---|---|---|
 | 1 | **Cimientos, identidad y bitácora** | HU-E1-01 … HU-E1-07 · HS-T5 | `identity`, `observability` | Una empresa se registra, completa el onboarding, invita usuarios y les cambia el rol — y **cada acción queda registrada en la bitácora**, aunque todavía no exista pantalla para leerla |
-| 2 | **Conexión con los servicios externos** | HU-E2-01, HU-E2-02, HU-E2-03, HU-E2-05 | `integrations` | PAN-CFG-INT mostrando ARCA y MercadoPago **conectados de verdad** (credenciales validadas contra el servicio) y WhatsApp en verificación de Meta, con la verificación en vivo de estado funcionando |
+| 2 | **Conexión con los servicios externos** | HU-E2-01, HU-E2-02, HU-E2-03, HU-E2-05 · *(deuda de D1: consulta de padrón de HU-E1-02)* | `integrations`, `identity` | PAN-CFG-INT mostrando ARCA y MercadoPago **conectados de verdad** (credenciales validadas contra el servicio) y WhatsApp en verificación de Meta, con la verificación en vivo de estado funcionando; y el CUIT del onboarding validado ya contra el padrón |
 | 3 | **Catálogo de clientes y servicios** | HU-E4-01 … HU-E4-04 | `master_data` | ABM completo de clientes (con CUIT validado contra ARCA) y de servicios (precio, IVA, agendable), clasificados por categorías propias de la empresa |
 | 4 | **Sincronización de planillas** | HU-E2-04 · HU-E3-01 … HU-E3-06 · HS-T6 | `spreadsheet_sync`, `observability` | Se vincula una planilla real, la IA propone el mapeo, el usuario lo corrige y confirma, la carga inicial puebla el catálogo del épico 3, se ven los errores de fila y se reprocesa tras corregirlos |
 | 5 | **Facturación electrónica** | HU-E5-01 … HU-E5-05 · HS-T4 | `billing`, `reference_data` | Se emite una factura contra ARCA en homologación y **se obtiene un CAE real**, se descarga el PDF, se la anula con una nota de crédito y se administran los puntos de venta |
@@ -155,7 +155,7 @@ durante la implementación.
 
 | # | Decisión | Épico | Origen |
 |---|---|---|---|
-| D1 | **Cómo se valida un CUIT contra ARCA antes de que la empresa haya cargado su certificado.** HU-E1-02 RN-01 exige validación en tiempo real durante el onboarding, pero la credencial fiscal recién se carga en HU-E2-01, un épico después. Hay una dependencia circular: propuesta a confirmar → la consulta de padrón usa una credencial **de plataforma** de CheatSheet, distinta de la credencial de emisión de cada empresa | 1 | Detectada acá |
+| ~~D1~~ | **Resuelta (2026-08-12).** Cómo se valida un CUIT contra ARCA antes de que la empresa haya cargado su certificado. → **Validación estructural (formato y dígito verificador) en el épico 1; consulta al padrón en el épico 2**, cuando HU-E2-01 ya dejó la credencial cargada. No se introduce credencial de plataforma. El detalle y sus consecuencias están en [`units.md`](units.md) § Decisión D1 | 1 → 2 | Detectada acá |
 | D2 | ¿El administrador puede crear un turno manualmente desde el panel, o solo ver los que llegan por el agente? | 7 | HU-E7-01 RN-04 |
 | D3 | ¿El agente puede reclasificar el tipo del hilo al retomar el control tras la intervención humana? | 8 | HU-E9-01 RN-05 |
 | D4 | ¿Hay un límite máximo de FAQ por plan contratado? | 8 | HU-E9-04 RN-04 |

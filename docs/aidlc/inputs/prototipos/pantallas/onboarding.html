@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Onboarding</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { background: var(--bg); }
+  .ob-top { display: flex; align-items: center; gap: 16px; padding: 16px 30px; border-bottom: 1px solid var(--line); background: var(--card); }
+  .ob-brand { display: flex; align-items: center; gap: 11px; }
+  .ob-brand .logo { width: 38px; height: 38px; border-radius: 10px; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 13px; }
+  .ob-brand h1 { font-size: 16px; margin: 0; font-weight: 700; }
+  .ob-brand p { font-family: var(--mono); font-size: 10px; color: var(--ink-400); margin: 1px 0 0; }
+  .ob-top__right { margin-left: auto; display: flex; align-items: center; gap: 20px; }
+  .ob-top__right .ttl { font-size: 13px; color: var(--ink-500); }
+  .ob-tabs { display: flex; gap: 4px; }
+  .ob-tabs button { border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-400); padding: 7px 13px; border-radius: 8px; cursor: pointer; }
+  .ob-tabs button.is-active { background: var(--primary); color: #fff; }
+
+  .ob-stepper { display: flex; justify-content: center; padding: 30px 0 6px; }
+  .ob-stepper .inner { display: flex; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 26px; box-shadow: var(--shadow); }
+
+  .ob-stage { padding: 24px 40px 50px; }
+  .ob-flow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; max-width: 1500px; margin: 0 auto; align-items: start; }
+  .ob-col { padding: 0 20px; position: relative; }
+  .ob-col__label { text-align: center; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; color: var(--ink-400); font-weight: 600; margin-bottom: 16px; }
+  .ob-arrow { position: absolute; top: 320px; right: -10px; color: var(--ink-300); font-family: var(--mono); z-index: 2; }
+
+  .ob-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 30px 28px; }
+  .ob-card--login { text-align: center; }
+  .ob-card .brand-mark { display: flex; align-items: center; justify-content: center; gap: 9px; margin-bottom: 22px; }
+  .ob-card .brand-mark .logo { width: 34px; height: 34px; border-radius: 9px; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 12px; }
+  .ob-card .brand-mark b { font-size: 14px; font-weight: 700; }
+  .ob-card .brand-mark span { font-family: var(--mono); font-size: 9px; color: var(--ink-400); display: block; }
+  .ob-h { font-size: 20px; font-weight: 800; letter-spacing: -.4px; margin: 0 0 6px; }
+  .ob-card--login .ob-sub { color: var(--ink-500); font-size: 13px; margin: 0 0 22px; }
+  .ob-or { display: flex; align-items: center; gap: 12px; color: var(--ink-300); font-size: 12px; margin: 18px 0; }
+  .ob-or::before, .ob-or::after { content: ""; height: 1px; background: var(--line); flex: 1; }
+  .ob-foot-link { text-align: center; font-size: 12.5px; color: var(--ink-500); margin-top: 18px; }
+  .ob-foot-link a { color: var(--accent-700); font-weight: 600; }
+  .link { color: var(--accent-700); font-weight: 600; font-size: 12.5px; cursor: pointer; }
+  .ob-terms { display: flex; align-items: flex-start; gap: 10px; text-align: left; margin-bottom: 18px; cursor: pointer; }
+  .ob-terms .cbx { width: 20px; height: 20px; }
+  .ob-terms > span:last-child { font-size: 12px; color: var(--ink-500); line-height: 1.45; }
+  .ob-terms a { font-size: 12px; }
+
+  .ob-step-tag { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .ob-step-tag .l { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--ink-500); font-weight: 600; }
+  .ob-step-tag .r { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--accent-700); font-weight: 700; }
+  .ob-progress { height: 3px; background: var(--line); border-radius: 2px; margin-bottom: 22px; overflow: hidden; }
+  .ob-progress span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+
+  .iva-seg { display: flex; gap: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+  .iva-seg button { flex: 1; border: 0; background: var(--card); font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-500); padding: 11px; cursor: pointer; }
+  .iva-seg button.is-active { background: var(--primary); color: #fff; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .protect { display: flex; gap: 11px; align-items: flex-start; background: var(--accent-050); border-radius: var(--radius-sm); padding: 13px 15px; margin-top: 6px; }
+  .protect svg { width: 16px; height: 16px; color: var(--accent-700); flex: none; margin-top: 1px; }
+  .protect b { font-size: 12.5px; } .protect span { font-size: 12px; color: var(--ink-600); }
+
+  .ob-card-foot { display: flex; align-items: center; gap: 10px; margin-top: 22px; }
+
+  .int-card { border: 1.5px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .int-card.is-on { border-color: var(--accent); background: var(--accent-050); }
+  .int-card__top { display: flex; align-items: center; gap: 11px; }
+  .int-logo { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 11px; font-family: var(--mono); flex: none; }
+  .int-card b { font-size: 13.5px; font-weight: 700; display: block; }
+  .int-card .cuit { font-family: var(--mono); font-size: 9.5px; color: var(--ink-400); }
+  .int-card p { font-size: 11.5px; color: var(--ink-500); margin: 11px 0 13px; line-height: 1.45; }
+  .int-card__foot { display: flex; align-items: center; justify-content: space-between; }
+  .int-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .auto-tag { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-700); background: var(--accent-050); padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
+  .cuit-state { font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .cuit-state.ok { color: var(--accent-700); }
+  .cuit-state.bad { color: var(--err); }
+  .input-icon.ok { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-050); }
+  .input-icon.bad { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-bg); }
+  #razonInput[readonly] { background: var(--bg); color: var(--ink-600); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
+  .ob-foot-note { text-align: center; font-family: var(--mono); font-size: 11px; color: var(--ink-300); margin-top: 36px; line-height: 1.7; }
+</style>
+</head>
+<body data-screen-label="Onboarding">
+
+  <div class="ob-top">
+    <div class="ob-brand"><div class="logo">CS</div><div><h1>CheatSheet</h1><p>iPaaS · v2.4</p></div></div>
+    <div class="ob-top__right">
+      <span class="ttl">Flujo de autenticación y configuración inicial</span>
+      <div class="ob-tabs" id="obTabs">
+        <button class="is-active" data-view="flujo">Vista de flujo</button>
+        <button data-view="p1">Pantalla 1</button>
+        <button data-view="p2">Pantalla 2</button>
+        <button data-view="p3">Pantalla 3</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ob-stepper">
+    <div class="inner stepper">
+      <div class="step is-done"><span class="step__dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="step__label">Iniciar sesión</span></div>
+      <div class="step__bar is-done"></div>
+      <div class="step is-done"><span class="step__dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span class="step__label">Datos de empresa</span></div>
+      <div class="step__bar is-done"></div>
+      <div class="step is-current"><span class="step__dot">3</span><span class="step__label">Integraciones</span></div>
+    </div>
+  </div>
+
+  <div class="ob-stage">
+    <div class="ob-flow">
+
+      <!-- Pantalla 1 · Login -->
+      <div class="ob-col" data-screen="p1">
+        <div class="ob-col__label">PANTALLA 1 · INICIO DE SESIÓN</div>
+        <div class="ob-arrow">╴╴╴►</div>
+        <div class="ob-card ob-card--login">
+          <div class="brand-mark"><div class="logo">CS</div><div style="text-align:left;"><b>CheatSheet</b><span>iPaaS · v2.4</span></div></div>
+          <h2 class="ob-h">Bienvenido a CheatSheet</h2>
+          <p class="ob-sub">Automatizá tu negocio sin cambiar tus herramientas.</p>
+          <div class="field" style="text-align:left;"><label>Email</label><input class="input" value="martin@distribuidoralaesquina.com.ar"></div>
+          <div class="field" style="text-align:left; margin-bottom:8px;"><label>Contraseña</label><div class="input-icon"><input type="password" value="contraseña123" style="letter-spacing:2px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div></div>
+          <div style="text-align:right; margin-bottom:16px;"><span class="link">¿Olvidaste tu contraseña?</span></div>
+          <label class="ob-terms"><span class="cbx is-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg></span><span>Acepto los <a class="link">Términos y Condiciones</a> y la Política de Privacidad del servicio.</span></label>
+          <button class="btn btn--cta" style="width:100%; justify-content:center; padding:12px;">Ingresar</button>
+          <div class="ob-or">o</div>
+          <button class="btn btn--ghost" style="width:100%; justify-content:center; padding:11px;"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="#4285F4" d="M22.5 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-2 3.2-4.8 3.2-7.8Z"/><path fill="#34A853" d="M12 23c2.9 0 5.4-1 7.2-2.6l-3.6-2.7c-1 .7-2.3 1.1-3.6 1.1-2.8 0-5.1-1.9-6-4.4H2.3v2.8A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M6 14.4a6.6 6.6 0 0 1 0-4.2V7.4H2.3a11 11 0 0 0 0 9.8L6 14.4Z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3 .5 4.1 1.6l3.1-3.1A11 11 0 0 0 2.3 7.4L6 10.2c.9-2.5 3.2-4.4 6-4.4Z"/></svg> Continuar con Google</button>
+          <div class="ob-foot-link">¿No tenés cuenta? <a>Registrate</a></div>
+        </div>
+      </div>
+
+      <!-- Pantalla 2 · Registro PyME -->
+      <div class="ob-col" data-screen="p2">
+        <div class="ob-col__label">PANTALLA 2 · REGISTRO DE PYME</div>
+        <div class="ob-arrow">╴╴╴►</div>
+        <div class="ob-card">
+          <div class="ob-step-tag"><span class="l">PASO 2 DE 3</span><span class="r">DATOS DE TU EMPRESA</span></div>
+          <div class="ob-progress"><span style="width:66%"></span></div>
+          <h2 class="ob-h">Contanos sobre tu negocio</h2>
+          <p class="ob-sub" style="color:var(--ink-500); font-size:13px; margin:0 0 20px;">Solo lo esencial para conectarte con ARCA.</p>
+          <div class="field"><label>Nombre comercial</label><input class="input" value="Distribuidora La Esquina"></div>
+          <div class="two-col">
+            <div class="field"><label>CUIT</label><div class="input-icon" id="cuitWrap"><input class="mono" id="cuitInput" value="30-71428953-1" maxlength="13" inputmode="numeric"><span id="cuitState" class="cuit-state"></span></div><div class="field-hint" id="cuitHint">Se valida contra ARCA en tiempo real</div></div>
+            <div class="field"><label>Condición IVA</label><div class="iva-seg" id="ivaSeg"><button>Monotributo</button><button class="is-active">Resp. Inscripto</button></div><div class="field-hint">Se determina automáticamente del CUIT</div></div>
+          </div>
+          <div class="field"><label>Razón social <span class="auto-tag">autocompletado por ARCA</span></label><input class="input mono" id="razonInput" value="LA ESQUINA DISTRIBUCIONES S.R.L." readonly></div>
+          <div class="field"><label>Nombre del responsable</label><input class="input" value="Martín Ferreyra"></div>
+          <div class="field"><label>Email de contacto</label><input class="input" value="martin@distribuidoralaesquina.com.ar"></div>
+          <div class="protect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><div><b>Tus datos están protegidos.</b> <span>Se usan únicamente para conectar con ARCA. No los compartimos con terceros.</span></div></div>
+          <div class="ob-card-foot"><button class="btn btn--ghost">Volver</button><div style="flex:1;"></div><button class="btn btn--cta" id="p2Continue">Continuar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m0 0-6-6m6 6-6 6"/></svg></button></div>
+        </div>
+      </div>
+
+      <!-- Pantalla 3 · Integraciones -->
+      <div class="ob-col" data-screen="p3">
+        <div class="ob-col__label">PANTALLA 3 · INTEGRACIONES</div>
+        <div class="ob-card">
+          <div class="ob-step-tag"><span class="l">PASO 3 DE 3</span><span class="r">CONECTÁ TUS SERVICIOS</span></div>
+          <div class="ob-progress"><span style="width:100%"></span></div>
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+            <div><h2 class="ob-h">Conectá tus servicios</h2><p class="ob-sub" style="color:var(--ink-500); font-size:13px; margin:0 0 18px; max-width:280px;">Elegí las herramientas que ya usás. Podés agregar más después.</p></div>
+            <span class="badge badge--plain mono" style="font-size:10px; flex:none;">1 de 4 conectados</span>
+          </div>
+          <div class="int-grid">
+            <div class="int-card is-on">
+              <div class="int-card__top"><div class="int-logo" style="background:#2A6FDB">AR</div><div><b>ARCA</b><span class="cuit">CUIT 30-71428953-1</span></div></div>
+              <p>Emití comprobantes fiscales electrónicos y consultá padrones automáticamente.</p>
+              <div class="int-card__foot"><span class="badge badge--ok" style="font-weight:600;">Conectado</span><span class="link">Configurar</span></div>
+            </div>
+            <div class="int-card">
+              <div class="int-card__top"><div class="int-logo" style="background:#00B1EA">MP</div><div><b>MercadoPago</b></div></div>
+              <p>Generá links de pago y conciliá cobros sin esfuerzo.</p>
+              <div class="int-card__foot"><span class="muted" style="font-size:12px;">Sin conectar</span><button class="btn btn--ghost btn--sm">Conectar →</button></div>
+            </div>
+            <div class="int-card">
+              <div class="int-card__top"><div class="int-logo" style="background:var(--accent)">WA</div><div><b>WhatsApp Business</b></div></div>
+              <p>Respondé clientes y mandá comprobantes con tu agente IA. La verificación de Meta demora 24–72 hs.</p>
+              <div class="int-card__foot"><span class="muted" style="font-size:12px;">Sin conectar</span><button class="btn btn--ghost btn--sm">Conectar →</button></div>
+            </div>
+            <div class="int-card">
+              <div class="int-card__top"><div class="int-logo" style="background:#1F8A5B">GS</div><div><b>Google Sheets</b></div></div>
+              <p>Sincronizá tus planillas de ventas, stock y clientes.</p>
+              <div class="int-card__foot"><span class="muted" style="font-size:12px;">Sin conectar</span><button class="btn btn--ghost btn--sm">Conectar →</button></div>
+            </div>
+          </div>
+          <div class="ob-card-foot"><span class="link">Configurar esto después</span><div style="flex:1;"></div><button class="btn btn--ghost">Volver</button><button class="btn btn--cta">Continuar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m0 0-6-6m6 6-6 6"/></svg></button></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="ob-foot-note">Flujo feliz · 1440px desktop · Datos ficticios PyME argentina<br>CheatSheet iPaaS · Onboarding v1.0</div>
+  </div>
+
+<script>
+  const tabs = document.getElementById('obTabs');
+  const flow = document.querySelector('.ob-flow');
+  tabs.addEventListener('click', e => {
+    const b = e.target.closest('button[data-view]'); if (!b) return;
+    [...tabs.children].forEach(x => x.classList.toggle('is-active', x === b));
+    const v = b.dataset.view;
+    document.querySelectorAll('.ob-col').forEach(c => {
+      const show = v === 'flujo' || c.dataset.screen === v;
+      c.style.display = show ? '' : 'none';
+    });
+    flow.style.gridTemplateColumns = v === 'flujo' ? '1fr 1fr 1fr' : 'minmax(0, 560px)';
+    flow.style.justifyContent = v === 'flujo' ? '' : 'center';
+    document.querySelectorAll('.ob-arrow').forEach(a => a.style.display = v === 'flujo' ? '' : 'none');
+  });
+  document.getElementById('ivaSeg').addEventListener('click', e => { const b=e.target.closest('button'); if(!b)return; [...e.currentTarget.children].forEach(x=>x.classList.toggle('is-active',x===b)); });
+  document.querySelectorAll('.int-card').forEach(c => { if(!c.classList.contains('is-on')) c.addEventListener('click', ()=>{}); });
+
+  // --- Validación de CUIT (dígito verificador, módulo 11) ---
+  const cuitInput = document.getElementById('cuitInput');
+  const cuitWrap = document.getElementById('cuitWrap');
+  const cuitState = document.getElementById('cuitState');
+  const cuitHint = document.getElementById('cuitHint');
+  const razonInput = document.getElementById('razonInput');
+  const p2Continue = document.getElementById('p2Continue');
+  const RAZON_DEMO = 'LA ESQUINA DISTRIBUCIONES S.R.L.';
+  function cuitEsValido(raw){
+    const s = String(raw).replace(/\D/g,'');
+    if (s.length !== 11) return false;
+    const w = [5,4,3,2,7,6,5,4,3,2];
+    let sum = 0;
+    for (let i=0;i<10;i++) sum += parseInt(s[i],10)*w[i];
+    let d = 11 - (sum % 11);
+    if (d === 11) d = 0;
+    if (d === 10) return false;
+    return d === parseInt(s[10],10);
+  }
+  function fmtCuit(raw){
+    const s = String(raw).replace(/\D/g,'').slice(0,11);
+    if (s.length <= 2) return s;
+    if (s.length <= 10) return s.slice(0,2)+'-'+s.slice(2);
+    return s.slice(0,2)+'-'+s.slice(2,10)+'-'+s.slice(10);
+  }
+  function refreshCuit(){
+    const digits = cuitInput.value.replace(/\D/g,'');
+    const ok = cuitEsValido(cuitInput.value);
+    cuitWrap.classList.toggle('ok', ok);
+    cuitWrap.classList.toggle('bad', !ok && digits.length>0);
+    if (ok){
+      cuitState.textContent = '✓ Válido';
+      cuitState.className = 'cuit-state ok';
+      cuitHint.textContent = 'Validado contra ARCA · datos autocompletados';
+      cuitHint.style.color = 'var(--accent-700)';
+      razonInput.value = RAZON_DEMO;
+    } else {
+      cuitState.textContent = digits.length ? '✗ Inválido' : '';
+      cuitState.className = 'cuit-state bad';
+      cuitHint.textContent = digits.length>=11 ? 'El CUIT no supera la validación del dígito verificador.' : 'Ingresá los 11 dígitos del CUIT.';
+      cuitHint.style.color = 'var(--err)';
+      razonInput.value = '';
+    }
+    if (p2Continue) p2Continue.disabled = !ok;
+  }
+  cuitInput.addEventListener('input', refreshCuit);
+  cuitInput.addEventListener('blur', () => { cuitInput.value = fmtCuit(cuitInput.value); refreshCuit(); });
+  refreshCuit();
+</script>
+</body>
+</html>

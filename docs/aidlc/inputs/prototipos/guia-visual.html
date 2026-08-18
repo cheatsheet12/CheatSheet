@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Guía Visual</title>
+<style>
+  :root {
+    --primary:#1E1E2E; --primary-soft:#2A2A3D; --sidebar-active:#3A3A5C;
+    --accent:#00C48C; --accent-700:#00A879; --accent-050:#E4F8F1; --accent-100:#C9F1E4;
+    --alert:#FDCB6E; --alert-050:#FEF6E4; --bg:#F8F7FF; --card:#FFFFFF;
+    --ink-900:#1E1E2E; --ink-700:#3d3d52; --ink-600:#54546a; --ink-500:#6b6b80; --ink-400:#8a8a9c; --ink-300:#b6b6c4;
+    --line:#e7e6f0; --line-2:#eeedf6;
+    --ok:#00A879; --ok-bg:#E4F8F1; --warn:#B8860B; --warn-bg:#FEF1D6; --err:#DC2B3A; --err-bg:#FCE8EA; --info:#3A3A5C; --info-bg:#ECECF4;
+    --radius:14px; --radius-sm:10px; --radius-xs:8px;
+    --shadow:0 1px 2px rgba(30,30,46,.04), 0 8px 24px rgba(30,30,46,.05);
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Roboto Mono",Menlo,monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #F0EEE6; font-family: var(--sans); color: var(--ink-900); -webkit-font-smoothing: antialiased; }
+
+  .page {
+    width: 816px; min-height: 1056px; margin: 30px auto; background: #fff;
+    padding: 64px 68px; box-shadow: 0 2px 12px rgba(0,0,0,.08); border-radius: 3px; position: relative;
+  }
+  .page__num { position: absolute; bottom: 34px; right: 68px; font-family: var(--mono); font-size: 10px; color: var(--ink-300); }
+  .page__foot { position: absolute; bottom: 34px; left: 68px; font-family: var(--mono); font-size: 10px; color: var(--ink-300); }
+
+  /* cover */
+  .cover-mark { display: flex; align-items: center; gap: 14px; margin-bottom: 56px; }
+  .cover-mark .logo { width: 52px; height: 52px; border-radius: 14px; background: var(--accent); color: var(--primary); display: grid; place-items: center; font-weight: 800; font-size: 18px; letter-spacing: -.5px; }
+  .cover-mark b { font-size: 19px; font-weight: 700; display: block; }
+  .cover-mark span { font-family: var(--mono); font-size: 11px; color: var(--ink-400); }
+  .cover h1 { font-size: 46px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.04; margin: 0 0 20px; }
+  .cover .lead { font-size: 16px; color: var(--ink-500); line-height: 1.6; max-width: 560px; margin: 0 0 50px; }
+  .cover-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; max-width: 560px; }
+  .cover-meta div { background: #fff; padding: 16px 18px; }
+  .cover-meta .l { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-400); }
+  .cover-meta .v { font-size: 14px; font-weight: 600; margin-top: 3px; }
+  .cover-toc { margin-top: 48px; }
+  .cover-toc h3 { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-400); margin: 0 0 14px; }
+  .cover-toc ol { margin: 0; padding: 0; list-style: none; counter-reset: toc; max-width: 560px; }
+  .cover-toc li { counter-increment: toc; display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line-2); font-size: 14px; }
+  .cover-toc li::before { content: counter(toc, decimal-leading-zero); font-family: var(--mono); font-size: 11px; color: var(--accent-700); font-weight: 700; }
+  .cover-toc li b { font-weight: 600; }
+  .cover-toc li .dots { flex: 1; border-bottom: 1px dotted var(--ink-300); margin: 0 4px; transform: translateY(-3px); }
+  .cover-toc li .pg { font-family: var(--mono); font-size: 11px; color: var(--ink-400); }
+
+  /* section headers */
+  .sec-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-700); font-weight: 700; }
+  .sec-title { font-size: 30px; font-weight: 800; letter-spacing: -.6px; margin: 8px 0 8px; }
+  .sec-intro { font-size: 14px; color: var(--ink-500); line-height: 1.6; margin: 0 0 30px; max-width: 600px; }
+  .sec-divider { height: 3px; width: 44px; background: var(--accent); border-radius: 2px; margin-bottom: 28px; }
+  h2.block { font-size: 13px; font-weight: 700; letter-spacing: -.1px; margin: 34px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  h2.block:first-of-type { margin-top: 0; }
+
+  /* color palette */
+  .swatch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .swatch { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+  .swatch__chip { height: 76px; position: relative; }
+  .swatch__body { padding: 11px 13px; }
+  .swatch__name { font-size: 13px; font-weight: 700; }
+  .swatch__hex { font-family: var(--mono); font-size: 11px; color: var(--ink-500); margin-top: 1px; }
+  .swatch__use { font-size: 11px; color: var(--ink-400); margin-top: 5px; line-height: 1.4; }
+  .swatch__token { position: absolute; bottom: 8px; left: 10px; font-family: var(--mono); font-size: 9.5px; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,.85); color: var(--ink-600); }
+
+  .ramp { display: flex; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--line); margin-top: 6px; }
+  .ramp div { flex: 1; height: 52px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; font-family: var(--mono); font-size: 9px; }
+
+  .sem-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  .sem { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; }
+  .sem .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+  .sem .badge::before { content:""; width:6px; height:6px; border-radius:50%; background: currentColor; }
+  .sem__hex { font-family: var(--mono); font-size: 10px; color: var(--ink-400); margin-top: 9px; }
+
+  /* typography */
+  .type-spec { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--line-2); }
+  .type-spec__meta { font-family: var(--mono); font-size: 10.5px; color: var(--ink-400); white-space: nowrap; }
+  .font-stack { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px 16px; font-family: var(--mono); font-size: 11.5px; color: var(--ink-600); line-height: 1.6; }
+  .weights { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .weights div { flex: 1; min-width: 110px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; }
+  .weights .big { font-size: 26px; letter-spacing: -.5px; }
+  .weights .lbl { font-family: var(--mono); font-size: 10px; color: var(--ink-400); margin-top: 6px; }
+
+  /* component catalog */
+  .demo { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-bottom: 8px; }
+  .demo__stage { padding: 22px; background: var(--bg); display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .demo__cap { padding: 9px 14px; border-top: 1px solid var(--line); background: #fff; font-size: 11.5px; color: var(--ink-500); }
+  .demo__cap b { color: var(--ink-700); font-weight: 600; }
+  .demo__cap .mono { font-family: var(--mono); font-size: 10.5px; color: var(--ink-400); }
+
+  .btn { display: inline-flex; align-items: center; gap: 8px; border-radius: var(--radius-sm); padding: 10px 16px; font: inherit; font-size: 13.5px; font-weight: 600; border: 1px solid transparent; cursor: default; }
+  .btn--cta { background: var(--accent); color: var(--primary); }
+  .btn--primary { background: var(--primary); color: #fff; }
+  .btn--ghost { background: #fff; border-color: var(--line); color: var(--ink-700); box-shadow: var(--shadow); }
+  .btn--sm { padding: 7px 12px; font-size: 12.5px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+  .badge::before { content:""; width:6px; height:6px; border-radius:50%; background: currentColor; }
+  .badge--ok { background: var(--ok-bg); color: var(--ok); }
+  .badge--warn { background: var(--warn-bg); color: var(--warn); }
+  .badge--err { background: var(--err-bg); color: var(--err); }
+  .badge--info { background: var(--info-bg); color: var(--info); }
+  .badge--plain { background: var(--line-2); color: var(--ink-500); }
+  .badge--plain::before { display:none; }
+
+  .chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--ink-500); padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
+  .chip.is-active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .toggle { width: 42px; height: 24px; border-radius: 999px; background: var(--ink-300); position: relative; flex: none; }
+  .toggle::after { content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2); }
+  .toggle.is-on { background: var(--accent); }
+  .toggle.is-on::after { left: 21px; }
+
+  .input { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; font: inherit; font-size: 13px; background: #fff; }
+  .input--ok { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-050); }
+  .input--err { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-bg); }
+  .field-lbl { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .field-hint { font-family: var(--mono); font-size: 10.5px; margin-top: 5px; }
+
+  .card-demo { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; min-width: 200px; }
+  .stat-demo { background:#fff; border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px 18px; min-width: 190px; }
+  .stat-demo .ico { width:34px; height:34px; border-radius:9px; background:var(--accent-050); color:var(--accent-700); display:grid; place-items:center; margin-bottom:18px; }
+  .stat-demo .lbl { font-size:12px; color:var(--ink-500); }
+  .stat-demo .val { font-size:26px; font-weight:800; letter-spacing:-.8px; }
+
+  table.tbl { width: 100%; border-collapse: collapse; background:#fff; }
+  table.tbl th { text-align:left; font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-400); font-weight:600; padding:0 14px 10px; }
+  table.tbl td { padding: 11px 14px; border-top: 1px solid var(--line-2); font-size: 12.5px; }
+
+  .tokens { display:grid; grid-template-columns: repeat(3,1fr); gap:10px; }
+  .token { border:1px solid var(--line); border-radius:var(--radius-sm); padding:12px; text-align:center; }
+  .token .box { margin:0 auto 10px; background:var(--accent-050); border:1px solid var(--accent-100); }
+  .token .nm { font-family:var(--mono); font-size:10px; color:var(--ink-600); }
+  .token .vl { font-size:11px; color:var(--ink-400); }
+
+  .principles { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .principle { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 16px 18px; }
+  .principle .n { font-family: var(--mono); font-size: 11px; color: var(--accent-700); font-weight: 700; }
+  .principle b { font-size: 14px; display: block; margin: 6px 0 4px; }
+  .principle p { font-size: 12px; color: var(--ink-500); margin: 0; line-height: 1.5; }
+
+  @media print {
+    body { background: #fff; }
+    .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; border-radius: 0; break-after: page; }
+    .page:last-child { break-after: auto; }
+    .page__num, .page__foot { position: static; }
+    @page { margin: 0.7in; }
+    .demo, .swatch, .sem, .principle, .type-spec, table.tbl tr, h2.block { break-inside: avoid; }
+    * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ PÁGINA 1 · PALETA ============ -->
+<div class="page">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:24px; border-bottom:2px solid var(--primary); padding-bottom:20px; margin-bottom:26px;">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div style="width:48px; height:48px; border-radius:13px; background:var(--accent); color:var(--primary); display:grid; place-items:center; font-weight:800; font-size:16px; letter-spacing:-.5px;">CS</div>
+      <div>
+        <div class="sec-eyebrow">CheatSheet · Design System 2.4</div>
+        <h1 style="font-size:26px; font-weight:800; letter-spacing:-.6px; margin:3px 0 0;">Guía Visual del Sistema</h1>
+      </div>
+    </div>
+    <div style="text-align:right; font-family:var(--mono); font-size:10.5px; color:var(--ink-400); line-height:1.7;">Junio 2026<br>Web · Escritorio 1440px</div>
+  </div>
+  <p style="font-size:13.5px; color:var(--ink-500); line-height:1.6; margin:0 0 26px; max-width:620px;">El lenguaje de diseño de CheatSheet: <b>paleta de colores, tipografía y componentes reutilizables</b> que dan consistencia a todas las pantallas. Cada color se referencia por su <span style="font-family:var(--mono); font-size:12px;">token</span> CSS, nunca por su valor literal.</p>
+
+  <div class="sec-eyebrow">01 · Paleta de colores</div>
+  <div class="sec-divider" style="margin-top:8px;"></div>
+
+  <h2 class="block">Colores de marca</h2>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="swatch__chip" style="background:#1E1E2E;"><span class="swatch__token">--primary</span></div><div class="swatch__body"><div class="swatch__name">Primario</div><div class="swatch__hex">#1E1E2E</div><div class="swatch__use">Sidebar, encabezados, texto principal, botones primarios.</div></div></div>
+    <div class="swatch"><div class="swatch__chip" style="background:#00C48C;"><span class="swatch__token">--accent</span></div><div class="swatch__body"><div class="swatch__name">Acento</div><div class="swatch__hex">#00C48C</div><div class="swatch__use">CTA, éxito, toggles activos, selección. La acción de la marca.</div></div></div>
+    <div class="swatch"><div class="swatch__chip" style="background:#FDCB6E;"><span class="swatch__token" style="background:rgba(30,30,46,.1)">--alert</span></div><div class="swatch__body"><div class="swatch__name">Alerta / Atención</div><div class="swatch__hex">#FDCB6E</div><div class="swatch__use">Métricas a observar, pendientes, avatar de organización.</div></div></div>
+    <div class="swatch"><div class="swatch__chip" style="background:#F8F7FF; border-bottom:1px solid var(--line);"><span class="swatch__token">--bg</span></div><div class="swatch__body"><div class="swatch__name">Fondo de app</div><div class="swatch__hex">#F8F7FF</div><div class="swatch__use">Lienzo del área de trabajo. Blanco con leve tono lila frío.</div></div></div>
+  </div>
+
+  <h2 class="block">Escala neutra (fría, derivada del primario)</h2>
+  <div class="ramp">
+    <div style="background:#1E1E2E; color:#fff;">900</div>
+    <div style="background:#3d3d52; color:#fff;">700</div>
+    <div style="background:#54546a; color:#fff;">600</div>
+    <div style="background:#6b6b80; color:#fff;">500</div>
+    <div style="background:#8a8a9c; color:#fff;">400</div>
+    <div style="background:#b6b6c4; color:#3d3d52;">300</div>
+    <div style="background:#e7e6f0; color:#6b6b80;">line</div>
+    <div style="background:#F8F7FF; color:#8a8a9c;">bg</div>
+  </div>
+  <p style="font-size:11.5px; color:var(--ink-400); margin-top:8px;">Texto: <span class="mono" style="font-family:var(--mono)">--ink-900</span> títulos · <span class="mono" style="font-family:var(--mono)">--ink-500</span> secundario · <span class="mono" style="font-family:var(--mono)">--ink-400</span> terciario / placeholders · <span class="mono" style="font-family:var(--mono)">--line</span> bordes.</p>
+
+  <h2 class="block">Colores semánticos de estado</h2>
+  <div class="sem-grid">
+    <div class="sem"><span class="badge badge--ok">Completado</span><div class="sem__hex">texto #00A879<br>fondo #E4F8F1</div></div>
+    <div class="sem"><span class="badge badge--warn">Pendiente</span><div class="sem__hex">texto #B8860B<br>fondo #FEF1D6</div></div>
+    <div class="sem"><span class="badge badge--err">En mora / Error</span><div class="sem__hex">texto #DC2B3A<br>fondo #FCE8EA</div></div>
+    <div class="sem"><span class="badge badge--info">Informativo</span><div class="sem__hex">texto #3A3A5C<br>fondo #ECECF4</div></div>
+  </div>
+  <p style="font-size:11.5px; color:var(--ink-400); margin-top:12px;">Cada estado usa texto saturado sobre fondo tenue del mismo matiz, garantizando contraste legible (AA) sobre tarjetas blancas.</p>
+
+  <div class="page__foot">CheatSheet · Guía Visual</div>
+  <div class="page__num">01</div>
+</div>
+
+<!-- ============ PÁGINA 2 · TIPOGRAFÍA ============ -->
+<div class="page">
+  <div class="sec-eyebrow">02 · Tipografía</div>
+  <div class="sec-divider" style="margin-top:8px;"></div>
+  <p class="sec-intro">Dos familias: una sans del sistema para toda la interfaz —rápida, neutra y legible— y una monoespaciada para datos, identificadores y valores técnicos (CUIT, CAE, montos, timestamps).</p>
+
+  <h2 class="block">Familias</h2>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+    <div>
+      <div style="font-size:30px; font-weight:800; letter-spacing:-1px;">Aa Bb Cc</div>
+      <div style="font-size:13px; font-weight:700; margin-top:8px;">Sans del sistema</div>
+      <div class="font-stack" style="margin-top:8px;">-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif</div>
+      <p style="font-size:11.5px; color:var(--ink-400); margin-top:8px;">Interfaz general: títulos, cuerpo, botones, etiquetas.</p>
+    </div>
+    <div>
+      <div style="font-size:30px; font-weight:700; letter-spacing:-1px; font-family:var(--mono);">Aa Bb 09</div>
+      <div style="font-size:13px; font-weight:700; margin-top:8px;">Monoespaciada</div>
+      <div class="font-stack" style="margin-top:8px;">ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, monospace</div>
+      <p style="font-size:11.5px; color:var(--ink-400); margin-top:8px;">Datos: CUIT, CAE, N° comprobante, montos, fechas, tokens.</p>
+    </div>
+  </div>
+
+  <h2 class="block">Escala tipográfica</h2>
+  <div class="type-spec"><div style="font-size:30px; font-weight:800; letter-spacing:-.6px;">Título de página</div><div class="type-spec__meta">30px / 800 / -0.6px</div></div>
+  <div class="type-spec"><div style="font-size:20px; font-weight:800; letter-spacing:-.4px;">Encabezado de sección</div><div class="type-spec__meta">20px / 800</div></div>
+  <div class="type-spec"><div style="font-size:16px; font-weight:700;">Subtítulo / título de tarjeta</div><div class="type-spec__meta">16px / 700</div></div>
+  <div class="type-spec"><div style="font-size:14px; font-weight:400;">Cuerpo de texto — el tamaño base de lectura</div><div class="type-spec__meta">14px / 400</div></div>
+  <div class="type-spec"><div style="font-size:13px; font-weight:600;">Etiqueta de control / botón</div><div class="type-spec__meta">13px / 600</div></div>
+  <div class="type-spec"><div style="font-size:12px; color:var(--ink-500);">Texto secundario y descripciones</div><div class="type-spec__meta">12px / 400</div></div>
+  <div class="type-spec"><div style="font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-400); font-weight:600;">Eyebrow / encabezado de columna</div><div class="type-spec__meta">10.5px / mono / 600</div></div>
+
+  <h2 class="block">Pesos</h2>
+  <div class="weights">
+    <div><div class="big" style="font-weight:400;">Regular</div><div class="lbl">400 · cuerpo</div></div>
+    <div><div class="big" style="font-weight:600;">Semibold</div><div class="lbl">600 · controles</div></div>
+    <div><div class="big" style="font-weight:700;">Bold</div><div class="lbl">700 · títulos</div></div>
+    <div><div class="big" style="font-weight:800;">Extrabold</div><div class="lbl">800 · cifras / H1</div></div>
+  </div>
+
+  <div class="page__foot">CheatSheet · Guía Visual</div>
+  <div class="page__num">02</div>
+</div>
+
+<!-- ============ PÁGINA 3 · COMPONENTES ============ -->
+<div class="page">
+  <div class="sec-eyebrow">03 · Componentes reutilizables</div>
+  <div class="sec-divider" style="margin-top:8px;"></div>
+  <p class="sec-intro">Catálogo de los componentes base. Todos comparten radios, sombras y tokens de color, lo que garantiza coherencia entre módulos.</p>
+
+  <h2 class="block">Botones</h2>
+  <div class="demo">
+    <div class="demo__stage">
+      <button class="btn btn--cta">Acción principal</button>
+      <button class="btn btn--primary">Primario</button>
+      <button class="btn btn--ghost">Secundario</button>
+      <button class="btn btn--ghost btn--sm">Pequeño</button>
+    </div>
+    <div class="demo__cap"><b>CTA verde</b> para la acción principal · <b>Ghost</b> para secundarias · <span class="mono">--radius-sm 10px</span></div>
+  </div>
+
+  <h2 class="block">Badges de estado &amp; chips</h2>
+  <div class="demo">
+    <div class="demo__stage">
+      <span class="badge badge--ok">Completado</span>
+      <span class="badge badge--warn">Pendiente</span>
+      <span class="badge badge--err">En mora</span>
+      <span class="badge badge--info">Link enviado</span>
+      <span class="badge badge--plain">Neutro</span>
+      <span style="width:14px;"></span>
+      <span class="chip is-active">Filtro activo</span>
+      <span class="chip">Filtro</span>
+    </div>
+    <div class="demo__cap"><b>Badge</b> comunica el estado de una entidad · <b>Chip</b> filtra listados (activo = primario)</div>
+  </div>
+
+  <h2 class="block">Campos de formulario &amp; validación</h2>
+  <div class="demo">
+    <div class="demo__stage" style="align-items:flex-start;">
+      <div style="flex:1; min-width:150px;"><div class="field-lbl">Normal</div><input class="input" value="Distribuidora La Esquina" readonly><div class="field-hint" style="color:var(--ink-400);">Texto de ayuda</div></div>
+      <div style="flex:1; min-width:150px;"><div class="field-lbl">Válido</div><input class="input input--ok mono" value="30-71428953-1" readonly><div class="field-hint" style="color:var(--accent-700);">✓ Validado contra ARCA</div></div>
+      <div style="flex:1; min-width:150px;"><div class="field-lbl">Error</div><input class="input input--err mono" value="30-71428953-7" readonly><div class="field-hint" style="color:var(--err);">✗ Dígito verificador inválido</div></div>
+    </div>
+    <div class="demo__cap"><b>Estados alternativos</b> — el foco verde confirma, el rojo señala el error de validación</div>
+  </div>
+
+  <h2 class="block">Toggle &amp; controles</h2>
+  <div class="demo">
+    <div class="demo__stage">
+      <div class="toggle is-on"></div><span style="font-size:12.5px; color:var(--ink-600);">Activado</span>
+      <span style="width:18px;"></span>
+      <div class="toggle"></div><span style="font-size:12.5px; color:var(--ink-600);">Desactivado</span>
+    </div>
+    <div class="demo__cap"><b>Toggle</b> para preferencias on/off (agente activo, envío automático, horarios)</div>
+  </div>
+
+  <h2 class="block">Tarjeta de métrica (stat)</h2>
+  <div class="demo">
+    <div class="demo__stage">
+      <div class="stat-demo"><div class="ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M14 2v5h5"/></svg></div><div class="lbl">Facturas emitidas hoy</div><div class="val">14</div></div>
+      <div class="stat-demo"><div class="ico" style="background:var(--alert-050); color:var(--warn);"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 9.5h19"/></svg></div><div class="lbl">Cobros pendientes</div><div class="val">$ 284.600</div></div>
+    </div>
+    <div class="demo__cap"><b>Stat card</b> — ícono tonal + etiqueta + cifra en extrabold. Base de los dashboards</div>
+  </div>
+
+  <div class="page__foot">CheatSheet · Guía Visual</div>
+  <div class="page__num">03</div>
+</div>
+
+<!-- ============ PÁGINA 4 · TABLAS + TOKENS ============ -->
+<div class="page">
+  <div class="sec-eyebrow">04 · Tablas, contenedores &amp; tokens</div>
+  <div class="sec-divider" style="margin-top:8px;"></div>
+
+  <h2 class="block">Tabla de datos</h2>
+  <div class="demo">
+    <div style="padding:16px 8px; background:#fff;">
+      <table class="tbl">
+        <thead><tr><th style="padding-left:14px;">Cliente</th><th>Comprobante</th><th>Estado</th><th style="text-align:right; padding-right:14px;">Monto</th></tr></thead>
+        <tbody>
+          <tr><td style="padding-left:14px;"><b>Almacén Don Carlos</b></td><td class="mono" style="font-family:var(--mono); color:var(--ink-500);">FC-A 0001-12487</td><td><span class="badge badge--ok">Completado</span></td><td style="text-align:right; padding-right:14px; font-family:var(--mono);">$ 187.420</td></tr>
+          <tr><td style="padding-left:14px;"><b>Panadería La Espiga</b></td><td class="mono" style="font-family:var(--mono); color:var(--ink-500);">MP-PAY-9X4K2</td><td><span class="badge badge--warn">Pendiente</span></td><td style="text-align:right; padding-right:14px; font-family:var(--mono);">$ 54.300</td></tr>
+          <tr><td style="padding-left:14px;"><b>Almacén Don Vicente</b></td><td class="mono" style="font-family:var(--mono); color:var(--ink-500);">CB-2604-018</td><td><span class="badge badge--err">En mora</span></td><td style="text-align:right; padding-right:14px; font-family:var(--mono);">$ 184.500</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="demo__cap"><b>Encabezados</b> en mono mayúscula · <b>identificadores y montos</b> en mono · fila con hover sutil</div>
+  </div>
+
+  <h2 class="block">Contenedores</h2>
+  <div class="demo">
+    <div class="demo__stage" style="background:var(--bg);">
+      <div class="card-demo"><div style="font-size:13px; font-weight:700;">Tarjeta estándar</div><div style="font-size:12px; color:var(--ink-500); margin-top:4px;">Borde 1px, radio 14px, sombra suave.</div></div>
+      <div class="card-demo" style="border-color:var(--accent-100); background:var(--accent-050);"><div style="font-size:13px; font-weight:700; color:var(--accent-700);">Tarjeta de acento</div><div style="font-size:12px; color:var(--ink-600); margin-top:4px;">Para destacar lo positivo o activo.</div></div>
+    </div>
+    <div class="demo__cap"><b>Card</b> — la unidad de agrupación. Blanca sobre fondo lila, con sombra <span class="mono">--shadow</span></div>
+  </div>
+
+  <h2 class="block">Radios, espaciado &amp; sombras</h2>
+  <div class="tokens">
+    <div class="token"><div class="box" style="width:54px; height:40px; border-radius:8px;"></div><div class="nm">--radius-xs</div><div class="vl">8px · chips, íconos</div></div>
+    <div class="token"><div class="box" style="width:54px; height:40px; border-radius:10px;"></div><div class="nm">--radius-sm</div><div class="vl">10px · botones, inputs</div></div>
+    <div class="token"><div class="box" style="width:54px; height:40px; border-radius:14px;"></div><div class="nm">--radius</div><div class="vl">14px · tarjetas</div></div>
+  </div>
+  <div class="tokens" style="margin-top:10px;">
+    <div class="token"><div class="box" style="width:54px; height:40px; border-radius:10px; background:#fff; box-shadow:var(--shadow);"></div><div class="nm">--shadow</div><div class="vl">Elevación de tarjeta</div></div>
+    <div class="token"><div class="box" style="width:40px; height:40px; border-radius:50%; background:var(--accent);"></div><div class="nm">Avatar / punto</div><div class="vl">Radio completo 999px</div></div>
+    <div class="token"><div class="box" style="width:54px; height:40px; border-radius:10px; background:repeating-linear-gradient(45deg,#f0eff8 0 6px,#f6f5fc 6px 12px);"></div><div class="nm">Placeholder</div><div class="vl">Imagen pendiente</div></div>
+  </div>
+
+  <h2 class="block">Grilla de espaciado</h2>
+  <p style="font-size:12.5px; color:var(--ink-500); margin:0 0 10px;">Base de <b>4px</b>. Gaps recurrentes: <span style="font-family:var(--mono); font-size:11.5px;">12 · 16 · 18 · 22 · 30 px</span>. Padding de página: <span style="font-family:var(--mono); font-size:11.5px;">30px 38px</span>. Las filas y grupos usan <span style="font-family:var(--mono); font-size:11.5px;">flex/grid + gap</span>, nunca márgenes sueltos.</p>
+  <div style="display:flex; align-items:flex-end; gap:8px;">
+    <div style="width:4px; height:18px; background:var(--accent);"></div>
+    <div style="width:12px; height:30px; background:var(--accent);"></div>
+    <div style="width:16px; height:40px; background:var(--accent);"></div>
+    <div style="width:18px; height:48px; background:var(--accent);"></div>
+    <div style="width:22px; height:58px; background:var(--accent);"></div>
+    <div style="width:30px; height:72px; background:var(--accent);"></div>
+  </div>
+
+  <div class="page__foot">CheatSheet · Guía Visual · Fin del documento</div>
+  <div class="page__num">04</div>
+</div>
+
+</body>
+</html>
