@@ -13,7 +13,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cimientos, identidad y bitácora | cimientos-y-bitacora | observability | HS-T5 | — | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
 | Cimientos, identidad y bitácora | identidad-y-onboarding | identity | HU-E1-01, HU-E1-02, HU-E1-03 | cimientos-y-bitacora | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
 | Cimientos, identidad y bitácora | usuarios-y-preferencias | identity | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07 | identidad-y-onboarding | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
-| Conexión con los servicios externos | mecanismo-de-integraciones | integrations | HU-E2-05 | — | Cristian | feature/integrations-mecanismo-de-integraciones | pendiente |
+| Conexión con los servicios externos | mecanismo-de-integraciones | integrations | HU-E2-05 | — | Cristian | feature/integrations-mecanismo-de-integraciones | en curso |
 | Conexión con los servicios externos | conexion-whatsapp | integrations | HU-E2-03 | mecanismo-de-integraciones | Cristian | — | pendiente |
 | Conexión con los servicios externos | conexion-arca | integrations | HU-E2-01 | mecanismo-de-integraciones | Cristian | — | pendiente |
 | Conexión con los servicios externos | padron-y-datos-fiscales | identity | deuda D1 de HU-E1-02 | conexion-arca | Cristian | — | pendiente |
@@ -213,7 +213,7 @@ Consecuencias explícitas:
 - Entrar a la pantalla requiere Administrador para conectar y desconectar; ver el estado lo permite
   también el Operador, como pide HU-E2-05.
 
-### Decisión escalada a ADR — [ADR-0003](../adr/0003-integrations-open-host-service.md), en estado `Proposed`
+### Decisión escalada a ADR — [ADR-0003](../adr/0003-integrations-open-host-service.md), `Accepted`
 
 **El Context Map (`docs/architecture.md` §4) no tiene ninguna fila para `integrations`.** No figura
 como upstream ni como downstream de nadie, y este épico necesita que al menos `identity` lo consuma
@@ -225,8 +225,8 @@ Se escaló a ADR el mismo 2026-08-18, porque modificar el Context Map es arquite
 unidades reparte trabajo. [ADR-0003](../adr/0003-integrations-open-host-service.md) propone declarar
 `integrations` como **OHS (Open Host Service)** — un único contrato en su capa de aplicación que
 cualquier contexto puede llamar, sin que `integrations` conozca a ninguno de sus consumidores y sin
-que la clave de cifrado salga nunca del contexto. Está en estado `Proposed`: **tiene que quedar
-`Accepted` antes de que cierre el Gate 1 de `mecanismo-de-integraciones`**.
+que la clave de cifrado salga nunca del contexto. Quedó **`Accepted` con el merge del PR #6**, que
+es lo que destraba el Gate 1 de `mecanismo-de-integraciones`.
 
 ### Estado
 

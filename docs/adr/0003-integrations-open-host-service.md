@@ -1,6 +1,6 @@
 # ADR-0003 — Publish `integrations` as an Open Host Service
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-18
 - **Decided by:** Software Architect
 - **Modules affected:** integrations, identity, spreadsheet_sync, billing, payments, conversational
