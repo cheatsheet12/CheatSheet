@@ -33,7 +33,14 @@ from tests.integracion.conftest import requiere_base
 pytestmark = [requiere_base, pytest.mark.integration]
 
 CONTRASENA = "una-contrasena-larga"
-CERTIFICADO = b"-----BEGIN CERTIFICATE-----\nno es real\n-----END CERTIFICATE-----"
+
+#: Un blob opaco cualquiera. **Antes esto decía ARCA y era un certificado de mentira**;
+#: `conexion-arca` le puso a ARCA un adaptador que parsea el certificado de verdad, así que
+#: estos tests —que son sobre el camino genérico: cifrado, idempotencia, RLS y bitácora— se
+#: mudaron a MercadoPago, el único sistema que todavía responde con el simulado genérico.
+#: Lo específico de ARCA vive en `test_arca_ciclo_de_vida.py`.
+CREDENCIAL = b"una-credencial-opaca-de-prueba"
+SISTEMA = "MERCADOPAGO"
 
 
 def _settings() -> Settings:
@@ -69,7 +76,7 @@ def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _conexion(contenido: bytes = CERTIFICADO) -> dict[str, object]:
+def _conexion(contenido: bytes = CREDENCIAL) -> dict[str, object]:
     return {"contenido": base64.b64encode(contenido).decode(), "parametros": {}}
 
 
@@ -100,7 +107,7 @@ async def test_conectar_verificar_y_ver_el_estado(cliente: httpx.AsyncClient) ->
     token = await _registrar(cliente, "ana@empresa.com")
 
     conexion = await cliente.put(
-        "/integraciones/ARCA/conexion", headers=_auth(token), json=_conexion()
+        f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion()
     )
     assert conexion.status_code == 200, conexion.text
     assert conexion.json()["estado"] == "CONECTADO"
@@ -110,7 +117,7 @@ async def test_conectar_verificar_y_ver_el_estado(cliente: httpx.AsyncClient) ->
     verificacion = await cliente.post("/integraciones/verificacion", headers=_auth(token))
     assert verificacion.status_code == 200, verificacion.text
     cuerpo = verificacion.json()
-    arca = next(i for i in cuerpo["integraciones"] if i["sistema"] == "ARCA")
+    arca = next(i for i in cuerpo["integraciones"] if i["sistema"] == SISTEMA)
     assert arca["estado"] == "CONECTADO"
     assert arca["configurada"] is True
     assert cuerpo["verificado_en"] is not None
@@ -120,7 +127,7 @@ async def test_conectar_verificar_y_ver_el_estado(cliente: httpx.AsyncClient) ->
 async def test_la_credencial_nunca_vuelve_en_la_respuesta(cliente: httpx.AsyncClient) -> None:
     """Case 15. The boundary ADR-0003 draws, restated at the HTTP edge."""
     token = await _registrar(cliente, "ana@empresa.com")
-    await cliente.put("/integraciones/ARCA/conexion", headers=_auth(token), json=_conexion())
+    await cliente.put(f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion())
 
     listado = await cliente.get("/integraciones", headers=_auth(token))
     verificacion = await cliente.post("/integraciones/verificacion", headers=_auth(token))
@@ -129,7 +136,7 @@ async def test_la_credencial_nunca_vuelve_en_la_respuesta(cliente: httpx.AsyncCl
         crudo = respuesta.text
         assert "CERTIFICATE" not in crudo
         assert "credencial" not in crudo
-        assert base64.b64encode(CERTIFICADO).decode() not in crudo
+        assert base64.b64encode(CREDENCIAL).decode() not in crudo
 
 
 @pytest.mark.asyncio
@@ -138,7 +145,7 @@ async def test_la_credencial_se_guarda_cifrada(
 ) -> None:
     """Read the row as the owner: what is on disk must not be the certificate."""
     token = await _registrar(cliente, "ana@empresa.com")
-    await cliente.put("/integraciones/ARCA/conexion", headers=_auth(token), json=_conexion())
+    await cliente.put(f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion())
 
     async with engine_dueno.begin() as conexion:
         filas = (
@@ -152,7 +159,7 @@ async def test_la_credencial_se_guarda_cifrada(
 
     assert len(filas) == 1
     contenido, algoritmo = filas[0]
-    assert CERTIFICADO not in bytes(contenido)
+    assert CREDENCIAL not in bytes(contenido)
     assert algoritmo == "AES-256-GCM/v1"
 
 
@@ -165,7 +172,7 @@ async def test_conectar_dos_veces_deja_una_sola_fila(
 
     for contenido in (b"primera", b"segunda"):
         respuesta = await cliente.put(
-            "/integraciones/ARCA/conexion", headers=_auth(token), json=_conexion(contenido)
+            f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion(contenido)
         )
         assert respuesta.status_code == 200, respuesta.text
 
@@ -183,7 +190,9 @@ async def test_una_empresa_no_ve_la_configuracion_de_otra(cliente: httpx.AsyncCl
     token_a = await _registrar(cliente, "ana@empresa-a.com")
     token_b = await _registrar(cliente, "beto@empresa-b.com")
 
-    await cliente.put("/integraciones/ARCA/conexion", headers=_auth(token_a), json=_conexion())
+    await cliente.put(
+        f"/integraciones/{SISTEMA}/conexion", headers=_auth(token_a), json=_conexion()
+    )
 
     de_b = await cliente.get("/integraciones", headers=_auth(token_b))
 
@@ -197,7 +206,7 @@ async def test_un_cambio_de_estado_queda_en_la_bitacora(
 ) -> None:
     """Case 10 — connecting is a transition, and HS-T5 says transitions are recorded."""
     token = await _registrar(cliente, "ana@empresa.com")
-    await cliente.put("/integraciones/ARCA/conexion", headers=_auth(token), json=_conexion())
+    await cliente.put(f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion())
 
     async with engine_dueno.begin() as conexion:
         filas = (
@@ -211,8 +220,8 @@ async def test_un_cambio_de_estado_queda_en_la_bitacora(
 
     assert len(filas) == 1
     accion, entidad, usuario_id = filas[0]
-    assert "ARCA" in accion
-    assert entidad == "ConfiguracionDeIntegracion:ARCA"
+    assert SISTEMA in accion
+    assert entidad == f"ConfiguracionDeIntegracion:{SISTEMA}"
     # HS-T5 RN-02: who initiated it. Not the system — a person clicked Conectar.
     assert usuario_id is not None
 
@@ -236,7 +245,7 @@ async def test_un_contenido_que_no_es_base64_es_rechazado(cliente: httpx.AsyncCl
     token = await _registrar(cliente, "ana@empresa.com")
 
     respuesta = await cliente.put(
-        "/integraciones/ARCA/conexion",
+        f"/integraciones/{SISTEMA}/conexion",
         headers=_auth(token),
         json={"contenido": "no es base64!!", "parametros": {}},
     )

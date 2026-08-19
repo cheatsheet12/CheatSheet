@@ -55,6 +55,19 @@ class AdaptadorDeWhatsApp(StrEnum):
     SIMULADO = "simulado"
 
 
+class AdaptadorDeArca(StrEnum):
+    """Which implementation answers for ARCA (HU-E2-01).
+
+    `SIMULADO` reuses the real credential parsing and the real expiry mapping and replaces
+    only the network call. **Rejected in production**, and here that guard matters more
+    than anywhere else in the system: a company believing it is connected to ARCA when
+    nothing ever reached ARCA is a company that believes it can invoice.
+    """
+
+    ARCA = "arca"
+    SIMULADO = "simulado"
+
+
 class ConfiguracionFaltante(RuntimeError):
     """A required environment variable is absent. Raised at boot, never later."""
 
@@ -141,6 +154,29 @@ def _adaptador_de_whatsapp(entorno: Entorno) -> AdaptadorDeWhatsApp:
     return adaptador
 
 
+def _adaptador_de_arca(entorno: Entorno) -> AdaptadorDeArca:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("ARCA_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno ARCA_ADAPTADOR. En produccion debe valer 'arca'."
+            )
+        return AdaptadorDeArca.SIMULADO
+    try:
+        adaptador = AdaptadorDeArca(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"ARCA_ADAPTADOR debe ser 'arca' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeArca.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "ARCA_ADAPTADOR=simulado no es valido en produccion: "
+            "ninguna credencial fiscal se validaria contra ARCA."
+        )
+    return adaptador
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Everything the backend needs to know about where it is running."""
@@ -177,6 +213,12 @@ class Settings:
     whatsapp_timeout_segundos: int
     whatsapp_sondeo_minutos: int
     whatsapp_sondeo_maximo_dias: int
+    arca_adaptador: AdaptadorDeArca
+    arca_wsaa_url_homologacion: str
+    arca_wsaa_url_produccion: str
+    arca_timeout_segundos: int
+    arca_margen_renovacion_minutos: int
+    arca_aviso_vencimiento_dias: int
 
     @property
     def es_produccion(self) -> bool:
@@ -234,6 +276,22 @@ class Settings:
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.
             whatsapp_sondeo_maximo_dias=_entero("WHATSAPP_SONDEO_MAXIMO_DIAS", 7),
+            arca_adaptador=_adaptador_de_arca(entorno),
+            # Two separate hosts, unlike Meta. Which one is used comes from `APP_ENV`, so
+            # the environment decides whether a document is a rehearsal or irreversible.
+            arca_wsaa_url_homologacion=_opcional(
+                "ARCA_WSAA_URL_HOMOLOGACION", "https://wsaahomo.afip.gov.ar/ws/services/LoginCms"
+            ),
+            arca_wsaa_url_produccion=_opcional(
+                "ARCA_WSAA_URL_PRODUCCION", "https://wsaa.afip.gov.ar/ws/services/LoginCms"
+            ),
+            # Longer than Meta's: ARCA is slower, and a login that times out on a busy
+            # morning looks to the Administrator exactly like a rejected certificate.
+            arca_timeout_segundos=_entero("ARCA_TIMEOUT_SEGUNDOS", 15),
+            arca_margen_renovacion_minutos=_entero("ARCA_MARGEN_RENOVACION_MINUTOS", 30),
+            # Renewing a certificate at ARCA takes days, so finding out on the day it
+            # expired means not being able to invoice.
+            arca_aviso_vencimiento_dias=_entero("ARCA_AVISO_VENCIMIENTO_DIAS", 30),
             smtp_remitente=_opcional("SMTP_REMITENTE", "CheatSheet <no-reply@localhost>"),
             smtp_tls=_booleano("SMTP_TLS", True),
             smtp_timeout_segundos=_entero("SMTP_TIMEOUT_SEGUNDOS", 10),
