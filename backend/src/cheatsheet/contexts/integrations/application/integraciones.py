@@ -24,11 +24,14 @@ from cheatsheet.contexts.integrations.application.ports import (
     PortCifradoDeCredenciales,
     PortRegistroDeAdaptadores,
     PortRepositorioIntegraciones,
+    PortRepositorioTickets,
     PortVerificadorDeConexion,
+    ResultadoDeConexion,
     ResultadoDeVerificacion,
 )
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
 from cheatsheet.contexts.integrations.domain.eventos import CambioDeEstado
+from cheatsheet.contexts.integrations.domain.ticket import TicketDeAcceso
 from cheatsheet.contexts.integrations.domain.valores import (
     CLAVE_ETIQUETA,
     SISTEMAS_EN_PANTALLA,
@@ -273,6 +276,7 @@ class ConectarIntegracion:
         publicador: PublicadorDeEventos,
         reloj: Reloj,
         es_produccion: bool,
+        tickets: PortRepositorioTickets | None = None,
     ) -> None:
         self._integraciones = integraciones
         self._cifrado = cifrado
@@ -280,6 +284,7 @@ class ConectarIntegracion:
         self._publicador = publicador
         self._reloj = reloj
         self._es_produccion = es_produccion
+        self._tickets = tickets
 
     async def ejecutar(
         self,
@@ -346,6 +351,8 @@ class ConectarIntegracion:
             )
             await self._integraciones.guardar(configuracion)
 
+        await self._guardar_tickets(empresa_id, respuesta, ahora)
+
         if cambio is not None:
             await self._publicador.publicar(
                 _evento_auditable(
@@ -357,6 +364,36 @@ class ConectarIntegracion:
                 )
             )
         return _vista(sistema, configuracion)
+
+    async def _guardar_tickets(
+        self, empresa_id: EmpresaId, respuesta: ResultadoDeConexion, ahora: datetime
+    ) -> None:
+        """Keep whatever the provider minted while proving the credential works.
+
+        ARCA hands back an access ticket during validation and **refuses to issue another
+        while it is alive** (ADR-0004), so discarding it would lock the company out of
+        ARCA for up to twelve hours immediately after a successful connection. The adapter
+        never touches a repository; this is where that lands.
+        """
+        del ahora  # the expiry comes from the provider, not from our clock
+        if not respuesta.tickets or self._tickets is None:
+            return
+        for emitido in respuesta.tickets:
+            cifrado = self._cifrado.cifrar(emitido.contenido)
+            existente = await self._tickets.buscar(empresa_id, emitido.servicio)
+            if existente is None:
+                await self._tickets.agregar(
+                    TicketDeAcceso(
+                        id=uuid4(),
+                        empresa_id=empresa_id,
+                        servicio=emitido.servicio,
+                        contenido=cifrado,
+                        expira_en=emitido.expira_en,
+                    )
+                )
+            else:
+                existente.reemplazar(cifrado, emitido.expira_en)
+                await self._tickets.guardar(existente)
 
 
 def _evento_auditable(

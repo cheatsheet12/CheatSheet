@@ -21,6 +21,7 @@ import pytest
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.platform.settings import (
+    AdaptadorDeArca,
     AdaptadorDeEmail,
     AdaptadorDeWhatsApp,
     Entorno,
@@ -90,6 +91,14 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         whatsapp_timeout_segundos=1,
         whatsapp_sondeo_minutos=30,
         whatsapp_sondeo_maximo_dias=7,
+        # The simulator, and hosts that do not resolve: a test that ever reached the
+        # network would fail loudly instead of quietly talking to ARCA.
+        arca_adaptador=AdaptadorDeArca.SIMULADO,
+        arca_wsaa_url_homologacion="https://wsaahomo.invalid/ws/services/LoginCms",
+        arca_wsaa_url_produccion="https://wsaa.invalid/ws/services/LoginCms",
+        arca_timeout_segundos=1,
+        arca_margen_renovacion_minutos=30,
+        arca_aviso_vencimiento_dias=30,
         google_oauth_client_id="",
         google_oauth_client_secret="",
         google_oauth_redirect_uri="",

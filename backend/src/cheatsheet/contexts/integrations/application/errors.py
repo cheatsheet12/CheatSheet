@@ -46,3 +46,18 @@ class ProveedorNoDisponible(RuntimeError):
     this per provider and turns it into `NO_CONECTADO` with a detail, so one unreachable
     service does not take the other three down with it.
     """
+
+
+class TicketNoDisponible(OperacionNoPermitida):
+    """No usable ARCA access ticket could be produced for this company.
+
+    Raised by `ObtenerTicketDeAcceso`, and therefore seen by **other contexts** —
+    `billing` in epic 5, `identity` in the padrón unit. It is deliberately one error and
+    not three, because every cause leads the caller to the same place: the company cannot
+    operate against ARCA right now, and the reason belongs in the message rather than in
+    the type.
+
+    An `OperacionNoPermitida` — answered as 403 — and not an `EntradaInvalida`: nothing
+    the caller sent was wrong. The company simply has not connected ARCA, or its
+    credential stopped working.
+    """
