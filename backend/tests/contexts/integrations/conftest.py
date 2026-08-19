@@ -16,6 +16,7 @@ from cheatsheet.contexts.integrations.application.ports import (
     MaterialDeConexion,
     PortConectorDeIntegracion,
     PortVerificadorDeConexion,
+    ResultadoDeConexion,
     ResultadoDeVerificacion,
 )
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
@@ -51,6 +52,9 @@ class RepositorioIntegracionesEnMemoria:
 
     async def listar(self, empresa_id: EmpresaId) -> list[ConfiguracionDeIntegracion]:
         return [c for (e, _), c in self.filas.items() if e == empresa_id]
+
+    async def listar_pendientes(self, empresa_id: EmpresaId) -> list[ConfiguracionDeIntegracion]:
+        return [c for c in await self.listar(empresa_id) if c.esta_pendiente]
 
 
 class CifradoFalso:
@@ -92,13 +96,28 @@ class VerificadorProgramado:
 
 
 class ConectorProgramado:
-    def __init__(self, *, excepcion: Exception | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        excepcion: Exception | None = None,
+        estado: EstadoDeConexion = EstadoDeConexion.CONECTADO,
+        detalle: str | None = None,
+        parametros: dict[str, Any] | None = None,
+    ) -> None:
         self.excepcion = excepcion
+        self.estado = estado
+        self.detalle = detalle
+        self.parametros = parametros or {}
 
-    async def conectar(self, material: MaterialDeConexion) -> bytes:
+    async def conectar(self, material: MaterialDeConexion) -> ResultadoDeConexion:
         if self.excepcion is not None:
             raise self.excepcion
-        return material.contenido
+        return ResultadoDeConexion(
+            credencial=material.contenido,
+            estado=self.estado,
+            detalle=self.detalle,
+            parametros=self.parametros,
+        )
 
 
 class RegistroFalso:

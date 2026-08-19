@@ -13,7 +13,7 @@ against whatever rows exist.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -41,7 +41,52 @@ class ConfiguracionDeIntegracion:
     estado: EstadoDeConexion
     detalle_estado: str | None
     verificado_en: datetime | None
+    #: When the wait for an asynchronous provider started. **Gap H10** — the DER models
+    #: the status as a boolean, so it has no notion of a verification in flight and no
+    #: column for when one began. `verificado_en` cannot serve: it is re-stamped by every
+    #: poll, so it measures the last question, not the wait. `None` whenever the
+    #: integration is not `PENDIENTE`.
+    pendiente_desde: datetime | None = None
     parametros: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def registrar(
+        cls,
+        *,
+        id: UUID,
+        empresa_id: EmpresaId,
+        sistema: SistemaExterno,
+        credencial: CredencialCifrada,
+        ambiente: Ambiente,
+        ahora: datetime,
+        estado: EstadoDeConexion,
+        detalle: str | None = None,
+        parametros: dict[str, Any] | None = None,
+    ) -> ConfiguracionDeIntegracion:
+        """Create the configuration of a system the provider has just answered about.
+
+        **The state comes from the provider, not from this method.** ARCA and MercadoPago
+        validate synchronously and land on `CONECTADO`; WhatsApp lands on `PENDIENTE`,
+        because Meta accepted the credential and has not yet finished reviewing the number
+        (HU-E2-03 RN-01). This aggregate is in no position to decide which of those it is.
+
+        What is invariant either way: the caller validated against the provider **before**
+        calling this. HU-E2-01 RN-02 and HU-E2-02 RN-02 both say invalid credentials leave
+        the integration not connected, so nothing is created for a credential that was
+        refused.
+        """
+        return cls(
+            id=id,
+            empresa_id=empresa_id,
+            sistema=sistema,
+            credencial=credencial,
+            ambiente=ambiente,
+            estado=estado,
+            detalle_estado=validar_detalle(detalle),
+            verificado_en=ahora,
+            pendiente_desde=ahora if estado is EstadoDeConexion.PENDIENTE else None,
+            parametros=dict(parametros or {}),
+        )
 
     @classmethod
     def conectar(
@@ -55,23 +100,20 @@ class ConfiguracionDeIntegracion:
         ahora: datetime,
         parametros: dict[str, Any] | None = None,
     ) -> ConfiguracionDeIntegracion:
-        """Create the configuration of a system that has just validated successfully.
+        """`registrar` for a provider that validated synchronously. Kept for the readers.
 
-        The caller validates against the provider **before** calling this — HU-E2-01
-        RN-02 and HU-E2-02 RN-02 both say invalid credentials leave the integration not
-        connected, so a state of `CONECTADO` is a claim this aggregate is not in a
-        position to check.
+        A named constructor that says `conectar` where the outcome really is "connected"
+        is worth more than one call site saving a keyword argument.
         """
-        return cls(
+        return cls.registrar(
             id=id,
             empresa_id=empresa_id,
             sistema=sistema,
             credencial=credencial,
             ambiente=ambiente,
+            ahora=ahora,
             estado=EstadoDeConexion.CONECTADO,
-            detalle_estado=None,
-            verificado_en=ahora,
-            parametros=dict(parametros or {}),
+            parametros=parametros,
         )
 
     def reconectar(
@@ -80,6 +122,8 @@ class ConfiguracionDeIntegracion:
         credencial: CredencialCifrada,
         ambiente: Ambiente,
         ahora: datetime,
+        estado: EstadoDeConexion = EstadoDeConexion.CONECTADO,
+        detalle: str | None = None,
         parametros: dict[str, Any] | None = None,
     ) -> CambioDeEstado | None:
         """Replace the credential of an integration that already has a row.
@@ -87,6 +131,10 @@ class ConfiguracionDeIntegracion:
         Idempotency of `ConectarIntegracion` lives here: reconnecting overwrites, it does
         not accumulate rows. The unique index on `(empresa_id, sistema)` is the same rule
         stated in the database.
+
+        `estado` defaults to `CONECTADO` for the same reason `conectar` exists, and
+        WhatsApp passes `PENDIENTE`: reconnecting a number sends it back to Meta for
+        review, so claiming it is connected would be a lie for the next 24 to 72 hours.
         """
         if ambiente is not self.ambiente:
             raise InvarianteViolada(
@@ -95,7 +143,7 @@ class ConfiguracionDeIntegracion:
             )
         self.credencial = credencial
         self.parametros = dict(parametros or {})
-        return self.registrar_verificacion(EstadoDeConexion.CONECTADO, None, ahora)
+        return self.registrar_verificacion(estado, detalle, ahora)
 
     def registrar_verificacion(
         self,
@@ -115,6 +163,12 @@ class ConfiguracionDeIntegracion:
         self.estado = estado
         self.detalle_estado = validar_detalle(detalle)
         self.verificado_en = ahora
+        # The clock on an asynchronous wait starts when the wait does and is cleared the
+        # moment it ends, so a later pending period is never measured from an earlier one.
+        if estado is not EstadoDeConexion.PENDIENTE:
+            self.pendiente_desde = None
+        elif anterior is not EstadoDeConexion.PENDIENTE:
+            self.pendiente_desde = ahora
         if anterior is estado:
             return None
         return CambioDeEstado(
@@ -123,6 +177,50 @@ class ConfiguracionDeIntegracion:
             nuevo=estado,
             detalle=self.detalle_estado,
         )
+
+    def registrar_intento_fallido(self, detalle: str, ahora: datetime) -> CambioDeEstado | None:
+        """Record a check that produced **no verdict** — a timeout, a host that is down.
+
+        The distinction this method exists for: an integration that is `PENDIENTE` has a
+        valid credential and an answer that has not arrived yet. If the network fails
+        while we ask, nothing was learned about the integration — Meta did not reject
+        anything, we simply could not reach it. Dropping it to `NO_CONECTADO` there would
+        invent a rejection, show the Administrator a failure for something still in
+        progress, and offer "Reconectar" for a request already in flight at Meta.
+
+        So a pending integration **stays pending**: only `verificado_en` and the detail
+        move, and no event is emitted because no state changed. For every other state the
+        old behaviour is unchanged — a connected integration we cannot reach is, as far as
+        anyone can tell, not connected.
+        """
+        if self.estado is EstadoDeConexion.PENDIENTE:
+            self.detalle_estado = validar_detalle(detalle)
+            self.verificado_en = ahora
+            return None
+        return self.registrar_verificacion(EstadoDeConexion.NO_CONECTADO, detalle, ahora)
+
+    def espera_vencida(self, ahora: datetime, maximo_dias: int) -> bool:
+        """Whether an asynchronous provider has taken longer than we are willing to wait.
+
+        Decision D-e. HU-E2-03 RN-02 puts Meta's ceiling at 72 hours; the default here is
+        seven days, more than double it. Without a ceiling a row Meta never answers about
+        is polled forever: the company keeps a scheduled task alive indefinitely and the
+        Administrator keeps a screen that never changes.
+        """
+        if not self.esta_pendiente or self.pendiente_desde is None:
+            return False
+        return ahora - self.pendiente_desde >= timedelta(days=maximo_dias)
+
+    def actualizar_parametros(self, nuevos: dict[str, Any]) -> None:
+        """Merge what the provider reported (HU-E2-03 RN-03: display name and quality).
+
+        A merge and not a replacement: the parameters the Administrator supplied at
+        connection time — which number, which account — are still what identifies the
+        integration, and a verification that only returns the display name must not erase
+        them.
+        """
+        if nuevos:
+            self.parametros = {**self.parametros, **nuevos}
 
     def desactivar(self, motivo: str, ahora: datetime) -> CambioDeEstado | None:
         """Expired or revoked credentials leave the integration inactive.
@@ -137,3 +235,8 @@ class ConfiguracionDeIntegracion:
     @property
     def esta_conectada(self) -> bool:
         return self.estado is EstadoDeConexion.CONECTADO
+
+    @property
+    def esta_pendiente(self) -> bool:
+        """Waiting on a provider that answers asynchronously. Today, only Meta."""
+        return self.estado is EstadoDeConexion.PENDIENTE

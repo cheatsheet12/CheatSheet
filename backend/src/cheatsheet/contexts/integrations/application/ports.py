@@ -9,7 +9,7 @@ clients would not be one.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
@@ -28,6 +28,9 @@ class PortRepositorioIntegraciones(Protocol):
         self, empresa_id: EmpresaId, sistema: SistemaExterno
     ) -> ConfiguracionDeIntegracion | None: ...
     async def listar(self, empresa_id: EmpresaId) -> list[ConfiguracionDeIntegracion]: ...
+    async def listar_pendientes(
+        self, empresa_id: EmpresaId
+    ) -> list[ConfiguracionDeIntegracion]: ...
 
 
 class PortCifradoDeCredenciales(Protocol):
@@ -45,10 +48,18 @@ class PortCifradoDeCredenciales(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class ResultadoDeVerificacion:
-    """What a live check found. `detalle` is what the Atención badge shows next to it."""
+    """What a live check found. `detalle` is what the Atención badge shows next to it.
+
+    `parametros` carries whatever the provider reported about itself and is **merged**
+    into the row, never substituted for it. Today that is HU-E2-03 RN-03 — the verified
+    display name and the line quality Meta reports — and the field is generic rather than
+    WhatsApp-shaped because a provider-specific DTO in the published contract is what
+    point 5 of ADR-0003 forbids.
+    """
 
     estado: EstadoDeConexion
     detalle: str | None = None
+    parametros: dict[str, Any] = field(default_factory=dict)
 
 
 class PortVerificadorDeConexion(Protocol):
@@ -79,6 +90,27 @@ class MaterialDeConexion:
     parametros: dict[str, Any]
 
 
+@dataclass(frozen=True, slots=True)
+class ResultadoDeConexion:
+    """What the provider answered: the credential to store, and where that leaves us.
+
+    **The state is part of the answer, and that is the point** — decision D-a of
+    `conexion-whatsapp`. ARCA and MercadoPago validate synchronously and come back
+    `CONECTADO`. Meta accepts the credential and then reviews the number for 24 to 72
+    hours (HU-E2-03 RN-01), so it comes back `PENDIENTE`. Without this, `ConectarIntegracion`
+    would have to ask "is this WhatsApp?" — the per-provider conditional the adapter
+    registry exists precisely to avoid.
+
+    `credencial` is what gets encrypted and persisted; it is not necessarily what arrived.
+    An OAuth exchange returns a different token from the code it was given.
+    """
+
+    credencial: bytes
+    estado: EstadoDeConexion = EstadoDeConexion.CONECTADO
+    detalle: str | None = None
+    parametros: dict[str, Any] = field(default_factory=dict)
+
+
 class PortConectorDeIntegracion(Protocol):
     """Validates connection material against the provider before anything is stored.
 
@@ -87,7 +119,36 @@ class PortConectorDeIntegracion(Protocol):
     says no.
     """
 
-    async def conectar(self, material: MaterialDeConexion) -> bytes: ...
+    async def conectar(self, material: MaterialDeConexion) -> ResultadoDeConexion: ...
+
+
+@dataclass(frozen=True, slots=True)
+class AvisoDeIntegracion:
+    """One notice about an integration whose state changed on its own.
+
+    **`destinatarios` arrives resolved, and that is deliberate — decision D-c.** Who the
+    administrators of a company are is `identity` data, and ADR-0003 lists `identity`
+    among this context's consumers: reaching back into it would make the Open Host Service
+    depend on a client of its own. So the composition root — the Celery task — reads the
+    recipients and passes them in. What stays here is *when* to notify; what stays outside
+    is *whom*.
+    """
+
+    destinatarios: tuple[str, ...]
+    sistema: SistemaExterno
+    estado: EstadoDeConexion
+    detalle: str | None
+
+
+class PortAvisoDeIntegracion(Protocol):
+    """Tells the Administrator that a provider answered while nobody was looking.
+
+    Only the asynchronous outcomes go through here (HU-E2-03: the verification completed,
+    or it failed). The synchronous ones need no push — whoever pressed the button is
+    looking at the screen that already shows the answer.
+    """
+
+    async def avisar(self, aviso: AvisoDeIntegracion) -> None: ...
 
 
 class PortRegistroDeAdaptadores(Protocol):

@@ -58,19 +58,26 @@ class Ambiente(StrEnum):
 
 
 class EstadoDeConexion(StrEnum):
-    """The three states of HU-E2-05 RN-02, and only those three.
+    """The four states an integration can be in.
 
-    `ATENCION` is the one that earns its place: a service that answers but reports a
-    problem is not the same as one that does not answer, and the acceptance criterion
-    "una integración está degradada → la muestro en estado Atención con el detalle" is
-    the reason the DER's `activa boolean` is not enough (gap H9).
+    Three come from HU-E2-05 RN-02. `ATENCION` is the one that earns its place there: a
+    service that answers but reports a problem is not the same as one that does not
+    answer, and the acceptance criterion "una integración está degradada → la muestro en
+    estado Atención con el detalle" is the reason the DER's `activa boolean` is not enough
+    (gap H9).
 
-    **`PENDIENTE` is deliberately absent.** Only WhatsApp needs it — Meta takes 24 to 72
-    hours to verify a number (HU-E2-03 RN-02) — and `conexion-whatsapp` adds it. Stated
-    here so that unit reads this as planned scope rather than as something it broke.
+    **`PENDIENTE` is the fourth, added by `conexion-whatsapp`** exactly as the previous
+    unit announced it would be. Meta takes 24 to 72 hours to verify a number (HU-E2-03
+    RN-02), and during that window the integration is neither connected nor failed: the
+    credential is valid and stored, and there is simply no verdict yet. Collapsing it into
+    `NO_CONECTADO` would show the Administrator an error for something that is working as
+    designed — and would offer "Reconectar" for a request that is already in flight.
+
+    Only WhatsApp reaches it today. ARCA and MercadoPago answer synchronously.
     """
 
     CONECTADO = "CONECTADO"
+    PENDIENTE = "PENDIENTE"
     ATENCION = "ATENCION"
     NO_CONECTADO = "NO_CONECTADO"
 
@@ -96,6 +103,14 @@ class CredencialCifrada:
             raise EntradaInvalida("Una credencial cifrada no puede estar vacia")
         if not self.algoritmo.strip():
             raise EntradaInvalida("Una credencial cifrada debe declarar su algoritmo")
+
+
+#: The one parameter key this context defines for itself: a short human-readable name for
+#: what got connected, which the card shows under the system's name. Each provider's
+#: Anti-Corruption Layer fills it from whatever its own vocabulary calls that — Meta calls
+#: it `verified_name` (HU-E2-03 RN-03). Declared here, and not in each adapter, so the
+#: application layer can read it without learning any provider's field names.
+CLAVE_ETIQUETA = "etiqueta"
 
 
 def validar_detalle(detalle: str | None) -> str | None:

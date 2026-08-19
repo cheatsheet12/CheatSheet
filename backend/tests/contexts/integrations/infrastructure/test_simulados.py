@@ -49,7 +49,8 @@ async def test_el_conector_simulado_devuelve_lo_que_recibe() -> None:
 
     devuelto = await conector.conectar(MaterialDeConexion(contenido=b"cert", parametros={}))
 
-    assert devuelto == b"cert"
+    assert devuelto.credencial == b"cert"
+    assert devuelto.estado is EstadoDeConexion.CONECTADO
 
 
 async def test_el_conector_simulado_rechaza_una_credencial_vacia() -> None:

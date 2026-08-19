@@ -12,7 +12,8 @@ Same reasoning as `identity`'s `ProveedorOAuthSimulado`, and the same guard rail
   construction, before the process can serve a request.
 
 Each of the following units deletes its pair from `registro.py` and registers the real
-one. Nothing else in the context changes.
+one. Nothing else in the context changes — `conexion-whatsapp` was the first to do it, and
+it did exactly that: `WHATSAPP` no longer resolves here.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from typing import Any
 from cheatsheet.contexts.integrations.application.errors import ProveedorNoDisponible
 from cheatsheet.contexts.integrations.application.ports import (
     MaterialDeConexion,
+    ResultadoDeConexion,
     ResultadoDeVerificacion,
 )
 from cheatsheet.contexts.integrations.domain.valores import EstadoDeConexion, SistemaExterno
@@ -52,14 +54,17 @@ class ConectorSimulado:
         _rechazar_en_produccion(sistema, entorno)
         self._sistema = sistema
 
-    async def conectar(self, material: MaterialDeConexion) -> bytes:
+    async def conectar(self, material: MaterialDeConexion) -> ResultadoDeConexion:
         if material.parametros.get(PARAMETRO_FALLA):
             raise ProveedorNoDisponible(
                 f"El adaptador simulado de {self._sistema.value} fue configurado para fallar"
             )
         if not material.contenido:
             raise ProveedorNoDisponible(f"{self._sistema.value} rechazo una credencial vacia")
-        return material.contenido
+        # `CONECTADO` by default: the two providers still answered by this stand-in — ARCA
+        # and MercadoPago — validate synchronously. WhatsApp has its own stand-in now,
+        # because "pending for 24 to 72 hours" is not a state this one can fake usefully.
+        return ResultadoDeConexion(credencial=material.contenido)
 
 
 class VerificadorSimulado:
