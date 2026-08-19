@@ -12,15 +12,18 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cheatsheet.contexts.integrations.application.ports import (
+    PortAvisoDeIntegracion,
     PortCifradoDeCredenciales,
     PortRegistroDeAdaptadores,
     PortRepositorioIntegraciones,
 )
 from cheatsheet.contexts.integrations.infrastructure.cifrado import CifradoAesGcm
+from cheatsheet.contexts.integrations.infrastructure.email_integracion import AvisoPorEmail
 from cheatsheet.contexts.integrations.infrastructure.registro import RegistroDeAdaptadores
 from cheatsheet.contexts.integrations.infrastructure.repositories import (
     RepositorioIntegracionesSQL,
 )
+from cheatsheet.platform.email import crear_transporte
 from cheatsheet.platform.settings import Settings
 
 
@@ -42,11 +45,18 @@ class Integraciones:
 
 
 def registro_de_adaptadores(settings: Settings) -> PortRegistroDeAdaptadores:
-    """Every system answered by a stand-in, for now.
+    """WhatsApp is real (or its own simulator); ARCA and MercadoPago are still stand-ins.
 
-    `RegistroDeAdaptadores.simulado` raises in production, so this cannot quietly become
-    how a real company connects. When `conexion-arca` lands it replaces one entry here
-    with the real WSAA pair and this function stops being a one-liner — which is exactly
-    the seam the unit was cut along.
+    Every stand-in raises when built in production, so none of this can quietly become how
+    a real company connects. `conexion-arca` and `conexion-mercadopago` each replace one
+    more entry inside `RegistroDeAdaptadores` and touch nothing else.
     """
-    return RegistroDeAdaptadores.simulado(settings.entorno)
+    return RegistroDeAdaptadores.desde_settings(settings)
+
+
+def crear_aviso(settings: Settings) -> PortAvisoDeIntegracion:
+    """The notice that reaches an Administrator who is not looking at the screen.
+
+    Process-lifetime, like `crear_enviador` in identity: it holds no transaction.
+    """
+    return AvisoPorEmail(crear_transporte(settings), settings.app_base_url)

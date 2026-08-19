@@ -41,6 +41,20 @@ class AdaptadorDeEmail(StrEnum):
     CONSOLA = "consola"
 
 
+class AdaptadorDeWhatsApp(StrEnum):
+    """Which implementation answers for WhatsApp Business (HU-E2-03).
+
+    `SIMULADO` fabricates Meta's payloads and runs them through the real Anti-Corruption
+    Layer, so the whole flow is completable on a laptop with no Meta app. It is
+    **rejected in production** — see `desde_entorno` — for the same reason
+    `EMAIL_ADAPTADOR=consola` is: a company would believe its number is connected while
+    nothing has ever reached Meta.
+    """
+
+    META = "meta"
+    SIMULADO = "simulado"
+
+
 class ConfiguracionFaltante(RuntimeError):
     """A required environment variable is absent. Raised at boot, never later."""
 
@@ -104,6 +118,29 @@ def _adaptador_de_email(entorno: Entorno) -> AdaptadorDeEmail:
     return adaptador
 
 
+def _adaptador_de_whatsapp(entorno: Entorno) -> AdaptadorDeWhatsApp:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("WHATSAPP_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno WHATSAPP_ADAPTADOR. En produccion debe valer 'meta'."
+            )
+        return AdaptadorDeWhatsApp.SIMULADO
+    try:
+        adaptador = AdaptadorDeWhatsApp(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"WHATSAPP_ADAPTADOR debe ser 'meta' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeWhatsApp.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "WHATSAPP_ADAPTADOR=simulado no es valido en produccion: "
+            "ninguna verificacion llegaria a Meta."
+        )
+    return adaptador
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Everything the backend needs to know about where it is running."""
@@ -134,6 +171,12 @@ class Settings:
     smtp_timeout_segundos: int
     secrets_encryption_key: str
     integracion_timeout_segundos: int
+    whatsapp_adaptador: AdaptadorDeWhatsApp
+    whatsapp_graph_url: str
+    whatsapp_graph_version: str
+    whatsapp_timeout_segundos: int
+    whatsapp_sondeo_minutos: int
+    whatsapp_sondeo_maximo_dias: int
 
     @property
     def es_produccion(self) -> bool:
@@ -179,6 +222,18 @@ class Settings:
             # knows. See contexts/integrations/infrastructure/cifrado.py.
             secrets_encryption_key=_requerida("SECRETS_ENCRYPTION_KEY"),
             integracion_timeout_segundos=_entero("INTEGRACION_TIMEOUT_SEGUNDOS", 5),
+            whatsapp_adaptador=_adaptador_de_whatsapp(entorno),
+            whatsapp_graph_url=_opcional("WHATSAPP_GRAPH_URL", "https://graph.facebook.com"),
+            # Pinned by configuration, never hardcoded: Meta deprecates a Graph version
+            # roughly every quarter, and the fix must not require a release.
+            whatsapp_graph_version=_opcional("WHATSAPP_GRAPH_VERSION", "v21.0"),
+            whatsapp_timeout_segundos=_entero("WHATSAPP_TIMEOUT_SEGUNDOS", 10),
+            # 30 minutes against a wait Meta measures in days (HU-E2-03 RN-02): it bounds
+            # the delay to about 1% of the wait at 48 calls per number per day.
+            whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
+            # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
+            # answers about is polled forever.
+            whatsapp_sondeo_maximo_dias=_entero("WHATSAPP_SONDEO_MAXIMO_DIAS", 7),
             smtp_remitente=_opcional("SMTP_REMITENTE", "CheatSheet <no-reply@localhost>"),
             smtp_tls=_booleano("SMTP_TLS", True),
             smtp_timeout_segundos=_entero("SMTP_TIMEOUT_SEGUNDOS", 10),

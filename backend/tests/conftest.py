@@ -20,7 +20,12 @@ from uuid import UUID, uuid4
 import pytest
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
-from cheatsheet.platform.settings import AdaptadorDeEmail, Entorno, Settings
+from cheatsheet.platform.settings import (
+    AdaptadorDeEmail,
+    AdaptadorDeWhatsApp,
+    Entorno,
+    Settings,
+)
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
@@ -77,6 +82,14 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         # above, and the scanner has nothing to report.
         secrets_encryption_key=base64.b64encode(b"fake-encryption-key-for-tests-32").decode(),
         integracion_timeout_segundos=1,
+        # The simulator, and a host that does not resolve: if any test ever reached the
+        # network it would fail loudly instead of quietly talking to Meta.
+        whatsapp_adaptador=AdaptadorDeWhatsApp.SIMULADO,
+        whatsapp_graph_url="https://graph.invalid",
+        whatsapp_graph_version="v21.0",
+        whatsapp_timeout_segundos=1,
+        whatsapp_sondeo_minutos=30,
+        whatsapp_sondeo_maximo_dias=7,
         google_oauth_client_id="",
         google_oauth_client_secret="",
         google_oauth_redirect_uri="",
