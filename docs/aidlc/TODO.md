@@ -1,59 +1,31 @@
-# TODO — lo que falta para cerrar el épico 1
+# TODO — lo que falta para cerrar los épicos abiertos
 
-> Estado al **2026-08-18**. Todo lo que está acá **bloquea el cierre del épico o queda declarado
-> como deuda con dueño**. Lo que ya está hecho no se lista: para eso está el registro de cada
-> unidad en [`units/`](units/).
+> Estado al **2026-08-19**. Arranca siendo el TODO del épico 1; el épico 2 agrega su propia
+> sección al final, con la misma regla.
 >
-> Las tres unidades del épico están implementadas y verificadas en verde. Lo que queda es
-> **configuración que no puedo tocar yo**, **integraciones que hoy corren simuladas**, y los dos
-> gates finales.
+> Todo lo que está acá **bloquea el cierre de un épico o queda declarado como deuda con dueño**.
+> Lo que ya está hecho no se lista: para eso está el registro de cada unidad en [`units/`](units/).
 
 ---
 
+# Épico 1 — Cimientos, identidad y bitácora
+
+> Estado al **2026-08-18**. Las tres unidades están implementadas y verificadas en verde. Lo que
+> queda es **configuración que no puedo tocar yo**, **integraciones que hoy corren simuladas**, y
+> los dos gates finales.
+
 ## 1. Bloqueantes — sin esto el épico no cierra
 
-### 1.1 Variables de entorno · **te toca a vos**
+### 1.1 Variables de entorno · ~~te toca a vos~~ **resuelto el 2026-08-18**
 
-Los dos `.env.example` están **denegados por permisos en mi entorno**: no puedo leerlos ni
-escribirlos. La Definition of Done (`CLAUDE.md` §7) pide que estén actualizados cuando se agrega
-una integración, así que esto queda pendiente hasta que las pegues a mano.
+Decía que los dos `.env.example` estaban denegados por permisos y que había que pegarlos a mano. Ya
+no: la unidad `mecanismo-de-integraciones` encontró la causa —una regla `Read(./.env.*)` demasiado
+ancha, que atrapaba las plantillas versionadas junto con los archivos reales— y la corrigió por
+enumeración. Los dos templates quedaron **reconciliados con lo que el código realmente lee**, y hay
+una verificación que compara ambas listas.
 
-**`backend/.env.example`** — las de las unidades 2 y 3:
-
-```bash
-# Sesiones (ADR-011)
-JWT_SECRET=                      # obligatoria; el proceso no arranca sin ella
-JWT_ACCESS_TTL_MINUTOS=15
-REFRESH_TTL_DIAS=30
-TERMINOS_VERSION_VIGENTE=1.0
-
-# OAuth2 de Google (HU-E1-01 RN-02). Vacías fuera de produccion: se usa el simulado.
-GOOGLE_OAUTH_CLIENT_ID=
-GOOGLE_OAUTH_CLIENT_SECRET=
-GOOGLE_OAUTH_REDIRECT_URI=
-
-# Invitaciones (HU-E1-04)
-APP_BASE_URL=http://localhost:3000
-INVITACION_TTL_DIAS=7
-EMAIL_ADAPTADOR=consola          # 'smtp' en produccion; 'consola' es rechazado ahi
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USUARIO=
-SMTP_PASSWORD=
-SMTP_REMITENTE=CheatSheet <no-reply@localhost>
-SMTP_TLS=true
-SMTP_TIMEOUT_SEGUNDOS=10
-```
-
-**`frontend/.env.example`**:
-
-```bash
-APP_BASE_URL=http://localhost:3000   # a donde vuelve el callback de Google
-```
-
-Ninguna lleva un valor real. `EMAIL_ADAPTADOR` y `GOOGLE_OAUTH_*` tienen validación en
-`platform/settings.py`: en `production` el proceso **no arranca** con el adaptador de consola, y el
-proveedor OAuth simulado **lanza al construirse**.
+Se deja escrito en lugar de borrarlo porque el épico 1 **se entregó con este punto de la Definition
+of Done incumplido**, y eso es parte de su historia.
 
 ### 1.2 Los dos gates que faltan
 
@@ -154,3 +126,70 @@ Ninguna de estas bloquea el cierre. Están acá para que nadie las descubra desp
 - **El invariante del último Administrador se serializa con `SELECT … FOR UPDATE`** sobre la fila de
   `empresa`. Es correcto y está probado con dos operaciones concurrentes de verdad, pero es un
   candado por empresa: si alguna vez hay operaciones masivas sobre usuarios, ese es el cuello.
+
+---
+
+# Épico 2 — Conexión con los servicios externos
+
+## 5. Credenciales reales · **te toca a vos**
+
+Todo el épico corre contra adaptadores simulados, a propósito: el flujo se recorre entero en una
+laptop y **ningún test toca la red**. Conseguir las credenciales es tarea de despliegue, y hasta que
+existan, `staging` sigue simulado.
+
+### 5.1 WhatsApp Business (unidad `conexion-whatsapp`, ya implementada)
+
+Hacen falta tres cosas, y las tres salen de **Meta Business Manager**:
+
+| Qué | Dónde |
+|---|---|
+| Token de un **usuario de sistema** con permisos sobre la cuenta | Business Settings → Users → System Users |
+| `phone_number_id` del número a conectar | WhatsApp Manager → API Setup |
+| `waba_id` de la cuenta de WhatsApp Business | El mismo lugar |
+
+**No van a un `.env`.** El Administrador los pega en la pantalla de integraciones y quedan
+**cifrados por empresa** en `configuracion_de_integracion`. Lo que sí va al `.env` de despliegue es
+sólo esto:
+
+```bash
+WHATSAPP_ADAPTADOR=meta          # 'simulado' es rechazado al arrancar en produccion
+WHATSAPP_GRAPH_VERSION=v21.0     # Meta deprecia una version por trimestre: revisala
+```
+
+⚠️ **`WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_APP_SECRET` y
+`WHATSAPP_WEBHOOK_VERIFY_TOKEN` no son estas.** Ésas son de plataforma, para los webhooks entrantes
+del agente conversacional (épico 8). Confundirlas significaría que **todas las empresas mandan
+mensajes desde el mismo número**.
+
+Y el reloj que importa: **Meta tarda entre 24 y 72 horas** en verificar cada número (HU-E2-03
+RN-02). Cuanto antes se cargue el primero, antes se puede demostrar el ciclo completo en `staging`.
+
+### 5.2 ARCA y MercadoPago
+
+Todavía no: sus unidades no están hechas. Cuando lleguen, ARCA necesita certificado y clave de
+**homologación** por empresa, y MercadoPago una aplicación en modo sandbox.
+
+## 6. Deuda declarada del épico 2
+
+| Qué | Por qué queda afuera | Dueño |
+|---|---|---|
+| **Embedded Signup de Meta** reemplaza el formulario manual de tres campos | Exige una app de Meta **aprobada**, que no existe. El popup del SDK de Facebook es mucho mejor UX, pero no se puede construir ni demostrar hoy (decisión D-f) | Se cambia `FormularioDeWhatsApp.tsx` y `whatsapp/conector.py`, nada más |
+| **El webhook de cambio de estado del número** | Es de plataforma: necesita endpoint público, validación de firma con `WHATSAPP_APP_SECRET` y app de Meta. Su endpoint es del épico 8 (decisión D-d) | Épico 8. El sondeo pasa a ser la red de seguridad |
+| **La calidad de la línea sólo se ve cuando es `RED`** | Se registra siempre (RN-03) pero la pantalla la muestra únicamente como detalle del estado Atención. Mostrar `GREEN`/`YELLOW` en la tarjeta es diseño que el mockup no tiene | Cuando haya un mockup |
+
+## 7. Cosas chicas del épico 2
+
+- **`gitleaks` va a empezar a fallar cuando CI suba el pin.** La versión fijada es 8.21.2; desde
+  ~8.30 el escáner decodifica base64 y rescanea, y con eso marca `.claude/hooks/test_guards.sh:34`,
+  que **a propósito** codifica secretos falsos para probar que los guardas los bloquean. No lo toqué
+  porque es preexistente y de otra unidad, pero conviene saberlo antes de que aparezca como sorpresa
+  en un PR ajeno.
+- **`empresas_con_integracion_pendiente()` es la única lectura entre empresas del sistema.** Está
+  hecha tan angosta como se pudo —devuelve `empresa_id` y nada más—, pero es una perforación en la
+  barrera RLS y merece una mirada en cualquier revisión de seguridad.
+- **El sondeo corre para todas las empresas cada 30 minutos.** Hoy es un `SELECT DISTINCT` sobre un
+  índice parcial y no cuesta nada. Si algún día hay miles de integraciones pendientes a la vez, el
+  fan-out de una tarea por empresa es el punto a mirar.
+- **Beat dejó de estar vacío.** La advertencia de `workers/beat.py` sobre no replicarlo ahora tiene
+  consecuencias reales: dos schedulers son dos sondeos, y en el momento en que Meta contesta, dos
+  mails a cada Administrador.
