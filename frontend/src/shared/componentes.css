@@ -644,3 +644,19 @@
   color: var(--color-text-secondary);
   margin-bottom: var(--space-4);
 }
+
+/* Not in the mockup either: PAN-ONB-03 has no connection form, because in the prototype
+   the cards were decorative. The three fields Meta needs (HU-E2-03) had to go somewhere,
+   and the modal is the one place the design system already provides. */
+.int-form__ayuda {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  margin: 0 0 var(--space-4);
+}
+
+.int-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}

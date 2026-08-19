@@ -10,7 +10,7 @@
  */
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const listarIntegraciones = vi.fn();
 const verificarIntegraciones = vi.fn();
@@ -41,6 +41,7 @@ const ARCA: Integracion = {
   ambiente: null,
   verificado_en: null,
   configurada: false,
+  etiqueta: null,
 };
 
 const RESTO: readonly Integracion[] = [
@@ -51,6 +52,7 @@ const RESTO: readonly Integracion[] = [
     ambiente: null,
     verificado_en: null,
     configurada: false,
+    etiqueta: null,
   },
   {
     sistema: "WHATSAPP",
@@ -59,6 +61,7 @@ const RESTO: readonly Integracion[] = [
     ambiente: null,
     verificado_en: null,
     configurada: false,
+    etiqueta: null,
   },
   {
     sistema: "GOOGLE_SHEETS",
@@ -67,6 +70,7 @@ const RESTO: readonly Integracion[] = [
     ambiente: null,
     verificado_en: null,
     configurada: false,
+    etiqueta: null,
   },
 ];
 
@@ -74,6 +78,18 @@ const SIN_CONECTAR: ListadoDeIntegraciones = {
   integraciones: [ARCA, ...RESTO],
   verificado_en: null,
 };
+
+beforeAll(() => {
+  // jsdom has no `showModal`, and a `<dialog>` without `open` keeps its contents out of
+  // the accessibility tree — so the stub has to set the flag, not just record the call.
+  // Same shape as `ModalDeInvitacion`'s test in identity.
+  HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+    this.open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+    this.open = false;
+  });
+});
 
 afterEach(() => {
   cleanup();
@@ -182,7 +198,7 @@ describe("GrillaDeIntegraciones", () => {
     await waitFor(() => {
       expect(screen.getByText("Conectado")).toBeTruthy();
     });
-    expect(conectarIntegracion).toHaveBeenCalledWith("ARCA", expect.any(String));
+    expect(conectarIntegracion).toHaveBeenCalledWith("ARCA", expect.any(String), {});
     expect(screen.getByText("Homologación")).toBeTruthy();
   });
 
@@ -196,5 +212,122 @@ describe("GrillaDeIntegraciones", () => {
       expect(screen.getByRole("alert").textContent).toContain("El servicio no respondio");
     });
     expect(screen.getAllByText("Sin conectar")).toHaveLength(4);
+  });
+
+  // ------------------------------------------------- conexion-whatsapp: casos 27 y 28
+
+  const WHATSAPP_PENDIENTE: ListadoDeIntegraciones = {
+    integraciones: [
+      ARCA,
+      ...RESTO.map((integracion) =>
+        integracion.sistema === "WHATSAPP"
+          ? {
+              ...integracion,
+              estado: "PENDIENTE" as const,
+              detalle: "Meta esta revisando el nombre para mostrar",
+              configurada: true,
+            }
+          : integracion,
+      ),
+    ],
+    verificado_en: "2026-08-18T15:30:00Z",
+  };
+
+  it("una integracion pendiente muestra el badge y no ofrece ninguna accion", () => {
+    // Caso 27. La solicitud ya está en curso del lado de Meta: un botón acá invitaría a
+    // arrancar una segunda revisión que reinicia el reloj de la primera.
+    render(<GrillaDeIntegraciones inicial={WHATSAPP_PENDIENTE} puedeConectar />);
+
+    expect(screen.getByText("Pendiente")).toBeTruthy();
+    expect(screen.getByText("Meta esta revisando el nombre para mostrar")).toBeTruthy();
+    // Quedan ARCA y MercadoPago; WhatsApp no aporta ninguno.
+    expect(screen.getAllByRole("button", { name: "Conectar" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Reconectar" })).toBeNull();
+  });
+
+  it("una integracion conectada muestra el nombre verificado que informo el proveedor", () => {
+    // RN-03: el display name verificado es lo que identifica *cuál* cuenta quedó conectada.
+    const conectada: ListadoDeIntegraciones = {
+      integraciones: [
+        ARCA,
+        ...RESTO.map((integracion) =>
+          integracion.sistema === "WHATSAPP"
+            ? {
+                ...integracion,
+                estado: "CONECTADO" as const,
+                configurada: true,
+                etiqueta: "Panaderia Dona Rosa · +54 9 11 5555-0000",
+              }
+            : integracion,
+        ),
+      ],
+      verificado_en: "2026-08-18T15:30:00Z",
+    };
+
+    render(<GrillaDeIntegraciones inicial={conectada} puedeConectar />);
+
+    expect(screen.getByText("Panaderia Dona Rosa · +54 9 11 5555-0000")).toBeTruthy();
+  });
+
+  it("conectar WhatsApp abre el formulario en vez de mandar una credencial de relleno", () => {
+    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[2]!);
+
+    expect(screen.getByLabelText("Token de acceso")).toBeTruthy();
+    expect(conectarIntegracion).not.toHaveBeenCalled();
+  });
+
+  it("el formulario de WhatsApp exige los tres datos antes de llamar al backend", async () => {
+    // Caso 28. Meta rechazaría la llamada igual; pedirlo acá le ahorra al Administrador
+    // un viaje de ida y vuelta para enterarse.
+    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[2]!);
+
+    fireEvent.change(screen.getByLabelText("Token de acceso"), {
+      target: { value: "fake-token-for-tests" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Conectar número" }));
+
+    expect(conectarIntegracion).not.toHaveBeenCalled();
+  });
+
+  it("el formulario completo manda el token y los dos identificadores", async () => {
+    conectarIntegracion.mockResolvedValue({});
+    listarIntegraciones.mockResolvedValue(WHATSAPP_PENDIENTE);
+
+    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[2]!);
+
+    fireEvent.change(screen.getByLabelText("Token de acceso"), {
+      target: { value: "fake-token-for-tests" },
+    });
+    fireEvent.change(screen.getByLabelText("ID del número (Phone Number ID)"), {
+      target: { value: "109876543210987" },
+    });
+    fireEvent.change(screen.getByLabelText("ID de la cuenta (WABA ID)"), {
+      target: { value: "102030405060708" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Conectar número" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Pendiente")).toBeTruthy();
+    });
+    expect(conectarIntegracion).toHaveBeenCalledWith("WHATSAPP", expect.any(String), {
+      phone_number_id: "109876543210987",
+      waba_id: "102030405060708",
+    });
+    // Caso 28, segunda mitad: el modal se cierra, así que la credencial no queda en el DOM
+    // esperando a quien abra el diálogo la próxima vez.
+    expect(screen.queryByLabelText("Token de acceso")).toBeNull();
+  });
+
+  it("el campo del token no queda legible en pantalla", () => {
+    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[2]!);
+
+    const campo = screen.getByLabelText("Token de acceso");
+    expect(campo.getAttribute("type")).toBe("password");
+    expect(campo.getAttribute("autocomplete")).toBe("off");
   });
 });

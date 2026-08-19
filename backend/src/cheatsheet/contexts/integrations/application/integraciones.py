@@ -30,6 +30,7 @@ from cheatsheet.contexts.integrations.application.ports import (
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
 from cheatsheet.contexts.integrations.domain.eventos import CambioDeEstado
 from cheatsheet.contexts.integrations.domain.valores import (
+    CLAVE_ETIQUETA,
     SISTEMAS_EN_PANTALLA,
     Ambiente,
     EstadoDeConexion,
@@ -42,6 +43,77 @@ from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
 ROLES_QUE_PUEDEN_LEER = frozenset({RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR})
+
+
+@dataclass(frozen=True, slots=True)
+class SinVeredicto:
+    """The check could not be completed: a timeout, an unreachable host, no adapter.
+
+    Distinct from a `ResultadoDeVerificacion` carrying `NO_CONECTADO`, and the difference
+    is not pedantic — one is the provider saying no, the other is us failing to ask. The
+    aggregate needs to tell them apart to keep a `PENDIENTE` integration pending when the
+    network fails mid-poll; see `registrar_intento_fallido`.
+    """
+
+    detalle: str
+
+
+async def verificar_con_timeout(
+    *,
+    configuracion: ConfiguracionDeIntegracion,
+    adaptadores: PortRegistroDeAdaptadores,
+    cifrado: PortCifradoDeCredenciales,
+    timeout_segundos: int,
+) -> ResultadoDeVerificacion | SinVeredicto:
+    """Ask one provider about one integration, bounded in time. Never raises.
+
+    Shared by the on-screen check of HU-E2-05 and by the background poll of HU-E2-03,
+    because the guarantee both need is identical: whatever happens to one provider, the
+    caller gets an answer back and decides what it means.
+    """
+    verificador = adaptadores.verificador(configuracion.sistema)
+    if verificador is None:
+        return SinVeredicto("No hay verificador registrado para este sistema")
+    try:
+        return await asyncio.wait_for(
+            _consultar(verificador, configuracion, cifrado), timeout=timeout_segundos
+        )
+    except TimeoutError:
+        return SinVeredicto(f"El servicio no respondio en {timeout_segundos} segundos")
+    except ProveedorNoDisponible as exc:
+        return SinVeredicto(str(exc))
+
+
+async def _consultar(
+    verificador: PortVerificadorDeConexion,
+    configuracion: ConfiguracionDeIntegracion,
+    cifrado: PortCifradoDeCredenciales,
+) -> ResultadoDeVerificacion:
+    """Decrypt and ask. The plaintext lives in this frame and nowhere else.
+
+    Point 3 of ADR-0003: the credential is decrypted inside this context, handed to the
+    adapter, and never stored back on the aggregate.
+    """
+    plano = cifrado.descifrar(configuracion.credencial)
+    return await verificador.verificar(plano, configuracion.parametros)
+
+
+def aplicar_resultado(
+    configuracion: ConfiguracionDeIntegracion,
+    resultado: ResultadoDeVerificacion | SinVeredicto,
+    ahora: datetime,
+) -> CambioDeEstado | None:
+    """Fold one check's outcome into the aggregate. Shared with the pending-poll task.
+
+    Two branches, and the split is the whole point: a verdict is recorded as one — with
+    whatever the provider reported about itself merged in (RN-03) — while a failure to
+    obtain a verdict goes through `registrar_intento_fallido`, which is what keeps a
+    `PENDIENTE` integration pending across a network blip.
+    """
+    if isinstance(resultado, SinVeredicto):
+        return configuracion.registrar_intento_fallido(resultado.detalle, ahora)
+    configuracion.actualizar_parametros(resultado.parametros)
+    return configuracion.registrar_verificacion(resultado.estado, resultado.detalle, ahora)
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +132,11 @@ class VistaDeIntegracion:
     ambiente: Ambiente | None
     verificado_en: datetime | None
     configurada: bool
+    #: HU-E2-03 RN-03's verified display name, and whatever the equivalent turns out to be
+    #: for the next provider. Only this one parameter crosses the API: everything else in
+    #: `parametros` either identifies the account to the provider or drives a simulation,
+    #: and neither belongs in a response.
+    etiqueta: str | None = None
 
 
 def _exigir_lectura(rol: RolUsuario) -> None:
@@ -149,9 +226,7 @@ class VerificarConexiones:
         )
 
         for configuracion, resultado in zip(configuradas, resultados, strict=True):
-            cambio = configuracion.registrar_verificacion(
-                resultado.estado, resultado.detalle, ahora
-            )
+            cambio = aplicar_resultado(configuracion, resultado, ahora)
             await self._integraciones.guardar(configuracion)
             if cambio is not None:
                 await self._publicador.publicar(
@@ -169,31 +244,13 @@ class VerificarConexiones:
 
     async def _verificar_una(
         self, configuracion: ConfiguracionDeIntegracion
-    ) -> ResultadoDeVerificacion:
-        verificador = self._adaptadores.verificador(configuracion.sistema)
-        if verificador is None:
-            return ResultadoDeVerificacion(
-                EstadoDeConexion.NO_CONECTADO, "No hay verificador registrado para este sistema"
-            )
-        try:
-            return await asyncio.wait_for(
-                self._llamar(verificador, configuracion), timeout=self._timeout
-            )
-        except TimeoutError:
-            return ResultadoDeVerificacion(
-                EstadoDeConexion.NO_CONECTADO,
-                f"El servicio no respondio en {self._timeout} segundos",
-            )
-        except ProveedorNoDisponible as exc:
-            return ResultadoDeVerificacion(EstadoDeConexion.NO_CONECTADO, str(exc))
-
-    async def _llamar(
-        self,
-        verificador: PortVerificadorDeConexion,
-        configuracion: ConfiguracionDeIntegracion,
-    ) -> ResultadoDeVerificacion:
-        plano = self._cifrado.descifrar(configuracion.credencial)
-        return await verificador.verificar(plano, configuracion.parametros)
+    ) -> ResultadoDeVerificacion | SinVeredicto:
+        return await verificar_con_timeout(
+            configuracion=configuracion,
+            adaptadores=self._adaptadores,
+            cifrado=self._cifrado,
+            timeout_segundos=self._timeout,
+        )
 
 
 class ConectarIntegracion:
@@ -244,24 +301,29 @@ class ConectarIntegracion:
 
         material = MaterialDeConexion(contenido=contenido, parametros=dict(parametros or {}))
         try:
-            validada = await conector.conectar(material)
+            respuesta = await conector.conectar(material)
         except ProveedorNoDisponible as exc:
             raise ConexionRechazada(f"No se pudo validar contra {sistema.value}: {exc}") from exc
 
         ahora = self._reloj.ahora()
         ambiente = _ambiente_del_despliegue(self._es_produccion)
-        credencial = self._cifrado.cifrar(validada)
+        credencial = self._cifrado.cifrar(respuesta.credencial)
+        # What the caller supplied plus what the provider added — Meta answers with the
+        # phone number's display name and the account it belongs to.
+        parametros_finales = {**material.parametros, **respuesta.parametros}
 
         existente = await self._integraciones.buscar(empresa_id, sistema)
         if existente is None:
-            configuracion = ConfiguracionDeIntegracion.conectar(
+            configuracion = ConfiguracionDeIntegracion.registrar(
                 id=uuid4(),
                 empresa_id=empresa_id,
                 sistema=sistema,
                 credencial=credencial,
                 ambiente=ambiente,
                 ahora=ahora,
-                parametros=material.parametros,
+                estado=respuesta.estado,
+                detalle=respuesta.detalle,
+                parametros=parametros_finales,
             )
             await self._integraciones.agregar(configuracion)
             # A first connection is itself the transition worth recording: there was no
@@ -269,8 +331,8 @@ class ConectarIntegracion:
             cambio: CambioDeEstado | None = CambioDeEstado(
                 sistema=sistema,
                 anterior=EstadoDeConexion.NO_CONECTADO,
-                nuevo=EstadoDeConexion.CONECTADO,
-                detalle=None,
+                nuevo=configuracion.estado,
+                detalle=configuracion.detalle_estado,
             )
         else:
             configuracion = existente
@@ -278,7 +340,9 @@ class ConectarIntegracion:
                 credencial=credencial,
                 ambiente=ambiente,
                 ahora=ahora,
-                parametros=material.parametros,
+                estado=respuesta.estado,
+                detalle=respuesta.detalle,
+                parametros=parametros_finales,
             )
             await self._integraciones.guardar(configuracion)
 
@@ -334,6 +398,7 @@ def _vista(
             verificado_en=None,
             configurada=False,
         )
+    etiqueta = configuracion.parametros.get(CLAVE_ETIQUETA)
     return VistaDeIntegracion(
         sistema=sistema,
         estado=configuracion.estado,
@@ -341,4 +406,5 @@ def _vista(
         ambiente=configuracion.ambiente,
         verificado_en=configuracion.verificado_en,
         configurada=True,
+        etiqueta=etiqueta if isinstance(etiqueta, str) else None,
     )

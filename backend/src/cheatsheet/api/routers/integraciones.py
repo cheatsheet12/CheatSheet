@@ -59,6 +59,9 @@ class IntegracionSalida(BaseModel):
     ambiente: Ambiente | None
     verificado_en: datetime | None
     configurada: bool
+    #: The verified display name (HU-E2-03 RN-03). The only stored parameter that comes
+    #: back out — see `VistaDeIntegracion.etiqueta`.
+    etiqueta: str | None = None
 
 
 class ListadoSalida(BaseModel):
@@ -78,6 +81,7 @@ def _salida(vistas: list[VistaDeIntegracion]) -> ListadoSalida:
                 ambiente=v.ambiente,
                 verificado_en=v.verificado_en,
                 configurada=v.configurada,
+                etiqueta=v.etiqueta,
             )
             for v in vistas
         ],
@@ -180,6 +184,7 @@ def crear_router(recursos: Recursos) -> APIRouter:
             ambiente=vista_final.ambiente,
             verificado_en=vista_final.verificado_en,
             configurada=vista_final.configurada,
+            etiqueta=vista_final.etiqueta,
         )
 
     return router

@@ -58,12 +58,14 @@ export const SISTEMAS: Readonly<Record<SistemaExterno, DescripcionDeSistema>> = 
 
 const TONO: Readonly<Record<EstadoDeConexion, EstadoDeBadge>> = {
   CONECTADO: "ok",
+  PENDIENTE: "pendiente",
   ATENCION: "atencion",
   NO_CONECTADO: "error",
 };
 
 const TEXTO: Readonly<Record<EstadoDeConexion, string>> = {
   CONECTADO: "Conectado",
+  PENDIENTE: "Pendiente",
   ATENCION: "Atención",
   NO_CONECTADO: "Sin conectar",
 };
@@ -78,6 +80,8 @@ export interface PropsDeTarjeta {
   readonly estado: EstadoDeConexion;
   readonly detalle: string | null;
   readonly ambiente: Ambiente | null;
+  /** The verified display name, once the provider reports one (HU-E2-03 RN-03). */
+  readonly etiqueta: string | null;
   readonly configurada: boolean;
   /** Google Sheets has a card but no connector until epic 4. */
   readonly conectable: boolean;
@@ -91,6 +95,7 @@ export function TarjetaDeIntegracion({
   estado,
   detalle,
   ambiente,
+  etiqueta,
   configurada,
   conectable,
   puedeConectar,
@@ -101,6 +106,10 @@ export function TarjetaDeIntegracion({
   // "indica la acción para reconectarla" — an integration that was connected and is now
   // down needs a different word from one that was never set up.
   const accion = configurada ? "Reconectar" : "Conectar";
+  // Nothing to do while the provider is still deciding: the request is already in flight
+  // on their side, and a "Reconectar" button here would invite the Administrator to start
+  // a second review that resets the clock on the first.
+  const enEspera = estado === "PENDIENTE";
 
   return (
     <article className={`int-card${estado === "CONECTADO" ? " is-on" : ""}`}>
@@ -110,6 +119,9 @@ export function TarjetaDeIntegracion({
         </span>
         <div>
           <b>{info.nombre}</b>
+          {/* The verified name identifies *which* account is connected, which matters more
+              to the reader than the environment; the environment follows it. */}
+          {etiqueta !== null ? <span className="int-card__sub">{etiqueta}</span> : null}
           {ambiente !== null ? <span className="int-card__sub">{AMBIENTE[ambiente]}</span> : null}
         </div>
       </div>
@@ -117,7 +129,7 @@ export function TarjetaDeIntegracion({
       {detalle !== null ? <p className="int-card__detalle">{detalle}</p> : null}
       <div className="int-card__foot">
         <Badge estado={TONO[estado]}>{TEXTO[estado]}</Badge>
-        {conectable && puedeConectar ? (
+        {conectable && puedeConectar && !enEspera ? (
           <Button
             variante="secundario"
             onClick={() => {

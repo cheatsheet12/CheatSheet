@@ -50,3 +50,6 @@ class ConfiguracionDeIntegracionORM(Base):
     estado: Mapped[str] = mapped_column(String(20), nullable=False)
     detalle_estado: Mapped[str | None] = mapped_column(String(300), nullable=True)
     verificado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Gap H10 — when the wait for an asynchronous provider started. `verificado_en` cannot
+    # serve: every poll re-stamps it, so it measures the last question and not the wait.
+    pendiente_desde: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

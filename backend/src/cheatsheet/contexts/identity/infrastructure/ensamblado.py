@@ -27,7 +27,6 @@ from cheatsheet.contexts.identity.application.ports import (
 )
 from cheatsheet.contexts.identity.application.sesiones import EmisorDeSesiones
 from cheatsheet.contexts.identity.infrastructure.email_invitacion import (
-    ConfiguracionSMTP,
     EnviadorDeConsola,
     EnviadorSMTP,
 )
@@ -46,6 +45,7 @@ from cheatsheet.contexts.identity.infrastructure.seguridad import EmisorDeTokens
 from cheatsheet.contexts.identity.infrastructure.tokens_invitacion import (
     TokenDeInvitacionAleatorio,
 )
+from cheatsheet.platform.email import TransporteSMTP, configuracion_smtp
 from cheatsheet.platform.settings import AdaptadorDeEmail, Entorno, Settings
 
 #: Argon2 builds its parameter table on construction. One instance per process is plenty
@@ -100,18 +100,7 @@ def crear_enviador(settings: Settings) -> PortEnvioDeEmail:
     """
     if settings.email_adaptador is AdaptadorDeEmail.CONSOLA:
         return EnviadorDeConsola(settings.app_base_url)
-    return EnviadorSMTP(
-        ConfiguracionSMTP(
-            host=settings.smtp_host,
-            puerto=settings.smtp_port,
-            usuario=settings.smtp_usuario,
-            contrasena=settings.smtp_password,
-            remitente=settings.smtp_remitente,
-            usar_tls=settings.smtp_tls,
-            timeout_segundos=settings.smtp_timeout_segundos,
-            url_base_de_la_app=settings.app_base_url,
-        )
-    )
+    return EnviadorSMTP(TransporteSMTP(configuracion_smtp(settings)), settings.app_base_url)
 
 
 def proveedor_google(settings: Settings) -> PortProveedorOAuth | None:
