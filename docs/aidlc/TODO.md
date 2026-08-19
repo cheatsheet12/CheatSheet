@@ -164,10 +164,36 @@ mensajes desde el mismo número**.
 Y el reloj que importa: **Meta tarda entre 24 y 72 horas** en verificar cada número (HU-E2-03
 RN-02). Cuanto antes se cargue el primero, antes se puede demostrar el ciclo completo en `staging`.
 
-### 5.2 ARCA y MercadoPago
+### 5.2 ARCA (unidad `conexion-arca`, ya implementada)
 
-Todavía no: sus unidades no están hechas. Cuando lleguen, ARCA necesita certificado y clave de
-**homologación** por empresa, y MercadoPago una aplicación en modo sandbox.
+Hace falta el **certificado fiscal de homologación** de cada empresa, que se obtiene en el sitio
+de ARCA generando un CSR y descargando el `.crt`. Son dos archivos:
+
+| Qué | De dónde sale |
+|---|---|
+| Certificado (`.crt` o `.pem`) | Lo emite ARCA a partir del CSR de la empresa |
+| Clave privada (`.key`) | La genera la empresa junto con el CSR. **Sin contraseña** |
+
+**Tampoco van a un `.env`.** El Administrador los sube en la pantalla de integraciones y quedan
+cifrados por empresa. Lo que va al `.env` de despliegue es sólo:
+
+```bash
+ARCA_ADAPTADOR=arca              # 'simulado' es rechazado al arrancar en produccion
+```
+
+⚠️ **`AFIP_CERT_PATH` y `AFIP_KEY_PATH` fueron borradas del template.** Describían un certificado
+**de plataforma que no existe ni debe existir**: la credencial es por empresa. Dejarlas invitaba a
+montar un certificado compartido, que es el error que haría que una empresa emita comprobantes con
+el CUIT de otra.
+
+Y algo que conviene tener presente al probar contra ARCA de verdad: **el ticket de acceso dura 12
+horas y ARCA se niega a emitir otro mientras el anterior siga vivo**. Por eso se guarda en la base
+(ADR-0004). Si alguna vez hay que forzar uno nuevo, no alcanza con reiniciar: hay que borrar la
+fila de `ticket_de_acceso` **y** esperar a que ARCA considere vencido el anterior.
+
+### 5.3 MercadoPago
+
+Todavía no: su unidad no está hecha. Necesita una aplicación en modo sandbox.
 
 ## 6. Deuda declarada del épico 2
 
@@ -176,6 +202,8 @@ Todavía no: sus unidades no están hechas. Cuando lleguen, ARCA necesita certif
 | **Embedded Signup de Meta** reemplaza el formulario manual de tres campos | Exige una app de Meta **aprobada**, que no existe. El popup del SDK de Facebook es mucho mejor UX, pero no se puede construir ni demostrar hoy (decisión D-f) | Se cambia `FormularioDeWhatsApp.tsx` y `whatsapp/conector.py`, nada más |
 | **El webhook de cambio de estado del número** | Es de plataforma: necesita endpoint público, validación de firma con `WHATSAPP_APP_SECRET` y app de Meta. Su endpoint es del épico 8 (decisión D-d) | Épico 8. El sondeo pasa a ser la red de seguridad |
 | **La calidad de la línea sólo se ve cuando es `RED`** | Se registra siempre (RN-03) pero la pantalla la muestra únicamente como detalle del estado Atención. Mostrar `GREEN`/`YELLOW` en la tarjeta es diseño que el mockup no tiene | Cuando haya un mockup |
+| **Un certificado de ARCA revocado antes de vencer no se detecta hasta la próxima renovación de ticket** | La verificación en vivo lee el `notAfter` local y no llama a WSAA, a propósito: llamar quemaría el ticket de 12 h en cada refresco de pantalla y chocaría con la regla del proveedor (decisión D-e) | Aparece igual, en el primer momento en que importa: cuando hay que emitir |
+| **PyAfipWs sigue sin instalarse** | WSAA no lo necesita (ADR-0004). WSFEv1 es otra historia y es decisión del épico 5, donde ADR-012 sigue vigente | Épico 5 |
 
 ## 7. Cosas chicas del épico 2
 
@@ -193,3 +221,12 @@ Todavía no: sus unidades no están hechas. Cuando lleguen, ARCA necesita certif
 - **Beat dejó de estar vacío.** La advertencia de `workers/beat.py` sobre no replicarlo ahora tiene
   consecuencias reales: dos schedulers son dos sondeos, y en el momento en que Meta contesta, dos
   mails a cada Administrador.
+
+- **`empresas_con_integracion_de_arca()` es la segunda y última función `SECURITY DEFINER` de
+  `integrations`.** Como la primera, devuelve `empresa_id` y nada más. Son las dos únicas lecturas
+  entre empresas del sistema y merecen una mirada en cualquier revisión de seguridad.
+- **Los tickets de acceso también dependen de `SECRETS_ENCRYPTION_KEY`.** Rotar esa clave ahora
+  implica dos tablas, no una — aunque con los tickets alcanza con borrarlos: se vuelven a emitir
+  solos cuando expiren.
+- **La firma CMS es nuestra.** Son unas cuarenta líneas y están cubiertas por tests que verifican
+  el DER de verdad, pero es código propio donde antes se esperaba una librería.

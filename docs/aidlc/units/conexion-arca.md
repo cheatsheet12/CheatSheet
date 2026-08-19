@@ -214,37 +214,49 @@ Timeout explícito de 15 s —ARCA es más lento que Meta— y reintentos con ba
 ## Archivos a tocar
 
 **Backend — dominio y aplicación**
-- [ ] `contexts/integrations/domain/ticket.py` — `TicketDeAcceso`, `ServicioDeArca`
-- [ ] `contexts/integrations/application/ports.py` — `PortRepositorioTickets`, `TicketVigente`
-- [ ] `contexts/integrations/application/tickets.py` — `ObtenerTicketDeAcceso`
-- [ ] `contexts/integrations/application/vencimientos.py` — `RevisarVencimientos`
-- [ ] `contexts/integrations/application/errors.py` — `TicketNoDisponible`
+- [x] `contexts/integrations/domain/ticket.py` — `TicketDeAcceso`, `ServicioDeArca`
+- [x] `contexts/integrations/application/ports.py` — `PortRepositorioTickets`,
+      `PortEmisorDeTickets`, `TicketEmitido`, `TicketVigente`, `tickets` en `ResultadoDeConexion`
+- [x] `contexts/integrations/application/tickets.py` — `ObtenerTicketDeAcceso`
+- [x] `contexts/integrations/application/vencimientos.py` — `RevisarVencimientos`
+- [x] `contexts/integrations/application/errors.py` — `TicketNoDisponible`
+- [x] `contexts/integrations/application/integraciones.py` — persistir los tickets emitidos
 
 **Backend — infraestructura**
-- [ ] `contexts/integrations/infrastructure/arca/{__init__,firma,wsaa,mapeo,conector,verificador,simulado}.py`
-- [ ] `contexts/integrations/infrastructure/{registro,ensamblado,repositories,models}.py`
-- [ ] `contexts/integrations/infrastructure/plantillas/certificado_por_vencer.{html,txt}`
+- [x] `contexts/integrations/infrastructure/arca/{__init__,firma,wsaa,mapeo,adaptadores,simulado}.py`
+- [x] `contexts/integrations/infrastructure/{registro,ensamblado,repositories,models}.py`
+- [x] `contexts/integrations/infrastructure/email_integracion.py` — plantilla por **estado**
+- [x] `contexts/integrations/infrastructure/plantillas/integracion_en_atencion.{html,txt}`
 
 **Backend — plataforma, workers, migración**
-- [ ] `platform/settings.py` — `AdaptadorDeArca` y las seis variables
-- [ ] `workers/tasks_integrations.py` — el barrido de vencimientos
-- [ ] `workers/beat.py` — segunda entrada, diaria
-- [ ] `migrations/versions/0006_ticket_de_acceso.py`
-- [ ] `backend/.env.example`
-- [ ] `backend/pyproject.toml` — **ninguna dependencia nueva**; se corrige el comentario que anuncia
-      PyAfipWs para este épico
+- [x] `platform/settings.py` — `AdaptadorDeArca` y las seis variables
+- [x] `workers/tasks_integrations.py` — el barrido diario y su tarea por empresa
+- [x] `workers/beat.py` — segunda entrada, diaria
+- [x] `migrations/versions/0006_ticket_de_acceso.py`
+- [x] `backend/.env.example` — bloque nuevo; `AFIP_CERT_PATH` y `AFIP_KEY_PATH` **borradas**
+- [x] `backend/pyproject.toml` — `defusedxml` agregado (ver desvíos); nota de PyAfipWs corregida
+- [x] `requirements-dev.txt` — `types-defusedxml`
+- [x] `api/routers/integraciones.py` — pasa el repositorio de tickets
 
 **Frontend**
-- [ ] `features/integrations/components/FormularioDeArca.tsx` — **nuevo**
-- [ ] `features/integrations/components/GrillaDeIntegraciones.tsx`
-- [ ] `features/integrations/api/cliente.ts`
+- [x] `features/integrations/components/FormularioDeArca.tsx` — **nuevo**
+- [x] `features/integrations/components/GrillaDeIntegraciones.tsx`
 
-**Tests** — dominio, firma, contrato WSAA, tickets, vencimientos, aislamiento, workers, frontend
+**Tests**
+- [x] `contexts/integrations/conftest_arca.py` — **nuevo**: certificados generados al vuelo
+- [x] `contexts/integrations/domain/test_ticket.py` — **nuevo**
+- [x] `contexts/integrations/application/test_{tickets,vencimientos}.py` — **nuevos**
+- [x] `contexts/integrations/infrastructure/test_arca_{firma,contrato}.py` — **nuevos**
+- [x] `integracion/test_arca_ciclo_de_vida.py` — **nuevo**
+- [x] `integracion/test_api_integraciones.py` — repuntado a MercadoPago (ver desvíos)
+- [x] `contexts/integrations/infrastructure/test_email_integracion.py` — `ATENCION` cambió
+- [x] `workers/test_tasks_integrations.py`, `tests/conftest.py`, `contexts/integrations/conftest.py`
+- [x] `frontend/…/GrillaDeIntegraciones.test.tsx` — 4 casos nuevos, 1 repuntado
 
 **Docs**
-- [ ] `docs/adr/0004-arca-wsaa-access-tickets.md` → `Accepted` cuando se apruebe el PR
-- [ ] `docs/architecture.md` §7 — `PortRepositorioTickets` y el adaptador WSAA
-- [ ] `docs/aidlc/units.md` y `docs/aidlc/TODO.md`
+- [x] `docs/adr/0004-arca-wsaa-access-tickets.md` → `Accepted`
+- [x] `docs/architecture.md` §7 — `PortEmisorDeTickets`
+- [x] `docs/aidlc/units.md`, `docs/aidlc/TODO.md`
 
 ---
 
@@ -252,35 +264,53 @@ Timeout explícito de 15 s —ARCA es más lento que Meta— y reintentos con ba
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Un bundle PEM con certificado y clave se parsea en las dos piezas | unit | pendiente |
-| 2 | Un certificado sin su clave, o con una clave que no le corresponde, se rechaza | unit | pendiente |
-| 3 | Un certificado vencido se rechaza **sin llamar a ARCA** | unit | pendiente |
-| 4 | El CMS firmado es DER parseable y lleva el certificado del firmante | unit | pendiente |
-| 5 | El `loginTicketRequest` lleva `uniqueId`, ventana temporal y el servicio pedido | unit | pendiente |
-| 6 | `TicketDeAcceso` sabe si está vigente, y si entró en el margen de renovación | unit | pendiente |
-| 7 | Un `loginTicketResponse` correcto se traduce a token, sign y vencimiento | contrato | pendiente |
-| 8 | `coe.alreadyAuthenticated` no es un error: se reusa el ticket guardado | contrato | pendiente |
-| 9 | `cms.cert.untrusted` → `ConexionRechazada` con el motivo de ARCA | contrato | pendiente |
-| 10 | `cms.cert.expired` → `ConexionRechazada` | contrato | pendiente |
-| 11 | Un SOAP fault desconocido → `ATENCION`, sin excepción | contrato | pendiente |
-| 12 | 5xx y timeout → `ProveedorNoDisponible` tras agotar el backoff | contrato | pendiente |
-| 13 | El timeout de 15 s llega al cliente HTTP | contrato | pendiente |
-| 14 | Se habla al endpoint de **homologación** cuando `APP_ENV` no es producción | unit | pendiente |
-| 15 | `Ambiente` **no** se puede elegir desde el request | integración | pendiente |
-| 16 | Conectar ARCA con credenciales válidas deja `CONECTADO` y audita | integración | pendiente |
-| 17 | Conectar con credenciales inválidas no escribe ninguna fila | integración | pendiente |
-| 18 | `ObtenerTicketDeAcceso` devuelve el guardado si sigue vigente | integración | pendiente |
-| 19 | Dentro del margen de renovación, pide uno nuevo y reemplaza el anterior | integración | pendiente |
-| 20 | El ticket se guarda **cifrado**: el token no está en claro en la base | integración | pendiente |
-| 21 | Aislamiento: la empresa A no lee ni renueva el ticket de la B | integración | pendiente |
-| 22 | Dos servicios distintos conviven como dos tickets de la misma empresa | integración | pendiente |
-| 23 | Un certificado a 20 días de vencer → `ATENCION` y aviso, sin llamar a ARCA | integración | pendiente |
-| 24 | Un certificado vencido → `NO_CONECTADO` y aviso (RN-04) | integración | pendiente |
-| 25 | El barrido diario no vuelve a avisar lo mismo dos veces | integración | pendiente |
-| 26 | Ni la clave privada ni el token salen por ninguna respuesta ni por ningún log | integración | pendiente |
-| 27 | El adaptador simulado **lanza** al construirse en `production` | unit | pendiente |
-| 28 | El formulario exige los dos archivos y no los deja en el DOM tras enviar | frontend | pendiente |
-| 29 | La tarjeta de ARCA muestra el CUIT y el ambiente configurado (criterio 4) | frontend | pendiente |
+| 1 | Un bundle PEM con certificado y clave se parsea en las dos piezas | unit | ✅ |
+| 2 | Un certificado sin su clave, o con una clave que no le corresponde, se rechaza | unit | ✅ |
+| 3 | Un certificado vencido se rechaza **sin llamar a ARCA** | unit | ✅ |
+| 4 | El CMS firmado es DER parseable y lleva el certificado del firmante | unit | ✅ |
+| 5 | El `loginTicketRequest` lleva `uniqueId`, ventana temporal y el servicio pedido | unit | ✅ |
+| 6 | `TicketDeAcceso` sabe si está vigente, y si entró en el margen de renovación | unit | ✅ |
+| 7 | Un `loginTicketResponse` correcto se traduce a token, sign y vencimiento | contrato | ✅ |
+| 8 | `coe.alreadyAuthenticated` no es un error: se reusa el ticket guardado | contrato | ✅ |
+| 9 | `cms.cert.untrusted` → `ConexionRechazada` con el motivo de ARCA | contrato | ✅ |
+| 10 | `cms.cert.expired` → `ConexionRechazada` | contrato | ✅ |
+| 11 | Un SOAP fault desconocido → sin excepción sin traducir | contrato | ✅ |
+| 12 | 5xx y timeout → `ProveedorNoDisponible` tras agotar el backoff | contrato | ✅ |
+| 13 | El timeout de 15 s llega al cliente HTTP | contrato | ✅ |
+| 14 | Se habla al endpoint de **homologación** cuando `APP_ENV` no es producción | unit | ✅ |
+| 15 | `Ambiente` **no** se puede elegir desde el request | integración | ✅ |
+| 16 | Conectar ARCA con credenciales válidas deja `CONECTADO` y audita | integración | ✅ |
+| 17 | Conectar con credenciales inválidas no escribe ninguna fila | integración | ✅ |
+| 18 | `ObtenerTicketDeAcceso` devuelve el guardado si sigue vigente | unit | ✅ |
+| 19 | Dentro del margen de renovación, pide uno nuevo y reemplaza el anterior | unit | ✅ |
+| 20 | El ticket se guarda **cifrado**: el token no está en claro en la base | unit + integración | ✅ |
+| 21 | Aislamiento: la empresa A no lee ni renueva el ticket de la B | integración | ✅ |
+| 22 | Dos servicios distintos conviven como dos tickets de la misma empresa | unit + integración | ✅ |
+| 23 | Un certificado a 20 días de vencer → `ATENCION` y aviso, sin llamar a ARCA | unit + integración | ✅ |
+| 24 | Un certificado vencido → `NO_CONECTADO` y aviso (RN-04) | unit | ✅ |
+| 25 | El barrido diario no vuelve a avisar lo mismo dos veces | unit | ✅ |
+| 26 | Ni la clave privada ni el token salen por ninguna respuesta ni por ningún log | integración | ✅ |
+| 27 | El adaptador simulado **lanza** al construirse en `production` | unit | ✅ |
+| 28 | El formulario exige los dos archivos antes de llamar al backend | frontend | ✅ |
+| 29 | La tarjeta de ARCA muestra el CUIT, el vencimiento y el ambiente | frontend | ✅ |
+
+**Casos agregados durante la implementación**, porque el código los pidió:
+
+| Caso | Por qué |
+|---|---|
+| **Una bomba de entidades XML se rechaza** | Encontró un bug de producción: ver desvíos |
+| Si ARCA se cae al renovar, se sigue con el ticket viejo | Un ticket dentro del margen todavía sirve. Fallar sería tirar abajo una emisión que podía salir — que es por lo que `vigente` y `hay_que_renovar` son dos preguntas |
+| Si ARCA se cae y el ticket ya venció, no hay nada que entregar | El respaldo tiene límite |
+| Una empresa sin ARCA conectada recibe un error claro | Es lo que `billing` va a ver en el épico 5 |
+| Dos firmas de la misma credencial son verificables | Firmar no muta la credencial, y hay varios tickets por empresa |
+| Dos solicitudes no comparten `uniqueId` | Un contador que se reinicia con el proceso choca consigo mismo |
+| Un certificado sin CUIT no rompe nada | Un campo de presentación ausente no puede bloquear una conexión válida |
+| El CMS viaja en base64 dentro de `in0`, y parsea como PKCS#7 | Verifica que lo que sale al cable sea un CMS de verdad, no que la llamada no explote |
+| Una credencial guardada ilegible es `ATENCION`, no una excepción | Pasa dentro de una tarea de Beat: tiene que quedar visible, no tumbarla |
+| Los sistemas sin fecha de vencimiento no se revisan | WhatsApp no tiene un `notAfter` que podamos leer |
+| Las dos entradas de Beat conviven | Beat es singleton: dos schedulers son dos barridos y dos mails |
+
+**Total: 466 tests en el backend** (391 al empezar la unidad) **y 205 en el frontend** (201).
 
 ---
 
@@ -288,11 +318,63 @@ Timeout explícito de 15 s —ARCA es más lento que Meta— y reintentos con ba
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan + ADR-0004 | 2026-08-19 | **esperando aprobación** |
-| 2 · Verificación | | |
+| 1 · Plan + ADR-0004 | 2026-08-19 | aprobado sin cambios |
+| 2 · Verificación | 2026-08-19 | **en verde** — salida real abajo |
 | 3 · PR | | |
 
----
+### Salida real del Gate 2
+
+```
+ruff format --check .   217 files already formatted
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 212 source files
+pytest                  466 passed — cobertura 88.82% (umbral 80)
+guard_architecture      237 file(s) checked — architecture boundaries intact
+gitleaks 8.21.2         no leaks found
+frontend format/lint/typecheck   limpios
+frontend test:coverage  205 passed — 88.87% líneas
+```
+
+PostgreSQL y Redis estaban levantados: **no se saltó ningún test**.
+
+Cobertura de lo nuevo: `domain/ticket.py` y `application/tickets.py` 100%,
+`arca/adaptadores.py` 98%, `arca/firma.py` 96%, `application/vencimientos.py` 96%,
+`arca/mapeo.py` 95%, `arca/wsaa.py` 92%.
+
+### Desvíos del plan, dichos de frente
+
+Cinco. Dos de ellos son hallazgos, no ajustes.
+
+1. **Se agregó una dependencia que el plan decía que no haría falta: `defusedxml`.** El plan
+   prometía «cero dependencias nuevas» y era cierto para la firma; no lo era para el parseo.
+   `ruff` marcó `S314` sobre `xml.etree`, y antes de agregar nada lo medí: un documento de 300
+   bytes se expandió a 3 000 caracteres, diez veces por nivel de anidamiento. La respuesta de un
+   servicio externo es entrada no confiable por definición. Silenciar la regla habría sido
+   exactamente lo que prohíbe `CLAUDE.md` §8.
+2. **Y ese cambio destapó un bug de producción, que encontró un test.** `defusedxml` no lanza
+   `ParseError` sino `DefusedXmlException`, que no deriva de él. Con la primera versión, un XML
+   malicioso de ARCA escapaba **sin traducir** y habría tumbado una tarea de Beat con una
+   excepción que nadie atrapa. El caso agregado lo reproduce.
+3. **`ATENCION` dejó de compartir el mensaje de «quedó conectado».** Era razonable mientras el
+   único caso era un servicio degradado; con el aviso de vencimiento deja de serlo: decirle a
+   alguien que su integración «quedó conectada» cuando lo que se le avisa es que en 20 días no va a
+   poder facturar es el mensaje exactamente equivocado. Se agregó una plantilla **por estado**, no
+   por proveedor — la redacción específica viaja en `detalle`, que escribe cada ACL.
+4. **Los tests de API del épico 2/unidad 1 se mudaron de ARCA a MercadoPago.** Conectaban ARCA con
+   un certificado de mentira que el simulado genérico aceptaba; ahora ARCA parsea de verdad. Esos
+   tests son sobre el camino genérico —cifrado, idempotencia, RLS, bitácora— así que se apuntaron
+   al único sistema que sigue siendo genérico. Lo específico de ARCA tiene su propio archivo.
+5. **`ParDeAdaptadores` ganó un tercer casillero opcional** (`emisor`) en lugar de que el registro
+   creciera un caso especial. ARCA es el primer sistema que necesita tres adaptadores; los demás lo
+   dejan vacío.
+
+**Un detalle de los tests que vale contar**: `conftest_arca.py` genera los certificados en el
+momento en vez de commitear archivos. No es sólo por `CLAUDE.md` §3.3 —que prohíbe commitear
+`.pem`, `.key` y `.crt`—: un certificado **vencido** se construye moviendo una fecha, en vez de
+esperar dos años. Y un test falló por eso mismo: construía el certificado contra el reloj real y lo
+evaluaba contra `RelojFijo`, así que pasaba probando lo contrario de lo que decía. Ahora la fixture
+se ancla al mismo instante que el test.
+
 
 ## Decisiones tomadas durante la unidad
 
