@@ -1,6 +1,6 @@
 # ADR-0004 — Sign WSAA login tickets in `integrations`, and publish the access ticket
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-19
 - **Decided by:** Software Architect
 - **Modules affected:** integrations, billing, reference_data, identity, platform, infra

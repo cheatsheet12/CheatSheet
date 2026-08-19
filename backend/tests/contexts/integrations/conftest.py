@@ -8,6 +8,7 @@ instead of leaving them agreeing with an interface that no longer exists.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -15,11 +16,14 @@ import pytest
 from cheatsheet.contexts.integrations.application.ports import (
     MaterialDeConexion,
     PortConectorDeIntegracion,
+    PortEmisorDeTickets,
     PortVerificadorDeConexion,
     ResultadoDeConexion,
     ResultadoDeVerificacion,
+    TicketEmitido,
 )
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
+from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca, TicketDeAcceso
 from cheatsheet.contexts.integrations.domain.valores import (
     Ambiente,
     CredencialCifrada,
@@ -132,6 +136,10 @@ class RegistroFalso:
         par = self.pares.get(sistema)
         return par.verificador if par is not None else None
 
+    def emisor_de_tickets(self, sistema: SistemaExterno) -> PortEmisorDeTickets | None:
+        par = self.pares.get(sistema)
+        return par.emisor if par is not None else None
+
 
 class PublicadorFalso:
     def __init__(self) -> None:
@@ -179,3 +187,44 @@ def publicador() -> PublicadorFalso:
 @pytest.fixture
 def empresa_id() -> EmpresaId:
     return EmpresaId(uuid4())
+
+
+class RepositorioTicketsEnMemoria:
+    """Implements `PortRepositorioTickets`."""
+
+    def __init__(self) -> None:
+        self.filas: dict[tuple[EmpresaId, ServicioDeArca], TicketDeAcceso] = {}
+
+    async def agregar(self, ticket: TicketDeAcceso) -> None:
+        self.filas[(ticket.empresa_id, ticket.servicio)] = ticket
+
+    async def guardar(self, ticket: TicketDeAcceso) -> None:
+        self.filas[(ticket.empresa_id, ticket.servicio)] = ticket
+
+    async def buscar(
+        self, empresa_id: EmpresaId, servicio: ServicioDeArca
+    ) -> TicketDeAcceso | None:
+        return self.filas.get((empresa_id, servicio))
+
+
+class EmisorProgramado:
+    """Implements `PortEmisorDeTickets`. Cuenta las llamadas, que es medio test por sí solo."""
+
+    def __init__(
+        self,
+        *,
+        expira_en: datetime | None = None,
+        excepcion: Exception | None = None,
+        contenido: bytes = b"token\nfirma",
+    ) -> None:
+        self.expira_en = expira_en or (INSTANTE_FIJO + timedelta(hours=12))
+        self.excepcion = excepcion
+        self.contenido = contenido
+        self.llamadas = 0
+
+    async def emitir(self, credencial: bytes, servicio: ServicioDeArca) -> TicketEmitido:
+        del credencial
+        self.llamadas += 1
+        if self.excepcion is not None:
+            raise self.excepcion
+        return TicketEmitido(servicio=servicio, contenido=self.contenido, expira_en=self.expira_en)

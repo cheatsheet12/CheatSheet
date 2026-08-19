@@ -16,12 +16,14 @@ from cheatsheet.contexts.integrations.application.ports import (
     PortCifradoDeCredenciales,
     PortRegistroDeAdaptadores,
     PortRepositorioIntegraciones,
+    PortRepositorioTickets,
 )
 from cheatsheet.contexts.integrations.infrastructure.cifrado import CifradoAesGcm
 from cheatsheet.contexts.integrations.infrastructure.email_integracion import AvisoPorEmail
 from cheatsheet.contexts.integrations.infrastructure.registro import RegistroDeAdaptadores
 from cheatsheet.contexts.integrations.infrastructure.repositories import (
     RepositorioIntegracionesSQL,
+    RepositorioTicketsSQL,
 )
 from cheatsheet.platform.email import crear_transporte
 from cheatsheet.platform.settings import Settings
@@ -32,6 +34,7 @@ class Integraciones:
     """The pieces one request needs."""
 
     integraciones: PortRepositorioIntegraciones
+    tickets: PortRepositorioTickets
     cifrado: PortCifradoDeCredenciales
     adaptadores: PortRegistroDeAdaptadores
 
@@ -39,6 +42,7 @@ class Integraciones:
     def armar(cls, sesion: AsyncSession, settings: Settings) -> Integraciones:
         return cls(
             integraciones=RepositorioIntegracionesSQL(sesion),
+            tickets=RepositorioTicketsSQL(sesion),
             cifrado=CifradoAesGcm(settings.secrets_encryption_key),
             adaptadores=registro_de_adaptadores(settings),
         )

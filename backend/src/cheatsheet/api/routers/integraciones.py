@@ -162,6 +162,9 @@ def crear_router(recursos: Recursos) -> APIRouter:
             piezas = Integraciones.armar(unidad.sesion, recursos.settings)
             vista = await ConectarIntegracion(
                 integraciones=piezas.integraciones,
+                # ARCA mints an access ticket while validating and ARCA refuses to issue
+                # another for twelve hours, so it has to be kept (ADR-0004).
+                tickets=piezas.tickets,
                 cifrado=piezas.cifrado,
                 adaptadores=piezas.adaptadores,
                 publicador=unidad.publicador,

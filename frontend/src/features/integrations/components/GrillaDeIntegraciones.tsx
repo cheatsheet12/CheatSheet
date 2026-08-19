@@ -4,11 +4,10 @@
  * HU-E2-05 in one component. The initial state is rendered by the server page; this takes
  * over from there so the check can update the table in place.
  *
- * **Two connection paths, and the split is temporary.** WhatsApp opens a real form
- * (HU-E2-03): its provider exists, so it collects what Meta needs. ARCA and MercadoPago
- * still send a placeholder credential to their stand-ins, because their units have not
- * landed — `conexion-arca` and `conexion-mercadopago` each replace one branch of
- * `conectar` below with their own flow, and this comment shrinks by a paragraph.
+ * **Two of the three connectable systems now collect real credentials.** WhatsApp asks for
+ * the three fields Meta needs (HU-E2-03); ARCA asks for the two files of the fiscal
+ * certificate (HU-E2-01). Only MercadoPago still sends a placeholder to its stand-in, and
+ * `conexion-mercadopago` replaces that last branch of `conectar` with its OAuth flow.
  */
 
 "use client";
@@ -24,14 +23,18 @@ import type {
   ParametrosDeConexion,
   SistemaExterno,
 } from "../api/cliente";
+import { FormularioDeArca } from "./FormularioDeArca";
 import { FormularioDeWhatsApp } from "./FormularioDeWhatsApp";
 import { TarjetaDeIntegracion } from "./TarjetaDeIntegracion";
 
 /** Google Sheets and Excel Online are on the screen; their connection is epic 4. */
 const CONECTABLES: readonly SistemaExterno[] = ["ARCA", "MERCADOPAGO", "WHATSAPP"];
 
-/** Stands in for the certificate a real ARCA or MercadoPago flow will collect. */
+/** Stands in for the authorization code a real MercadoPago flow will collect. */
 const CREDENCIAL_SIMULADA = btoa("credencial-simulada");
+
+/** Systems that collect their credential through a form of their own. */
+const CON_FORMULARIO: readonly SistemaExterno[] = ["WHATSAPP", "ARCA"];
 
 /** `btoa` is byte-oriented; a token with a non-ASCII character would corrupt without this. */
 function aBase64(texto: string): string {
@@ -83,8 +86,7 @@ export function GrillaDeIntegraciones({ inicial, puedeConectar }: PropsDeGrilla)
   }
 
   function conectar(sistema: SistemaExterno): void {
-    if (sistema === "WHATSAPP") {
-      // Meta needs three specific fields; everything else is still a stand-in.
+    if (CON_FORMULARIO.includes(sistema)) {
       setError(null);
       setFormulario(sistema);
       return;
@@ -144,6 +146,24 @@ export function GrillaDeIntegraciones({ inicial, puedeConectar }: PropsDeGrilla)
           enviando={ocupada === "WHATSAPP"}
           onEnviar={(token, parametros) => {
             void enviarConexion("WHATSAPP", aBase64(token), parametros);
+          }}
+          onCancelar={() => {
+            setFormulario(null);
+          }}
+        />
+      </Modal>
+
+      <Modal
+        abierto={formulario === "ARCA"}
+        titulo="Conectar ARCA"
+        onCerrar={() => {
+          setFormulario(null);
+        }}
+      >
+        <FormularioDeArca
+          enviando={ocupada === "ARCA"}
+          onEnviar={(bundle) => {
+            void enviarConexion("ARCA", aBase64(bundle), {});
           }}
           onCancelar={() => {
             setFormulario(null);

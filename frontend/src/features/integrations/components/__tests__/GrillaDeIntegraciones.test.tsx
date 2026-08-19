@@ -183,22 +183,34 @@ describe("GrillaDeIntegraciones", () => {
   });
 
   it("conectar recarga el listado", async () => {
+    // MercadoPago es el único sistema que todavía manda una credencial de relleno: ARCA y
+    // WhatsApp abren su propio formulario. Cuando llegue `conexion-mercadopago`, este test
+    // se muda igual que se mudó acá.
     conectarIntegracion.mockResolvedValue({});
     listarIntegraciones.mockResolvedValue({
       integraciones: [
-        { ...ARCA, estado: "CONECTADO", ambiente: "HOMOLOGACION", configurada: true },
-        ...RESTO,
+        ARCA,
+        ...RESTO.map((integracion) =>
+          integracion.sistema === "MERCADOPAGO"
+            ? {
+                ...integracion,
+                estado: "CONECTADO" as const,
+                ambiente: "HOMOLOGACION" as const,
+                configurada: true,
+              }
+            : integracion,
+        ),
       ],
       verificado_en: "2026-08-18T15:30:00Z",
     });
 
     render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
-    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[1]!);
 
     await waitFor(() => {
       expect(screen.getByText("Conectado")).toBeTruthy();
     });
-    expect(conectarIntegracion).toHaveBeenCalledWith("ARCA", expect.any(String), {});
+    expect(conectarIntegracion).toHaveBeenCalledWith("MERCADOPAGO", expect.any(String), {});
     expect(screen.getByText("Homologación")).toBeTruthy();
   });
 
@@ -320,6 +332,75 @@ describe("GrillaDeIntegraciones", () => {
     // Caso 28, segunda mitad: el modal se cierra, así que la credencial no queda en el DOM
     // esperando a quien abra el diálogo la próxima vez.
     expect(screen.queryByLabelText("Token de acceso")).toBeNull();
+  });
+
+  // ------------------------------------------------------ conexion-arca: casos 28 y 29
+
+  it("conectar ARCA abre el formulario de los dos archivos", () => {
+    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[0]!);
+
+    expect(screen.getByLabelText("Certificado (.crt o .pem)")).toBeTruthy();
+    expect(screen.getByLabelText("Clave privada (.key)")).toBeTruthy();
+    expect(conectarIntegracion).not.toHaveBeenCalled();
+  });
+
+  it("el formulario de ARCA exige los dos archivos antes de llamar al backend", () => {
+    // Caso 28. Sin uno de los dos no hay nada que validar contra ARCA.
+    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[0]!);
+
+    expect(screen.getByRole("button", { name: "Conectar ARCA" }).hasAttribute("disabled")).toBe(
+      true,
+    );
+    expect(conectarIntegracion).not.toHaveBeenCalled();
+  });
+
+  it("la tarjeta de ARCA muestra el CUIT, el vencimiento y el ambiente", () => {
+    // Caso 29, cuarto criterio de aceptación: «veo el ambiente configurado y el estado
+    // actual de la conexión». El CUIT y la fecha viajan en `etiqueta`, que escribe la ACL.
+    const conectada: ListadoDeIntegraciones = {
+      integraciones: [
+        {
+          ...ARCA,
+          estado: "CONECTADO",
+          ambiente: "HOMOLOGACION",
+          configurada: true,
+          etiqueta: "CUIT 20123456789 · vence 2027-09-23",
+        },
+        ...RESTO,
+      ],
+      verificado_en: "2026-08-18T15:30:00Z",
+    };
+
+    render(<GrillaDeIntegraciones inicial={conectada} puedeConectar />);
+
+    expect(screen.getByText("CUIT 20123456789 · vence 2027-09-23")).toBeTruthy();
+    expect(screen.getByText("Homologación")).toBeTruthy();
+    expect(screen.getByText("Conectado")).toBeTruthy();
+  });
+
+  it("un certificado por vencer se muestra en Atención con el motivo", () => {
+    const porVencer: ListadoDeIntegraciones = {
+      integraciones: [
+        {
+          ...ARCA,
+          estado: "ATENCION",
+          detalle: "El certificado vence en 20 dias (2026-09-08). Renovalo en ARCA antes",
+          configurada: true,
+        },
+        ...RESTO,
+      ],
+      verificado_en: "2026-08-18T15:30:00Z",
+    };
+
+    render(<GrillaDeIntegraciones inicial={porVencer} puedeConectar />);
+
+    expect(screen.getByText("Atención")).toBeTruthy();
+    expect(screen.getByText(/El certificado vence en 20 dias/)).toBeTruthy();
+    // Sigue configurada, así que ofrece «Reconectar» para cargar el certificado nuevo.
+    expect(screen.getByRole("button", { name: "Reconectar" })).toBeTruthy();
   });
 
   it("el campo del token no queda legible en pantalla", () => {

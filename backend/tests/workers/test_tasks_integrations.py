@@ -201,3 +201,63 @@ def test_beat_programa_el_barrido_con_el_intervalo_configurado() -> None:
     assert entrada["task"] == tasks_integrations.NOMBRE_BARRIDO
     assert entrada["schedule"].total_seconds() == 45 * 60
     assert entrada["options"]["queue"] == "integrations_sync"
+
+
+# ------------------------------------------------ conexion-arca: el barrido de vencimientos
+
+
+def test_el_dia_nombra_la_corrida_diaria() -> None:
+    """La ventana del sondeo se mide en minutos; ésta en días, porque corre una vez al día.
+
+    Es lo que hace que una redelivery comparta clave con su corrida y no con la de mañana.
+    """
+    ventana = tasks_integrations._dia(settings_de_prueba())
+
+    assert ventana.startswith("dia-")
+    assert tasks_integrations._dia(settings_de_prueba()) == ventana
+
+
+def test_beat_programa_la_revision_de_vencimientos_una_vez_por_dia() -> None:
+    """Diaria y no cada media hora: un `notAfter` se mueve una vez cada dos años.
+
+    Y no cuesta una llamada a ARCA, porque la fecha está en el certificado que ya tenemos.
+    """
+    entradas = programacion(settings_de_prueba())
+
+    entrada = entradas["revisar-vencimientos-de-credenciales"]
+    assert entrada["task"] == tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS
+    assert entrada["schedule"].total_seconds() == 24 * 60 * 60
+    assert entrada["options"]["queue"] == "integrations_sync"
+
+
+def test_las_dos_entradas_de_beat_conviven() -> None:
+    """Beat es singleton: dos schedulers son dos barridos y dos mails por Administrador."""
+    entradas = programacion(settings_de_prueba())
+
+    assert len(entradas) == 2
+    assert {e["task"] for e in entradas.values()} == {
+        tasks_integrations.NOMBRE_BARRIDO,
+        tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
+    }
+
+
+def test_el_barrido_de_vencimientos_encola_con_la_ventana_diaria(
+    monkeypatch: pytest.MonkeyPatch, empresa_id: EmpresaId
+) -> None:
+    enviados: list[dict[str, Any]] = []
+
+    class DespachadorEspia:
+        def send_task(self, nombre: str, **kwargs: Any) -> None:
+            enviados.append({"nombre": nombre, **kwargs})
+
+    monkeypatch.setattr(tasks_integrations, "_despachador", lambda _: DespachadorEspia())
+
+    tasks_integrations._encolar(
+        settings_de_prueba(),
+        tasks_integrations.NOMBRE_EMPRESA_VENCIMIENTOS,
+        empresa_id,
+        "dia-2026-08-19",
+    )
+
+    assert enviados[0]["nombre"] == tasks_integrations.NOMBRE_EMPRESA_VENCIMIENTOS
+    assert enviados[0]["kwargs"]["ventana"] == "dia-2026-08-19"

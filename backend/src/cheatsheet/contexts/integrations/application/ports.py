@@ -10,9 +10,11 @@ clients would not be one.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Protocol
 
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
+from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca, TicketDeAcceso
 from cheatsheet.contexts.integrations.domain.valores import (
     CredencialCifrada,
     EstadoDeConexion,
@@ -31,6 +33,16 @@ class PortRepositorioIntegraciones(Protocol):
     async def listar_pendientes(
         self, empresa_id: EmpresaId
     ) -> list[ConfiguracionDeIntegracion]: ...
+
+
+class PortRepositorioTickets(Protocol):
+    """Where the short-lived sessions derived from a credential live (ADR-0004)."""
+
+    async def agregar(self, ticket: TicketDeAcceso) -> None: ...
+    async def guardar(self, ticket: TicketDeAcceso) -> None: ...
+    async def buscar(
+        self, empresa_id: EmpresaId, servicio: ServicioDeArca
+    ) -> TicketDeAcceso | None: ...
 
 
 class PortCifradoDeCredenciales(Protocol):
@@ -91,6 +103,49 @@ class MaterialDeConexion:
 
 
 @dataclass(frozen=True, slots=True)
+class TicketEmitido:
+    """A named, expiring secret the provider handed back besides the credential itself.
+
+    Generic on purpose, and it is earned rather than speculative: ARCA returns an access
+    ticket per service (ADR-0004) and MercadoPago's OAuth exchange will return a refresh
+    token with its own lifetime. Neither shape is provider-specific — a name, some opaque
+    bytes and an expiry — so this stays inside what point 5 of ADR-0003 allows in the
+    published contract.
+
+    `contenido` is plaintext here and is encrypted by the use case before it is stored.
+    It never reaches an aggregate in this form.
+    """
+
+    servicio: ServicioDeArca
+    contenido: bytes
+    expira_en: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class TicketVigente:
+    """What a consumer of the Open Host Service receives when it asks for a ticket.
+
+    Never the certificate, never the private key, never the ciphertext — the same rule
+    ADR-0003 point 3 sets for credentials, applied to the session derived from one.
+    """
+
+    servicio: ServicioDeArca
+    contenido: bytes
+    expira_en: datetime
+
+
+class PortEmisorDeTickets(Protocol):
+    """Mints a fresh access ticket from a credential.
+
+    Separate from `PortConectorDeIntegracion` because minting happens long after
+    connecting: a ticket lasts hours and a credential lasts years, so renewal is its own
+    operation with its own failure modes.
+    """
+
+    async def emitir(self, credencial: bytes, servicio: ServicioDeArca) -> TicketEmitido: ...
+
+
+@dataclass(frozen=True, slots=True)
 class ResultadoDeConexion:
     """What the provider answered: the credential to store, and where that leaves us.
 
@@ -109,6 +164,12 @@ class ResultadoDeConexion:
     estado: EstadoDeConexion = EstadoDeConexion.CONECTADO
     detalle: str | None = None
     parametros: dict[str, Any] = field(default_factory=dict)
+    #: Anything the provider minted while proving the credential works, which has to be
+    #: kept. ARCA's WSAA hands back an access ticket during validation and **refuses to
+    #: issue another while it is alive**, so discarding it would lock the company out for
+    #: up to twelve hours. The use case encrypts and stores these; the adapter does not
+    #: touch a repository.
+    tickets: tuple[TicketEmitido, ...] = ()
 
 
 class PortConectorDeIntegracion(Protocol):
@@ -160,3 +221,4 @@ class PortRegistroDeAdaptadores(Protocol):
 
     def conector(self, sistema: SistemaExterno) -> PortConectorDeIntegracion | None: ...
     def verificador(self, sistema: SistemaExterno) -> PortVerificadorDeConexion | None: ...
+    def emisor_de_tickets(self, sistema: SistemaExterno) -> PortEmisorDeTickets | None: ...
