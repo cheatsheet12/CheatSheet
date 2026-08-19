@@ -83,13 +83,23 @@ async def test_el_aviso_lleva_el_enlace_a_la_pantalla_de_integraciones() -> None
     assert f"{URL_BASE}/configuracion/integraciones" in _texto(transporte.enviados[0])
 
 
-async def test_atencion_se_cuenta_como_conectada_para_el_aviso() -> None:
-    """Está funcionando y degradada: decir «no pudimos conectar» sería falso."""
+async def test_atencion_tiene_su_propio_mensaje() -> None:
+    """Está funcionando y degradada: ni «conectado» ni «no pudimos conectar» sirven.
+
+    `conexion-arca` cambió esto a propósito. Antes `ATENCION` compartía el mensaje de
+    «quedó conectado», que era razonable mientras el único caso era un servicio degradado.
+    Con el aviso de vencimiento de certificado (RN-04) dejó de serlo: decirle a alguien que
+    su integración «quedó conectada» cuando lo que le estamos avisando es que en 20 días no
+    va a poder facturar es el mensaje exactamente equivocado.
+    """
     transporte = TransporteEspia()
 
     await AvisoPorEmail(transporte, URL_BASE).avisar(_aviso(EstadoDeConexion.ATENCION))
 
-    assert "quedo conectado" in str(transporte.enviados[0]["Subject"])
+    asunto = str(transporte.enviados[0]["Subject"])
+    assert "necesita tu atencion" in asunto
+    assert "quedo conectado" not in asunto
+    assert "Meta rechazo el nombre para mostrar" in _texto(transporte.enviados[0])
 
 
 async def test_sin_destinatarios_no_se_manda_nada_y_no_se_rompe() -> None:

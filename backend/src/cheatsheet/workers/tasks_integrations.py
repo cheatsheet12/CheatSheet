@@ -10,6 +10,12 @@ transaction:
 - **`integrations.sondear_empresa`** — one company, one ordinary session, Row-Level
   Security applying exactly as it does for a request.
 
+`conexion-arca` adds a second pair with the same shape and a different question:
+**`integrations.revisar_vencimientos`** and **`integrations.revisar_empresa`**, which watch
+a fiscal certificate's expiry date (HU-E2-01 RN-04). They run daily rather than every half
+hour, because a `notAfter` moves once every two years — and they cost no call to ARCA, so
+warning ahead of expiry is affordable.
+
 **This module is also where `integrations` and `identity` meet, and that is deliberate.**
 ADR-0003 makes `integrations` an Open Host Service with `identity` among its consumers, so
 the context itself must not reach back into `identity` — the use case therefore takes the
@@ -38,8 +44,10 @@ from cheatsheet.contexts.integrations.application.sondeo import (
     Desenlace,
     SondearIntegracionesPendientes,
 )
+from cheatsheet.contexts.integrations.application.vencimientos import RevisarVencimientos
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones, crear_aviso
 from cheatsheet.contexts.integrations.infrastructure.repositories import (
+    empresas_con_integracion_de_arca,
     empresas_con_integracion_pendiente,
 )
 from cheatsheet.platform.database import sesion_sin_empresa
@@ -57,6 +65,8 @@ logger = obtener_logger(__name__)
 
 NOMBRE_BARRIDO = "integrations.sondear_pendientes"
 NOMBRE_EMPRESA = "integrations.sondear_empresa"
+NOMBRE_BARRIDO_VENCIMIENTOS = "integrations.revisar_vencimientos"
+NOMBRE_EMPRESA_VENCIMIENTOS = "integrations.revisar_empresa"
 
 REINTENTOS = PoliticaDeReintentos()
 
@@ -116,6 +126,51 @@ async def sondear_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
     return await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto) or 0
 
 
+async def revisar_vencimientos(recursos: Recursos) -> int:
+    """Fan out one message per company that has ARCA connected. Returns how many."""
+    async with sesion_sin_empresa(recursos.sesiones) as sesion:
+        empresas = await empresas_con_integracion_de_arca(sesion)
+
+    for empresa_id in empresas:
+        _encolar(
+            recursos.settings, NOMBRE_EMPRESA_VENCIMIENTOS, empresa_id, _dia(recursos.settings)
+        )
+    logger.info("revision_de_vencimientos_despachada", empresas=len(empresas))
+    return len(empresas)
+
+
+async def revisar_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: str) -> int:
+    """Check one company's dated credentials. Returns how many changed state.
+
+    Same shape as `sondear_empresa`, deliberately: the two differ in the question they ask
+    and in nothing else, so they are read side by side.
+    """
+    clave = ClaveDeIdempotencia.de(
+        empresa_id=empresa_id, tipo=NOMBRE_EMPRESA_VENCIMIENTOS, payload={"ventana": ventana}
+    )
+
+    async def efecto() -> int:
+        desenlaces: list[Desenlace] = []
+        destinatarios: tuple[str, ...] = ()
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Integraciones.armar(unidad.sesion, recursos.settings)
+            desenlaces = await RevisarVencimientos(
+                integraciones=piezas.integraciones,
+                cifrado=piezas.cifrado,
+                adaptadores=piezas.adaptadores,
+                publicador=unidad.publicador,
+                reloj=unidad.reloj,
+                timeout_segundos=recursos.settings.arca_timeout_segundos,
+            ).ejecutar(empresa_id=empresa_id)
+            if desenlaces:
+                destinatarios = await _administradores(unidad.sesion, empresa_id)
+
+        await _avisar(recursos.settings, desenlaces, destinatarios)
+        return len(desenlaces)
+
+    return await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto) or 0
+
+
 async def _administradores(sesion: AsyncSession, empresa_id: EmpresaId) -> tuple[str, ...]:
     """The active administrators of one company (HU-E2-03: the Administrator is told).
 
@@ -159,15 +214,28 @@ def _despachador(settings: Settings) -> Celery:
 
 def _encolar_empresa(settings: Settings, empresa_id: EmpresaId) -> None:
     """Never breaks the sweep: one company that cannot be enqueued is retried in 30 min."""
+    _encolar(settings, NOMBRE_EMPRESA, empresa_id, _ventana(settings))
+
+
+def _encolar(settings: Settings, tarea: str, empresa_id: EmpresaId, ventana: str) -> None:
+    """Enqueue one per-company message. A broker outage never breaks the sweep.
+
+    Turning it into an exception would fail the whole fan-out over one company, which is
+    exactly the failure mode splitting the sweep in two exists to avoid — the next run
+    picks it up.
+    """
     try:
         _despachador(settings).send_task(
-            NOMBRE_EMPRESA,
-            kwargs={"empresa_id": str(empresa_id), "ventana": _ventana(settings)},
+            tarea,
+            kwargs={"empresa_id": str(empresa_id), "ventana": ventana},
             queue=Cola.INTEGRATIONS_SYNC.value,
         )
     except (KombuError, OSError) as exc:
         logger.warning(
-            "sondeo_de_empresa_sin_encolar", empresa=str(empresa_id), tipo=type(exc).__name__
+            "tarea_de_empresa_sin_encolar",
+            tarea=tarea,
+            empresa=str(empresa_id),
+            tipo=type(exc).__name__,
         )
 
 
@@ -181,6 +249,16 @@ def _ventana(settings: Settings) -> str:
     ahora = RelojDelSistema().ahora()
     marca = int(ahora.timestamp()) // (minutos * 60)
     return f"{minutos}m-{marca}"
+
+
+def _dia(settings: Settings) -> str:
+    """Names the daily run. Same purpose as `_ventana`, at a day's resolution.
+
+    Derived from the clock rather than from a counter because Beat holds no state and may
+    restart between runs.
+    """
+    del settings
+    return f"dia-{RelojDelSistema().ahora().date().isoformat()}"
 
 
 def registrar_en(app: Celery, settings: Settings) -> None:
@@ -217,6 +295,30 @@ def registrar_en(app: Celery, settings: Settings) -> None:
     def _empresa(**kwargs: str) -> Any:
         return sondear_empresa_sync(settings, **kwargs)
 
+    @app.task(  # type: ignore[misc]
+        name=NOMBRE_BARRIDO_VENCIMIENTOS,
+        queue=Cola.INTEGRATIONS_SYNC.value,
+        autoretry_for=(OSError,),
+        retry_backoff=REINTENTOS.espera_base,
+        retry_backoff_max=REINTENTOS.espera_maxima,
+        retry_jitter=True,
+        max_retries=REINTENTOS.max_intentos,
+    )
+    def _barrido_vencimientos() -> Any:
+        return revisar_vencimientos_sync(settings)
+
+    @app.task(  # type: ignore[misc]
+        name=NOMBRE_EMPRESA_VENCIMIENTOS,
+        queue=Cola.INTEGRATIONS_SYNC.value,
+        autoretry_for=(OSError,),
+        retry_backoff=REINTENTOS.espera_base,
+        retry_backoff_max=REINTENTOS.espera_maxima,
+        retry_jitter=True,
+        max_retries=REINTENTOS.max_intentos,
+    )
+    def _empresa_vencimientos(**kwargs: str) -> Any:
+        return revisar_empresa_sync(settings, **kwargs)
+
 
 def sondear_pendientes_sync(settings: Settings) -> Any:
     """Celery's bridge into the async world. One loop and one set of resources per run."""
@@ -227,4 +329,15 @@ def sondear_empresa_sync(settings: Settings, empresa_id: str, ventana: str) -> A
     return ejecutar_tarea(
         settings,
         lambda recursos: sondear_empresa(recursos, EmpresaId(UUID(empresa_id)), ventana),
+    )
+
+
+def revisar_vencimientos_sync(settings: Settings) -> Any:
+    return ejecutar_tarea(settings, revisar_vencimientos)
+
+
+def revisar_empresa_sync(settings: Settings, empresa_id: str, ventana: str) -> Any:
+    return ejecutar_tarea(
+        settings,
+        lambda recursos: revisar_empresa(recursos, EmpresaId(UUID(empresa_id)), ventana),
     )

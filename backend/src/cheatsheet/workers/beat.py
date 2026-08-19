@@ -1,8 +1,12 @@
 """Celery Beat — the periodic schedule.
 
-**One entry so far**, added by `conexion-whatsapp`: the sweep that waits out Meta's number
-verification (HU-E2-03 RN-02). It is the first thing in this system that has to happen
-without anybody asking for it.
+**Two entries**, both from epic 2 and both about something that has to happen without
+anybody asking for it:
+
+- every 30 minutes, the sweep that waits out Meta's number verification (HU-E2-03 RN-02);
+- once a day, the sweep that watches a fiscal certificate's expiry date (HU-E2-01 RN-04).
+  Daily rather than half-hourly because a `notAfter` moves once every two years — and it
+  costs no call to ARCA, because the date is inside the certificate we already hold.
 
 Everything else this scheduler will eventually carry belongs to later epics and arrives
 with them:
@@ -42,7 +46,12 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
             "task": "integrations.sondear_pendientes",
             "schedule": timedelta(minutes=max(settings.whatsapp_sondeo_minutos, 1)),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
-        }
+        },
+        "revisar-vencimientos-de-credenciales": {
+            "task": "integrations.revisar_vencimientos",
+            "schedule": timedelta(days=1),
+            "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
+        },
     }
 
 

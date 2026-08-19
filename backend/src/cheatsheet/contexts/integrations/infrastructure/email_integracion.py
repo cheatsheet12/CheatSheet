@@ -41,11 +41,23 @@ NOMBRES: dict[SistemaExterno, str] = {
 #: Where the Administrator goes to act on it — PAN-CFG-INT, decision D7 of the units map.
 RUTA_DE_INTEGRACIONES = "/configuracion/integraciones"
 
-CONECTADAS = frozenset({EstadoDeConexion.CONECTADO, EstadoDeConexion.ATENCION})
+#: One template per state, and **not** one per provider. The provider-specific wording —
+#: "el certificado vence en 20 dias", "Meta rechazo el nombre para mostrar" — travels in
+#: `detalle`, written by each Anti-Corruption Layer. A branch on `sistema` here would put
+#: ARCA's vocabulary inside a module that is supposed to know nothing about it.
+PLANTILLAS_POR_ESTADO: dict[EstadoDeConexion, str] = {
+    EstadoDeConexion.CONECTADO: "integracion_conectada",
+    EstadoDeConexion.ATENCION: "integracion_en_atencion",
+    EstadoDeConexion.NO_CONECTADO: "integracion_desconectada",
+    EstadoDeConexion.PENDIENTE: "integracion_desconectada",
+}
 
-
-def _plantilla(estado: EstadoDeConexion) -> str:
-    return "integracion_conectada" if estado in CONECTADAS else "integracion_desconectada"
+ASUNTOS: dict[EstadoDeConexion, str] = {
+    EstadoDeConexion.CONECTADO: "{nombre} quedo conectado en CheatSheet",
+    EstadoDeConexion.ATENCION: "{nombre} necesita tu atencion en CheatSheet",
+    EstadoDeConexion.NO_CONECTADO: "No pudimos conectar {nombre} en CheatSheet",
+    EstadoDeConexion.PENDIENTE: "No pudimos conectar {nombre} en CheatSheet",
+}
 
 
 def _render(archivo: str, *, sistema: str, detalle: str, enlace: str) -> str:
@@ -75,23 +87,18 @@ class AvisoPorEmail:
             return
 
         nombre = NOMBRES.get(aviso.sistema, aviso.sistema.value)
-        conectada = aviso.estado in CONECTADAS
         correo = EmailMessage()
         correo["From"] = self._transporte.remitente
         # One message per recipient would be the same content sent N times; `To` with the
         # full list is what a transactional notice about a shared resource actually is.
         correo["To"] = ", ".join(aviso.destinatarios)
-        correo["Subject"] = (
-            f"{nombre} quedo conectado en CheatSheet"
-            if conectada
-            else f"No pudimos conectar {nombre} en CheatSheet"
-        )
+        correo["Subject"] = ASUNTOS[aviso.estado].format(nombre=nombre)
         contexto = {
             "sistema": nombre,
             "detalle": aviso.detalle or "",
             "enlace": f"{self._url_base.rstrip('/')}{RUTA_DE_INTEGRACIONES}",
         }
-        archivo = _plantilla(aviso.estado)
+        archivo = PLANTILLAS_POR_ESTADO[aviso.estado]
         correo.set_content(_render(f"{archivo}.txt", **contexto))
         correo.add_alternative(_render(f"{archivo}.html", **contexto), subtype="html")
 
