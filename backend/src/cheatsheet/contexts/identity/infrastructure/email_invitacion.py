@@ -2,12 +2,16 @@
 
 Two adapters behind one port, chosen by configuration:
 
-- **`EnviadorSMTP`** — production. SMTP rather than a provider's SDK, so which
-  transactional provider is used stays a deployment decision instead of a dependency in
-  `pyproject.toml`. Explicit timeout, as CLAUDE.md §5 requires of every outbound call;
-  the retry with backoff belongs to the Celery task, which is what survives a restart.
+- **`EnviadorSMTP`** — production. Composes the message and hands it to the shared
+  transport in `platform/email.py`; the socket, its timeout and its failure translation
+  live there now (decision D-b of `conexion-whatsapp`). What stayed here is what is
+  identity's alone: the template, the subject, and the rule that the token never reaches
+  a log.
 - **`EnviadorDeConsola`** — local development and tests. Writes to the structured log and
   **opens no socket**, so the suite can exercise the whole flow without a mail server.
+  It does not use the shared transport at all: printing the acceptance link *is* its job,
+  and a generic transport that dumped enough to make that work would be dumping message
+  bodies for every context.
 
 **The template is a file, not a string in this module.** Same rule the constitution sets
 for prompts: text that goes out to a person gets reviewed and versioned without touching
@@ -22,34 +26,19 @@ the token. A live invitation link in an aggregated log is an account waiting to 
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from email.message import EmailMessage
 from pathlib import Path
 from string import Template
 
-import aiosmtplib
-
 from cheatsheet.contexts.identity.application.errors import EnvioDeEmailFallido
 from cheatsheet.contexts.identity.application.ports import MensajeDeInvitacion
+from cheatsheet.platform.email import ErrorDeEnvioDeEmail, TransporteDeEmail
 from cheatsheet.platform.telemetry import obtener_logger
 
 logger = obtener_logger(__name__)
 
 PLANTILLAS = Path(__file__).parent / "plantillas"
 FORMATO_DE_FECHA = "%d/%m/%Y a las %H:%M UTC"
-
-
-@dataclass(frozen=True, slots=True)
-class ConfiguracionSMTP:
-    host: str
-    puerto: int
-    usuario: str
-    contrasena: str
-    remitente: str
-    usar_tls: bool
-    timeout_segundos: int
-    #: Where the panel lives, so the link points at something real.
-    url_base_de_la_app: str
 
 
 def _enlace(base: str, token: str) -> str:
@@ -66,39 +55,36 @@ def _render(nombre: str, mensaje: MensajeDeInvitacion, url_base: str) -> str:
     )
 
 
-def _armar(mensaje: MensajeDeInvitacion, config: ConfiguracionSMTP) -> EmailMessage:
+def _armar(mensaje: MensajeDeInvitacion, remitente: str, url_base: str) -> EmailMessage:
     correo = EmailMessage()
-    correo["From"] = config.remitente
+    correo["From"] = remitente
     correo["To"] = str(mensaje.destinatario)
     correo["Subject"] = f"Te invitaron a {mensaje.nombre_de_empresa} en CheatSheet"
-    correo.set_content(_render("invitacion.txt", mensaje, config.url_base_de_la_app))
-    correo.add_alternative(
-        _render("invitacion.html", mensaje, config.url_base_de_la_app), subtype="html"
-    )
+    correo.set_content(_render("invitacion.txt", mensaje, url_base))
+    correo.add_alternative(_render("invitacion.html", mensaje, url_base), subtype="html")
     return correo
 
 
 class EnviadorSMTP:
-    """Implements `PortEnvioDeEmail`."""
+    """Implements `PortEnvioDeEmail`.
 
-    def __init__(self, config: ConfiguracionSMTP) -> None:
-        self._config = config
+    The socket belongs to `platform/email.py`; what belongs here is the message and the
+    two things nobody else can get right about it — that the subject names the company,
+    and that **the token never reaches a log**. The logging stayed on this side for that
+    second reason: a shared transport logging a body would defeat it.
+    """
+
+    def __init__(self, transporte: TransporteDeEmail, url_base_de_la_app: str) -> None:
+        self._transporte = transporte
+        self._url_base = url_base_de_la_app
 
     async def enviar_invitacion(self, mensaje: MensajeDeInvitacion) -> None:
+        correo = _armar(mensaje, self._transporte.remitente, self._url_base)
         try:
-            await aiosmtplib.send(
-                _armar(mensaje, self._config),
-                hostname=self._config.host,
-                port=self._config.puerto,
-                username=self._config.usuario or None,
-                password=self._config.contrasena or None,
-                start_tls=self._config.usar_tls,
-                timeout=self._config.timeout_segundos,
-            )
-        except (aiosmtplib.SMTPException, OSError) as exc:
-            # Narrow on purpose: `OSError` covers the connection and timeout failures
-            # aiosmtplib lets through, and nothing else is swallowed. The task above
-            # decides whether to retry.
+            await self._transporte.enviar(correo)
+        except ErrorDeEnvioDeEmail as exc:
+            # Re-raised as the context's own error: the task above decides whether to
+            # retry, and it should not have to know what a transport is.
             logger.warning(
                 "envio_de_invitacion_fallido",
                 destinatario=str(mensaje.destinatario),

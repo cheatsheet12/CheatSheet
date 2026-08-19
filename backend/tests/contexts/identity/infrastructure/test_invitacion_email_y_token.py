@@ -17,13 +17,13 @@ from cheatsheet.contexts.identity.application.ports import MensajeDeInvitacion
 from cheatsheet.contexts.identity.domain.valores import Email
 from cheatsheet.contexts.identity.infrastructure import email_invitacion
 from cheatsheet.contexts.identity.infrastructure.email_invitacion import (
-    ConfiguracionSMTP,
     EnviadorDeConsola,
     EnviadorSMTP,
 )
 from cheatsheet.contexts.identity.infrastructure.tokens_invitacion import (
     TokenDeInvitacionAleatorio,
 )
+from cheatsheet.platform.email import ConfiguracionSMTP, TransporteSMTP
 
 from tests.conftest import INSTANTE_FIJO
 
@@ -56,6 +56,8 @@ def registros(monkeypatch) -> LoggerEspia:
 
 TOKEN = "un-token-de-invitacion-de-prueba"
 TIMEOUT = 7
+URL_BASE = "https://app.cheatsheet.test"
+REMITENTE = "no-reply@cheatsheet.test"
 
 
 def _mensaje() -> MensajeDeInvitacion:
@@ -74,11 +76,15 @@ def _config() -> ConfiguracionSMTP:
         puerto=587,
         usuario="usuario",
         contrasena="fake-secret-for-tests",
-        remitente="no-reply@cheatsheet.test",
+        remitente=REMITENTE,
         usar_tls=True,
         timeout_segundos=TIMEOUT,
-        url_base_de_la_app="https://app.cheatsheet.test",
     )
+
+
+def _enviador() -> EnviadorSMTP:
+    """The composition `crear_enviador` builds: identity's message, platform's socket."""
+    return EnviadorSMTP(TransporteSMTP(_config()), URL_BASE)
 
 
 # ------------------------------------------------------------------- caso 26: el token
@@ -149,7 +155,7 @@ async def test_el_adaptador_smtp_aplica_el_timeout_configurado(monkeypatch):
 
     monkeypatch.setattr(aiosmtplib, "send", falso_send)
 
-    await EnviadorSMTP(_config()).enviar_invitacion(_mensaje())
+    await _enviador().enviar_invitacion(_mensaje())
 
     assert llamadas[0]["timeout"] == TIMEOUT
     assert llamadas[0]["hostname"] == "smtp.example.test"
@@ -172,7 +178,7 @@ async def test_un_fallo_de_smtp_se_traduce_a_un_error_del_dominio(monkeypatch, e
     monkeypatch.setattr(aiosmtplib, "send", falso_send)
 
     with pytest.raises(EnvioDeEmailFallido):
-        await EnviadorSMTP(_config()).enviar_invitacion(_mensaje())
+        await _enviador().enviar_invitacion(_mensaje())
 
 
 # ------------------------------------------------- caso 31: la plantilla y el logueo
@@ -195,7 +201,7 @@ async def test_el_adaptador_smtp_no_registra_el_token_en_el_log(monkeypatch, reg
 
     monkeypatch.setattr(aiosmtplib, "send", falso_send)
 
-    await EnviadorSMTP(_config()).enviar_invitacion(_mensaje())
+    await _enviador().enviar_invitacion(_mensaje())
 
     assert registros.eventos  # it did log something — otherwise this proves nothing
     assert TOKEN not in str(registros.eventos)
@@ -209,7 +215,7 @@ async def test_un_fallo_de_smtp_tampoco_registra_el_token(monkeypatch, registros
     monkeypatch.setattr(aiosmtplib, "send", falso_send)
 
     with pytest.raises(EnvioDeEmailFallido):
-        await EnviadorSMTP(_config()).enviar_invitacion(_mensaje())
+        await _enviador().enviar_invitacion(_mensaje())
 
     assert registros.eventos
     assert TOKEN not in str(registros.eventos)
@@ -218,7 +224,7 @@ async def test_un_fallo_de_smtp_tampoco_registra_el_token(monkeypatch, registros
 def test_el_correo_lleva_texto_plano_y_html():
     """A text/plain alternative is not decoration: a client that refuses HTML still has
     to show a working link."""
-    correo = email_invitacion._armar(_mensaje(), _config())
+    correo = email_invitacion._armar(_mensaje(), REMITENTE, URL_BASE)
 
     tipos = {parte.get_content_type() for parte in correo.walk()}
     assert "text/plain" in tipos
