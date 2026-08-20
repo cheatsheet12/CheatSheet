@@ -17,6 +17,7 @@ import base64
 import os
 from collections.abc import AsyncIterator
 from dataclasses import replace
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
@@ -34,13 +35,15 @@ pytestmark = [requiere_base, pytest.mark.integration]
 
 CONTRASENA = "una-contrasena-larga"
 
-#: Un blob opaco cualquiera. **Antes esto decía ARCA y era un certificado de mentira**;
-#: `conexion-arca` le puso a ARCA un adaptador que parsea el certificado de verdad, así que
-#: estos tests —que son sobre el camino genérico: cifrado, idempotencia, RLS y bitácora— se
-#: mudaron a MercadoPago, el único sistema que todavía responde con el simulado genérico.
-#: Lo específico de ARCA vive en `test_arca_ciclo_de_vida.py`.
-CREDENCIAL = b"una-credencial-opaca-de-prueba"
+#: Estos tests son sobre el camino **genérico** —cifrado, idempotencia, RLS y bitácora—,
+#: no sobre ningún proveedor. Se conectan contra MercadoPago porque alguno hay que usar, y
+#: desde `conexion-mercadopago` eso significa recorrer su OAuth2: **ya no queda un sistema
+#: con adaptador genérico**, que es justamente lo que esa unidad terminó. Lo específico de
+#: cada proveedor vive en `test_arca_ciclo_de_vida.py` y `test_api_mercadopago.py`.
 SISTEMA = "MERCADOPAGO"
+
+#: Para el único caso que sigue usando el endpoint directo: un sistema sin conector.
+CREDENCIAL = b"una-credencial-opaca-de-prueba"
 
 
 def _settings() -> Settings:
@@ -80,6 +83,22 @@ def _conexion(contenido: bytes = CREDENCIAL) -> dict[str, object]:
     return {"contenido": base64.b64encode(contenido).decode(), "parametros": {}}
 
 
+async def _conectar(cliente: httpx.AsyncClient, token: str) -> httpx.Response:
+    """Las dos mitades del OAuth2, que es la única forma de conectar MercadoPago.
+
+    El adaptador simulado devuelve un redirect a la pantalla con el código puesto, así que
+    esto recorre exactamente lo que recorre un navegador.
+    """
+    inicio = await cliente.post(f"/integraciones/{SISTEMA}/autorizacion", headers=_auth(token))
+    assert inicio.status_code == 200, inicio.text
+    consulta = parse_qs(urlparse(str(inicio.json()["url"])).query)
+    return await cliente.post(
+        f"/integraciones/{SISTEMA}/autorizacion/canje",
+        headers=_auth(token),
+        json={"codigo": consulta["code"][0], "estado": consulta["state"][0]},
+    )
+
+
 @pytest.mark.asyncio
 async def test_sin_token_no_se_ven_las_integraciones(cliente: httpx.AsyncClient) -> None:
     respuesta = await cliente.get("/integraciones")
@@ -106,9 +125,7 @@ async def test_conectar_verificar_y_ver_el_estado(cliente: httpx.AsyncClient) ->
     """The unit's deliverable in one test, against the real cipher and the real table."""
     token = await _registrar(cliente, "ana@empresa.com")
 
-    conexion = await cliente.put(
-        f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion()
-    )
+    conexion = await _conectar(cliente, token)
     assert conexion.status_code == 200, conexion.text
     assert conexion.json()["estado"] == "CONECTADO"
     # Derived from APP_ENV, never from the request (decision D-b).
@@ -127,25 +144,27 @@ async def test_conectar_verificar_y_ver_el_estado(cliente: httpx.AsyncClient) ->
 async def test_la_credencial_nunca_vuelve_en_la_respuesta(cliente: httpx.AsyncClient) -> None:
     """Case 15. The boundary ADR-0003 draws, restated at the HTTP edge."""
     token = await _registrar(cliente, "ana@empresa.com")
-    await cliente.put(f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion())
+    conectada = await _conectar(cliente, token)
+    assert conectada.status_code == 200, conectada.text
 
     listado = await cliente.get("/integraciones", headers=_auth(token))
     verificacion = await cliente.post("/integraciones/verificacion", headers=_auth(token))
 
-    for respuesta in (listado, verificacion):
+    for respuesta in (listado, verificacion, conectada):
         crudo = respuesta.text
         assert "CERTIFICATE" not in crudo
         assert "credencial" not in crudo
-        assert base64.b64encode(CREDENCIAL).decode() not in crudo
+        assert "acceso-" not in crudo
+        assert "refresco-" not in crudo
 
 
 @pytest.mark.asyncio
 async def test_la_credencial_se_guarda_cifrada(
     cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
 ) -> None:
-    """Read the row as the owner: what is on disk must not be the certificate."""
+    """Read the row as the owner: what is on disk must not be the credential."""
     token = await _registrar(cliente, "ana@empresa.com")
-    await cliente.put(f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion())
+    assert (await _conectar(cliente, token)).status_code == 200
 
     async with engine_dueno.begin() as conexion:
         filas = (
@@ -159,7 +178,8 @@ async def test_la_credencial_se_guarda_cifrada(
 
     assert len(filas) == 1
     contenido, algoritmo = filas[0]
-    assert CREDENCIAL not in bytes(contenido)
+    assert b"acceso-" not in bytes(contenido)
+    assert b"refresco-" not in bytes(contenido)
     assert algoritmo == "AES-256-GCM/v1"
 
 
@@ -170,10 +190,8 @@ async def test_conectar_dos_veces_deja_una_sola_fila(
     """Case 11, against the unique index rather than against the in-memory dictionary."""
     token = await _registrar(cliente, "ana@empresa.com")
 
-    for contenido in (b"primera", b"segunda"):
-        respuesta = await cliente.put(
-            f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion(contenido)
-        )
+    for _ in range(2):
+        respuesta = await _conectar(cliente, token)
         assert respuesta.status_code == 200, respuesta.text
 
     async with engine_dueno.begin() as conexion:
@@ -190,9 +208,7 @@ async def test_una_empresa_no_ve_la_configuracion_de_otra(cliente: httpx.AsyncCl
     token_a = await _registrar(cliente, "ana@empresa-a.com")
     token_b = await _registrar(cliente, "beto@empresa-b.com")
 
-    await cliente.put(
-        f"/integraciones/{SISTEMA}/conexion", headers=_auth(token_a), json=_conexion()
-    )
+    assert (await _conectar(cliente, token_a)).status_code == 200
 
     de_b = await cliente.get("/integraciones", headers=_auth(token_b))
 
@@ -206,7 +222,7 @@ async def test_un_cambio_de_estado_queda_en_la_bitacora(
 ) -> None:
     """Case 10 — connecting is a transition, and HS-T5 says transitions are recorded."""
     token = await _registrar(cliente, "ana@empresa.com")
-    await cliente.put(f"/integraciones/{SISTEMA}/conexion", headers=_auth(token), json=_conexion())
+    assert (await _conectar(cliente, token)).status_code == 200
 
     async with engine_dueno.begin() as conexion:
         filas = (

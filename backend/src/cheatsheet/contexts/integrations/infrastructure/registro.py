@@ -1,12 +1,13 @@
 """Which adapter answers for which external system.
 
-This is the seam of the epic. `conexion-whatsapp` was the first unit to use it and
-`conexion-arca` the second: only `MERCADOPAGO` still resolves to the generic stand-in.
+This is the seam of the epic, and with `conexion-mercadopago` it is fully occupied: every
+system this epic connects has an adapter of its own, and the generic stand-in that used to
+answer for the ones without a unit is gone.
 
-ARCA is the only system that needs more than a connector and a verifier: an issuer of
-access tickets (ADR-0004) and a lookup against the taxpayer registry. `ParDeAdaptadores`
-grew optional slots for them rather than the registry growing a special case, and every
-other system leaves them empty.
+**No system implements every port, and none is expected to.** ARCA mints access tickets
+(ADR-0004) and looks a CUIT up in the taxpayer registry; MercadoPago is connected over an
+OAuth2 round trip and renews its own credential; WhatsApp does neither. `ParDeAdaptadores`
+grew optional slots rather than the registry growing a special case per provider.
 """
 
 from __future__ import annotations
@@ -15,9 +16,11 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from cheatsheet.contexts.integrations.application.ports import (
+    PortAutorizacionOAuth,
     PortConectorDeIntegracion,
     PortConsultaDePadron,
     PortEmisorDeTickets,
+    PortRenovacionDeCredencial,
     PortVerificadorDeConexion,
 )
 from cheatsheet.contexts.integrations.domain.valores import SistemaExterno
@@ -32,9 +35,21 @@ from cheatsheet.contexts.integrations.infrastructure.arca.padron import (
 )
 from cheatsheet.contexts.integrations.infrastructure.arca.simulado import ArcaSimulado
 from cheatsheet.contexts.integrations.infrastructure.arca.wsaa import ClienteWsaa, ConfiguracionWsaa
-from cheatsheet.contexts.integrations.infrastructure.simulados import (
-    ConectorSimulado,
-    VerificadorSimulado,
+from cheatsheet.contexts.integrations.infrastructure.mercadopago.autorizacion import (
+    AutorizacionMercadoPago,
+)
+from cheatsheet.contexts.integrations.infrastructure.mercadopago.cliente import (
+    ClienteMercadoPago,
+    ConfiguracionMercadoPago,
+)
+from cheatsheet.contexts.integrations.infrastructure.mercadopago.conector import (
+    ConectorMercadoPago,
+)
+from cheatsheet.contexts.integrations.infrastructure.mercadopago.simulado import (
+    MercadoPagoSimulado,
+)
+from cheatsheet.contexts.integrations.infrastructure.mercadopago.verificador import (
+    VerificadorMercadoPago,
 )
 from cheatsheet.contexts.integrations.infrastructure.whatsapp.cliente import (
     ClienteGraph,
@@ -47,6 +62,7 @@ from cheatsheet.contexts.integrations.infrastructure.whatsapp.verificador import
 )
 from cheatsheet.platform.settings import (
     AdaptadorDeArca,
+    AdaptadorDeMercadoPago,
     AdaptadorDeWhatsApp,
     Entorno,
     Settings,
@@ -62,11 +78,11 @@ SISTEMAS_DEL_EPICO: tuple[SistemaExterno, ...] = (
     SistemaExterno.WHATSAPP,
 )
 
-#: Still answered by the generic stand-in, until its own unit lands.
-SISTEMAS_SIMULADOS: tuple[SistemaExterno, ...] = (SistemaExterno.MERCADOPAGO,)
-
 #: Used by the registry built without `Settings` (tests, and the fully simulated path).
 AVISO_POR_DEFECTO = timedelta(days=30)
+
+#: Where the simulated OAuth redirect lands when there is no `Settings` to read it from.
+RETORNO_POR_DEFECTO = "http://localhost:3000/configuracion/integraciones"
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +94,11 @@ class ParDeAdaptadores:
     emisor: PortEmisorDeTickets | None = None
     #: Only ARCA has a taxpayer registry to look a CUIT up in.
     padron: PortConsultaDePadron | None = None
+    #: Only MercadoPago is connected through an OAuth2 round trip.
+    autorizacion: PortAutorizacionOAuth | None = None
+    #: Only MercadoPago hands back something that can be traded for a fresh credential.
+    #: ARCA's certificate is renewed by the company at ARCA's own site.
+    renovador: PortRenovacionDeCredencial | None = None
 
 
 class RegistroDeAdaptadores:
@@ -90,45 +111,47 @@ class RegistroDeAdaptadores:
     def desde_settings(cls, settings: Settings) -> RegistroDeAdaptadores:
         """The registry the running application uses.
 
-        ARCA and MercadoPago are stand-ins until their units land; WhatsApp is real or
-        simulated according to `WHATSAPP_ADAPTADOR`. Every stand-in refuses to be built in
-        production, so none of this can quietly become how a real company connects.
+        Each of the three systems is either real or its own stand-in, according to its
+        `*_ADAPTADOR` variable. Every stand-in refuses to be built in production, so none
+        of this can quietly become how a real company connects.
         """
-        pares = {
-            sistema: ParDeAdaptadores(
-                conector=ConectorSimulado(sistema=sistema, entorno=settings.entorno),
-                verificador=VerificadorSimulado(sistema=sistema, entorno=settings.entorno),
-            )
-            for sistema in SISTEMAS_SIMULADOS
-        }
-        pares[SistemaExterno.WHATSAPP] = _par_de_whatsapp(settings)
-        pares[SistemaExterno.ARCA] = _par_de_arca(settings, RelojDelSistema())
-        return cls(pares)
+        reloj = RelojDelSistema()
+        return cls(
+            {
+                SistemaExterno.WHATSAPP: _par_de_whatsapp(settings),
+                SistemaExterno.ARCA: _par_de_arca(settings, reloj),
+                SistemaExterno.MERCADOPAGO: _par_de_mercadopago(settings, reloj),
+            }
+        )
 
     @classmethod
     def simulado(cls, entorno: Entorno) -> RegistroDeAdaptadores:
         """Every system answered by a stand-in. For tests that do not care which."""
+        reloj = RelojDelSistema()
         simulado_whatsapp = WhatsAppSimulado(entorno)
-        pares = {
-            sistema: ParDeAdaptadores(
-                conector=ConectorSimulado(sistema=sistema, entorno=entorno),
-                verificador=VerificadorSimulado(sistema=sistema, entorno=entorno),
-            )
-            for sistema in SISTEMAS_SIMULADOS
-        }
-        pares[SistemaExterno.WHATSAPP] = ParDeAdaptadores(
-            conector=simulado_whatsapp, verificador=simulado_whatsapp
+        simulado_arca = ArcaSimulado(entorno=entorno, reloj=reloj, aviso=AVISO_POR_DEFECTO)
+        simulado_mp = MercadoPagoSimulado(
+            entorno=entorno, reloj=reloj, redirect_uri=RETORNO_POR_DEFECTO
         )
-        simulado_arca = ArcaSimulado(
-            entorno=entorno, reloj=RelojDelSistema(), aviso=AVISO_POR_DEFECTO
+        return cls(
+            {
+                SistemaExterno.WHATSAPP: ParDeAdaptadores(
+                    conector=simulado_whatsapp, verificador=simulado_whatsapp
+                ),
+                SistemaExterno.ARCA: ParDeAdaptadores(
+                    conector=simulado_arca,
+                    verificador=simulado_arca,
+                    emisor=simulado_arca,
+                    padron=simulado_arca,
+                ),
+                SistemaExterno.MERCADOPAGO: ParDeAdaptadores(
+                    conector=simulado_mp,
+                    verificador=simulado_mp,
+                    autorizacion=simulado_mp,
+                    renovador=simulado_mp,
+                ),
+            }
         )
-        pares[SistemaExterno.ARCA] = ParDeAdaptadores(
-            conector=simulado_arca,
-            verificador=simulado_arca,
-            emisor=simulado_arca,
-            padron=simulado_arca,
-        )
-        return cls(pares)
 
     def conector(self, sistema: SistemaExterno) -> PortConectorDeIntegracion | None:
         par = self._pares.get(sistema)
@@ -145,6 +168,14 @@ class RegistroDeAdaptadores:
     def consulta_de_padron(self, sistema: SistemaExterno) -> PortConsultaDePadron | None:
         par = self._pares.get(sistema)
         return par.padron if par is not None else None
+
+    def autorizacion(self, sistema: SistemaExterno) -> PortAutorizacionOAuth | None:
+        par = self._pares.get(sistema)
+        return par.autorizacion if par is not None else None
+
+    def renovador(self, sistema: SistemaExterno) -> PortRenovacionDeCredencial | None:
+        par = self._pares.get(sistema)
+        return par.renovador if par is not None else None
 
 
 def _par_de_whatsapp(settings: Settings) -> ParDeAdaptadores:
@@ -200,4 +231,39 @@ def _par_de_arca(settings: Settings, reloj: Reloj) -> ParDeAdaptadores:
                 url=url_padron, timeout_segundos=float(settings.arca_timeout_segundos)
             )
         ),
+    )
+
+
+def _par_de_mercadopago(settings: Settings, reloj: Reloj) -> ParDeAdaptadores:
+    """Four ports for one provider: authorize, connect, verify and renew.
+
+    **One host for every environment**, unlike ARCA. MercadoPago publishes no sandbox
+    address: what separates a test account from a real one is `live_mode`, which the
+    adapter cross-checks against `es_produccion` — see `mercadopago/mapeo.py`.
+    """
+    if settings.mercadopago_adaptador is AdaptadorDeMercadoPago.SIMULADO:
+        simulado = MercadoPagoSimulado(
+            entorno=settings.entorno,
+            reloj=reloj,
+            redirect_uri=settings.mercadopago_redirect_uri,
+        )
+        return ParDeAdaptadores(
+            conector=simulado, verificador=simulado, autorizacion=simulado, renovador=simulado
+        )
+
+    config = ConfiguracionMercadoPago(
+        client_id=settings.mercadopago_client_id,
+        client_secret=settings.mercadopago_client_secret,
+        redirect_uri=settings.mercadopago_redirect_uri,
+        auth_url=settings.mercadopago_auth_url,
+        api_url=settings.mercadopago_api_url,
+        timeout_segundos=float(settings.mercadopago_timeout_segundos),
+    )
+    cliente = ClienteMercadoPago(config)
+    conector = ConectorMercadoPago(cliente, reloj, es_produccion=settings.es_produccion)
+    return ParDeAdaptadores(
+        conector=conector,
+        verificador=VerificadorMercadoPago(cliente, es_produccion=settings.es_produccion),
+        autorizacion=AutorizacionMercadoPago(config),
+        renovador=conector,
     )

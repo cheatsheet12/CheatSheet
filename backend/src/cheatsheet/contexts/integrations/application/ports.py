@@ -102,6 +102,12 @@ class MaterialDeConexion:
 
     contenido: bytes
     parametros: dict[str, Any]
+    #: One-time secrets the provider needs to finish the handshake and that must **not**
+    #: outlive it: PKCE's `code_verifier`. A separate bag rather than another key in
+    #: `parametros`, because `parametros` is merged onto the aggregate and persisted —
+    #: which is right for "which phone number" and wrong for a secret whose whole purpose
+    #: is to be used once and forgotten.
+    efimeros: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,15 +260,99 @@ class PortConsultaDePadron(Protocol):
     ) -> DatosDePadron | None: ...
 
 
+@dataclass(frozen=True, slots=True)
+class PedidoDeAutorizacion:
+    """What the authorization URL of an OAuth2 flow has to carry.
+
+    `estado` is the CSRF token the provider echoes back; `desafio` is the PKCE
+    `code_challenge`. **The verifier that produced the challenge is not here**, and that
+    is the point of PKCE: it stays on our side until the code is exchanged, so a stolen
+    authorization code is useless to whoever stole it.
+    """
+
+    estado: str
+    desafio: str
+
+
+class PortAutorizacionOAuth(Protocol):
+    """Builds the URL the Administrator's browser is sent to.
+
+    Opens no socket: the whole operation is assembling a query string. It is a port
+    anyway because the client id and the provider's host are configuration, and a use
+    case that read them would be reaching into `platform/`.
+    """
+
+    def url_de_autorizacion(self, pedido: PedidoDeAutorizacion) -> str: ...
+
+
+@dataclass(frozen=True, slots=True)
+class AutorizacionPendiente:
+    """What has to survive while the Administrator is away at the provider's site.
+
+    The company is stored rather than re-read from the session on the way back, and the
+    two are then compared: whoever returns must be the company that left. Without that,
+    a `state` issued for one company completes a connection for another.
+    """
+
+    empresa_id: EmpresaId
+    sistema: SistemaExterno
+    verificador: str
+
+
+class PortMemoriaDeAutorizacion(Protocol):
+    """Where an authorization in flight lives between the two halves of the flow.
+
+    Short-lived by nature — ten minutes, not a row in a table — so the adapter is Redis
+    and the entries expire on their own. Nothing here is a credential: a `state` that
+    outlives its window is worth nothing to anybody.
+    """
+
+    async def guardar(
+        self, estado: str, pendiente: AutorizacionPendiente, ttl_segundos: int
+    ) -> None: ...
+
+    async def consumir(self, estado: str) -> AutorizacionPendiente | None:
+        """Read **and delete** in one operation, returning `None` if it was not there.
+
+        One operation and not a read followed by a delete: two callbacks arriving at the
+        same instant with the same `state` must not both find it. That is what makes a
+        `state` single-use under concurrency rather than only in a single-threaded test.
+        """
+        ...
+
+
+class PortRenovacionDeCredencial(Protocol):
+    """Trades a credential that is about to expire for a fresh one.
+
+    Separate from `PortConectorDeIntegracion` because the two differ in what they need
+    and in what a failure means. Connecting starts from something a person just supplied
+    and a rejection is shown on the screen they are looking at; renewing starts from what
+    is already stored and a rejection means the integration has to be marked inactive and
+    the Administrator told (HU-E2-02 RN-03), with nobody watching.
+
+    Returns the same `ResultadoDeConexion` as connecting, because the outcome is the same
+    kind of thing: a credential to store and the state it leaves us in.
+    """
+
+    async def renovar(self, credencial: bytes) -> ResultadoDeConexion: ...
+
+
 class PortRegistroDeAdaptadores(Protocol):
     """Resolves the adapters of one system.
 
     The single seam each unit of the epic touches: `conexion-arca` registered the real
-    ARCA trio, `padron-y-datos-fiscales` adds its fourth adapter, and nothing else in this
-    context changes.
+    ARCA trio, `padron-y-datos-fiscales` added its fourth adapter, and
+    `conexion-mercadopago` — the last one — registers the two OAuth2 needs.
+
+    **No system implements all six, and none is expected to.** ARCA mints access tickets
+    and has a taxpayer registry; MercadoPago authorizes and renews; WhatsApp does neither.
+    Optional slots on one registry rather than a registry per capability, because they are
+    all resolved by the same key and replaced by the same unit.
     """
 
     def conector(self, sistema: SistemaExterno) -> PortConectorDeIntegracion | None: ...
     def verificador(self, sistema: SistemaExterno) -> PortVerificadorDeConexion | None: ...
     def emisor_de_tickets(self, sistema: SistemaExterno) -> PortEmisorDeTickets | None: ...
     def consulta_de_padron(self, sistema: SistemaExterno) -> PortConsultaDePadron | None: ...
+    def autorizacion(self, sistema: SistemaExterno) -> PortAutorizacionOAuth | None: ...
+    def renovador(self, sistema: SistemaExterno) -> PortRenovacionDeCredencial | None: ...
