@@ -9,12 +9,18 @@
  * screen PAN-ONB-03; the stories code it PAN-CFG-INT and give an Operador read access to
  * it. Decision D7 of the units map resolved that toward configuration, and the visual
  * design of the mockup is reused unchanged.
+ *
+ * **It is also where MercadoPago's OAuth2 redirect lands** (decision D-a of
+ * `conexion-mercadopago`): `redirect_uri` points here, so the `?code&state` the provider
+ * appends arrives as `searchParams`. Reading it on the server and handing it to the grid
+ * keeps the exchange on the one path that has the session cookie — and adds no route that
+ * exists only to bounce.
  */
 
 import { redirect } from "next/navigation";
 
 import { GrillaDeIntegraciones } from "@/features/integrations";
-import type { ListadoDeIntegraciones } from "@/features/integrations";
+import type { ListadoDeIntegraciones, RetornoDeAutorizacion } from "@/features/integrations";
 import { llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
 
@@ -22,7 +28,38 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Integraciones · CheatSheet" };
 
-export default async function PaginaDeIntegraciones(): Promise<JSX.Element> {
+/** OAuth2 query parameters, as the provider appends them. */
+interface ParametrosDeRetorno {
+  readonly code?: string;
+  readonly state?: string;
+  readonly error?: string;
+}
+
+/**
+ * Reads the return leg out of the query string, or `null` on an ordinary visit.
+ *
+ * The system is not in the URL because a `redirect_uri` is registered once, whole, at the
+ * provider — and MercadoPago is the only system connected this way. When a second one
+ * appears it brings its own registered URI, and this becomes a lookup.
+ */
+function retornoDe(parametros: ParametrosDeRetorno): RetornoDeAutorizacion | null {
+  const { code, state, error } = parametros;
+  if (code === undefined && error === undefined) {
+    return null;
+  }
+  return {
+    sistema: "MERCADOPAGO",
+    codigo: code ?? null,
+    estado: state ?? null,
+    error: error ?? null,
+  };
+}
+
+export default async function PaginaDeIntegraciones({
+  searchParams,
+}: {
+  searchParams: ParametrosDeRetorno;
+}): Promise<JSX.Element> {
   const claims = leerClaims();
   if (claims === null) {
     redirect("/");
@@ -36,7 +73,11 @@ export default async function PaginaDeIntegraciones(): Promise<JSX.Element> {
       <p className="int-intro">
         Conectá las herramientas que ya usás. El estado se verifica contra cada servicio.
       </p>
-      <GrillaDeIntegraciones inicial={listado} puedeConectar={claims.rol === "ADMINISTRADOR"} />
+      <GrillaDeIntegraciones
+        inicial={listado}
+        puedeConectar={claims.rol === "ADMINISTRADOR"}
+        retorno={retornoDe(searchParams)}
+      />
     </>
   );
 }

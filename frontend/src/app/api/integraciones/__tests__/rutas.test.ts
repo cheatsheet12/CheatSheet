@@ -31,6 +31,12 @@ const { ErrorDeApi } = await import("@/lib/api");
 const { GET: getIntegraciones } = await import("@/app/api/integraciones/route");
 const { POST: postVerificacion } = await import("@/app/api/integraciones/verificacion/route");
 const { PUT: putConexion } = await import("@/app/api/integraciones/[sistema]/conexion/route");
+const { POST: postAutorizacion } = await import(
+  "@/app/api/integraciones/[sistema]/autorizacion/route"
+);
+const { POST: postCanje } = await import(
+  "@/app/api/integraciones/[sistema]/autorizacion/canje/route"
+);
 
 const LISTADO = { integraciones: [], verificado_en: null };
 
@@ -53,6 +59,8 @@ describe("BFF de integraciones", () => {
       getIntegraciones(),
       postVerificacion(),
       putConexion(pedido({ contenido: "eA==" }), { params: { sistema: "ARCA" } }),
+      postAutorizacion(pedido({}), { params: { sistema: "MERCADOPAGO" } }),
+      postCanje(pedido({ codigo: "c", estado: "e" }), { params: { sistema: "MERCADOPAGO" } }),
     ]);
 
     for (const respuesta of respuestas) {
@@ -91,6 +99,32 @@ describe("BFF de integraciones", () => {
     expect(llamarApi).toHaveBeenCalledWith("/integraciones/MERCADOPAGO/conexion", {
       method: "PUT",
       body: { contenido: "eA==", parametros: {} },
+    });
+  });
+
+  it("la autorizacion viaja como POST y sin cuerpo", async () => {
+    cookieDeSesion = "un-token";
+    llamarApi.mockResolvedValue({ url: "https://proveedor.test", expira_en_segundos: 600 });
+
+    await postAutorizacion(pedido({}), { params: { sistema: "MERCADOPAGO" } });
+
+    expect(llamarApi).toHaveBeenCalledWith("/integraciones/MERCADOPAGO/autorizacion", {
+      method: "POST",
+    });
+  });
+
+  it("el canje lleva el codigo y el estado en el cuerpo, no en la URL", async () => {
+    // Así no quedan en el historial del navegador ni en ningún log intermedio.
+    cookieDeSesion = "un-token";
+    llamarApi.mockResolvedValue({});
+
+    await postCanje(pedido({ codigo: "el-codigo", estado: "el-estado" }), {
+      params: { sistema: "MERCADOPAGO" },
+    });
+
+    expect(llamarApi).toHaveBeenCalledWith("/integraciones/MERCADOPAGO/autorizacion/canje", {
+      method: "POST",
+      body: { codigo: "el-codigo", estado: "el-estado" },
     });
   });
 

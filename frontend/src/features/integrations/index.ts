@@ -9,10 +9,17 @@
  */
 
 export { GrillaDeIntegraciones } from "./components/GrillaDeIntegraciones";
-export type { PropsDeGrilla } from "./components/GrillaDeIntegraciones";
-export { listarIntegraciones, verificarIntegraciones, conectarIntegracion } from "./api/cliente";
+export type { PropsDeGrilla, RetornoDeAutorizacion } from "./components/GrillaDeIntegraciones";
+export {
+  listarIntegraciones,
+  verificarIntegraciones,
+  conectarIntegracion,
+  iniciarAutorizacion,
+  canjearAutorizacion,
+} from "./api/cliente";
 export type {
   Ambiente,
+  AutorizacionIniciada,
   EstadoDeConexion,
   Integracion,
   ListadoDeIntegraciones,
