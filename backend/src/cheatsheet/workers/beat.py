@@ -52,6 +52,13 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
             "schedule": timedelta(days=1),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
+        # Daily against a token that lasts about 180 days, and renewed a fortnight before
+        # it expires: fourteen chances to survive an outage before anything breaks.
+        "renovar-credenciales-oauth": {
+            "task": "integrations.renovar_credenciales",
+            "schedule": timedelta(days=1),
+            "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
+        },
     }
 
 

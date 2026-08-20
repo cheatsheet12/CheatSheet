@@ -230,15 +230,25 @@ def test_beat_programa_la_revision_de_vencimientos_una_vez_por_dia() -> None:
     assert entrada["options"]["queue"] == "integrations_sync"
 
 
-def test_las_dos_entradas_de_beat_conviven() -> None:
+def test_las_tres_entradas_de_beat_conviven() -> None:
     """Beat es singleton: dos schedulers son dos barridos y dos mails por Administrador."""
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 2
+    assert len(entradas) == 3
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
+        tasks_integrations.NOMBRE_BARRIDO_RENOVACION,
     }
+
+
+def test_la_renovacion_corre_a_diario() -> None:
+    """Contra un token de ~180 dias y un margen de 15: catorce intentos antes de romperse."""
+    entrada = programacion(settings_de_prueba())["renovar-credenciales-oauth"]
+
+    assert entrada["task"] == tasks_integrations.NOMBRE_BARRIDO_RENOVACION
+    assert entrada["schedule"].total_seconds() == 24 * 60 * 60
+    assert entrada["options"]["queue"] == "integrations_sync"
 
 
 def test_el_barrido_de_vencimientos_encola_con_la_ventana_diaria(
