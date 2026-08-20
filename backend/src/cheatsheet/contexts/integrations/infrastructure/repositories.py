@@ -197,7 +197,7 @@ async def empresas_con_integracion_pendiente(sesion: AsyncSession) -> list[Empre
 
 
 async def empresas_con_integracion_de_arca(sesion: AsyncSession) -> list[EmpresaId]:
-    """Which companies have ARCA connected. The second cross-tenant read, and the last.
+    """Which companies have ARCA connected. The second cross-tenant read.
 
     Its own function rather than a parameter on the pending one, for the reason the
     migration states: a `SECURITY DEFINER` function is a hole in the multi-tenant barrier,
@@ -207,4 +207,20 @@ async def empresas_con_integracion_de_arca(sesion: AsyncSession) -> list[Empresa
     certificate, not its expiry date, not the state.
     """
     filas = await sesion.execute(text("SELECT empresa_id FROM empresas_con_integracion_de_arca()"))
+    return [EmpresaId(valor) for (valor,) in filas.all()]
+
+
+async def empresas_con_integracion_de_mercadopago(sesion: AsyncSession) -> list[EmpresaId]:
+    """Which companies have MercadoPago connected. The third cross-tenant read.
+
+    Its own function rather than a parameter on either of the other two, for the reason
+    migration 0006 states: a `SECURITY DEFINER` function is a hole in the multi-tenant
+    barrier, and one that takes an argument is a hole whose shape the caller chooses.
+
+    Feeds the daily renewal. Returns company ids and nothing else — not the tokens, not
+    the expiry, not the state.
+    """
+    filas = await sesion.execute(
+        text("SELECT empresa_id FROM empresas_con_integracion_de_mercadopago()")
+    )
     return [EmpresaId(valor) for (valor,) in filas.all()]

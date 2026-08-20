@@ -28,12 +28,20 @@ from cheatsheet.contexts.integrations.application.integraciones import (
     VerificarConexiones,
     VistaDeIntegracion,
 )
+from cheatsheet.contexts.integrations.application.oauth import (
+    CompletarAutorizacion,
+    IniciarAutorizacion,
+)
 from cheatsheet.contexts.integrations.domain.valores import (
     Ambiente,
     EstadoDeConexion,
     SistemaExterno,
 )
-from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
+from cheatsheet.contexts.integrations.infrastructure.ensamblado import (
+    Integraciones,
+    crear_memoria_de_autorizacion,
+    registro_de_adaptadores,
+)
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.roles import RolUsuario
@@ -70,6 +78,24 @@ class IntegracionSalida(BaseModel):
     aviso_fiscal: str | None = None
 
 
+class AutorizacionSalida(BaseModel):
+    """Where to send the browser, and how long that link is good for."""
+
+    url: str
+    expira_en_segundos: int
+
+
+class CanjeEntrada(BaseModel):
+    """What comes back from the provider, forwarded by the screen that received it.
+
+    Both values are opaque here. The `state` means nothing to this layer and everything to
+    `CompletarAutorizacion`, which is where it is checked.
+    """
+
+    codigo: str
+    estado: str
+
+
 class ListadoSalida(BaseModel):
     integraciones: list[IntegracionSalida]
     #: HU-E2-05 RN-03: the consolidated screen shows when the check ran.
@@ -92,6 +118,19 @@ def _salida(vistas: list[VistaDeIntegracion]) -> ListadoSalida:
             for v in vistas
         ],
         verificado_en=max(marcas) if marcas else None,
+    )
+
+
+def _una(vista: VistaDeIntegracion, aviso: str | None = None) -> IntegracionSalida:
+    return IntegracionSalida(
+        sistema=vista.sistema,
+        estado=vista.estado,
+        detalle=vista.detalle,
+        ambiente=vista.ambiente,
+        verificado_en=vista.verificado_en,
+        configurada=vista.configurada,
+        etiqueta=vista.etiqueta,
+        aviso_fiscal=aviso,
     )
 
 
@@ -187,17 +226,67 @@ def crear_router(recursos: Recursos) -> APIRouter:
                 direccion_ip=_ip(request),
             )
             aviso = await _revalidar_datos_fiscales(recursos, unidad, vista, request)
-        vista_final = _exigir(vista)
-        return IntegracionSalida(
-            sistema=vista_final.sistema,
-            estado=vista_final.estado,
-            detalle=vista_final.detalle,
-            ambiente=vista_final.ambiente,
-            verificado_en=vista_final.verificado_en,
-            configurada=vista_final.configurada,
-            etiqueta=vista_final.etiqueta,
-            aviso_fiscal=aviso,
-        )
+        return _una(_exigir(vista), aviso)
+
+    router.include_router(_rutas_de_autorizacion(recursos))
+    return router
+
+
+def _rutas_de_autorizacion(recursos: Recursos) -> APIRouter:
+    """The two halves of an OAuth2 connection (HU-E2-02 RN-01).
+
+    Their own router for the reason `_rutas_de_padron` has one in `auth.py`: the factory
+    above is at the complexity ceiling `CLAUDE.md` §5 sets, and a closure that keeps
+    growing is the shape that eventually hides something.
+
+    **Neither endpoint decides anything.** The first mints nothing it understands and the
+    second forwards two opaque strings; what a `state` means, and whether this one may be
+    spent, is `CompletarAutorizacion`'s business — a rule whose failure moves money does
+    not belong at the HTTP edge.
+    """
+    router = APIRouter(tags=["integrations"])
+
+    @router.post("/{sistema}/autorizacion")
+    async def autorizar(request: Request, sistema: SistemaExterno) -> AutorizacionSalida:
+        """Administrador only. Opens no transaction: nothing here touches the database."""
+        empresa_id, _, rol = _actor(request)
+        inicio = await IniciarAutorizacion(
+            adaptadores=registro_de_adaptadores(recursos.settings),
+            memoria=crear_memoria_de_autorizacion(recursos.redis),
+            ttl_segundos=recursos.settings.mercadopago_autorizacion_ttl_minutos * 60,
+        ).ejecutar(empresa_id=empresa_id, rol=rol, sistema=sistema)
+        return AutorizacionSalida(url=inicio.url, expira_en_segundos=inicio.expira_en_segundos)
+
+    @router.post("/{sistema}/autorizacion/canje")
+    async def canjear(
+        request: Request, sistema: SistemaExterno, entrada: CanjeEntrada
+    ) -> IntegracionSalida:
+        """Second half: the code comes back and becomes a stored credential."""
+        empresa_id, usuario_id, rol = _actor(request)
+        vista: VistaDeIntegracion | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Integraciones.armar(unidad.sesion, recursos.settings)
+            vista = await CompletarAutorizacion(
+                memoria=crear_memoria_de_autorizacion(recursos.redis),
+                conectar=ConectarIntegracion(
+                    integraciones=piezas.integraciones,
+                    tickets=piezas.tickets,
+                    cifrado=piezas.cifrado,
+                    adaptadores=piezas.adaptadores,
+                    publicador=unidad.publicador,
+                    reloj=unidad.reloj,
+                    es_produccion=recursos.settings.es_produccion,
+                ),
+            ).ejecutar(
+                empresa_id=empresa_id,
+                rol=rol,
+                sistema=sistema,
+                codigo=entrada.codigo,
+                estado=entrada.estado,
+                usuario_id=usuario_id,
+                direccion_ip=_ip(request),
+            )
+        return _una(_exigir(vista))
 
     return router
 

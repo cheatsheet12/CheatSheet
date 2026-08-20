@@ -75,3 +75,22 @@ class ConsultaDePadronNoDisponible(ProveedorNoDisponible):
     distinction is the point of the unit: an unreachable ARCA must never look like a CUIT
     ARCA rejected. One of those blocks the Administrator; the other must not.
     """
+
+
+class AutorizacionInvalida(EntradaInvalida):
+    """The OAuth round trip came back with something that cannot be trusted.
+
+    One error for four causes — the `state` was never issued, it expired, it was already
+    used, or it belongs to another company — and that is deliberate: telling them apart
+    on screen would tell whoever is probing which of the four it was.
+
+    An `EntradaInvalida` (422) because the honest reading of the frequent case is stale
+    input: a browser tab left open past the ten-minute window. What the Administrator has
+    to do is the same in all four cases, and the message says it — start the connection
+    again.
+
+    **The dangerous case is the fourth**, and it is why this check lives in the
+    application layer instead of at the HTTP edge: without it, anyone who gets an
+    Administrator to open a crafted link attaches *their* MercadoPago account to somebody
+    else's company, and every payment link of epic 6 collects into the wrong account.
+    """

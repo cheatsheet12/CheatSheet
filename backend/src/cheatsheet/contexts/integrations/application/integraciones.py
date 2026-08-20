@@ -153,7 +153,8 @@ def _exigir_lectura(rol: RolUsuario) -> None:
         raise PermisoDenegado("Se requiere rol Administrador u Operador para ver las integraciones")
 
 
-def _exigir_administrador(rol: RolUsuario) -> None:
+def exigir_administrador(rol: RolUsuario) -> None:
+    """Public because `CompletarAutorizacion` checks it too, and before it burns a `state`."""
     if rol is not RolUsuario.ADMINISTRADOR:
         raise PermisoDenegado("Solo un Administrador puede conectar una integracion")
 
@@ -299,17 +300,22 @@ class ConectarIntegracion:
         sistema: SistemaExterno,
         contenido: bytes,
         parametros: dict[str, Any] | None = None,
+        efimeros: dict[str, str] | None = None,
         usuario_id: UsuarioId | None = None,
         direccion_ip: str | None = None,
     ) -> VistaDeIntegracion:
-        _exigir_administrador(rol)
+        exigir_administrador(rol)
         conector = self._adaptadores.conector(sistema)
         if conector is None:
             raise SistemaNoConfigurable(
                 f"La conexion de {sistema.value} no forma parte de este epico"
             )
 
-        material = MaterialDeConexion(contenido=contenido, parametros=dict(parametros or {}))
+        material = MaterialDeConexion(
+            contenido=contenido,
+            parametros=dict(parametros or {}),
+            efimeros=dict(efimeros or {}),
+        )
         try:
             respuesta = await conector.conectar(material)
         except ProveedorNoDisponible as exc:
@@ -319,7 +325,8 @@ class ConectarIntegracion:
         ambiente = _ambiente_del_despliegue(self._es_produccion)
         credencial = self._cifrado.cifrar(respuesta.credencial)
         # What the caller supplied plus what the provider added — Meta answers with the
-        # phone number's display name and the account it belongs to.
+        # phone number's display name and the account it belongs to. `efimeros` is
+        # deliberately absent: it is what must not survive the handshake.
         parametros_finales = {**material.parametros, **respuesta.parametros}
 
         existente = await self._integraciones.buscar(empresa_id, sistema)

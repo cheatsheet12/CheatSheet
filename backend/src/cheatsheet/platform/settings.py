@@ -68,6 +68,20 @@ class AdaptadorDeArca(StrEnum):
     SIMULADO = "simulado"
 
 
+class AdaptadorDeMercadoPago(StrEnum):
+    """Which implementation answers for MercadoPago (HU-E2-02).
+
+    `SIMULADO` walks the whole OAuth2 round trip — redirect included — and runs the
+    fabricated payloads through the real Anti-Corruption Layer, so the flow is completable
+    on a laptop with no sandbox application. **Rejected in production**: a company
+    believing its account is connected when nothing ever reached MercadoPago is a company
+    that believes it can charge.
+    """
+
+    MERCADOPAGO = "mercadopago"
+    SIMULADO = "simulado"
+
+
 class ConfiguracionFaltante(RuntimeError):
     """A required environment variable is absent. Raised at boot, never later."""
 
@@ -177,6 +191,30 @@ def _adaptador_de_arca(entorno: Entorno) -> AdaptadorDeArca:
     return adaptador
 
 
+def _adaptador_de_mercadopago(entorno: Entorno) -> AdaptadorDeMercadoPago:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("MERCADOPAGO_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno MERCADOPAGO_ADAPTADOR. "
+                "En produccion debe valer 'mercadopago'."
+            )
+        return AdaptadorDeMercadoPago.SIMULADO
+    try:
+        adaptador = AdaptadorDeMercadoPago(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"MERCADOPAGO_ADAPTADOR debe ser 'mercadopago' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeMercadoPago.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "MERCADOPAGO_ADAPTADOR=simulado no es valido en produccion: "
+            "ninguna cuenta se conectaria de verdad."
+        )
+    return adaptador
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Everything the backend needs to know about where it is running."""
@@ -221,6 +259,15 @@ class Settings:
     arca_timeout_segundos: int
     arca_margen_renovacion_minutos: int
     arca_aviso_vencimiento_dias: int
+    mercadopago_adaptador: AdaptadorDeMercadoPago
+    mercadopago_client_id: str
+    mercadopago_client_secret: str
+    mercadopago_redirect_uri: str
+    mercadopago_auth_url: str
+    mercadopago_api_url: str
+    mercadopago_timeout_segundos: int
+    mercadopago_margen_renovacion_dias: int
+    mercadopago_autorizacion_ttl_minutos: int
 
     @property
     def es_produccion(self) -> bool:
@@ -304,6 +351,36 @@ class Settings:
             # Renewing a certificate at ARCA takes days, so finding out on the day it
             # expired means not being able to invoice.
             arca_aviso_vencimiento_dias=_entero("ARCA_AVISO_VENCIMIENTO_DIAS", 30),
+            mercadopago_adaptador=_adaptador_de_mercadopago(entorno),
+            # Our application's credentials, not a company's — the same shape as the
+            # Google OAuth client. What is per company are the tokens the flow returns,
+            # and those live encrypted in the database.
+            mercadopago_client_id=_opcional("MERCADOPAGO_CLIENT_ID", ""),
+            mercadopago_client_secret=_opcional("MERCADOPAGO_CLIENT_SECRET", ""),
+            # Has to match, character for character, the URI registered in MercadoPago and
+            # the one repeated when the code is exchanged. Derived from APP_BASE_URL so
+            # the two cannot drift apart in a deployment that only sets one of them.
+            mercadopago_redirect_uri=_opcional(
+                "MERCADOPAGO_REDIRECT_URI",
+                f"{_opcional('APP_BASE_URL', 'http://localhost:3000').rstrip('/')}"
+                f"/configuracion/integraciones",
+            ),
+            # One API host for every environment, unlike ARCA: what separates a test
+            # account from a real one is `live_mode`, not the address.
+            mercadopago_auth_url=_opcional(
+                "MERCADOPAGO_AUTH_URL", "https://auth.mercadopago.com.ar"
+            ),
+            mercadopago_api_url=_opcional("MERCADOPAGO_API_URL", "https://api.mercadopago.com"),
+            mercadopago_timeout_segundos=_entero("MERCADOPAGO_TIMEOUT_SEGUNDOS", 10),
+            # The access token lasts about 180 days. Fifteen leaves a fortnight of daily
+            # retries before anything breaks, which is more than any outage this system
+            # can survive anyway.
+            mercadopago_margen_renovacion_dias=_entero("MERCADOPAGO_MARGEN_RENOVACION_DIAS", 15),
+            # Longer than anyone takes to press a button, shorter than a tab left open
+            # over lunch — which is the case this window exists to expire.
+            mercadopago_autorizacion_ttl_minutos=_entero(
+                "MERCADOPAGO_AUTORIZACION_TTL_MINUTOS", 10
+            ),
             smtp_remitente=_opcional("SMTP_REMITENTE", "CheatSheet <no-reply@localhost>"),
             smtp_tls=_booleano("SMTP_TLS", True),
             smtp_timeout_segundos=_entero("SMTP_TIMEOUT_SEGUNDOS", 10),

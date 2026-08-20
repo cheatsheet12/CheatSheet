@@ -77,6 +77,39 @@ export async function verificarIntegraciones(): Promise<ListadoDeIntegraciones> 
   return pedir<ListadoDeIntegraciones>("/api/integraciones/verificacion", "POST");
 }
 
+/** Where the browser has to go to authorize, and how long that link is good for. */
+export interface AutorizacionIniciada {
+  readonly url: string;
+  readonly expira_en_segundos: number;
+}
+
+/**
+ * Starts an OAuth2 connection (HU-E2-02 RN-01).
+ *
+ * Returns the URL instead of navigating, so the caller decides when to leave the page —
+ * and so this stays a function that can be tested without a browser.
+ */
+export async function iniciarAutorizacion(sistema: SistemaExterno): Promise<AutorizacionIniciada> {
+  return pedir<AutorizacionIniciada>(`/api/integraciones/${sistema}/autorizacion`, "POST");
+}
+
+/**
+ * Finishes it: the code the provider sent back becomes a stored credential.
+ *
+ * The `state` is forwarded untouched. Nothing on this side checks it — it is checked
+ * where it means something, which is the backend.
+ */
+export async function canjearAutorizacion(
+  sistema: SistemaExterno,
+  codigo: string,
+  estado: string,
+): Promise<Integracion> {
+  return pedir<Integracion>(`/api/integraciones/${sistema}/autorizacion/canje`, "POST", {
+    codigo,
+    estado,
+  });
+}
+
 /** What a provider needs besides the credential — for Meta, which number and which account. */
 export type ParametrosDeConexion = Readonly<Record<string, string>>;
 

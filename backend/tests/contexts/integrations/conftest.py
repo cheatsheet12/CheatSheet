@@ -17,9 +17,12 @@ import pytest
 from cheatsheet.contexts.integrations.application.ports import (
     DatosDePadron,
     MaterialDeConexion,
+    PedidoDeAutorizacion,
+    PortAutorizacionOAuth,
     PortConectorDeIntegracion,
     PortConsultaDePadron,
     PortEmisorDeTickets,
+    PortRenovacionDeCredencial,
     PortVerificadorDeConexion,
     ResultadoDeConexion,
     ResultadoDeVerificacion,
@@ -115,12 +118,63 @@ class ConectorProgramado:
         self.estado = estado
         self.detalle = detalle
         self.parametros = parametros or {}
+        self.recibidos = 0
+        #: Lo que llegó por `efimeros`. Se guarda acá para poder afirmar que el verificador
+        #: de PKCE llegó al adaptador **y** que no terminó en los parámetros persistidos.
+        self.efimeros_recibidos: dict[str, str] = {}
 
     async def conectar(self, material: MaterialDeConexion) -> ResultadoDeConexion:
+        self.recibidos += 1
+        self.efimeros_recibidos = dict(material.efimeros)
         if self.excepcion is not None:
             raise self.excepcion
         return ResultadoDeConexion(
             credencial=material.contenido,
+            estado=self.estado,
+            detalle=self.detalle,
+            parametros=self.parametros,
+        )
+
+
+class AutorizacionProgramada:
+    """Builds a URL that says what it was asked for, so a test can read it back."""
+
+    def __init__(self, base: str = "https://proveedor.invalid/authorize") -> None:
+        self.base = base
+        self.pedidos: list[PedidoDeAutorizacion] = []
+
+    def url_de_autorizacion(self, pedido: PedidoDeAutorizacion) -> str:
+        self.pedidos.append(pedido)
+        return f"{self.base}?state={pedido.estado}&code_challenge={pedido.desafio}"
+
+
+class RenovadorProgramado:
+    """Answers with a fresh credential, or with whatever the test told it to raise."""
+
+    def __init__(
+        self,
+        *,
+        credencial: bytes = b"acceso-nuevo\nrefresco-nuevo",
+        estado: EstadoDeConexion = EstadoDeConexion.CONECTADO,
+        detalle: str | None = None,
+        parametros: dict[str, Any] | None = None,
+        excepcion: Exception | None = None,
+    ) -> None:
+        self.credencial = credencial
+        self.estado = estado
+        self.detalle = detalle
+        self.parametros = parametros or {}
+        self.excepcion = excepcion
+        self.llamadas = 0
+        self.recibida: bytes | None = None
+
+    async def renovar(self, credencial: bytes) -> ResultadoDeConexion:
+        self.llamadas += 1
+        self.recibida = credencial
+        if self.excepcion is not None:
+            raise self.excepcion
+        return ResultadoDeConexion(
+            credencial=self.credencial,
             estado=self.estado,
             detalle=self.detalle,
             parametros=self.parametros,
@@ -146,6 +200,14 @@ class RegistroFalso:
     def consulta_de_padron(self, sistema: SistemaExterno) -> PortConsultaDePadron | None:
         par = self.pares.get(sistema)
         return par.padron if par is not None else None
+
+    def autorizacion(self, sistema: SistemaExterno) -> PortAutorizacionOAuth | None:
+        par = self.pares.get(sistema)
+        return par.autorizacion if par is not None else None
+
+    def renovador(self, sistema: SistemaExterno) -> PortRenovacionDeCredencial | None:
+        par = self.pares.get(sistema)
+        return par.renovador if par is not None else None
 
 
 class PublicadorFalso:

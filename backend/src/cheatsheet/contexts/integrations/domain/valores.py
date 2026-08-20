@@ -121,6 +121,24 @@ CLAVE_ETIQUETA = "etiqueta"
 #: surfaces when the first document is issued in the wrong name.
 CLAVE_CUIT = "cuit"
 
+#: `credencial_vence_en`: cuando la credencial guardada deja de servir, en ISO-8601 UTC.
+#: Escrita por `conexion-mercadopago`, cuyo OAuth devuelve un `expires_in` en segundos.
+#:
+#: Vive en el dominio y no en el `mapeo.py` del proveedor —a diferencia de `phone_number_id`
+#: o `user_id`— porque **la capa de aplicacion la lee**: el barrido de renovacion decide con
+#: ella si hay que llamar al proveedor, y un caso de uso que leyera una clave declarada en
+#: `infrastructure/` estaria importando hacia adentro (R2).
+#:
+#: ARCA no la usa: el vencimiento de un certificado esta adentro del certificado, y leerlo de
+#: aca seria copiar un dato que ya existe en su fuente.
+CLAVE_VENCIMIENTO = "credencial_vence_en"
+
+#: `code_verifier`: el secreto de un solo uso de PKCE (RFC 7636). Viaja por
+#: `MaterialDeConexion.efimeros` y **no se guarda**: para cuando el codigo se canjeo, ya no
+#: sirve para nada. Es vocabulario del estandar, no de un proveedor, asi que vive aca y no
+#: en el `mapeo.py` de MercadoPago.
+CLAVE_VERIFICADOR = "code_verifier"
+
 
 def validar_detalle(detalle: str | None) -> str | None:
     """The human-readable reason behind a state, shown next to the Atención badge."""

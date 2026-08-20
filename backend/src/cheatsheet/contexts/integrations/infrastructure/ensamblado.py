@@ -9,14 +9,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cheatsheet.contexts.integrations.application.ports import (
     PortAvisoDeIntegracion,
     PortCifradoDeCredenciales,
+    PortMemoriaDeAutorizacion,
     PortRegistroDeAdaptadores,
     PortRepositorioIntegraciones,
     PortRepositorioTickets,
+)
+from cheatsheet.contexts.integrations.infrastructure.autorizaciones import (
+    MemoriaDeAutorizacionRedis,
 )
 from cheatsheet.contexts.integrations.infrastructure.cifrado import CifradoAesGcm
 from cheatsheet.contexts.integrations.infrastructure.email_integracion import AvisoPorEmail
@@ -49,13 +54,21 @@ class Integraciones:
 
 
 def registro_de_adaptadores(settings: Settings) -> PortRegistroDeAdaptadores:
-    """WhatsApp is real (or its own simulator); ARCA and MercadoPago are still stand-ins.
+    """Every system real, or its own simulator, according to its `*_ADAPTADOR` variable.
 
     Every stand-in raises when built in production, so none of this can quietly become how
-    a real company connects. `conexion-arca` and `conexion-mercadopago` each replace one
-    more entry inside `RegistroDeAdaptadores` and touch nothing else.
+    a real company connects.
     """
     return RegistroDeAdaptadores.desde_settings(settings)
+
+
+def crear_memoria_de_autorizacion(redis: Redis) -> PortMemoriaDeAutorizacion:
+    """Where an OAuth2 authorization waits out the round trip to the provider.
+
+    Takes the Redis client rather than `Settings` because it is process-lifetime, like
+    `crear_aviso`: it holds no transaction, and the connection is opened once at startup.
+    """
+    return MemoriaDeAutorizacionRedis(redis)
 
 
 def crear_aviso(settings: Settings) -> PortAvisoDeIntegracion:

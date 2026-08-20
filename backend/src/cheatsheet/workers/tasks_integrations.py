@@ -16,6 +16,13 @@ a fiscal certificate's expiry date (HU-E2-01 RN-04). They run daily rather than 
 hour, because a `notAfter` moves once every two years — and they cost no call to ARCA, so
 warning ahead of expiry is affordable.
 
+`conexion-mercadopago` adds a third: **`integrations.renovar_credenciales`** and
+**`integrations.renovar_empresa`** (HU-E2-02 RN-03). A third pair rather than a branch
+inside the second, because the two differ where it matters — the ARCA sweep reads a date
+that is already in our hands and calls nobody, while this one calls the provider and
+**rewrites the stored credential**. Folding a credential write into a read-only sweep is
+how a task that used to be safe to re-run stops being one.
+
 **This module is also where `integrations` and `identity` meet, and that is deliberate.**
 ADR-0003 makes `integrations` an Open Host Service with `identity` among its consumers, so
 the context itself must not reach back into `identity` — the use case therefore takes the
@@ -40,6 +47,7 @@ from cheatsheet.contexts.identity.infrastructure.repositories import (
     RepositorioUsuarioPostgres,
 )
 from cheatsheet.contexts.integrations.application.ports import AvisoDeIntegracion
+from cheatsheet.contexts.integrations.application.renovacion import RenovarCredenciales
 from cheatsheet.contexts.integrations.application.sondeo import (
     Desenlace,
     SondearIntegracionesPendientes,
@@ -48,6 +56,7 @@ from cheatsheet.contexts.integrations.application.vencimientos import RevisarVen
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones, crear_aviso
 from cheatsheet.contexts.integrations.infrastructure.repositories import (
     empresas_con_integracion_de_arca,
+    empresas_con_integracion_de_mercadopago,
     empresas_con_integracion_pendiente,
 )
 from cheatsheet.platform.database import sesion_sin_empresa
@@ -67,6 +76,8 @@ NOMBRE_BARRIDO = "integrations.sondear_pendientes"
 NOMBRE_EMPRESA = "integrations.sondear_empresa"
 NOMBRE_BARRIDO_VENCIMIENTOS = "integrations.revisar_vencimientos"
 NOMBRE_EMPRESA_VENCIMIENTOS = "integrations.revisar_empresa"
+NOMBRE_BARRIDO_RENOVACION = "integrations.renovar_credenciales"
+NOMBRE_EMPRESA_RENOVACION = "integrations.renovar_empresa"
 
 REINTENTOS = PoliticaDeReintentos()
 
@@ -165,6 +176,53 @@ async def revisar_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
             if desenlaces:
                 destinatarios = await _administradores(unidad.sesion, empresa_id)
 
+        await _avisar(recursos.settings, desenlaces, destinatarios)
+        return len(desenlaces)
+
+    return await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto) or 0
+
+
+async def renovar_credenciales(recursos: Recursos) -> int:
+    """Fan out one message per company that has MercadoPago connected. Returns how many."""
+    async with sesion_sin_empresa(recursos.sesiones) as sesion:
+        empresas = await empresas_con_integracion_de_mercadopago(sesion)
+
+    for empresa_id in empresas:
+        _encolar(recursos.settings, NOMBRE_EMPRESA_RENOVACION, empresa_id, _dia(recursos.settings))
+    logger.info("renovacion_de_credenciales_despachada", empresas=len(empresas))
+    return len(empresas)
+
+
+async def renovar_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: str) -> int:
+    """Renew one company's OAuth credentials. Returns how many integrations went inactive.
+
+    **Idempotent twice over.** The key makes a redelivery within the day a no-op, and even
+    without it a second run finds nothing to do: the first renewal leaves the credential
+    far from the margin. That belt-and-braces is deliberate — this task rewrites a stored
+    credential, and MercadoPago rotates the refresh token on every exchange.
+    """
+    clave = ClaveDeIdempotencia.de(
+        empresa_id=empresa_id, tipo=NOMBRE_EMPRESA_RENOVACION, payload={"ventana": ventana}
+    )
+
+    async def efecto() -> int:
+        desenlaces: list[Desenlace] = []
+        destinatarios: tuple[str, ...] = ()
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Integraciones.armar(unidad.sesion, recursos.settings)
+            desenlaces = await RenovarCredenciales(
+                integraciones=piezas.integraciones,
+                cifrado=piezas.cifrado,
+                adaptadores=piezas.adaptadores,
+                publicador=unidad.publicador,
+                reloj=unidad.reloj,
+                margen_dias=recursos.settings.mercadopago_margen_renovacion_dias,
+            ).ejecutar(empresa_id=empresa_id)
+            if desenlaces:
+                destinatarios = await _administradores(unidad.sesion, empresa_id)
+
+        # Outside the transaction, like the other two: a slow mail server must not hold a
+        # database connection open, and the state change is already committed.
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
@@ -319,6 +377,30 @@ def registrar_en(app: Celery, settings: Settings) -> None:
     def _empresa_vencimientos(**kwargs: str) -> Any:
         return revisar_empresa_sync(settings, **kwargs)
 
+    @app.task(  # type: ignore[misc]
+        name=NOMBRE_BARRIDO_RENOVACION,
+        queue=Cola.INTEGRATIONS_SYNC.value,
+        autoretry_for=(OSError,),
+        retry_backoff=REINTENTOS.espera_base,
+        retry_backoff_max=REINTENTOS.espera_maxima,
+        retry_jitter=True,
+        max_retries=REINTENTOS.max_intentos,
+    )
+    def _barrido_renovacion() -> Any:
+        return renovar_credenciales_sync(settings)
+
+    @app.task(  # type: ignore[misc]
+        name=NOMBRE_EMPRESA_RENOVACION,
+        queue=Cola.INTEGRATIONS_SYNC.value,
+        autoretry_for=(OSError,),
+        retry_backoff=REINTENTOS.espera_base,
+        retry_backoff_max=REINTENTOS.espera_maxima,
+        retry_jitter=True,
+        max_retries=REINTENTOS.max_intentos,
+    )
+    def _empresa_renovacion(**kwargs: str) -> Any:
+        return renovar_empresa_sync(settings, **kwargs)
+
 
 def sondear_pendientes_sync(settings: Settings) -> Any:
     """Celery's bridge into the async world. One loop and one set of resources per run."""
@@ -340,4 +422,15 @@ def revisar_empresa_sync(settings: Settings, empresa_id: str, ventana: str) -> A
     return ejecutar_tarea(
         settings,
         lambda recursos: revisar_empresa(recursos, EmpresaId(UUID(empresa_id)), ventana),
+    )
+
+
+def renovar_credenciales_sync(settings: Settings) -> Any:
+    return ejecutar_tarea(settings, renovar_credenciales)
+
+
+def renovar_empresa_sync(settings: Settings, empresa_id: str, ventana: str) -> Any:
+    return ejecutar_tarea(
+        settings,
+        lambda recursos: renovar_empresa(recursos, EmpresaId(UUID(empresa_id)), ventana),
     )

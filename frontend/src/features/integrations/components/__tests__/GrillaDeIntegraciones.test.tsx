@@ -15,6 +15,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 const listarIntegraciones = vi.fn();
 const verificarIntegraciones = vi.fn();
 const conectarIntegracion = vi.fn();
+const iniciarAutorizacion = vi.fn();
+const canjearAutorizacion = vi.fn();
 
 vi.mock("@/features/integrations/api/cliente", async () => {
   const real = await vi.importActual<typeof import("@/features/integrations/api/cliente")>(
@@ -25,6 +27,8 @@ vi.mock("@/features/integrations/api/cliente", async () => {
     listarIntegraciones: (...args: unknown[]) => listarIntegraciones(...args),
     verificarIntegraciones: (...args: unknown[]) => verificarIntegraciones(...args),
     conectarIntegracion: (...args: unknown[]) => conectarIntegracion(...args),
+    iniciarAutorizacion: (...args: unknown[]) => iniciarAutorizacion(...args),
+    canjearAutorizacion: (...args: unknown[]) => canjearAutorizacion(...args),
   };
 });
 
@@ -79,7 +83,33 @@ const SIN_CONECTAR: ListadoDeIntegraciones = {
   verificado_en: null,
 };
 
+/** jsdom refuses to navigate, so the two browser calls the flow makes are stubbed. */
+const irA = vi.fn();
+const limpiar = vi.fn();
+
+const CON_MERCADOPAGO: ListadoDeIntegraciones = {
+  integraciones: [
+    ARCA,
+    ...RESTO.map((integracion) =>
+      integracion.sistema === "MERCADOPAGO"
+        ? {
+            ...integracion,
+            estado: "CONECTADO" as const,
+            ambiente: "HOMOLOGACION" as const,
+            configurada: true,
+          }
+        : integracion,
+    ),
+  ],
+  verificado_en: "2026-08-20T15:30:00Z",
+};
+
 beforeAll(() => {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: { ...window.location, assign: irA, pathname: "/configuracion/integraciones" },
+  });
+  window.history.replaceState = limpiar;
   // jsdom has no `showModal`, and a `<dialog>` without `open` keeps its contents out of
   // the accessibility tree — so the stub has to set the flag, not just record the call.
   // Same shape as `ModalDeInvitacion`'s test in identity.
@@ -182,36 +212,102 @@ describe("GrillaDeIntegraciones", () => {
     expect(screen.getAllByRole("button", { name: "Conectar" })).toHaveLength(3);
   });
 
-  it("conectar recarga el listado", async () => {
-    // MercadoPago es el único sistema que todavía manda una credencial de relleno: ARCA y
-    // WhatsApp abren su propio formulario. Cuando llegue `conexion-mercadopago`, este test
-    // se muda igual que se mudó acá.
-    conectarIntegracion.mockResolvedValue({});
-    listarIntegraciones.mockResolvedValue({
-      integraciones: [
-        ARCA,
-        ...RESTO.map((integracion) =>
-          integracion.sistema === "MERCADOPAGO"
-            ? {
-                ...integracion,
-                estado: "CONECTADO" as const,
-                ambiente: "HOMOLOGACION" as const,
-                configurada: true,
-              }
-            : integracion,
-        ),
-      ],
-      verificado_en: "2026-08-18T15:30:00Z",
+  // ------------------------------------------------- conexion-mercadopago: casos 24 a 26
+
+  it("conectar MercadoPago manda el navegador al proveedor", async () => {
+    // Caso 24. No hay formulario ni credencial de relleno: el flujo se va de la app.
+    iniciarAutorizacion.mockResolvedValue({
+      url: "https://auth.mercadopago.test/authorization?state=abc",
+      expira_en_segundos: 600,
     });
 
     render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
     fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[1]!);
 
     await waitFor(() => {
+      expect(irA).toHaveBeenCalledWith("https://auth.mercadopago.test/authorization?state=abc");
+    });
+    expect(iniciarAutorizacion).toHaveBeenCalledWith("MERCADOPAGO");
+    expect(conectarIntegracion).not.toHaveBeenCalled();
+  });
+
+  it("al volver del proveedor se canjea el codigo y se recarga el listado", async () => {
+    // Caso 24, la vuelta. El `state` viaja tal cual: acá no significa nada, y se chequea
+    // donde sí significa algo.
+    canjearAutorizacion.mockResolvedValue({});
+    listarIntegraciones.mockResolvedValue(CON_MERCADOPAGO);
+
+    render(
+      <GrillaDeIntegraciones
+        inicial={SIN_CONECTAR}
+        puedeConectar
+        retorno={{ sistema: "MERCADOPAGO", codigo: "el-codigo", estado: "el-estado", error: null }}
+      />,
+    );
+
+    await waitFor(() => {
       expect(screen.getByText("Conectado")).toBeTruthy();
     });
-    expect(conectarIntegracion).toHaveBeenCalledWith("MERCADOPAGO", expect.any(String), {});
-    expect(screen.getByText("Homologación")).toBeTruthy();
+    expect(canjearAutorizacion).toHaveBeenCalledWith("MERCADOPAGO", "el-codigo", "el-estado");
+  });
+
+  it("al volver sin haber autorizado se explica, sin error tecnico", async () => {
+    // Caso 25. `access_denied` no es una falla nuestra y el mensaje no la disfraza de una.
+    render(
+      <GrillaDeIntegraciones
+        inicial={SIN_CONECTAR}
+        puedeConectar
+        retorno={{
+          sistema: "MERCADOPAGO",
+          codigo: null,
+          estado: null,
+          error: "access_denied",
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain("No autorizaste el acceso");
+    });
+    expect(canjearAutorizacion).not.toHaveBeenCalled();
+  });
+
+  it("despues de canjear la query queda limpia", async () => {
+    // Caso 26. Un codigo es de un solo uso: dejarlo en la barra de direcciones deja una URL
+    // que falla si alguien la comparte o aprieta F5.
+    canjearAutorizacion.mockResolvedValue({});
+    listarIntegraciones.mockResolvedValue(CON_MERCADOPAGO);
+
+    render(
+      <GrillaDeIntegraciones
+        inicial={SIN_CONECTAR}
+        puedeConectar
+        retorno={{ sistema: "MERCADOPAGO", codigo: "el-codigo", estado: "el-estado", error: null }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(limpiar).toHaveBeenCalled();
+    });
+  });
+
+  it("un canje rechazado se muestra y la pantalla sigue en pie", async () => {
+    canjearAutorizacion.mockRejectedValue(
+      new Error("La autorizacion vencio o ya fue usada. Volve a iniciar la conexion"),
+    );
+
+    render(
+      <GrillaDeIntegraciones
+        inicial={SIN_CONECTAR}
+        puedeConectar
+        retorno={{ sistema: "MERCADOPAGO", codigo: "viejo", estado: "gastado", error: null }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain("Volve a iniciar la conexion");
+    });
+    expect(screen.getAllByText("Sin conectar")).toHaveLength(4);
   });
 
   it("un fallo de la verificacion se muestra y no rompe la pantalla", async () => {
@@ -403,6 +499,40 @@ describe("GrillaDeIntegraciones", () => {
     expect(screen.getByRole("button", { name: "Reconectar" })).toBeTruthy();
   });
 
+  /**
+   * Carga los dos archivos del certificado y envía el formulario de ARCA.
+   *
+   * Antes estos dos tests apretaban «Conectar» en MercadoPago, que era el único sistema
+   * con conexión de un click. `conexion-mercadopago` le puso su OAuth2, así que pasan por
+   * donde el aviso fiscal realmente ocurre: la conexión con ARCA.
+   */
+  function archivo(nombre: string, contenido: string): File {
+    // jsdom no implementa `Blob.prototype.text`, que es lo que el formulario usa para
+    // leer el certificado. Se resuelve por instancia en lugar de parchear el prototipo:
+    // un polyfill global escondería que el navegador real hace otra cosa.
+    const creado = new File([contenido], nombre);
+    Object.defineProperty(creado, "text", { value: () => Promise.resolve(contenido) });
+    return creado;
+  }
+
+  async function conectarArca(): Promise<void> {
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[0]!);
+    const certificado = archivo("cert.pem", "-----BEGIN CERTIFICATE-----");
+    const clave = archivo("clave.key", "-----BEGIN PRIVATE KEY-----");
+    fireEvent.change(screen.getByLabelText("Certificado (.crt o .pem)"), {
+      target: { files: [certificado] },
+    });
+    fireEvent.change(screen.getByLabelText("Clave privada (.key)"), {
+      target: { files: [clave] },
+    });
+    await waitFor(() => {
+      expect(
+        (screen.getByRole("button", { name: "Conectar ARCA" }) as HTMLButtonElement).disabled,
+      ).toBe(false);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Conectar ARCA" }));
+  }
+
   it("el aviso fiscal de la conexión con ARCA se muestra al Administrador", async () => {
     // Conectar ARCA es el primer instante en que el padrón se puede consultar, así que el
     // hallazgo vuelve en esa misma respuesta. Si no se mostrara acá, un certificado de
@@ -413,7 +543,7 @@ describe("GrillaDeIntegraciones", () => {
     listarIntegraciones.mockResolvedValue(SIN_CONECTAR);
 
     render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
-    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[1]!);
+    await conectarArca();
 
     await waitFor(() => {
       expect(screen.getByText(/pertenece a otro CUIT/)).toBeTruthy();
@@ -425,7 +555,7 @@ describe("GrillaDeIntegraciones", () => {
     listarIntegraciones.mockResolvedValue(SIN_CONECTAR);
 
     render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
-    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[1]!);
+    await conectarArca();
 
     await waitFor(() => expect(conectarIntegracion).toHaveBeenCalled());
     expect(screen.queryByText("Revisá los datos fiscales")).toBeNull();

@@ -23,6 +23,7 @@ from cheatsheet.contexts.observability.domain.registro_de_auditoria import Regis
 from cheatsheet.platform.settings import (
     AdaptadorDeArca,
     AdaptadorDeEmail,
+    AdaptadorDeMercadoPago,
     AdaptadorDeWhatsApp,
     Entorno,
     Settings,
@@ -101,6 +102,17 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         arca_timeout_segundos=1,
         arca_margen_renovacion_minutos=30,
         arca_aviso_vencimiento_dias=30,
+        # The simulator again, and a host that does not resolve. The application
+        # credentials are placeholders: nothing in the suite exchanges a real code.
+        mercadopago_adaptador=AdaptadorDeMercadoPago.SIMULADO,
+        mercadopago_client_id="app-de-prueba",
+        mercadopago_client_secret="secreto-de-prueba",
+        mercadopago_redirect_uri="http://localhost:3000/configuracion/integraciones",
+        mercadopago_auth_url="https://auth.mercadopago.invalid",
+        mercadopago_api_url="https://api.mercadopago.invalid",
+        mercadopago_timeout_segundos=1,
+        mercadopago_margen_renovacion_dias=15,
+        mercadopago_autorizacion_ttl_minutos=10,
         google_oauth_client_id="",
         google_oauth_client_secret="",
         google_oauth_redirect_uri="",
