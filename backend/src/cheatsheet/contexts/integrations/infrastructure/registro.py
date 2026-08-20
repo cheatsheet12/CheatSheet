@@ -3,9 +3,10 @@
 This is the seam of the epic. `conexion-whatsapp` was the first unit to use it and
 `conexion-arca` the second: only `MERCADOPAGO` still resolves to the generic stand-in.
 
-ARCA is the first system that needs a **third** adapter — an issuer of access tickets
-(ADR-0004) — so `ParDeAdaptadores` grew an optional slot rather than the registry growing
-a special case. Every other system leaves it empty.
+ARCA is the only system that needs more than a connector and a verifier: an issuer of
+access tickets (ADR-0004) and a lookup against the taxpayer registry. `ParDeAdaptadores`
+grew optional slots for them rather than the registry growing a special case, and every
+other system leaves them empty.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from datetime import timedelta
 
 from cheatsheet.contexts.integrations.application.ports import (
     PortConectorDeIntegracion,
+    PortConsultaDePadron,
     PortEmisorDeTickets,
     PortVerificadorDeConexion,
 )
@@ -23,6 +25,10 @@ from cheatsheet.contexts.integrations.infrastructure.arca.adaptadores import (
     ConectorArca,
     EmisorArcaDeTickets,
     VerificadorArca,
+)
+from cheatsheet.contexts.integrations.infrastructure.arca.padron import (
+    ClientePadronA5,
+    ConfiguracionPadron,
 )
 from cheatsheet.contexts.integrations.infrastructure.arca.simulado import ArcaSimulado
 from cheatsheet.contexts.integrations.infrastructure.arca.wsaa import ClienteWsaa, ConfiguracionWsaa
@@ -70,6 +76,8 @@ class ParDeAdaptadores:
     #: Only ARCA mints access tickets (ADR-0004). Optional rather than a separate registry
     #: because it is resolved by the same key and replaced by the same unit.
     emisor: PortEmisorDeTickets | None = None
+    #: Only ARCA has a taxpayer registry to look a CUIT up in.
+    padron: PortConsultaDePadron | None = None
 
 
 class RegistroDeAdaptadores:
@@ -115,7 +123,10 @@ class RegistroDeAdaptadores:
             entorno=entorno, reloj=RelojDelSistema(), aviso=AVISO_POR_DEFECTO
         )
         pares[SistemaExterno.ARCA] = ParDeAdaptadores(
-            conector=simulado_arca, verificador=simulado_arca, emisor=simulado_arca
+            conector=simulado_arca,
+            verificador=simulado_arca,
+            emisor=simulado_arca,
+            padron=simulado_arca,
         )
         return cls(pares)
 
@@ -130,6 +141,10 @@ class RegistroDeAdaptadores:
     def emisor_de_tickets(self, sistema: SistemaExterno) -> PortEmisorDeTickets | None:
         par = self._pares.get(sistema)
         return par.emisor if par is not None else None
+
+    def consulta_de_padron(self, sistema: SistemaExterno) -> PortConsultaDePadron | None:
+        par = self._pares.get(sistema)
+        return par.padron if par is not None else None
 
 
 def _par_de_whatsapp(settings: Settings) -> ParDeAdaptadores:
@@ -153,7 +168,9 @@ def _par_de_arca(settings: Settings, reloj: Reloj) -> ParDeAdaptadores:
     aviso = timedelta(days=settings.arca_aviso_vencimiento_dias)
     if settings.arca_adaptador is AdaptadorDeArca.SIMULADO:
         simulado = ArcaSimulado(entorno=settings.entorno, reloj=reloj, aviso=aviso)
-        return ParDeAdaptadores(conector=simulado, verificador=simulado, emisor=simulado)
+        return ParDeAdaptadores(
+            conector=simulado, verificador=simulado, emisor=simulado, padron=simulado
+        )
 
     # **Two hosts, and this is where the choice is made.** `Ambiente` comes from `APP_ENV`
     # and never from the request (the decision `mecanismo-de-integraciones` recorded), so
@@ -167,8 +184,20 @@ def _par_de_arca(settings: Settings, reloj: Reloj) -> ParDeAdaptadores:
         ConfiguracionWsaa(url=url, timeout_segundos=float(settings.arca_timeout_segundos))
     )
     emisor = EmisorArcaDeTickets(cliente, reloj)
+    # The padrón lives on a different host from WSAA and splits its environments the same
+    # way, so the choice is made once, here, from the same flag.
+    url_padron = (
+        settings.arca_padron_url_produccion
+        if settings.es_produccion
+        else settings.arca_padron_url_homologacion
+    )
     return ParDeAdaptadores(
         conector=ConectorArca(emisor, reloj),
         verificador=VerificadorArca(reloj, aviso),
         emisor=emisor,
+        padron=ClientePadronA5(
+            ConfiguracionPadron(
+                url=url_padron, timeout_segundos=float(settings.arca_timeout_segundos)
+            )
+        ),
     )

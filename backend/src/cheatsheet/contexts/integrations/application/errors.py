@@ -61,3 +61,17 @@ class TicketNoDisponible(OperacionNoPermitida):
     the caller sent was wrong. The company simply has not connected ARCA, or its
     credential stopped working.
     """
+
+
+class ConsultaDePadronNoDisponible(ProveedorNoDisponible):
+    """The taxpayer registry could not be asked. **Not** "the tax id does not exist".
+
+    Every cause lands here — the company has not connected ARCA, no access ticket could
+    be minted, the service timed out, the stored certificate does not declare a CUIT —
+    because the caller's reaction is the same in all of them: carry on without the
+    registry's opinion, and say so.
+
+    A subclass of `ProveedorNoDisponible` and not of `ConexionRechazada`, and the
+    distinction is the point of the unit: an unreachable ARCA must never look like a CUIT
+    ARCA rejected. One of those blocks the Administrator; the other must not.
+    """

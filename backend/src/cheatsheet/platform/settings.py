@@ -216,6 +216,8 @@ class Settings:
     arca_adaptador: AdaptadorDeArca
     arca_wsaa_url_homologacion: str
     arca_wsaa_url_produccion: str
+    arca_padron_url_homologacion: str
+    arca_padron_url_produccion: str
     arca_timeout_segundos: int
     arca_margen_renovacion_minutos: int
     arca_aviso_vencimiento_dias: int
@@ -284,6 +286,16 @@ class Settings:
             ),
             arca_wsaa_url_produccion=_opcional(
                 "ARCA_WSAA_URL_PRODUCCION", "https://wsaa.afip.gov.ar/ws/services/LoginCms"
+            ),
+            # The taxpayer registry is a different host from WSAA and splits its
+            # environments the same way. Same flag, same consequence if it is wrong.
+            arca_padron_url_homologacion=_opcional(
+                "ARCA_PADRON_URL_HOMOLOGACION",
+                "https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5",
+            ),
+            arca_padron_url_produccion=_opcional(
+                "ARCA_PADRON_URL_PRODUCCION",
+                "https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5",
             ),
             # Longer than Meta's: ARCA is slower, and a login that times out on a busy
             # morning looks to the Administrator exactly like a rejected certificate.

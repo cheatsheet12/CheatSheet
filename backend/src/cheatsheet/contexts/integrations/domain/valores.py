@@ -105,12 +105,21 @@ class CredencialCifrada:
             raise EntradaInvalida("Una credencial cifrada debe declarar su algoritmo")
 
 
-#: The one parameter key this context defines for itself: a short human-readable name for
-#: what got connected, which the card shows under the system's name. Each provider's
-#: Anti-Corruption Layer fills it from whatever its own vocabulary calls that — Meta calls
-#: it `verified_name` (HU-E2-03 RN-03). Declared here, and not in each adapter, so the
-#: application layer can read it without learning any provider's field names.
+#: The parameter keys this context defines for itself. Each provider's Anti-Corruption
+#: Layer fills them from whatever its own vocabulary calls the same thing, and they are
+#: declared here — not in each adapter — so the application layer can read them without
+#: learning any provider's field names.
+#:
+#: `etiqueta`: a short human-readable name for what got connected, shown on the card under
+#: the system's name. Meta calls it `verified_name` (HU-E2-03 RN-03).
 CLAVE_ETIQUETA = "etiqueta"
+
+#: `cuit`: the tax id the **provider** says the stored credential belongs to — for ARCA,
+#: what the certificate's subject declares. Promoted from ARCA's adapter to the domain by
+#: `padron-y-datos-fiscales`, which compares it with the CUIT the company entered by hand:
+#: a difference means somebody loaded another taxpayer's certificate, and without this it
+#: surfaces when the first document is issued in the wrong name.
+CLAVE_CUIT = "cuit"
 
 
 def validar_detalle(detalle: str | None) -> str | None:

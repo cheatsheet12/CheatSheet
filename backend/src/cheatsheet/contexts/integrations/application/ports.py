@@ -9,6 +9,7 @@ clients would not be one.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
@@ -21,6 +22,7 @@ from cheatsheet.contexts.integrations.domain.valores import (
     SistemaExterno,
 )
 from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.fiscal import CondicionIVA
 
 
 class PortRepositorioIntegraciones(Protocol):
@@ -212,13 +214,55 @@ class PortAvisoDeIntegracion(Protocol):
     async def avisar(self, aviso: AvisoDeIntegracion) -> None: ...
 
 
-class PortRegistroDeAdaptadores(Protocol):
-    """Resolves the connector and verifier of one system.
+@dataclass(frozen=True, slots=True)
+class DatosDePadron:
+    """What ARCA's registry knows about one tax id.
 
-    The single seam each of the following units touches: `conexion-arca` registers the
-    real ARCA pair, and nothing else in this context changes.
+    Part of the published contract, and shaped for the question `identity` asks rather
+    than for what ARCA answers: the provider's vocabulary stops at the adapter. Every
+    field except `cuit` may be absent, because the registry itself is uneven — a company
+    without a declared VAT status is unusual, not impossible, and inventing one here would
+    decide which kind of `Comprobante` epic 5 may issue.
+
+    `CondicionIVA` travels because it lives in the Shared Kernel (`shared/fiscal.py`). It
+    is not `identity`'s type crossing a boundary: it is vocabulary both contexts own.
+    """
+
+    cuit: str
+    razon_social: str | None
+    condicion_iva: CondicionIVA | None
+    #: `False` when the tax id exists but is deregistered. It does **not** mean "not
+    #: found": that is a `None` result, and the two lead to opposite decisions.
+    activo: bool
+
+
+class PortConsultaDePadron(Protocol):
+    """Looks a tax id up in ARCA's registry with an access ticket already in hand.
+
+    `parametros` is the integration's own stored parameters, not the caller's: ARCA
+    demands to know *whose* certificate is asking, and that CUIT was extracted from the
+    certificate when the company connected. Passing the whole bag keeps the parameter
+    keys — which are ARCA's — inside ARCA's adapter.
+
+    Returns `None` when the registry does not know the tax id. **Never** returns `None`
+    for an outage; that raises, and the difference is what stops a bad afternoon at ARCA
+    from turning into a rejected CUIT.
+    """
+
+    async def consultar(
+        self, *, ticket: bytes, parametros: Mapping[str, Any], cuit: str
+    ) -> DatosDePadron | None: ...
+
+
+class PortRegistroDeAdaptadores(Protocol):
+    """Resolves the adapters of one system.
+
+    The single seam each unit of the epic touches: `conexion-arca` registered the real
+    ARCA trio, `padron-y-datos-fiscales` adds its fourth adapter, and nothing else in this
+    context changes.
     """
 
     def conector(self, sistema: SistemaExterno) -> PortConectorDeIntegracion | None: ...
     def verificador(self, sistema: SistemaExterno) -> PortVerificadorDeConexion | None: ...
     def emisor_de_tickets(self, sistema: SistemaExterno) -> PortEmisorDeTickets | None: ...
+    def consulta_de_padron(self, sistema: SistemaExterno) -> PortConsultaDePadron | None: ...
