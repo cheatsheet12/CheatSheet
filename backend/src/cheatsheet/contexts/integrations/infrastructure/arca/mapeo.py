@@ -19,10 +19,12 @@ from cheatsheet.contexts.integrations.application.errors import (
     ConexionRechazada,
     ProveedorNoDisponible,
 )
+from cheatsheet.contexts.integrations.domain.valores import CLAVE_CUIT as CLAVE_CUIT
 from cheatsheet.contexts.integrations.domain.valores import EstadoDeConexion
 
-#: Parameter keys this adapter writes onto the aggregate. Ours, not ARCA's.
-CLAVE_CUIT = "cuit"
+#: Parameter keys this adapter writes onto the aggregate. Ours, not ARCA's. `CLAVE_CUIT`
+#: lives in the domain because the application layer reads it too — see `valores.py`; it is
+#: re-exported here so every ARCA module keeps taking its keys from one import.
 CLAVE_TITULAR = "titular"
 CLAVE_VENCIMIENTO = "certificado_vence_en"
 

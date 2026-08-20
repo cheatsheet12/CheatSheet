@@ -13,16 +13,24 @@ three states of the card come out of the same function either way.
 
 The ticket it mints is fake and says so. Nothing downstream can mistake it for one that
 ARCA would accept.
+
+**The padrón answers are fabricated but travel through the real parser**, so the fiscal
+translation — the one that decides which `Comprobante` epic 5 may issue — is the same
+code on a laptop and in production. Two CUIT prefixes are reserved so the two awkward
+outcomes can be demonstrated without a real ARCA: one that does not exist, and one that
+exists but is deregistered.
 """
 
 from __future__ import annotations
 
 import secrets
+from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any
 
 from cheatsheet.contexts.integrations.application.errors import ConexionRechazada
 from cheatsheet.contexts.integrations.application.ports import (
+    DatosDePadron,
     MaterialDeConexion,
     ResultadoDeConexion,
     ResultadoDeVerificacion,
@@ -36,6 +44,7 @@ from cheatsheet.contexts.integrations.infrastructure.arca.adaptadores import (
     parametros_de_la_credencial,
 )
 from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import estado_por_vencimiento
+from cheatsheet.contexts.integrations.infrastructure.arca.padron import leer_persona
 from cheatsheet.platform.settings import Entorno
 from cheatsheet.shared.clock import Reloj
 
@@ -47,6 +56,18 @@ DURACION_DEL_TICKET = timedelta(hours=12)
 #: which is the correct outcome and better than a blob that looks plausible.
 PREFIJO_SIMULADO = "TICKET-SIMULADO"
 
+#: Reserved so the blocking path of RN-01 can be demonstrated: any CUIT starting with this
+#: comes back «no existe». Chosen instead of a rule over the last digit because that would
+#: have made whole plausible CUITs — including the fixtures' — unusable by accident.
+PREFIJO_INEXISTENTE = "20000000"
+
+#: Reserved for a tax id that exists and is no longer in force.
+PREFIJO_INACTIVO = "20999999"
+
+#: The prefixes ARCA gives to individuals. Everything else is a company, and the two get
+#: different shapes of answer — which is the difference the real parser has to handle.
+PREFIJOS_DE_PERSONA = ("20", "23", "24", "27")
+
 
 def _rechazar_en_produccion(entorno: Entorno) -> None:
     if entorno is Entorno.PRODUCTION:
@@ -57,7 +78,7 @@ def _rechazar_en_produccion(entorno: Entorno) -> None:
 
 
 class ArcaSimulado:
-    """Implements the three ARCA ports at once, without a socket."""
+    """Implements the four ARCA ports at once, without a socket."""
 
     def __init__(self, *, entorno: Entorno, reloj: Reloj, aviso: timedelta) -> None:
         _rechazar_en_produccion(entorno)
@@ -86,6 +107,16 @@ class ArcaSimulado:
             tickets=(ticket,),
         )
 
+    async def consultar(
+        self, *, ticket: bytes, parametros: Mapping[str, Any], cuit: str
+    ) -> DatosDePadron | None:
+        """Fabricates a `getPersona` answer and reads it back with the real parser."""
+        del ticket, parametros  # the stand-in authenticates nothing
+        digitos = "".join(c for c in cuit if c.isdigit())
+        if digitos.startswith(PREFIJO_INEXISTENTE):
+            return None
+        return leer_persona(_respuesta_simulada(digitos), digitos)
+
     async def verificar(
         self, credencial: bytes, parametros: dict[str, Any]
     ) -> ResultadoDeVerificacion:
@@ -100,3 +131,37 @@ class ArcaSimulado:
             )
         estado, detalle = estado_por_vencimiento(fiscal.vence_en, self._reloj.ahora(), self._aviso)
         return ResultadoDeVerificacion(estado, detalle, parametros_de_la_credencial(fiscal))
+
+
+def _respuesta_simulada(cuit: str) -> str:
+    """A `getPersona` body with the shape ARCA returns, filled with obvious fiction.
+
+    An individual comes back as a monotributista with `apellido` and `nombre`; a company
+    as a responsable inscripto with `razonSocial` and its list of taxes. Between them they
+    cover both branches of `leer_persona`, so the stand-in exercises the parser instead of
+    walking around it.
+    """
+    estado = "INACTIVO" if cuit.startswith(PREFIJO_INACTIVO) else "ACTIVO"
+    if cuit[:2] in PREFIJOS_DE_PERSONA:
+        identidad = (
+            "<apellido>SIMULADO</apellido><nombre>CONTRIBUYENTE</nombre>"
+            "<tipoPersona>FISICA</tipoPersona>"
+        )
+        regimen = (
+            "<datosMonotributo><categoriaMonotributo>C</categoriaMonotributo></datosMonotributo>"
+        )
+    else:
+        identidad = (
+            f"<razonSocial>EMPRESA SIMULADA {cuit}</razonSocial><tipoPersona>JURIDICA</tipoPersona>"
+        )
+        regimen = (
+            "<datosRegimenGeneral><impuesto><idImpuesto>30</idImpuesto>"
+            "<descripcionImpuesto>IVA</descripcionImpuesto></impuesto></datosRegimenGeneral>"
+        )
+    return (
+        "<personaReturn>"
+        f"<datosGenerales><idPersona>{cuit}</idPersona>"
+        f"<estadoClave>{estado}</estadoClave>{identidad}</datosGenerales>"
+        f"{regimen}"
+        "</personaReturn>"
+    )

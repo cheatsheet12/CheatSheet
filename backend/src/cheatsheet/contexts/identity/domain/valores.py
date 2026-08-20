@@ -15,6 +15,7 @@ from enum import StrEnum
 from typing import TypeVar
 
 from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.fiscal import CondicionIVA as CondicionIVA
 from cheatsheet.shared.roles import RolUsuario as RolUsuario
 
 LARGO_CUIT = 11
@@ -29,13 +30,15 @@ _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _Enum = TypeVar("_Enum", bound=StrEnum)
 
 
-class CondicionIVA(StrEnum):
-    """DER enum `condicion_iva`."""
-
-    RESPONSABLE_INSCRIPTO = "RESPONSABLE_INSCRIPTO"
-    MONOTRIBUTO = "MONOTRIBUTO"
-    EXENTO = "EXENTO"
-    CONSUMIDOR_FINAL = "CONSUMIDOR_FINAL"
+# `CondicionIVA` now lives in the Shared Kernel and is re-exported here, for the same
+# reason and by the same mechanism as `RolUsuario` below.
+#
+# `identity` still owns the concept — the DER enum is `condicion_iva`, it is chosen at
+# step 2 of the onboarding, and `Empresa` is the aggregate that holds it. What changed is
+# that `integrations` now has to *produce* one: the padrón unit reads ARCA's registry and
+# translates what it finds, and that translation belongs in ARCA's Anti-Corruption Layer.
+# Importing this module from there would break R3 and contradict ADR-0003. See
+# `shared/fiscal.py` for the full reasoning.
 
 
 # `RolUsuario` now lives in the Shared Kernel and is re-exported here.

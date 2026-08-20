@@ -36,6 +36,13 @@ export interface Integracion {
    * rest either identify the account to the provider or drive a simulation.
    */
   readonly etiqueta: string | null;
+  /**
+   * Only on the answer to a connection, and only for ARCA: what the taxpayer registry had
+   * to say about the company's fiscal data now that it can finally be asked. Connecting
+   * ARCA is the first moment the padrón lookup is possible at all, so the finding rides
+   * back on the response the Administrator is already looking at.
+   */
+  readonly aviso_fiscal?: string | null;
 }
 
 export interface ListadoDeIntegraciones {

@@ -33,6 +33,7 @@ from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionD
 from cheatsheet.contexts.integrations.domain.eventos import CambioDeEstado
 from cheatsheet.contexts.integrations.domain.ticket import TicketDeAcceso
 from cheatsheet.contexts.integrations.domain.valores import (
+    CLAVE_CUIT,
     CLAVE_ETIQUETA,
     SISTEMAS_EN_PANTALLA,
     Ambiente,
@@ -136,10 +137,14 @@ class VistaDeIntegracion:
     verificado_en: datetime | None
     configurada: bool
     #: HU-E2-03 RN-03's verified display name, and whatever the equivalent turns out to be
-    #: for the next provider. Only this one parameter crosses the API: everything else in
+    #: for the next provider. Only named parameters cross this boundary: everything else in
     #: `parametros` either identifies the account to the provider or drives a simulation,
     #: and neither belongs in a response.
     etiqueta: str | None = None
+    #: The tax id the provider says the credential belongs to. Published because `identity`
+    #: compares it with the CUIT the company entered — see `RevalidarDatosFiscales`. It is
+    #: not a secret: it is printed on every document the company issues.
+    cuit_declarado: str | None = None
 
 
 def _exigir_lectura(rol: RolUsuario) -> None:
@@ -435,7 +440,6 @@ def _vista(
             verificado_en=None,
             configurada=False,
         )
-    etiqueta = configuracion.parametros.get(CLAVE_ETIQUETA)
     return VistaDeIntegracion(
         sistema=sistema,
         estado=configuracion.estado,
@@ -443,5 +447,12 @@ def _vista(
         ambiente=configuracion.ambiente,
         verificado_en=configuracion.verificado_en,
         configurada=True,
-        etiqueta=etiqueta if isinstance(etiqueta, str) else None,
+        etiqueta=_parametro(configuracion, CLAVE_ETIQUETA),
+        cuit_declarado=_parametro(configuracion, CLAVE_CUIT),
     )
+
+
+def _parametro(configuracion: ConfiguracionDeIntegracion, clave: str) -> str | None:
+    """A named parameter, or nothing. `parametros` is free-form, so its types are too."""
+    valor = configuracion.parametros.get(clave)
+    return valor if isinstance(valor, str) and valor else None

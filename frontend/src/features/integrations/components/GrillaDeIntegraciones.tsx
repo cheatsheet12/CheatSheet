@@ -52,6 +52,9 @@ export function GrillaDeIntegraciones({ inicial, puedeConectar }: PropsDeGrilla)
   const [ocupada, setOcupada] = useState<SistemaExterno | "verificacion" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formulario, setFormulario] = useState<SistemaExterno | null>(null);
+  //: Lo que el padrón de ARCA encontró al conectar. No se persiste: se recalcula cada
+  //: vez que alguien mira los datos de la empresa, así que vive lo que dura la pantalla.
+  const [avisoFiscal, setAvisoFiscal] = useState<string | null>(null);
 
   const conectadas = listado.integraciones.filter((i) => i.estado === "CONECTADO").length;
 
@@ -74,8 +77,10 @@ export function GrillaDeIntegraciones({ inicial, puedeConectar }: PropsDeGrilla)
   ): Promise<void> {
     setOcupada(sistema);
     setError(null);
+    setAvisoFiscal(null);
     try {
-      await conectarIntegracion(sistema, contenido, parametros);
+      const conectada = await conectarIntegracion(sistema, contenido, parametros);
+      setAvisoFiscal(conectada.aviso_fiscal ?? null);
       setListado(await listarIntegraciones());
       setFormulario(null);
     } catch (fallo) {
@@ -116,6 +121,11 @@ export function GrillaDeIntegraciones({ inicial, puedeConectar }: PropsDeGrilla)
       </header>
 
       {error !== null ? <Alert tono="error">{error}</Alert> : null}
+      {avisoFiscal !== null ? (
+        <Alert tono="advertencia" titulo="Revisá los datos fiscales">
+          {avisoFiscal}
+        </Alert>
+      ) : null}
 
       <div className="int-grid">
         {listado.integraciones.map((integracion: Integracion) => (

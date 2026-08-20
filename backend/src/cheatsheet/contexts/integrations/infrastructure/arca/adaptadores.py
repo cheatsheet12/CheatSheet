@@ -38,7 +38,7 @@ from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import (
     YaAutenticado,
     estado_por_vencimiento,
 )
-from cheatsheet.contexts.integrations.infrastructure.arca.wsaa import ClienteWsaa
+from cheatsheet.contexts.integrations.infrastructure.arca.wsaa import ClienteWsaa, empaquetar
 from cheatsheet.shared.clock import Reloj
 
 #: The service a connection is validated against. WSFE rather than the padrón because it
@@ -79,11 +79,11 @@ class EmisorArcaDeTickets:
         firma.exigir_vigente(fiscal, ahora)
         solicitud = firma.armar_solicitud(servicio, ahora)
         ticket = await self._cliente.login(firma.firmar(solicitud, fiscal))
-        # The token and the sign travel together because every later call needs both, and
-        # a pair split across two columns is a pair that eventually disagrees.
         return TicketEmitido(
             servicio=servicio,
-            contenido=f"{ticket.token}\n{ticket.sign}".encode(),
+            # `empaquetar` and `desempaquetar` are two halves of one format, so they live
+            # together in `wsaa.py`: the padrón client reads back what this writes.
+            contenido=empaquetar(ticket),
             expira_en=ticket.expira_en,
         )
 

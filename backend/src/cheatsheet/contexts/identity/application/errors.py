@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from cheatsheet.shared.errors import (
+    EntradaInvalida,
     ErrorDeDominio,
     InvarianteViolada,
     OperacionNoPermitida,
@@ -36,6 +37,21 @@ class InvitacionInvalida(ErrorDeDominio):
 
 class CuitYaRegistrado(ErrorDeDominio):
     """`empresa.cuit` is unique in the DER: one company, one tax id."""
+
+
+class CuitInexistenteEnPadron(EntradaInvalida):
+    """ARCA's registry does not know this tax id (HU-E1-02 RN-01).
+
+    An `EntradaInvalida` — answered as 422 — for the same reason `ConexionRechazada` is
+    one in `integrations`: the acceptance criterion words it as «el sistema indica que el
+    CUIT no fue encontrado en ARCA», which is a message beside a field, not a conflict
+    with the state of the server.
+
+    Raised **only when the registry actually answered**. A CUIT that could not be checked
+    — because ARCA is unreachable, or because the company has not loaded its certificate
+    yet — is not this error and must never become it: the whole point of the padrón unit
+    is that an outage at ARCA does not read to the Administrator like a rejected CUIT.
+    """
 
 
 class CredencialesInvalidas(ErrorDeDominio):

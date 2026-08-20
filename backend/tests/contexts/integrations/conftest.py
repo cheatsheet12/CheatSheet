@@ -8,14 +8,17 @@ instead of leaving them agreeing with an interface that no longer exists.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
 import pytest
 from cheatsheet.contexts.integrations.application.ports import (
+    DatosDePadron,
     MaterialDeConexion,
     PortConectorDeIntegracion,
+    PortConsultaDePadron,
     PortEmisorDeTickets,
     PortVerificadorDeConexion,
     ResultadoDeConexion,
@@ -140,6 +143,10 @@ class RegistroFalso:
         par = self.pares.get(sistema)
         return par.emisor if par is not None else None
 
+    def consulta_de_padron(self, sistema: SistemaExterno) -> PortConsultaDePadron | None:
+        par = self.pares.get(sistema)
+        return par.padron if par is not None else None
+
 
 class PublicadorFalso:
     def __init__(self) -> None:
@@ -228,3 +235,36 @@ class EmisorProgramado:
         if self.excepcion is not None:
             raise self.excepcion
         return TicketEmitido(servicio=servicio, contenido=self.contenido, expira_en=self.expira_en)
+
+
+class PadronProgramado:
+    """Implements `PortConsultaDePadron`. Guarda con qué lo llamaron.
+
+    Que registre `ticket` y `parametros` no es curiosidad: el CUIT que ARCA exige saber es
+    el **del certificado**, y confundirlo con el consultado es un error que devolvería los
+    datos de la empresa equivocada.
+    """
+
+    def __init__(
+        self,
+        *,
+        datos: DatosDePadron | None = None,
+        excepcion: Exception | None = None,
+    ) -> None:
+        self.datos = datos
+        self.excepcion = excepcion
+        self.llamadas = 0
+        self.ultimo_ticket: bytes | None = None
+        self.ultimos_parametros: Mapping[str, Any] | None = None
+        self.ultimo_cuit: str | None = None
+
+    async def consultar(
+        self, *, ticket: bytes, parametros: Mapping[str, Any], cuit: str
+    ) -> DatosDePadron | None:
+        self.llamadas += 1
+        self.ultimo_ticket = ticket
+        self.ultimos_parametros = parametros
+        self.ultimo_cuit = cuit
+        if self.excepcion is not None:
+            raise self.excepcion
+        return self.datos

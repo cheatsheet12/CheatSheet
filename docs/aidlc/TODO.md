@@ -95,8 +95,8 @@ Ninguna de estas bloquea el cierre. Están acá para que nadie las descubra desp
 
 | Deuda | Por qué | Dónde se salda |
 |---|---|---|
-| **CUIT no se valida contra el padrón de ARCA** | Decisión D1: la credencial fiscal recién existe en el épico 2. Hoy se valida formato y dígito verificador. Un CUIT bien formado pero inexistente entra al sistema | **Épico 2**, cuando HU-E2-01 deje la credencial cargada |
-| **`CondicionIVA` se elige a mano** | Mismo motivo: el criterio de aceptación 1 de HU-E1-02 pide autocompletarla desde el padrón | **Épico 2** |
+| ~~**CUIT no se valida contra el padrón de ARCA**~~ | ✅ **Saldada a medias por `padron-y-datos-fiscales`** (2026-08-20). Con ARCA conectada, cada guardado consulta el padrón y un CUIT inexistente bloquea. **En el paso 2 del onboarding sigue sin validarse**, y no por pereza: ahí todavía no hay certificado con qué preguntar. Ver el plan de esa unidad, «El hueco que esta unidad no puede cerrar» | Lo que queda pide reordenar el onboarding o una credencial de plataforma, las dos descartadas |
+| ~~**`CondicionIVA` se elige a mano**~~ | ✅ **Saldada** (2026-08-20). El padrón la completa cuando está vacía y propone reemplazo cuando difiere; el usuario puede corregirla, como pide RN-02 | — |
 | **La interfaz no se traduce** | `pref_idioma` se guarda y gobierna el formato de fechas, horas y números; montar i18n para un catálogo de un solo idioma es infraestructura sin nadie del otro lado. El criterio «cambio mi idioma y la interfaz se actualiza» de HU-E1-07 **queda incumplido** | Cuando exista un segundo idioma. Nada de lo escrito lo impide |
 | **No hay pantalla de bitácora** | El sumidero de HS-T5 está y audita todo; leerlo es otra historia | **Épico 10** (HU-E12-01, HU-E12-02) |
 | **No hay DLQ** | HS-T6 | **Épico 4** |
@@ -190,6 +190,22 @@ Y algo que conviene tener presente al probar contra ARCA de verdad: **el ticket 
 horas y ARCA se niega a emitir otro mientras el anterior siga vivo**. Por eso se guarda en la base
 (ADR-0004). Si alguna vez hay que forzar uno nuevo, no alcanza con reiniciar: hay que borrar la
 fila de `ticket_de_acceso` **y** esperar a que ARCA considere vencido el anterior.
+
+**El mismo certificado tiene que estar autorizado para dos servicios**, y eso se hace una vez por
+empresa en el sitio de ARCA, al asociar el certificado a un servicio (`padron-y-datos-fiscales`):
+
+| Servicio | Para qué |
+|---|---|
+| `wsfe` | Emitir comprobantes — épico 5. Es contra el que se valida la conexión |
+| `ws_sr_padron_a5` | Consultar el padrón de contribuyentes (HU-E1-02 RN-01) |
+
+Un certificado autorizado sólo para `wsfe` conecta bien y después no puede consultar el padrón: la
+pantalla dirá «no pudimos consultar el padrón de ARCA», que es correcto pero no explica la causa.
+Si aparece eso con ARCA conectada y andando, **el primer lugar a mirar es la autorización del
+servicio en ARCA**, no el código.
+
+Las dos URLs del padrón tienen valor por defecto y no hace falta declararlas salvo que ARCA las
+mueva: `ARCA_PADRON_URL_HOMOLOGACION` y `ARCA_PADRON_URL_PRODUCCION`.
 
 ### 5.3 MercadoPago
 

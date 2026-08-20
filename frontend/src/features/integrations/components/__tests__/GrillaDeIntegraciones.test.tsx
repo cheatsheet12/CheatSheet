@@ -403,6 +403,34 @@ describe("GrillaDeIntegraciones", () => {
     expect(screen.getByRole("button", { name: "Reconectar" })).toBeTruthy();
   });
 
+  it("el aviso fiscal de la conexión con ARCA se muestra al Administrador", async () => {
+    // Conectar ARCA es el primer instante en que el padrón se puede consultar, así que el
+    // hallazgo vuelve en esa misma respuesta. Si no se mostrara acá, un certificado de
+    // otro CUIT recién se notaría cuando saliera el primer comprobante mal emitido.
+    conectarIntegracion.mockResolvedValue({
+      aviso_fiscal: "El certificado cargado en ARCA pertenece a otro CUIT que el de la empresa.",
+    });
+    listarIntegraciones.mockResolvedValue(SIN_CONECTAR);
+
+    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[1]!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/pertenece a otro CUIT/)).toBeTruthy();
+    });
+  });
+
+  it("sin aviso fiscal la pantalla no inventa una advertencia", async () => {
+    conectarIntegracion.mockResolvedValue({ aviso_fiscal: null });
+    listarIntegraciones.mockResolvedValue(SIN_CONECTAR);
+
+    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[1]!);
+
+    await waitFor(() => expect(conectarIntegracion).toHaveBeenCalled());
+    expect(screen.queryByText("Revisá los datos fiscales")).toBeNull();
+  });
+
   it("el campo del token no queda legible en pantalla", () => {
     render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
     fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[2]!);

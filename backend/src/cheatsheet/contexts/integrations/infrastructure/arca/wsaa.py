@@ -10,39 +10,35 @@ escaped string.
 homologación from producción at the DNS level. The environment comes from `APP_ENV` (the
 decision `mecanismo-de-integraciones` recorded), so it decides which ARCA a company talks
 to — the difference between practising and issuing an irreversible tax document.
+
+The transport, the retries and the safe parsing live in `soap.py`, shared with the padrón
+client. What stays here is what only WSAA knows: its envelope, and the fact that its
+answer nests a second XML document inside a string.
 """
 
 from __future__ import annotations
 
-import asyncio
 import base64
 from dataclasses import dataclass
 from datetime import datetime
-from xml.etree import ElementTree
 
 import httpx
-from defusedxml.common import DefusedXmlException
-from defusedxml.ElementTree import ParseError as ParseErrorSeguro
-from defusedxml.ElementTree import fromstring as parsear_xml
 
 from cheatsheet.contexts.integrations.application.errors import ProveedorNoDisponible
-from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import (
-    FallaDeArca,
-    interpretar_falla,
+from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import interpretar_falla
+from cheatsheet.contexts.integrations.infrastructure.arca.soap import (
+    ClienteSoap,
+    ConfiguracionSoap,
+    FallaRecibida,
+    leer_falla,
+    raiz,
 )
-from cheatsheet.platform.telemetry import obtener_logger
-
-logger = obtener_logger(__name__)
 
 URL_HOMOLOGACION = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms"
 URL_PRODUCCION = "https://wsaa.afip.gov.ar/ws/services/LoginCms"
-#: Longer than Meta's. ARCA is slower, and a login that times out at 10 s on a busy
-#: morning looks to the Administrator exactly like a rejected certificate.
-TIMEOUT_POR_DEFECTO = 15.0
-MAX_INTENTOS = 3
-ESPERA_BASE = 1.0
 
-_ESPACIOS = {"soap": "http://schemas.xmlsoap.org/soap/envelope/"}
+#: WSAA needs nothing the shared transport does not already offer.
+ConfiguracionWsaa = ConfiguracionSoap
 
 _SOBRE = (
     '<?xml version="1.0" encoding="UTF-8"?>'
@@ -53,13 +49,10 @@ _SOBRE = (
     "</wsaa:loginCms></soapenv:Body></soapenv:Envelope>"
 )
 
-
-@dataclass(frozen=True, slots=True)
-class ConfiguracionWsaa:
-    url: str = URL_HOMOLOGACION
-    timeout_segundos: float = TIMEOUT_POR_DEFECTO
-    max_intentos: int = MAX_INTENTOS
-    espera_base: float = ESPERA_BASE
+#: How the token and the sign travel once they leave this module: one blob, two lines.
+#: Defined here, next to the code that produces them, and read back by `empaquetar`'s
+#: counterpart — a format agreed by two modules in one place instead of two.
+_SEPARADOR = "\n"
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,98 +64,38 @@ class TicketDeArca:
     expira_en: datetime
 
 
+def empaquetar(ticket: TicketDeArca) -> bytes:
+    """The token and the sign together, because every later call needs both.
+
+    A pair split across two columns is a pair that eventually disagrees.
+    """
+    return f"{ticket.token}{_SEPARADOR}{ticket.sign}".encode()
+
+
+def desempaquetar(contenido: bytes) -> tuple[str, str]:
+    """Read back what `empaquetar` wrote. Raises when the stored blob is not a pair."""
+    partes = contenido.decode("utf-8", errors="replace").split(_SEPARADOR)
+    if len(partes) != 2 or not partes[0] or not partes[1]:
+        raise ProveedorNoDisponible("El ticket de acceso guardado no tiene token y firma")
+    return partes[0], partes[1]
+
+
 class ClienteWsaa:
     """Talks to WSAA. Raises this context's errors, never httpx's."""
 
     def __init__(
-        self, config: ConfiguracionWsaa, transporte: httpx.AsyncBaseTransport | None = None
+        self, config: ConfiguracionSoap, transporte: httpx.AsyncBaseTransport | None = None
     ) -> None:
-        self._config = config
-        self._transporte = transporte
+        self._soap = ClienteSoap(config, transporte)
 
     async def login(self, cms: bytes) -> TicketDeArca:
         """Exchange a signed request for an access ticket."""
         cuerpo = _SOBRE.format(cms=base64.b64encode(cms).decode())
-        respuesta = await self._enviar(cuerpo)
+        try:
+            respuesta = await self._soap.enviar(cuerpo)
+        except FallaRecibida as recibida:
+            raise interpretar_falla(recibida.falla) from recibida
         return _leer_ticket(respuesta)
-
-    async def _enviar(self, cuerpo: str) -> str:
-        cabeceras = {"Content-Type": "text/xml; charset=utf-8", "SOAPAction": ""}
-        ultimo: Exception | None = None
-
-        for intento in range(1, self._config.max_intentos + 1):
-            try:
-                async with self._cliente() as cliente:
-                    respuesta = await cliente.post(
-                        self._config.url, content=cuerpo.encode("utf-8"), headers=cabeceras
-                    )
-            except (httpx.TimeoutException, httpx.TransportError) as exc:
-                ultimo = exc
-                # Nothing about the credential is logged: not the CMS, not the subject.
-                logger.warning("wsaa_reintento", intento=intento, motivo=str(exc))
-                await asyncio.sleep(self._config.espera_base * (2 ** (intento - 1)))
-                continue
-
-            if respuesta.status_code >= httpx.codes.INTERNAL_SERVER_ERROR:
-                falla = _leer_falla(respuesta.text)
-                if falla is not None:
-                    # A SOAP fault arrives with HTTP 500. It is an answer, not an outage.
-                    raise interpretar_falla(falla)
-                ultimo = ProveedorNoDisponible(f"ARCA respondio {respuesta.status_code}")
-                logger.warning("wsaa_reintento", intento=intento, estado=respuesta.status_code)
-                await asyncio.sleep(self._config.espera_base * (2 ** (intento - 1)))
-                continue
-            if respuesta.status_code >= httpx.codes.BAD_REQUEST:
-                raise ProveedorNoDisponible(f"ARCA respondio {respuesta.status_code}")
-            return respuesta.text
-
-        raise ProveedorNoDisponible(
-            f"ARCA no respondio tras {self._config.max_intentos} intentos: {ultimo}"
-        )
-
-    def _cliente(self) -> httpx.AsyncClient:
-        if self._transporte is not None:
-            return httpx.AsyncClient(
-                timeout=self._config.timeout_segundos, transport=self._transporte
-            )
-        return httpx.AsyncClient(timeout=self._config.timeout_segundos)
-
-
-def _raiz(texto: str) -> ElementTree.Element:
-    """Parsed with `defusedxml`, and the reason is measurable rather than ceremonial.
-
-    `xml.etree` on 3.11 expands internal entities — verified before adding the dependency:
-    a 300-byte document expanded to 3 000 characters, ten times per nesting level. A
-    response from an external service is untrusted input by definition, and this parses
-    one. `defusedxml` refuses the document instead — raising `DefusedXmlException`, which
-    is **not** a `ParseError` and therefore needs its own clause. A test caught that:
-    without the first branch below, the refusal escaped untranslated and would have taken
-    down a Beat task with an exception nobody catches.
-
-    Building XML with `ElementTree` (see `firma.py`) is unaffected: writing is not parsing.
-    """
-    try:
-        return parsear_xml(texto)
-    except DefusedXmlException as exc:
-        raise ProveedorNoDisponible("ARCA respondio un XML que no es seguro procesar") from exc
-    except ParseErrorSeguro as exc:
-        raise ProveedorNoDisponible("ARCA respondio algo que no es XML") from exc
-
-
-def _leer_falla(texto: str) -> FallaDeArca | None:
-    """Pull `faultcode` and `faultstring` out of a SOAP fault, if that is what this is."""
-    try:
-        raiz = parsear_xml(texto)
-    except (DefusedXmlException, ParseErrorSeguro):
-        return None
-    falla = raiz.find(".//soap:Fault", _ESPACIOS)
-    if falla is None:
-        falla = raiz.find(".//Fault")
-    if falla is None:
-        return None
-    codigo = falla.findtext("faultcode") or falla.findtext("{*}faultcode") or ""
-    detalle = falla.findtext("faultstring") or falla.findtext("{*}faultstring") or ""
-    return FallaDeArca(codigo=codigo.strip(), detalle=detalle.strip())
 
 
 def _leer_ticket(texto: str) -> TicketDeArca:
@@ -171,15 +104,15 @@ def _leer_ticket(texto: str) -> TicketDeArca:
     That double encoding is ARCA's, not ours: `loginCmsReturn` is a *string* that happens
     to contain a `loginTicketResponse`.
     """
-    raiz = _raiz(texto)
-    interior = raiz.findtext(".//loginCmsReturn") or raiz.findtext(".//{*}loginCmsReturn")
+    documento = raiz(texto)
+    interior = documento.findtext(".//loginCmsReturn") or documento.findtext(".//{*}loginCmsReturn")
     if not interior:
-        falla = _leer_falla(texto)
+        falla = leer_falla(texto)
         if falla is not None:
             raise interpretar_falla(falla)
         raise ProveedorNoDisponible("ARCA respondio sin ticket y sin error")
 
-    ticket = _raiz(interior)
+    ticket = raiz(interior)
     token = ticket.findtext(".//token")
     sign = ticket.findtext(".//sign")
     expira = ticket.findtext(".//expirationTime")
