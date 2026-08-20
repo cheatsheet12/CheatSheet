@@ -14,6 +14,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.api.padron import armar_padron
 from cheatsheet.contexts.identity.application.errors import (
     CredencialesInvalidas,
     InvitacionInvalida,
@@ -22,6 +23,10 @@ from cheatsheet.contexts.identity.application.errors import (
 )
 from cheatsheet.contexts.identity.application.invitaciones import AceptarInvitacion
 from cheatsheet.contexts.identity.application.onboarding import CompletarDatosDeEmpresa
+from cheatsheet.contexts.identity.application.padron import (
+    ConsultarPadronDeCuit,
+    EstadoDeConsulta,
+)
 from cheatsheet.contexts.identity.application.ports import PortProveedorOAuth
 from cheatsheet.contexts.identity.application.registro import RegistrarConGoogle, RegistrarEmpresa
 from cheatsheet.contexts.identity.application.sesiones import (
@@ -41,6 +46,7 @@ from cheatsheet.contexts.identity.infrastructure.resolucion import (
 from cheatsheet.contexts.identity.infrastructure.seguridad import hashear_token_opaco
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.roles import RolUsuario
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
 
@@ -83,8 +89,41 @@ class DatosDeEmpresaEntrada(BaseModel):
 
 
 class EmpresaSalida(BaseModel):
+    """What the panel reads before rendering, and what the edit screen loads into its form.
+
+    It grew the four remaining fiscal fields when `padron-y-datos-fiscales` added a screen
+    that edits them: a form cannot show what the API does not return. None of them is a
+    secret — a CUIT and a razón social are printed on every document the company issues.
+    """
+
     razon_social: str | None
     onboarding_completo: bool
+    cuit: str | None = None
+    condicion_iva: CondicionIVA | None = None
+    nombre_responsable: str | None = None
+    email_contacto: str | None = None
+
+
+class ConsultaDePadronEntrada(BaseModel):
+    cuit: str
+
+
+class DatosDePadronSalida(BaseModel):
+    razon_social: str | None
+    condicion_iva: CondicionIVA | None
+    activo: bool
+
+
+class PadronSalida(BaseModel):
+    """Three states, never two. See `identity/application/padron.py`.
+
+    `NO_ENCONTRADO` blocks the form; `NO_DISPONIBLE` does not, and collapsing them into a
+    boolean is exactly the mistake this unit exists to avoid.
+    """
+
+    estado: EstadoDeConsulta
+    datos: DatosDePadronSalida | None = None
+    motivo: str | None = None
 
 
 class SesionSalida(BaseModel):
@@ -116,6 +155,7 @@ def crear_router(recursos: Recursos) -> APIRouter:
     router.include_router(_rutas_de_sesion(recursos))
     router.include_router(_rutas_de_invitacion(recursos))
     router.include_router(_rutas_autenticadas(recursos))
+    router.include_router(_rutas_de_padron(recursos))
     return router
 
 
@@ -360,6 +400,10 @@ def _rutas_autenticadas(recursos: Recursos) -> APIRouter:
             salida = EmpresaSalida(
                 razon_social=empresa.razon_social,
                 onboarding_completo=empresa.onboarding_completo,
+                cuit=empresa.cuit.valor if empresa.cuit else None,
+                condicion_iva=empresa.condicion_iva,
+                nombre_responsable=empresa.nombre_responsable,
+                email_contacto=str(empresa.email_contacto) if empresa.email_contacto else None,
             )
         if salida is None:  # pragma: no cover — the unit of work always yields once
             raise RuntimeError("La unidad de trabajo no produjo un resultado")
@@ -375,7 +419,12 @@ def _rutas_autenticadas(recursos: Recursos) -> APIRouter:
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Identidad.armar(unidad, recursos.settings)
             empresa = await CompletarDatosDeEmpresa(
-                empresas=piezas.empresas, publicador=unidad.publicador
+                empresas=piezas.empresas,
+                publicador=unidad.publicador,
+                # RN-01 bites from here on, but only for a company that has already
+                # connected ARCA: without a certificate the registry cannot be asked, and
+                # `CompletarDatosDeEmpresa` treats that as "carry on", not as a rejection.
+                padron=armar_padron(unidad, recursos.settings),
             ).ejecutar(
                 empresa_id=empresa_id,
                 usuario_id=usuario_id,
@@ -391,6 +440,44 @@ def _rutas_autenticadas(recursos: Recursos) -> APIRouter:
         if resultado is None:  # pragma: no cover — the unit of work always yields once
             raise RuntimeError("La unidad de trabajo no produjo un resultado")
         return resultado
+
+    return router
+
+
+def _rutas_de_padron(recursos: Recursos) -> APIRouter:
+    """Its own factory so the authenticated block stays under the complexity ceiling."""
+    router = APIRouter()
+
+    @router.post("/empresa/padron")
+    async def consultar_padron(entrada: ConsultaDePadronEntrada, request: Request) -> PadronSalida:
+        """HU-E1-02 RN-01 and RN-02, behind the «Validar contra ARCA» button.
+
+        A `POST` on a read because the CUIT is somebody's tax id: in a query string it
+        would end up in access logs and in browser history. Nothing is written.
+        """
+        empresa_id: EmpresaId = request.state.empresa_id
+        rol = RolUsuario(request.state.rol)
+        salida: PadronSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            vista = await ConsultarPadronDeCuit(
+                padron=armar_padron(unidad, recursos.settings)
+            ).ejecutar(empresa_id=empresa_id, cuit=entrada.cuit, rol=rol)
+            salida = PadronSalida(
+                estado=vista.estado,
+                datos=(
+                    DatosDePadronSalida(
+                        razon_social=vista.datos.razon_social,
+                        condicion_iva=vista.datos.condicion_iva,
+                        activo=vista.datos.activo,
+                    )
+                    if vista.datos is not None
+                    else None
+                ),
+                motivo=vista.motivo,
+            )
+        if salida is None:  # pragma: no cover — the unit of work always yields once
+            raise RuntimeError("La unidad de trabajo no produjo un resultado")
+        return salida
 
     return router
 

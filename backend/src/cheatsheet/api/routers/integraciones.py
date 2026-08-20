@@ -18,7 +18,10 @@ import binascii
 from datetime import datetime
 from typing import TypeVar
 
-from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.api.dependencies import Recursos, UnidadDeTrabajo, unidad_de_trabajo
+from cheatsheet.api.padron import armar_padron
+from cheatsheet.contexts.identity.application.padron import RevalidarDatosFiscales
+from cheatsheet.contexts.identity.infrastructure.ensamblado import Identidad
 from cheatsheet.contexts.integrations.application.integraciones import (
     ConectarIntegracion,
     ListarIntegraciones,
@@ -59,9 +62,12 @@ class IntegracionSalida(BaseModel):
     ambiente: Ambiente | None
     verificado_en: datetime | None
     configurada: bool
-    #: The verified display name (HU-E2-03 RN-03). The only stored parameter that comes
-    #: back out — see `VistaDeIntegracion.etiqueta`.
+    #: The verified display name (HU-E2-03 RN-03). See `VistaDeIntegracion.etiqueta`.
     etiqueta: str | None = None
+    #: Only on the connect response, and only for ARCA: what the taxpayer registry had to
+    #: say about this company's fiscal data now that it can finally be asked. `None` is the
+    #: ordinary answer — see `RevalidarDatosFiscales`.
+    aviso_fiscal: str | None = None
 
 
 class ListadoSalida(BaseModel):
@@ -158,6 +164,7 @@ def crear_router(recursos: Recursos) -> APIRouter:
         """Administrador only. `PUT` because connecting twice is the same result once."""
         empresa_id, usuario_id, rol = _actor(request)
         vista: VistaDeIntegracion | None = None
+        aviso: str | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Integraciones.armar(unidad.sesion, recursos.settings)
             vista = await ConectarIntegracion(
@@ -179,6 +186,7 @@ def crear_router(recursos: Recursos) -> APIRouter:
                 usuario_id=usuario_id,
                 direccion_ip=_ip(request),
             )
+            aviso = await _revalidar_datos_fiscales(recursos, unidad, vista, request)
         vista_final = _exigir(vista)
         return IntegracionSalida(
             sistema=vista_final.sistema,
@@ -188,9 +196,43 @@ def crear_router(recursos: Recursos) -> APIRouter:
             verificado_en=vista_final.verificado_en,
             configurada=vista_final.configurada,
             etiqueta=vista_final.etiqueta,
+            aviso_fiscal=aviso,
         )
 
     return router
+
+
+async def _revalidar_datos_fiscales(
+    recursos: Recursos,
+    unidad: UnidadDeTrabajo,
+    vista: VistaDeIntegracion,
+    request: Request,
+) -> str | None:
+    """The moment ARCA is connected is the first moment the padrón can be asked at all.
+
+    So it is asked here, once, and the answer rides back on the response the Administrator
+    is already looking at. This is the composition root calling two contexts, which is the
+    one place that is allowed to — `integrations` learns nothing about `identity`.
+
+    Anything other than a successful ARCA connection leaves this alone: there is nothing
+    to check against a credential the provider refused.
+    """
+    if vista.sistema is not SistemaExterno.ARCA or vista.estado is not EstadoDeConexion.CONECTADO:
+        return None
+    empresa_id, usuario_id, _ = _actor(request)
+    piezas = Identidad.armar(unidad, recursos.settings)
+    aviso = await RevalidarDatosFiscales(
+        empresas=piezas.empresas,
+        padron=armar_padron(unidad, recursos.settings),
+        publicador=unidad.publicador,
+    ).ejecutar(
+        empresa_id=empresa_id,
+        ahora=unidad.reloj.ahora(),
+        cuit_declarado=vista.cuit_declarado,
+        usuario_id=usuario_id,
+        direccion_ip=_ip(request),
+    )
+    return aviso.motivo if aviso is not None else None
 
 
 def _exigir(valor: _T | None) -> _T:
