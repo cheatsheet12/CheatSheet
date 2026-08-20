@@ -161,6 +161,8 @@ traceability with the design documents and with ARCA itself.
 | `PortTranscripcion` | Audio transcription service | `conversational` |
 | `PortNotificacionEmail` | Transactional email provider | `reporting`, `payments` |
 | `PortEmisorDeTickets` | ARCA WSAA (SOAP, CMS signed with `cryptography`) — [ADR-0004](adr/0004-arca-wsaa-access-tickets.md) | `integrations` |
+| `PortConsultaDePadron` | ARCA padrón A5 (SOAP, `getPersona`) | `integrations` |
+| `PortPadron` | The integrations Open Host Service, behind an ACL | `identity` |
 | `PortRepositorio<Aggregate>` | PostgreSQL repository (asyncpg) | all |
 
 Every external integration sits behind its own **Anti-Corruption Layer** (ADR-008):
