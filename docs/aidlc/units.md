@@ -16,8 +16,8 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Conexión con los servicios externos | mecanismo-de-integraciones | integrations | HU-E2-05 | — | Cristian | feature/integrations-mecanismo-de-integraciones | mergeada |
 | Conexión con los servicios externos | conexion-whatsapp | integrations | HU-E2-03 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-whatsapp | mergeada |
 | Conexión con los servicios externos | conexion-arca | integrations | HU-E2-01 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-arca | mergeada |
-| Conexión con los servicios externos | padron-y-datos-fiscales | identity | deuda D1 de HU-E1-02 | conexion-arca | Cristian | feature/identity-padron-y-datos-fiscales | en revisión |
-| Conexión con los servicios externos | conexion-mercadopago | integrations | HU-E2-02 | mecanismo-de-integraciones | Cristian | — | pendiente |
+| Conexión con los servicios externos | padron-y-datos-fiscales | identity | deuda D1 de HU-E1-02 | conexion-arca | Cristian | feature/identity-padron-y-datos-fiscales | mergeada |
+| Conexión con los servicios externos | conexion-mercadopago | integrations | HU-E2-02 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-mercadopago | en revisión |
 
 
 ---

@@ -207,9 +207,33 @@ servicio en ARCA**, no el código.
 Las dos URLs del padrón tienen valor por defecto y no hace falta declararlas salvo que ARCA las
 mueva: `ARCA_PADRON_URL_HOMOLOGACION` y `ARCA_PADRON_URL_PRODUCCION`.
 
-### 5.3 MercadoPago
+### 5.3 MercadoPago (unidad `conexion-mercadopago`, ya implementada)
 
-Todavía no: su unidad no está hecha. Necesita una aplicación en modo sandbox.
+Hace falta **una aplicación creada en el panel de desarrolladores de MercadoPago**, y de
+ahí salen dos valores que **sí van al `.env`** —a diferencia de ARCA y WhatsApp— porque
+identifican a *nuestra* aplicación y no a una empresa:
+
+```bash
+MERCADOPAGO_ADAPTADOR=mercadopago    # 'simulado' es rechazado al arrancar en produccion
+MERCADOPAGO_CLIENT_ID=...
+MERCADOPAGO_CLIENT_SECRET=...
+```
+
+Lo que es por empresa son los **dos tokens** que devuelve el flujo OAuth2, y ésos quedan
+cifrados en `configuracion_de_integracion`. Nunca en un `.env`.
+
+⚠️ **`MP_ACCESS_TOKEN` fue borrada del template**, por el mismo motivo que `AFIP_CERT_PATH`:
+describía un token de vendedor **de plataforma que no existe ni debe existir**. Dejarla
+invitaba a que todas las empresas cobraran en la misma cuenta. `MP_WEBHOOK_SECRET` sí
+queda: los webhooks de pago del épico 6 son de plataforma.
+
+Y tres cosas que conviene saber antes de probar contra MercadoPago de verdad:
+
+| Qué | Por qué importa |
+|---|---|
+| **La `redirect_uri` tiene que coincidir carácter por carácter** con la registrada en la aplicación | Si difiere, el canje falla con `invalid_grant`, que es el mismo error que da un código vencido. Por defecto sale de `APP_BASE_URL` |
+| **No hay host de sandbox.** El mismo `api.mercadopago.com` atiende todo | Lo que separa una cuenta de prueba de una real es `live_mode`, y el sistema lo cruza contra `APP_ENV`: **una cuenta real en un despliegue de homologación se rechaza** |
+| **Las cuentas de prueba se crean desde el panel** (usuarios de prueba vendedor y comprador) | Sin una, no se puede recorrer el flujo en `staging` |
 
 ## 6. Deuda declarada del épico 2
 
@@ -220,6 +244,9 @@ Todavía no: su unidad no está hecha. Necesita una aplicación en modo sandbox.
 | **La calidad de la línea sólo se ve cuando es `RED`** | Se registra siempre (RN-03) pero la pantalla la muestra únicamente como detalle del estado Atención. Mostrar `GREEN`/`YELLOW` en la tarjeta es diseño que el mockup no tiene | Cuando haya un mockup |
 | **Un certificado de ARCA revocado antes de vencer no se detecta hasta la próxima renovación de ticket** | La verificación en vivo lee el `notAfter` local y no llama a WSAA, a propósito: llamar quemaría el ticket de 12 h en cada refresco de pantalla y chocaría con la regla del proveedor (decisión D-e) | Aparece igual, en el primer momento en que importa: cuando hay que emitir |
 | **PyAfipWs sigue sin instalarse** | WSAA no lo necesita (ADR-0004). WSFEv1 es otra historia y es decisión del épico 5, donde ADR-012 sigue vigente | Épico 5 |
+| **Un `state` de OAuth2 vive en Redis y no sobrevive a un flush** | Es un secreto de diez minutos: perderlo significa que el Administrador vuelve del proveedor y tiene que empezar de nuevo, no que algo se rompa. Una tabla costaría una migración y un barrido para el mismo resultado | Nadie: es la decisión |
+| **La renovación de MercadoPago no se reintenta dentro del día** | Si el canje falla por red, la tarea termina sin cambiar nada y la del día siguiente vuelve a intentar. Con quince días de margen hay catorce intentos antes de que algo se rompa | Si alguna vez el margen baja, esto pasa a importar |
+| **`MERCADOPAGO_REDIRECT_URI` no se valida contra la aplicación registrada** | No hay forma de preguntarle a MercadoPago cuál registró. Un desajuste se manifiesta como `invalid_grant` en el primer intento, con un mensaje que habla del código | Está escrito en §5.3 |
 
 ## 7. Cosas chicas del épico 2
 
@@ -238,9 +265,12 @@ Todavía no: su unidad no está hecha. Necesita una aplicación en modo sandbox.
   consecuencias reales: dos schedulers son dos sondeos, y en el momento en que Meta contesta, dos
   mails a cada Administrador.
 
-- **`empresas_con_integracion_de_arca()` es la segunda y última función `SECURITY DEFINER` de
-  `integrations`.** Como la primera, devuelve `empresa_id` y nada más. Son las dos únicas lecturas
-  entre empresas del sistema y merecen una mirada en cualquier revisión de seguridad.
+- **`integrations` tiene tres funciones `SECURITY DEFINER`**, no dos: `conexion-mercadopago` agregó
+  `empresas_con_integracion_de_mercadopago()` para su barrido diario, y corrigió el comentario de la
+  migración 0006 que decía «la segunda y última». Las tres devuelven `empresa_id` y nada más, y son
+  las únicas lecturas entre empresas del sistema: merecen una mirada en cualquier revisión de
+  seguridad. Cada una responde **una** pregunta y no toma argumentos — una función parametrizada
+  sería un agujero cuya forma elige quien llama.
 - **Los tickets de acceso también dependen de `SECRETS_ENCRYPTION_KEY`.** Rotar esa clave ahora
   implica dos tablas, no una — aunque con los tickets alcanza con borrarlos: se vuelven a emitir
   solos cuando expiren.
