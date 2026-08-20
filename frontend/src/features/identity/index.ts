@@ -18,6 +18,9 @@ export { FormularioDePreferencias } from "./components/FormularioDePreferencias"
 export { ModalDeInvitacion } from "./components/ModalDeInvitacion";
 export { TablaDeUsuarios } from "./components/TablaDeUsuarios";
 export type {
+  ConsultaDePadron,
+  EmpresaActual,
+  EstadoDePadron,
   EstadoUsuario,
   Preferencias,
   RolUsuario,

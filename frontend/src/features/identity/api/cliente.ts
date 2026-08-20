@@ -29,6 +29,38 @@ export interface ResultadoDeSesion {
   readonly onboarding_completo: boolean;
 }
 
+/** What `GET /auth/empresa` answers: everything the edit screen loads into its form. */
+export interface EmpresaActual {
+  readonly razon_social: string | null;
+  readonly onboarding_completo: boolean;
+  readonly cuit: string | null;
+  readonly condicion_iva: string | null;
+  readonly nombre_responsable: string | null;
+  readonly email_contacto: string | null;
+}
+
+/**
+ * Three states, never two.
+ *
+ * `NO_ENCONTRADO` is ARCA saying it does not know that tax id, and it blocks the form.
+ * `NO_DISPONIBLE` is us failing to ask — usually because the company has not connected
+ * ARCA yet, which is the ordinary state right after signup — and it must not block
+ * anything. Collapsing them into a boolean is the bug this whole unit exists to avoid.
+ */
+export type EstadoDePadron = "ENCONTRADO" | "NO_ENCONTRADO" | "NO_DISPONIBLE";
+
+export interface DatosDePadron {
+  readonly razon_social: string | null;
+  readonly condicion_iva: string | null;
+  readonly activo: boolean;
+}
+
+export interface ConsultaDePadron {
+  readonly estado: EstadoDePadron;
+  readonly datos: DatosDePadron | null;
+  readonly motivo: string | null;
+}
+
 export type RolUsuario = "ADMINISTRADOR" | "OPERADOR" | "SOLO_LECTURA";
 export type EstadoUsuario = "INVITADO" | "ACTIVO" | "INACTIVO";
 
@@ -113,6 +145,8 @@ function mensajeDe(datos: unknown, status: number): string {
       return "Email o contraseña incorrectos.";
     case "CuitYaRegistrado":
       return "Ese CUIT ya está registrado en otra empresa.";
+    case "CuitInexistenteEnPadron":
+      return "ARCA no encuentra ese CUIT en su padrón. Revisalo antes de continuar.";
     case "PermisoDenegado":
       return "Tu rol no permite esta acción.";
     case "UltimoAdministradorActivo":
@@ -140,6 +174,18 @@ export async function ingresar(datos: DatosDeIngreso): Promise<ResultadoDeSesion
 
 export async function guardarEmpresa(datos: DatosDeEmpresa): Promise<ResultadoDeSesion> {
   return enviar<ResultadoDeSesion>("/api/auth/empresa", datos, "PUT");
+}
+
+export async function verEmpresa(): Promise<EmpresaActual> {
+  return leer<EmpresaActual>("/api/auth/empresa");
+}
+
+/**
+ * A `POST` on what is really a read, and on purpose: a CUIT is somebody's tax id, and in
+ * a query string it would end up in access logs and in browser history.
+ */
+export async function consultarPadron(cuit: string): Promise<ConsultaDePadron> {
+  return enviar<ConsultaDePadron>("/api/auth/empresa/padron", { cuit });
 }
 
 export async function listarUsuarios(): Promise<readonly UsuarioDeLaEmpresa[]> {

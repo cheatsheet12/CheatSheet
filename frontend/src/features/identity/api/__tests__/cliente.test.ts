@@ -16,6 +16,7 @@ import {
   ErrorDeFormulario,
   aceptarInvitacion,
   cambiarRol,
+  consultarPadron,
   desactivarUsuario,
   guardarPreferencias,
   invitarUsuario,
@@ -23,6 +24,7 @@ import {
   reactivarUsuario,
   reenviarInvitacion,
   revocarInvitacion,
+  verEmpresa,
   verPreferencias,
 } from "../cliente";
 
@@ -157,5 +159,45 @@ describe("los códigos del backend se vuelven copy en español", () => {
     });
 
     await expect(listarUsuarios()).rejects.toThrow(ErrorDeFormulario);
+  });
+});
+
+describe("padrón de ARCA", () => {
+  it("consulta por POST, con el CUIT en el cuerpo y no en la URL", async () => {
+    // Un CUIT es el identificador fiscal de alguien. En la query string quedaría escrito
+    // en cada log de acceso del camino y en el historial del navegador.
+    responde({ estado: "NO_ENCONTRADO", datos: null, motivo: null });
+
+    await consultarPadron("30712345671");
+
+    expect(llamada().ruta).toBe("/api/auth/empresa/padron");
+    expect(llamada().ruta).not.toContain("30712345671");
+    expect(llamada().opciones.method).toBe("POST");
+    expect(llamada().opciones.body).toBe(JSON.stringify({ cuit: "30712345671" }));
+  });
+
+  it("devuelve los tres estados sin aplanarlos", async () => {
+    responde({ estado: "NO_DISPONIBLE", datos: null, motivo: "ARCA no responde" });
+
+    const resultado = await consultarPadron("30712345671");
+
+    expect(resultado.estado).toBe("NO_DISPONIBLE");
+    expect(resultado.motivo).toBe("ARCA no responde");
+  });
+
+  it("un CUIT que ARCA rechaza se traduce a copy en español", async () => {
+    responde({ error: "CuitInexistenteEnPadron" }, 422);
+
+    await expect(verEmpresa()).rejects.toThrow(ErrorDeFormulario);
+    await expect(verEmpresa()).rejects.toThrow(/no encuentra ese CUIT/);
+  });
+
+  it("lee los datos de la empresa desde el BFF", async () => {
+    responde({ razon_social: "Panaderia Dona Rosa", cuit: "30712345671" });
+
+    const empresa = await verEmpresa();
+
+    expect(llamada().ruta).toBe("/api/auth/empresa");
+    expect(empresa.cuit).toBe("30712345671");
   });
 });
