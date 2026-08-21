@@ -19,10 +19,13 @@ It only works if two things are true, and both are easy to get silently wrong:
 
 from __future__ import annotations
 
+import ssl
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -38,6 +41,20 @@ from cheatsheet.shared.empresa import EmpresaId
 # cancel each other out and open every tenant to every other.
 GUC_EMPRESA = "app.current_empresa"
 
+#: Hosts that are this machine. Everything else crosses a network we do not own.
+HOSTS_LOCALES = frozenset({"localhost", "127.0.0.1", "::1", ""})
+
+#: TLS settings that belong in code, and that a copied provider URL brings along.
+PARAMETROS_TLS_EN_LA_URL = ("ssl", "sslmode", "sslrootcert", "channel_binding")
+
+#: Seconds to wait for a connection before giving up (`CLAUDE.md` §5). A managed
+#: database wakes suspended compute on the first connection, so this is not two.
+TIMEOUT_DE_CONEXION_SEGUNDOS = 10
+
+
+class ConfiguracionDeConexionInvalida(RuntimeError):
+    """The database URL carries something that would fail later, and confusingly."""
+
 
 class Base(DeclarativeBase):
     """Declarative base shared by every context's persistence models.
@@ -47,11 +64,60 @@ class Base(DeclarativeBase):
     """
 
 
+def argumentos_de_conexion(url: str) -> dict[str, Any]:
+    """Decide TLS here, from the host, instead of leaving it in the connection string.
+
+    Anything that is not this machine is reached over a network we do not own, and the
+    credential travels on it. So: a remote host gets a **verified** TLS context, and
+    localhost — the disposable container of a laptop or a CI job — gets none.
+
+    This is a decision and not a passthrough, because every way of expressing it in the
+    URL is a trap with asyncpg, which follows libpq's semantics rather than Python's:
+
+    - ``?ssl=verify-full`` does **not** use the system trust store. It looks for a CA at
+      ``~/.postgresql/root.crt`` or ``PGSSLROOTCERT`` and raises if neither exists — so
+      it works on the machine that was set up and nowhere else.
+    - ``?ssl=require`` is worse: with no CA file it silently falls back to
+      ``CERT_NONE``. The connection is encrypted and the server is never identified,
+      which is the failure that looks exactly like success.
+
+    ``ssl.create_default_context()`` loads the platform's own CA store with
+    ``check_hostname`` on and ``CERT_REQUIRED``, which is what ``verify-full`` was meant
+    to mean. Passing the context object is the only way to hand asyncpg that, and a
+    context can only travel through ``connect_args`` — never through the URL.
+
+    The consequence: **the URL carries no TLS parameter at all**, and one that does is
+    rejected here rather than forwarded. SQLAlchemy passes every query parameter to
+    ``asyncpg.connect()`` as a keyword argument, so leaving them in produces either a
+    duplicate ``ssl`` or an unknown ``sslmode``/``channel_binding`` — a ``TypeError``
+    raised deep inside the driver, about a string nobody typed on purpose. The managed
+    provider hands out exactly such a URL to copy, so this is the expected mistake, not
+    an exotic one.
+
+    Every connection also carries an explicit timeout (``CLAUDE.md`` §5). Without one,
+    asyncpg waits on its own default while the caller — a request, a Celery task, a
+    migration — has no way to know the database is simply unreachable.
+    """
+    parseada = make_url(url)
+    presentes = sorted(p for p in PARAMETROS_TLS_EN_LA_URL if p in parseada.query)
+    if presentes:
+        raise ConfiguracionDeConexionInvalida(
+            f"La URL de la base declara {', '.join(presentes)}. El TLS se decide en "
+            f"argumentos_de_conexion(), no en la cadena de conexion: borra esos "
+            f"parametros de la URL. Ver docs/staging-database.md."
+        )
+    argumentos: dict[str, Any] = {"timeout": TIMEOUT_DE_CONEXION_SEGUNDOS}
+    if (parseada.host or "").lower() not in HOSTS_LOCALES:
+        argumentos["ssl"] = ssl.create_default_context()
+    return argumentos
+
+
 def crear_engine(settings: Settings) -> AsyncEngine:
     return create_async_engine(
         settings.database_url,
         pool_pre_ping=True,
         echo=False,
+        connect_args=argumentos_de_conexion(settings.database_url),
     )
 
 
