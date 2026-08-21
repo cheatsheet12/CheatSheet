@@ -509,3 +509,154 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ── Integration cards — PAN-CFG-INT, from PAN-ONB-03 ─────────────────────── */
+
+/*
+ * The grid the Etapa 5 mockup draws for the integrations screen
+ * (`inputs/prototipos/pantallas/onboarding.html`, third column). Its rules are inline in
+ * that file rather than in the shared `styles.css`, so they are transcribed here with the
+ * repository's tokens substituted for the prototype's raw names — `--line` →
+ * `--color-border`, `--accent` → `--color-accent`, `--ink-500` → `--color-text-secondary`,
+ * `--mono` → `--font-mono`. That substitution is the epic-1 decision that the PDF governs
+ * where the two disagree, applied again here.
+ *
+ * Three rules have no counterpart in the mockup, and each one exists because HU-E2-05
+ * asks for something the onboarding step never had to show: the detail line behind an
+ * "Atención" badge, the check control with its timestamp, and the note on a card whose
+ * provider belongs to a later epic.
+ */
+
+.int-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 720px) {
+  .int-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.int-card {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  background: var(--color-surface);
+}
+
+.int-card.is-on {
+  border-color: var(--color-accent);
+  background: var(--color-success-light);
+}
+
+.int-card__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.int-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-on-dark);
+  font-weight: 800;
+  font-size: var(--text-caption);
+  font-family: var(--font-mono);
+  flex: none;
+}
+
+.int-card b {
+  font-size: var(--text-body);
+  font-weight: 700;
+  display: block;
+}
+
+/*
+ * The mockup calls this slot `.cuit`, because on the ARCA card it held the company's
+ * CUIT. Here it holds the environment. Same slot, same styling, so the rule is shared
+ * rather than duplicated — and the markup uses the neutral name, so nothing reads as a
+ * tax id that is not one.
+ */
+.int-card .cuit,
+.int-card__sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+
+.int-card p {
+  font-size: var(--text-body);
+  color: var(--color-text-secondary);
+  margin: var(--space-3) 0;
+  line-height: var(--leading-body);
+}
+
+/* Not in the mockup: HU-E2-05's "Atención con el detalle disponible". */
+.int-card__detalle {
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+  border-radius: var(--radius-input);
+  padding: var(--space-2) var(--space-3);
+}
+
+.int-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* Not in the mockup: a card whose provider arrives in a later epic. */
+.int-card__pronto {
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Not in the mockup: the live check of HU-E2-05 and its RN-03 timestamp. */
+.int-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.int-encabezado__resumen {
+  font-weight: 600;
+  margin: 0;
+}
+
+.int-encabezado__marca {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+  margin: var(--space-1) 0 0;
+}
+
+.int-intro {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+/* Not in the mockup either: PAN-ONB-03 has no connection form, because in the prototype
+   the cards were decorative. The three fields Meta needs (HU-E2-03) had to go somewhere,
+   and the modal is the one place the design system already provides. */
+.int-form__ayuda {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  margin: 0 0 var(--space-4);
+}
+
+.int-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}

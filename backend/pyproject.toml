@@ -24,7 +24,11 @@ requires-python = ">=3.11"
 # Celery + Redis, boto3 (Cloudflare R2), PyAfipWs (ADR-012).
 #
 # Still absent, and deliberately: boto3 (R2 is first used by the report generator,
-# epic 9) and PyAfipWs (ARCA, epic 2). A dependency arrives with its first caller.
+# epic 9). A dependency arrives with its first caller.
+#
+# PyAfipWs was expected here for ARCA and did NOT arrive: WSAA needs one XML document
+# signed once as CMS, which `cryptography` already does in-process. See ADR-0004. The
+# Etapa 5 ADR-012 still names it for WSFEv1, which is epic 5's call to make.
 dependencies = [
     "fastapi==0.115.4",
     "uvicorn[standard]==0.32.0",
@@ -43,6 +47,14 @@ dependencies = [
     # identity: the invitation email (HU-E1-04 RN-02). SMTP rather than a provider SDK,
     # so the choice of transactional provider stays a deployment decision.
     "aiosmtplib==3.0.2",
+    # integrations: AES-256-GCM for the credentials at rest (DER BC4, ADR-0003). The
+    # primitive comes from a library rather than from `hashlib` and a mode written here,
+    # because a hand-rolled AEAD is how a nonce gets reused.
+    "cryptography==43.0.3",
+    # integrations: parsing ARCA's SOAP responses (HU-E2-01). `xml.etree` expands internal
+    # entities — measured, not assumed: 300 bytes became 3 000 characters, ten times per
+    # nesting level — and a provider response is untrusted input by definition.
+    "defusedxml==0.7.1",
 ]
 
 [tool.hatch.build.targets.wheel]

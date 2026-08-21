@@ -13,13 +13,21 @@ conftest, and skip themselves when the database is not configured.
 
 from __future__ import annotations
 
+import base64
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
-from cheatsheet.platform.settings import AdaptadorDeEmail, Entorno, Settings
+from cheatsheet.platform.settings import (
+    AdaptadorDeArca,
+    AdaptadorDeEmail,
+    AdaptadorDeMercadoPago,
+    AdaptadorDeWhatsApp,
+    Entorno,
+    Settings,
+)
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
@@ -68,6 +76,43 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         jwt_access_ttl_minutos=15,
         refresh_ttl_dias=30,
         terminos_version_vigente="1.0",
+        # `CifradoAesGcm` validates the length at construction, so this has to decode to
+        # exactly 32 bytes — a placeholder string would fail every test that builds
+        # `Settings`. Encoded here rather than pasted as base64 on purpose: a literal
+        # blob is high-entropy, and `gitleaks` is right to flag one in a source file even
+        # when it protects nothing. Readable ASCII says what it is, like `jwt_secret`
+        # above, and the scanner has nothing to report.
+        secrets_encryption_key=base64.b64encode(b"fake-encryption-key-for-tests-32").decode(),
+        integracion_timeout_segundos=1,
+        # The simulator, and a host that does not resolve: if any test ever reached the
+        # network it would fail loudly instead of quietly talking to Meta.
+        whatsapp_adaptador=AdaptadorDeWhatsApp.SIMULADO,
+        whatsapp_graph_url="https://graph.invalid",
+        whatsapp_graph_version="v21.0",
+        whatsapp_timeout_segundos=1,
+        whatsapp_sondeo_minutos=30,
+        whatsapp_sondeo_maximo_dias=7,
+        # The simulator, and hosts that do not resolve: a test that ever reached the
+        # network would fail loudly instead of quietly talking to ARCA.
+        arca_adaptador=AdaptadorDeArca.SIMULADO,
+        arca_wsaa_url_homologacion="https://wsaahomo.invalid/ws/services/LoginCms",
+        arca_wsaa_url_produccion="https://wsaa.invalid/ws/services/LoginCms",
+        arca_padron_url_homologacion="https://padronhomo.invalid/personaServiceA5",
+        arca_padron_url_produccion="https://padron.invalid/personaServiceA5",
+        arca_timeout_segundos=1,
+        arca_margen_renovacion_minutos=30,
+        arca_aviso_vencimiento_dias=30,
+        # The simulator again, and a host that does not resolve. The application
+        # credentials are placeholders: nothing in the suite exchanges a real code.
+        mercadopago_adaptador=AdaptadorDeMercadoPago.SIMULADO,
+        mercadopago_client_id="app-de-prueba",
+        mercadopago_client_secret="secreto-de-prueba",
+        mercadopago_redirect_uri="http://localhost:3000/configuracion/integraciones",
+        mercadopago_auth_url="https://auth.mercadopago.invalid",
+        mercadopago_api_url="https://api.mercadopago.invalid",
+        mercadopago_timeout_segundos=1,
+        mercadopago_margen_renovacion_dias=15,
+        mercadopago_autorizacion_ttl_minutos=10,
         google_oauth_client_id="",
         google_oauth_client_secret="",
         google_oauth_redirect_uri="",

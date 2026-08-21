@@ -1,4 +1,4 @@
-# ADR-0003 — Run the staging database on Neon, and prove the tenant barrier survives it
+# ADR-0005 — Run the staging database on Neon, and prove the tenant barrier survives it
 
 - **Status:** Proposed
 - **Date:** 2026-08-21

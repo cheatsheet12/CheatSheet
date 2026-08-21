@@ -3,7 +3,7 @@
 How the PostgreSQL database of the **testing (`staging`)** environment
 ([`configuration-management.md`](configuration-management.md) §5) is created, connected to and
 verified. The decision to use Neon and its trade-offs are in
-[ADR-0003](adr/0003-staging-database-neon.md).
+[ADR-0005](adr/0005-staging-database-neon.md).
 
 This document covers the **database only**. What staging still needs in order to actually run is
 listed in §7.
@@ -40,7 +40,7 @@ staging serves one company's rows to another. Steps 3 and 5 both check for it.
 | Project name | e.g. `CheatSheet - staging` | — |
 | Postgres version | **16** | The same major as the local container and as CI. With different majors the SQL stops being comparable across environments. |
 | Region | The closest one offered to Argentina — `AWS South America East 1 (São Paulo)` | Latency of the demo. |
-| **Neon Auth** | **OFF** | It installs authentication with its own user and session tables inside the database. The `identity` context already answers that question — Argon2id, short JWT, rotating refresh with reuse detection (ADR-011). Two contradictory answers to one question is exactly why Supabase was ruled out in ADR-0003. |
+| **Neon Auth** | **OFF** | It installs authentication with its own user and session tables inside the database. The `identity` context already answers that question — Argon2id, short JWT, rotating refresh with reuse detection (ADR-011). Two contradictory answers to one question is exactly why Supabase was ruled out in ADR-0005. |
 
 Neon's onboarding does not ask for a database or role name; it creates **`neondb`** owned by
 **`neondb_owner`**. Leave them. Nothing in the code hardcodes the database name, and the property
@@ -112,7 +112,7 @@ produce a `TypeError` from inside the driver.
 **Use the direct endpoint, not the pooled one.** Neon's pooled host has `-pooler` in it; the plain
 one does not. Neon's documentation asks for a direct connection for schema migrations, and the
 interaction between transaction pooling and asyncpg's prepared statements is a problem class not
-worth meeting for the first time in the environment where the demo runs. See ADR-0003 for what
+worth meeting for the first time in the environment where the demo runs. See ADR-0005 for what
 changes if staging later needs the pooler.
 
 ---

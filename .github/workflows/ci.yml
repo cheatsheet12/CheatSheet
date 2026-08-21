@@ -290,7 +290,7 @@ jobs:
         # Row-Level Security only holds if the application role is not the owner and
         # does not bypass policies — and that is a property of how the database was
         # provisioned, which no unit test can observe. This asks the live database,
-        # and ends by actually trying to read across the tenant boundary (ADR-0003).
+        # and ends by actually trying to read across the tenant boundary (ADR-0005).
         run: python backend/scripts/verify_rls.py
 
       - name: Verify the tenant-barrier check still fails when the barrier is down

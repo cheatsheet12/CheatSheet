@@ -15,6 +15,8 @@ from enum import StrEnum
 from typing import TypeVar
 
 from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.fiscal import CondicionIVA as CondicionIVA
+from cheatsheet.shared.roles import RolUsuario as RolUsuario
 
 LARGO_CUIT = 11
 LARGO_MINIMO_CONTRASENA = 8
@@ -28,21 +30,27 @@ _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _Enum = TypeVar("_Enum", bound=StrEnum)
 
 
-class CondicionIVA(StrEnum):
-    """DER enum `condicion_iva`."""
+# `CondicionIVA` now lives in the Shared Kernel and is re-exported here, for the same
+# reason and by the same mechanism as `RolUsuario` below.
+#
+# `identity` still owns the concept — the DER enum is `condicion_iva`, it is chosen at
+# step 2 of the onboarding, and `Empresa` is the aggregate that holds it. What changed is
+# that `integrations` now has to *produce* one: the padrón unit reads ARCA's registry and
+# translates what it finds, and that translation belongs in ARCA's Anti-Corruption Layer.
+# Importing this module from there would break R3 and contradict ADR-0003. See
+# `shared/fiscal.py` for the full reasoning.
 
-    RESPONSABLE_INSCRIPTO = "RESPONSABLE_INSCRIPTO"
-    MONOTRIBUTO = "MONOTRIBUTO"
-    EXENTO = "EXENTO"
-    CONSUMIDOR_FINAL = "CONSUMIDOR_FINAL"
 
-
-class RolUsuario(StrEnum):
-    """DER enum `rol_usuario`. Closed catalogue — HU-E1-04 RN-01: not configurable."""
-
-    ADMINISTRADOR = "ADMINISTRADOR"
-    OPERADOR = "OPERADOR"
-    SOLO_LECTURA = "SOLO_LECTURA"
+# `RolUsuario` now lives in the Shared Kernel and is re-exported here.
+#
+# `identity` still owns the concept — the DER enum is `rol_usuario`, the three roles are
+# created during invitation, and HU-E1-05's last-Administrator invariant is enforced in
+# this context. What changed is that `integrations` also has to authorize (HU-E2-05 lets
+# an Operador read but not connect), and importing this module from there would break R3
+# and contradict ADR-0003. See `shared/roles.py` for the full reasoning.
+#
+# Re-exported rather than moved-and-updated so the ~100 existing imports of
+# `identity.domain.valores.RolUsuario` keep working untouched.
 
 
 class EstadoUsuario(StrEnum):

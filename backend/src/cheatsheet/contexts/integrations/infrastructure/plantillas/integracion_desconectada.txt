@@ -1,0 +1,14 @@
+No pudimos conectar $sistema en CheatSheet
+
+Hola,
+
+La verificación de $sistema no se completó, así que la integración quedó sin
+conectar.
+
+Motivo: $detalle
+
+Podés revisar los datos y volver a intentarlo acá:
+
+$enlace
+
+— CheatSheet

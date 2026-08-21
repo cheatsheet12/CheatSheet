@@ -155,7 +155,7 @@ salga de adentro del driver.
 - [x] `backend/scripts/verify_rls.py` — el verificador. Detalle abajo.
 - [x] `docs/staging-database.md` — el runbook, en inglés: pasos de consola, SQL a correr, formato de
       las URLs, cómo verificar, y qué falta para que staging levante entero.
-- [x] `docs/adr/0003-staging-database-neon.md` — la decisión y sus consecuencias.
+- [x] `docs/adr/0005-staging-database-neon.md` — la decisión y sus consecuencias.
 - [x] `.github/workflows/ci.yml` — dos pasos que ejercitan el verificador contra el Postgres del job.
 - [x] `backend/src/cheatsheet/platform/database.py` — `argumentos_de_conexion()`. **Fuera del plan
       original**, ver Decisiones.

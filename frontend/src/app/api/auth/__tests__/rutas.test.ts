@@ -34,7 +34,8 @@ const { ErrorDeApi } = await import("@/lib/api");
 const { POST: postRegistro } = await import("@/app/api/auth/registro/route");
 const { POST: postLogin } = await import("@/app/api/auth/login/route");
 const { POST: postLogout } = await import("@/app/api/auth/logout/route");
-const { PUT: putEmpresa } = await import("@/app/api/auth/empresa/route");
+const { GET: getEmpresa, PUT: putEmpresa } = await import("@/app/api/auth/empresa/route");
+const { POST: postPadron } = await import("@/app/api/auth/empresa/padron/route");
 
 const SESION = {
   access_token: "un-access-token",
@@ -182,5 +183,68 @@ describe("PUT /api/auth/empresa", () => {
       error: "EntradaInvalida",
       detalle: "El digito verificador del CUIT no es correcto",
     });
+  });
+});
+
+describe("GET /api/auth/empresa", () => {
+  it("sin sesión no pregunta nada al backend", async () => {
+    const respuesta = await getEmpresa();
+
+    expect(respuesta.status).toBe(401);
+    expect(llamarApi).not.toHaveBeenCalled();
+  });
+
+  it("reenvía los datos fiscales que la pantalla de edición carga en el formulario", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue({
+      razon_social: "Panaderia Dona Rosa",
+      onboarding_completo: true,
+      cuit: "30712345671",
+      condicion_iva: "MONOTRIBUTO",
+      nombre_responsable: "Rosa Diaz",
+      email_contacto: "rosa@panaderia.com",
+    });
+
+    const cuerpo = await (await getEmpresa()).json();
+
+    expect(cuerpo.cuit).toBe("30712345671");
+    expect(cuerpo.condicion_iva).toBe("MONOTRIBUTO");
+  });
+});
+
+describe("POST /api/auth/empresa/padron", () => {
+  it("sin sesión no consulta el padrón", async () => {
+    const respuesta = await postPadron(pedido({ cuit: "30712345671" }));
+
+    expect(respuesta.status).toBe(401);
+    expect(llamarApi).not.toHaveBeenCalled();
+  });
+
+  it("los tres estados llegan al navegador tal como vinieron", async () => {
+    // Aplanar «no encontrado» y «no disponible» en un booleano acá desharía la distinción
+    // sobre la que se apoya toda la unidad: uno bloquea al Administrador y el otro no.
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue({
+      estado: "NO_DISPONIBLE",
+      datos: null,
+      motivo: "La empresa no tiene conectada la integracion con ARCA",
+    });
+
+    const cuerpo = await (await postPadron(pedido({ cuit: "30712345671" }))).json();
+
+    expect(cuerpo.estado).toBe("NO_DISPONIBLE");
+    expect(cuerpo.motivo).toContain("no tiene conectada");
+  });
+
+  it("el CUIT viaja en el cuerpo, nunca en la URL", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue({ estado: "NO_ENCONTRADO", datos: null, motivo: null });
+
+    await postPadron(pedido({ cuit: "30712345671" }));
+
+    const [ruta, opciones] = llamarApi.mock.calls[0] as [string, { body: unknown }];
+    expect(ruta).toBe("/auth/empresa/padron");
+    expect(ruta).not.toContain("30712345671");
+    expect(opciones.body).toEqual({ cuit: "30712345671" });
   });
 });

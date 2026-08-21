@@ -5,8 +5,15 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from cheatsheet.contexts.identity.application.errors import CuitYaRegistrado
-from cheatsheet.contexts.identity.application.ports import PortRepositorioEmpresa
+from cheatsheet.contexts.identity.application.errors import (
+    CuitInexistenteEnPadron,
+    CuitYaRegistrado,
+)
+from cheatsheet.contexts.identity.application.ports import (
+    PadronNoDisponible,
+    PortPadron,
+    PortRepositorioEmpresa,
+)
 from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.valores import CUIT, CondicionIVA, Email
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
@@ -16,13 +23,24 @@ from cheatsheet.shared.events import PublicadorDeEventos
 
 
 class CompletarDatosDeEmpresa:
-    """HU-E1-02. The step that turns a registered account into an operating company."""
+    """HU-E1-02. The step that turns a registered account into an operating company.
+
+    **`padron` is optional and usually absent at signup**, which is not a shortcut: the
+    lookup needs the company's own ARCA certificate, and at step 2 there is none. Once the
+    company connects ARCA, every later save goes through the registry and RN-01 starts
+    biting. See `padron.py` for why that is the only place it can bite.
+    """
 
     def __init__(
-        self, *, empresas: PortRepositorioEmpresa, publicador: PublicadorDeEventos
+        self,
+        *,
+        empresas: PortRepositorioEmpresa,
+        publicador: PublicadorDeEventos,
+        padron: PortPadron | None = None,
     ) -> None:
         self._empresas = empresas
         self._publicador = publicador
+        self._padron = padron
 
     async def ejecutar(
         self,
@@ -47,6 +65,8 @@ class CompletarDatosDeEmpresa:
         if cambia_el_cuit and await self._empresas.existe_cuit(cuit.valor):
             raise CuitYaRegistrado(f"El CUIT {cuit.formateado} ya esta registrado")
 
+        await self._exigir_en_el_padron(empresa_id, cuit)
+
         empresa.completar_datos_fiscales(
             razon_social=razon_social,
             cuit=cuit,
@@ -69,6 +89,25 @@ class CompletarDatosDeEmpresa:
             )
         )
         return empresa
+
+    async def _exigir_en_el_padron(self, empresa_id: EmpresaId, cuit: CUIT) -> None:
+        """HU-E1-02 RN-01, enforced only when the registry could actually be reached.
+
+        The three outcomes are three different things and only one of them refuses:
+        the registry knows the CUIT (continue), the registry does not (refuse), or the
+        registry could not be asked (continue, and say nothing — the company may simply
+        not have connected ARCA yet, which is the ordinary state right after signup).
+        """
+        if self._padron is None:
+            return
+        try:
+            datos = await self._padron.consultar(empresa_id=empresa_id, cuit=cuit.valor)
+        except PadronNoDisponible:
+            return
+        if datos is None:
+            raise CuitInexistenteEnPadron(
+                f"ARCA no encuentra el CUIT {cuit.formateado} en su padron"
+            )
 
 
 class AceptarTerminos:

@@ -41,6 +41,47 @@ class AdaptadorDeEmail(StrEnum):
     CONSOLA = "consola"
 
 
+class AdaptadorDeWhatsApp(StrEnum):
+    """Which implementation answers for WhatsApp Business (HU-E2-03).
+
+    `SIMULADO` fabricates Meta's payloads and runs them through the real Anti-Corruption
+    Layer, so the whole flow is completable on a laptop with no Meta app. It is
+    **rejected in production** — see `desde_entorno` — for the same reason
+    `EMAIL_ADAPTADOR=consola` is: a company would believe its number is connected while
+    nothing has ever reached Meta.
+    """
+
+    META = "meta"
+    SIMULADO = "simulado"
+
+
+class AdaptadorDeArca(StrEnum):
+    """Which implementation answers for ARCA (HU-E2-01).
+
+    `SIMULADO` reuses the real credential parsing and the real expiry mapping and replaces
+    only the network call. **Rejected in production**, and here that guard matters more
+    than anywhere else in the system: a company believing it is connected to ARCA when
+    nothing ever reached ARCA is a company that believes it can invoice.
+    """
+
+    ARCA = "arca"
+    SIMULADO = "simulado"
+
+
+class AdaptadorDeMercadoPago(StrEnum):
+    """Which implementation answers for MercadoPago (HU-E2-02).
+
+    `SIMULADO` walks the whole OAuth2 round trip — redirect included — and runs the
+    fabricated payloads through the real Anti-Corruption Layer, so the flow is completable
+    on a laptop with no sandbox application. **Rejected in production**: a company
+    believing its account is connected when nothing ever reached MercadoPago is a company
+    that believes it can charge.
+    """
+
+    MERCADOPAGO = "mercadopago"
+    SIMULADO = "simulado"
+
+
 class ConfiguracionFaltante(RuntimeError):
     """A required environment variable is absent. Raised at boot, never later."""
 
@@ -104,6 +145,76 @@ def _adaptador_de_email(entorno: Entorno) -> AdaptadorDeEmail:
     return adaptador
 
 
+def _adaptador_de_whatsapp(entorno: Entorno) -> AdaptadorDeWhatsApp:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("WHATSAPP_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno WHATSAPP_ADAPTADOR. En produccion debe valer 'meta'."
+            )
+        return AdaptadorDeWhatsApp.SIMULADO
+    try:
+        adaptador = AdaptadorDeWhatsApp(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"WHATSAPP_ADAPTADOR debe ser 'meta' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeWhatsApp.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "WHATSAPP_ADAPTADOR=simulado no es valido en produccion: "
+            "ninguna verificacion llegaria a Meta."
+        )
+    return adaptador
+
+
+def _adaptador_de_arca(entorno: Entorno) -> AdaptadorDeArca:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("ARCA_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno ARCA_ADAPTADOR. En produccion debe valer 'arca'."
+            )
+        return AdaptadorDeArca.SIMULADO
+    try:
+        adaptador = AdaptadorDeArca(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"ARCA_ADAPTADOR debe ser 'arca' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeArca.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "ARCA_ADAPTADOR=simulado no es valido en produccion: "
+            "ninguna credencial fiscal se validaria contra ARCA."
+        )
+    return adaptador
+
+
+def _adaptador_de_mercadopago(entorno: Entorno) -> AdaptadorDeMercadoPago:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("MERCADOPAGO_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno MERCADOPAGO_ADAPTADOR. "
+                "En produccion debe valer 'mercadopago'."
+            )
+        return AdaptadorDeMercadoPago.SIMULADO
+    try:
+        adaptador = AdaptadorDeMercadoPago(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"MERCADOPAGO_ADAPTADOR debe ser 'mercadopago' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeMercadoPago.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "MERCADOPAGO_ADAPTADOR=simulado no es valido en produccion: "
+            "ninguna cuenta se conectaria de verdad."
+        )
+    return adaptador
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Everything the backend needs to know about where it is running."""
@@ -132,6 +243,31 @@ class Settings:
     smtp_remitente: str
     smtp_tls: bool
     smtp_timeout_segundos: int
+    secrets_encryption_key: str
+    integracion_timeout_segundos: int
+    whatsapp_adaptador: AdaptadorDeWhatsApp
+    whatsapp_graph_url: str
+    whatsapp_graph_version: str
+    whatsapp_timeout_segundos: int
+    whatsapp_sondeo_minutos: int
+    whatsapp_sondeo_maximo_dias: int
+    arca_adaptador: AdaptadorDeArca
+    arca_wsaa_url_homologacion: str
+    arca_wsaa_url_produccion: str
+    arca_padron_url_homologacion: str
+    arca_padron_url_produccion: str
+    arca_timeout_segundos: int
+    arca_margen_renovacion_minutos: int
+    arca_aviso_vencimiento_dias: int
+    mercadopago_adaptador: AdaptadorDeMercadoPago
+    mercadopago_client_id: str
+    mercadopago_client_secret: str
+    mercadopago_redirect_uri: str
+    mercadopago_auth_url: str
+    mercadopago_api_url: str
+    mercadopago_timeout_segundos: int
+    mercadopago_margen_renovacion_dias: int
+    mercadopago_autorizacion_ttl_minutos: int
 
     @property
     def es_produccion(self) -> bool:
@@ -172,6 +308,79 @@ class Settings:
             smtp_port=_entero("SMTP_PORT", 587),
             smtp_usuario=_opcional("SMTP_USUARIO", ""),
             smtp_password=_opcional("SMTP_PASSWORD", ""),
+            # No default, for the same reason as JWT_SECRET: a fallback key means every
+            # deployment encrypts company tax credentials with a constant the repository
+            # knows. See contexts/integrations/infrastructure/cifrado.py.
+            secrets_encryption_key=_requerida("SECRETS_ENCRYPTION_KEY"),
+            integracion_timeout_segundos=_entero("INTEGRACION_TIMEOUT_SEGUNDOS", 5),
+            whatsapp_adaptador=_adaptador_de_whatsapp(entorno),
+            whatsapp_graph_url=_opcional("WHATSAPP_GRAPH_URL", "https://graph.facebook.com"),
+            # Pinned by configuration, never hardcoded: Meta deprecates a Graph version
+            # roughly every quarter, and the fix must not require a release.
+            whatsapp_graph_version=_opcional("WHATSAPP_GRAPH_VERSION", "v21.0"),
+            whatsapp_timeout_segundos=_entero("WHATSAPP_TIMEOUT_SEGUNDOS", 10),
+            # 30 minutes against a wait Meta measures in days (HU-E2-03 RN-02): it bounds
+            # the delay to about 1% of the wait at 48 calls per number per day.
+            whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
+            # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
+            # answers about is polled forever.
+            whatsapp_sondeo_maximo_dias=_entero("WHATSAPP_SONDEO_MAXIMO_DIAS", 7),
+            arca_adaptador=_adaptador_de_arca(entorno),
+            # Two separate hosts, unlike Meta. Which one is used comes from `APP_ENV`, so
+            # the environment decides whether a document is a rehearsal or irreversible.
+            arca_wsaa_url_homologacion=_opcional(
+                "ARCA_WSAA_URL_HOMOLOGACION", "https://wsaahomo.afip.gov.ar/ws/services/LoginCms"
+            ),
+            arca_wsaa_url_produccion=_opcional(
+                "ARCA_WSAA_URL_PRODUCCION", "https://wsaa.afip.gov.ar/ws/services/LoginCms"
+            ),
+            # The taxpayer registry is a different host from WSAA and splits its
+            # environments the same way. Same flag, same consequence if it is wrong.
+            arca_padron_url_homologacion=_opcional(
+                "ARCA_PADRON_URL_HOMOLOGACION",
+                "https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5",
+            ),
+            arca_padron_url_produccion=_opcional(
+                "ARCA_PADRON_URL_PRODUCCION",
+                "https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5",
+            ),
+            # Longer than Meta's: ARCA is slower, and a login that times out on a busy
+            # morning looks to the Administrator exactly like a rejected certificate.
+            arca_timeout_segundos=_entero("ARCA_TIMEOUT_SEGUNDOS", 15),
+            arca_margen_renovacion_minutos=_entero("ARCA_MARGEN_RENOVACION_MINUTOS", 30),
+            # Renewing a certificate at ARCA takes days, so finding out on the day it
+            # expired means not being able to invoice.
+            arca_aviso_vencimiento_dias=_entero("ARCA_AVISO_VENCIMIENTO_DIAS", 30),
+            mercadopago_adaptador=_adaptador_de_mercadopago(entorno),
+            # Our application's credentials, not a company's — the same shape as the
+            # Google OAuth client. What is per company are the tokens the flow returns,
+            # and those live encrypted in the database.
+            mercadopago_client_id=_opcional("MERCADOPAGO_CLIENT_ID", ""),
+            mercadopago_client_secret=_opcional("MERCADOPAGO_CLIENT_SECRET", ""),
+            # Has to match, character for character, the URI registered in MercadoPago and
+            # the one repeated when the code is exchanged. Derived from APP_BASE_URL so
+            # the two cannot drift apart in a deployment that only sets one of them.
+            mercadopago_redirect_uri=_opcional(
+                "MERCADOPAGO_REDIRECT_URI",
+                f"{_opcional('APP_BASE_URL', 'http://localhost:3000').rstrip('/')}"
+                f"/configuracion/integraciones",
+            ),
+            # One API host for every environment, unlike ARCA: what separates a test
+            # account from a real one is `live_mode`, not the address.
+            mercadopago_auth_url=_opcional(
+                "MERCADOPAGO_AUTH_URL", "https://auth.mercadopago.com.ar"
+            ),
+            mercadopago_api_url=_opcional("MERCADOPAGO_API_URL", "https://api.mercadopago.com"),
+            mercadopago_timeout_segundos=_entero("MERCADOPAGO_TIMEOUT_SEGUNDOS", 10),
+            # The access token lasts about 180 days. Fifteen leaves a fortnight of daily
+            # retries before anything breaks, which is more than any outage this system
+            # can survive anyway.
+            mercadopago_margen_renovacion_dias=_entero("MERCADOPAGO_MARGEN_RENOVACION_DIAS", 15),
+            # Longer than anyone takes to press a button, shorter than a tab left open
+            # over lunch — which is the case this window exists to expire.
+            mercadopago_autorizacion_ttl_minutos=_entero(
+                "MERCADOPAGO_AUTORIZACION_TTL_MINUTOS", 10
+            ),
             smtp_remitente=_opcional("SMTP_REMITENTE", "CheatSheet <no-reply@localhost>"),
             smtp_tls=_booleano("SMTP_TLS", True),
             smtp_timeout_segundos=_entero("SMTP_TIMEOUT_SEGUNDOS", 10),

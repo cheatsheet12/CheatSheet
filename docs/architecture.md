@@ -89,12 +89,20 @@ block the issuance of a tax document, and a slow LLM call cannot starve reminder
 | `scheduling` | billing | C/S | A completed `Turno` may request issuance |
 | `conversational` | scheduling, payments, billing | C/S | The agent translates intents into use-case calls |
 | all | `observability` | OHS | Auditable events and notifications |
+| `integrations` | identity, spreadsheet_sync, billing, payments, conversational | OHS | Validated external credentials and connection status ([ADR-0003](adr/0003-integrations-open-host-service.md)) |
 | Core contexts | `reporting` | C/S | Consolidated data for reports and accounting packages |
 
 `billing` ↔ `payments` is **one-directional Customer/Supplier, not a Partnership**.
 `payments` does not need `billing` to exist. `billing` reacts to `PagoConfirmado` to
 keep the document's derived balance; `payments` never writes into the billing
 aggregate.
+
+The two **OHS** rows describe opposite flows, which is worth reading twice.
+`observability` is written into: audit events travel one way and nothing comes back.
+`integrations` is read from: a context asks for a credential and gets a usable one —
+never the ciphertext, never the key, which stay inside that context. Both are Generic,
+both depend on nobody, and neither knows who its clients are. The downstream list on
+the `integrations` row is informative, not a whitelist ([ADR-0003](adr/0003-integrations-open-host-service.md)).
 
 ---
 
@@ -152,6 +160,12 @@ traceability with the design documents and with ARCA itself.
 | `PortModeloDeLenguaje` | LLM provider (mapping, intent, embeddings) | `spreadsheet_sync`, `conversational` |
 | `PortTranscripcion` | Audio transcription service | `conversational` |
 | `PortNotificacionEmail` | Transactional email provider | `reporting`, `payments` |
+| `PortEmisorDeTickets` | ARCA WSAA (SOAP, CMS signed with `cryptography`) — [ADR-0004](adr/0004-arca-wsaa-access-tickets.md) | `integrations` |
+| `PortConsultaDePadron` | ARCA padrón A5 (SOAP, `getPersona`) | `integrations` |
+| `PortPadron` | The integrations Open Host Service, behind an ACL | `identity` |
+| `PortAutorizacionOAuth` | MercadoPago OAuth2 authorization URL (PKCE S256) | `integrations` |
+| `PortMemoriaDeAutorizacion` | Redis, with a ten-minute TTL — where a `state` waits out the round trip | `integrations` |
+| `PortRenovacionDeCredencial` | MercadoPago `/oauth/token` with `grant_type=refresh_token` | `integrations` |
 | `PortRepositorio<Aggregate>` | PostgreSQL repository (asyncpg) | all |
 
 Every external integration sits behind its own **Anti-Corruption Layer** (ADR-008):

@@ -10,9 +10,14 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 
 | Épico | Unidad | Contexto dueño | HUs | Depende de | Responsable | Rama | Estado |
 |---|---|---|---|---|---|---|---|
-| Cimientos, identidad y bitácora | cimientos-y-bitacora | observability | HS-T5 | — | Cristian | feature/identity-cimientos-identidad-y-bitacora | en curso |
-| Cimientos, identidad y bitácora | identidad-y-onboarding | identity | HU-E1-01, HU-E1-02, HU-E1-03 | cimientos-y-bitacora | Cristian | feature/identity-cimientos-identidad-y-bitacora | en curso |
-| Cimientos, identidad y bitácora | usuarios-y-preferencias | identity | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07 | identidad-y-onboarding | Cristian | feature/identity-cimientos-identidad-y-bitacora | en curso |
+| Cimientos, identidad y bitácora | cimientos-y-bitacora | observability | HS-T5 | — | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
+| Cimientos, identidad y bitácora | identidad-y-onboarding | identity | HU-E1-01, HU-E1-02, HU-E1-03 | cimientos-y-bitacora | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
+| Cimientos, identidad y bitácora | usuarios-y-preferencias | identity | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07 | identidad-y-onboarding | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
+| Conexión con los servicios externos | mecanismo-de-integraciones | integrations | HU-E2-05 | — | Cristian | feature/integrations-mecanismo-de-integraciones | mergeada |
+| Conexión con los servicios externos | conexion-whatsapp | integrations | HU-E2-03 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-whatsapp | mergeada |
+| Conexión con los servicios externos | conexion-arca | integrations | HU-E2-01 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-arca | mergeada |
+| Conexión con los servicios externos | padron-y-datos-fiscales | identity | deuda D1 de HU-E1-02 | conexion-arca | Cristian | feature/identity-padron-y-datos-fiscales | mergeada |
+| Conexión con los servicios externos | conexion-mercadopago | integrations | HU-E2-02 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-mercadopago | en revisión |
 
 
 ---
@@ -100,3 +105,144 @@ poder cerrarlo está en [`TODO.md`](TODO.md).
 - Centro de notificaciones (HU-E11-03) → épico 10. Este épico solo envía el email de invitación.
 - Cola de fallos DLQ (HS-T6) → épico 4.
 - Consulta de CUIT al padrón de ARCA → épico 2, por D1.
+
+---
+
+## Épico 2 — Conexión con los servicios externos
+
+### Qué hace cada unidad
+
+| Unidad | Alcance |
+|---|---|
+| **mecanismo-de-integraciones** | El andamiaje que las otras cuatro presuponen, más HU-E2-05. Dominio: el agregado `ConfiguracionDeIntegracion` con `SistemaExterno`, `Ambiente` (homologación / producción), `EstadoDeConexion` (conectado · atención · no conectado) y la marca de tiempo de la última verificación. Plataforma: el cifrado de credenciales en reposo (AES-256-GCM), con `credencial_algoritmo` en su propia columna para poder rotar sin adivinar con qué se cifró cada fila. Aplicación: el puerto `PortVerificadorDeConexion` y el registro que resuelve un verificador por sistema; el caso de uso de verificación en vivo de HU-E2-05. Frontend: `features/integrations` y la pantalla PAN-CFG-INT en `(panel)/configuracion/integraciones`, con la grilla de cuatro tarjetas del prototipo. **Sin ningún proveedor real**: los cuatro verificadores son simulados, igual que `ProveedorOAuthSimulado` en el épico 1. Termina en la pantalla mostrando las cuatro integraciones «No conectada» y el botón de verificar funcionando |
+| **conexion-whatsapp** | HU-E2-03 — alta del número de WhatsApp Business contra Meta, estado `pendiente` mientras dura la verificación, tarea de Beat que consulta el resultado, `display_name` verificado y calidad de la línea, motivo de rechazo cuando falla, y la notificación al Administrador en los tres desenlaces |
+| **conexion-arca** | HU-E2-01 — carga del certificado y la clave privada asociados al CUIT de la empresa, cifrados con el mecanismo de la unidad 1; validación real contra WSAA obteniendo un ticket de acceso antes de marcar Conectada; ambiente registrado; detección de credencial vencida o revocada que pasa la integración a inactiva y notifica |
+| **padron-y-datos-fiscales** | La deuda D1 del épico 1. Consulta al padrón de ARCA con la credencial que dejó `conexion-arca`: valida que el CUIT exista, autocompleta razón social y `CondicionIVA`, y lo hace tanto en el paso 2 del onboarding (PAN-ONB-02) como en la edición de datos de la empresa. Cierra HU-E1-02 RN-01 y su criterio de aceptación 1, que el épico 1 entregó a medias |
+| **conexion-mercadopago** | HU-E2-02 — flujo OAuth2 contra MercadoPago, token de acceso y de refresco cifrados, validación de la conexión leyendo los datos de la cuenta antes de marcarla activa, y revocación o expiración que la pasa a inactiva y notifica |
+
+### Orden
+
+```
+mecanismo-de-integraciones ─┬─ conexion-whatsapp
+                            ├─ conexion-arca ── padron-y-datos-fiscales
+                            └─ conexion-mercadopago
+```
+
+Un solo responsable, así que se ejecutan en serie: **mecanismo → whatsapp → arca → padrón → mercadopago**.
+
+**WhatsApp va segunda, y es lo único del orden que no se negocia.** HU-E2-03 RN-02 dice que Meta
+tarda entre 24 y 72 horas en verificar el número, y eso es tiempo de calendario que no se compra con
+esfuerzo. Arrancarla apenas exista el andamiaje pone el reloj a correr mientras se construyen ARCA y
+MercadoPago; dejarla última agrega tres días muertos al final del épico. Es la misma razón por la que
+el roadmap §3 la adelantó al épico 2 aunque el agente conversacional sea el 8.
+
+Las otras tres son independientes entre sí: ninguna lee nada de las otras. Si en algún momento hay un
+segundo responsable, ese es el punto de corte natural (regla 1c).
+
+### Notas
+
+- **Cinco unidades para cuatro historias — y sí, es lo contrario de lo que hizo el épico 1.** Ahí se
+  agruparon ocho historias en tres unidades porque eran chicas: «HU-E1-03 son dos columnas y un
+  checkbox». Acá tres de las cuatro historias están marcadas **Complejidad Alta** en el insumo, y
+  cada una es una integración externa distinta: WSAA de ARCA habla SOAP con certificado cliente,
+  MercadoPago habla OAuth2 sobre REST, Meta habla Graph API con una verificación asíncrona de 72
+  horas. Lo único que comparten es el agregado y la tarjeta en la pantalla — que es exactamente lo
+  que se extrajo a la unidad 1. Juntarlas daría un PR con tres protocolos, tres modos de falla y
+  tres juegos de tests de contrato, o sea el PR de `cimientos-y-bitacora` otra vez pero peor.
+- **Una rama y un PR por unidad. Se vuelve a la regla 1a y se abandona la excepción del 2026-08-13.**
+  El épico 1 corrió las tres unidades sobre una rama única. Acá eso sería un error concreto, no un
+  gusto: `conexion-whatsapp` **no puede cerrar hasta que Meta responda**, entre uno y tres días
+  después de que el código esté listo. Con rama única, ARCA y MercadoPago quedarían rehenes de ese
+  reloj externo, y `conexion-arca` es justamente lo que el épico 5 (facturación) necesita mergeado
+  para poder planificarse. Se paga con cinco ceremonias de PR en lugar de una; se compra que una
+  espera de terceros no bloquee al resto.
+- **`padron-y-datos-fiscales` es unidad aparte y su dueño es `identity`, no `integrations`.** Escribe
+  sobre el agregado `Empresa` — razón social y `CondicionIVA` —, y el workflow manda que la unidad
+  declare como dueño al contexto que hace la escritura. Llega a la credencial de ARCA llamando al
+  servicio de aplicación de `integrations`, nunca a su dominio (R3). **La alternativa que se
+  descartó** era plegarla dentro de `conexion-arca`, que tiene el atractivo de dejar esa unidad
+  terminando en algo demostrable de punta a punta; se descartó porque obligaría a que una unidad de
+  `integrations` escriba en `identity`, que es el tipo de ambigüedad de propiedad que después nadie
+  sabe dónde tocar.
+- **`mecanismo-de-integraciones` no es una unidad técnica encubierta.** Lleva HU-E2-05 detrás: la
+  verificación en vivo y el estado consolidado son *su* historia, no un extra. Por eso no necesita la
+  escalada de «trabajo sin historia» del workflow, y por eso termina en una pantalla que se puede
+  mostrar aunque no haya ningún proveedor conectado.
+- **Los cuatro proveedores arrancan simulados, a propósito.** Es la misma decisión que el épico 1
+  tomó con Google OAuth y con el correo, y que funcionó: el flujo se recorre entero en una laptop,
+  los tests no tocan la red (regla del workflow, paso 3), y el simulado **lanza al construirse en
+  `production`**. Conseguir las credenciales reales de ARCA homologación, de MercadoPago sandbox y
+  de Meta es tarea de despliegue y va en el `TODO.md` del épico, no en el código.
+- **Cada una de las tres conexiones dispara la escalada de «nueva integración externa»**: su plan de
+  Gate 1 debe traer sección de contratos —endpoints por ambiente, autenticación, modos de falla— y
+  tests de contrato. Eso es por unidad, no acá.
+- **`mecanismo-de-integraciones` carga además con reconciliar `backend/.env.example`.** Agrega
+  `SECRETS_ENCRYPTION_KEY`, así que la Definition of Done (`CLAUDE.md` §7) la obliga a tocar ese
+  archivo igual; y el archivo hoy está **desincronizado con el código desde el épico 1** — declara
+  `ENVIRONMENT`, `JWT_SECRET_KEY`, `JWT_ACCESS_TOKEN_MINUTES` y `REFRESH_TOKEN_DAYS` cuando
+  `platform/settings.py` lee `APP_ENV`, `JWT_SECRET`, `JWT_ACCESS_TTL_MINUTOS` y `REFRESH_TTL_DIAS`,
+  y le faltan las once variables de las unidades 2 y 3. Copiarlo hoy no levanta el proceso. Se dice
+  acá para que quede claro que es deuda heredada que se salda de paso, no alcance nuevo.
+
+### Decisión D7 — la pantalla de integraciones es de configuración, no un paso del onboarding
+
+Las cuatro historias del épico nombran **PAN-CFG-INT (Configuración — Integraciones)**. Ese código
+**no existe en el mapa de navegación de Etapa 5**: la única pantalla de integraciones maquetada es
+**PAN-ONB-03 — Integraciones**, el tercer paso del onboarding en `prototipos/pantallas/onboarding.html`.
+Son dos ubicaciones distintas del mismo contenido y hay que elegir una.
+
+**Resolución (2026-08-18): se construye como pantalla de configuración, en
+`(panel)/configuracion/integraciones`, reutilizando el diseño de PAN-ONB-03 tal cual.**
+
+Los tres motivos, en orden de peso:
+
+1. **HU-E2-05 no es un paso, es una consulta recurrente.** La hace el Administrador *o el Operador*,
+   «antes de depender de ellas». Un paso de onboarding se atraviesa una vez; esto se mira cada vez
+   que algo falla.
+2. **El propio prototipo dice que es opcional.** El pie de PAN-ONB-03 ofrece «Configurar esto
+   después» — nunca fue una compuerta.
+3. **El épico 1 ya decidió lo contrario y está mergeado.** El dashboard se desbloquea al completar
+   los pasos 1 y 2; meter un paso 3 obligatorio ahora rompería a las empresas ya registradas.
+
+Consecuencias explícitas:
+
+- El código de pantalla que se usa en el código y en los planes es **PAN-CFG-INT**, el de las
+  historias. PAN-ONB-03 queda como el origen del diseño visual, y la grilla de cuatro tarjetas se
+  toma de ahí sin rediseñar nada.
+- **El onboarding no gana un paso 3.** El indicador «PASO 3 DE 3» del prototipo no se replica.
+- Entrar a la pantalla requiere Administrador para conectar y desconectar; ver el estado lo permite
+  también el Operador, como pide HU-E2-05.
+
+### Decisión escalada a ADR — [ADR-0003](../adr/0003-integrations-open-host-service.md), `Accepted`
+
+**El Context Map (`docs/architecture.md` §4) no tiene ninguna fila para `integrations`.** No figura
+como upstream ni como downstream de nadie, y este épico necesita que al menos `identity` lo consuma
+(la unidad `padron-y-datos-fiscales`), con `billing`, `payments`, `conversational` y
+`spreadsheet_sync` detrás en los épicos 5, 6, 8 y 4 — todos por el mismo motivo: obtener una
+credencial validada.
+
+Se escaló a ADR el mismo 2026-08-18, porque modificar el Context Map es arquitectura y un mapa de
+unidades reparte trabajo. [ADR-0003](../adr/0003-integrations-open-host-service.md) propone declarar
+`integrations` como **OHS (Open Host Service)** — un único contrato en su capa de aplicación que
+cualquier contexto puede llamar, sin que `integrations` conozca a ninguno de sus consumidores y sin
+que la clave de cifrado salga nunca del contexto. Quedó **`Accepted` con el merge del PR #6**, que
+es lo que destraba el Gate 1 de `mecanismo-de-integraciones`.
+
+### Estado
+
+Mapa escrito el **2026-08-18**. Ninguna unidad arrancó: la siguiente es
+`mecanismo-de-integraciones`, que entra por su propio Gate 1.
+
+### Fuera de alcance de este épico
+
+- **HU-E2-04 — vincular planilla de Google Sheets o Excel** → épico 4. El roadmap §4 la separó de
+  las otras tres: sus criterios de aceptación terminan en PAN-ING-02 revisando el mapeo, o sea que
+  es el primer paso del flujo de ingesta y no una integración más. La tarjeta «Google Sheets» de la
+  pantalla existe desde la unidad 1, pero **sin acción**, hasta el épico 4.
+- **Emitir un comprobante con la credencial de ARCA** → épico 5. Acá la credencial se carga, se
+  cifra y se valida; nada la usa todavía.
+- **Generar un link de cobro con el token de MercadoPago** → épico 6.
+- **Que el agente responda por el número de WhatsApp** → épico 8. Acá la línea queda verificada y en
+  silencio.
+- **Centro de notificaciones** → épico 10. Este épico notifica al Administrador por los canales que
+  ya existen; no construye la bandeja donde leerlas.

@@ -14,6 +14,47 @@ from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import Email, HashDeContrasena
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.fiscal import CondicionIVA
+
+
+@dataclass(frozen=True, slots=True)
+class DatosFiscalesDePadron:
+    """What ARCA's registry says about a tax id, in this context's own words.
+
+    A DTO of `identity`, not of `integrations`, even though the two currently look alike.
+    That is the Anti-Corruption Layer being a layer: `infrastructure/padron.py` translates,
+    and if ARCA — or whoever replaces it — starts answering something else, exactly one
+    file changes.
+    """
+
+    razon_social: str | None
+    condicion_iva: CondicionIVA | None
+    #: `False` when the tax id exists but is deregistered. Worth telling the Administrator
+    #: about; not a reason to refuse the data.
+    activo: bool
+
+
+class PortPadron(Protocol):
+    """Asks ARCA's registry about one tax id, on behalf of one company.
+
+    The only door between `identity` and `integrations`, and it is deliberately narrow:
+    a CUIT goes in, a description comes back. No ticket, no credential, no knowledge that
+    ARCA speaks SOAP.
+
+    Three outcomes, and the implementation must keep them apart:
+
+    - the data, when the registry knows the tax id;
+    - `None`, when it does not — which blocks the Administrator (RN-01);
+    - `PadronNoDisponible`, when it could not be asked — which must not.
+    """
+
+    async def consultar(
+        self, *, empresa_id: EmpresaId, cuit: str
+    ) -> DatosFiscalesDePadron | None: ...
+
+
+class PadronNoDisponible(RuntimeError):
+    """The registry could not be asked. Never means "that tax id does not exist"."""
 
 
 class PortRepositorioEmpresa(Protocol):

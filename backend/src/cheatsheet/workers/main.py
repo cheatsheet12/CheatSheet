@@ -16,15 +16,17 @@ from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging
 from cheatsheet.workers.beat import configurar_beat
 from cheatsheet.workers.celery_app import crear_celery
-from cheatsheet.workers.tasks_identity import registrar_en
+from cheatsheet.workers.tasks_identity import registrar_en as registrar_identity
+from cheatsheet.workers.tasks_integrations import registrar_en as registrar_integrations
 
 settings = Settings.desde_entorno()
 configurar_logging(settings)
 
-app: Celery = configurar_beat(crear_celery(settings))
+app: Celery = configurar_beat(crear_celery(settings), settings)
 
 # Tasks get `Settings`, not resources. The API can hold an engine for the life of the
 # process because it serves every request on one event loop; a Celery worker runs each
 # task in a fresh one, and a connection pool does not survive that. See
 # `workers/ejecucion.py` — this is the defect QA found by sending two invitations.
-registrar_en(app, settings)
+registrar_identity(app, settings)
+registrar_integrations(app, settings)
