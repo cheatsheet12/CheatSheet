@@ -286,6 +286,30 @@ jobs:
       - name: Apply migrations
         run: alembic -c backend/alembic.ini upgrade head
 
+      - name: Verify the tenant barrier on the provisioned database
+        # Row-Level Security only holds if the application role is not the owner and
+        # does not bypass policies — and that is a property of how the database was
+        # provisioned, which no unit test can observe. This asks the live database,
+        # and ends by actually trying to read across the tenant boundary (ADR-0003).
+        run: python backend/scripts/verify_rls.py
+
+      - name: Verify the tenant-barrier check still fails when the barrier is down
+        # A verifier nobody has seen fail is a verifier that reports green on the day it
+        # stopped checking anything. Same reasoning as the R5 ESLint fixture above.
+        run: |
+          psql_owner() {
+            PGPASSWORD=test-only-ci-container psql -h localhost -U cheatsheet_owner \
+              -d cheatsheet -v ON_ERROR_STOP=1 -c "$1"
+          }
+          psql_owner "ALTER ROLE cheatsheet_app BYPASSRLS"
+          if python backend/scripts/verify_rls.py; then
+            psql_owner "ALTER ROLE cheatsheet_app NOBYPASSRLS"
+            echo "::error::verify_rls.py pasó con cheatsheet_app en BYPASSRLS: dejó de verificar."
+            exit 1
+          fi
+          psql_owner "ALTER ROLE cheatsheet_app NOBYPASSRLS"
+          echo "The tenant-barrier verifier is live."
+
       - name: Run tests with coverage
         run: |
           # While the project has no tests, this job passes. As soon as the first one
