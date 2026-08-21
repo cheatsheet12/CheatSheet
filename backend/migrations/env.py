@@ -27,7 +27,7 @@ from cheatsheet.contexts.identity.infrastructure import (
 from cheatsheet.contexts.observability.infrastructure import (
     models as _observability_models,  # noqa: F401
 )
-from cheatsheet.platform.database import Base
+from cheatsheet.platform.database import Base, argumentos_de_conexion
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy.pool import NullPool
@@ -71,8 +71,16 @@ def _aplicar(connection: Connection) -> None:
 
 async def _run_async() -> None:
     seccion = config.get_section(config.config_ini_section, {})
-    seccion["sqlalchemy.url"] = _url()
-    engine = async_engine_from_config(seccion, prefix="sqlalchemy.", poolclass=NullPool)
+    url = _url()
+    seccion["sqlalchemy.url"] = url
+    # The same TLS decision the application makes, from the same function: migrations
+    # reach the managed database over the same network, with the owner's credential.
+    engine = async_engine_from_config(
+        seccion,
+        prefix="sqlalchemy.",
+        poolclass=NullPool,
+        connect_args=argumentos_de_conexion(url),
+    )
     async with engine.connect() as connection:
         await connection.run_sync(_aplicar)
     await engine.dispose()
