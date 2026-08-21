@@ -216,17 +216,16 @@ por lo que el pipeline ya verifica que la regla R5 de ESLint sigue disparando.
 |---|---|---|---|
 | 1 | `verify_rls.py` da verde contra el Postgres de CI | integración (CI) | **OK 2026-08-21**, las 8, revisión 0007 |
 | 2 | `verify_rls.py` da rojo si `cheatsheet_app` recibe `BYPASSRLS` | integración (CI) | **OK 2026-08-21** — fallan 1, 2 y **8** |
-| 3 | `verify_rls.py` da verde contra la base de Neon | manual, una vez | **OK 2026-08-21** contra revisión 0003; hay que repetirlo, ver abajo |
-| 4 | `alembic upgrade head` aplica las migraciones sobre Neon sin error | manual, una vez | **OK 2026-08-21** hasta 0003; falta 0004→0007 |
+| 3 | `verify_rls.py` da verde contra la base de Neon | manual | **OK 2026-08-21**, las 8, revisión 0007 |
+| 4 | `alembic upgrade head` aplica las migraciones sobre Neon sin error | manual | **OK 2026-08-21**, 0001→0007 |
 | 5 | La app conecta a Neon con TLS verificado (healthcheck en verde) | manual, una vez | **parcial** — ver abajo |
 | 6 | `argumentos_de_conexion()`: TLS por host, timeout, y rechazo de parámetros en la URL | unit | **OK**, 9 casos |
 
-**Los casos 3 y 4, dichos con precisión.** Se corrieron contra Neon cuando la rama estaba cortada de
-un `develop` desactualizado, cuya última migración era la `0003`. Al sincronizar con `develop` real
-entraron las migraciones `0004`→`0007` del épico 2, así que **la base de staging quedó atrás del
-código** y el check 7 va a fallar hasta que se vuelva a correr `alembic upgrade head` contra Neon.
-No es un defecto de la unidad: es la consecuencia de haber cortado la rama sin `git fetch`, que es lo
-que el paso 1 del workflow manda hacer y no se hizo. Lo bueno es que el check 7 lo detecta solo.
+**Los casos 3 y 4 se corrieron dos veces.** La primera fue contra la revisión `0003`, porque la rama
+estaba cortada de un `develop` desactualizado. Al sincronizar entraron las migraciones `0004`→`0007`
+del épico 2 y la base de staging quedó atrás del código — **lo detectó el check 7**, que es
+exactamente para lo que está. Se volvió a migrar y a verificar el mismo día, ya sobre `0007`, con las
+ocho comprobaciones en verde y 6 tablas con RLS forzado.
 
 **El caso 5, dicho con precisión:** la conexión con TLS verificado quedó probada — los dos scripts y
 Alembic conectaron a Neon con `ssl.create_default_context()` y sin ningún parámetro de TLS en la
