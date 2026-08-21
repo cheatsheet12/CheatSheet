@@ -43,6 +43,7 @@ No ADR needed for: naming a function, adding a test, fixing a bug.
 | --- | --- | --- | --- |
 | [0001](0001-repository-structure.md) | Lay the repository out by bounded context, with enforced boundaries | Accepted | 2026-08-10 |
 | [0002](0002-frontend-structure.md) | Organize the frontend by bounded context, and gate it like the backend | Accepted | 2026-08-10 |
+| [0003](0003-staging-database-neon.md) | Run the staging database on Neon, and prove the tenant barrier survives it | Proposed | 2026-08-21 |
 
 > The architecture itself (modular monolith, hexagonal, multi-tenancy, sync model,
 > ACLs, processing guarantees, security) was decided during Etapa 5 and is recorded as
