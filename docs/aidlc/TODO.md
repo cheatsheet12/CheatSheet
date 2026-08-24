@@ -1,7 +1,11 @@
 # TODO — lo que falta para cerrar los épicos abiertos
 
-> Estado al **2026-08-19**. Arranca siendo el TODO del épico 1; el épico 2 agrega su propia
+> Estado al **2026-08-24**. Arranca siendo el TODO del épico 1; el épico 2 agrega su propia
 > sección al final, con la misma regla.
+>
+> **Los épicos 1 y 2 están cerrados en código y mergeados en `develop`.** Lo que queda acá de los
+> dos es lo mismo en ambos casos: **credenciales reales** (§2 y §5) y **deuda declarada** (§3 y §6).
+> Ninguna de las dos cosas se resuelve escribiendo código.
 >
 > Todo lo que está acá **bloquea el cierre de un épico o queda declarado como deuda con dueño**.
 > Lo que ya está hecho no se lista: para eso está el registro de cada unidad en [`units/`](units/).
@@ -10,11 +14,11 @@
 
 # Épico 1 — Cimientos, identidad y bitácora
 
-> Estado al **2026-08-18**. Las tres unidades están implementadas y verificadas en verde. Lo que
-> queda es **configuración que no puedo tocar yo**, **integraciones que hoy corren simuladas**, y
-> los dos gates finales.
+> Estado al **2026-08-24**. Las tres unidades están implementadas, verificadas en verde y
+> mergeadas. Lo que queda es **configuración que no puedo tocar yo** e **integraciones que hoy
+> corren simuladas**.
 
-## 1. Bloqueantes — sin esto el épico no cierra
+## 1. ~~Bloqueantes — sin esto el épico no cierra~~ · **los dos resueltos**
 
 ### 1.1 Variables de entorno · ~~te toca a vos~~ **resuelto el 2026-08-18**
 
@@ -27,10 +31,34 @@ una verificación que compara ambas listas.
 Se deja escrito en lugar de borrarlo porque el épico 1 **se entregó con este punto de la Definition
 of Done incumplido**, y eso es parte de su historia.
 
-### 1.2 Los dos gates que faltan
+### 1.2 ~~Los dos gates que faltan~~ **cerrados el 2026-08-18**
 
-| Gate | Qué falta |
-|---|---|
+Los dos se cerraron el mismo día: diste por buena la verificación de `usuarios-y-preferencias` —la
+que traía el QA manual con 7 defectos encontrados y corregidos— y el épico entero entró a `develop`
+en el PR [#5](https://github.com/cheatsheet12/CheatSheet/pull/5), con las ocho historias y en un solo
+PR, por la decisión del 2026-08-13.
+
+Queda escrito en lugar de borrarse por el mismo motivo que §1.1: el épico **se entregó con el punto
+de los `.env.example` de la Definition of Done incumplido**, y la secuencia real es parte de su
+historia.
+
+Estado de la verificación con la que se cerró:
+
+```
+ruff format --check .   sin cambios
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 152 source files
+guard_architecture      192 file(s) checked — architecture boundaries intact
+pytest --cov            239 passed · cobertura 89.1%  (umbral 80%)
+frontend lint/typecheck limpios
+frontend vitest         181 passed · cobertura 91.3%
+frontend build          compila, 21 rutas registradas
+```
+
+> Esas cifras son las del épico 1 y **no se actualizan**: son el registro de su cierre. La corrida
+> vigente sobre `develop`, con los épicos 1 y 2 adentro, está al pie de este documento (§8).
+
+---|---|
 | **2 · Verificación** de `usuarios-y-preferencias` | Corrida y en verde, más un **QA manual en el navegador** que encontró y dejó corregidos 7 defectos (detalle en el plan de la unidad). Falta que **vos la des por buena**. |
 | **3 · Pull Request** | El push de la rama y la apertura del PR. Por regla del repositorio **no los hago sin que los pidas**. Son 4 commits sobre `feature/identity-cimientos-identidad-y-bitacora`, que entra a `develop` con las ocho historias del épico. |
 
@@ -276,3 +304,32 @@ Y tres cosas que conviene saber antes de probar contra MercadoPago de verdad:
   solos cuando expiren.
 - **La firma CMS es nuestra.** Son unas cuarenta líneas y están cubiertas por tests que verifican
   el DER de verdad, pero es código propio donde antes se esperaba una librería.
+
+---
+
+# 8. La corrida vigente sobre `develop`
+
+Verificación de los gates reales el **2026-08-24**, sobre `develop` con los épicos 1 y 2 adentro
+(commit `80e5653`). No es el registro de ninguna unidad: es el estado del tronco.
+
+```
+ruff format --check .   243 files already formatted
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 238 source files
+guard_architecture      257 file(s) checked — architecture boundaries intact
+test_guards.sh          54 cases, all correct — the guards are active
+pytest                  487 passed · 85 skipped · cobertura 80.72 %  (umbral 80)
+frontend lint           No ESLint warnings or errors
+frontend typecheck      sin errores
+frontend test:coverage  230 passed · 88.01 % líneas
+```
+
+Dos cosas que hay que leer juntas, porque separadas engañan:
+
+- **Los 85 saltados son los tests de integración**, y se saltaron porque Docker no estaba levantado.
+  487 + 85 = 572, que es exactamente lo que reportó el Gate 2 de `conexion-mercadopago` con
+  PostgreSQL y Redis arriba: no falta ningún test, faltaba la infraestructura para correrlos.
+- **Por eso la cobertura da 80.72 % y no 89.35 %.** El umbral es 80. Corriendo sin los servicios el
+  margen real es de **0.72 puntos**, no de nueve. No es un problema hoy —CI los levanta— pero quien
+  corra `pytest --cov` en una laptop sin Docker está a un módulo nuevo sin tests de romper el gate,
+  y el mensaje de error va a hablar de cobertura en lugar de hablar de Docker.

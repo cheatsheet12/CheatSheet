@@ -17,7 +17,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Conexión con los servicios externos | conexion-whatsapp | integrations | HU-E2-03 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-whatsapp | mergeada |
 | Conexión con los servicios externos | conexion-arca | integrations | HU-E2-01 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-arca | mergeada |
 | Conexión con los servicios externos | padron-y-datos-fiscales | identity | deuda D1 de HU-E1-02 | conexion-arca | Cristian | feature/identity-padron-y-datos-fiscales | mergeada |
-| Conexión con los servicios externos | conexion-mercadopago | integrations | HU-E2-02 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-mercadopago | en revisión |
+| Conexión con los servicios externos | conexion-mercadopago | integrations | HU-E2-02 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-mercadopago | mergeada |
 
 
 ---
@@ -95,9 +95,12 @@ Consecuencias, explícitas para que nadie las descubra después:
 
 ### Estado
 
-Las tres unidades están implementadas y con el Gate 2 en verde (2026-08-18). El épico entero
-espera el Gate 3 — un solo PR a `develop`, por la decisión del 2026-08-13. Lo que falta para
-poder cerrarlo está en [`TODO.md`](TODO.md).
+**Cerrado en código.** Las tres unidades pasaron el Gate 2 en verde (2026-08-18) y el épico
+entero entró a `develop` en un solo PR — [#5](https://github.com/cheatsheet12/CheatSheet/pull/5) —
+por la decisión del 2026-08-13.
+
+Lo que queda no es código: son las credenciales reales de Google OAuth2 y del correo transaccional,
+que hoy corren simuladas, más la deuda declarada. Todo eso está en [`TODO.md`](TODO.md) §2 y §3.
 
 ### Fuera de alcance de este épico
 
@@ -230,8 +233,19 @@ es lo que destraba el Gate 1 de `mecanismo-de-integraciones`.
 
 ### Estado
 
-Mapa escrito el **2026-08-18**. Ninguna unidad arrancó: la siguiente es
-`mecanismo-de-integraciones`, que entra por su propio Gate 1.
+**Cerrado en código** (2026-08-20). Las cinco unidades pasaron sus tres gates y están en
+`develop`: PRs [#7](https://github.com/cheatsheet12/CheatSheet/pull/7) y
+[#8](https://github.com/cheatsheet12/CheatSheet/pull/8) (`mecanismo-de-integraciones`),
+[#9](https://github.com/cheatsheet12/CheatSheet/pull/9) (`conexion-whatsapp`),
+[#11](https://github.com/cheatsheet12/CheatSheet/pull/11) (`conexion-arca`),
+[#12](https://github.com/cheatsheet12/CheatSheet/pull/12) (`padron-y-datos-fiscales`) y
+[#13](https://github.com/cheatsheet12/CheatSheet/pull/13) (`conexion-mercadopago`).
+
+**Cerrado en código no es cerrado.** El criterio de demo que le puso el roadmap §1 es «PAN-CFG-INT
+mostrando ARCA y MercadoPago **conectados de verdad**», y los tres proveedores corren hoy contra
+adaptadores simulados. Ese último paso no es código: son las credenciales de ARCA homologación,
+de la aplicación de MercadoPago y del usuario de sistema de Meta, y está en [`TODO.md`](TODO.md) §5.
+El reloj que manda es el de Meta: 24 a 72 horas por número (HU-E2-03 RN-02).
 
 ### Fuera de alcance de este épico
 
