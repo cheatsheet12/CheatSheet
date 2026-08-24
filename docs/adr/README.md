@@ -46,6 +46,7 @@ No ADR needed for: naming a function, adding a test, fixing a bug.
 | [0003](0003-integrations-open-host-service.md) | Publish `integrations` as an Open Host Service | Accepted | 2026-08-18 |
 | [0004](0004-arca-wsaa-access-tickets.md) | Sign WSAA login tickets in `integrations`, and publish the access ticket | Accepted | 2026-08-19 |
 | [0005](0005-staging-database-neon.md) | Run the staging database on Neon, and prove the tenant barrier survives it | Proposed | 2026-08-21 |
+| [0006](0006-staging-hosting-render.md) | Host staging on Render, and let CI — not the push — release it | Proposed | 2026-08-24 |
 
 > The architecture itself (modular monolith, hexagonal, multi-tenancy, sync model,
 > ACLs, processing guarantees, security) was decided during Etapa 5 and is recorded as

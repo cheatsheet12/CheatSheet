@@ -177,12 +177,37 @@ cannot be bypassed manually.
 
 ---
 
+## 6 bis. Continuous deployment (CD) to staging
+
+Since **2026-08-24**, every push to `develop` updates the testing (`staging`) environment on its own
+— provided the push is not broken. The pipeline is the `deploy-staging` job of
+`.github/workflows/ci.yml`; the decision and its alternatives are [ADR-0006](adr/0006-staging-hosting-render.md), and the operating
+manual is [`staging-deployment.md`](staging-deployment.md).
+
+| Step | What it does | Stops the release when |
+| ----- | ----- | ----- |
+| Trigger | A push to `develop`, with `needs:` on all eight gates above | Any gate is red — the job never starts |
+| Migrations | `alembic upgrade head` with the database **owner** role | A migration fails |
+| Tenant barrier | `backend/scripts/verify_rls.py` against the live database | The application role can read across companies, or a policy is missing |
+| Release | Calls one Render deploy hook per web service | The hook is rejected |
+| Health | Polls `/health` until it answers 200 | The new version does not become healthy within ten minutes |
+
+**The deploy is a consequence of CI passing, not of the push.** Auto-deploy is disabled on every
+Render service on purpose: the platform does not know whether the pipeline was green, so leaving its
+default on would publish red builds.
+
+**`main` deploys nothing.** Production is a separate decision, with a different data profile and a
+different credential set.
+
+---
+
 ## 7. Responsibilities
 
 | Responsibility | Role |
 | ----- | ----- |
 | Repository creation and administration | Software Architect |
 | CI pipeline configuration and maintenance | Software Architect |
+| Staging provisioning and the CD pipeline | Software Architect |
 | Auditing compliance with the configuration policies | QA Analyst |
 | Managing and distributing environment credentials | Software Architect |
 | Updating the relevant `.env.example` when integrations are added | Integrations Analyst |

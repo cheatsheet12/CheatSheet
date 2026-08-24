@@ -392,3 +392,112 @@ jobs:
           git config --global user.email "ci@cheatsheet.local"
           git config --global user.name "CI"
           bash .claude/hooks/test_guards.sh
+
+  # ---------------------------------------------------------------------------
+  # Continuous deployment to staging.
+  #
+  # This lives inside the CI workflow, as a job, rather than in a workflow of its
+  # own triggered by `workflow_run`. That was the first design and it does not
+  # work here: GitHub only fires `workflow_run` from the copy of the workflow file
+  # on the repository's DEFAULT branch, which is `main`. A deploy workflow living
+  # on `develop` would sit there and never run, and nothing would say so.
+  #
+  # As a job it is also a stronger guarantee. `needs:` is a hard dependency: if any
+  # gate above fails, this job does not start. There is no second workflow run that
+  # has to look up whether the first one passed.
+  #
+  # Runbook: docs/staging-deployment.md · Decision: docs/adr/0006-staging-hosting-render.md
+  # ---------------------------------------------------------------------------
+  deploy-staging:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    needs:
+      - conventions
+      - lint-python
+      - typecheck
+      - architecture
+      - lint-frontend
+      - tests
+      - secret-scan
+      - guards
+    # Only a real push to `develop`. Pull requests targeting it — including the ones
+    # that run every gate above — must not deploy anything.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    concurrency:
+      # One deploy at a time. Two overlapping runs would mean two `alembic upgrade
+      # head` against the same database, and Alembic is not built for that.
+      # `cancel-in-progress: false` on purpose: a half-applied migration is worse
+      # than a queued deploy.
+      group: deploy-staging
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install the backend
+        # Alembic and the verifier both need the application's dependencies.
+        run: pip install -e backend/
+
+      - name: Apply migrations
+        # As the OWNER role. The application role owns nothing and cannot create
+        # tables — that separation is what makes RLS apply to the application at
+        # all (ADR-0005), so it is also what makes this a separate secret.
+        env:
+          DATABASE_URL_MIGRATIONS: ${{ secrets.DATABASE_URL_MIGRATIONS }}
+        run: alembic -c backend/alembic.ini upgrade head
+
+      - name: Verify the tenant barrier on the live database
+        # This already ran above against the job's container. Here it runs against
+        # the real database, after migrating. That is the difference between "the
+        # policies were right the day we provisioned it" and "they are right now".
+        #
+        # A non-zero exit stops the job, so no deploy hook is called and the
+        # services keep serving the previous version.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_MIGRATIONS: ${{ secrets.DATABASE_URL_MIGRATIONS }}
+        run: python backend/scripts/verify_rls.py
+
+      - name: Release the API
+        # A deploy hook is a per-service secret URL. Nothing is echoed: the URL is
+        # the credential, so it never reaches the log, not even on failure.
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+        run: curl --fail --silent --show-error --output /dev/null "$HOOK"
+
+      - name: Release the panel
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PANEL }}
+        run: curl --fail --silent --show-error --output /dev/null "$HOOK"
+
+      - name: Wait for the API to report healthy
+        # The deploy hook returns as soon as Render accepts the job, not when the
+        # new version serves traffic. Without this the workflow would go green on
+        # "the deploy was requested", which is not what a green check should mean.
+        #
+        # /health returns 503 while PostgreSQL or Redis is unreachable, so this
+        # waits for a genuinely working instance. The free plan suspends idle
+        # services and Neon suspends idle compute, so the first request also has to
+        # wake both: the budget is generous on purpose.
+        env:
+          API_URL: ${{ secrets.STAGING_API_URL }}
+        run: |
+          set -euo pipefail
+          for intento in $(seq 1 40); do
+            codigo=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+                          --max-time 30 "$API_URL/health" || true)
+            if [ "$codigo" = "200" ]; then
+              echo "La API responde sana tras $intento intento(s)."
+              exit 0
+            fi
+            echo "Intento $intento: /health devolvio '$codigo'. Reintento en 15 s."
+            sleep 15
+          done
+          echo "::error::La API no reporto /health 200 en 10 minutos."
+          echo "Los servicios pueden seguir sirviendo la version anterior; ver la consola de Render."
+          exit 1

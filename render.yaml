@@ -1,0 +1,116 @@
+# Render Blueprint — the staging environment, versioned.
+#
+# This file is the description of the infrastructure, reviewable in a pull request,
+# for the same reason `backend/scripts/provision_app_role.py` exists instead of a
+# sequence of clicks in the Neon console: infrastructure nobody can read is
+# infrastructure nobody can audit.
+#
+# It lives at the repository root because that is the only place Render reads it from,
+# and because it describes both applications at once — which is exactly the test
+# CLAUDE.md §2.3 sets for what belongs at the root.
+#
+# Companion runbook: docs/staging-deployment.md
+# Decision and alternatives: docs/adr/0006-staging-hosting-render.md
+#
+# ---------------------------------------------------------------------------
+# `autoDeploy: false` on every service, and it is the whole point
+# ---------------------------------------------------------------------------
+# Render's default is to deploy on every push to the tracked branch. That would
+# deploy a red build: Render does not know whether CI passed. Deploys are driven
+# by the `deploy-staging` job of .github/workflows/ci.yml, which runs only after
+# every gate succeeded and after the migrations applied cleanly. Turning autoDeploy
+# back on would silently restore the failure mode this unit was built to avoid.
+#
+# ---------------------------------------------------------------------------
+# What is NOT here
+# ---------------------------------------------------------------------------
+# `cheatsheet-worker` and `cheatsheet-beat`. Deferred by decision R1 (2026-08-24):
+# Render background workers are a paid plan. The image already serves their
+# commands. When they arrive, Beat is `numInstances: 1` — two schedulers mean two
+# WhatsApp polls and two emails to every Administrador. See the runbook §7.
+
+services:
+  # -------------------------------------------------------------------------
+  # The API. Docker, because the image is shared with the workers that follow.
+  # -------------------------------------------------------------------------
+  - type: web
+    name: cheatsheet-api
+    runtime: docker
+    region: ohio # Neon lives in sa-east-1; Render has no São Paulo. Nearest of the five.
+    plan: free
+    branch: develop
+    autoDeploy: false
+    dockerfilePath: ./backend/Dockerfile
+    # The context is `backend/`, not the repository root: the image needs nothing from
+    # `frontend/` or `docs/`, and a smaller context is a faster and narrower build.
+    dockerContext: ./backend
+    # /health answers 503 when PostgreSQL or Redis is unreachable, so an instance
+    # that cannot serve is never routed traffic. It was written before this unit
+    # and needed no change.
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: staging
+      # Every value below is a secret or an environment-specific URL: `sync: false`
+      # means Render asks for it once and stores it, and it never appears here.
+      # CLAUDE.md §3.2 — no credential in the repository, ever.
+      - key: DATABASE_URL # role cheatsheet_app: owns nothing, RLS applies to it
+        sync: false
+      - key: DATABASE_URL_MIGRATIONS # role neondb_owner: read by Alembic only
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      # APP_BASE_URL is the panel's public URL, not the API's: it is what the
+      # MercadoPago redirect_uri is derived from (settings.py), and that URI has to
+      # match the one registered in the MercadoPago application character for
+      # character or the exchange fails with `invalid_grant`.
+      - key: APP_BASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: cheatsheet-redis
+          type: redis
+          property: connectionString
+
+  # -------------------------------------------------------------------------
+  # The panel. Node runtime rather than Docker: packaging Next.js in an image
+  # requires `output: 'standalone'` in next.config, which means changing the
+  # application to suit the platform. `npm ci && npm run build` asks for nothing.
+  # -------------------------------------------------------------------------
+  - type: web
+    name: cheatsheet-panel
+    runtime: node
+    region: ohio
+    plan: free
+    branch: develop
+    autoDeploy: false
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22" # package.json engines and CI both say 22
+      # The BFF's address for the API. Deliberately not NEXT_PUBLIC_: the browser
+      # never talks to the API, only this app's own route handlers do. Point it at
+      # the API's INTERNAL Render URL so the traffic never leaves the platform.
+      - key: BACKEND_API_URL
+        sync: false
+
+  # -------------------------------------------------------------------------
+  # Redis. Not "the workers' infrastructure": without REDIS_URL the API does not
+  # boot (settings.py requires it), and the OAuth2 `state` memory, the idempotency
+  # registry and half of /health live here.
+  #
+  # NOTE: Render renamed this product to "Key Value". If a blueprint apply rejects
+  # `type: redis`, the current schema name is `keyvalue` — check the console before
+  # changing it, and change nothing else.
+  # -------------------------------------------------------------------------
+  - type: redis
+    name: cheatsheet-redis
+    region: ohio
+    plan: free
+    # No public access: only the services above reach it, over the private network.
+    # An empty list is not a placeholder — it is the closed door.
+    ipAllowList: []
