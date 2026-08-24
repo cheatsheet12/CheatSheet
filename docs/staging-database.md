@@ -213,15 +213,20 @@ and restart the process. Nothing else changes.
 
 ## 7. What staging still needs before it can run
 
-The database is not the environment. As of this document:
+The database is not the environment. This section listed four missing pieces; **three were resolved
+on 2026-08-24** by [`staging-deployment.md`](staging-deployment.md) and
+[ADR-0006](adr/0006-staging-hosting-render.md):
 
-- **Redis.** `Settings.desde_entorno` requires `REDIS_URL`; without it the process does not start at
-  all. Nothing has been provisioned.
-- **Somewhere for the backend and the frontend to run.** This document ends at the database.
+- ~~**Redis.**~~ Provisioned on Render as a managed Key Value instance.
+- ~~**Somewhere for the backend and the frontend to run.**~~ Both are Render web services.
+- ~~**Automatic migrations.**~~ `alembic upgrade head` now runs in the deploy workflow, as the owner
+  role, before the new version is released. **Step 4 below is no longer the normal path** — it stays
+  documented for the first provisioning and for a manual recovery.
 - **The Celery workers**, and therefore the invitation email
-  ([`aidlc/TODO.md`](aidlc/TODO.md) §2.3). An invitation created with no worker on the
-  `notifications` queue is stored and never sent, by design.
-- **Automatic migrations.** Applied by hand, see step 4.
+  ([`aidlc/TODO.md`](aidlc/TODO.md) §2.3). Still missing, now by explicit decision rather than by
+  omission: Render's background workers are a paid plan (decision R1). An invitation created with no
+  worker on the `notifications` queue is stored and never sent, by design. See
+  [`staging-deployment.md`](staging-deployment.md) §8 for what that turns off and how to add them.
 
 Test data in staging is controlled by the QA Analyst. **No real data from a pilot business goes into
 this database.**

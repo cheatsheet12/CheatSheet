@@ -1,0 +1,134 @@
+# Continuous deployment to the staging environment.
+#
+# Every push to `develop` updates staging — unless the push is broken.
+#
+# That last clause is why this triggers on `workflow_run` and not on `push`. Two
+# workflows listening to the same push start in parallel and never look at each
+# other, so `on: push` would deploy a red build. Here the deploy is a consequence
+# of CI succeeding, which is the thing actually being asked for.
+#
+# Order, and why it is this one:
+#
+#   CI green -> alembic upgrade head -> verify_rls.py -> deploy -> /health
+#               (owner role)           (app role)
+#
+# Migrations run before the new code is released. There is a window of seconds in
+# which the old code runs against the new schema; it is acceptable because the
+# three existing migrations only add, and staging has no real users. The day a
+# destructive migration exists, the pattern is expand/contract, not this order.
+#
+# Runbook: docs/staging-deployment.md
+
+name: Deploy to staging
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [develop]
+  # Manual re-run, for the case where a deploy failed for a reason that had
+  # nothing to do with the commit (a provider hiccup, a secret just rotated).
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One deploy at a time. Two overlapping runs would mean two `alembic upgrade
+  # head` against the same database, and Alembic is not built for that.
+  # `cancel-in-progress: false` on purpose: a half-applied migration is worse
+  # than a queued deploy.
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  deploy:
+    name: Migrate, verify and release
+    runs-on: ubuntu-latest
+    # `workflow_dispatch` has no `workflow_run` payload, hence the second clause.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Deploy exactly the commit CI validated, not whatever `develop` points
+          # at by now. Without this, a push landing during the run would ship code
+          # no pipeline ever saw.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install the backend
+        # Alembic and the verifier both need the application's dependencies.
+        # `pip install -e backend/` is the same command CI runs, for the same
+        # reason: application dependencies live in backend/pyproject.toml.
+        run: pip install -e backend/
+
+      - name: Apply migrations
+        # As the OWNER role. The application role owns nothing and cannot create
+        # tables — that separation is what makes RLS apply to the application at
+        # all (ADR-0005), so it is also what makes this a separate secret.
+        env:
+          DATABASE_URL_MIGRATIONS: ${{ secrets.DATABASE_URL_MIGRATIONS }}
+        run: alembic -c backend/alembic.ini upgrade head
+
+      - name: Verify the tenant barrier on the live database
+        # This already runs in CI against the job's container. Here it runs against
+        # Neon, after migrating. That is the difference between "the policies were
+        # right the day we provisioned it" and "the policies are right now".
+        #
+        # It ends by actually trying to read across the tenant boundary. A non-zero
+        # exit stops the job, so no deploy hook is called and the services keep
+        # serving the previous version.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_MIGRATIONS: ${{ secrets.DATABASE_URL_MIGRATIONS }}
+        run: python backend/scripts/verify_rls.py
+
+      - name: Release the API
+        # A deploy hook is a per-service secret URL. Nothing is echoed: the URL is
+        # the credential, so it never reaches the log, not even on failure.
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+        run: curl --fail --silent --show-error --output /dev/null "$HOOK"
+
+      - name: Release the panel
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PANEL }}
+        run: curl --fail --silent --show-error --output /dev/null "$HOOK"
+
+      - name: Wait for the API to report healthy
+        # The deploy hook returns as soon as Render accepts the job, not when the
+        # new version serves traffic. Without this the workflow would go green on
+        # "the deploy was requested", which is not what a green check should mean.
+        #
+        # /health returns 503 while PostgreSQL or Redis is unreachable, so this
+        # waits for a genuinely working instance. The free plan suspends idle
+        # services and Neon suspends idle compute, so the first request also has to
+        # wake both: the budget is generous on purpose.
+        env:
+          API_URL: ${{ secrets.STAGING_API_URL }}
+        run: |
+          set -euo pipefail
+          for intento in $(seq 1 40); do
+            codigo=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+                          --max-time 30 "$API_URL/health" || true)
+            if [ "$codigo" = "200" ]; then
+              echo "La API responde sana tras $intento intento(s)."
+              exit 0
+            fi
+            echo "Intento $intento: /health devolvio '$codigo'. Reintento en 15 s."
+            sleep 15
+          done
+          echo "::error::La API no reporto /health 200 en 10 minutos."
+          echo "Los servicios pueden seguir sirviendo la version anterior; ver la consola de Render."
+          exit 1

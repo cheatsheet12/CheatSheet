@@ -1,0 +1,42 @@
+# Build context exclusions for backend/Dockerfile.
+#
+# It lives here and not at the repository root because the build context is `backend/`
+# — the image needs nothing from `frontend/` or `docs/` — and because a config file
+# that affects one package belongs inside that package (CLAUDE.md §2.3). Docker reads
+# `.dockerignore` from the context root, so this is both the correct place and the only
+# place it works from.
+#
+# The first entries are not about size. A `.env` inside the build context can be copied
+# into a layer by a careless `COPY`, and a layer is readable by anyone who can pull the
+# image. CLAUDE.md §3.3 forbids committing those files; this forbids shipping them.
+
+# ---------------------------------------------------------------------------
+# Secrets — never in an image layer
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.crt
+
+# ---------------------------------------------------------------------------
+# Not part of the runtime
+# ---------------------------------------------------------------------------
+# The test suite does not ship: it never runs inside the image, and it carries
+# fixtures and fakes that have no business in a runtime container.
+tests
+docker-compose.yml
+
+# Python local artefacts
+.venv
+venv
+__pycache__
+*.py[cod]
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+*.egg-info
