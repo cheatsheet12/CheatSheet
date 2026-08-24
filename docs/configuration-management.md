@@ -180,13 +180,13 @@ cannot be bypassed manually.
 ## 6 bis. Continuous deployment (CD) to staging
 
 Since **2026-08-24**, every push to `develop` updates the testing (`staging`) environment on its own
-— provided the push is not broken. The pipeline is `.github/workflows/deploy-staging.yml`; the
-decision and its alternatives are [ADR-0006](adr/0006-staging-hosting-render.md), and the operating
+— provided the push is not broken. The pipeline is the `deploy-staging` job of
+`.github/workflows/ci.yml`; the decision and its alternatives are [ADR-0006](adr/0006-staging-hosting-render.md), and the operating
 manual is [`staging-deployment.md`](staging-deployment.md).
 
 | Step | What it does | Stops the release when |
 | ----- | ----- | ----- |
-| Trigger | Waits for the **CI** workflow to finish `success` on `develop` | CI is red — the deploy never starts |
+| Trigger | A push to `develop`, with `needs:` on all eight gates above | Any gate is red — the job never starts |
 | Migrations | `alembic upgrade head` with the database **owner** role | A migration fails |
 | Tenant barrier | `backend/scripts/verify_rls.py` against the live database | The application role can read across companies, or a policy is missing |
 | Release | Calls one Render deploy hook per web service | The hook is rejected |

@@ -150,15 +150,17 @@ Repository → **Settings → Secrets and variables → Actions → New reposito
 
 ### 6.3 What the workflow does
 
-`.github/workflows/deploy-staging.yml`, on every push to `develop`:
+The `deploy-staging` job of `.github/workflows/ci.yml`, on every push to `develop`:
 
 ```
 CI green -> alembic upgrade head -> verify_rls.py -> deploy hooks -> /health 200
             (owner role)           (app role)
 ```
 
-It triggers on `workflow_run` of the CI workflow rather than on the push itself, so **a broken push
-never reaches staging**. Migrations run before the release, as the owner role. The tenant-barrier
+It is a job of the CI workflow with `needs:` on all eight gates, so **a broken push never reaches
+staging**: a failed gate means the job never starts. (It is not a separate workflow on
+`workflow_run` — GitHub only fires those from the default branch, `main`, so such a workflow living
+on `develop` would never run.) Migrations run before the release, as the owner role. The tenant-barrier
 verifier then runs against Neon — not against a container — and a non-zero exit aborts the job
 before any deploy hook is called, leaving the previous version serving.
 
@@ -175,7 +177,8 @@ Then, in a browser: open the panel, register a company, complete the onboarding,
 is the environment existing.
 
 To confirm the pipeline rather than the environment, push a trivial commit to `develop` and watch
-**Actions → Deploy to staging** wait for CI, migrate, verify and release.
+the **Deploy to staging** job of the CI run migrate, verify and release after the other eight jobs
+go green.
 
 ---
 

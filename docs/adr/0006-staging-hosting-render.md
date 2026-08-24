@@ -55,16 +55,26 @@ application to suit the platform, for no gain: Render's Node runtime runs `npm c
 and `npm start` against the same Node 22 that `package.json` and CI already pin. Consistency between
 the two services is not worth a build-mode change in the application.
 
-### 3. `autoDeploy: false`, and the pipeline holds the trigger
+### 3. `autoDeploy: false`, and the deploy is a job of the CI workflow
 
 Render's default is to deploy on every push to the tracked branch. Render does not know whether CI
-passed, so that default deploys red builds. Every service declares `autoDeploy: false`, and
-`.github/workflows/deploy-staging.yml` triggers on `workflow_run` of the CI workflow with
-`conclusion == 'success'`.
+passed, so that default deploys red builds. Every service declares `autoDeploy: false`, and the
+release is a **`deploy-staging` job inside `.github/workflows/ci.yml`** that declares `needs:` on all
+eight gates and runs only when `github.event_name == 'push' && github.ref == 'refs/heads/develop'`.
 
-The literal reading of the request — "every push to `develop` updates the environment" — is what
-`on: push` does, and it is wrong: two workflows listening to the same push run in parallel and never
-look at each other. The deploy has to be a consequence of CI succeeding.
+The literal reading of the request — "every push to `develop` updates the environment" — is what a
+standalone `on: push` workflow does, and it is wrong: two workflows listening to the same push run in
+parallel and never look at each other, so the deploy would not know CI failed.
+
+**A separate workflow triggered by `workflow_run` was the first design, and it does not work in this
+repository.** GitHub only fires `workflow_run` from the copy of the workflow file on the
+**default branch**, which here is `main`. A deploy workflow living on `develop` would sit there and
+never run — and nothing would report an error, which is the worst shape a failure can take. It was
+caught on 2026-08-24, by a Render build that failed for an unrelated reason.
+
+As a job it is also the stronger guarantee: `needs:` is a hard dependency evaluated inside one run,
+so a failed gate means the deploy never starts. There is no second workflow that has to look up
+whether the first one passed.
 
 ### 4. Migrations run in the pipeline, as the owner role, and the barrier is re-verified
 

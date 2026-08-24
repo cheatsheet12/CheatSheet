@@ -17,9 +17,9 @@
 # ---------------------------------------------------------------------------
 # Render's default is to deploy on every push to the tracked branch. That would
 # deploy a red build: Render does not know whether CI passed. Deploys are driven
-# by .github/workflows/deploy-staging.yml, which runs only after CI succeeds and
-# after the migrations applied cleanly. Turning autoDeploy back on would silently
-# restore the failure mode this unit was built to avoid.
+# by the `deploy-staging` job of .github/workflows/ci.yml, which runs only after
+# every gate succeeded and after the migrations applied cleanly. Turning autoDeploy
+# back on would silently restore the failure mode this unit was built to avoid.
 #
 # ---------------------------------------------------------------------------
 # What is NOT here

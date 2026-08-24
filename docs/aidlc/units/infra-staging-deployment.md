@@ -61,15 +61,18 @@ comandos, así que sumarlos después es agregar dos servicios que apuntan a la i
   acomodar al proveedor**. `npm ci && npm run build` + `npm start` no pide nada de eso. El repo fija
   Node 22 en `package.json` (`engines`) y en CI; Render usa lo mismo.
 
-### El disparador: `workflow_run`, no `push`
+### El disparador: un job de CI con `needs:`, no un workflow aparte
 
 El pedido es «cada push a `develop` actualiza el ambiente». La forma ingenua —`on: push: branches:
 [develop]`— despliega **también cuando CI está en rojo**, porque los dos workflows arrancan en
 paralelo y no se miran.
 
-El despliegue se cuelga de `workflow_run` sobre el workflow `CI`, con `conclusion == 'success'`.
-Efecto neto: cada push a `develop` actualiza staging, **salvo que el push esté roto**. Que es lo que
-querés, dicho con precisión.
+El despliegue es el job `deploy-staging` **dentro de `ci.yml`**, con `needs:` sobre los ocho gates y
+`if: github.event_name == 'push' && github.ref == 'refs/heads/develop'`. Efecto neto: cada push a
+`develop` actualiza staging, **salvo que el push esté roto**. Que es lo que se pidió, dicho con
+precisión.
+
+**La primera versión usaba un workflow aparte con `workflow_run`, y no funcionaba** — ver desvío D6.
 
 ### El orden dentro del despliegue, que es donde esto se rompe
 
@@ -137,8 +140,9 @@ eso mejora — se pueden hablar por la red interna, sin salir a internet.
 - [x] `render.yaml` — los cinco servicios como Blueprint. Infraestructura versionada y revisable en
       un PR, en lugar de clicks que nadie puede auditar. Es el equivalente de esta unidad a lo que
       `provision_app_role.py` fue para la anterior.
-- [x] `.github/workflows/deploy-staging.yml` — el workflow: `workflow_run` sobre CI, migraciones,
-      verificador, despliegue, espera de `/health`.
+- [x] `.github/workflows/ci.yml` — el job `deploy-staging`: migraciones, verificador, despliegue y
+      espera de `/health`, con `needs:` sobre los ocho gates. **Empezó siendo un workflow aparte y
+      no podía funcionar**: ver desvío D6.
 - [x] `docs/adr/0006-staging-hosting-render.md` — la decisión, sus alternativas y su costo.
 - [x] `docs/staging-deployment.md` — el runbook, en inglés: qué se crea en Render, qué secreto va
       dónde, cómo se dispara un despliegue a mano, y la tabla de síntomas→causa.
@@ -280,6 +284,24 @@ usó ADR-0003, que pasó a `Accepted` con el merge de su PR.
 **D5 — `docs/architecture.md` NO se tocó**, aunque dice que el panel corre en Vercel. Es un insumo de
 Etapa 5 que describe la arquitectura de **producción**, y esta unidad decide **staging**. La
 divergencia queda registrada en el ADR en lugar de reescribir el insumo.
+
+**D6 — El deploy es un job de `ci.yml`, no un workflow aparte con `workflow_run`. Lo escrito en el
+plan no podía funcionar.** GitHub sólo dispara `workflow_run` desde la copia del archivo que está en
+la **rama por defecto** del repositorio, que en este repo es `main`. Un workflow de deploy viviendo
+en `develop` **jamás se habría ejecutado**, y —lo peor— sin ningún error: el archivo estaría ahí,
+correcto, y nada pasaría nunca.
+
+Se descubrió el 2026-08-24, de rebote: el primer build en Render falló por otra razón (el
+`Dockerfile` todavía no estaba en `develop`), y al mirar de qué commit clonaba apareció la pregunta
+de qué rama mira GitHub para los triggers.
+
+El arreglo simplifica y endurece a la vez: como job con `needs:` sobre los ocho gates, la dependencia
+se evalúa **dentro de una sola corrida** —si un gate falla, el job no arranca—, y los triggers `push`
+sí funcionan desde la propia rama, así que desaparece la dependencia de `main`.
+
+**Lección, y no es sobre GitHub Actions:** todo lo demás de esta unidad se verificó ejecutándolo
+—la imagen se construyó, el contenedor arrancó, `/health` contestó, el `SIGTERM` cerró bien—. El
+disparador fue la única pieza que no se podía ejercitar localmente, y fue la única que estaba mal.
 
 ## Registro
 
