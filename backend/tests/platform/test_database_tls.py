@@ -83,3 +83,57 @@ def test_toda_conexion_lleva_timeout_explicito(url: str) -> None:
     there", and a request or a Celery task hangs on asyncpg's own default instead.
     """
     assert argumentos_de_conexion(url)["timeout"] == TIMEOUT_DE_CONEXION_SEGUNDOS
+
+
+# ---------------------------------------------------------------------------
+# The driver, which is the other half of what a pasted URL gets wrong
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        # What the managed provider hands out, and what a person types from memory.
+        "postgresql://cheatsheet_app:x@ep-abc-123.sa-east-1.aws.neon.tech/neondb",
+        # The synchronous drivers, named on purpose rather than omitted.
+        "postgresql+psycopg2://cheatsheet_app:x@ep-abc-123.neon.tech/neondb",
+        "postgresql+psycopg://cheatsheet_app:x@ep-abc-123.neon.tech/neondb",
+    ],
+)
+def test_una_url_sin_asyncpg_se_rechaza_nombrando_el_driver(url: str) -> None:
+    """Without this, SQLAlchemy resolves the URL to psycopg2 and the error is a lie.
+
+    `postgresql://` is not an omission the driver forgives: it selects the synchronous
+    dialect, which imports a package this project does not depend on. What the operator
+    sees is `ModuleNotFoundError: No module named 'psycopg2'` raised deep inside
+    SQLAlchemy — a package that appears in no requirements file, no lockfile and no
+    import in the repository. Nothing in it says "your URL is missing `+asyncpg`".
+    """
+    with pytest.raises(ConfiguracionDeConexionInvalida, match="postgresql\\+asyncpg"):
+        argumentos_de_conexion(url)
+
+
+def test_los_dos_errores_de_una_url_pegada_se_informan_juntos() -> None:
+    """The string the provider offers to copy carries both mistakes at once.
+
+    Reporting only the first would send whoever is fixing it around the loop twice:
+    correct the driver, deploy, fail again on the query string. Both are named in one
+    message because both are wrong in one paste.
+    """
+    pegada = (
+        "postgresql://cheatsheet_app:x@ep-abc-123.sa-east-1.aws.neon.tech/neondb"
+        "?sslmode=require&channel_binding=require"
+    )
+
+    with pytest.raises(ConfiguracionDeConexionInvalida) as excepcion:
+        argumentos_de_conexion(pegada)
+
+    mensaje = str(excepcion.value)
+    assert "postgresql+asyncpg" in mensaje
+    assert "channel_binding" in mensaje
+    assert "sslmode" in mensaje
+
+
+def test_la_url_correcta_sigue_pasando() -> None:
+    """The guard rejects what is broken and nothing else."""
+    assert argumentos_de_conexion(NEON)["timeout"] == TIMEOUT_DE_CONEXION_SEGUNDOS
