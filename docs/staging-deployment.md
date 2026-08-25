@@ -108,6 +108,7 @@ Deploy will fail until `APP_BASE_URL` exists. That is expected; continue.
 | Key | Value |
 | --- | --- |
 | `NODE_VERSION` | `22` — what `package.json` `engines` and CI both pin |
+| `APP_BASE_URL` | This service's own public URL, filled in at §5. The panel builds the Google OAuth redirect from it and silently falls back to `http://localhost:3000`, which sends the user to their own machine instead of failing |
 | `BACKEND_API_URL` | The API's **Internal Address**, copied from `cheatsheet-api` → Settings in the dashboard. It looks like `http://cheatsheet-api:10000` — **copy it, do not guess the port**: Render assigns `PORT` and the container binds to whatever it is given. Internal on purpose: the browser never talks to the API, only this app's own BFF route handlers do, so the traffic has no reason to leave Render. The public `https://…onrender.com` URL also works and is the fallback if the internal one is refused |
 
 ---
@@ -117,7 +118,9 @@ Deploy will fail until `APP_BASE_URL` exists. That is expected; continue.
 The two services each need the other's address, which is why this is a step of its own.
 
 1. Copy the panel's public URL (`https://cheatsheet-panel-XXXX.onrender.com`).
-2. Set it as `APP_BASE_URL` **on the API**, without a trailing slash.
+2. Set it as `APP_BASE_URL` **on both services**, without a trailing slash. Same name, same
+   value, two different reasons: on the API it is what the MercadoPago `redirect_uri` derives
+   from; on the panel it is what the Google OAuth redirect is built from.
 
 `APP_BASE_URL` is the panel's URL and not the API's because that is what the MercadoPago
 `redirect_uri` is derived from (`platform/settings.py`), and the OAuth2 return lands on the
