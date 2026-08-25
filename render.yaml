@@ -97,6 +97,13 @@ services:
       # the API's INTERNAL Render URL so the traffic never leaves the platform.
       - key: BACKEND_API_URL
         sync: false
+      # This service's OWN public URL. `app/api/auth/google/route.ts` builds the
+      # OAuth redirect from it and falls back to http://localhost:3000, so leaving
+      # it unset does not fail loudly: the button simply sends the user to their
+      # own machine. Same variable name as on the API, same value, different
+      # reason -- there it is what the MercadoPago redirect_uri derives from.
+      - key: APP_BASE_URL
+        sync: false
 
   # -------------------------------------------------------------------------
   # Redis. Not "the workers' infrastructure": without REDIS_URL the API does not
