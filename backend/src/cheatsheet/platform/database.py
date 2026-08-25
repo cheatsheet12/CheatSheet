@@ -47,6 +47,13 @@ HOSTS_LOCALES = frozenset({"localhost", "127.0.0.1", "::1", ""})
 #: TLS settings that belong in code, and that a copied provider URL brings along.
 PARAMETROS_TLS_EN_LA_URL = ("ssl", "sslmode", "sslrootcert", "channel_binding")
 
+# The whole system talks to PostgreSQL asynchronously, so this is the only driver the
+# URL may name. `postgresql://` alone is not a harmless omission: SQLAlchemy resolves it
+# to psycopg2, the synchronous driver, which is not a dependency of this project — and
+# the failure surfaces as `ModuleNotFoundError: No module named 'psycopg2'`, forty frames
+# deep, naming a package that appears nowhere in the repository.
+DRIVER_REQUERIDO = "postgresql+asyncpg"
+
 #: Seconds to wait for a connection before giving up (`CLAUDE.md` §5). A managed
 #: database wakes suspended compute on the first connection, so this is not two.
 TIMEOUT_DE_CONEXION_SEGUNDOS = 10
@@ -94,18 +101,41 @@ def argumentos_de_conexion(url: str) -> dict[str, Any]:
     provider hands out exactly such a URL to copy, so this is the expected mistake, not
     an exotic one.
 
+    The same check rejects a URL that does not name ``postgresql+asyncpg``. Dropping the
+    driver is the other expected mistake — the provider's string says ``postgresql://``
+    — and SQLAlchemy resolves that to psycopg2, which this project does not depend on.
+    The resulting ``ModuleNotFoundError`` names a package nobody installed and gives no
+    hint that four characters are missing from a URL.
+
     Every connection also carries an explicit timeout (``CLAUDE.md`` §5). Without one,
     asyncpg waits on its own default while the caller — a request, a Celery task, a
     migration — has no way to know the database is simply unreachable.
     """
     parseada = make_url(url)
+    problemas: list[str] = []
+
+    if parseada.drivername != DRIVER_REQUERIDO:
+        problemas.append(
+            f"nombra el driver '{parseada.drivername}' y tiene que nombrar '{DRIVER_REQUERIDO}'"
+        )
+
     presentes = sorted(p for p in PARAMETROS_TLS_EN_LA_URL if p in parseada.query)
     if presentes:
-        raise ConfiguracionDeConexionInvalida(
-            f"La URL de la base declara {', '.join(presentes)}. El TLS se decide en "
-            f"argumentos_de_conexion(), no en la cadena de conexion: borra esos "
-            f"parametros de la URL. Ver docs/staging-database.md."
+        problemas.append(
+            f"declara {', '.join(presentes)}, y el TLS se decide en "
+            f"argumentos_de_conexion() y no en la cadena de conexion: borra esos "
+            f"parametros"
         )
+
+    # Both at once, rather than one per attempt. The string a managed provider hands out
+    # to copy carries both mistakes, so reporting only the first would send whoever is
+    # fixing it around the same loop twice.
+    if problemas:
+        raise ConfiguracionDeConexionInvalida(
+            f"La URL de la base no sirve para conectarse: {'; '.join(problemas)}. "
+            f"Ver docs/staging-database.md."
+        )
+
     argumentos: dict[str, Any] = {"timeout": TIMEOUT_DE_CONEXION_SEGUNDOS}
     if (parseada.host or "").lower() not in HOSTS_LOCALES:
         argumentos["ssl"] = ssl.create_default_context()
