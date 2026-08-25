@@ -186,7 +186,7 @@ manual is [`staging-deployment.md`](staging-deployment.md).
 
 | Step | What it does | Stops the release when |
 | ----- | ----- | ----- |
-| Trigger | A push to `develop`, with `needs:` on all eight gates above | Any gate is red — the job never starts |
+| Trigger | A push to `develop`, with `needs:` on the seven gates that run on push | Any of them is red — the job never starts |
 | Migrations | `alembic upgrade head` with the database **owner** role | A migration fails |
 | Tenant barrier | `backend/scripts/verify_rls.py` against the live database | The application role can read across companies, or a policy is missing |
 | Release | Calls one Render deploy hook per web service | The hook is rejected |

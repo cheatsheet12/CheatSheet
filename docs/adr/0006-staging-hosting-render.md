@@ -60,7 +60,8 @@ the two services is not worth a build-mode change in the application.
 Render's default is to deploy on every push to the tracked branch. Render does not know whether CI
 passed, so that default deploys red builds. Every service declares `autoDeploy: false`, and the
 release is a **`deploy-staging` job inside `.github/workflows/ci.yml`** that declares `needs:` on all
-eight gates and runs only when `github.event_name == 'push' && github.ref == 'refs/heads/develop'`.
+seven gates that run on push, and runs only when `github.event_name == 'push' && github.ref ==
+'refs/heads/develop'`.
 
 The literal reading of the request — "every push to `develop` updates the environment" — is what a
 standalone `on: push` workflow does, and it is wrong: two workflows listening to the same push run in

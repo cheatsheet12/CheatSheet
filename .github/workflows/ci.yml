@@ -411,8 +411,14 @@ jobs:
   deploy-staging:
     name: Deploy to staging
     runs-on: ubuntu-latest
+    # `conventions` is deliberately NOT here, and adding it breaks this job.
+    # That job only runs on `pull_request` -- it validates the branch name and the
+    # commit format, neither of which describes a push to `develop`. In GitHub
+    # Actions a SKIPPED dependency skips the dependent job, so listing it here
+    # means this one never runs at all, on any push, silently. It did exactly that
+    # on 2026-08-25. Every job below runs on push, which is what makes them usable
+    # as a gate.
     needs:
-      - conventions
       - lint-python
       - typecheck
       - architecture
