@@ -157,7 +157,7 @@ CI green -> alembic upgrade head -> verify_rls.py -> deploy hooks -> /health 200
             (owner role)           (app role)
 ```
 
-It is a job of the CI workflow with `needs:` on all eight gates, so **a broken push never reaches
+It is a job of the CI workflow with `needs:` on the seven gates that run on push, so **a broken push never reaches
 staging**: a failed gate means the job never starts. (It is not a separate workflow on
 `workflow_run` — GitHub only fires those from the default branch, `main`, so such a workflow living
 on `develop` would never run.) Migrations run before the release, as the owner role. The tenant-barrier

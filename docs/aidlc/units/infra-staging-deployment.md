@@ -67,7 +67,8 @@ El pedido es «cada push a `develop` actualiza el ambiente». La forma ingenua �
 [develop]`— despliega **también cuando CI está en rojo**, porque los dos workflows arrancan en
 paralelo y no se miran.
 
-El despliegue es el job `deploy-staging` **dentro de `ci.yml`**, con `needs:` sobre los ocho gates y
+El despliegue es el job `deploy-staging` **dentro de `ci.yml`**, con `needs:` sobre los siete gates que
+corren en un push y
 `if: github.event_name == 'push' && github.ref == 'refs/heads/develop'`. Efecto neto: cada push a
 `develop` actualiza staging, **salvo que el push esté roto**. Que es lo que se pidió, dicho con
 precisión.
@@ -141,7 +142,8 @@ eso mejora — se pueden hablar por la red interna, sin salir a internet.
       un PR, en lugar de clicks que nadie puede auditar. Es el equivalente de esta unidad a lo que
       `provision_app_role.py` fue para la anterior.
 - [x] `.github/workflows/ci.yml` — el job `deploy-staging`: migraciones, verificador, despliegue y
-      espera de `/health`, con `needs:` sobre los ocho gates. **Empezó siendo un workflow aparte y
+      espera de `/health`, con `needs:` sobre los siete gates que corren en push. **Empezó siendo un
+      workflow aparte y
       no podía funcionar**: ver desvío D6.
 - [x] `docs/adr/0006-staging-hosting-render.md` — la decisión, sus alternativas y su costo.
 - [x] `docs/staging-deployment.md` — el runbook, en inglés: qué se crea en Render, qué secreto va
@@ -295,7 +297,7 @@ Se descubrió el 2026-08-24, de rebote: el primer build en Render falló por otr
 `Dockerfile` todavía no estaba en `develop`), y al mirar de qué commit clonaba apareció la pregunta
 de qué rama mira GitHub para los triggers.
 
-El arreglo simplifica y endurece a la vez: como job con `needs:` sobre los ocho gates, la dependencia
+El arreglo simplifica y endurece a la vez: como job con `needs:` sobre los gates, la dependencia
 se evalúa **dentro de una sola corrida** —si un gate falla, el job no arranca—, y los triggers `push`
 sí funcionan desde la propia rama, así que desaparece la dependencia de `main`.
 
