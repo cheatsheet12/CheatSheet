@@ -5,11 +5,11 @@ trabajo suyo: se importa una vez, se consume siempre y se cita por `HU-ID`.
 
 | Archivo | Contenido | Origen |
 |---|---|---|
-| `historias-de-usuario.md` | Catálogo completo: 12 épicas con 59 HUs (`HU-E<n>-<nn>`) y 7 historias de sistema (`HS-T<n>`), cada una con actor, acción del Bloque K, prioridad, complejidad, pantalla o disparador, precondiciones, reglas de negocio y criterios de aceptación | Etapa 5 — `TodoEnUno.docx`, importado verbatim |
+| `historias-de-usuario.md` | Catálogo completo: 12 épicas con 61 HUs (`HU-E<n>-<nn>`) y 7 historias de sistema (`HS-T<n>`), cada una con actor, acción del Bloque K, prioridad, complejidad, pantalla o disparador, precondiciones, reglas de negocio y criterios de aceptación | Etapa 5 — **Documento Oficial V3**, §17 Modelo funcional, transcrito verbatim |
 | `DER.pdf` | Diagrama entidad-relación: 34 tablas, 21 enums, con tipos, nulabilidad y claves. **Fuente de verdad del modelo físico** | Etapa 5 — export de dbdiagram.io |
 | `der-por-contexto.jpg` | El mismo modelo **agrupado por bounded context** (BC1…BC12), marcando cuáles son Core. Vista lógica: omite `created_at` / `updated_at` | Etapa 5 |
 | `der.md` | Transcripción de los dos, organizada por contexto | Derivado de los anteriores |
-| `prototipos/` | Maquetación de Etapa 5: la especificación escrita del sistema de diseño (PDF, 32 páginas), el CSS implementado con sus 157 tokens, las ocho pantallas en HTML funcional, la guía visual, el mapa de navegación y las anotaciones de comportamiento | Etapa 5 |
+| `prototipos/` | Maquetación de Etapa 5: la especificación escrita del sistema de diseño (PDF, 32 páginas), el CSS y el `chrome.js` compartidos, las ocho pantallas en HTML funcional, las 15 capturas entregadas, la identidad de marca (logo e imagotipo), la guía visual, el mapa de navegación y las anotaciones de comportamiento | Etapa 5 |
 | `prototipos.md` | Índice de lo anterior: qué gobierna cada archivo, qué `PAN-…` cubre cada pantalla, la tabla de tokens y los huecos | Derivado |
 
 Copia textual: ni un `HU-ID`, ni un código de pantalla (`PAN-…`), ni una regla de negocio

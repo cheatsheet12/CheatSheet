@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Logo</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { background: var(--bg); padding: 0; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 46px 40px 80px; }
+  .head h1 { font-size: 30px; font-weight: 800; letter-spacing: -.6px; margin: 0 0 6px; }
+  .head p { color: var(--ink-500); font-size: 14.5px; margin: 0; }
+  .swatches { display: flex; gap: 10px; margin-top: 18px; }
+  .sw { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--ink-500); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px 6px 8px; }
+  .sw i { width: 16px; height: 16px; border-radius: 5px; display: block; }
+
+  .concept { margin-top: 30px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .concept__bar { display: flex; align-items: center; gap: 12px; padding: 16px 22px; border-bottom: 1px solid var(--line); }
+  .concept__bar .n { width: 26px; height: 26px; border-radius: 7px; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+  .concept__bar h2 { font-size: 16px; font-weight: 700; margin: 0; }
+  .concept__bar p { font-size: 12.5px; color: var(--ink-400); margin: 1px 0 0; }
+  .concept__grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .panel { padding: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; min-height: 230px; }
+  .panel--light { background: var(--bg); }
+  .panel--dark { background: var(--primary); }
+  .panel__tag { position: absolute; top: 12px; left: 16px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+  .panel { position: relative; }
+  .panel--light .panel__tag { color: var(--ink-300); }
+  .panel--dark .panel__tag { color: #5a5a72; }
+
+  /* lockup */
+  .lockup { display: flex; align-items: center; gap: 14px; }
+  .icon { flex: none; }
+  .wordmark { font-weight: 800; font-size: 30px; letter-spacing: -1.2px; line-height: 1; }
+  .wordmark .a { color: var(--primary); }
+  .wordmark .b { color: var(--accent); }
+  .panel--dark .wordmark .a { color: #fff; }
+  .tagline { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-400); margin-top: 6px; }
+  .panel--dark .tagline { color: #71718a; }
+
+  /* favicon sizes */
+  .sizes { display: flex; align-items: center; gap: 22px; }
+  .sizes .item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .sizes .item span { font-family: var(--mono); font-size: 10px; color: var(--ink-400); }
+  .panel--dark .sizes .item span { color: #71718a; }
+
+  .footer-note { margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="eyebrow">Identidad de marca</div>
+    <h1>CheatSheet — Exploración de logo</h1>
+    <p>Tres direcciones con la paleta de la plataforma. Elegí una y la exporto en SVG + PNG (con transparencia).</p>
+    <div class="swatches">
+      <span class="sw"><i style="background:#1E1E2E"></i> #1E1E2E Primario</span>
+      <span class="sw"><i style="background:#00C48C"></i> #00C48C Acento</span>
+      <span class="sw"><i style="background:#FDCB6E"></i> #FDCB6E Alerta</span>
+      <span class="sw"><i style="background:#F8F7FF;border:1px solid var(--line)"></i> #F8F7FF Fondo</span>
+    </div>
+  </div>
+
+  <!-- ============ CONCEPTO 1 — Monograma CS ============ -->
+  <div class="concept">
+    <div class="concept__bar">
+      <span class="n">1</span>
+      <div><h2>Monograma “CS”</h2><p>El isotipo actual, refinado · directo y reconocible</p></div>
+      <span class="badge badge--ok" style="margin-left:auto; font-weight:600;">Recomendado</span>
+    </div>
+    <div class="concept__grid">
+      <div class="panel panel--light">
+        <span class="panel__tag">Lockup · fondo claro</span>
+        <div class="lockup">
+          <svg class="icon" width="62" height="62" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="26" fill="#00C48C"/>
+            <text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-family="-apple-system,Helvetica,Arial,sans-serif" font-weight="800" font-size="46" letter-spacing="-2" fill="#1E1E2E">CS</text>
+          </svg>
+          <div><div class="wordmark"><span class="a">Cheat</span><span class="b">Sheet</span></div><div class="tagline">iPaaS · Automatización para PyMEs</div></div>
+        </div>
+      </div>
+      <div class="panel panel--dark">
+        <span class="panel__tag">Tamaños · favicon / app</span>
+        <div class="sizes">
+          <div class="item"><svg width="56" height="56" viewBox="0 0 100 100"><rect width="100" height="100" rx="26" fill="#00C48C"/><text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-family="-apple-system,Helvetica,Arial,sans-serif" font-weight="800" font-size="46" letter-spacing="-2" fill="#1E1E2E">CS</text></svg><span>56px</span></div>
+          <div class="item"><svg width="32" height="32" viewBox="0 0 100 100"><rect width="100" height="100" rx="26" fill="#00C48C"/><text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-family="-apple-system,Helvetica,Arial,sans-serif" font-weight="800" font-size="46" letter-spacing="-2" fill="#1E1E2E">CS</text></svg><span>32px</span></div>
+          <div class="item"><svg width="20" height="20" viewBox="0 0 100 100"><rect width="100" height="100" rx="26" fill="#00C48C"/><text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-family="-apple-system,Helvetica,Arial,sans-serif" font-weight="800" font-size="46" letter-spacing="-2" fill="#1E1E2E">CS</text></svg><span>16px</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CONCEPTO 2 — Hoja + check ============ -->
+  <div class="concept">
+    <div class="concept__bar">
+      <span class="n">2</span>
+      <div><h2>Hoja + check</h2><p>La “cheat sheet” resuelta · evoca el documento contable hecho automáticamente</p></div>
+    </div>
+    <div class="concept__grid">
+      <div class="panel panel--light">
+        <span class="panel__tag">Lockup · fondo claro</span>
+        <div class="lockup">
+          <svg class="icon" width="62" height="62" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="26" fill="#1E1E2E"/>
+            <rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/>
+            <rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#1E1E2E" stroke-width="4"/>
+            <path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <div><div class="wordmark"><span class="a">Cheat</span><span class="b">Sheet</span></div><div class="tagline">iPaaS · Automatización para PyMEs</div></div>
+        </div>
+      </div>
+      <div class="panel panel--dark">
+        <span class="panel__tag">Tamaños · favicon / app</span>
+        <div class="sizes">
+          <div class="item"><svg width="56" height="56" viewBox="0 0 100 100"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/><rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/><rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/><rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/><circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#2A2A3D" stroke-width="4"/><path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>56px</span></div>
+          <div class="item"><svg width="32" height="32" viewBox="0 0 100 100"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/><rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/><rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/><rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/><circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#2A2A3D" stroke-width="4"/><path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>32px</span></div>
+          <div class="item"><svg width="20" height="20" viewBox="0 0 100 100"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/><circle cx="64" cy="66" r="15" fill="#00C48C" stroke="#2A2A3D" stroke-width="4"/><path d="M58 66.5l3.6 3.6 6.8-7.2" stroke="#1E1E2E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>16px</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CONCEPTO 3 — Hub de integraciones ============ -->
+  <div class="concept">
+    <div class="concept__bar">
+      <span class="n">3</span>
+      <div><h2>Hub de integraciones</h2><p>Nodos conectados · representa el iPaaS uniendo ARCA, MercadoPago y WhatsApp</p></div>
+    </div>
+    <div class="concept__grid">
+      <div class="panel panel--light">
+        <span class="panel__tag">Lockup · fondo claro</span>
+        <div class="lockup">
+          <svg class="icon" width="62" height="62" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="26" fill="#1E1E2E"/>
+            <line x1="50" y1="50" x2="32" y2="30" stroke="#00C48C" stroke-width="4.5" stroke-linecap="round"/>
+            <line x1="50" y1="50" x2="72" y2="34" stroke="#00C48C" stroke-width="4.5" stroke-linecap="round"/>
+            <line x1="50" y1="50" x2="60" y2="74" stroke="#00C48C" stroke-width="4.5" stroke-linecap="round"/>
+            <circle cx="32" cy="30" r="8" fill="#F8F7FF"/>
+            <circle cx="72" cy="34" r="8" fill="#FDCB6E"/>
+            <circle cx="60" cy="74" r="8" fill="#F8F7FF"/>
+            <circle cx="50" cy="50" r="13" fill="#00C48C"/>
+          </svg>
+          <div><div class="wordmark"><span class="a">Cheat</span><span class="b">Sheet</span></div><div class="tagline">iPaaS · Automatización para PyMEs</div></div>
+        </div>
+      </div>
+      <div class="panel panel--dark">
+        <span class="panel__tag">Tamaños · favicon / app</span>
+        <div class="sizes">
+          <div class="item"><svg width="56" height="56" viewBox="0 0 100 100"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><line x1="50" y1="50" x2="32" y2="30" stroke="#00C48C" stroke-width="4.5" stroke-linecap="round"/><line x1="50" y1="50" x2="72" y2="34" stroke="#00C48C" stroke-width="4.5" stroke-linecap="round"/><line x1="50" y1="50" x2="60" y2="74" stroke="#00C48C" stroke-width="4.5" stroke-linecap="round"/><circle cx="32" cy="30" r="8" fill="#F8F7FF"/><circle cx="72" cy="34" r="8" fill="#FDCB6E"/><circle cx="60" cy="74" r="8" fill="#F8F7FF"/><circle cx="50" cy="50" r="13" fill="#00C48C"/></svg><span>56px</span></div>
+          <div class="item"><svg width="32" height="32" viewBox="0 0 100 100"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><line x1="50" y1="50" x2="32" y2="30" stroke="#00C48C" stroke-width="5" stroke-linecap="round"/><line x1="50" y1="50" x2="72" y2="34" stroke="#00C48C" stroke-width="5" stroke-linecap="round"/><line x1="50" y1="50" x2="60" y2="74" stroke="#00C48C" stroke-width="5" stroke-linecap="round"/><circle cx="32" cy="30" r="8" fill="#F8F7FF"/><circle cx="72" cy="34" r="8" fill="#FDCB6E"/><circle cx="60" cy="74" r="8" fill="#F8F7FF"/><circle cx="50" cy="50" r="13" fill="#00C48C"/></svg><span>32px</span></div>
+          <div class="item"><svg width="20" height="20" viewBox="0 0 100 100"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><line x1="50" y1="50" x2="32" y2="30" stroke="#00C48C" stroke-width="6" stroke-linecap="round"/><line x1="50" y1="50" x2="72" y2="34" stroke="#00C48C" stroke-width="6" stroke-linecap="round"/><line x1="50" y1="50" x2="60" y2="74" stroke="#00C48C" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="30" r="9" fill="#F8F7FF"/><circle cx="72" cy="34" r="9" fill="#FDCB6E"/><circle cx="60" cy="74" r="9" fill="#F8F7FF"/><circle cx="50" cy="50" r="15" fill="#00C48C"/></svg><span>16px</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Exploración de identidad · Paleta de plataforma v2.4</div>
+
+</div>
+</body>
+</html>

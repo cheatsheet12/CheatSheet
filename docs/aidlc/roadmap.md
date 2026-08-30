@@ -3,7 +3,7 @@
 > Todas las historias del sistema, repartidas en épicos ordenados. Cada épico termina en algo
 > demostrable en `staging`. Ninguna historia queda afuera.
 
-Insumo: [`inputs/historias-de-usuario.md`](inputs/historias-de-usuario.md) — 59 HUs agrupadas en
+Insumo: [`inputs/historias-de-usuario.md`](inputs/historias-de-usuario.md) — 61 HUs agrupadas en
 12 épicas temáticas, más 7 historias de sistema. **Ese agrupamiento es por bounded context, no un
 orden de construcción.** Este documento lo re-corta en rebanadas verticales y lo ordena por
 dependencia. Las dos numeraciones conviven; la tabla de trazabilidad (§4) las vincula.
@@ -17,10 +17,10 @@ dependencia. Las dos numeraciones conviven; la tabla de trazabilidad (§4) las v
 | 1 | **Cimientos, identidad y bitácora** | HU-E1-01 … HU-E1-07 · HS-T5 | `identity`, `observability` | Una empresa se registra, completa el onboarding, invita usuarios y les cambia el rol — y **cada acción queda registrada en la bitácora**, aunque todavía no exista pantalla para leerla |
 | 2 | **Conexión con los servicios externos** | HU-E2-01, HU-E2-02, HU-E2-03, HU-E2-05 · *(deuda de D1: consulta de padrón de HU-E1-02)* | `integrations`, `identity` | PAN-CFG-INT mostrando ARCA y MercadoPago **conectados de verdad** (credenciales validadas contra el servicio) y WhatsApp en verificación de Meta, con la verificación en vivo de estado funcionando; y el CUIT del onboarding validado ya contra el padrón |
 | 3 | **Catálogo de clientes y servicios** | HU-E4-01 … HU-E4-04 | `master_data` | ABM completo de clientes (con CUIT validado contra ARCA) y de servicios (precio, IVA, agendable), clasificados por categorías propias de la empresa |
-| 4 | **Sincronización de planillas** | HU-E2-04 · HU-E3-01 … HU-E3-06 · HS-T6 | `spreadsheet_sync`, `observability` | Se vincula una planilla real, la IA propone el mapeo, el usuario lo corrige y confirma, la carga inicial puebla el catálogo del épico 3, se ven los errores de fila y se reprocesa tras corregirlos |
+| 4 | **Sincronización de planillas** | HU-E2-04 · HU-E3-01 … HU-E3-07 · HS-T6 | `spreadsheet_sync`, `observability` | Se vincula una planilla real, la IA propone el mapeo, el usuario lo corrige y confirma, la carga inicial puebla el catálogo del épico 3, se ven los errores de fila y se reprocesa tras corregirlos, y lo que se crea desde el panel **se escribe de vuelta** en la hoja protegida de la planilla |
 | 5 | **Facturación electrónica** | HU-E5-01 … HU-E5-05 · HS-T4 | `billing`, `reference_data` | Se emite una factura contra ARCA en homologación y **se obtiene un CAE real**, se descarga el PDF, se la anula con una nota de crédito y se administran los puntos de venta |
 | 6 | **Cobros y recordatorios** | HU-E6-01 … HU-E6-06 · HU-E11-01 · HS-T1, HS-T3 | `payments`, `business_config`, `billing` | Se genera un link de MercadoPago, se paga en sandbox, el webhook lo marca **Pagado sin duplicar efectos**, baja el saldo del comprobante asociado y la cadena de recordatorios se despacha —y se detiene— según la regla configurada |
-| 7 | **Agenda y recursos** | HU-E7-01 … HU-E7-05 · HU-E6-07 | `scheduling`, `payments` | Se configuran recursos con disponibilidad semanal y excepciones, se ve la agenda del día, se cancela y reprograma **rechazando solapamientos**, se marca asistencia y se seña un turno con un cobro |
+| 7 | **Agenda y recursos** | HU-E7-01 … HU-E7-06 · HU-E6-07 | `scheduling`, `payments` | Se configuran recursos con disponibilidad semanal y excepciones, se ve la agenda del día, se crea un turno a mano desde el panel, se cancela y reprograma **rechazando solapamientos**, se marca asistencia y se seña un turno con un cobro |
 | 8 | **Agente de WhatsApp y atención humana** | HU-E8-01 … HU-E8-05 · HU-E9-01, HU-E9-02, HU-E9-04 · HU-E11-02 · HS-T2, HS-T7 | `conversational`, `business_config` | Un cliente reserva y cancela un turno conversando por WhatsApp (incluida una nota de voz), consulta una FAQ, y cuando el agente no entiende **la conversación escala y un operador la atiende desde el panel con el contexto previo** |
 | 9 | **Reportería y paquete contable** | HU-E10-01 … HU-E10-06 | `reporting` | Dashboard de KPIs con datos reales acumulados por los épicos anteriores, generación y descarga de reportes, y el contador externo entrando por enlace a descargar el paquete contable |
 | 10 | **Panel de auditoría y notificaciones** | HU-E12-01, HU-E12-02 · HU-E11-03 · HU-E9-03 | `observability`, `business_config` | La bitácora completa filtrable por módulo, estado e iniciador, con el detalle y el timeline de cada operación; el centro de notificaciones; y el alta de solicitudes de soporte |
@@ -29,9 +29,9 @@ dependencia. Las dos numeraciones conviven; la tabla de trazabilidad (§4) las v
 
 ## 2. Cobertura
 
-- **Historias totales: 66** (59 `HU-…` + 7 `HS-T…`) · **asignadas: 66** · **sin asignar: ninguna**
+- **Historias totales: 68** (61 `HU-…` + 7 `HS-T…`) · **asignadas: 68** · **sin asignar: ninguna**
 - Ninguna historia aparece en dos épicos.
-- Reparto: 8 · 4 · 4 · 8 · 6 · 9 · 6 · 11 · 6 · 4.
+- Reparto: 8 · 4 · 4 · 9 · 6 · 9 · 7 · 11 · 6 · 4.
 
 ---
 
@@ -41,7 +41,7 @@ dependencia. Las dos numeraciones conviven; la tabla de trazabilidad (§4) las v
 
 Los épicos 1 a 3 no son "la capa de infraestructura": son las tres cosas que **toda otra historia
 da por sentadas**. No se puede facturar sin empresa (`tenant_id`), sin CUIT validado, sin punto de
-venta y sin un cliente receptor. El épico 1 existe porque 59 historias empiezan con "el usuario
+venta y sin un cliente receptor. El épico 1 existe porque 61 historias empiezan con "el usuario
 tiene sesión iniciada"; el 3, porque facturación, agenda y cobros consumen `Cliente` y `Servicio`.
 
 ### El riesgo se adelanta, no se posterga
@@ -156,7 +156,7 @@ durante la implementación.
 | # | Decisión | Épico | Origen |
 |---|---|---|---|
 | ~~D1~~ | **Resuelta (2026-08-12).** Cómo se valida un CUIT contra ARCA antes de que la empresa haya cargado su certificado. → **Validación estructural (formato y dígito verificador) en el épico 1; consulta al padrón en el épico 2**, cuando HU-E2-01 ya dejó la credencial cargada. No se introduce credencial de plataforma. El detalle y sus consecuencias están en [`units.md`](units.md) § Decisión D1 | 1 → 2 | Detectada acá |
-| D2 | ¿El administrador puede crear un turno manualmente desde el panel, o solo ver los que llegan por el agente? | 7 | HU-E7-01 RN-04 |
+| ~~D2~~ | **Resuelta por el documento de diseño.** El administrador y el operador **sí** crean turnos manualmente desde el panel: es HU-E7-06, sobre PAN-AGE-02, con canal de reserva `PANEL` y rechazo por solapamiento | 7 | HU-E7-01 RN-04 → HU-E7-06 |
 | D3 | ¿El agente puede reclasificar el tipo del hilo al retomar el control tras la intervención humana? | 8 | HU-E9-01 RN-05 |
 | D4 | ¿Hay un límite máximo de FAQ por plan contratado? | 8 | HU-E9-04 RN-04 |
 | D5 | ¿El Operador puede configurar el envío automático del paquete contable y gestionar el acceso del contador, o es exclusivo del Administrador? | 9 | HU-E10-04, HU-E10-05 |
@@ -164,7 +164,7 @@ durante la implementación.
 
 D1 es la única de las seis que es **estructural**: cambia qué credenciales administra la plataforma y
 cómo se modela `ConfiguracionDeIntegracion`. Si la respuesta no es la propuesta, el épico 1 cambia de
-forma. Las otras cinco son de alcance y se responden en una línea.
+forma. Las otras son de alcance y se responden en una línea.
 
 ---
 
