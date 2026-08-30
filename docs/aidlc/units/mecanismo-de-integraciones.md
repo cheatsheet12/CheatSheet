@@ -136,7 +136,7 @@ BFF: `app/api/integraciones/route.ts`, `app/api/integraciones/verificacion/route
 `app/api/integraciones/[sistema]/conexion/route.ts`, con el wrapper de fetch y la cookie HttpOnly que
 ya existen.
 
-**El diseño sale de PAN-ONB-03** (`inputs/prototipos/pantallas/onboarding.html`, tercera columna):
+**El diseño sale de PAN-ONB-03** (`inputs/prototipos/onboarding.html`, tercera columna):
 la grilla `int-card` con logo cuadrado de color, descripción de una línea y pie con badge más acción.
 Se toma tal cual, montado en configuración y no en el onboarding (decisión D7 del mapa de unidades).
 El indicador «PASO 3 DE 3» y el pie «Configurar esto después» no se replican.

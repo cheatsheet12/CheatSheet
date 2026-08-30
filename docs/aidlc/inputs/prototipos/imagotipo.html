@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Imagotipo</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { background: var(--bg); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 46px 40px 90px; }
+  .head .eyebrow { margin-bottom: 8px; }
+  .head h1 { font-size: 30px; font-weight: 800; letter-spacing: -.6px; margin: 0 0 6px; }
+  .head p { color: var(--ink-500); font-size: 14.5px; margin: 0; max-width: 640px; }
+
+  .grid { display: grid; gap: 22px; margin-top: 34px; }
+  .row-2 { grid-template-columns: 1fr 1fr; }
+  .row-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .block { border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); overflow: hidden; position: relative; }
+  .block__tag { position: absolute; top: 14px; left: 16px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; z-index: 2; }
+  .pad { display: grid; place-items: center; padding: 56px 30px; min-height: 250px; }
+  .on-light { background: var(--bg); } .on-light .block__tag { color: var(--ink-300); }
+  .on-dark  { background: var(--primary); } .on-dark .block__tag { color: #5a5a72; }
+  .on-card  { background: var(--card); } .on-card .block__tag { color: var(--ink-300); }
+
+  /* ---- THE IMAGOTIPO ---- */
+  /* stacked */
+  .imago { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .imago .word { text-align: center; }
+  .imago.h { flex-direction: row; gap: 18px; align-items: center; }
+  .imago.h .word { text-align: left; }
+  .word .name { font-weight: 800; letter-spacing: -1.4px; line-height: 1; font-size: 38px; }
+  .word .name .a { color: var(--primary); }
+  .word .name .b { color: var(--accent); }
+  .word .tag { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-400); margin-top: 9px; }
+  .on-dark .word .name .a { color: #fff; }
+  .on-dark .word .tag { color: #71718a; }
+  .mono-dark .word .name .a, .mono-dark .word .name .b { color: var(--primary); }
+  .mono-dark .word .tag { color: var(--ink-400); }
+  .mono-white .word .name .a, .mono-white .word .name .b { color: #fff; }
+  .mono-white .word .tag { color: rgba(255,255,255,.55); }
+
+  .cap { padding: 14px 18px; border-top: 1px solid var(--line); background: var(--card); }
+  .cap b { font-size: 13px; font-weight: 700; }
+  .cap span { font-size: 12px; color: var(--ink-400); display: block; margin-top: 1px; }
+  .on-dark + .cap { }
+
+  /* clear space guides */
+  .cs-box { position: relative; padding: 30px; }
+  .cs-guide { position: absolute; inset: 30px; border: 1px dashed var(--accent); border-radius: 6px; }
+  .cs-pad { position: absolute; border: 1px dashed var(--ink-300); }
+
+  .sizes { display: flex; align-items: flex-end; gap: 30px; }
+  .sizes .item { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+  .sizes .item span { font-family: var(--mono); font-size: 10px; color: var(--ink-400); }
+
+  .note { font-size: 12.5px; color: var(--ink-500); line-height: 1.6; }
+  .dont { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; }
+  .dont svg { width:15px; height:15px; }
+  .section-label { font-family: var(--mono); font-size: 11px; letter-spacing:.12em; text-transform:uppercase; color: var(--ink-400); font-weight:600; margin: 38px 0 -6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="eyebrow">Identidad de marca</div>
+    <h1>CheatSheet — Imagotipo</h1>
+    <p>Símbolo + wordmark compuestos como unidad, pero separables. Símbolo: hoja con check (la planilla resuelta). Wordmark: “Cheat” en primario + “Sheet” en acento.</p>
+  </div>
+
+  <!-- HERO: imagotipo principal apilado -->
+  <div class="grid row-2">
+    <div class="block on-light">
+      <span class="block__tag">Principal · apilado · positivo</span>
+      <div class="pad">
+        <div class="imago">
+          <svg width="104" height="104" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="26" fill="#1E1E2E"/>
+            <rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/>
+            <rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#1E1E2E" stroke-width="4"/>
+            <path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <div class="word"><div class="name"><span class="a">Cheat</span><span class="b">Sheet</span></div><div class="tag">iPaaS · Automatización PyME</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="block on-dark">
+      <span class="block__tag">Principal · apilado · sobre oscuro</span>
+      <div class="pad">
+        <div class="imago">
+          <svg width="104" height="104" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="26" fill="#2A2A3D"/>
+            <rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/>
+            <rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#2A2A3D" stroke-width="4"/>
+            <path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <div class="word"><div class="name"><span class="a">Cheat</span><span class="b">Sheet</span></div><div class="tag">iPaaS · Automatización PyME</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- horizontal -->
+  <div class="section-label">Versión horizontal (secundaria)</div>
+  <div class="grid row-2">
+    <div class="block on-light">
+      <span class="block__tag">Horizontal · positivo</span>
+      <div class="pad" style="min-height:170px;">
+        <div class="imago h">
+          <svg width="64" height="64" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="26" fill="#1E1E2E"/>
+            <rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/>
+            <rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#1E1E2E" stroke-width="4"/>
+            <path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <div class="word"><div class="name" style="font-size:30px;"><span class="a">Cheat</span><span class="b">Sheet</span></div><div class="tag">iPaaS · Automatización PyME</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="block on-dark">
+      <span class="block__tag">Horizontal · sobre oscuro</span>
+      <div class="pad" style="min-height:170px;">
+        <div class="imago h">
+          <svg width="64" height="64" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="26" fill="#2A2A3D"/>
+            <rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/>
+            <rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#2A2A3D" stroke-width="4"/>
+            <path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <div class="word"><div class="name" style="font-size:30px;"><span class="a">Cheat</span><span class="b">Sheet</span></div><div class="tag">iPaaS · Automatización PyME</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- monochrome -->
+  <div class="section-label">Versiones monocromáticas (1 tinta)</div>
+  <div class="grid row-2">
+    <div class="block on-card mono-dark">
+      <span class="block__tag">Monocromo oscuro</span>
+      <div class="pad" style="min-height:170px;">
+        <div class="imago h">
+          <svg width="60" height="60" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="26" fill="#1E1E2E"/>
+            <rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/>
+            <rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/>
+            <circle cx="64" cy="66" r="14" fill="#1E1E2E" stroke="#F8F7FF" stroke-width="3"/>
+            <path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#F8F7FF" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <div class="word"><div class="name" style="font-size:30px;"><span class="a">Cheat</span><span class="b">Sheet</span></div><div class="tag">iPaaS · Automatización PyME</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="block on-dark mono-white">
+      <span class="block__tag">Monocromo blanco</span>
+      <div class="pad" style="min-height:170px;">
+        <div class="imago h">
+          <svg width="60" height="60" viewBox="0 0 100 100" fill="none">
+            <rect width="100" height="100" rx="26" fill="none" stroke="#fff" stroke-width="4"/>
+            <rect x="30" y="22" width="34" height="46" rx="5" fill="#fff"/>
+            <rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#1E1E2E"/>
+            <rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#1E1E2E"/>
+            <rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#1E1E2E"/>
+            <circle cx="64" cy="66" r="14" fill="#1E1E2E" stroke="#fff" stroke-width="3"/>
+            <path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <div class="word"><div class="name" style="font-size:30px;"><span class="a">Cheat</span><span class="b">Sheet</span></div><div class="tag">iPaaS · Automatización PyME</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- construction + sizes -->
+  <div class="section-label">Área de protección y tamaños mínimos</div>
+  <div class="grid row-2">
+    <div class="block on-card">
+      <span class="block__tag">Área de protección = altura del símbolo ÷ 2</span>
+      <div class="pad" style="min-height:230px;">
+        <div class="cs-box">
+          <div class="cs-pad" style="inset:0; border:1px dashed var(--accent);"></div>
+          <div class="cs-pad" style="inset:18px; border-color:var(--ink-300);"></div>
+          <div class="imago h" style="position:relative;">
+            <svg width="58" height="58" viewBox="0 0 100 100" fill="none">
+              <rect width="100" height="100" rx="26" fill="#1E1E2E"/>
+              <rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/>
+              <rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+              <rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/>
+              <rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/>
+              <circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#1E1E2E" stroke-width="4"/>
+              <path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+            <div class="word"><div class="name" style="font-size:26px;"><span class="a">Cheat</span><span class="b">Sheet</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="block on-card">
+      <span class="block__tag">Símbolo · escalado</span>
+      <div class="pad" style="min-height:230px;">
+        <div class="sizes">
+          <div class="item"><svg width="72" height="72" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#1E1E2E"/><rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/><rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/><rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/><rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/><circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#1E1E2E" stroke-width="4"/><path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>72px</span></div>
+          <div class="item"><svg width="40" height="40" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#1E1E2E"/><rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/><rect x="37" y="32" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/><rect x="37" y="40" width="20" height="3.4" rx="1.7" fill="#B6B6C4"/><rect x="37" y="48" width="13" height="3.4" rx="1.7" fill="#B6B6C4"/><circle cx="64" cy="66" r="14" fill="#00C48C" stroke="#1E1E2E" stroke-width="4"/><path d="M58.5 66.5l3.6 3.6 6.4-6.8" stroke="#1E1E2E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>40px</span></div>
+          <div class="item"><svg width="24" height="24" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#1E1E2E"/><rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/><circle cx="64" cy="66" r="15" fill="#00C48C" stroke="#1E1E2E" stroke-width="4"/><path d="M58 66.5l3.6 3.6 6.8-7.2" stroke="#1E1E2E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>24px</span></div>
+          <div class="item"><svg width="16" height="16" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#1E1E2E"/><rect x="30" y="22" width="34" height="46" rx="5" fill="#F8F7FF"/><circle cx="64" cy="66" r="16" fill="#00C48C" stroke="#1E1E2E" stroke-width="5"/><path d="M57.5 66.5l4 3.8 7-7.4" stroke="#1E1E2E" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>16px</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Imagotipo · Paleta de plataforma v2.4 · Símbolo intercambiable a pedido</div>
+
+</div>
+</body>
+</html>

@@ -191,7 +191,7 @@ segundo responsable, ese es el punto de corte natural (regla 1c).
 
 Las cuatro historias del épico nombran **PAN-CFG-INT (Configuración — Integraciones)**. Ese código
 **no existe en el mapa de navegación de Etapa 5**: la única pantalla de integraciones maquetada es
-**PAN-ONB-03 — Integraciones**, el tercer paso del onboarding en `prototipos/pantallas/onboarding.html`.
+**PAN-ONB-03 — Integraciones**, el tercer paso del onboarding en `prototipos/onboarding.html`.
 Son dos ubicaciones distintas del mismo contenido y hay que elegir una.
 
 **Resolución (2026-08-18): se construye como pantalla de configuración, en
