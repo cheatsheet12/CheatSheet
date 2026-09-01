@@ -70,6 +70,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("ListadoDeClientes", () => {
@@ -130,6 +131,133 @@ describe("ListadoDeClientes", () => {
       expect(screen.getByText("Ya existe un cliente con ese CUIT.")).toBeDefined();
     });
     expect(screen.getByRole("button", { name: "Ver el cliente existente" })).toBeDefined();
+  });
+
+  it("cada filtro recarga el listado con lo que el usuario eligio", async () => {
+    listarClientes.mockResolvedValue({ clientes: [], total: 0 });
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    fireEvent.change(screen.getByLabelText(/Buscar/), { target: { value: "rosa" } });
+    await waitFor(() => {
+      expect(listarClientes).toHaveBeenCalledWith(expect.objectContaining({ texto: "rosa" }));
+    });
+
+    fireEvent.change(screen.getByLabelText(/Origen/), { target: { value: "PLANILLA" } });
+    await waitFor(() => {
+      expect(listarClientes).toHaveBeenCalledWith(expect.objectContaining({ origen: "PLANILLA" }));
+    });
+
+    fireEvent.click(screen.getByLabelText(/Solo activos/));
+    await waitFor(() => {
+      expect(listarClientes).toHaveBeenCalledWith(expect.objectContaining({ soloActivos: true }));
+    });
+  });
+
+  it("desactivar pide confirmacion, y si se cancela no llama a la API", async () => {
+    // `Button variante="destructivo"` confirma con `window.confirm`, que jsdom no
+    // implementa. Mismo stub que usa el test de `TablaDeUsuarios`.
+    vi.stubGlobal("confirm", vi.fn().mockReturnValue(false));
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+
+    expect(cambiarEstadoDeCliente).not.toHaveBeenCalled();
+  });
+
+  it("desactivar llama a la API y refresca la tabla", async () => {
+    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
+    cambiarEstadoDeCliente.mockResolvedValue({ ...ROSA, activo: false });
+    listarClientes.mockResolvedValue({ clientes: [{ ...ROSA, activo: false }], total: 1 });
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+
+    await waitFor(() => {
+      expect(cambiarEstadoDeCliente).toHaveBeenCalledWith(ROSA.id, false);
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Inactivo")).toBeDefined();
+    });
+  });
+
+  it("reactivar no pide confirmacion: no es una accion destructiva", async () => {
+    cambiarEstadoDeCliente.mockResolvedValue(ROSA);
+    listarClientes.mockResolvedValue(INICIAL);
+    render(
+      <ListadoDeClientes
+        inicial={{ clientes: [{ ...ROSA, activo: false }], total: 1 }}
+        puedeEditar
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reactivar" }));
+
+    await waitFor(() => {
+      expect(cambiarEstadoDeCliente).toHaveBeenCalledWith(ROSA.id, true);
+    });
+  });
+
+  it("editar abre el formulario con los datos del cliente", async () => {
+    editarCliente.mockResolvedValue({ ...ROSA, nombre: "Rosa Diaz" });
+    listarClientes.mockResolvedValue({ clientes: [{ ...ROSA, nombre: "Rosa Diaz" }], total: 1 });
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+
+    const nombre = screen.getByLabelText(/Nombre o razon social/) as HTMLInputElement;
+    expect(nombre.value).toBe("Panaderia Dona Rosa");
+
+    fireEvent.change(nombre, { target: { value: "Rosa Diaz" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => {
+      expect(editarCliente).toHaveBeenCalledWith(
+        ROSA.id,
+        expect.objectContaining({ nombre: "Rosa Diaz" }),
+      );
+    });
+  });
+
+  it("«ver el duplicado» cierra el formulario y deja al existente en la tabla", async () => {
+    crearCliente.mockRejectedValue(
+      new ErrorDeCatalogo("Ya existe un cliente con ese CUIT.", ROSA.id),
+    );
+    listarClientes.mockResolvedValue({
+      clientes: [ROSA, { ...ROSA, id: "otro", nombre: "Otro" }],
+      total: 2,
+    });
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo cliente" }));
+    fireEvent.change(screen.getByLabelText(/Nombre o razon social/), {
+      target: { value: "Rosa otra vez" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Crear cliente" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Ver el cliente existente" })).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ver el cliente existente" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("1 cliente")).toBeDefined();
+    });
+    expect(screen.queryByRole("button", { name: "Crear cliente" })).toBeNull();
+  });
+
+  it("un fallo que no es del catalogo muestra un mensaje generico", async () => {
+    crearCliente.mockRejectedValue(new Error("la red se cayo"));
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo cliente" }));
+    fireEvent.change(screen.getByLabelText(/Nombre o razon social/), {
+      target: { value: "Rosa" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Crear cliente" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("No se pudo guardar el cliente.")).toBeDefined();
+    });
   });
 
   it("un alta correcta cierra el formulario y recarga la tabla", async () => {
