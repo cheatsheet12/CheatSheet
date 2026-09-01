@@ -18,7 +18,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Conexión con los servicios externos | conexion-arca | integrations | HU-E2-01 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-arca | mergeada |
 | Conexión con los servicios externos | padron-y-datos-fiscales | identity | deuda D1 de HU-E1-02 | conexion-arca | Cristian | feature/identity-padron-y-datos-fiscales | mergeada |
 | Conexión con los servicios externos | conexion-mercadopago | integrations | HU-E2-02 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-mercadopago | mergeada |
-| Catálogo de clientes y servicios | catalogo-de-clientes | master_data | HU-E4-01 | — | Cristian | feature/master_data-catalogo-de-clientes | en revisión |
+| Catálogo de clientes y servicios | catalogo-de-clientes | master_data | HU-E4-01 | — | Cristian | feature/master_data-catalogo-de-clientes | mergeada |
 | Catálogo de clientes y servicios | catalogo-de-servicios | master_data | HU-E4-02 | catalogo-de-clientes | Cristian | — | pendiente |
 | Catálogo de clientes y servicios | categorias-y-clasificacion | master_data | HU-E4-03, HU-E4-04 | catalogo-de-clientes, catalogo-de-servicios | Cristian | — | pendiente |
 
@@ -398,8 +398,11 @@ cada unidad las encare en vez de tropezarlas:
 ### Estado
 
 **Mapa aprobado el 2026-08-31**, junto con D8 y D9. Responsable de las tres unidades: Cristian.
-`catalogo-de-clientes` pasó sus gates 1 y 2 el mismo día y quedó `en revisión`; su plan y el
-registro de la verificación están en [`units/catalogo-de-clientes.md`](units/catalogo-de-clientes.md).
+`catalogo-de-clientes` pasó sus tres gates y entró a `develop` el 2026-09-01 —
+[#23](https://github.com/cheatsheet12/CheatSheet/pull/23). Su plan y el registro de la verificación
+están en [`units/catalogo-de-clientes.md`](units/catalogo-de-clientes.md).
+
+**La próxima unidad es `catalogo-de-servicios`**, que ya tiene sus dependencias mergeadas.
 
 **El mapa viaja en el PR de esa unidad**, no en uno propio: la rama de la unidad se cortó del commit
 del mapa, que es lo mismo que hizo el épico 2 con `mecanismo-de-integraciones`.
