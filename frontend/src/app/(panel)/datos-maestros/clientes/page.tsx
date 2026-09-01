@@ -41,8 +41,8 @@ export default async function PaginaDeClientes(): Promise<JSX.Element> {
     <>
       <h1>Clientes</h1>
       <p className="dm-intro">
-        El catalogo de clientes de tu empresa. Lo que crees aca queda disponible para
-        facturacion, cobros y agenda.
+        El catalogo de clientes de tu empresa. Lo que crees aca queda disponible para facturacion,
+        cobros y agenda.
       </p>
       <ListadoDeClientes inicial={listado} puedeEditar={ROLES_QUE_ESCRIBEN.includes(claims.rol)} />
     </>
