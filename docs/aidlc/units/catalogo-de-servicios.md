@@ -273,8 +273,8 @@ habla con ningún proveedor.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-09-01 | aprobado |
-| 2 · Verificación | 2026-09-01 | presentada — ver abajo |
-| 3 · PR | | |
+| 2 · Verificación | 2026-09-01 | aprobada — 741 tests, 90.08 % de cobertura |
+| 3 · PR | 2026-09-01 | [#25](https://github.com/cheatsheet12/CheatSheet/pull/25) abierto a `develop` |
 
 ## Verificación — Gate 2 (2026-09-01)
 
