@@ -249,8 +249,8 @@ test de integración por ese camino exacto.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-09-01 | aprobado |
-| 2 · Verificación | 2026-09-01 | presentada — ver abajo |
-| 3 · PR | | |
+| 2 · Verificación | 2026-09-01 | aprobada — 798 tests, 89.99 % de cobertura |
+| 3 · PR | 2026-09-01 | [#26](https://github.com/cheatsheet12/CheatSheet/pull/26) abierto a `develop` |
 
 ## Verificación — Gate 2 (2026-09-01)
 
