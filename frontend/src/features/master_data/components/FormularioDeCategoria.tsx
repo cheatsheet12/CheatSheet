@@ -1,0 +1,92 @@
+/**
+ * The category form of PAN-DM-03 (HU-E4-03).
+ *
+ * Two fields, and the second one is the whole story: the scope decides what the category
+ * can classify, and `AMBOS` — decision D9 of the epic 3 map — is the value the DER's enum
+ * did not have.
+ *
+ * Uniqueness is not checked here. The backend compares case-insensitively against a
+ * functional unique index, and duplicating that rule in the browser would be a second
+ * place for it to drift.
+ */
+
+"use client";
+
+import { useState } from "react";
+
+import { Alert, Button, Campo, Select } from "@/shared";
+
+import { ETIQUETAS_DE_AMBITO } from "../api/categoria";
+import type { AmbitoDeCategoria, Categoria } from "../api/categoria";
+
+const AMBITOS: readonly { valor: string; etiqueta: string }[] = (
+  Object.keys(ETIQUETAS_DE_AMBITO) as AmbitoDeCategoria[]
+).map((valor) => ({ valor, etiqueta: ETIQUETAS_DE_AMBITO[valor] }));
+
+export interface PropsDeFormularioDeCategoria {
+  readonly categoria?: Categoria;
+  readonly onGuardar: (nombre: string, aplica_a: AmbitoDeCategoria) => Promise<void>;
+  readonly onCancelar: () => void;
+  readonly error?: string | null;
+}
+
+export function FormularioDeCategoria({
+  categoria,
+  onGuardar,
+  onCancelar,
+  error = null,
+}: PropsDeFormularioDeCategoria): JSX.Element {
+  const [nombre, setNombre] = useState(categoria?.nombre ?? "");
+  const [ambito, setAmbito] = useState<AmbitoDeCategoria>(categoria?.aplica_a ?? "CLIENTE");
+  const [guardando, setGuardando] = useState(false);
+
+  async function guardar(): Promise<void> {
+    setGuardando(true);
+    try {
+      await onGuardar(nombre, ambito);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form
+      className="dm-formulario"
+      onSubmit={(evento) => {
+        evento.preventDefault();
+        void guardar();
+      }}
+    >
+      {error !== null && (
+        <Alert tono="error" titulo="No se pudo guardar">
+          {error}
+        </Alert>
+      )}
+
+      <Campo
+        id="categoria-nombre"
+        etiqueta="Nombre"
+        value={nombre}
+        onChange={(evento) => setNombre(evento.target.value)}
+      />
+
+      <Select
+        id="categoria-ambito"
+        etiqueta="Se aplica a"
+        opciones={AMBITOS}
+        value={ambito}
+        onChange={(evento) => setAmbito(evento.target.value as AmbitoDeCategoria)}
+        ayuda="Decide que se puede clasificar con esta categoria."
+      />
+
+      <div className="dm-formulario__acciones">
+        <Button variante="secundario" onClick={onCancelar}>
+          Cancelar
+        </Button>
+        <Button type="submit" cargando={guardando}>
+          {categoria === undefined ? "Crear categoria" : "Guardar cambios"}
+        </Button>
+      </div>
+    </form>
+  );
+}

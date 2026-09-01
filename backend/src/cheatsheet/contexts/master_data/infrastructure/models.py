@@ -1,9 +1,9 @@
 """Persistence models of the master data context (DER, BC2).
 
-Two tables. `categoria_empresa` arrives with the unit that owns it, and the
-`categoria_id` the DER puts on both of these never does: decision D8 of the epic 3 map
-replaces that column with link tables, because HU-E4-04 RN-02 lets one element carry
-several categories and a single foreign key cannot.
+Five tables: the three of the DER — `cliente`, `servicio`, `categoria_empresa` — plus the
+two link tables that decision D8 of the epic 3 map put in place of the `categoria_id` the
+DER draws on the first two. HU-E4-04 RN-02 lets one element carry several categories, and
+a single foreign key cannot; the column was never created, so nothing had to be migrated.
 """
 
 from __future__ import annotations
@@ -98,3 +98,77 @@ class ServicioORM(Base):
     # No unique index: services have no uniqueness rule. Two branches may both sell a
     # "Corte", and no story says otherwise.
     __table_args__ = (Index("ix_servicio_empresa", "empresa_id"),)
+
+
+TABLA_CATEGORIA = "categoria_empresa"
+TABLA_CLIENTE_CATEGORIA = "cliente_categoria"
+TABLA_SERVICIO_CATEGORIA = "servicio_categoria"
+
+#: RN-02, enforced by the database. **Functional**, over `lower(nombre)`: «VIP» and «vip»
+#: are the same name to anybody reading the list.
+INDICE_CATEGORIA_UNICA = "uq_categoria_empresa_nombre_ambito"
+
+
+class CategoriaEmpresaORM(Base):
+    __tablename__ = TABLA_CATEGORIA
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("empresa.id", ondelete="CASCADE"), nullable=False
+    )
+    nombre: Mapped[str] = mapped_column(String(60), nullable=False)
+    aplica_a: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("ix_categoria_empresa", "empresa_id"),
+        Index(
+            INDICE_CATEGORIA_UNICA,
+            "empresa_id",
+            text("lower(nombre)"),
+            "aplica_a",
+            unique=True,
+        ),
+    )
+
+
+class ClienteCategoriaORM(Base):
+    """The N-to-N of decision D8, on the client side.
+
+    **Carries its own `empresa_id`**, and that is a decision rather than denormalisation
+    by accident: the alternative was an RLS policy with an `EXISTS` against the parent
+    table, which would be the only policy with a subquery in the whole system. A barrier
+    that reads the same everywhere is a barrier that gets reviewed properly.
+    """
+
+    __tablename__ = TABLA_CLIENTE_CATEGORIA
+
+    cliente_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("cliente.id", ondelete="CASCADE"), primary_key=True
+    )
+    categoria_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("categoria_empresa.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+
+    __table_args__ = (Index("ix_cliente_categoria_categoria", "categoria_id"),)
+
+
+class ServicioCategoriaORM(Base):
+    """The same, on the service side. See `ClienteCategoriaORM` for the `empresa_id`."""
+
+    __tablename__ = TABLA_SERVICIO_CATEGORIA
+
+    servicio_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("servicio.id", ondelete="CASCADE"), primary_key=True
+    )
+    categoria_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("categoria_empresa.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+
+    __table_args__ = (Index("ix_servicio_categoria_categoria", "categoria_id"),)

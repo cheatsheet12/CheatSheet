@@ -1,7 +1,12 @@
 """The ports of the master data context: what its use cases need from the outside.
 
-Three, and no more. A repository per aggregate, and a door to ARCA's registry — which
-only `Cliente` needs, because a service has no tax id to look up.
+A repository per aggregate, a door to ARCA's registry — which only `Cliente` needs,
+because a service has no tax id to look up — and one port for the classification links.
+
+**`PortClasificaciones` is its own port and not two more methods on the client and service
+repositories**, because the link belongs to neither aggregate. It is a relation between
+two of them, and giving it to one would make that one the owner of something it does not
+own.
 """
 
 from __future__ import annotations
@@ -11,8 +16,10 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
+from cheatsheet.contexts.master_data.domain.categoria import CategoriaEmpresa
 from cheatsheet.contexts.master_data.domain.cliente import Cliente, FiltrosDeCliente, Pagina
 from cheatsheet.contexts.master_data.domain.servicio import FiltrosDeServicio, Servicio
+from cheatsheet.contexts.master_data.domain.valores import AmbitoDeCategoria
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.fiscal import CondicionIVA
 
@@ -113,3 +120,62 @@ class PortRepositorioServicio(Protocol):
     ) -> tuple[Sequence[Servicio], int]:
         """One page and the total that matches the filters, in that order."""
         ...
+
+
+class PortRepositorioCategoria(Protocol):
+    """Persistence of `CategoriaEmpresa`, always inside one company.
+
+    **This one has `eliminar`**, unlike the other two repositories of this context. RN-03
+    of HU-E4-03 asks for it, and nothing outside `master_data` references a category: the
+    only rows that point at it are the two link tables, with a real foreign key and
+    `ON DELETE CASCADE`. See the unit plan for why the asymmetry is deliberate.
+    """
+
+    async def agregar(self, categoria: CategoriaEmpresa) -> None: ...
+
+    async def guardar(self, categoria: CategoriaEmpresa) -> None: ...
+
+    async def eliminar(self, categoria_id: UUID) -> None:
+        """Removing one that is not there is not an error: the end state is the same."""
+        ...
+
+    async def buscar_por_id(self, categoria_id: UUID) -> CategoriaEmpresa | None: ...
+
+    async def buscar_por_nombre_y_ambito(
+        self, *, nombre: str, aplica_a: AmbitoDeCategoria
+    ) -> CategoriaEmpresa | None:
+        """Names the duplicate for RN-02's message. Compares case-insensitively."""
+        ...
+
+    async def listar(
+        self, *, empresa_id: EmpresaId, aplica_a: AmbitoDeCategoria | None = None
+    ) -> Sequence[CategoriaEmpresa]:
+        """No paging: a company's own labels are a short list, and the screen shows it whole.
+
+        `aplica_a` filters by *usability*, not by equality — asking for `CLIENTE` returns
+        the `AMBOS` ones too, because those are assignable to a client. That is what the
+        form's dropdown needs, and doing it here keeps HU-E4-04 RN-01 out of the UI.
+        """
+        ...
+
+
+class PortClasificaciones(Protocol):
+    """The links between elements and categories.
+
+    Every operation is idempotent, in both directions: assigning twice leaves one row and
+    removing something that was never there is not an error. HU-E4-04 RN-03 describes the
+    assignment as immediate and without historical effects, and under that reading a
+    repeated click is not a business failure.
+    """
+
+    async def asignar_a_cliente(self, *, cliente_id: UUID, categoria_id: UUID) -> None: ...
+
+    async def quitar_de_cliente(self, *, cliente_id: UUID, categoria_id: UUID) -> None: ...
+
+    async def categorias_de_cliente(self, cliente_id: UUID) -> Sequence[CategoriaEmpresa]: ...
+
+    async def asignar_a_servicio(self, *, servicio_id: UUID, categoria_id: UUID) -> None: ...
+
+    async def quitar_de_servicio(self, *, servicio_id: UUID, categoria_id: UUID) -> None: ...
+
+    async def categorias_de_servicio(self, servicio_id: UUID) -> Sequence[CategoriaEmpresa]: ...

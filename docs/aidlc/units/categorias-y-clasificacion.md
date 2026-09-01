@@ -14,25 +14,20 @@ Cierra el épico 3.
 
 ---
 
-## Esta unidad arranca sobre una rama sin mergear, y eso hay que decirlo
+## La dependencia de `catalogo-de-servicios` — resuelta antes de escribir código
 
-`catalogo-de-servicios` está **en revisión, no en `develop`**
-([#25](https://github.com/cheatsheet12/CheatSheet/pull/25)). La regla 1c del workflow permite
-arrancar igual «unless the plan states exactly which interface it assumes and what it stubs
-meanwhile», así que acá está:
+El plan se aprobó cuando `catalogo-de-servicios` estaba **en revisión y no en `develop`**, así que
+esta rama se cortó de `feature/master_data-catalogo-de-servicios` amparada en la regla 1c, que
+permite arrancar sobre una dependencia sin mergear si el plan declara qué asume.
 
-- **Esta rama se cortó de `feature/master_data-catalogo-de-servicios`**, no de `develop`. No hay
-  stub de nada: se asume el código real de esa rama, que ya pasó sus tres gates.
-- **Lo que asume**, concretamente: el agregado `Servicio`, su `ServicioORM`, la migración `0009` y
-  `PortRepositorioServicio`. La migración de esta unidad es la `0010` y depende de que la `0009`
-  esté antes.
-- **Qué pasa si #25 cambia en revisión**: si le piden modificaciones, esta rama se rebasa sobre la
-  versión corregida antes de su propio Gate 2. Es lo primero que hay que re-chequear.
-- **Qué pasa si #25 se mergea primero**: nada, el merge de esta rama queda limpio.
+**Duró poco: [#25](https://github.com/cheatsheet12/CheatSheet/pull/25) se mergeó el 2026-09-01**, y
+la rama se sincronizó con `develop` antes de la primera línea de implementación. La concesión queda
+registrada porque pasó, no porque siga vigente: hoy esta unidad depende de código que está en
+`develop` como cualquier otra, y su migración `0010` va sobre la `0009` ya mergeada.
 
-La alternativa era esperar. Se descartó porque el trabajo de esta unidad **necesita** `Servicio` de
-verdad —la mitad de HU-E4-04 es clasificar servicios— y un stub de un agregado que ya existe en otra
-rama es una copia que hay que borrar después.
+**Lo que sí dejó como lección**, y está en `TODO.md`: al mergear #24 y #25 apareció un conflicto en
+`docs/aidlc/units.md` que la regla 1c dice que no debería existir. Ver la nota al final de este
+documento.
 
 ---
 
@@ -199,26 +194,26 @@ test de integración por ese camino exacto.
 
 ### Backend
 
-- [ ] `domain/valores.py` — `AmbitoDeCategoria`
-- [ ] `domain/categoria.py`
-- [ ] `domain/cliente.py` · `domain/servicio.py` — filtro por categoría
-- [ ] `application/ports.py` · `application/errors.py`
-- [ ] `application/categorias.py`
-- [ ] `infrastructure/models.py` — `CategoriaEmpresaORM` y las dos de enlace
-- [ ] `infrastructure/repositories.py` · `infrastructure/ensamblado.py`
-- [ ] `api/routers/categorias.py` · `api/routers/clientes.py` · `api/routers/servicios.py` · `api/main.py`
-- [ ] `migrations/versions/0010_categorias.py`
-- [ ] `tests/contexts/master_data/…` · `tests/integracion/…`
+- [x] `domain/valores.py` — `AmbitoDeCategoria`
+- [x] `domain/categoria.py`
+- [x] `domain/cliente.py` · `domain/servicio.py` — filtro por categoría
+- [x] `application/ports.py` · `application/errors.py`
+- [x] `application/categorias.py`
+- [x] `infrastructure/models.py` — `CategoriaEmpresaORM` y las dos de enlace
+- [x] `infrastructure/repositories.py` · `infrastructure/ensamblado.py`
+- [x] `api/routers/categorias.py` · `api/routers/clientes.py` · `api/routers/servicios.py` · `api/main.py`
+- [x] `migrations/versions/0010_categorias.py`
+- [x] `tests/contexts/master_data/…` · `tests/integracion/…`
 
 ### Frontend
 
-- [ ] `features/master_data/api/categoria.ts` · `index.ts`
-- [ ] `features/master_data/components/ListadoDeCategorias.tsx` · `FormularioDeCategoria.tsx`
-- [ ] `features/master_data/components/SelectorDeCategorias.tsx` — compartido por los dos formularios
-- [ ] Los cuatro componentes de clientes y servicios, para el selector y el filtro
-- [ ] `app/(panel)/datos-maestros/categorias/page.tsx` · `app/(panel)/layout.tsx`
-- [ ] `app/api/categorias/…` y sus tests de ruta
-- [ ] `shared/componentes.css`
+- [x] `features/master_data/api/categoria.ts` · `index.ts`
+- [x] `features/master_data/components/ListadoDeCategorias.tsx` · `FormularioDeCategoria.tsx`
+- [x] `features/master_data/components/SelectorDeCategorias.tsx` — compartido por los dos formularios
+- [x] Los cuatro componentes de clientes y servicios, para el selector y el filtro
+- [x] `app/(panel)/datos-maestros/categorias/page.tsx` · `app/(panel)/layout.tsx`
+- [x] `app/api/categorias/…` y sus tests de ruta
+- [x] `shared/componentes.css`
 
 ---
 
@@ -226,26 +221,26 @@ test de integración por ese camino exacto.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Nombre duplicado en el mismo ámbito: «Ya existe una categoria con ese nombre en este ambito.» | unit | pendiente |
-| 2 | El duplicado es insensible a mayúsculas: «VIP» y «vip» chocan | unit | pendiente |
-| 3 | El mismo nombre en **otro** ámbito sí se puede | unit | pendiente |
-| 4 | Renombrar a un nombre ya usado en el mismo ámbito se bloquea | unit | pendiente |
-| 5 | Renombrar se refleja en los elementos clasificados, sin tocarlos | integración | pendiente |
-| 6 | Eliminar una categoría en uso deja a los elementos sin esa clasificación y con el resto intacto | integración | pendiente |
-| 7 | Asignar una categoría de ámbito incorrecto se rechaza | unit | pendiente |
-| 8 | `AMBOS` es asignable a clientes **y** a servicios | unit | pendiente |
-| 9 | Un elemento admite varias categorías (RN-02 de HU-E4-04) | integración | pendiente |
-| 10 | Asignar dos veces la misma categoría deja una sola fila | integración | pendiente |
-| 11 | Desasignar algo que no estaba asignado no es un error | unit | pendiente |
-| 12 | **Aislamiento** en las tres tablas nuevas | integración | pendiente |
-| 13 | **No se puede clasificar con una categoría de otra empresa** | integración | pendiente |
-| 14 | Los dos listados filtran por categoría | integración | pendiente |
-| 15 | La aplicación **sí** puede borrar una categoría, y sigue sin poder borrar clientes ni servicios | integración | pendiente |
-| 16 | Cada escritura deja bitácora con `Modulo.MASTER_DATA` | integración | pendiente |
-| 17 | `SOLO_LECTURA` lista y no escribe | unit | pendiente |
-| 18 | PAN-DM-03 lista, crea, edita y pide confirmación al eliminar | frontend | pendiente |
-| 19 | El selector ofrece **sólo** las categorías del ámbito correcto | frontend | pendiente |
-| 20 | Las rutas del BFF rechazan sin sesión | frontend | pendiente |
+| 1 | Nombre duplicado en el mismo ámbito: «Ya existe una categoria con ese nombre en este ambito.» | unit | verde |
+| 2 | El duplicado es insensible a mayúsculas: «VIP» y «vip» chocan | unit | verde |
+| 3 | El mismo nombre en **otro** ámbito sí se puede | unit | verde |
+| 4 | Renombrar a un nombre ya usado en el mismo ámbito se bloquea | unit | verde |
+| 5 | Renombrar se refleja en los elementos clasificados, sin tocarlos | integración | verde |
+| 6 | Eliminar una categoría en uso deja a los elementos sin esa clasificación y con el resto intacto | integración | verde |
+| 7 | Asignar una categoría de ámbito incorrecto se rechaza | unit | verde |
+| 8 | `AMBOS` es asignable a clientes **y** a servicios | unit | verde |
+| 9 | Un elemento admite varias categorías (RN-02 de HU-E4-04) | integración | verde |
+| 10 | Asignar dos veces la misma categoría deja una sola fila | integración | verde |
+| 11 | Desasignar algo que no estaba asignado no es un error | unit | verde |
+| 12 | **Aislamiento** en las tres tablas nuevas | integración | verde |
+| 13 | **No se puede clasificar con una categoría de otra empresa** | integración | verde |
+| 14 | Los dos listados filtran por categoría | integración | verde |
+| 15 | La aplicación **sí** puede borrar una categoría, y sigue sin poder borrar clientes ni servicios | integración | verde |
+| 16 | Cada escritura deja bitácora con `Modulo.MASTER_DATA` | integración | verde |
+| 17 | `SOLO_LECTURA` lista y no escribe | unit | verde |
+| 18 | PAN-DM-03 lista, crea, edita y pide confirmación al eliminar | frontend | verde |
+| 19 | El selector ofrece **sólo** las categorías del ámbito correcto | frontend | verde |
+| 20 | Las rutas del BFF rechazan sin sesión | frontend | verde |
 
 ---
 
@@ -253,14 +248,70 @@ test de integración por ese camino exacto.
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | 2026-09-01 | pendiente de aprobación |
-| 2 · Verificación | | |
+| 1 · Plan | 2026-09-01 | aprobado |
+| 2 · Verificación | 2026-09-01 | presentada — ver abajo |
 | 3 · PR | | |
+
+## Verificación — Gate 2 (2026-09-01)
+
+Con PostgreSQL y Redis levantados: **ningún test se salteó**.
+
+| Gate | Comando | Resultado |
+|---|---|---|
+| Formato Python | `ruff format --check backend` | **verde** — 285 archivos |
+| Lint Python | `ruff check backend` | **verde** |
+| Tipos | `mypy backend` | **verde** — 285 archivos |
+| Arquitectura | `guard_architecture.py --scan .` | **verde** — 312 archivos |
+| Tests Python | `pytest backend` | **verde** — **798 pasan, 0 salteados** |
+| Cobertura Python | `--cov=cheatsheet` | **89.99 %** |
+| Typecheck y lint frontend | `npm run typecheck` · `npm run lint` | **verde** |
+| Tests frontend | `npm run test:coverage` | **verde** — 333 pasan · 85.41 % líneas · 82.01 % funciones |
+
+Módulos de la unidad: `application/categorias.py` 94 %, `domain/categoria.py` 96 %,
+`infrastructure/categorias.py` 80 %, `api/routers/categorias.py` 78 %.
+
+## Lo que los tests encontraron
+
+**Un 204 anotado `-> None` rompe la aplicación entera.** El `DELETE` de categorías es el
+primero de la API, y su primera versión hizo fallar **6 tests y 81 errores, ninguno en el
+archivo culpable**: con `from __future__ import annotations` —que tienen todos los módulos—
+FastAPI recibe la anotación como el string `"None"`, la resuelve a `NoneType`, que es una
+clase y por lo tanto *truthy*, y afirma que un 204 no puede tener response model. La app no
+se construye. Resuelto con `response_model=None` y un comentario que lo explica donde
+alguien lo va a leer.
+
+**Y un defecto en código ya mergeado, que esta unidad esquivó en vez de heredar.** Al
+escribir el test del BFF se ve que `respuestaDeError` reenvía `detalle` **sólo** para
+`EntradaInvalida`, y que `leerFalla` descarta cualquier campo extra. Consecuencia: el
+`cliente_existente_id` que `catalogo-de-clientes` se tomó el trabajo de devolver **nunca
+llega al navegador**, y el mensaje de duplicado tampoco — o sea que «ofrece ver el
+duplicado» de HU-E4-01 no se cumple de punta a punta. Por eso `CategoriaDuplicada` se
+declaró `EntradaInvalida` (422) y no `InvarianteViolada` (409): es la única forma de que el
+mensaje de RN-02 llegue a la pantalla sin tocar la política del BFF, que es de otra unidad.
+Queda en [`TODO.md`](../TODO.md) §10.
+
+**La cobertura de funciones del frontend cruzó el umbral hacia abajo**, por la razón que
+esta misma unidad había anotado dos veces: ninguna `page.tsx` del repo tenía test. Se
+escribió el primero del proyecto — cubre las tres pantallas de Datos Maestros y prueba el
+redirect sin sesión y el mapeo de rol a `puedeEditar`, que es lógica real y no relleno.
+
+## Desvíos del plan
+
+1. **Apareció `VerClasificacion`**, un caso de uso de lectura que el plan no listaba. Hace
+   falta porque las casillas del selector tienen que abrir ya tildadas, y para eso el
+   estado se necesita **antes** de tocar nada; `ClasificarCliente` devuelve el conjunto
+   nuevo, que es la otra mitad.
+2. **`categorias.py` se separó de `repositories.py`** en `infrastructure/`. Ese archivo ya
+   tenía dos agregados y 237 líneas, y `CLAUDE.md` §5 corta en 400.
+3. **La etiqueta del filtro de PAN-DM-03 pasó a «Filtrar por ámbito»**, porque decía lo
+   mismo que el campo del formulario. Lo encontró un test que no sabía cuál de los dos
+   elegir — y si un test no puede distinguirlos, un lector de pantalla tampoco.
 
 ## Decisiones tomadas durante la unidad
 
 - 2026-09-01 · ¿Se arranca sobre una rama sin mergear? → **Sí**, cortando de
-  `feature/master_data-catalogo-de-servicios` y declarando la asunción (regla 1c).
+  `feature/master_data-catalogo-de-servicios` y declarando la asunción (regla 1c). Dejó de importar
+  el mismo día: #25 se mergeó y la rama se sincronizó con `develop` antes de escribir código.
 - 2026-09-01 · ¿`categoria_empresa` concede `DELETE`? → **Sí**, y es la única de las tres tablas de
   `master_data` que lo hace. RN-03 lo pide y nada fuera del contexto la referencia.
 - 2026-09-01 · ¿La unicidad distingue mayúsculas? → **No.** «VIP» y «vip» son el mismo nombre.

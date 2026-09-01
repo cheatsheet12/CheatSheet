@@ -63,3 +63,32 @@ class ServicioNoEncontrado(EntradaInvalida):
     so the repository genuinely cannot tell "does not exist" from "belongs to somebody
     else" — and answering differently would let somebody probe which ids exist elsewhere.
     """
+
+
+class CategoriaNoEncontrada(EntradaInvalida):
+    """No category with that id in **this** company.
+
+    Same shape and reasoning as its two siblings — and here it carries extra weight: it is
+    what stops a company from classifying with somebody else's category. A foreign key is
+    checked with the table owner's permissions and therefore *sees* rows RLS hides, so the
+    barrier is this lookup, which goes through the policy and simply finds nothing.
+    """
+
+
+class CategoriaDuplicada(EntradaInvalida):
+    """Another category of this company already has this name in this scope (RN-02).
+
+    Comparison is case-insensitive: «VIP» and «vip» are the same name to anybody reading
+    the list.
+
+    **An `EntradaInvalida` — 422 — and not an `InvarianteViolada` like `ClienteDuplicado`,
+    and the difference is not cosmetic.** It is the same argument `ConexionRechazada` makes
+    in `integrations`: a name already taken and a name that is malformed are the same thing
+    to whoever is filling in the form, and both need the message to reach them. The BFF
+    forwards `detalle` **only** for `EntradaInvalida` (`app/api/auth/_sesion.ts`), so an
+    `InvarianteViolada` arrives at the browser as a bare code — which is right for a
+    permission error and wrong for a message the story wrote out in full.
+
+    That policy is also why `ClienteDuplicado` does not reach the screen with its text
+    today; see `TODO.md` §10.
+    """

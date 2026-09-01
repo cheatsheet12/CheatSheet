@@ -189,6 +189,7 @@ def _rutas_de_catalogo(recursos: Recursos) -> APIRouter:
         texto: str | None = None,
         origen: OrigenDato | None = None,
         solo_activos: bool = False,
+        categoria_id: UUID | None = None,
         limite: int = 50,
         desplazamiento: int = 0,
     ) -> ListadoSalida:
@@ -200,7 +201,12 @@ def _rutas_de_catalogo(recursos: Recursos) -> APIRouter:
             listado = await ListarClientes(clientes=piezas.clientes).ejecutar(
                 empresa_id=empresa_id,
                 rol=rol,
-                filtros=FiltrosDeCliente(texto=texto, origen=origen, solo_activos=solo_activos),
+                filtros=FiltrosDeCliente(
+                    texto=texto,
+                    origen=origen,
+                    solo_activos=solo_activos,
+                    categoria_id=categoria_id,
+                ),
                 pagina=Pagina(limite=limite, desplazamiento=desplazamiento),
             )
             salida = ListadoSalida(

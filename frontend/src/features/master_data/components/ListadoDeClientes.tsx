@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Badge, Button, Campo, Modal, Select, Tabla } from "@/shared";
 import type { Columna } from "@/shared";
@@ -29,7 +29,10 @@ import {
   listarClientes,
 } from "../api/cliente";
 import type { Cliente, DatosDeCliente, ListadoDeClientes as Listado } from "../api/cliente";
+import { categoriasDeCliente, clasificarCliente, listarCategorias } from "../api/categoria";
+import type { Categoria } from "../api/categoria";
 import { FormularioDeCliente } from "./FormularioDeCliente";
+import { SelectorDeCategorias } from "./SelectorDeCategorias";
 
 const ORIGENES: readonly { valor: string; etiqueta: string }[] = [
   { valor: "", etiqueta: "Todos los origenes" },
@@ -55,18 +58,57 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
   const [edicion, setEdicion] = useState<Edicion>(null);
   const [error, setError] = useState<string | null>(null);
   const [duplicadoId, setDuplicadoId] = useState<string | null>(null);
+  const [categoria, setCategoria] = useState("");
+  const [categoriasDisponibles, setCategoriasDisponibles] = useState<readonly Categoria[]>([]);
+  const [asignadas, setAsignadas] = useState<readonly Categoria[]>([]);
 
   async function recargar(filtros?: {
     texto?: string;
     origen?: string;
     soloActivos?: boolean;
+    categoriaId?: string;
   }): Promise<void> {
     const actualizado = await listarClientes({
       texto: filtros?.texto ?? texto,
       origen: (filtros?.origen ?? origen) as "" | Cliente["origen"],
       soloActivos: filtros?.soloActivos ?? soloActivos,
+      categoriaId: filtros?.categoriaId ?? categoria,
     });
     setListado(actualizado);
+  }
+
+  // El filtro por categoría de HU-E4-04. Se piden las de ámbito CLIENTE, que el backend
+  // devuelve junto con las de AMBOS.
+  useEffect(() => {
+    let vigente = true;
+    listarCategorias("CLIENTE")
+      .then((listadoDeCategorias) => {
+        if (vigente) {
+          setCategoriasDisponibles(listadoDeCategorias.categorias);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  /** Al abrir el formulario de edición, las que el cliente ya tiene. */
+  async function abrirEdicion(cliente: Cliente): Promise<void> {
+    setEdicion({ cliente });
+    setAsignadas([]);
+    const actuales = await categoriasDeCliente(cliente.id);
+    setAsignadas(actuales);
+  }
+
+  async function alternarCategoria(categoriaId: string, asignar: boolean): Promise<void> {
+    const cliente = edicion?.cliente;
+    if (cliente === undefined) {
+      return;
+    }
+    const resultado = await clasificarCliente(cliente.id, categoriaId, asignar);
+    setAsignadas(resultado.categorias);
+    await recargar();
   }
 
   async function guardar(datos: DatosDeCliente): Promise<void> {
@@ -131,7 +173,7 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
       celda: (fila) =>
         puedeEditar ? (
           <>
-            <Button variante="secundario" onClick={() => setEdicion({ cliente: fila })}>
+            <Button variante="secundario" onClick={() => void abrirEdicion(fila)}>
               Editar
             </Button>{" "}
             <Button
@@ -169,6 +211,19 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
           onChange={(evento) => {
             setOrigen(evento.target.value);
             void recargar({ origen: evento.target.value });
+          }}
+        />
+        <Select
+          id="dm-categoria"
+          etiqueta="Categoria"
+          opciones={[
+            { valor: "", etiqueta: "Todas las categorias" },
+            ...categoriasDisponibles.map((c) => ({ valor: c.id, etiqueta: c.nombre })),
+          ]}
+          value={categoria}
+          onChange={(evento) => {
+            setCategoria(evento.target.value);
+            void recargar({ categoriaId: evento.target.value });
           }}
         />
         <label className="dm-filtros__casilla" htmlFor="dm-solo-activos">
@@ -209,6 +264,14 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
             error={error}
             duplicadoId={duplicadoId}
             onVerDuplicado={verDuplicado}
+          />
+        )}
+        {edicion?.cliente !== undefined && (
+          // Sólo al editar: una asignación necesita un elemento que ya tenga id.
+          <SelectorDeCategorias
+            ambito="CLIENTE"
+            asignadas={asignadas}
+            onAlternar={alternarCategoria}
           />
         )}
       </Modal>

@@ -193,6 +193,8 @@ class FiltrosDeServicio:
     texto: str | None = None
     agendable: bool | None = None
     solo_activos: bool = False
+    #: HU-E4-04, del lado de los servicios.
+    categoria_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if self.texto is not None:
