@@ -245,26 +245,26 @@ habla con ningún proveedor.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Precio cero: «El precio debe ser mayor a cero.» y no guarda | unit | pendiente |
-| 2 | Precio negativo: mismo mensaje | unit | pendiente |
-| 3 | Agendable sin duración: «La duracion es obligatoria para servicios agendables.» | unit | pendiente |
-| 4 | Agendable con duración cero o negativa: tampoco guarda | unit | pendiente |
-| 5 | No agendable **sí** puede no tener duración | unit | pendiente |
-| 6 | Dejar de ser agendable borra la duración en la misma operación | unit | pendiente |
-| 7 | El precio se cuantiza a dos decimales con `ROUND_HALF_UP`: `10.005` → `10.01`, `10.004` → `10.00` | unit | pendiente |
-| 8 | Un `float` como precio es rechazado, no convertido en silencio | unit | pendiente |
-| 9 | Las tres alícuotas son las de RN-02, y `0.105` sobrevive el viaje a la base sin redondearse | integración | pendiente |
-| 10 | `origen = PANEL` al crear, y no cambia al editar | unit | pendiente |
-| 11 | Desactivar oculta del catálogo activo y el servicio sigue existiendo | integración | pendiente |
-| 12 | **Aislamiento**: la empresa A no ve, no edita ni desactiva un servicio de la empresa B | integración | pendiente |
-| 13 | La aplicación no tiene permiso de `DELETE` sobre `servicio` | integración | pendiente |
-| 14 | `SOLO_LECTURA` lista y no escribe; `OPERADOR` hace las cuatro cosas | unit | pendiente |
-| 15 | Cada escritura deja un `RegistroDeAuditoria` con `Modulo.MASTER_DATA` | integración | pendiente |
-| 16 | Ida y vuelta de todos los campos por el repositorio real | integración | pendiente |
-| 17 | El listado muestra nombre, precio, IVA, duración y estado | frontend | pendiente |
-| 18 | El formulario esconde la duración cuando el servicio no es agendable | frontend | pendiente |
-| 19 | El precio viaja como string en el JSON, nunca como `number` | frontend | pendiente |
-| 20 | Las rutas del BFF rechazan sin sesión y reenvían el query string entero | frontend | pendiente |
+| 1 | Precio cero: «El precio debe ser mayor a cero.» y no guarda | unit | verde |
+| 2 | Precio negativo: mismo mensaje | unit | verde |
+| 3 | Agendable sin duración: «La duracion es obligatoria para servicios agendables.» | unit | verde |
+| 4 | Agendable con duración cero o negativa: tampoco guarda | unit | verde |
+| 5 | No agendable **sí** puede no tener duración | unit | verde |
+| 6 | Dejar de ser agendable borra la duración en la misma operación | unit | verde |
+| 7 | El precio se cuantiza a dos decimales con `ROUND_HALF_UP`: `10.005` → `10.01`, `10.004` → `10.00` | unit | verde |
+| 8 | Un `float` como precio es rechazado, no convertido en silencio | unit | verde |
+| 9 | Las tres alícuotas son las de RN-02, y `0.105` sobrevive el viaje a la base sin redondearse | integración | verde |
+| 10 | `origen = PANEL` al crear, y no cambia al editar | unit | verde |
+| 11 | Desactivar oculta del catálogo activo y el servicio sigue existiendo | integración | verde |
+| 12 | **Aislamiento**: la empresa A no ve, no edita ni desactiva un servicio de la empresa B | integración | verde |
+| 13 | La aplicación no tiene permiso de `DELETE` sobre `servicio` | integración | verde |
+| 14 | `SOLO_LECTURA` lista y no escribe; `OPERADOR` hace las cuatro cosas | unit | verde |
+| 15 | Cada escritura deja un `RegistroDeAuditoria` con `Modulo.MASTER_DATA` | integración | verde |
+| 16 | Ida y vuelta de todos los campos por el repositorio real | integración | verde |
+| 17 | El listado muestra nombre, precio, IVA, duración y estado | frontend | verde |
+| 18 | El formulario esconde la duración cuando el servicio no es agendable | frontend | verde |
+| 19 | El precio viaja como string en el JSON, nunca como `number` | frontend | verde |
+| 20 | Las rutas del BFF rechazan sin sesión y reenvían el query string entero | frontend | verde |
 
 ---
 
@@ -272,9 +272,66 @@ habla con ningún proveedor.
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | 2026-09-01 | pendiente de aprobación |
-| 2 · Verificación | | |
+| 1 · Plan | 2026-09-01 | aprobado |
+| 2 · Verificación | 2026-09-01 | presentada — ver abajo |
 | 3 · PR | | |
+
+## Verificación — Gate 2 (2026-09-01)
+
+Con PostgreSQL y Redis levantados, así que **ningún test se salteó**.
+
+| Gate | Comando | Resultado |
+|---|---|---|
+| Formato Python | `ruff format --check backend` | **verde** — 276 archivos |
+| Lint Python | `ruff check backend` | **verde** |
+| Tipos | `mypy backend` | **verde** — 276 archivos |
+| Arquitectura | `guard_architecture.py --scan .` | **verde** — 294 archivos |
+| Tests Python | `pytest backend` | **verde** — **741 pasan, 0 salteados** |
+| Cobertura Python | `--cov=cheatsheet` | **90.08 %** |
+| Typecheck frontend | `npm run typecheck` | **verde** |
+| Lint frontend | `npm run lint` | **verde** |
+| Tests frontend | `npm run test:coverage` | **verde** — 287 pasan · 81.87 % líneas · 80.85 % funciones |
+
+Módulos de esta unidad: `domain/servicio.py` 96 %, `api/routers/servicios.py` 89 %,
+`infrastructure/repositories.py` 86 %.
+
+**Se corrió `npm run test:coverage`, no `npm run test`** — el comando que aplica el umbral.
+Es la lección que dejó `catalogo-de-clientes`, donde el gate del frontend se reportó verde
+sin haberse ejecutado de verdad.
+
+## Lo que los tests encontraron, y que el plan no había previsto
+
+**Un defecto real en el manejo del dinero, atrapado antes de existir.**
+`Decimal("NaN").quantize(...)` **no levanta** — devuelve `NaN` en silencio — así que la
+primera versión de `precio_valido` lo dejaba pasar y explotaba dos líneas después, en la
+comparación, con un `InvalidOperation` que nadie atrapaba. Un precio `NaN` habría devuelto
+**500 en lugar de 422**. `Infinity` sí hacía fallar a `quantize`, que es la razón por la
+que sólo uno de los dos se veía. Se resolvió chequeando `is_finite()` primero, y el orden
+de los tres pasos quedó documentado en el docstring de la función.
+
+**Dos tests propios que estaban mal escritos**, corregidos:
+
+- uno buscaba métodos con «iva» en el nombre y encontraba `reactivar` y `desactivar`;
+- otro afirmaba de memoria los dígitos del float de `0.21` — y son `0.20999…`, no
+  `0.21000…`. Los dígitos exactos ya no se escriben: son una propiedad de IEEE-754 y no de
+  este sistema, y afirmarlos de memoria es como se escribe un test que parece riguroso y
+  está mal.
+
+**El BFF reenvía `detalle` sólo para `EntradaInvalida`**, cosa que descubrí al fallar mi
+propia assertion. Es correcto y además necesario: los mensajes de HU-E4-02 son textos del
+sistema pensados para el usuario, y para cualquier otro código sólo viaja el nombre del
+error. Quedó un test por cada lado de esa distinción.
+
+## Desvíos del plan
+
+Ninguno de diseño. Dos de detalle:
+
+1. **`ruff` bloquea escribir `Decimal(0.21)`** aunque sea para ilustrar el problema en un
+   test (`RUF032`). Se usa `Decimal.from_float`, que dice lo mismo en voz alta. El
+   guardrail funcionando es una buena noticia y quedó anotada en el test.
+2. **`AlicuotaIVA.desde_tasa` no estaba en el plan.** Hizo falta porque `NUMERIC(5, 4)`
+   devuelve `Decimal("0.1050")` y el enum guarda `"0.105"`: como texto no son iguales,
+   como número sí. La reconstrucción compara numéricamente.
 
 ## Decisiones tomadas durante la unidad
 

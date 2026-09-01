@@ -54,3 +54,12 @@ class ClienteDuplicado(InvarianteViolada):
     def __init__(self, mensaje: str, *, cliente_existente_id: UUID | None = None) -> None:
         super().__init__(mensaje)
         self.cliente_existente_id = cliente_existente_id
+
+
+class ServicioNoEncontrado(EntradaInvalida):
+    """No service with that id in **this** company.
+
+    Same shape and same reasoning as `ClienteNoEncontrado`: the isolation barrier is RLS,
+    so the repository genuinely cannot tell "does not exist" from "belongs to somebody
+    else" — and answering differently would let somebody probe which ids exist elsewhere.
+    """

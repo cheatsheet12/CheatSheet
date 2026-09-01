@@ -1,6 +1,7 @@
 """The ports of the master data context: what its use cases need from the outside.
 
-Two, and no more. A repository, and a door to ARCA's registry.
+Three, and no more. A repository per aggregate, and a door to ARCA's registry — which
+only `Cliente` needs, because a service has no tax id to look up.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from typing import Protocol
 from uuid import UUID
 
 from cheatsheet.contexts.master_data.domain.cliente import Cliente, FiltrosDeCliente, Pagina
+from cheatsheet.contexts.master_data.domain.servicio import FiltrosDeServicio, Servicio
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.fiscal import CondicionIVA
 
@@ -86,5 +88,28 @@ class PortRepositorioCliente(Protocol):
     async def listar(
         self, *, empresa_id: EmpresaId, filtros: FiltrosDeCliente, pagina: Pagina
     ) -> tuple[Sequence[Cliente], int]:
+        """One page and the total that matches the filters, in that order."""
+        ...
+
+
+class PortRepositorioServicio(Protocol):
+    """Persistence of `Servicio`, always inside one company.
+
+    Same arrangement as `PortRepositorioCliente`, and for the same reason: the company
+    filter is the RLS policy, not a parameter somebody could forget to pass.
+
+    **No `buscar_por_nombre`.** Services have no uniqueness rule — two branches may both
+    sell a "Corte" — so there is nothing to look up before writing.
+    """
+
+    async def agregar(self, servicio: Servicio) -> None: ...
+
+    async def guardar(self, servicio: Servicio) -> None: ...
+
+    async def buscar_por_id(self, servicio_id: UUID) -> Servicio | None: ...
+
+    async def listar(
+        self, *, empresa_id: EmpresaId, filtros: FiltrosDeServicio, pagina: Pagina
+    ) -> tuple[Sequence[Servicio], int]:
         """One page and the total that matches the filters, in that order."""
         ...

@@ -24,6 +24,7 @@ from cheatsheet.contexts.master_data.application.ports import (
     PadronNoDisponible,
 )
 from cheatsheet.contexts.master_data.domain.cliente import Cliente, FiltrosDeCliente, Pagina
+from cheatsheet.contexts.master_data.domain.servicio import FiltrosDeServicio, Servicio
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.fiscal import CondicionIVA
@@ -144,3 +145,42 @@ def padron() -> PadronFalso:
 @pytest.fixture
 def publicador() -> PublicadorFalso:
     return PublicadorFalso()
+
+
+class RepositorioServicioEnMemoria:
+    """Implementa `PortRepositorioServicio`.
+
+    Más simple que el de clientes porque el puerto lo es: no hay unicidad que reproducir.
+    """
+
+    def __init__(self) -> None:
+        self.servicios: dict[UUID, Servicio] = {}
+
+    async def agregar(self, servicio: Servicio) -> None:
+        self.servicios[servicio.id] = servicio
+
+    async def guardar(self, servicio: Servicio) -> None:
+        self.servicios[servicio.id] = servicio
+
+    async def buscar_por_id(self, servicio_id: UUID) -> Servicio | None:
+        return self.servicios.get(servicio_id)
+
+    async def listar(
+        self, *, empresa_id: EmpresaId, filtros: FiltrosDeServicio, pagina: Pagina
+    ) -> tuple[Sequence[Servicio], int]:
+        encontrados = [s for s in self.servicios.values() if s.empresa_id == empresa_id]
+        if filtros.texto:
+            texto = filtros.texto.lower()
+            encontrados = [s for s in encontrados if texto in s.nombre.lower()]
+        if filtros.agendable is not None:
+            encontrados = [s for s in encontrados if s.agendable is filtros.agendable]
+        if filtros.solo_activos:
+            encontrados = [s for s in encontrados if s.activo]
+        encontrados.sort(key=lambda s: s.nombre)
+        recorte = encontrados[pagina.desplazamiento : pagina.desplazamiento + pagina.limite]
+        return recorte, len(encontrados)
+
+
+@pytest.fixture
+def servicios() -> RepositorioServicioEnMemoria:
+    return RepositorioServicioEnMemoria()
