@@ -20,7 +20,8 @@ from fastapi import FastAPI
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.errors import registrar_manejadores
 from cheatsheet.api.middleware.empresa import EmpresaMiddleware
-from cheatsheet.api.routers import auth, health, integraciones, usuarios
+from cheatsheet.api.routers import auth, clientes, health, integraciones, usuarios
+from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging, obtener_logger
 
@@ -59,6 +60,10 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
 
     app.add_middleware(EmpresaMiddleware, settings=settings)
     registrar_manejadores(app)
+    # More specific than the generic domain handler, and registered after it so it
+    # wins: the uniform `{error, detalle}` body has nowhere to put the id of the
+    # client that already holds the CUIT, and HU-E4-01 asks the screen to offer it.
+    app.add_exception_handler(ClienteDuplicado, clientes.manejar_duplicado)
 
     # One line per bounded context. `observability` exposes no HTTP surface yet: its
     # panel is HU-E12-01, epic 10.
@@ -66,5 +71,6 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(auth.crear_router(recursos))
     app.include_router(usuarios.crear_router(recursos))
     app.include_router(integraciones.crear_router(recursos))
+    app.include_router(clientes.crear_router(recursos))
 
     return app

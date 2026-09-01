@@ -18,6 +18,9 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Conexión con los servicios externos | conexion-arca | integrations | HU-E2-01 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-arca | mergeada |
 | Conexión con los servicios externos | padron-y-datos-fiscales | identity | deuda D1 de HU-E1-02 | conexion-arca | Cristian | feature/identity-padron-y-datos-fiscales | mergeada |
 | Conexión con los servicios externos | conexion-mercadopago | integrations | HU-E2-02 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-mercadopago | mergeada |
+| Catálogo de clientes y servicios | catalogo-de-clientes | master_data | HU-E4-01 | — | Cristian | feature/master_data-catalogo-de-clientes | en revisión |
+| Catálogo de clientes y servicios | catalogo-de-servicios | master_data | HU-E4-02 | catalogo-de-clientes | Cristian | — | pendiente |
+| Catálogo de clientes y servicios | categorias-y-clasificacion | master_data | HU-E4-03, HU-E4-04 | catalogo-de-clientes, catalogo-de-servicios | Cristian | — | pendiente |
 
 
 ---
@@ -260,3 +263,156 @@ El reloj que manda es el de Meta: 24 a 72 horas por número (HU-E2-03 RN-02).
   silencio.
 - **Centro de notificaciones** → épico 10. Este épico notifica al Administrador por los canales que
   ya existen; no construye la bandeja donde leerlas.
+
+---
+
+## Épico 3 — Catálogo de clientes y servicios
+
+### Qué hace cada unidad
+
+| Unidad | Alcance |
+|---|---|
+| **catalogo-de-clientes** | HU-E4-01 — el agregado `Cliente` y la tabla `cliente` del DER, con `origen` (`origen_dato`: PLANILLA · PANEL · AGENTE) asignado por el sistema y no editable (RN-01) y `presente_en_planilla` desde la primera migración. Unicidad de CUIT por empresa (RN-03) como índice único parcial sobre (`empresa_id`, `cuit`), no como chequeo en aplicación. Validación contra el padrón de ARCA al crear y al editar (RN-02), llamando a `ConsultarPadron` de `integrations` y reutilizando el patrón de tres estados que dejó `padron-y-datos-fiscales` — encontrado completa razón social y `CondicionIVA`, no encontrado bloquea, no disponible **no** bloquea. Pantalla PAN-DM-01: listado con nombre, CUIT, origen, WhatsApp y estado, más el formulario de alta y edición. Trae además los cimientos del contexto, que ninguna otra unidad va a tener que volver a decidir: repositorio con RLS por `empresa_id`, la migración inicial de `master_data` y el `features/master_data` del frontend con su `index.ts` |
+| **catalogo-de-servicios** | HU-E4-02 — agregado `Servicio` y tabla `servicio`: `precio` en `Decimal` (nunca `float`, `CLAUDE.md` §3.5), `alicuota_iva` como enum cerrado de tres valores —0 %, 10,5 % y 21 % (RN-02)—, el par `agendable` / `duracion_estandar_min` con el invariante de RN-03 vivo en el dominio y no en el formulario, y la desactivación que oculta del catálogo activo sin tocar comprobantes ni turnos históricos (RN-04). Pantalla PAN-DM-02 con listado y formulario. El criterio «edito el precio y los comprobantes emitidos mantienen el suyo» **no se implementa acá**: es la desnormalización que el DER ya declara para `comprobante`, y se verifica en el épico 5 |
+| **categorias-y-clasificacion** | HU-E4-03 y HU-E4-04 — agregado `CategoriaEmpresa` con `nombre` y `aplica_a`, unicidad por (`empresa_id`, `nombre`, `aplica_a`) (RN-02) y eliminación que desclasifica sin tocar el resto de los datos del elemento (RN-03), sobre PAN-DM-03. Encima de eso, la asignación de HU-E4-04 sobre las dos pantallas que para entonces ya existen: validación de ámbito (RN-01), varias categorías por elemento (RN-02, ver D8) y el filtro por categoría en los dos listados |
+
+### Orden
+
+```
+catalogo-de-clientes ── catalogo-de-servicios ── categorias-y-clasificacion
+```
+
+Cadena lineal, un responsable, sin paralelismo.
+
+**Las categorías van últimas aunque el DER ponga la FK `categoria_id` dentro de `cliente` y
+`servicio`.** Ese orden de lectura es tentador y es el equivocado: HU-E4-04 —asignar y filtrar— no
+se puede demostrar sin elementos que clasificar, así que arrancar por ahí entregaría una pantalla
+que crea categorías que no clasifican nada, y dejaría media historia colgada de una unidad
+posterior. La tabla de enlace la agrega la tercera migración; para eso está Alembic.
+
+### Notas
+
+- **Tres unidades para cuatro historias**, que es el punto medio entre los dos épicos anteriores y
+  no una posición cómoda: el épico 1 agrupó ocho historias en tres unidades porque eran diminutas,
+  el épico 2 abrió cinco unidades para cuatro historias porque cada una era un protocolo distinto.
+  Acá las cuatro viven en un solo contexto y ninguna habla un protocolo propio, pero son **tres
+  pantallas** del mapa de navegación y dos de las historias están marcadas Complejidad Media.
+- **La alternativa descartada era juntar clientes y servicios en una sola unidad.** Tiene a favor
+  que las dos son el mismo ABM con distinta forma. Se descartó porque ese PR juntaría la única
+  llamada externa del épico —el padrón de ARCA— con la única regla de dinero —precio y alícuota—,
+  que son dos superficies de test que no se parecen en nada, y porque dos pantallas del mapa de
+  navegación son dos pantallas. Se paga con una ceremonia de PR más.
+- **Una rama y un PR por unidad**, como el épico 2 y a diferencia del épico 1. Acá no hay ningún
+  reloj externo que lo obligue, pero tampoco hay nada que lo desaconseje, y tres PRs de ABM se
+  revisan mejor que uno con tres pantallas.
+- **`catalogo-de-servicios` depende de `catalogo-de-clientes` sólo por el andamiaje del contexto**
+  —repositorio, migración inicial, feature del frontend—, no por los datos: las dos tablas no se
+  miran entre sí. Si alguna vez hay un segundo responsable, ese es el punto de corte natural
+  (regla 1c), y cuesta poco: se adelanta la migración inicial a la primera unidad y se paraleliza.
+- **`master_data` es Supporting, no Core.** Nada de este épico emite comprobantes ni mueve dinero.
+  Lo que sí hace es fijar el vocabulario que después consumen `billing`, `payments`, `scheduling` y
+  `conversational` (Context Map §4, fila C/S). Un nombre mal puesto acá se paga cuatro veces.
+- **`origen` y `presente_en_planilla` entran en la primera migración aunque este épico sólo escriba
+  `PANEL`.** Son ADR-006 y ADR-007 hechos columna, y el épico 4 los lee para decidir qué sobrescribe
+  la planilla y qué se marca ausente. Agregarlas después sería un backfill sobre datos reales.
+
+### Decisión D8 — un elemento puede tener varias categorías, y el DER modela una sola
+
+`cliente` y `servicio` traen en el DER una columna `categoria_id uuid FK → categoria_empresa`: una
+categoría por elemento. **HU-E4-04 RN-02 dice lo contrario**, sin ambigüedad: «un cliente o servicio
+puede tener más de una categoría asignada». No hay lectura que concilie las dos cosas.
+
+**Resolución (2026-08-31): gana la historia. Se modela con dos tablas de enlace,
+`cliente_categoria` y `servicio_categoria`, y la columna `categoria_id` no se crea.**
+
+El precedente es H1, el hueco que el propio DER declara: cuando el DER y una historia se
+contradicen, el DER es un boceto y la historia es el requisito. Acá además la columna todavía no
+existe en ninguna base, así que la divergencia no cuesta una migración de datos — sólo cuesta
+decirla.
+
+Consecuencias explícitas:
+
+- **El DER entregado queda desactualizado en dos tablas.** Es un insumo de Etapa 5 y no se reescribe
+  (regla del workflow); la divergencia se documenta acá y en el plan de `categorias-y-clasificacion`.
+- La unicidad de RN-02 de HU-E4-03 sigue siendo sobre `categoria_empresa`, no sobre el enlace.
+- El filtro «filtrable por esa categoría» de HU-E4-04 pasa a ser un `JOIN`, no un `WHERE` sobre una
+  columna. Es la parte que se paga, y es barata.
+
+### Decisión D9 — el ámbito «ambos» no existe en el enum del DER
+
+HU-E4-03 RN-01 dice que cada categoría tiene un ámbito «(clientes, servicios o ambos)». El enum
+`aplica_a` del DER tiene cuatro valores —`CLIENTE · SERVICIO · FAQ · TURNO`— y ninguno es «ambos».
+
+**Resolución (2026-08-31): se agrega el valor `AMBOS` al enum, y la pantalla PAN-DM-03 ofrece
+solamente los tres que le corresponden: `CLIENTE`, `SERVICIO` y `AMBOS`.**
+
+`FAQ` y `TURNO` quedan en el enum sin uso hasta los épicos 8 y 7, que son sus dueños. La
+alternativa era no ofrecer «ambos» y obligar a elegir uno, que es más limpio en la base y
+directamente incumple RN-01.
+
+Consecuencia para la validación de ámbito de HU-E4-04 RN-01: una categoría es asignable a un cliente
+si su `aplica_a` es `CLIENTE` o `AMBOS`, y a un servicio si es `SERVICIO` o `AMBOS`. Esa regla vive
+en el dominio de `CategoriaEmpresa`, no en el filtro del combo.
+
+### Hueco P10 — PAN-DM-01, PAN-DM-02 y PAN-DM-03 no tienen prototipo
+
+Las tres pantallas están en el mapa de navegación de Etapa 5, con su código y sus roles
+(Admin · Operador), pero **ninguna está maquetada**: no hay `datos-maestros.html` en
+`inputs/prototipos/`. Es exactamente el hueco P9, el de PAN-USR-01 y PAN-USR-02, que el épico 1 ya
+atravesó.
+
+Se resuelve igual, porque funcionó: se construyen con el catálogo de componentes del PDF §1.3 y los
+tokens ya importados, reusando el listado y el formulario que `usuarios-y-preferencias` dejó en el
+sistema de diseño. Si el prototipo aparece, se ajustan. No es una decisión de este mapa; se anota
+para que nadie lo descubra a mitad de la unidad y crea que falta un insumo.
+
+### Lo que se alinea de paso
+
+Dos cosas que este épico toca inevitablemente y conviene que no se descubran dentro de una rama:
+
+- **`CUIT` se muda a `shared/fiscal.py`.** Hoy vive en `identity/domain/valores.py`, y el docstring
+  de `shared/fiscal.py` ya dejó escrita la regla: «`CUIT` stays in `identity` … A value object moves
+  here when a second context needs it, never in anticipation». `Cliente.cuit` es ese segundo
+  contexto. La mudanza es la misma que ya se hizo con `CondicionIVA` y con `RolUsuario`:
+  `identity/domain/valores.py` lo re-exporta y ningún import existente se rompe. Le toca a
+  `catalogo-de-clientes`.
+- **La fila del Context Map de `integrations` no nombra a `master_data`.** Enumera
+  `identity, spreadsheet_sync, billing, payments, conversational`, y este épico agrega un consumidor.
+  **No hace falta un ADR nuevo**: [ADR-0003](../adr/0003-integrations-open-host-service.md) ya
+  decidió que `integrations` es un OHS que **cualquier** contexto puede llamar, y la lista de la
+  tabla es la enumeración de los consumidores conocidos al escribirla, no una lista blanca. Se
+  agrega `master_data` a esa celda de `docs/architecture.md` §4 en la unidad que estrena el edge.
+
+### Preguntas que resuelve el Gate 1 de cada unidad
+
+No se responden acá —el mapa reparte trabajo, no diseña— pero se dejan escritas para que el plan de
+cada unidad las encare en vez de tropezarlas:
+
+| # | Pregunta | Unidad |
+|---|---|---|
+| 1 | ¿Se puede crear un cliente **sin** CUIT? El DER lo deja nullable y un consumidor final no tiene uno; HU-E4-01 RN-02 habla como si siempre hubiera CUIT que validar | `catalogo-de-clientes` |
+| 2 | ¿Qué pasa cuando la empresa **todavía no conectó ARCA**? El padrón necesita certificado, y la integración es opcional. El precedente de `padron-y-datos-fiscales` es que «no se pudo preguntar» no bloquea; falta decidir si eso alcanza para un alta de cliente o si hace falta decirlo en la pantalla | `catalogo-de-clientes` |
+| 3 | ¿Un cliente se **elimina** o sólo se desactiva? El DER tiene `activo` y ADR-007 dice que lo que sale de la planilla se marca ausente y nunca se borra; HU-E4-01 habla de crear y editar, nunca de borrar | `catalogo-de-clientes` |
+| 4 | ¿La alícuota de IVA es un enum propio de `master_data` o sale de `reference_data`, que es el contexto dueño del catálogo fiscal (`tipo_catalogo_fiscal: ALICUOTA_IVA`)? RN-02 la declara cerrada de tres valores; el épico 5 la va a necesitar vigente por fecha | `catalogo-de-servicios` |
+
+### Estado
+
+**Mapa aprobado el 2026-08-31**, junto con D8 y D9. Responsable de las tres unidades: Cristian.
+`catalogo-de-clientes` pasó sus gates 1 y 2 el mismo día y quedó `en revisión`; su plan y el
+registro de la verificación están en [`units/catalogo-de-clientes.md`](units/catalogo-de-clientes.md).
+
+**El mapa viaja en el PR de esa unidad**, no en uno propio: la rama de la unidad se cortó del commit
+del mapa, que es lo mismo que hizo el épico 2 con `mecanismo-de-integraciones`.
+
+### Fuera de alcance de este épico
+
+- **Poblar el catálogo desde una planilla** (HU-E2-04, HU-E3-01 … HU-E3-07) → épico 4. Este épico
+  deja las columnas que esa ingesta necesita, y nada más.
+- **Escribir de vuelta en la planilla lo que se crea desde el panel** (HU-E3-07) → épico 4.
+- **Que un cliente reciba un comprobante** → épico 5; **que tenga un cobro** → épico 6; **que reserve
+  un turno** → épico 7; **que el agente lo consulte por WhatsApp** → épico 8. Acá el catálogo existe
+  y todavía no lo consume nadie.
+- **Importación masiva por CSV o alta múltiple.** Ninguna historia la pide, y la vía de carga masiva
+  del producto es la planilla.
+- **Historial de cambios de un cliente o un servicio** más allá de lo que ya registra la bitácora del
+  épico 1.

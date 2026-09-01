@@ -1,31 +1,26 @@
 """Value objects of the identity context.
 
-`CUIT` is the important one. It is defined here and not in `billing` on purpose: it is
-validated during onboarding, long before anything fiscal happens, and `cliente.cuit`
-and `comprobante.receptor_cuit` will reuse the same rules. One definition of what a
-well-formed CUIT is, in the context that creates the first one.
+What is left here is what only `identity` creates: how a password is stored, what a
+notification preference is, what accepting the terms proves. The rest — `CUIT`,
+`CondicionIVA`, `Email`, `RolUsuario` — has moved to the Shared Kernel as second
+contexts came to need it, and is re-exported below so no import in this context had to
+change.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import TypeVar
 
+from cheatsheet.shared.contacto import Email as Email
 from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.fiscal import CUIT as CUIT
 from cheatsheet.shared.fiscal import CondicionIVA as CondicionIVA
 from cheatsheet.shared.roles import RolUsuario as RolUsuario
 
-LARGO_CUIT = 11
 LARGO_MINIMO_CONTRASENA = 8
-
-# The check-digit weights ARCA uses, in order.
-MULTIPLICADORES = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
-
-_NO_DIGITOS = re.compile(r"[^0-9]")
-_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _Enum = TypeVar("_Enum", bound=StrEnum)
 
@@ -51,6 +46,19 @@ _Enum = TypeVar("_Enum", bound=StrEnum)
 #
 # Re-exported rather than moved-and-updated so the ~100 existing imports of
 # `identity.domain.valores.RolUsuario` keep working untouched.
+
+
+# `CUIT` and `Email` moved to the Shared Kernel in epic 3, and are re-exported here for
+# the third and fourth time by the same mechanism.
+#
+# `master_data` is the second context to need both: `cliente.cuit` is validated by the
+# same rules as `empresa.cuit` (HU-E4-01 RN-02) and `cliente.contacto_email` is an
+# address the system writes to. `master_data/domain/` may not import this module — R3 —
+# so a second definition of either would be the alternative, and a second definition of
+# a check digit is how two parts of one system disagree about a tax id.
+#
+# See `shared/fiscal.py` and `shared/contacto.py`. `identity` still owns both concepts:
+# it is where the first CUIT and the first email of a company are created.
 
 
 class EstadoUsuario(StrEnum):
@@ -96,73 +104,6 @@ class CategoriaDeNotificacion(StrEnum):
     SINCRONIZACION = "SINCRONIZACION"
     AGENDA = "AGENDA"
     SISTEMA = "SISTEMA"
-
-
-@dataclass(frozen=True, slots=True)
-class CUIT:
-    """An Argentine tax id, structurally valid.
-
-    **Structural only, deliberately** (decision D1): format plus check digit. Whether
-    the number actually exists in ARCA's registry is checked in epic 2, once the company
-    has loaded its fiscal credential. Until then a well-formed but non-existent CUIT can
-    enter the system — acceptable because nothing is invoiced before epic 5, and issuance
-    revalidates against ARCA.
-
-    The prefix (20/23/24/27 for people, 30/33/34 for companies) is **not** validated.
-    The published lists disagree at the edges, and rejecting a real customer's CUIT is a
-    worse failure than accepting one ARCA will reject later anyway.
-    """
-
-    valor: str
-
-    def __post_init__(self) -> None:
-        digitos = _NO_DIGITOS.sub("", self.valor)
-        if len(digitos) != LARGO_CUIT:
-            raise EntradaInvalida(f"Un CUIT tiene {LARGO_CUIT} digitos, no {len(digitos)}")
-        if not _digito_verificador_valido(digitos):
-            raise EntradaInvalida("El digito verificador del CUIT no es correcto")
-        object.__setattr__(self, "valor", digitos)
-
-    @property
-    def formateado(self) -> str:
-        """`30-71234567-8` — how a person reads it."""
-        return f"{self.valor[:2]}-{self.valor[2:10]}-{self.valor[10]}"
-
-    def __str__(self) -> str:
-        return self.valor
-
-
-def _digito_verificador_valido(digitos: str) -> bool:
-    suma = sum(int(d) * m for d, m in zip(digitos[:10], MULTIPLICADORES, strict=True))
-    resto = suma % 11
-    esperado = 11 - resto
-    if esperado == 11:
-        esperado = 0
-    elif esperado == 10:
-        # 10 is never assigned as a check digit, so no CUIT can end in it.
-        return False
-    return esperado == int(digitos[10])
-
-
-@dataclass(frozen=True, slots=True)
-class Email:
-    """Normalised to lowercase.
-
-    HU-E1-01 RN-03 forbids two accounts with the same email. Comparing the raw strings
-    would let `Ana@x.com` and `ana@x.com` through as two accounts, which is the same
-    person and, sooner or later, the same support ticket.
-    """
-
-    valor: str
-
-    def __post_init__(self) -> None:
-        limpio = self.valor.strip().lower()
-        if not _EMAIL.match(limpio):
-            raise EntradaInvalida(f"'{self.valor}' no es un email valido")
-        object.__setattr__(self, "valor", limpio)
-
-    def __str__(self) -> str:
-        return self.valor
 
 
 @dataclass(frozen=True, slots=True)
