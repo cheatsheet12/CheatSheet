@@ -149,13 +149,15 @@ class FiltrosDeCliente:
     """What PAN-DM-01 can narrow the listing by.
 
     A value object rather than five parameters threaded through the repository port: the
-    listing gains filters as the epic advances — the category filter arrives with
-    `categorias-y-clasificacion` — and each one would otherwise change three signatures.
+    listing gains filters as the epic advances — the category filter arrived with
+    `categorias-y-clasificacion` and cost one field here instead of three signatures.
     """
 
     texto: str | None = None
     origen: OrigenDato | None = None
     solo_activos: bool = False
+    #: HU-E4-04: «el cliente queda clasificado y es filtrable por esa categoria».
+    categoria_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if self.texto is not None:

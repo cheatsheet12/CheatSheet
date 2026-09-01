@@ -51,3 +51,28 @@ export type {
   ListadoDeServicios as ListadoDeServiciosRespuesta,
   Servicio,
 } from "./api/servicio";
+
+export { ListadoDeCategorias } from "./components/ListadoDeCategorias";
+export type { PropsDeListadoDeCategorias } from "./components/ListadoDeCategorias";
+export { FormularioDeCategoria } from "./components/FormularioDeCategoria";
+export type { PropsDeFormularioDeCategoria } from "./components/FormularioDeCategoria";
+export { SelectorDeCategorias } from "./components/SelectorDeCategorias";
+export type { PropsDeSelector } from "./components/SelectorDeCategorias";
+export {
+  ETIQUETAS_DE_AMBITO,
+  ErrorDeCategoria,
+  categoriasDeCliente,
+  categoriasDeServicio,
+  clasificarCliente,
+  clasificarServicio,
+  crearCategoria,
+  editarCategoria,
+  eliminarCategoria,
+  listarCategorias,
+} from "./api/categoria";
+export type {
+  AmbitoDeCategoria,
+  Categoria,
+  DatosDeCategoria,
+  ListadoDeCategorias as ListadoDeCategoriasRespuesta,
+} from "./api/categoria";

@@ -23,8 +23,13 @@ from cheatsheet.contexts.master_data.application.ports import (
     DatosFiscalesDePadron,
     PadronNoDisponible,
 )
+from cheatsheet.contexts.master_data.domain.categoria import (
+    CategoriaEmpresa,
+    clave_de_unicidad,
+)
 from cheatsheet.contexts.master_data.domain.cliente import Cliente, FiltrosDeCliente, Pagina
 from cheatsheet.contexts.master_data.domain.servicio import FiltrosDeServicio, Servicio
+from cheatsheet.contexts.master_data.domain.valores import AmbitoDeCategoria
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.fiscal import CondicionIVA
@@ -184,3 +189,96 @@ class RepositorioServicioEnMemoria:
 @pytest.fixture
 def servicios() -> RepositorioServicioEnMemoria:
     return RepositorioServicioEnMemoria()
+
+
+class RepositorioCategoriaEnMemoria:
+    """Implementa `PortRepositorioCategoria`.
+
+    Reproduce las dos cosas del adaptador real que le importan al caso de uso: que la
+    búsqueda por nombre **ignore mayúsculas** —igual que el índice funcional— y que
+    `listar(aplica_a=...)` filtre por *utilidad* y no por igualdad, devolviendo también las
+    de ámbito `AMBOS`.
+    """
+
+    def __init__(self) -> None:
+        self.categorias: dict[UUID, CategoriaEmpresa] = {}
+
+    async def agregar(self, categoria: CategoriaEmpresa) -> None:
+        self.categorias[categoria.id] = categoria
+
+    async def guardar(self, categoria: CategoriaEmpresa) -> None:
+        self.categorias[categoria.id] = categoria
+
+    async def eliminar(self, categoria_id: UUID) -> None:
+        self.categorias.pop(categoria_id, None)
+
+    async def buscar_por_id(self, categoria_id: UUID) -> CategoriaEmpresa | None:
+        return self.categorias.get(categoria_id)
+
+    async def buscar_por_nombre_y_ambito(
+        self, *, nombre: str, aplica_a: AmbitoDeCategoria
+    ) -> CategoriaEmpresa | None:
+        clave = clave_de_unicidad(nombre)
+        return next(
+            (
+                c
+                for c in self.categorias.values()
+                if clave_de_unicidad(c.nombre) == clave and c.aplica_a is aplica_a
+            ),
+            None,
+        )
+
+    async def listar(
+        self, *, empresa_id: EmpresaId, aplica_a: AmbitoDeCategoria | None = None
+    ) -> Sequence[CategoriaEmpresa]:
+        encontradas = [c for c in self.categorias.values() if c.empresa_id == empresa_id]
+        if aplica_a is AmbitoDeCategoria.CLIENTE:
+            encontradas = [c for c in encontradas if c.admite_clientes]
+        elif aplica_a is AmbitoDeCategoria.SERVICIO:
+            encontradas = [c for c in encontradas if c.admite_servicios]
+        elif aplica_a is AmbitoDeCategoria.AMBOS:
+            encontradas = [c for c in encontradas if c.aplica_a is AmbitoDeCategoria.AMBOS]
+        encontradas.sort(key=lambda c: c.nombre)
+        return encontradas
+
+
+class ClasificacionesEnMemoria:
+    """Implementa `PortClasificaciones`. Los `set` hacen la idempotencia gratis."""
+
+    def __init__(self, categorias: RepositorioCategoriaEnMemoria) -> None:
+        self._categorias = categorias
+        self.de_cliente: dict[UUID, set[UUID]] = {}
+        self.de_servicio: dict[UUID, set[UUID]] = {}
+
+    async def asignar_a_cliente(self, *, cliente_id: UUID, categoria_id: UUID) -> None:
+        self.de_cliente.setdefault(cliente_id, set()).add(categoria_id)
+
+    async def quitar_de_cliente(self, *, cliente_id: UUID, categoria_id: UUID) -> None:
+        self.de_cliente.get(cliente_id, set()).discard(categoria_id)
+
+    async def categorias_de_cliente(self, cliente_id: UUID) -> Sequence[CategoriaEmpresa]:
+        return self._resolver(self.de_cliente.get(cliente_id, set()))
+
+    async def asignar_a_servicio(self, *, servicio_id: UUID, categoria_id: UUID) -> None:
+        self.de_servicio.setdefault(servicio_id, set()).add(categoria_id)
+
+    async def quitar_de_servicio(self, *, servicio_id: UUID, categoria_id: UUID) -> None:
+        self.de_servicio.get(servicio_id, set()).discard(categoria_id)
+
+    async def categorias_de_servicio(self, servicio_id: UUID) -> Sequence[CategoriaEmpresa]:
+        return self._resolver(self.de_servicio.get(servicio_id, set()))
+
+    def _resolver(self, ids: set[UUID]) -> list[CategoriaEmpresa]:
+        encontradas = [self._categorias.categorias[i] for i in ids]
+        encontradas.sort(key=lambda c: c.nombre)
+        return encontradas
+
+
+@pytest.fixture
+def categorias() -> RepositorioCategoriaEnMemoria:
+    return RepositorioCategoriaEnMemoria()
+
+
+@pytest.fixture
+def clasificaciones(categorias: RepositorioCategoriaEnMemoria) -> ClasificacionesEnMemoria:
+    return ClasificacionesEnMemoria(categorias)

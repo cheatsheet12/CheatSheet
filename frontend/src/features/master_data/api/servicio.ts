@@ -79,6 +79,8 @@ export interface FiltrosDeServicios {
   readonly texto?: string;
   readonly agendable?: boolean | null;
   readonly soloActivos?: boolean;
+  /** HU-E4-04, del lado de los servicios. */
+  readonly categoriaId?: string;
 }
 
 function consulta(filtros: FiltrosDeServicios): string {
@@ -91,6 +93,9 @@ function consulta(filtros: FiltrosDeServicios): string {
   }
   if (filtros.soloActivos === true) {
     parametros.set("solo_activos", "true");
+  }
+  if (filtros.categoriaId !== undefined && filtros.categoriaId !== "") {
+    parametros.set("categoria_id", filtros.categoriaId);
   }
   const cadena = parametros.toString();
   return cadena === "" ? "" : `?${cadena}`;

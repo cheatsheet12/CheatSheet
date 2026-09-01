@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Badge, Button, Campo, Modal, Select, Tabla } from "@/shared";
 import type { Columna } from "@/shared";
@@ -27,7 +27,10 @@ import {
   listarServicios,
 } from "../api/servicio";
 import type { DatosDeServicio, ListadoDeServicios as Listado, Servicio } from "../api/servicio";
+import { categoriasDeServicio, clasificarServicio, listarCategorias } from "../api/categoria";
+import type { Categoria } from "../api/categoria";
 import { FormularioDeServicio } from "./FormularioDeServicio";
+import { SelectorDeCategorias } from "./SelectorDeCategorias";
 
 const AGENDABLE: readonly { valor: string; etiqueta: string }[] = [
   { valor: "", etiqueta: "Agendables y no agendables" },
@@ -58,18 +61,53 @@ export function ListadoDeServicios({
   const [soloActivos, setSoloActivos] = useState(false);
   const [edicion, setEdicion] = useState<Edicion>(null);
   const [error, setError] = useState<string | null>(null);
+  const [categoria, setCategoria] = useState("");
+  const [categoriasDisponibles, setCategoriasDisponibles] = useState<readonly Categoria[]>([]);
+  const [asignadas, setAsignadas] = useState<readonly Categoria[]>([]);
 
   async function recargar(filtros?: {
     texto?: string;
     agendable?: string;
     soloActivos?: boolean;
+    categoriaId?: string;
   }): Promise<void> {
     const actualizado = await listarServicios({
       texto: filtros?.texto ?? texto,
       agendable: agendableDe(filtros?.agendable ?? agendable),
       soloActivos: filtros?.soloActivos ?? soloActivos,
+      categoriaId: filtros?.categoriaId ?? categoria,
     });
     setListado(actualizado);
+  }
+
+  useEffect(() => {
+    let vigente = true;
+    listarCategorias("SERVICIO")
+      .then((listadoDeCategorias) => {
+        if (vigente) {
+          setCategoriasDisponibles(listadoDeCategorias.categorias);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  async function abrirEdicion(servicio: Servicio): Promise<void> {
+    setEdicion({ servicio });
+    setAsignadas([]);
+    setAsignadas(await categoriasDeServicio(servicio.id));
+  }
+
+  async function alternarCategoria(categoriaId: string, asignar: boolean): Promise<void> {
+    const servicio = edicion?.servicio;
+    if (servicio === undefined) {
+      return;
+    }
+    const resultado = await clasificarServicio(servicio.id, categoriaId, asignar);
+    setAsignadas(resultado.categorias);
+    await recargar();
   }
 
   async function guardar(datos: DatosDeServicio): Promise<void> {
@@ -127,7 +165,7 @@ export function ListadoDeServicios({
       celda: (fila) =>
         puedeEditar ? (
           <>
-            <Button variante="secundario" onClick={() => setEdicion({ servicio: fila })}>
+            <Button variante="secundario" onClick={() => void abrirEdicion(fila)}>
               Editar
             </Button>{" "}
             <Button
@@ -167,6 +205,19 @@ export function ListadoDeServicios({
             void recargar({ agendable: evento.target.value });
           }}
         />
+        <Select
+          id="dm-categoria-servicios"
+          etiqueta="Categoria"
+          opciones={[
+            { valor: "", etiqueta: "Todas las categorias" },
+            ...categoriasDisponibles.map((c) => ({ valor: c.id, etiqueta: c.nombre })),
+          ]}
+          value={categoria}
+          onChange={(evento) => {
+            setCategoria(evento.target.value);
+            void recargar({ categoriaId: evento.target.value });
+          }}
+        />
         <label className="dm-filtros__casilla" htmlFor="dm-servicios-activos">
           <input
             id="dm-servicios-activos"
@@ -203,6 +254,13 @@ export function ListadoDeServicios({
             onGuardar={guardar}
             onCancelar={() => setEdicion(null)}
             error={error}
+          />
+        )}
+        {edicion?.servicio !== undefined && (
+          <SelectorDeCategorias
+            ambito="SERVICIO"
+            asignadas={asignadas}
+            onAlternar={alternarCategoria}
           />
         )}
       </Modal>

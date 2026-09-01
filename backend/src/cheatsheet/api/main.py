@@ -22,6 +22,7 @@ from cheatsheet.api.errors import registrar_manejadores
 from cheatsheet.api.middleware.empresa import EmpresaMiddleware
 from cheatsheet.api.routers import (
     auth,
+    categorias,
     clientes,
     health,
     integraciones,
@@ -80,5 +81,6 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(integraciones.crear_router(recursos))
     app.include_router(clientes.crear_router(recursos))
     app.include_router(servicios.crear_router(recursos))
+    app.include_router(categorias.crear_router(recursos))
 
     return app

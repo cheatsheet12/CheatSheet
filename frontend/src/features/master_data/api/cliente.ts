@@ -97,6 +97,8 @@ export interface FiltrosDeListado {
   readonly texto?: string;
   readonly origen?: OrigenDato | "";
   readonly soloActivos?: boolean;
+  /** HU-E4-04: «es filtrable por esa categoria». */
+  readonly categoriaId?: string;
 }
 
 function consulta(filtros: FiltrosDeListado): string {
@@ -109,6 +111,9 @@ function consulta(filtros: FiltrosDeListado): string {
   }
   if (filtros.soloActivos === true) {
     parametros.set("solo_activos", "true");
+  }
+  if (filtros.categoriaId !== undefined && filtros.categoriaId !== "") {
+    parametros.set("categoria_id", filtros.categoriaId);
   }
   const cadena = parametros.toString();
   return cadena === "" ? "" : `?${cadena}`;

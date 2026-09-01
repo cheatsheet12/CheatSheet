@@ -72,3 +72,20 @@ class AlicuotaIVA(StrEnum):
             if miembro.tasa == tasa:
                 return miembro
         raise EntradaInvalida(f"'{tasa}' no es una alicuota de IVA conocida")
+
+
+class AmbitoDeCategoria(StrEnum):
+    """What a category may classify (HU-E4-03 RN-01).
+
+    **`AMBOS` is decision D9 of the epic 3 map.** The DER's `aplica_a` enum lists
+    `CLIENTE · SERVICIO · FAQ · TURNO` and the story asks for «clientes, servicios o
+    ambos», so the value the story needs is added and the two the DER has for later epics
+    — FAQ in epic 8, TURNO in epic 7 — are simply not offered by this screen.
+
+    **Named `AmbitoDeCategoria` and not `AplicaA`**: `aplica_a` is the column's name, and a
+    column name makes a poor type name.
+    """
+
+    CLIENTE = "CLIENTE"
+    SERVICIO = "SERVICIO"
+    AMBOS = "AMBOS"

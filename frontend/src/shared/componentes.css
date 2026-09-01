@@ -713,3 +713,33 @@
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
+
+/* --- PAN-DM-03 y el selector de categorías (HU-E4-04) -------------------------------- */
+
+.dm-selector {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-top: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.dm-selector legend {
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+  padding: 0 var(--space-1);
+}
+
+.dm-selector__opcion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.dm-selector__vacio {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  margin-top: var(--space-3);
+}

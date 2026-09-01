@@ -29,6 +29,24 @@ vi.mock("@/features/master_data/api/servicio", async () => {
   };
 });
 
+// Esta pantalla ahora también habla con el módulo de categorías: el filtro las lista y
+// «Editar» pide las que el elemento ya tiene. Sin este doble, el test saldría a la red.
+const listarCategorias = vi.fn().mockResolvedValue({ categorias: [] });
+const categoriasDeServicio = vi.fn().mockResolvedValue([]);
+const clasificarServicio = vi.fn().mockResolvedValue({ categorias: [] });
+
+vi.mock("@/features/master_data/api/categoria", async () => {
+  const real = await vi.importActual<typeof import("@/features/master_data/api/categoria")>(
+    "@/features/master_data/api/categoria",
+  );
+  return {
+    ...real,
+    listarCategorias: (...args: unknown[]) => listarCategorias(...args),
+    categoriasDeServicio: (...args: unknown[]) => categoriasDeServicio(...args),
+    clasificarServicio: (...args: unknown[]) => clasificarServicio(...args),
+  };
+});
+
 import type { ListadoDeServiciosRespuesta as Listado, Servicio } from "@/features/master_data";
 import { ErrorDeServicio } from "@/features/master_data";
 

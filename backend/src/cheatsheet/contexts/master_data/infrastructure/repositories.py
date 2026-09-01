@@ -29,7 +29,9 @@ from cheatsheet.contexts.master_data.domain.servicio import FiltrosDeServicio, S
 from cheatsheet.contexts.master_data.domain.valores import AlicuotaIVA, OrigenDato
 from cheatsheet.contexts.master_data.infrastructure.models import (
     INDICE_CUIT_UNICO,
+    ClienteCategoriaORM,
     ClienteORM,
+    ServicioCategoriaORM,
     ServicioORM,
 )
 from cheatsheet.shared.contacto import Email, Telefono
@@ -86,6 +88,13 @@ def _filtrar(consulta: Consulta, filtros: FiltrosDeCliente) -> Consulta:
         consulta = consulta.where(ClienteORM.origen == filtros.origen.value)
     if filtros.solo_activos:
         consulta = consulta.where(ClienteORM.activo.is_(True))
+    if filtros.categoria_id is not None:
+        # HU-E4-04: «filtrable por esa categoria». Un JOIN y no un `IN (subconsulta)`
+        # porque la clave primaria compuesta del enlace ya garantiza una fila por par:
+        # el JOIN no puede duplicar clientes.
+        consulta = consulta.join(
+            ClienteCategoriaORM, ClienteCategoriaORM.cliente_id == ClienteORM.id
+        ).where(ClienteCategoriaORM.categoria_id == filtros.categoria_id)
     return consulta
 
 
@@ -194,6 +203,10 @@ def _filtrar_servicios(
         consulta = consulta.where(ServicioORM.agendable.is_(filtros.agendable))
     if filtros.solo_activos:
         consulta = consulta.where(ServicioORM.activo.is_(True))
+    if filtros.categoria_id is not None:
+        consulta = consulta.join(
+            ServicioCategoriaORM, ServicioCategoriaORM.servicio_id == ServicioORM.id
+        ).where(ServicioCategoriaORM.categoria_id == filtros.categoria_id)
     return consulta
 
 

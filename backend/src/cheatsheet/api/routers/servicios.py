@@ -139,6 +139,7 @@ def _rutas_de_catalogo(recursos: Recursos) -> APIRouter:
         texto: str | None = None,
         agendable: bool | None = None,
         solo_activos: bool = False,
+        categoria_id: UUID | None = None,
         limite: int = 50,
         desplazamiento: int = 0,
     ) -> ListadoSalida:
@@ -150,7 +151,10 @@ def _rutas_de_catalogo(recursos: Recursos) -> APIRouter:
                 empresa_id=empresa_id,
                 rol=rol,
                 filtros=FiltrosDeServicio(
-                    texto=texto, agendable=agendable, solo_activos=solo_activos
+                    texto=texto,
+                    agendable=agendable,
+                    solo_activos=solo_activos,
+                    categoria_id=categoria_id,
                 ),
                 pagina=Pagina(limite=limite, desplazamiento=desplazamiento),
             )
