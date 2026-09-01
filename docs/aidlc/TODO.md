@@ -333,3 +333,19 @@ Dos cosas que hay que leer juntas, porque separadas engañan:
   margen real es de **0.72 puntos**, no de nueve. No es un problema hoy —CI los levanta— pero quien
   corra `pytest --cov` en una laptop sin Docker está a un módulo nuevo sin tests de romper el gate,
   y el mensaje de error va a hablar de cobertura en lugar de hablar de Docker.
+
+---
+
+# Épico 3 — Catálogo de clientes y servicios
+
+## 9. Hallazgos de `catalogo-de-clientes` que no son de esta unidad
+
+Ninguno bloquea. Se anotan acá en lugar de arreglarse en la rama, por `CLAUDE.md` §8 («no amplíes
+el alcance: si ves otro problema, reportalo»).
+
+| Qué | Por qué importa | Dónde se salda |
+|---|---|---|
+| **`backend/migrations/env.py` no importa los modelos de `integrations`** | Sólo registra `identity` y `observability`. Su propio docstring dice que un modelo ausente es «una tabla que autogenerate propone borrar en silencio», y desde el épico 2 hay cuatro tablas de `integrations` en esa situación. Esta unidad agregó la línea de `master_data`; la de `integrations` es de otra rama | Una línea en `env.py`, en cualquier PR de `integrations` |
+| **`npm run format:check` falla en 113 archivos por finales de línea** | El checkout tiene `core.autocrlf=true`, así que todo el repo está en disco con CRLF y Prettier espera LF. Falla en archivos que nadie tocó, así que el gate de formato del frontend **no discrimina** hoy en una laptop Windows. En CI (Linux) pasa | Un `.gitattributes` con `* text=auto eol=lf`, o `endOfLine: "auto"` en `.prettierrc.json`. Es decisión de equipo, no de una unidad |
+| **`ruff format --check .` y `mypy .` desde la raíz levantan `tmp/` y `output/`** | Son dos directorios sin trackear del entorno local con scripts de PDF sin anotar. Hacen fallar los gates de la raíz sin que haya nada mal en el repositorio | Agregarlos a `.gitignore` y a los `exclude` de `pyproject.toml`, o borrarlos |
+| **El frontend no tenía `node_modules`** | `npm ci` tarda unos minutos y hasta correrlo ningún gate del panel se puede ejecutar. No es un defecto; es que quien retome la rama lo va a necesitar | — |

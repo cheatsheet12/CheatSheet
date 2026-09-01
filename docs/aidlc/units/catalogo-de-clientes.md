@@ -267,8 +267,8 @@ del OHS, no un proveedor nuevo, así que no dispara la escalada de contratos del
 
 ### Documentación
 
-- [ ] `docs/architecture.md` §4 — `master_data` entra en la fila OHS de `integrations`
-- [ ] `docs/aidlc/units.md` — estado de la fila
+- [x] `docs/architecture.md` §4 — `master_data` entra en la fila OHS de `integrations`
+- [x] `docs/aidlc/units.md` — estado de la fila
 
 ---
 
@@ -276,24 +276,24 @@ del OHS, no un proveedor nuevo, así que no dispara la escalada de contratos del
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Un CUIT de 10 dígitos no construye el value object, y el alta responde «El CUIT debe contener 11 dígitos.» | unit | pendiente |
-| 2 | Un CUIT con dígito verificador incorrecto se rechaza sin llamar al padrón | unit | pendiente |
-| 3 | Alta con CUIT que el padrón conoce: guarda con razón social y `CondicionIVA` del padrón y `origen = PANEL` | integración | pendiente |
-| 4 | Alta con CUIT que el padrón **no** conoce: no guarda | integración | pendiente |
-| 5 | Alta con ARCA sin conectar: **guarda igual**, y la respuesta dice que no se pudo validar | integración | pendiente |
-| 6 | Alta con el padrón caído (`PadronNoDisponible`): mismo desenlace que el 5 — no se confunde con «no encontrado» | unit | pendiente |
-| 7 | Segundo cliente con el mismo CUIT en la misma empresa: `ClienteDuplicado` con el id del existente | integración | pendiente |
-| 8 | El mismo CUIT en **dos empresas distintas** sí se puede: el índice único es por empresa | integración | pendiente |
-| 9 | Dos clientes sin CUIT conviven: el índice parcial no los considera duplicados | integración | pendiente |
-| 10 | **Aislamiento**: la empresa A no ve, no edita y no desactiva un cliente de la empresa B | integración | pendiente |
-| 11 | `origen` no cambia al editar, ni siquiera si el payload lo trae | unit | pendiente |
-| 12 | Editar sin tocar el CUIT no consulta el padrón | unit | pendiente |
-| 13 | Desactivar oculta del catálogo activo y el cliente sigue existiendo; reactivar lo devuelve | integración | pendiente |
-| 14 | Un `SOLO_LECTURA` lista pero no crea, edita ni desactiva; un `OPERADOR` hace las cuatro cosas | unit | pendiente |
-| 15 | Cada escritura deja un `RegistroDeAuditoria` con `Modulo.MASTER_DATA` | integración | pendiente |
-| 16 | `ListadoDeClientes` muestra nombre, CUIT, origen, WhatsApp y estado, y filtra por texto y origen | frontend | pendiente |
-| 17 | El formulario muestra el mensaje de duplicado con el enlace a ver el existente | frontend | pendiente |
-| 18 | Los imports viejos de `CUIT` y `Email` desde `identity.domain.valores` siguen funcionando | unit | pendiente |
+| 1 | Un CUIT de 10 dígitos no construye el value object, y el alta responde «El CUIT debe contener 11 dígitos.» | unit | verde |
+| 2 | Un CUIT con dígito verificador incorrecto se rechaza sin llamar al padrón | unit | verde |
+| 3 | Alta con CUIT que el padrón conoce: guarda con razón social y `CondicionIVA` del padrón y `origen = PANEL` | integración | verde |
+| 4 | Alta con CUIT que el padrón **no** conoce: no guarda | integración | verde |
+| 5 | Alta con ARCA sin conectar: **guarda igual**, y la respuesta dice que no se pudo validar | integración | verde |
+| 6 | Alta con el padrón caído (`PadronNoDisponible`): mismo desenlace que el 5 — no se confunde con «no encontrado» | unit | verde |
+| 7 | Segundo cliente con el mismo CUIT en la misma empresa: `ClienteDuplicado` con el id del existente | integración | verde |
+| 8 | El mismo CUIT en **dos empresas distintas** sí se puede: el índice único es por empresa | integración | verde |
+| 9 | Dos clientes sin CUIT conviven: el índice parcial no los considera duplicados | integración | verde |
+| 10 | **Aislamiento**: la empresa A no ve, no edita y no desactiva un cliente de la empresa B | integración | verde |
+| 11 | `origen` no cambia al editar, ni siquiera si el payload lo trae | unit | verde |
+| 12 | Editar sin tocar el CUIT no consulta el padrón | unit | verde |
+| 13 | Desactivar oculta del catálogo activo y el cliente sigue existiendo; reactivar lo devuelve | integración | verde |
+| 14 | Un `SOLO_LECTURA` lista pero no crea, edita ni desactiva; un `OPERADOR` hace las cuatro cosas | unit | verde |
+| 15 | Cada escritura deja un `RegistroDeAuditoria` con `Modulo.MASTER_DATA` | integración | verde |
+| 16 | `ListadoDeClientes` muestra nombre, CUIT, origen, WhatsApp y estado, y filtra por texto y origen | frontend | verde |
+| 17 | El formulario muestra el mensaje de duplicado con el enlace a ver el existente | frontend | verde |
+| 18 | Los imports viejos de `CUIT` y `Email` desde `identity.domain.valores` siguen funcionando | unit | verde |
 
 ---
 
@@ -301,9 +301,66 @@ del OHS, no un proveedor nuevo, así que no dispara la escalada de contratos del
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | 2026-08-31 | pendiente de aprobación |
-| 2 · Verificación | | |
+| 1 · Plan | 2026-08-31 | aprobado |
+| 2 · Verificación | 2026-08-31 | presentada — ver «Verificación» abajo |
 | 3 · PR | | |
+
+## Desvíos del plan
+
+Cuatro, y el primero es el único que cambia una decisión de diseño.
+
+1. **El duplicado se busca antes de insertar, y el índice sigue siendo el que lo impide.** El plan
+   decía «se detecta en la base, no en una consulta previa» y eso resultó ser media verdad. El
+   índice único es efectivamente lo único que no puede perder la carrera con una segunda pestaña —
+   eso no cambió—, pero cuando salta, **la sesión de SQLAlchemy ya no sirve para hacer otra
+   consulta**, y sin otra consulta no hay id del cliente existente que devolver. Y el id es la
+   mitad del criterio de aceptación («ofrece ver el duplicado»).
+   Así que quedan los dos: un `SELECT` que **nombra** al duplicado en el caso normal, y el índice
+   que lo **impide** siempre. `ClienteDuplicado.cliente_existente_id` pasó a ser opcional: en la
+   carrera —rara— el mensaje llega sin enlace, que es la respuesta honesta cuando no se puede
+   averiguar cuál era.
+2. **`backend/migrations/env.py`** no estaba en la lista de archivos y había que tocarlo: los
+   modelos de cada contexto se registran ahí y un modelo ausente es una tabla que `autogenerate`
+   propone borrar en silencio.
+3. **`backend/tests/integracion/conftest.py`** tampoco: la limpieza entre tests necesita
+   `DELETE FROM cliente`.
+4. **El router se partió en dos sub-routers** (`_rutas_de_padron` y `_rutas_de_catalogo`) porque
+   `crear_router` entero superaba la complejidad ciclomática de 10 que fija `CLAUDE.md` §5. Es el
+   mismo arreglo que ya tenía el router de usuarios, y de paso deja `/clientes/padron` montado
+   antes de las rutas con `{cliente_id}`.
+
+---
+
+## Verificación — Gate 2 (2026-08-31)
+
+| Gate | Comando | Resultado |
+|---|---|---|
+| Formato Python | `ruff format --check .` | **verde** |
+| Lint Python | `ruff check .` | **verde** |
+| Tipos | `python -m mypy backend` | **verde** — 255 archivos |
+| Tests Python | `pytest backend` | **verde** — 566 pasan, 95 se saltean |
+| Cobertura | `pytest --cov=cheatsheet` | **80.59 %**, por encima del umbral de 80 % |
+| Typecheck frontend | `npm run typecheck` | **verde** |
+| Lint frontend | `npm run lint` | **verde** |
+| Tests frontend | `npm run test` | **verde** — 242 pasan en 24 archivos |
+| Formato frontend | `npm run format:check` | **falla, y no por esta unidad** — ver abajo |
+
+### Lo que no se pudo verificar acá, y por qué
+
+- **Los tests de integración se saltearon**: no hay PostgreSQL local (Docker no está levantado y
+  nada escucha en 5432). Son 9 casos en `test_clientes_postgres.py` y 8 en `test_api_clientes.py`,
+  y son justamente los que prueban la RLS, el índice parcial y el 409 con el id del duplicado. **En
+  CI corren**, porque el job `tests` sí configura la base. Hasta que ese pipeline esté verde, el
+  aislamiento entre empresas de esta tabla está escrito pero no observado.
+- **`ruff format --check` y `mypy` sobre la raíz** incluyen `tmp/` y `output/`, dos directorios sin
+  trackear del entorno local, y ahí sí hay errores (scripts de PDF sin anotar). Sobre `backend/`,
+  que es lo que esta unidad toca, los dos pasan.
+- **`npm run format:check` falla en 113 archivos, ninguno de ellos por su contenido.** El checkout
+  tiene `core.autocrlf=true`, así que **todo** el repositorio está en disco con CRLF y Prettier
+  espera LF. Falla igual en archivos que esta unidad no tocó. Los archivos nuevos se verificaron con
+  `prettier --check --end-of-line auto` y pasan. Está anotado en `TODO.md`.
+
+---
 
 ## Decisiones tomadas durante la unidad
 

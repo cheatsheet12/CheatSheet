@@ -1,11 +1,33 @@
 /**
- * master_data — BC2, Supporting.
+ * Public entry point of the `master_data` feature (rule R5).
  *
- * Screens: clients, services, categories.
- *
- * This file is the feature's PUBLIC ENTRY POINT. Other features may only import
- * from here (rule R5); everything under api/, components/ and hooks/ is internal.
- * Anything genuinely shared belongs in @/shared instead.
+ * A route composes what is exported here; nothing outside reaches into the folders below.
+ * The imports are relative for the reason `integrations`' barrel explains: the
+ * `@/features/<name>/…` alias means "somebody reaching into a feature from outside", which
+ * is exactly what the lint rule forbids, and a barrel importing its own modules is not
+ * that.
  */
 
-export {};
+export { ListadoDeClientes } from "./components/ListadoDeClientes";
+export type { PropsDeListado } from "./components/ListadoDeClientes";
+export { FormularioDeCliente } from "./components/FormularioDeCliente";
+export type { PropsDeFormulario } from "./components/FormularioDeCliente";
+export {
+  ErrorDeCatalogo,
+  cambiarEstadoDeCliente,
+  consultarPadron,
+  crearCliente,
+  editarCliente,
+  listarClientes,
+} from "./api/cliente";
+export type {
+  Cliente,
+  CondicionIVA,
+  DatosDeCliente,
+  DatosDePadron,
+  EstadoDeConsulta,
+  FiltrosDeListado,
+  ListadoDeClientes as ListadoDeClientesRespuesta,
+  OrigenDato,
+  ResultadoDePadron,
+} from "./api/cliente";

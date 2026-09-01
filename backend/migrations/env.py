@@ -24,6 +24,9 @@ from alembic import context
 from cheatsheet.contexts.identity.infrastructure import (
     models as _identity_models,  # noqa: F401
 )
+from cheatsheet.contexts.master_data.infrastructure import (
+    models as _master_data_models,  # noqa: F401
+)
 from cheatsheet.contexts.observability.infrastructure import (
     models as _observability_models,  # noqa: F401
 )
