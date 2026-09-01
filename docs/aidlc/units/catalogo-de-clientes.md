@@ -338,20 +338,35 @@ Cuatro, y el primero es el único que cambia una decisión de diseño.
 | Formato Python | `ruff format --check .` | **verde** |
 | Lint Python | `ruff check .` | **verde** |
 | Tipos | `python -m mypy backend` | **verde** — 255 archivos |
-| Tests Python | `pytest backend` | **verde** — 566 pasan, 95 se saltean |
-| Cobertura | `pytest --cov=cheatsheet` | **80.59 %**, por encima del umbral de 80 % |
+| Tests Python | `pytest backend` | **verde** — 670 pasan, **ninguno se saltea** |
+| Cobertura | `pytest --cov=cheatsheet` | **89.86 %**, muy por encima del umbral de 80 % |
 | Typecheck frontend | `npm run typecheck` | **verde** |
 | Lint frontend | `npm run lint` | **verde** |
 | Tests frontend | `npm run test` | **verde** — 242 pasan en 24 archivos |
 | Formato frontend | `npm run format:check` | **falla, y no por esta unidad** — ver abajo |
 
-### Lo que no se pudo verificar acá, y por qué
+### Los tests de integración, contra PostgreSQL de verdad
 
-- **Los tests de integración se saltearon**: no hay PostgreSQL local (Docker no está levantado y
-  nada escucha en 5432). Son 9 casos en `test_clientes_postgres.py` y 8 en `test_api_clientes.py`,
-  y son justamente los que prueban la RLS, el índice parcial y el 409 con el id del duplicado. **En
-  CI corren**, porque el job `tests` sí configura la base. Hasta que ese pipeline esté verde, el
-  aislamiento entre empresas de esta tabla está escrito pero no observado.
+Se levantaron los servicios (`docker compose -f backend/docker-compose.yml up -d`) y corrieron los
+**19 casos nuevos**: 10 en `test_clientes_postgres.py` y 9 en `test_api_clientes.py`. Todos verdes.
+Son los que no se pueden fingir:
+
+- **el aislamiento por `empresa_id`**, que es una política del motor: una empresa no ve, no lee por
+  id, no escribe ni borra un cliente de otra, y una sesión sin empresa declarada no ve nada;
+- **el índice único parcial**: el mismo CUIT en dos empresas convive, en la misma no, y varios
+  clientes **sin** CUIT tampoco chocan entre sí — que es la razón de que el índice lleve
+  `WHERE cuit IS NOT NULL`;
+- **que la aplicación no tenga `DELETE`**: el `GRANT` de la migración 0008 no lo concede y el
+  intento levanta `ProgrammingError`;
+- **el 409 con el id del duplicado**, de punta a punta, que es la costura que ninguna prueba
+  unitaria mira.
+
+Con los servicios arriba la suite entera pasa a **670 casos, ninguno salteado, 89.86 % de
+cobertura**. Los módulos de esta unidad: `application/clientes.py` 99 %, `domain/cliente.py` 98 %,
+`api/routers/clientes.py` 90 %, `infrastructure/repositories.py` 85 %.
+
+### Lo que sigue fallando, y no es de esta unidad
+
 - **`ruff format --check` y `mypy` sobre la raíz** incluyen `tmp/` y `output/`, dos directorios sin
   trackear del entorno local, y ahí sí hay errores (scripts de PDF sin anotar). Sobre `backend/`,
   que es lo que esta unidad toca, los dos pasan.
