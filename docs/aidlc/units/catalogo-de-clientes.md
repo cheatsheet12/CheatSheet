@@ -302,8 +302,8 @@ del OHS, no un proveedor nuevo, así que no dispara la escalada de contratos del
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-08-31 | aprobado |
-| 2 · Verificación | 2026-08-31 | presentada — ver «Verificación» abajo |
-| 3 · PR | | |
+| 2 · Verificación | 2026-08-31 | aprobada — 670 tests, 89.86 % de cobertura |
+| 3 · PR | 2026-08-31 | [#23](https://github.com/cheatsheet12/CheatSheet/pull/23) abierto a `develop` |
 
 ## Desvíos del plan
 
