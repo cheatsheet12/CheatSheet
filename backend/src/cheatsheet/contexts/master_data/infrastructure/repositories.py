@@ -25,8 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
 from cheatsheet.contexts.master_data.domain.cliente import Cliente, FiltrosDeCliente, Pagina
-from cheatsheet.contexts.master_data.domain.valores import OrigenDato
-from cheatsheet.contexts.master_data.infrastructure.models import INDICE_CUIT_UNICO, ClienteORM
+from cheatsheet.contexts.master_data.domain.servicio import FiltrosDeServicio, Servicio
+from cheatsheet.contexts.master_data.domain.valores import AlicuotaIVA, OrigenDato
+from cheatsheet.contexts.master_data.infrastructure.models import (
+    INDICE_CUIT_UNICO,
+    ClienteORM,
+    ServicioORM,
+)
 from cheatsheet.shared.contacto import Email, Telefono
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.fiscal import CUIT, CondicionIVA
@@ -144,3 +149,89 @@ class RepositorioClientePostgres:
             filtrada.order_by(ClienteORM.nombre).limit(pagina.limite).offset(pagina.desplazamiento)
         )
         return [_a_dominio(fila) for fila in filas], int(total or 0)
+
+
+def _servicio_a_dominio(fila: ServicioORM) -> Servicio:
+    return Servicio(
+        id=fila.id,
+        empresa_id=EmpresaId(fila.empresa_id),
+        nombre=fila.nombre,
+        precio=fila.precio,
+        alicuota_iva=AlicuotaIVA.desde_tasa(fila.alicuota_iva),
+        origen=OrigenDato(fila.origen),
+        creado_en=fila.created_at,
+        actualizado_en=fila.updated_at,
+        agendable=fila.agendable,
+        duracion_estandar_min=fila.duracion_estandar_min,
+        presente_en_planilla=fila.presente_en_planilla,
+        activo=fila.activo,
+    )
+
+
+def _volcar_servicio(servicio: Servicio, fila: ServicioORM) -> None:
+    fila.empresa_id = servicio.empresa_id
+    fila.nombre = servicio.nombre
+    fila.precio = servicio.precio
+    fila.alicuota_iva = servicio.alicuota_iva.tasa
+    fila.agendable = servicio.agendable
+    fila.duracion_estandar_min = servicio.duracion_estandar_min
+    fila.origen = servicio.origen.value
+    fila.presente_en_planilla = servicio.presente_en_planilla
+    fila.activo = servicio.activo
+    fila.created_at = servicio.creado_en
+    fila.updated_at = servicio.actualizado_en
+
+
+ConsultaDeServicio = Select[tuple[ServicioORM]]
+
+
+def _filtrar_servicios(
+    consulta: ConsultaDeServicio, filtros: FiltrosDeServicio
+) -> ConsultaDeServicio:
+    if filtros.texto:
+        consulta = consulta.where(func.lower(ServicioORM.nombre).like(f"%{filtros.texto.lower()}%"))
+    if filtros.agendable is not None:
+        consulta = consulta.where(ServicioORM.agendable.is_(filtros.agendable))
+    if filtros.solo_activos:
+        consulta = consulta.where(ServicioORM.activo.is_(True))
+    return consulta
+
+
+class RepositorioServicioPostgres:
+    """Implements `PortRepositorioServicio`.
+
+    Shorter than the client one because there is nothing to translate: no unique index to
+    catch, no external lookup to name. The company filter is the RLS policy, as always.
+    """
+
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._sesion = sesion
+
+    async def agregar(self, servicio: Servicio) -> None:
+        fila = ServicioORM(id=servicio.id)
+        _volcar_servicio(servicio, fila)
+        self._sesion.add(fila)
+        await self._sesion.flush()
+
+    async def guardar(self, servicio: Servicio) -> None:
+        fila = await self._sesion.get(ServicioORM, servicio.id)
+        if fila is None:
+            await self.agregar(servicio)
+            return
+        _volcar_servicio(servicio, fila)
+        await self._sesion.flush()
+
+    async def buscar_por_id(self, servicio_id: UUID) -> Servicio | None:
+        fila = await self._sesion.get(ServicioORM, servicio_id)
+        return _servicio_a_dominio(fila) if fila is not None else None
+
+    async def listar(
+        self, *, empresa_id: EmpresaId, filtros: FiltrosDeServicio, pagina: Pagina
+    ) -> tuple[Sequence[Servicio], int]:
+        base = select(ServicioORM).where(ServicioORM.empresa_id == empresa_id)
+        filtrada = _filtrar_servicios(base, filtros)
+        total = await self._sesion.scalar(select(func.count()).select_from(filtrada.subquery()))
+        filas = await self._sesion.scalars(
+            filtrada.order_by(ServicioORM.nombre).limit(pagina.limite).offset(pagina.desplazamiento)
+        )
+        return [_servicio_a_dominio(fila) for fila in filas], int(total or 0)

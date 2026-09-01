@@ -1,17 +1,27 @@
 """Persistence models of the master data context (DER, BC2).
 
-One table for now. `servicio` and `categoria_empresa` arrive with the units that own
-them, and `cliente.categoria_id` never does: decision D8 of the epic 3 map replaces that
-column with a link table, because HU-E4-04 RN-02 lets one client carry several
-categories and a single foreign key cannot.
+Two tables. `categoria_empresa` arrives with the unit that owns it, and the
+`categoria_id` the DER puts on both of these never does: decision D8 of the epic 3 map
+replaces that column with link tables, because HU-E4-04 RN-02 lets one element carry
+several categories and a single foreign key cannot.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -58,3 +68,33 @@ class ClienteORM(Base):
             postgresql_where=text("cuit IS NOT NULL"),
         ),
     )
+
+
+TABLA_SERVICIO = "servicio"
+
+
+class ServicioORM(Base):
+    __tablename__ = TABLA_SERVICIO
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("empresa.id", ondelete="CASCADE"), nullable=False
+    )
+    nombre: Mapped[str] = mapped_column(String(200), nullable=False)
+    # `NUMERIC`, never `FLOAT` (code-standards §2.5). Twelve integer digits is a
+    # thousand million pesos, which is headroom worth having with inflation.
+    precio: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    # Scale 4 so `0.105` fits exactly. With scale 2 it would be stored as `0.11` and the
+    # VAT of epic 5 would come out wrong on every reduced-rate line.
+    alicuota_iva: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
+    agendable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    duracion_estandar_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    origen: Mapped[str] = mapped_column(String(20), nullable=False)
+    presente_en_planilla: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # No unique index: services have no uniqueness rule. Two branches may both sell a
+    # "Corte", and no story says otherwise.
+    __table_args__ = (Index("ix_servicio_empresa", "empresa_id"),)

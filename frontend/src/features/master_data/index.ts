@@ -31,3 +31,23 @@ export type {
   OrigenDato,
   ResultadoDePadron,
 } from "./api/cliente";
+
+export { ListadoDeServicios } from "./components/ListadoDeServicios";
+export type { PropsDeListadoDeServicios } from "./components/ListadoDeServicios";
+export { FormularioDeServicio } from "./components/FormularioDeServicio";
+export type { PropsDeFormularioDeServicio } from "./components/FormularioDeServicio";
+export {
+  ETIQUETAS_DE_ALICUOTA,
+  ErrorDeServicio,
+  cambiarEstadoDeServicio,
+  crearServicio,
+  editarServicio,
+  listarServicios,
+} from "./api/servicio";
+export type {
+  AlicuotaIVA,
+  DatosDeServicio,
+  FiltrosDeServicios,
+  ListadoDeServicios as ListadoDeServiciosRespuesta,
+  Servicio,
+} from "./api/servicio";

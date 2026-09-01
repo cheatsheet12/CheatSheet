@@ -98,6 +98,7 @@ BORRADOS = (
     "DELETE FROM registro_de_auditoria",
     "DELETE FROM ticket_de_acceso",
     "DELETE FROM configuracion_de_integracion",
+    "DELETE FROM servicio",
     "DELETE FROM cliente",
     "DELETE FROM invitacion",
     "DELETE FROM refresh_token",

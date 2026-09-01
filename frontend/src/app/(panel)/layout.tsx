@@ -57,6 +57,7 @@ export default async function PanelLayout({
         <nav aria-label="Secciones" className="panel__nav">
           <Link href="/panel">Inicio</Link>
           <Link href="/datos-maestros/clientes">Clientes</Link>
+          <Link href="/datos-maestros/servicios">Servicios</Link>
           <Link href="/configuracion/empresa">Empresa</Link>
           <Link href="/configuracion/usuarios">Usuarios</Link>
           <Link href="/configuracion/integraciones">Integraciones</Link>
