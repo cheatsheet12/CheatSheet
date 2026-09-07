@@ -13,7 +13,7 @@
 import { redirect } from "next/navigation";
 
 import { IngestaDePlanillas } from "@/features/spreadsheet_sync";
-import type { ListadoDeVinculos } from "@/features/spreadsheet_sync";
+import type { ListadoDeCargas, ListadoDeVinculos } from "@/features/spreadsheet_sync";
 import { llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
 
@@ -27,7 +27,12 @@ export default async function PaginaDeIngesta(): Promise<JSX.Element> {
     redirect("/");
   }
 
-  const listado = await llamarApi<ListadoDeVinculos>("/planillas");
+  // Las dos lecturas en paralelo: son independientes y la pantalla necesita las dos para
+  // su primer render.
+  const [listado, cargas] = await Promise.all([
+    llamarApi<ListadoDeVinculos>("/planillas"),
+    llamarApi<ListadoDeCargas>("/planillas/cargas"),
+  ]);
 
   return (
     <>
@@ -36,7 +41,11 @@ export default async function PaginaDeIngesta(): Promise<JSX.Element> {
         Traé tus clientes y servicios desde una planilla. Podés subir un archivo o vincular una
         hoja de Google para que se sincronice sola.
       </p>
-      <IngestaDePlanillas inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />
+      <IngestaDePlanillas
+        inicial={listado}
+        cargasIniciales={cargas.cargas}
+        puedeEditar={claims.rol === "ADMINISTRADOR"}
+      />
     </>
   );
 }

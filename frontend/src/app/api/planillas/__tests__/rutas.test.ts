@@ -55,7 +55,14 @@ const { POST: postConfirmacion } = await import(
   "@/app/api/planillas/mapeos/[mapeoId]/confirmacion/route"
 );
 
+const { GET: getCargas, POST: postCarga } = await import("@/app/api/planillas/cargas/route");
+const { GET: getCarga } = await import("@/app/api/planillas/cargas/[cargaId]/route");
+const { POST: postReproceso } = await import(
+  "@/app/api/planillas/cargas/[cargaId]/reproceso/route"
+);
+
 const MAPEO_ID = "3f1c2b8e-0000-4000-8000-000000000050";
+const CARGA_ID = "3f1c2b8e-0000-4000-8000-000000000060";
 
 function pedidoJson(cuerpo: unknown): Request {
   return new Request("http://localhost/x", { method: "POST", body: JSON.stringify(cuerpo) });
@@ -83,6 +90,8 @@ describe("sin sesion", () => {
       postGoogle(new Request("http://localhost/api/planillas/google", { method: "POST" })),
       postArchivo(pedidoDeSubida("clientes.xlsx")),
       postMapeo(new Request("http://localhost/x", { method: "POST", body: "{}" })),
+      postCarga(new Request("http://localhost/x", { method: "POST", body: "{}" })),
+      getCargas(new Request("http://localhost/api/planillas/cargas")),
       deletePlanilla(new Request("http://localhost"), { params: { vinculoId: VINCULO_ID } }),
     ]);
 
@@ -187,6 +196,27 @@ describe("con sesion", () => {
       "/planillas/mapeos",
       `/planillas/mapeos/${MAPEO_ID}/columnas`,
       `/planillas/mapeos/${MAPEO_ID}/confirmacion`,
+    ]);
+  });
+
+  it("encola, lista, consulta y reprocesa una carga", async () => {
+    cookieDeSesion = "token";
+    llamarApi.mockResolvedValue({ cargas: [] });
+
+    await postCarga(pedidoJson({ vinculo_id: "v1" }));
+    await getCargas(new Request("http://localhost/api/planillas/cargas?vinculo_id=v1"));
+    await getCarga(new Request("http://localhost/x"), { params: { cargaId: CARGA_ID } });
+    await postReproceso(new Request("http://localhost/x", { method: "POST" }), {
+      params: { cargaId: CARGA_ID },
+    });
+
+    const rutas = llamarApi.mock.calls.map(([ruta]) => ruta as string);
+    expect(rutas).toEqual([
+      "/planillas/cargas",
+      // El query string se reenvia entero: este archivo no aprende los filtros.
+      "/planillas/cargas?vinculo_id=v1",
+      `/planillas/cargas/${CARGA_ID}`,
+      `/planillas/cargas/${CARGA_ID}/reproceso`,
     ]);
   });
 

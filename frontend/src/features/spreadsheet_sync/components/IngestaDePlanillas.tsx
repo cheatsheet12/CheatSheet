@@ -22,20 +22,27 @@ import { useRef, useState } from "react";
 import { Alert, Badge, Button, Card, Tabla } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
+import Link from "next/link";
+
 import {
+  ETIQUETAS_DE_ESTADO,
   ETIQUETAS_DE_PROVEEDOR,
   EXTENSIONES_ACEPTADAS,
   ErrorDePlanilla,
   LIMITE_TAMANO_MB,
   desvincularPlanilla,
   iniciarVinculacionConGoogle,
+  listarCargas,
   listarPlanillas,
+  procesarPlanilla,
   subirPlanilla,
 } from "../api/planilla";
-import type { ListadoDeVinculos, Vinculo } from "../api/planilla";
+import type { Carga, ListadoDeVinculos, Vinculo } from "../api/planilla";
 
 export interface PropsDeIngesta {
   readonly inicial: ListadoDeVinculos;
+  /** `Cargas recientes` de PAN-ING-01. Lo lee todo rol (HU-E3-05 RN-04). */
+  readonly cargasIniciales: readonly Carga[];
   readonly puedeEditar: boolean;
 }
 
@@ -58,8 +65,39 @@ function tamanoLegible(bytes: number | null): string {
   return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-export function IngestaDePlanillas({ inicial, puedeEditar }: PropsDeIngesta): JSX.Element {
+/** `Cargas recientes`: el estado y los tres contadores que pide HU-E3-03. */
+const COLUMNAS_DE_CARGA: readonly Columna<Carga>[] = [
+  {
+    clave: "estado",
+    titulo: "Estado",
+    celda: (carga) => (
+      <Badge estado={carga.estado === "FALLIDO" ? "error" : "ok"}>
+        {ETIQUETAS_DE_ESTADO[carga.estado]}
+      </Badge>
+    ),
+  },
+  {
+    clave: "filas",
+    titulo: "Filas",
+    // El criterio de HU-E3-03: «indicando la cantidad de filas validas y fallidas».
+    celda: (carga) => `${carga.filas_ok} de ${carga.filas_totales}`,
+  },
+  { clave: "errores", titulo: "Con error", celda: (carga) => carga.filas_error },
+  {
+    clave: "detalle",
+    titulo: "Detalle",
+    alDerecha: true,
+    celda: (carga) => <Link href={`/ingesta/${carga.id}`}>Ver detalle</Link>,
+  },
+];
+
+export function IngestaDePlanillas({
+  inicial,
+  cargasIniciales,
+  puedeEditar,
+}: PropsDeIngesta): JSX.Element {
   const [listado, setListado] = useState<ListadoDeVinculos>(inicial);
+  const [cargas, setCargas] = useState<readonly Carga[]>(cargasIniciales);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -68,6 +106,21 @@ export function IngestaDePlanillas({ inicial, puedeEditar }: PropsDeIngesta): JS
 
   async function refrescar(): Promise<void> {
     setListado(await listarPlanillas());
+    setCargas((await listarCargas()).cargas);
+  }
+
+  async function procesar(vinculo: Vinculo): Promise<void> {
+    setError(null);
+    setAviso(null);
+    try {
+      await procesarPlanilla(vinculo.id);
+      // 202: el trabajo fue aceptado, no hecho. Decir «procesada» aca seria mentir sobre
+      // una importacion que recien empieza (HU-E3-03 RN-01).
+      setAviso("Empezamos a procesar la planilla. El resultado va a aparecer en Cargas recientes.");
+      await refrescar();
+    } catch (problema) {
+      reportar(problema);
+    }
   }
 
   function reportar(problema: unknown): void {
@@ -155,15 +208,27 @@ export function IngestaDePlanillas({ inicial, puedeEditar }: PropsDeIngesta): JS
     titulo: "Acciones",
     alDerecha: true,
     celda: (vinculo) => (
-      <Button
-        variante="destructivo"
-        confirmacion="Vas a desvincular esta planilla. Los datos que ya se importaron se quedan; solo se corta la conexion."
-        onClick={() => {
-          void desvincular(vinculo);
-        }}
-      >
-        Desvincular
-      </Button>
+      <>
+        {vinculo.tiene_mapeo && (
+          <Button
+            variante="secundario"
+            onClick={() => {
+              void procesar(vinculo);
+            }}
+          >
+            Procesar
+          </Button>
+        )}
+        <Button
+          variante="destructivo"
+          confirmacion="Vas a desvincular esta planilla. Los datos que ya se importaron se quedan; solo se corta la conexion."
+          onClick={() => {
+            void desvincular(vinculo);
+          }}
+        >
+          Desvincular
+        </Button>
+      </>
     ),
   };
 
@@ -225,11 +290,19 @@ export function IngestaDePlanillas({ inicial, puedeEditar }: PropsDeIngesta): JS
       )}
 
       <Tabla
-        titulo="Cargas recientes"
+        titulo="Planillas vinculadas"
         columnas={columnas}
         filas={listado.vinculos}
         claveDeFila={(vinculo) => vinculo.id}
         vacia="Todavia no vinculaste ninguna planilla."
+      />
+
+      <Tabla
+        titulo="Cargas recientes"
+        columnas={COLUMNAS_DE_CARGA}
+        filas={cargas}
+        claveDeFila={(carga) => carga.id}
+        vacia="Todavia no procesaste ninguna planilla."
       />
     </>
   );

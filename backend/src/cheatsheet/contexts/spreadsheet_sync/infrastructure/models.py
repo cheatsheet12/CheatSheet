@@ -121,3 +121,64 @@ class EntradaDeMapeoORM(Base):
     corregida_a_mano: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (Index("ix_entrada_mapeo", "mapeo_id"),)
+
+
+TABLA_PROCESAMIENTO = "procesamiento_de_planilla"
+TABLA_ERROR = "error_de_fila"
+
+
+class ProcesamientoDePlanillaORM(Base):
+    """The DER's `procesamiento_de_planilla` (BC5), plus `origen_id`.
+
+    `origen_id` is HU-E3-06 RN-03: a reprocessing is «un nuevo procesamiento vinculado al
+    original». Without the column the history reads as two unrelated imports, and the
+    screen cannot say «reintento de la carga del martes».
+    """
+
+    __tablename__ = TABLA_PROCESAMIENTO
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    vinculo_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    mapeo_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    origen_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
+
+    estado: Mapped[str] = mapped_column(String(20), nullable=False)
+    filas_totales: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    filas_ok: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    filas_error: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duracion_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    referencia_archivo: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        # `Cargas recientes` reads this company's runs newest first, and PAN-ING-03 reads
+        # one link's history. Both go through these two.
+        Index("ix_procesamiento_empresa_created", "empresa_id", "created_at"),
+        Index("ix_procesamiento_vinculo", "vinculo_id"),
+    )
+
+
+class ErrorDeFilaORM(Base):
+    """An internal entity of the processing (DER BC5), with `empresa_id` denormalised.
+
+    Same reasoning as `entrada_de_mapeo`: the DER protects internal entities through their
+    parent, and a policy that has to join is one missing index away from being the slowest
+    thing in the context. A failed import writes thousands of these.
+    """
+
+    __tablename__ = TABLA_ERROR
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    procesamiento_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+
+    numero_fila: Mapped[int] = mapped_column(Integer, nullable=False)
+    motivo: Mapped[str] = mapped_column(String(300), nullable=False)
+
+    __table_args__ = (
+        # PAN-ING-03 lists a run's failures in the order the spreadsheet has them, which
+        # is the order somebody scrolling their own file will look for.
+        Index("ix_error_procesamiento_fila", "procesamiento_id", "numero_fila"),
+    )

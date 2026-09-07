@@ -779,3 +779,24 @@
   font-size: var(--texto-xs);
   letter-spacing: 0.08em;
 }
+
+/* PAN-ING-03 — el resumen de una carga (HU-E3-05 RN-01).
+   Una lista de definiciones y no una tabla: son tres pares etiqueta/valor, y una tabla de
+   una fila le miente al lector de pantalla sobre lo que está mirando. */
+.resumen-de-carga {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--espacio-md);
+  margin: var(--espacio-lg) 0;
+}
+
+.resumen-de-carga dt {
+  color: var(--color-texto-secundario);
+  font-size: var(--texto-sm);
+}
+
+.resumen-de-carga dd {
+  font-size: var(--texto-xl);
+  font-weight: 600;
+  margin: 0;
+}

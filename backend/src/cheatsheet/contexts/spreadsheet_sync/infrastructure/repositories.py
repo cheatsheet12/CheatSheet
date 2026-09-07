@@ -17,6 +17,11 @@ from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import (
     EstadoMapeo,
     Mapeo,
 )
+from cheatsheet.contexts.spreadsheet_sync.domain.procesamiento import (
+    ErrorDeFila,
+    EstadoProcesamiento,
+    ProcesamientoDePlanilla,
+)
 from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
     DireccionSync,
     ProveedorPlanilla,
@@ -25,7 +30,9 @@ from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.models import (
     EntradaDeMapeoORM,
+    ErrorDeFilaORM,
     MapeoORM,
+    ProcesamientoDePlanillaORM,
     VinculoDePlanillaORM,
 )
 from cheatsheet.shared.empresa import EmpresaId
@@ -224,3 +231,104 @@ class RepositorioMapeoPostgres:
                     corregida_a_mano=entrada.corregida_a_mano,
                 )
             )
+
+
+def _procesamiento_a_dominio(
+    fila: ProcesamientoDePlanillaORM, errores: list[ErrorDeFilaORM]
+) -> ProcesamientoDePlanilla:
+    return ProcesamientoDePlanilla(
+        id=fila.id,
+        empresa_id=EmpresaId(fila.empresa_id),
+        vinculo_id=fila.vinculo_id,
+        mapeo_id=fila.mapeo_id,
+        estado=EstadoProcesamiento(fila.estado),
+        filas_totales=fila.filas_totales,
+        filas_ok=fila.filas_ok,
+        filas_error=fila.filas_error,
+        duracion_ms=fila.duracion_ms,
+        referencia_archivo=fila.referencia_archivo,
+        origen_id=fila.origen_id,
+        errores=[ErrorDeFila(id=e.id, numero_fila=e.numero_fila, motivo=e.motivo) for e in errores],
+        created_at=fila.created_at,
+    )
+
+
+class RepositorioProcesamientoPostgres:
+    """Processings and their row errors, backed by PostgreSQL.
+
+    `actualizar` inserts only the errors that are not stored yet, rather than replacing
+    them all. A failed import of forty thousand rows produces thousands of errors, and
+    delete-and-reinsert on every save would rewrite the lot on each call.
+    """
+
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._sesion = sesion
+
+    async def agregar(self, procesamiento: ProcesamientoDePlanilla) -> None:
+        self._sesion.add(
+            ProcesamientoDePlanillaORM(
+                id=procesamiento.id,
+                empresa_id=procesamiento.empresa_id,
+                vinculo_id=procesamiento.vinculo_id,
+                mapeo_id=procesamiento.mapeo_id,
+                origen_id=procesamiento.origen_id,
+                estado=procesamiento.estado.value,
+                filas_totales=procesamiento.filas_totales,
+                filas_ok=procesamiento.filas_ok,
+                filas_error=procesamiento.filas_error,
+                duracion_ms=procesamiento.duracion_ms,
+                referencia_archivo=procesamiento.referencia_archivo,
+                created_at=procesamiento.created_at,
+            )
+        )
+        await self._sesion.flush()
+
+    async def actualizar(self, procesamiento: ProcesamientoDePlanilla) -> None:
+        fila = await self._sesion.get(ProcesamientoDePlanillaORM, procesamiento.id)
+        if fila is None:
+            raise LookupError(f"El procesamiento {procesamiento.id} no existe para esta empresa")
+        fila.estado = procesamiento.estado.value
+        fila.filas_totales = procesamiento.filas_totales
+        fila.filas_ok = procesamiento.filas_ok
+        fila.filas_error = procesamiento.filas_error
+        fila.duracion_ms = procesamiento.duracion_ms
+
+        guardados = {e.id for e in await self._errores_de(procesamiento.id)}
+        for error in procesamiento.errores:
+            if error.id in guardados:
+                continue
+            self._sesion.add(
+                ErrorDeFilaORM(
+                    id=error.id,
+                    procesamiento_id=procesamiento.id,
+                    empresa_id=procesamiento.empresa_id,
+                    numero_fila=error.numero_fila,
+                    motivo=error.motivo,
+                )
+            )
+        await self._sesion.flush()
+
+    async def buscar_por_id(self, procesamiento_id: UUID) -> ProcesamientoDePlanilla | None:
+        fila = await self._sesion.get(ProcesamientoDePlanillaORM, procesamiento_id)
+        if fila is None:
+            return None
+        return _procesamiento_a_dominio(fila, await self._errores_de(procesamiento_id))
+
+    async def listar(self, *, vinculo_id: UUID | None = None) -> list[ProcesamientoDePlanilla]:
+        sentencia = select(ProcesamientoDePlanillaORM).order_by(
+            ProcesamientoDePlanillaORM.created_at.desc()
+        )
+        if vinculo_id is not None:
+            sentencia = sentencia.where(ProcesamientoDePlanillaORM.vinculo_id == vinculo_id)
+        filas = (await self._sesion.execute(sentencia)).scalars().all()
+        # The listing shows counters, not the thousands of row errors behind them:
+        # PAN-ING-03 is where those are read, one processing at a time.
+        return [_procesamiento_a_dominio(fila, []) for fila in filas]
+
+    async def _errores_de(self, procesamiento_id: UUID) -> list[ErrorDeFilaORM]:
+        sentencia = (
+            select(ErrorDeFilaORM)
+            .where(ErrorDeFilaORM.procesamiento_id == procesamiento_id)
+            .order_by(ErrorDeFilaORM.numero_fila)
+        )
+        return list((await self._sesion.execute(sentencia)).scalars().all())

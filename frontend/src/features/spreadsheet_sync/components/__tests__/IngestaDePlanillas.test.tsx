@@ -10,12 +10,14 @@
  */
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listarPlanillas = vi.fn();
 const subirPlanilla = vi.fn();
 const desvincularPlanilla = vi.fn();
 const iniciarVinculacionConGoogle = vi.fn();
+const listarCargas = vi.fn();
+const procesarPlanilla = vi.fn();
 
 vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
   const real =
@@ -28,10 +30,12 @@ vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
     subirPlanilla: (...args: unknown[]) => subirPlanilla(...args),
     desvincularPlanilla: (...args: unknown[]) => desvincularPlanilla(...args),
     iniciarVinculacionConGoogle: (...args: unknown[]) => iniciarVinculacionConGoogle(...args),
+    listarCargas: (...args: unknown[]) => listarCargas(...args),
+    procesarPlanilla: (...args: unknown[]) => procesarPlanilla(...args),
   };
 });
 
-import type { ListadoDeVinculos, Vinculo } from "@/features/spreadsheet_sync";
+import type { Carga, ListadoDeVinculos, Vinculo } from "@/features/spreadsheet_sync";
 import { ErrorDePlanilla, MENSAJE_ARCHIVO_DEMASIADO_GRANDE } from "@/features/spreadsheet_sync";
 
 const { IngestaDePlanillas } = await import(
@@ -55,6 +59,16 @@ const VINCULO: Vinculo = {
 
 const INICIAL: ListadoDeVinculos = { vinculos: [VINCULO] };
 
+const CARGA: Carga = {
+  id: "c1",
+  estado: "CON_ERRORES",
+  filas_totales: 100,
+  filas_ok: 98,
+  filas_error: 2,
+  es_reproceso: false,
+  created_at: "2026-09-07T12:00:00Z",
+};
+
 beforeAll(() => {
   // `Button variante="destructivo"` confirma con `window.confirm`, que jsdom no implementa.
   vi.stubGlobal("confirm", () => true);
@@ -65,13 +79,20 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+beforeEach(() => {
+  // `refrescar()` relee las dos tablas de la pantalla. Sin este doble, cualquier accion
+  // que refresque termina en el camino de error y el test afirma sobre el mensaje
+  // equivocado.
+  listarCargas.mockResolvedValue({ cargas: [] });
+});
+
 function archivo(nombre: string): File {
   return new File([new Uint8Array(10)], nombre);
 }
 
 describe("IngestaDePlanillas", () => {
   it("muestra las cargas recientes con su proveedor y su estado", () => {
-    render(<IngestaDePlanillas inicial={INICIAL} puedeEditar />);
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
 
     expect(screen.getByText("clientes.xlsx")).toBeTruthy();
     expect(screen.getByText("Archivo subido")).toBeTruthy();
@@ -81,7 +102,7 @@ describe("IngestaDePlanillas", () => {
   });
 
   it("no ofrece la zona de carga a un rol que no puede escribir", () => {
-    render(<IngestaDePlanillas inicial={INICIAL} puedeEditar={false} />);
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar={false} />);
 
     expect(screen.queryByLabelText("Elegir una planilla")).toBeNull();
     expect(screen.queryByText("Desvincular")).toBeNull();
@@ -91,7 +112,7 @@ describe("IngestaDePlanillas", () => {
 
   it("muestra en pantalla el mensaje exacto con el que se rechaza un archivo", async () => {
     subirPlanilla.mockRejectedValue(new ErrorDePlanilla(MENSAJE_ARCHIVO_DEMASIADO_GRANDE));
-    render(<IngestaDePlanillas inicial={INICIAL} puedeEditar />);
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
 
     fireEvent.change(screen.getByLabelText("Elegir una planilla"), {
       target: { files: [archivo("grande.xlsx")] },
@@ -107,7 +128,7 @@ describe("IngestaDePlanillas", () => {
     listarPlanillas.mockResolvedValue({
       vinculos: [{ ...VINCULO, id: "v2", nombre_archivo: "nuevos.csv" }],
     });
-    render(<IngestaDePlanillas inicial={INICIAL} puedeEditar />);
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
 
     fireEvent.change(screen.getByLabelText("Elegir una planilla"), {
       target: { files: [archivo("nuevos.csv")] },
@@ -122,7 +143,7 @@ describe("IngestaDePlanillas", () => {
   it("desvincula y avisa que los datos importados se quedan", async () => {
     desvincularPlanilla.mockResolvedValue(undefined);
     listarPlanillas.mockResolvedValue({ vinculos: [] });
-    render(<IngestaDePlanillas inicial={INICIAL} puedeEditar />);
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
 
     fireEvent.click(screen.getByText("Desvincular"));
 
@@ -132,12 +153,49 @@ describe("IngestaDePlanillas", () => {
     });
   });
 
+  it("muestra las cargas recientes con sus tres contadores", () => {
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[CARGA]} puedeEditar />);
+
+    // El criterio de HU-E3-03: «indicando la cantidad de filas validas y fallidas».
+    expect(screen.getByText("Con errores")).toBeTruthy();
+    expect(screen.getByText("98 de 100")).toBeTruthy();
+    expect(screen.getByText("Ver detalle")).toBeTruthy();
+  });
+
+  it("encola el procesamiento y avisa que recien empieza", async () => {
+    procesarPlanilla.mockResolvedValue(undefined);
+    listarPlanillas.mockResolvedValue(INICIAL);
+    render(
+      <IngestaDePlanillas
+        inicial={{ vinculos: [{ ...VINCULO, tiene_mapeo: true }] }}
+        cargasIniciales={[]}
+        puedeEditar
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Procesar"));
+
+    await waitFor(() => {
+      expect(procesarPlanilla).toHaveBeenCalledWith("v1");
+      // 202: aceptado, no hecho. Decir «procesada» seria mentir sobre una importacion que
+      // recien arranca (HU-E3-03 RN-01).
+      expect(screen.getByText(/Empezamos a procesar/)).toBeTruthy();
+    });
+  });
+
+  it("no ofrece procesar una planilla sin mapeo confirmado", () => {
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
+
+    expect(screen.queryByText("Procesar")).toBeNull();
+  });
+
   it("informa cuando una planilla esta pausada porque cambio su estructura", () => {
     render(
       <IngestaDePlanillas
         inicial={{
           vinculos: [{ ...VINCULO, pausado: true, motivo_de_pausa: "cambio la estructura" }],
         }}
+        cargasIniciales={[]}
         puedeEditar
       />,
     );

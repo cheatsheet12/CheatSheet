@@ -12,12 +12,15 @@ has to stop here rather than reaching a use case.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
 from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import Mapeo
+from cheatsheet.contexts.spreadsheet_sync.domain.procesamiento import ProcesamientoDePlanilla
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
+from cheatsheet.shared.empresa import EmpresaId
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,3 +154,94 @@ class PortModeloDeLenguaje(Protocol):
     async def proponer_mapeo(
         self, *, columnas: tuple[str, ...], atributos: tuple[str, ...]
     ) -> tuple[Asignacion, ...]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class FilaParaIngerir:
+    """One mapped row, in this context's words, on its way to `master_data`.
+
+    A plain dict of attribute name to text. It is deliberately not `master_data`'s own
+    `FilaDeCatalogo`: naming that type here would make `spreadsheet_sync/application`
+    depend on another context's application layer, and rule R3 has the edge going through
+    an adapter instead. The translation happens once, in that adapter.
+    """
+
+    valores: dict[str, str]
+
+
+class PortIngestaDeCatalogo(Protocol):
+    """The edge `spreadsheet_sync -> master_data` of the Context Map.
+
+    Declared here, implemented by an adapter that calls `master_data`'s own application
+    service. That indirection is the rule R3 boundary made visible: this context knows
+    that rows go somewhere and get written, and nothing about what a `Cliente` is.
+    """
+
+    async def ingerir(
+        self, *, empresa_id: EmpresaId, fila: FilaParaIngerir, ahora: datetime
+    ) -> None:
+        """Write one row. Raises `ErrorDeDominio` when the row is the problem.
+
+        That exception type is the contract: the processing turns it into an `ErrorDeFila`
+        with the row's original number and keeps going (HU-E3-03 RN-02). Anything else
+        raised here is a bug and is allowed to stop the run.
+        """
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class FilaLeida:
+    """One row, as text, with the number the spreadsheet gives it.
+
+    Text and not typed values on purpose: a spreadsheet cell *is* text, and deciding that
+    `"1.234,50"` is a price is `master_data`'s job, at the point where getting it wrong
+    becomes an `ErrorDeFila` with a row number instead of a silent 1.23450.
+    """
+
+    numero: int
+    celdas: dict[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class PlanillaLeida:
+    """A workbook reduced to what the ingestion needs: headers and rows.
+
+    Lives here and not beside the adapter for the reason rule R2 gives, and that the
+    architecture guard already enforced once in this unit: a use case that named a type
+    from `infrastructure/` would be a use case bound to one reader.
+    """
+
+    columnas: tuple[str, ...]
+    filas: tuple[FilaLeida, ...]
+
+    def solo(self, numeros: tuple[int, ...]) -> PlanillaLeida:
+        """The subset a reprocessing needs (HU-E3-06 RN-02): the rows that failed."""
+        buscados = set(numeros)
+        return PlanillaLeida(
+            columnas=self.columnas, filas=tuple(f for f in self.filas if f.numero in buscados)
+        )
+
+
+class PortLectorDePlanilla(Protocol):
+    """Turns bytes into headers and rows. Validates nothing -- see the adapter."""
+
+    def leer(self, *, contenido: bytes, nombre: str) -> PlanillaLeida: ...
+
+
+class PortRepositorioProcesamiento(Protocol):
+    """Persistence of processings and their row errors.
+
+    No `eliminar`: a processing is the record of an import that already wrote into the
+    catalogue, and HU-E3-05 exists so somebody can read it afterwards. Deleting one leaves
+    rows in `master_data` whose provenance nothing explains.
+    """
+
+    async def agregar(self, procesamiento: ProcesamientoDePlanilla) -> None: ...
+
+    async def actualizar(self, procesamiento: ProcesamientoDePlanilla) -> None: ...
+
+    async def buscar_por_id(self, procesamiento_id: UUID) -> ProcesamientoDePlanilla | None: ...
+
+    async def listar(self, *, vinculo_id: UUID | None = None) -> list[ProcesamientoDePlanilla]:
+        """Newest first. Without a link, every processing of the company."""
+        ...

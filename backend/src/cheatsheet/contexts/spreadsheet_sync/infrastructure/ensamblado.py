@@ -24,6 +24,7 @@ from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     PortModeloDeLenguaje,
     PortProveedorDePlanilla,
     PortRepositorioMapeo,
+    PortRepositorioProcesamiento,
     PortRepositorioVinculo,
 )
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.almacenamiento import (
@@ -43,6 +44,7 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.modelo import (
 )
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.repositories import (
     RepositorioMapeoPostgres,
+    RepositorioProcesamientoPostgres,
     RepositorioVinculoPostgres,
 )
 from cheatsheet.platform.settings import (
@@ -59,12 +61,14 @@ class Planillas:
 
     vinculos: PortRepositorioVinculo
     mapeos: PortRepositorioMapeo
+    procesamientos: PortRepositorioProcesamiento
 
     @classmethod
     def armar(cls, unidad: UnidadDeTrabajo) -> Planillas:
         return cls(
             vinculos=RepositorioVinculoPostgres(unidad.sesion),
             mapeos=RepositorioMapeoPostgres(unidad.sesion),
+            procesamientos=RepositorioProcesamientoPostgres(unidad.sesion),
         )
 
 

@@ -30,12 +30,18 @@ from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.contexts.spreadsheet_sync.application.errors import (
     ArchivoDemasiadoGrande,
     PermisosDePlanillaInsuficientes,
+    ProveedorDePlanillaNoDisponible,
 )
 from cheatsheet.contexts.spreadsheet_sync.application.mapeos import (
     ConfirmarMapeo,
     CorregirMapeo,
     ProponerMapeo,
     VistaDeMapeo,
+)
+from cheatsheet.contexts.spreadsheet_sync.application.procesamientos import (
+    ConsultarProcesamiento,
+    ListarProcesamientos,
+    PrepararReproceso,
 )
 from cheatsheet.contexts.spreadsheet_sync.application.vinculos import (
     ConfirmarVinculacionConGoogle,
@@ -45,6 +51,10 @@ from cheatsheet.contexts.spreadsheet_sync.application.vinculos import (
     SubirPlanilla,
 )
 from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import NivelDeConfianza
+from cheatsheet.contexts.spreadsheet_sync.domain.procesamiento import (
+    EstadoProcesamiento,
+    ProcesamientoDePlanilla,
+)
 from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
     LIMITE_TAMANO_BYTES,
     MENSAJE_ARCHIVO_DEMASIADO_GRANDE,
@@ -59,7 +69,9 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.ensamblado import (
     proveedor_de_planilla,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.roles import RolUsuario
+from cheatsheet.workers.tasks_spreadsheet import encolar_procesamiento
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel
 
@@ -99,6 +111,56 @@ class VinculoSalida(BaseModel):
 
 class ListadoDeVinculosSalida(BaseModel):
     vinculos: list[VinculoSalida]
+
+
+class ProcesamientoEntrada(BaseModel):
+    vinculo_id: UUID
+
+
+class EncoladoSalida(BaseModel):
+    """The answer to a 202: the work was accepted, not done."""
+
+    encolado: bool
+
+
+class ErrorDeFilaSalida(BaseModel):
+    """HU-E3-05 RN-02: the row number of the original file, and why it failed."""
+
+    numero_fila: int
+    motivo: str
+
+
+class CargaSalida(BaseModel):
+    id: UUID
+    estado: EstadoProcesamiento
+    filas_totales: int
+    filas_ok: int
+    filas_error: int
+    es_reproceso: bool
+    created_at: datetime
+
+
+class ListadoDeCargasSalida(BaseModel):
+    cargas: list[CargaSalida]
+
+
+class DetalleDeCargaSalida(BaseModel):
+    carga: CargaSalida
+    errores: list[ErrorDeFilaSalida]
+    #: False for Solo Lectura (RN-04), and also when nothing failed.
+    puede_reprocesar: bool
+
+
+def _carga_a_salida(procesamiento: ProcesamientoDePlanilla) -> CargaSalida:
+    return CargaSalida(
+        id=procesamiento.id,
+        estado=procesamiento.estado,
+        filas_totales=procesamiento.filas_totales,
+        filas_ok=procesamiento.filas_ok,
+        filas_error=procesamiento.filas_error,
+        es_reproceso=procesamiento.es_reproceso,
+        created_at=procesamiento.created_at,
+    )
 
 
 class ColumnaEntrada(BaseModel):
@@ -204,6 +266,9 @@ def crear_router(recursos: Recursos) -> APIRouter:
     router.include_router(_rutas_de_google(recursos), prefix="/planillas")
     router.include_router(_rutas_de_vinculos(recursos), prefix="/planillas")
     router.include_router(_rutas_de_mapeo(recursos), prefix="/planillas/mapeos")
+    router.include_router(_rutas_de_procesamiento(recursos), prefix="/planillas/cargas")
+    router.include_router(_rutas_de_lectura_de_cargas(recursos), prefix="/planillas/cargas")
+    router.include_router(_rutas_de_reproceso(recursos), prefix="/planillas/cargas")
     return router
 
 
@@ -445,3 +510,116 @@ def _exigir(salida: VinculoSalida | None) -> VinculoSalida:
 
 
 __all__ = ["COOKIE_ESTADO", "crear_router"]
+
+
+def _rutas_de_procesamiento(recursos: Recursos) -> APIRouter:
+    """The two operations that *start* work: processing and reprocessing (202).
+
+    Split from the reads below for the reason the clients router gives -- one function
+    with every route crosses the complexity ceiling of CLAUDE.md section 5 -- and the split
+    that means something here is between what enqueues work and what looks at its result.
+    """
+    router = APIRouter()
+
+    @router.post("", status_code=status.HTTP_202_ACCEPTED)
+    async def procesar(request: Request, entrada: ProcesamientoEntrada) -> EncoladoSalida:
+        """202, not 201: RN-01 says the processing is asynchronous.
+
+        The screen shows «Procesando» and the row appears in `Cargas recientes` when the
+        worker finishes. Answering 201 with a body would be claiming the import is done.
+        """
+        empresa_id, _, rol = _actor(request)
+        if rol is RolUsuario.SOLO_LECTURA:
+            raise EntradaInvalida("Un usuario de Solo Lectura no puede procesar una planilla")
+
+        aceptado = encolar_procesamiento(
+            recursos.settings, empresa_id=empresa_id, vinculo_id=entrada.vinculo_id
+        )
+        if not aceptado:
+            # The broker is down. Told, rather than swallowed: somebody is watching this
+            # screen waiting for it to say «Procesando».
+            raise ProveedorDePlanillaNoDisponible(
+                "No pudimos encolar el procesamiento. Intentalo de nuevo en un momento."
+            )
+        return EncoladoSalida(encolado=True)
+
+    return router
+
+
+def _rutas_de_lectura_de_cargas(recursos: Recursos) -> APIRouter:
+    """What HU-E3-05 asks for: the result of a run and its failed rows."""
+    router = APIRouter()
+
+    @router.get("")
+    async def listar(request: Request, vinculo_id: UUID | None = None) -> ListadoDeCargasSalida:
+        """`Cargas recientes`. Every role reads (HU-E3-05 RN-04)."""
+        empresa_id, _, _ = _actor(request)
+        salida = ListadoDeCargasSalida(cargas=[])
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            cargas = await ListarProcesamientos(piezas.procesamientos).ejecutar(
+                vinculo_id=vinculo_id
+            )
+            salida = ListadoDeCargasSalida(cargas=[_carga_a_salida(c) for c in cargas])
+        return salida
+
+    @router.get("/{procesamiento_id}")
+    async def detalle(request: Request, procesamiento_id: UUID) -> DetalleDeCargaSalida:
+        """PAN-ING-03. Readable by Solo Lectura, without the reprocess action (RN-04)."""
+        empresa_id, _, rol = _actor(request)
+        salida: DetalleDeCargaSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            resumen = await ConsultarProcesamiento(piezas.procesamientos).ejecutar(
+                procesamiento_id=procesamiento_id
+            )
+            salida = DetalleDeCargaSalida(
+                carga=_carga_a_salida(resumen.procesamiento),
+                errores=[
+                    ErrorDeFilaSalida(numero_fila=e.numero_fila, motivo=e.motivo)
+                    for e in resumen.procesamiento.errores
+                ],
+                puede_reprocesar=(
+                    rol is not RolUsuario.SOLO_LECTURA
+                    and bool(resumen.procesamiento.filas_a_reprocesar)
+                ),
+            )
+        return _exigir_detalle(salida)
+
+    return router
+
+
+def _rutas_de_reproceso(recursos: Recursos) -> APIRouter:
+    """HU-E3-06, on its own because it both reads a run and enqueues a new one."""
+    router = APIRouter()
+
+    @router.post("/{procesamiento_id}/reproceso", status_code=status.HTTP_202_ACCEPTED)
+    async def reprocesar(request: Request, procesamiento_id: UUID) -> EncoladoSalida:
+        """HU-E3-06. Only the rows that failed, so nothing is duplicated (RN-02)."""
+        empresa_id, _, rol = _actor(request)
+        aceptado = False
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            original, filas = await PrepararReproceso(piezas.procesamientos).ejecutar(
+                procesamiento_id=procesamiento_id, rol=rol
+            )
+            aceptado = encolar_procesamiento(
+                recursos.settings,
+                empresa_id=empresa_id,
+                vinculo_id=original.vinculo_id,
+                solo_filas=filas,
+                origen_id=original.id,
+            )
+        if not aceptado:
+            raise ProveedorDePlanillaNoDisponible(
+                "No pudimos encolar el reproceso. Intentalo de nuevo en un momento."
+            )
+        return EncoladoSalida(encolado=True)
+
+    return router
+
+
+def _exigir_detalle(salida: DetalleDeCargaSalida | None) -> DetalleDeCargaSalida:
+    if salida is None:  # pragma: no cover — the unit of work always yields once
+        raise RuntimeError("La unidad de trabajo no produjo un resultado")
+    return salida

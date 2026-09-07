@@ -9,12 +9,15 @@
  */
 
 export { IngestaDePlanillas } from "./components/IngestaDePlanillas";
+export { DetalleDeCarga } from "./components/DetalleDeCarga";
+export type { PropsDeDetalle } from "./components/DetalleDeCarga";
 export { RevisionDeMapeo } from "./components/RevisionDeMapeo";
 export type { PropsDeRevision } from "./components/RevisionDeMapeo";
 export type { PropsDeIngesta } from "./components/IngestaDePlanillas";
 export {
   ATRIBUTOS_DE_CLIENTE,
   ETIQUETAS_DE_ATRIBUTO,
+  ETIQUETAS_DE_ESTADO,
   ETIQUETAS_DE_PROVEEDOR,
   EXTENSIONES_ACEPTADAS,
   ErrorDePlanilla,
@@ -25,16 +28,26 @@ export {
   MENSAJE_FORMATO_NO_ACEPTADO,
   confirmarMapeo,
   corregirMapeo,
+  csvDeErrores,
   desvincularPlanilla,
   iniciarVinculacionConGoogle,
+  listarCargas,
   listarPlanillas,
+  procesarPlanilla,
   proponerMapeo,
+  reprocesarCarga,
   subirPlanilla,
+  verCarga,
   validarArchivo,
 } from "./api/planilla";
 export type {
+  Carga,
+  DetalleDeCarga as DetalleDeCargaRespuesta,
   DireccionSync,
   EntradaDeMapeo,
+  ErrorDeFila,
+  EstadoProcesamiento,
+  ListadoDeCargas,
   Mapeo,
   NivelDeConfianza,
   ListadoDeVinculos,

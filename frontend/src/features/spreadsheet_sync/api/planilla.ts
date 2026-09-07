@@ -205,3 +205,91 @@ export async function confirmarMapeo(mapeoId: string): Promise<Mapeo> {
   }
   return (await respuesta.json()) as Mapeo;
 }
+
+// --- PAN-ING-03 — resultado de un procesamiento (HU-E3-03, HU-E3-05, HU-E3-06) ----
+
+/** Los cuatro estados. `CON_ERRORES` es el que la historia llama «Con errores». */
+export type EstadoProcesamiento = "EN_CURSO" | "COMPLETADO" | "CON_ERRORES" | "FALLIDO";
+
+export interface Carga {
+  readonly id: string;
+  readonly estado: EstadoProcesamiento;
+  readonly filas_totales: number;
+  readonly filas_ok: number;
+  readonly filas_error: number;
+  readonly es_reproceso: boolean;
+  readonly created_at: string;
+}
+
+export interface ErrorDeFila {
+  /** El número de fila del archivo original (HU-E3-05 RN-02). */
+  readonly numero_fila: number;
+  readonly motivo: string;
+}
+
+export interface DetalleDeCarga {
+  readonly carga: Carga;
+  readonly errores: readonly ErrorDeFila[];
+  /** False para Solo Lectura (RN-04) y también cuando no falló nada. */
+  readonly puede_reprocesar: boolean;
+}
+
+export interface ListadoDeCargas {
+  readonly cargas: readonly Carga[];
+}
+
+/** Cómo se llama cada estado en pantalla, con las palabras de HU-E3-03. */
+export const ETIQUETAS_DE_ESTADO: Readonly<Record<EstadoProcesamiento, string>> = {
+  EN_CURSO: "Procesando",
+  COMPLETADO: "Procesado",
+  CON_ERRORES: "Con errores",
+  FALLIDO: "Fallido",
+};
+
+export async function listarCargas(vinculoId?: string): Promise<ListadoDeCargas> {
+  const consulta = vinculoId === undefined ? "" : `?vinculo_id=${encodeURIComponent(vinculoId)}`;
+  const respuesta = await fetch(`/api/planillas/cargas${consulta}`, { cache: "no-store" });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as ListadoDeCargas;
+}
+
+export async function verCarga(cargaId: string): Promise<DetalleDeCarga> {
+  const respuesta = await fetch(`/api/planillas/cargas/${cargaId}`, { cache: "no-store" });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as DetalleDeCarga;
+}
+
+export async function procesarPlanilla(vinculoId: string): Promise<void> {
+  const respuesta = await fetch("/api/planillas/cargas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ vinculo_id: vinculoId }),
+  });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+}
+
+export async function reprocesarCarga(cargaId: string): Promise<void> {
+  const respuesta = await fetch(`/api/planillas/cargas/${cargaId}/reproceso`, { method: "POST" });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+}
+
+/**
+ * El listado de errores que HU-E3-05 RN-03 deja descargar «para su corrección externa».
+ *
+ * Se arma en el navegador y no se pide al backend: los datos ya están en pantalla, y un
+ * endpoint de descarga sería una segunda copia de las mismas filas viajando por la red
+ * para producir un archivo que el navegador puede escribir solo.
+ */
+export function csvDeErrores(errores: readonly ErrorDeFila[]): string {
+  const escapar = (valor: string): string => `"${valor.replace(/"/g, '""')}"`;
+  const filas = errores.map((e) => `${e.numero_fila},${escapar(e.motivo)}`);
+  return ["fila,motivo", ...filas].join("\n");
+}

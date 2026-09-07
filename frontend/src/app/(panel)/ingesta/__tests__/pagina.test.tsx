@@ -50,16 +50,22 @@ describe("PaginaDeIngesta", () => {
 
   it("lee el listado con la cookie de sesion", async () => {
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
-    llamarApi.mockResolvedValue({ vinculos: [] });
+    llamarApi.mockImplementation((ruta: string) =>
+      ruta === "/planillas" ? { vinculos: [] } : { cargas: [] },
+    );
 
     renderToString(await PaginaDeIngesta());
 
+    // Las dos lecturas van en paralelo: la pantalla necesita las dos para su primer render.
     expect(llamarApi).toHaveBeenCalledWith("/planillas");
+    expect(llamarApi).toHaveBeenCalledWith("/planillas/cargas");
   });
 
   it("le da la zona de carga al Administrador", async () => {
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
-    llamarApi.mockResolvedValue({ vinculos: [] });
+    llamarApi.mockImplementation((ruta: string) =>
+      ruta === "/planillas" ? { vinculos: [] } : { cargas: [] },
+    );
 
     const html = renderToString(await PaginaDeIngesta());
 
@@ -71,7 +77,9 @@ describe("PaginaDeIngesta", () => {
     "no le ofrece vincular a un %s, aunque vea el listado",
     async (rol) => {
       leerClaims.mockReturnValue({ ...CLAIMS_ADMIN, rol });
-      llamarApi.mockResolvedValue({ vinculos: [] });
+      llamarApi.mockImplementation((ruta: string) =>
+        ruta === "/planillas" ? { vinculos: [] } : { cargas: [] },
+      );
 
       const html = renderToString(await PaginaDeIngesta());
 
