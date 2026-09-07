@@ -20,6 +20,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from xml.etree import ElementTree
 
+import httpx
+
 from cheatsheet.contexts.reference_data.application.errors import CatalogoNoDisponible
 from cheatsheet.contexts.reference_data.application.ports import EntradaDeCatalogo
 from cheatsheet.contexts.reference_data.domain.parametro import TipoCatalogoFiscal
@@ -78,8 +80,17 @@ class CredencialDeWsfe:
 class CatalogosDeWsfe:
     """`PortCatalogosFiscales` against the real WSFEv1."""
 
-    def __init__(self, *, url: str, credenciales: dict[EmpresaId, CredencialDeWsfe]) -> None:
-        self._cliente = ClienteSoap(ConfiguracionSoap(url=url))
+    def __init__(
+        self,
+        *,
+        url: str,
+        credenciales: dict[EmpresaId, CredencialDeWsfe],
+        transporte: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        # `transporte` is how every other SOAP client here is tested: `httpx.MockTransport`
+        # goes where the socket would be. Without it the reader below is only exercisable
+        # by reaching into a private attribute, which is a test that breaks on a rename.
+        self._cliente = ClienteSoap(ConfiguracionSoap(url=url), transporte)
         # Resolved by the composition root, which is allowed to talk to `integrations`.
         # Passing the ticket in rather than fetching it keeps rule R3 intact and this class
         # testable without a database.

@@ -19,6 +19,9 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
+from cheatsheet.contexts.billing.infrastructure import (  # noqa: F401
+    models as _billing_models,
+)
 
 # Imported for their side effect: registering their tables on Base.metadata.
 from cheatsheet.contexts.identity.infrastructure import (

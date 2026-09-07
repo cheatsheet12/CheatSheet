@@ -26,9 +26,9 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
 | Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
 | Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
-| Facturación electrónica | parametros-fiscales | reference_data | HS-T4 | — | Cristian | feature/billing-facturacion-electronica | en curso |
-| Facturación electrónica | puntos-de-venta | billing | HU-E5-05 | — | Cristian | feature/billing-facturacion-electronica | pendiente |
-| Facturación electrónica | emision-de-comprobantes | billing | HU-E5-01, HU-E5-02, HU-E5-03 | parametros-fiscales, puntos-de-venta | Cristian | feature/billing-facturacion-electronica | pendiente |
+| Facturación electrónica | parametros-fiscales | reference_data | HS-T4 | — | Cristian | feature/billing-facturacion-electronica | hecha |
+| Facturación electrónica | puntos-de-venta | billing | HU-E5-05 | — | Cristian | feature/billing-facturacion-electronica | hecha |
+| Facturación electrónica | emision-de-comprobantes | billing | HU-E5-01, HU-E5-02, HU-E5-03 | parametros-fiscales, puntos-de-venta | Cristian | feature/billing-facturacion-electronica | en curso |
 | Facturación electrónica | nota-de-credito | billing | HU-E5-04 | emision-de-comprobantes | Cristian | feature/billing-facturacion-electronica | pendiente |
 
 

@@ -546,3 +546,36 @@ significa que si algo de eso está flojo, se nota acá:
 - **El catálogo de clientes** (épico 3), de donde sale el receptor.
 - **La bitácora** (HS-T5, épico 1). Un comprobante emitido tiene que quedar registrado, y
   es de las operaciones donde más importa.
+
+## 19. Lo que salió de la unidad `puntos-de-venta` (épico 5, unidad 2)
+
+**Los adaptadores reales contra WSFEv1 estaban sin test, y uno tenía un bug.** Las dos
+unidades del épico escribieron un cliente SOAP contra ARCA y probaron sólo el simulado. El
+parser de la respuesta real quedó afuera, que es justo la pieza que se equivoca en silencio:
+no tira excepción, devuelve vacío, y vacío se lee igual que «ARCA no te habilitó nada».
+
+Al escribir el test aparecio esto en `billing/infrastructure/habilitacion.py`:
+
+```python
+bloqueado = (nodo.findtext("{*}Bloqueado") or "N").strip().upper() != "N"
+```
+
+Un `<Bloqueado></Bloqueado>` vacío es *falsy*, así que el default disparaba y «ARCA no nos
+dijo» se leía como **no bloqueado** — la dirección insegura. Ya está arreglado (sólo un
+`"N"` explícito habilita) y cubierto, y `CatalogosDeWsfe` de la unidad 1 recibió su test de
+contrato en el mismo commit.
+
+**Lo que queda como regla para el resto del épico:** todo adaptador contra ARCA se prueba
+con `httpx.MockTransport` y sobres grabados, además de su simulado. El simulado prueba el
+caso de uso; el transporte inyectado prueba el parser. Son dos cosas distintas y sólo una de
+las dos toca XML que escribió otro.
+
+**Un comentario viejo en `frontend/src/app/api/servicios/__tests__/rutas.test.ts`.** Dice
+que `respuestaDeError` reenvía `detalle` sólo para `EntradaInvalida`; desde el épico 4 lo
+reenvía en cualquier 422. El test pasa porque afirma sobre el comportamiento, no sobre el
+comentario. Corregirlo es una línea, en el PR que toque ese archivo por otra razón.
+
+**`habilitacion_de_arca()` sigue armándose con el mapa de credenciales vacío**, igual que
+`catalogos_fiscales()`. Es la misma pieza pendiente —resolver el ticket de cada empresa
+desde `integrations`— y se arma una sola vez en `emision-de-comprobantes`, que la necesita
+sí o sí.
