@@ -19,6 +19,7 @@ from cheatsheet.workers.celery_app import crear_celery
 from cheatsheet.workers.tasks_identity import registrar_en as registrar_identity
 from cheatsheet.workers.tasks_integrations import registrar_en as registrar_integrations
 from cheatsheet.workers.tasks_observability import registrar as registrar_observability
+from cheatsheet.workers.tasks_reference_data import registrar as registrar_reference_data
 from cheatsheet.workers.tasks_spreadsheet import registrar as registrar_spreadsheet
 
 settings = Settings.desde_entorno()
@@ -33,4 +34,5 @@ app: Celery = configurar_beat(crear_celery(settings), settings)
 registrar_identity(app, settings)
 registrar_integrations(app, settings)
 registrar_observability(app, settings)
+registrar_reference_data(app, settings)
 registrar_spreadsheet(app, settings)

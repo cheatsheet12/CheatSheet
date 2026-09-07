@@ -1,6 +1,6 @@
 # ADR-0008 — Talk to WSFEv1 with our own SOAP client, superseding ADR-012
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-07
 - **Decided by:** Software Architect
 - **Modules affected:** billing, reference_data, integrations, infra

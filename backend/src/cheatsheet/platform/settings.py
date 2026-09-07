@@ -120,6 +120,20 @@ class AdaptadorDeAlmacenamiento(StrEnum):
     MEMORIA = "memoria"
 
 
+class AdaptadorDeCatalogos(StrEnum):
+    """Which implementation answers for ARCA's fiscal catalogue (HS-T4, ADR-0008).
+
+    `SIMULADO` returns ARCA's **real** codes, hard-coded. Real ones on purpose: a simulator
+    with invented codes would let the issuing code pass tests it would fail against ARCA,
+    which is the one thing a fiscal simulator must not do. **Rejected in production**: a
+    company invoicing against a snapshot is validating against what ARCA said the day the
+    file was written.
+    """
+
+    WSFE = "wsfe"
+    SIMULADO = "simulado"
+
+
 class AdaptadorDeModelo(StrEnum):
     """Which implementation answers for the LLM (ADR-0007).
 
@@ -166,6 +180,30 @@ def _entero(nombre: str, por_defecto: int) -> int:
         return int(crudo)
     except ValueError as exc:
         raise ConfiguracionFaltante(f"{nombre} debe ser un numero entero, no '{crudo}'") from exc
+
+
+def _adaptador_de_catalogos(entorno: Entorno) -> AdaptadorDeCatalogos:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("CATALOGOS_FISCALES_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno CATALOGOS_FISCALES_ADAPTADOR. "
+                "En produccion debe valer 'wsfe'."
+            )
+        return AdaptadorDeCatalogos.SIMULADO
+    try:
+        adaptador = AdaptadorDeCatalogos(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"CATALOGOS_FISCALES_ADAPTADOR debe ser 'wsfe' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeCatalogos.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "CATALOGOS_FISCALES_ADAPTADOR=simulado no es valido en produccion: "
+            "los comprobantes se validarian contra una foto y no contra ARCA."
+        )
+    return adaptador
 
 
 def _adaptador_de_modelo(entorno: Entorno) -> AdaptadorDeModelo:
@@ -389,6 +427,26 @@ class Settings:
     llm_max_tokens: int
     #: How often Beat re-reads live spreadsheets and pushes the write-back (HU-E3-04).
     sync_planillas_minutos: int
+    #: reference_data + billing: WSFEv1 (ADR-0008). Separate hosts for homologacion and
+    #: produccion, like every other ARCA service.
+    catalogos_fiscales_adaptador: AdaptadorDeCatalogos
+    arca_wsfe_url_homologacion: str
+    arca_wsfe_url_produccion: str
+    parametros_fiscales_horas: int
+
+    @property
+    def arca_wsfe_url(self) -> str:
+        """The one the environment actually talks to.
+
+        Resolved here rather than at the call site for the reason `ConfiguracionSoap`
+        gives: choosing between practising and invoicing for real must never be a default.
+        """
+        return (
+            self.arca_wsfe_url_produccion
+            if self.entorno is Entorno.PRODUCTION
+            else self.arca_wsfe_url_homologacion
+        )
+
     #: The retry ceiling the sweep judges against. Shares its default with
     #: `PoliticaDeReintentos` in `workers/base.py`; a mismatch would mean tasks are
     #: retired either before or long after they stopped being retried.
@@ -478,6 +536,15 @@ class Settings:
             llm_timeout_segundos=float(_entero("LLM_TIMEOUT_SEGUNDOS", 30)),
             llm_max_tokens=_entero("LLM_MAX_TOKENS", 4096),
             sync_planillas_minutos=_entero("SYNC_PLANILLAS_MINUTOS", 60),
+            catalogos_fiscales_adaptador=_adaptador_de_catalogos(entorno),
+            arca_wsfe_url_homologacion=_opcional(
+                "ARCA_WSFE_URL_HOMOLOGACION",
+                "https://wswhomo.afip.gov.ar/wsfev1/service.asmx",
+            ),
+            arca_wsfe_url_produccion=_opcional(
+                "ARCA_WSFE_URL_PRODUCCION", "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
+            ),
+            parametros_fiscales_horas=_entero("PARAMETROS_FISCALES_HORAS", 24),
             dlq_max_intentos=_entero("DLQ_MAX_INTENTOS", DLQ_MAX_INTENTOS_POR_DEFECTO),
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.

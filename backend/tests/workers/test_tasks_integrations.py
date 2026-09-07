@@ -26,7 +26,12 @@ from cheatsheet.platform.cache import RegistroDeIdempotenciaEnMemoria
 from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
-from cheatsheet.workers import tasks_integrations, tasks_observability, tasks_spreadsheet
+from cheatsheet.workers import (
+    tasks_integrations,
+    tasks_observability,
+    tasks_reference_data,
+    tasks_spreadsheet,
+)
 from cheatsheet.workers.base import EjecutorIdempotente
 from cheatsheet.workers.beat import programacion
 from kombu.exceptions import OperationalError
@@ -240,15 +245,37 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
     """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 5
+    assert len(entradas) == 6
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
         tasks_integrations.NOMBRE_BARRIDO_RENOVACION,
-        # Las dos del épico 4, y las únicas que no son de `integrations`.
+        # Las del épico 4 y la del 5. Ninguna es de `integrations`, y el test vive acá
+        # igual: afirma sobre la programación entera, que es lo que hace que una entrada
+        # nueva de cualquier épico tenga que pasar por este archivo.
         tasks_observability.NOMBRE_BARRIDO,
         tasks_spreadsheet.NOMBRE_BARRIDO_SYNC,
+        tasks_reference_data.NOMBRE_SINCRONIZAR,
     }
+
+
+def test_los_parametros_fiscales_son_la_entrada_menos_frecuente() -> None:
+    """HS-T4. Los catálogos de ARCA se mueven una vez cada varios meses.
+
+    Preguntar más seguido es una llamada por día para enterarse de que no cambió nada, y
+    cada llamada gasta un ticket de doce horas.
+    """
+    entrada = programacion(settings_de_prueba())["sincronizar-parametros-fiscales"]
+
+    assert entrada["task"] == tasks_reference_data.NOMBRE_SINCRONIZAR
+    assert entrada["schedule"].total_seconds() == 24 * 60 * 60
+    # Es la entrada más espaciada de todas.
+    otras = [
+        e["schedule"].total_seconds()
+        for nombre, e in programacion(settings_de_prueba()).items()
+        if nombre != "sincronizar-parametros-fiscales"
+    ]
+    assert entrada["schedule"].total_seconds() >= max(otras)
 
 
 def test_la_sincronizacion_incremental_corre_por_hora_y_en_su_propia_cola() -> None:
