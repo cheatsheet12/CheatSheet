@@ -26,7 +26,7 @@ from cheatsheet.platform.cache import RegistroDeIdempotenciaEnMemoria
 from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
-from cheatsheet.workers import tasks_integrations, tasks_observability
+from cheatsheet.workers import tasks_integrations, tasks_observability, tasks_spreadsheet
 from cheatsheet.workers.base import EjecutorIdempotente
 from cheatsheet.workers.beat import programacion
 from kombu.exceptions import OperationalError
@@ -240,14 +240,28 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
     """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 4
+    assert len(entradas) == 5
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
         tasks_integrations.NOMBRE_BARRIDO_RENOVACION,
-        # HS-T6, épico 4. La única que no es de `integrations`.
+        # Las dos del épico 4, y las únicas que no son de `integrations`.
         tasks_observability.NOMBRE_BARRIDO,
+        tasks_spreadsheet.NOMBRE_BARRIDO_SYNC,
     }
+
+
+def test_la_sincronizacion_incremental_corre_por_hora_y_en_su_propia_cola() -> None:
+    """HU-E3-04. Una planilla de una PyME cambia varias veces por dia, no por minuto.
+
+    Y en `incremental_sync`, que es la cola que ADR-003 creo justamente para esto: un
+    barrido de planillas no puede demorar un webhook de pago.
+    """
+    entrada = programacion(settings_de_prueba())["sincronizar-planillas"]
+
+    assert entrada["task"] == tasks_spreadsheet.NOMBRE_BARRIDO_SYNC
+    assert entrada["schedule"].total_seconds() == 60 * 60
+    assert entrada["options"]["queue"] == "incremental_sync"
 
 
 def test_el_barrido_de_la_dlq_corre_seguido_y_en_notifications() -> None:

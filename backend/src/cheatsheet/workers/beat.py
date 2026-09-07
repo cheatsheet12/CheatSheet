@@ -15,7 +15,6 @@ with them:
 | --- | --- | --- |
 | Reminder chain dispatch | 6 | HS-T3 |
 | Re-enqueue of `Comprobante` stuck in `VALIDADO` | 5 | HS-T4 |
-| Incremental spreadsheet sync | 4 | HU-E3-04 |
 | Fiscal parameter refresh from ARCA | 5 | open question 8.8 |
 
 Beat runs as **one** process. Replicating it duplicates every entry above — and now that
@@ -62,6 +61,14 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # a short read plus a handful of updates, and ADR-003 fixed the queue count at
         # five. Frequent because a task sitting in FALLIDA is invisible to the operator
         # until it is retired, not because the work is urgent.
+        # HU-E3-04. On the `incremental_sync` queue, which ADR-003 created for it. The
+        # interval is configuration and not a constant, for the reason this module already
+        # gives about the polling one.
+        "sincronizar-planillas": {
+            "task": "spreadsheet_sync.sincronizar_pendientes",
+            "schedule": timedelta(minutes=max(settings.sync_planillas_minutos, 1)),
+            "options": {"queue": Cola.INCREMENTAL_SYNC.value},
+        },
         "barrer-tareas-agotadas": {
             "task": "observability.barrer_dlq",
             "schedule": timedelta(minutes=max(settings.dlq_barrido_minutos, 1)),

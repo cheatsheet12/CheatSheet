@@ -438,3 +438,50 @@ Nada de esto es del épico 4, pero sigue sin cerrarse y se cruza con él.
 | **`Tabla` pierde su titulo cuando no hay filas** | El `titulo` se renderiza como `<caption>` dentro de `<table>`, y el camino vacio devuelve solo un `<p class="tabla__vacia">`. Un lector de pantalla recibe un parrafo suelto sin ninguna etiqueta que diga de que listado esta vacio. Afecta a **cinco pantallas** -usuarios, clientes, servicios, categorias e ingesta- y el estado vacio es justamente el primero que ve una empresa recien registrada | Tres lineas en `frontend/src/shared/ui/Tabla.tsx`. Es del sistema de diseno, no de una unidad |
 | **`localhost` no resuelve a los contenedores en Windows** | Resuelve a IPv6 y `asyncpg` queda colgado hasta el timeout, con un `TimeoutError` que no nombra la causa. Con `127.0.0.1` funciona. `argumentos_de_conexion()` acepta los dos, asi que no es del codigo -- pero cuesta media hora la primera vez y no esta escrito en ningun lado | Una linea en `backend/.env.example` o en la skill `run-local` |
 | **`ClienteDuplicado` sigue sin llegar al navegador** | `respuestaDeError` ahora reenvia el `detalle` de **todo 422**, lo que arregla las cuatro subclases de `spreadsheet_sync`. `ClienteDuplicado` es un `InvarianteViolada` y responde 409, asi que sigue perdiendo su mensaje y el boton «Ver el cliente existente» sigue sin aparecer | Decidir si pasa a 422. Es del epico 3 (seccion 10) |
+
+## 15. Lo que el épico 4 deja abierto · **te toca a vos**
+
+### 15.1 La lectura incremental no lee todavía — HU-E3-04 queda a medias
+
+`sincronizar_empresa` hace la mitad del write-back y **no vuelve a leer la hoja viva**. Lo
+que falta es el **token OAuth por empresa**: `escritura_de_planilla()` construye el
+adaptador con un token vacío, porque resolver la credencial cifrada de cada empresa desde
+`integrations` (ADR-0003) es la pieza que la unidad 5 no llegó a armar.
+
+Se implementó primero la mitad con riesgo de bucle —los tres guardas anti-bucle de
+ADR-007— y no la mitad que sólo lee, porque los guardas son los que conviene tener en
+producción antes de que algo empiece a escribir por horario.
+
+**Los dos criterios que quedan incumplidos**, dichos con precisión:
+
+| Criterio de HU-E3-04 | Estado |
+|---|---|
+| «Se modifica una fila en la planilla vinculada → el sistema lo sincroniza en la siguiente corrida» | **incumplido** |
+| «Se agregan filas nuevas → procesa sólo las nuevas» | **incumplido** |
+| «Cambia la estructura de columnas → pausa y muestra el mensaje» | ✅ implementado y probado |
+| «Una sincronización falla → se registra en la bitácora y se notifica» | ✅ el evento se publica |
+
+Lo que hace falta para cerrarlos es lo mismo que ya está escrito en §11.2: el cliente
+OAuth2 de Google. Con la credencial resuelta por empresa, el barrido que ya corre en Beat
+pasa a leer además de escribir.
+
+### 15.2 Credenciales que este épico necesita y no tiene
+
+Las dos ya están en §11, y siguen siendo tuyas:
+
+- **La API key de Anthropic** (§11.1). Sin ella el mapeo corre con el adaptador simulado,
+  que empareja por parecido de texto: alcanza para recorrer el flujo en una laptop y
+  produce un catálogo plausible y equivocado si alguien lo usara de verdad. `Settings` lo
+  rechaza en `production`.
+- **El cliente OAuth2 de Google con la API de Sheets habilitada** (§11.2). Sin él no hay
+  vinculación real, ni lectura incremental, ni escritura de vuelta.
+
+### 15.3 Deuda declarada del épico 4
+
+| Qué | Por qué queda afuera | Dónde se salda |
+|---|---|---|
+| **Correr una carga inicial completa dos veces duplica todos los servicios** | `PortRepositorioServicio` no tiene `buscar_por_nombre` a propósito —dos sucursales venden el mismo «Corte»— así que la ingesta siempre crea. Ninguna historia pide evitarlo: el reproceso sólo vuelve sobre lo que falló y el sync incremental sólo lee lo que cambió | Es una decisión sobre identidad de servicio, y se toma con `master_data` el día que importe |
+| **Una regresión en la calidad del mapeo es invisible para CI** | Ningún test llama al modelo real, y así tiene que ser. Quien ajuste el prompt necesita un juego de encabezados de verdad y una comparación manual | Declarado en ADR-0007. Es problema del épico 8 antes que de nadie |
+| **El write-back sólo empuja clientes, no servicios** | `RegistrosDeMasterData` consulta `PortRepositorioCliente` y nada más. HU-E3-07 habla de «los registros gestionados desde el panel» sin distinguir, pero el catálogo de servicios no tiene todavía un consumidor que lo cree desde el panel con destino a la planilla | Una consulta más en `ListarClientesParaEscrituraDeVuelta`, cuando haga falta |
+| **La escritura pisa la hoja entera en cada corrida** | `values.update` sobre `A1` reescribe desde arriba. Con hasta 500 registros por lote es correcto y simple; con más, la hoja quedaría truncada | Paginar la escritura, o pasar a `values.append`. Aparece el día que una empresa pase los 500 registros de origen PANEL |
+| **`ProcesamientoDePlanilla` no tiene pantalla de historial por vínculo** | El endpoint acepta `vinculo_id` y el listado lo soporta; la pantalla muestra todas las cargas de la empresa | Un filtro en PAN-ING-01, si alguien lo pide |

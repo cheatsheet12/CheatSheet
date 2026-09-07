@@ -26,12 +26,21 @@ from kombu.exceptions import KombuError
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.contexts.master_data.infrastructure.ensamblado import DatosMaestros
 from cheatsheet.contexts.spreadsheet_sync.application.procesamientos import ProcesarPlanilla
+from cheatsheet.contexts.spreadsheet_sync.application.sincronizacion import (
+    EscribirDeVueltaEnPlanilla,
+)
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.catalogo import IngestaEnMasterData
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.ensamblado import (
     Planillas,
     almacenamiento,
+    escritura_de_planilla,
 )
+from cheatsheet.contexts.spreadsheet_sync.infrastructure.escritura import RegistrosDeMasterData
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.lector import LectorDePlanilla
+from cheatsheet.contexts.spreadsheet_sync.infrastructure.repositories import (
+    empresas_con_planilla_sincronizable,
+)
+from cheatsheet.platform.database import sesion_sin_empresa
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.empresa import EmpresaId
@@ -167,3 +176,87 @@ def registrar(app: Celery, settings: Settings) -> None:
     )
     def _procesar(**kwargs: Any) -> Any:
         return procesar_planilla_sync(settings, **kwargs)
+
+    @app.task(name=NOMBRE_BARRIDO_SYNC, queue=Cola.INCREMENTAL_SYNC.value)  # type: ignore[misc]
+    def _barrido_sync() -> Any:
+        return sincronizar_pendientes_sync(settings)
+
+    @app.task(  # type: ignore[misc]
+        name=NOMBRE_SYNC_EMPRESA,
+        queue=Cola.INCREMENTAL_SYNC.value,
+        autoretry_for=(OSError,),
+        retry_backoff=REINTENTOS.espera_base,
+        retry_backoff_max=REINTENTOS.espera_maxima,
+        retry_jitter=True,
+        max_retries=REINTENTOS.max_intentos,
+    )
+    def _sync_empresa(**kwargs: str) -> Any:
+        return sincronizar_empresa_sync(settings, **kwargs)
+
+
+NOMBRE_BARRIDO_SYNC = "spreadsheet_sync.sincronizar_pendientes"
+NOMBRE_SYNC_EMPRESA = "spreadsheet_sync.sincronizar_empresa"
+
+
+async def sincronizar_pendientes(recursos: Recursos) -> int:
+    """Fan out one message per company with a live, unpaused link (HU-E3-04).
+
+    Same shape as the integrations sweep, and for the same reason: a cross-company read
+    must not become a cross-company transaction. Beat runs with no company set, so the
+    discovery goes through a `SECURITY DEFINER` function that returns ids and nothing else.
+    """
+    async with sesion_sin_empresa(recursos.sesiones) as sesion:
+        empresas = await empresas_con_planilla_sincronizable(sesion)
+
+    for empresa_id in empresas:
+        _encolar_sync(recursos.settings, empresa_id)
+    logger.info("sincronizacion_incremental_despachada", empresas=len(empresas))
+    return len(empresas)
+
+
+async def sincronizar_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
+    """Write back what the panel and the agent produced, for one company (HU-E3-07).
+
+    **Reading the live sheet is not here yet** — see the unit record. What this does is
+    the write-back half, which is the one with the loop risk and the one whose three
+    guards are worth having in production before anything reads on a schedule.
+    """
+    escritas = 0
+    async for unidad in unidad_de_trabajo(recursos, empresa_id):
+        piezas = Planillas.armar(unidad)
+        maestros = DatosMaestros.armar(unidad)
+
+        for vinculo in await piezas.vinculos.listar():
+            if not vinculo.escribe_de_vuelta:
+                continue
+            resultado = await EscribirDeVueltaEnPlanilla(
+                vinculos=piezas.vinculos,
+                registros=RegistrosDeMasterData(clientes=maestros.clientes, empresa_id=empresa_id),
+                escritura=escritura_de_planilla(recursos.settings),
+                publicador=unidad.publicador,
+            ).ejecutar(empresa_id=empresa_id, vinculo_id=vinculo.id, ahora=unidad.reloj.ahora())
+            escritas += resultado.filas_escritas
+
+    logger.info("sincronizacion_empresa", empresa_id=str(empresa_id), filas=escritas)
+    return escritas
+
+
+def _encolar_sync(settings: Settings, empresa_id: EmpresaId) -> None:
+    """A broker hiccup costs this company one cycle, not the whole fan-out."""
+    try:
+        crear_celery(settings).send_task(
+            NOMBRE_SYNC_EMPRESA,
+            kwargs={"empresa_id": str(empresa_id)},
+            queue=Cola.INCREMENTAL_SYNC.value,
+        )
+    except KombuError:
+        logger.exception("no_se_pudo_encolar_la_sincronizacion", empresa_id=str(empresa_id))
+
+
+def sincronizar_pendientes_sync(settings: Settings) -> Any:
+    return ejecutar_tarea(settings, sincronizar_pendientes)
+
+
+def sincronizar_empresa_sync(settings: Settings, *, empresa_id: str) -> Any:
+    identificador = EmpresaId(UUID(empresa_id))
+    return ejecutar_tarea(settings, lambda recursos: sincronizar_empresa(recursos, identificador))

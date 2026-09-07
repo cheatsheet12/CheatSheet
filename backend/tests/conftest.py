@@ -149,6 +149,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         llm_modelo=MODELO_POR_DEFECTO,
         llm_timeout_segundos=1.0,
         llm_max_tokens=1024,
+        sync_planillas_minutos=60,
         dlq_max_intentos=DLQ_MAX_INTENTOS_POR_DEFECTO,
     )
 

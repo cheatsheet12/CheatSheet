@@ -387,6 +387,8 @@ class Settings:
     llm_modelo: str
     llm_timeout_segundos: float
     llm_max_tokens: int
+    #: How often Beat re-reads live spreadsheets and pushes the write-back (HU-E3-04).
+    sync_planillas_minutos: int
     #: The retry ceiling the sweep judges against. Shares its default with
     #: `PoliticaDeReintentos` in `workers/base.py`; a mismatch would mean tasks are
     #: retired either before or long after they stopped being retried.
@@ -475,6 +477,7 @@ class Settings:
             llm_modelo=_opcional("LLM_MODELO", MODELO_POR_DEFECTO),
             llm_timeout_segundos=float(_entero("LLM_TIMEOUT_SEGUNDOS", 30)),
             llm_max_tokens=_entero("LLM_MAX_TOKENS", 4096),
+            sync_planillas_minutos=_entero("SYNC_PLANILLAS_MINUTOS", 60),
             dlq_max_intentos=_entero("DLQ_MAX_INTENTOS", DLQ_MAX_INTENTOS_POR_DEFECTO),
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.

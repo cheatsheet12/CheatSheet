@@ -21,6 +21,7 @@ from functools import lru_cache
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     PortAlmacenamientoDeArchivos,
+    PortEscrituraDePlanilla,
     PortModeloDeLenguaje,
     PortProveedorDePlanilla,
     PortRepositorioMapeo,
@@ -31,6 +32,11 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.almacenamiento import (
     AlmacenamientoEnMemoria,
     AlmacenamientoR2,
     ConfiguracionR2,
+)
+from cheatsheet.contexts.spreadsheet_sync.infrastructure.escritura import (
+    ConfiguracionDeEscritura,
+    EscrituraEnGoogleSheets,
+    EscrituraSimulada,
 )
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.google_sheets import (
     ConfiguracionGoogleSheets,
@@ -125,3 +131,17 @@ def modelo_de_lenguaje(settings: Settings) -> PortModeloDeLenguaje:
             )
         )
     return ModeloDeLenguajeSimulado(settings.entorno)
+
+
+@lru_cache(maxsize=1)
+def escritura_de_planilla(settings: Settings) -> PortEscrituraDePlanilla:
+    """The write-back adapter (HU-E3-07), built once per process.
+
+    **The token is a placeholder and the real one is per company**, held encrypted in
+    `configuracion_de_integracion` by `integrations` (ADR-0003). Resolving it per company
+    is what the write-back needs before it can run against a real document, and it is the
+    piece the unit record names as unfinished.
+    """
+    if settings.planilla_adaptador is AdaptadorDePlanilla.GOOGLE:
+        return EscrituraEnGoogleSheets(ConfiguracionDeEscritura(token=""))
+    return EscrituraSimulada(settings.entorno)

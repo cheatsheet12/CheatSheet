@@ -245,3 +245,49 @@ class PortRepositorioProcesamiento(Protocol):
     async def listar(self, *, vinculo_id: UUID | None = None) -> list[ProcesamientoDePlanilla]:
         """Newest first. Without a link, every processing of the company."""
         ...
+
+
+@dataclass(frozen=True, slots=True)
+class FilaParaEscribir:
+    """One record on its way back into the protected sheet (HU-E3-07).
+
+    Text again, and in the sheet's own order: what goes into a cell is a string, and the
+    order is what makes the columns line up with the header this context wrote.
+    """
+
+    valores: tuple[str, ...]
+
+
+class PortRegistrosParaEscribir(Protocol):
+    """The other direction of the `spreadsheet_sync -> master_data` edge.
+
+    Implemented by an adapter that asks `master_data` for what the panel and the agent
+    created. **The `origen` filter lives in the adapter, not here**: this port's contract
+    is «what has to be written back», and which records those are is the other context's
+    definition -- the same reasoning `PortIngestaDeCatalogo` follows going the other way.
+    """
+
+    async def pendientes_de_escritura(
+        self, *, desde: datetime | None
+    ) -> tuple[FilaParaEscribir, ...]:
+        """Records created or changed since `desde`, never those whose origin is the sheet.
+
+        `None` means «everything so far», which is what the first write-back on a link
+        asks for.
+        """
+        ...
+
+
+class PortEscrituraDePlanilla(Protocol):
+    """Writing into the provider's document (HU-E3-07 RN-02).
+
+    Deliberately narrow: it can write one named sheet and nothing else. There is no
+    `borrar`, no `reemplazar_hoja` and no way to name the company's own sheet from a call
+    site -- the only sheet this context ever passes is the one it created. An adapter that
+    could overwrite an arbitrary sheet is one wrong argument away from deleting somebody's
+    customer list.
+    """
+
+    async def escribir(
+        self, *, identificador: str, hoja: str, filas: tuple[FilaParaEscribir, ...]
+    ) -> None: ...

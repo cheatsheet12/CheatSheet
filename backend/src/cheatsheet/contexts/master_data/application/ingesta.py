@@ -33,7 +33,7 @@ from cheatsheet.contexts.master_data.application.ports import (
     PortRepositorioCliente,
     PortRepositorioServicio,
 )
-from cheatsheet.contexts.master_data.domain.cliente import Cliente
+from cheatsheet.contexts.master_data.domain.cliente import Cliente, FiltrosDeCliente, Pagina
 from cheatsheet.contexts.master_data.domain.servicio import Servicio
 from cheatsheet.contexts.master_data.domain.valores import AlicuotaIVA, OrigenDato
 from cheatsheet.shared.contacto import Email, Telefono
@@ -214,3 +214,72 @@ def _alicuota(crudo: str | None) -> AlicuotaIVA:
         if Decimal(alicuota.value) == valor:
             return alicuota
     raise ErrorDeDominio(f"La alicuota '{crudo}' no es 0%, 10,5% ni 21%")
+
+
+@dataclass(frozen=True, slots=True)
+class RegistroParaPlanilla:
+    """One catalogue record on its way back into the company's spreadsheet (HU-E3-07).
+
+    Plain text, and no domain type: `spreadsheet_sync` may not import this context's
+    `domain/` (rule R3), so what crosses the edge is this and the columns it names.
+    """
+
+    nombre: str
+    cuit: str
+    contacto_whatsapp: str
+    contacto_email: str
+    origen: str
+
+
+class ListarClientesParaEscrituraDeVuelta:
+    """The records the write-back is allowed to push (HU-E3-07 RN-03).
+
+    **`PLANILLA` is excluded here, and that is guard 3 of the anti-loop mechanism.** A
+    record that came from the spreadsheet is not written back into it; ADR-007 exists
+    because a system that did would ingest its own output on the next sweep, forever.
+
+    The filter lives in `master_data` rather than in the caller because `origen` is this
+    context's concept: `spreadsheet_sync` asks «what should I write back», and the answer
+    is a decision about the catalogue, not about spreadsheets.
+    """
+
+    #: Ours to write back. `PLANILLA` is deliberately absent -- see the docstring.
+    ORIGENES = (OrigenDato.PANEL, OrigenDato.AGENTE)
+
+    #: One write-back's worth. Google rejects very large bodies, and a sweep that pushed a
+    #: whole catalogue in one call would fail as a unit instead of making progress.
+    LIMITE = 500
+
+    def __init__(self, clientes: PortRepositorioCliente) -> None:
+        self._clientes = clientes
+
+    async def ejecutar(
+        self, *, empresa_id: EmpresaId, desde: datetime | None = None
+    ) -> tuple[RegistroParaPlanilla, ...]:
+        registros: list[RegistroParaPlanilla] = []
+        for origen in self.ORIGENES:
+            encontrados, _ = await self._clientes.listar(
+                empresa_id=empresa_id,
+                filtros=FiltrosDeCliente(origen=origen),
+                pagina=Pagina(limite=self.LIMITE, desplazamiento=0),
+            )
+            for cliente in encontrados:
+                # `desde` bounds the work, not the correctness: rewriting a record into
+                # our own sheet overwrites the same row. That is why this filter may be
+                # approximate while the `origen` one may not.
+                if desde is not None and cliente.actualizado_en <= desde:
+                    continue
+                registros.append(
+                    RegistroParaPlanilla(
+                        nombre=cliente.nombre,
+                        cuit=str(cliente.cuit) if cliente.cuit else "",
+                        contacto_whatsapp=(
+                            str(cliente.contacto_whatsapp) if cliente.contacto_whatsapp else ""
+                        ),
+                        contacto_email=(
+                            str(cliente.contacto_email) if cliente.contacto_email else ""
+                        ),
+                        origen=cliente.origen.value,
+                    )
+                )
+        return tuple(registros)

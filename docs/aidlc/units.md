@@ -21,11 +21,11 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Catálogo de clientes y servicios | catalogo-de-clientes | master_data | HU-E4-01 | — | Cristian | feature/master_data-catalogo-de-clientes | mergeada |
 | Catálogo de clientes y servicios | catalogo-de-servicios | master_data | HU-E4-02 | catalogo-de-clientes | Cristian | feature/master_data-catalogo-de-servicios | mergeada |
 | Catálogo de clientes y servicios | categorias-y-clasificacion | master_data | HU-E4-03, HU-E4-04 | catalogo-de-clientes, catalogo-de-servicios | Cristian | feature/master_data-categorias-y-clasificacion | en revisión |
-| Sincronización de planillas | dlq-y-tareas-asincronas | observability | HS-T6 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en curso |
-| Sincronización de planillas | vinculo-de-planilla | spreadsheet_sync | HU-E2-04 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en curso |
-| Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en curso |
-| Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en curso |
-| Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | pendiente |
+| Sincronización de planillas | dlq-y-tareas-asincronas | observability | HS-T6 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
+| Sincronización de planillas | vinculo-de-planilla | spreadsheet_sync | HU-E2-04 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
+| Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
+| Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
+| Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
 
 
 ---
@@ -555,7 +555,30 @@ Se prefiere un mapeo que pregunta más a uno que filtra datos de clientes.
 
 ### Estado
 
-**Mapa escrito el 2026-09-07.** Pendiente de aprobación. Responsable de las cinco unidades: Cristian.
+**Mapa aprobado el 2026-09-07.** Responsable de las cinco unidades: Cristian.
+
+Las cinco están **implementadas y verificadas en verde**, en una sola rama
+(`feature/spreadsheet_sync-sincronizacion-de-planillas`), un commit por unidad. Falta el
+Gate 3: el push y el PR, que por regla del repositorio no se hacen sin que los pidas.
+
+La corrida con la que se cierran las cinco, **con PostgreSQL y Redis reales**:
+
+```
+ruff format --check .   335 files already formatted
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 335 source files
+guard_architecture      361 file(s) checked - architecture boundaries intact
+pytest --cov            969 passed - 0 skipped - cobertura 94%  (umbral 80)
+alembic current         0015 (head)
+frontend lint           No ESLint warnings or errors
+frontend test:coverage  386 passed - 85.84 % lineas
+frontend build          compila
+```
+
+**Lo que el épico no cierra:** los dos criterios de lectura incremental de HU-E3-04 («se
+modifica una fila», «se agregan filas nuevas»). El write-back y la detección de cambio de
+estructura están; falta el token OAuth por empresa para volver a leer la hoja viva. Dicho en
+`units/sincronizacion-y-write-back.md` y en `TODO.md`.
 
 ### Fuera de alcance de este épico
 

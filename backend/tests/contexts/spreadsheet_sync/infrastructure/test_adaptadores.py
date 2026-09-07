@@ -10,6 +10,7 @@ import pytest
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.almacenamiento import (
     AlmacenamientoEnMemoria,
 )
+from cheatsheet.contexts.spreadsheet_sync.infrastructure.escritura import EscrituraSimulada
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.google_sheets import (
     ALCANCE,
     ProveedorDePlanillaSimulado,
@@ -42,3 +43,9 @@ def test_los_adaptadores_simulados_son_rechazados_en_produccion() -> None:
 
     with pytest.raises(RuntimeError):
         AlmacenamientoEnMemoria(Entorno.PRODUCTION)
+
+    # Y el de la escritura de vuelta: una empresa que cree que el panel alimenta su
+    # planilla, y la encuentra vacia un mes despues, estuvo llevando dos juegos de libros
+    # sin saberlo.
+    with pytest.raises(RuntimeError):
+        EscrituraSimulada(Entorno.PRODUCTION)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import (
@@ -332,3 +332,20 @@ class RepositorioProcesamientoPostgres:
             .order_by(ErrorDeFilaORM.numero_fila)
         )
         return list((await self._sesion.execute(sentencia)).scalars().all())
+
+
+async def empresas_con_planilla_sincronizable(sesion: AsyncSession) -> list[EmpresaId]:
+    """Which companies have a live, unpaused link, for the Beat sweep (HU-E3-04).
+
+    The fifth `SECURITY DEFINER` function of the system and the second outside
+    `integrations`. Same shape as the others: ids and nothing else, fed to a per-company
+    task that opens an ordinary session where Row-Level Security applies.
+
+    The session handed in must be one **without** a company: with one set, the policy would
+    scope the function's caller to a single tenant and the sweep would silently only ever
+    sync that company.
+    """
+    filas = await sesion.execute(
+        text("SELECT empresa_id FROM empresas_con_planilla_sincronizable()")
+    )
+    return [EmpresaId(fila[0]) for fila in filas]
