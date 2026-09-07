@@ -10,6 +10,7 @@ from cheatsheet.contexts.identity.application.errors import (
     CredencialesInvalidas,
     CuitYaRegistrado,
     EmailYaRegistrado,
+    PermisoDenegado,
     ReusoDeRefreshDetectado,
     SesionInvalida,
 )
@@ -369,6 +370,7 @@ async def test_completar_datos_de_empresa_cierra_el_onboarding(empresas, publica
     resultado = await CompletarDatosDeEmpresa(empresas=empresas, publicador=publicador).ejecutar(
         empresa_id=empresa_id,
         usuario_id=UsuarioId(uuid4()),
+        rol=RolUsuario.ADMINISTRADOR,
         razon_social="Panaderia Dona Rosa SRL",
         cuit=CUIT(CUIT_VALIDO),
         condicion_iva=CondicionIVA.MONOTRIBUTO,
@@ -400,6 +402,7 @@ async def test_un_cuit_ya_registrado_por_otra_empresa_es_rechazado(empresas, pub
         await CompletarDatosDeEmpresa(empresas=empresas, publicador=publicador).ejecutar(
             empresa_id=empresa_id,
             usuario_id=UsuarioId(uuid4()),
+            rol=RolUsuario.ADMINISTRADOR,
             razon_social="Panaderia",
             cuit=CUIT(CUIT_VALIDO),
             condicion_iva=CondicionIVA.MONOTRIBUTO,
@@ -414,6 +417,7 @@ async def test_completar_una_empresa_inexistente_falla(empresas, publicador):
         await CompletarDatosDeEmpresa(empresas=empresas, publicador=publicador).ejecutar(
             empresa_id=EmpresaId(uuid4()),
             usuario_id=UsuarioId(uuid4()),
+            rol=RolUsuario.ADMINISTRADOR,
             razon_social="Panaderia",
             cuit=CUIT(CUIT_VALIDO),
             condicion_iva=CondicionIVA.MONOTRIBUTO,
@@ -421,6 +425,37 @@ async def test_completar_una_empresa_inexistente_falla(empresas, publicador):
             email_contacto=Email("rosa@panaderia.com"),
             ahora=INSTANTE_FIJO,
         )
+
+
+@pytest.mark.parametrize("rol", [RolUsuario.OPERADOR, RolUsuario.SOLO_LECTURA])
+async def test_solo_un_administrador_completa_los_datos_fiscales(empresas, publicador, rol):
+    """HU-E1-02: the actor is the Administrador, and the check has to bite here.
+
+    Regression for the defect PRU-09 found: the use case never looked at the role, so an
+    Operador could rewrite the company's razon social, CUIT and condicion de IVA — the
+    data every Comprobante is issued against. The screen not offering the form is not a
+    control; this is.
+    """
+    empresa_id = EmpresaId(uuid4())
+    await empresas.agregar(Empresa(id=empresa_id))
+
+    with pytest.raises(PermisoDenegado):
+        await CompletarDatosDeEmpresa(empresas=empresas, publicador=publicador).ejecutar(
+            empresa_id=empresa_id,
+            usuario_id=UsuarioId(uuid4()),
+            rol=rol,
+            razon_social="Prueba No Autorizada SRL",
+            cuit=CUIT(CUIT_VALIDO),
+            condicion_iva=CondicionIVA.MONOTRIBUTO,
+            nombre_responsable="Rosa",
+            email_contacto=Email("rosa@panaderia.com"),
+            ahora=INSTANTE_FIJO,
+        )
+
+    guardada = await empresas.buscar_por_id(empresa_id)
+    assert guardada is not None
+    # The rejection has to leave nothing behind: a 403 that still wrote is not a control.
+    assert guardada.razon_social is None
 
 
 async def test_reaceptar_terminos_actualiza_la_version(empresas, publicador):
