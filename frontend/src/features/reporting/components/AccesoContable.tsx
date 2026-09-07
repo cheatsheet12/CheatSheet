@@ -1,0 +1,97 @@
+/**
+ * La pantalla del contador externo (HU-E10-06). **Sin sesión.**
+ *
+ * Lo que muestra es lo único que el enlace habilita: los indicadores del período y los
+ * paquetes para descargar. No hay navegación a ningún otro módulo, y no es una cuestión de
+ * ocultar botones — no existe ninguna otra ruta que este enlace pueda abrir.
+ *
+ * **Si el enlace no sirve, lo que se ve es la frase de la historia y nada más.** Ni un menú,
+ * ni un formulario de login, ni una sugerencia de escribirle a alguien: el enlace venció o lo
+ * revocaron, y las dos cosas dicen lo mismo a propósito.
+ */
+
+"use client";
+
+import { Alert, Card, Tabla, formatearFechaHora, formatearNumero } from "@/shared";
+import type { Columna } from "@/shared";
+
+import { urlDePaqueteDelContador } from "../api/paquete";
+import type { AccesoDelContador, Paquete } from "../api/paquete";
+
+export interface PropsDeAccesoContable {
+  /** El valor del enlace, que es la credencial: viaja en cada descarga. */
+  readonly valor: string;
+  readonly acceso: AccesoDelContador | null;
+  /** El texto que el backend contestó cuando el enlace no sirve. */
+  readonly motivo?: string | undefined;
+}
+
+export function AccesoContable({ valor, acceso, motivo }: PropsDeAccesoContable): JSX.Element {
+  if (acceso === null) {
+    return (
+      <Alert tono="error" titulo="Acceso no disponible">
+        {motivo ?? "El acceso a este paquete ya no está disponible."}
+      </Alert>
+    );
+  }
+
+  const columnas: readonly Columna<Paquete>[] = [
+    { clave: "periodo", titulo: "Período", celda: (fila) => fila.periodo },
+    {
+      clave: "contenido",
+      titulo: "Contenido",
+      celda: (fila) =>
+        Object.entries(fila.totales_por_tipo)
+          .filter(([, totales]) => totales.cantidad !== "0")
+          .map(([clave, totales]) => `${clave}: ${totales.cantidad}`)
+          .join(" · ") || "Sin movimientos",
+    },
+    {
+      clave: "archivo",
+      titulo: "Archivo",
+      alDerecha: true,
+      celda: (fila) =>
+        fila.disponible ? (
+          <a href={urlDePaqueteDelContador(valor, fila.id)} download>
+            Descargar
+          </a>
+        ) : (
+          "—"
+        ),
+    },
+  ];
+
+  return (
+    <>
+      <p className="dm-intro">
+        Tenés acceso de sólo lectura a los reportes y paquetes contables de tu cliente. El enlace
+        vence el {formatearFechaHora(acceso.vence)}.
+      </p>
+
+      <div className="fac-detalle">
+        <Card titulo="Facturado">
+          <p className="fac-totales__final">$ {formatearNumero(acceso.tablero.facturado.valor)}</p>
+        </Card>
+        <Card titulo="Cobrado">
+          <p className="fac-totales__final">$ {formatearNumero(acceso.tablero.cobrado.valor)}</p>
+        </Card>
+        <Card titulo="Pendiente de cobro">
+          <p className="fac-totales__final">$ {formatearNumero(acceso.tablero.pendiente)}</p>
+        </Card>
+        <Card titulo="En mora">
+          <p className="fac-totales__final">$ {formatearNumero(acceso.tablero.en_mora)}</p>
+        </Card>
+      </div>
+
+      <Card titulo="Paquetes contables">
+        <Tabla
+          titulo="Paquetes disponibles"
+          columnas={columnas}
+          filas={acceso.paquetes.paquetes}
+          claveDeFila={(fila) => fila.id}
+          vacia="Tu cliente todavía no generó ningún paquete contable."
+        />
+      </Card>
+    </>
+  );
+}

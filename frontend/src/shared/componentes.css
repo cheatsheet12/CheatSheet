@@ -911,3 +911,94 @@
   font-size: var(--text-small, 12px);
   color: var(--color-text-secondary);
 }
+
+/* --- Reportería (PAN-REP-01 y PAN-REP-02) ------------------------------------------- */
+
+.rep-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+}
+
+.rep-comparacion {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.rep-variacion {
+  font-weight: 600;
+}
+
+.rep-variacion--sube {
+  color: var(--color-accent);
+}
+
+.rep-variacion--baja {
+  color: var(--color-error);
+}
+
+.rep-barras {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.rep-barras__fila {
+  display: grid;
+  grid-template-columns: 10rem 1fr 8rem;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.rep-barras__pista {
+  background: var(--color-row-alt);
+  border-radius: var(--radius);
+  height: 0.75rem;
+  overflow: hidden;
+}
+
+.rep-barras__barra {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+}
+
+.rep-barras__valor {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rep-grupo {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin: var(--space-3) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.rep-grupo__opcion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.rep-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.rep-previsualizacion {
+  background: var(--color-row-alt);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin: var(--space-3) 0;
+}
