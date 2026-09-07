@@ -92,6 +92,15 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
             "schedule": timedelta(hours=1),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
+        # Las FAQ que quedaron sin vector. Cada seis horas: sólo hay algo que hacer cuando el
+        # proveedor de embeddings estuvo caído o cuando alguien cambió de modelo, y ninguna de
+        # las dos cosas pasa varias veces por día. Mientras tanto la FAQ se lee y se edita; lo
+        # único que no puede es encontrarse por significado.
+        "reindexar-faqs": {
+            "task": "conversational.barrer_faqs",
+            "schedule": timedelta(hours=6),
+            "options": {"queue": Cola.NOTIFICATIONS.value},
+        },
         "barrer-tareas-agotadas": {
             "task": "observability.barrer_dlq",
             "schedule": timedelta(minutes=max(settings.dlq_barrido_minutos, 1)),

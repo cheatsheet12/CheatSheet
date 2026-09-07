@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.contexts.observability.infrastructure.models import RegistroDeAuditoriaORM
-from cheatsheet.shared.auditoria import Modulo, Resultado
+from cheatsheet.shared.auditoria import Iniciador, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 
 
@@ -38,6 +38,7 @@ def _a_orm(registro: RegistroDeAuditoria) -> RegistroDeAuditoriaORM:
         entidad_afectada=registro.entidad_afectada,
         resultado=registro.resultado.value,
         direccion_ip=registro.direccion_ip,
+        iniciador=registro.iniciador.value,
         timestamp=registro.timestamp,
     )
 
@@ -53,6 +54,7 @@ def _a_dominio(fila: RegistroDeAuditoriaORM) -> RegistroDeAuditoria:
         entidad_afectada=fila.entidad_afectada,
         resultado=Resultado(fila.resultado),
         direccion_ip=fila.direccion_ip,
+        iniciador=Iniciador(fila.iniciador),
         timestamp=fila.timestamp,
     )
 

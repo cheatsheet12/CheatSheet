@@ -97,6 +97,11 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         whatsapp_graph_version="v21.0",
         whatsapp_timeout_segundos=1,
         whatsapp_sondeo_minutos=30,
+        # Un secreto de prueba, no vacio: con la cadena vacia **ninguna firma vale** (HS-T2),
+        # asi que dejarlo en blanco haria que el test del camino feliz del webhook pasara por
+        # el motivo equivocado.
+        whatsapp_webhook_secret="secreto-de-whatsapp",
+        whatsapp_webhook_verify_token="token-de-verificacion",
         whatsapp_sondeo_maximo_dias=7,
         # The simulator, and hosts that do not resolve: a test that ever reached the
         # network would fail loudly instead of quietly talking to ARCA.

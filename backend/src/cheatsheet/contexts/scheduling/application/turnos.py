@@ -195,7 +195,10 @@ class ReservarTurno:
         self,
         *,
         empresa_id: EmpresaId,
-        usuario_id: UsuarioId,
+        # `None` significa **el sistema**, que es lo que el agente del épico 8 es: no hay un
+        # usuario detrás de un mensaje de WhatsApp, y darle uno inventado sería una fila de
+        # `usuario` que no corresponde a nadie. Quién fue lo dice el iniciador de la bitácora.
+        usuario_id: UsuarioId | None,
         rol: RolUsuario,
         cliente_id: UUID,
         servicio_id: UUID,
@@ -259,7 +262,7 @@ class CancelarTurno:
         self,
         *,
         empresa_id: EmpresaId,
-        usuario_id: UsuarioId,
+        usuario_id: UsuarioId | None,
         rol: RolUsuario,
         turno_id: UUID,
         ahora: datetime,
@@ -412,7 +415,7 @@ class AsignarSenaAlTurno:
 async def _auditar(
     publicador: PublicadorDeEventos,
     empresa_id: EmpresaId,
-    usuario_id: UsuarioId,
+    usuario_id: UsuarioId | None,
     turno: Turno,
     accion: str,
     ahora: datetime,

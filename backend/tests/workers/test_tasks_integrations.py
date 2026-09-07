@@ -28,6 +28,7 @@ from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 from cheatsheet.workers import (
     tasks_billing,
+    tasks_conversational,
     tasks_integrations,
     tasks_observability,
     tasks_payments,
@@ -247,7 +248,7 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
     """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 8
+    assert len(entradas) == 9
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
@@ -267,6 +268,10 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
         # cobro nunca pasaria a mora y nadie recibiria un recordatorio -- las dos cosas se
         # notarian tarde, que es lo que una lista exhaustiva evita.
         tasks_payments.NOMBRE_BARRIDO,
+        # Epico 8: reindexa las FAQ que quedaron sin vector. Sin esta entrada, una FAQ
+        # guardada mientras el proveedor de embeddings estaba caido nunca se encontraria por
+        # significado, y la pantalla la mostraria como si estuviera lista.
+        tasks_conversational.NOMBRE_BARRIDO,
     }
 
 

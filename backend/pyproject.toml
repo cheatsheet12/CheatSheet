@@ -74,6 +74,12 @@ dependencies = [
     "defusedxml==0.7.1",
 ]
 
+# NOT here, and deliberately: `pgvector`, the Python package. The PostgreSQL extension has
+# been installed since migration 0001 and epic 8 uses it — but the ORM mapping it provides
+# would buy about twenty lines of SQL. `faq.embedding_vector` is written and searched with
+# explicit statements and an explicit `::vector` cast, in one repository method each, and the
+# column stays out of the ORM model. One dependency fewer on the path of a Core context.
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/cheatsheet"]
 # PEP 561: ship the marker so consumers (starting with the test suite) see the types

@@ -17,6 +17,7 @@ from cheatsheet.platform.telemetry import configurar_logging
 from cheatsheet.workers.beat import configurar_beat
 from cheatsheet.workers.celery_app import crear_celery
 from cheatsheet.workers.tasks_billing import registrar as registrar_billing
+from cheatsheet.workers.tasks_conversational import registrar as registrar_conversational
 from cheatsheet.workers.tasks_identity import registrar_en as registrar_identity
 from cheatsheet.workers.tasks_integrations import registrar_en as registrar_integrations
 from cheatsheet.workers.tasks_observability import registrar as registrar_observability
@@ -38,5 +39,6 @@ registrar_identity(app, settings)
 registrar_integrations(app, settings)
 registrar_observability(app, settings)
 registrar_payments(app, settings)
+registrar_conversational(app, settings)
 registrar_reference_data(app, settings)
 registrar_spreadsheet(app, settings)

@@ -27,6 +27,7 @@ from cheatsheet.api.routers import (
     clientes,
     cobros,
     comprobantes,
+    conversaciones,
     health,
     integraciones,
     planillas,
@@ -35,6 +36,7 @@ from cheatsheet.api.routers import (
     servicios,
     usuarios,
     webhooks,
+    whatsapp,
 )
 from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
 from cheatsheet.platform.settings import Settings
@@ -95,6 +97,8 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(cobros.crear_router(recursos))
     app.include_router(agenda.crear_router(recursos))
     app.include_router(reglas.crear_router(recursos))
+    app.include_router(conversaciones.crear_router(recursos))
     app.include_router(webhooks.crear_router(recursos))
+    app.include_router(whatsapp.crear_router(recursos))
 
     return app

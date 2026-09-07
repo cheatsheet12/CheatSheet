@@ -40,6 +40,11 @@ class RegistroDeAuditoriaORM(Base):
     usuario_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
 
     modulo: Mapped[str] = mapped_column(String(40), nullable=False)
+    #: Quien lo puso en marcha (HS-T5 RN-02). Con `server_default` porque la columna llega en
+    #: la migracion 0021 sobre una tabla que ya tiene filas: sin el default, el `ALTER` sobre
+    #: una bitacora de produccion fallaria, y esa tabla es justamente la que no se puede
+    #: reescribir (HS-T5 RN-03 le niega el UPDATE al rol de la aplicacion).
+    iniciador: Mapped[str] = mapped_column(String(20), nullable=False, server_default="sistema")
     accion: Mapped[str] = mapped_column(String(120), nullable=False)
     entidad_afectada: Mapped[str] = mapped_column(String(200), nullable=False)
     resultado: Mapped[str] = mapped_column(String(20), nullable=False)

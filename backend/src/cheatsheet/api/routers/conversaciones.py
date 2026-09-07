@@ -1,0 +1,486 @@
+"""Superficie HTTP del canal conversacional (HU-E9-01, HU-E9-02, HU-E9-04, HU-E11-02).
+
+`EmpresaMiddleware` ya puso la empresa, el usuario y el rol en `request.state`. El rol se pasa
+al caso de uso en vez de comprobarlo acá, por lo que dicen los demás routers y probó PRU-09.
+
+**El webhook de WhatsApp no está acá**: vive en `webhooks.py`, con el de MercadoPago, porque
+entra sin sesión y el middleware lo tiene que dejar pasar.
+
+**No hay `DELETE` salvo en las FAQ.** Una conversación es el registro de lo que se le dijo a un
+cliente y un escalamiento cerrado es un caso atendido. Una FAQ sí se borra: HU-E9-04 RN-03 pide
+que deje de estar disponible de inmediato.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Annotated, TypeVar
+from uuid import UUID
+
+from cheatsheet.api.conversacional import (
+    armar_embeddings,
+    armar_interprete,
+    armar_mensajeria,
+)
+from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.contexts.business_config.application.plantillas import (
+    EditarPlantilla,
+    ListarPlantillas,
+    variables_conocidas,
+)
+from cheatsheet.contexts.business_config.domain.plantilla import PlantillaDeNotificacion
+from cheatsheet.contexts.business_config.infrastructure.ensamblado import ConfiguracionDeNegocio
+from cheatsheet.contexts.conversational.application.atencion import (
+    CerrarEscalamiento,
+    ListarConversaciones,
+    ResponderComoOperador,
+    TomarEscalamiento,
+    VerConversacion,
+    VistaDeConversacion,
+)
+from cheatsheet.contexts.conversational.application.faqs import (
+    CrearFAQ,
+    EditarFAQ,
+    EliminarFAQ,
+    ListarFAQs,
+)
+from cheatsheet.contexts.conversational.domain.conversacion import Intencion, Mensaje
+from cheatsheet.contexts.conversational.domain.faq import FAQ
+from cheatsheet.contexts.conversational.infrastructure.ensamblado import Conversaciones
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.roles import RolUsuario
+from fastapi import APIRouter, Query, Request, Response, status
+from pydantic import BaseModel
+
+_T = TypeVar("_T")
+
+
+# -- entradas -------------------------------------------------------------------------
+
+
+class RespuestaEntrada(BaseModel):
+    texto: str
+    #: A qué número escribirle. Lo sabe la pantalla porque lo trae el detalle del hilo; el
+    #: backend no lo re-deriva para no consultar `master_data` en cada mensaje enviado.
+    telefono: str
+
+
+class CierreEntrada(BaseModel):
+    devolver_al_agente: bool
+    #: HU-E9-01 RN-05: el operador puede corregir la clasificación antes de devolver.
+    clasificacion: str | None = None
+
+
+class FAQEntrada(BaseModel):
+    pregunta: str
+    respuesta: str
+
+
+class PlantillaEntrada(BaseModel):
+    cuerpo: str
+
+
+# -- salidas --------------------------------------------------------------------------
+
+
+class MensajeSalida(BaseModel):
+    id: UUID
+    direccion: str
+    tipo_contenido: str
+    contenido: str
+    momento: datetime
+    intencion: str | None
+    estado_entrega: str | None
+    #: HU-E9-01 RN-04: lo que hace que la pantalla distinga al operador del agente.
+    origen: str | None
+
+
+class ConversacionSalida(BaseModel):
+    id: UUID
+    cliente_id: UUID
+    estado: str
+    ultimo_mensaje_en: datetime | None
+    #: HU-E9-01 RN-01: se **deriva** del escalamiento abierto, no es un estado del hilo.
+    esta_escalada: bool
+    escalamiento_id: UUID | None
+    motivo: str | None
+    estado_escalamiento: str | None
+    usuario_asignado_id: UUID | None
+
+
+class DetalleDeConversacion(ConversacionSalida):
+    mensajes: list[MensajeSalida]
+
+
+class ListadoDeConversaciones(BaseModel):
+    conversaciones: list[ConversacionSalida]
+
+
+class FAQSalida(BaseModel):
+    id: UUID
+    pregunta: str
+    respuesta: str
+    #: HU-E9-04 RN-02: cuántas veces se usó en el período.
+    usos: int
+    #: `True` mientras el vector no se haya calculado: la FAQ existe y todavía no se encuentra
+    #: por significado. La pantalla lo dice en vez de fingir que está lista.
+    sin_indexar: bool
+
+
+class ListadoDeFAQs(BaseModel):
+    faqs: list[FAQSalida]
+
+
+class PlantillaSalida(BaseModel):
+    id: UUID
+    codigo: str
+    canal: str
+    idioma: str
+    cuerpo: str
+    estado_aprobacion: str
+    #: Las variables que admite, para que la pantalla las ofrezca en vez de que alguien las
+    #: adivine y se coma el 422 del tercer criterio.
+    variables: list[str]
+    puede_usarse: bool
+
+
+class ListadoDePlantillas(BaseModel):
+    plantillas: list[PlantillaSalida]
+
+
+def _a_conversacion(vista: VistaDeConversacion) -> ConversacionSalida:
+    escalamiento = vista.escalamiento
+    return ConversacionSalida(
+        id=vista.conversacion.id,
+        cliente_id=vista.conversacion.cliente_id,
+        estado=vista.conversacion.estado.value,
+        ultimo_mensaje_en=vista.conversacion.ultimo_mensaje_en,
+        esta_escalada=vista.esta_escalada,
+        escalamiento_id=escalamiento.id if escalamiento else None,
+        motivo=escalamiento.motivo if escalamiento else None,
+        estado_escalamiento=escalamiento.estado.value if escalamiento else None,
+        usuario_asignado_id=escalamiento.usuario_asignado_id if escalamiento else None,
+    )
+
+
+def _a_mensaje(mensaje: Mensaje) -> MensajeSalida:
+    return MensajeSalida(
+        id=mensaje.id,
+        direccion=mensaje.direccion.value,
+        tipo_contenido=mensaje.tipo_contenido.value,
+        contenido=mensaje.contenido,
+        momento=mensaje.momento,
+        intencion=mensaje.intencion.value if mensaje.intencion else None,
+        estado_entrega=mensaje.estado_entrega.value if mensaje.estado_entrega else None,
+        origen=mensaje.origen.value if mensaje.origen else None,
+    )
+
+
+def _a_faq(faq: FAQ) -> FAQSalida:
+    return FAQSalida(
+        id=faq.id,
+        pregunta=faq.pregunta,
+        respuesta=faq.respuesta,
+        usos=faq.usos,
+        sin_indexar=faq.embedding_obsoleto,
+    )
+
+
+def _a_plantilla(plantilla: PlantillaDeNotificacion) -> PlantillaSalida:
+    return PlantillaSalida(
+        id=plantilla.id,
+        codigo=plantilla.codigo,
+        canal=plantilla.canal.value,
+        idioma=plantilla.idioma,
+        cuerpo=plantilla.cuerpo,
+        estado_aprobacion=plantilla.estado_aprobacion.value,
+        variables=sorted(variables_conocidas(plantilla.codigo)),
+        puede_usarse=plantilla.puede_usarse,
+    )
+
+
+def _actor(request: Request) -> tuple[EmpresaId, UsuarioId, RolUsuario]:
+    return (request.state.empresa_id, request.state.usuario_id, RolUsuario(request.state.rol))
+
+
+def _clasificacion(texto: str | None) -> Intencion | None:
+    """La corrección manual de HU-E9-01 RN-05, o `None` para que el agente reevalúe.
+
+    Un valor desconocido se trata como `None` y no como un 422: significa «no me dijiste una
+    clasificación válida», y la consecuencia correcta es que reevalúe el agente, que es lo que
+    la regla pide por defecto.
+    """
+    if texto is None or texto not in Intencion.__members__:
+        return None
+    return Intencion[texto]
+
+
+def _exigir(salida: _T | None) -> _T:
+    if salida is None:  # pragma: no cover - la unidad de trabajo siempre entrega una vuelta
+        raise RuntimeError("La unidad de trabajo no produjo una respuesta")
+    return salida
+
+
+def crear_router(recursos: Recursos) -> APIRouter:
+    router = APIRouter(tags=["conversational"])
+    router.include_router(_rutas_de_conversaciones(recursos), prefix="/conversaciones")
+    router.include_router(_rutas_de_escalamientos(recursos), prefix="/escalamientos")
+    router.include_router(_rutas_de_faqs(recursos), prefix="/faqs")
+    router.include_router(_rutas_de_plantillas(recursos), prefix="/plantillas")
+    return router
+
+
+def _rutas_de_conversaciones(recursos: Recursos) -> APIRouter:
+    """PAN-WA-01. Todos los roles leen; Administrador y Operador atienden."""
+    router = APIRouter()
+
+    @router.get("")
+    async def listar(
+        request: Request, solo_escaladas: Annotated[bool, Query()] = False
+    ) -> ListadoDeConversaciones:
+        """La bandeja del operador. `solo_escaladas` es lo que la pantalla usa por defecto."""
+        empresa_id, _, _ = _actor(request)
+        salida: ListadoDeConversaciones | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Conversaciones.armar(unidad)
+            vistas = await ListarConversaciones(
+                piezas.conversaciones, piezas.escalamientos
+            ).ejecutar(solo_escaladas=solo_escaladas)
+            salida = ListadoDeConversaciones(
+                conversaciones=[_a_conversacion(una) for una in vistas]
+            )
+        return _exigir(salida)
+
+    @router.get("/{conversacion_id}")
+    async def ver(request: Request, conversacion_id: UUID) -> DetalleDeConversacion:
+        """El hilo completo. **El contexto previo de HU-E8-05 RN-03.**"""
+        empresa_id, _, _ = _actor(request)
+        salida: DetalleDeConversacion | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Conversaciones.armar(unidad)
+            vista = await VerConversacion(
+                piezas.conversaciones, piezas.mensajes, piezas.escalamientos
+            ).ejecutar(conversacion_id)
+            salida = DetalleDeConversacion(
+                **_a_conversacion(vista).model_dump(),
+                mensajes=[_a_mensaje(uno) for uno in vista.mensajes],
+            )
+        return _exigir(salida)
+
+    @router.post("/{conversacion_id}/mensajes", status_code=status.HTTP_201_CREATED)
+    async def responder(
+        request: Request, conversacion_id: UUID, entrada: RespuestaEntrada
+    ) -> MensajeSalida:
+        """HU-E9-01, tercer criterio: sale por WhatsApp y se distingue del agente.
+
+        Requiere el escalamiento tomado: sin eso, el agente sigue contestando el mismo hilo y
+        el cliente tendría dos interlocutores.
+        """
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: MensajeSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Conversaciones.armar(unidad)
+            mensaje = await ResponderComoOperador(
+                conversaciones=piezas.conversaciones,
+                mensajes=piezas.mensajes,
+                escalamientos=piezas.escalamientos,
+                mensajeria=await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id),
+                publicador=unidad.publicador,
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                conversacion_id=conversacion_id,
+                texto=entrada.texto,
+                telefono=entrada.telefono,
+                ahora=unidad.reloj.ahora(),
+            )
+            salida = _a_mensaje(mensaje)
+        return _exigir(salida)
+
+    return router
+
+
+def _rutas_de_escalamientos(recursos: Recursos) -> APIRouter:
+    """Las dos acciones de HU-E9-01 y HU-E9-02."""
+    router = APIRouter()
+
+    @router.post("/{escalamiento_id}/toma")
+    async def tomar(request: Request, escalamiento_id: UUID) -> ConversacionSalida:
+        """HU-E9-01 RN-02: a partir de acá el agente no contesta ese hilo."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: ConversacionSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Conversaciones.armar(unidad)
+            escalamiento = await TomarEscalamiento(
+                piezas.escalamientos, unidad.publicador
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                escalamiento_id=escalamiento_id,
+                ahora=unidad.reloj.ahora(),
+            )
+            vista = await VerConversacion(
+                piezas.conversaciones, piezas.mensajes, piezas.escalamientos
+            ).ejecutar(escalamiento.conversacion_id)
+            salida = _a_conversacion(vista)
+        return _exigir(salida)
+
+    @router.post("/{escalamiento_id}/cierre")
+    async def cerrar(
+        request: Request, escalamiento_id: UUID, entrada: CierreEntrada
+    ) -> ConversacionSalida:
+        """HU-E9-02. Devolver al agente **reclasifica** el hilo (RN-05).
+
+        Un escalamiento ya cerrado contesta 422 con la frase que la historia pide: hay que
+        decir que un pedido nuevo genera uno nuevo, no sólo negar la operación.
+        """
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: ConversacionSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Conversaciones.armar(unidad)
+            escalamiento = await CerrarEscalamiento(
+                conversaciones=piezas.conversaciones,
+                mensajes=piezas.mensajes,
+                escalamientos=piezas.escalamientos,
+                interprete=armar_interprete(recursos.settings),
+                publicador=unidad.publicador,
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                escalamiento_id=escalamiento_id,
+                devolver_al_agente=entrada.devolver_al_agente,
+                clasificacion=_clasificacion(entrada.clasificacion),
+                ahora=unidad.reloj.ahora(),
+            )
+            vista = await VerConversacion(
+                piezas.conversaciones, piezas.mensajes, piezas.escalamientos
+            ).ejecutar(escalamiento.conversacion_id)
+            salida = _a_conversacion(vista)
+        return _exigir(salida)
+
+    return router
+
+
+def _rutas_de_faqs(recursos: Recursos) -> APIRouter:
+    """PAN-WA-02 (HU-E9-04). Todos leen; sólo el Administrador escribe."""
+    router = APIRouter()
+
+    @router.get("")
+    async def listar(request: Request) -> ListadoDeFAQs:
+        empresa_id, _, _ = _actor(request)
+        salida: ListadoDeFAQs | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Conversaciones.armar(unidad)
+            faqs = await ListarFAQs(piezas.faqs).ejecutar()
+            salida = ListadoDeFAQs(faqs=[_a_faq(una) for una in faqs])
+        return _exigir(salida)
+
+    @router.post("", status_code=status.HTTP_201_CREATED)
+    async def crear(request: Request, entrada: FAQEntrada) -> FAQSalida:
+        """Primer criterio: aparece con contador en cero y disponible para el agente."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: FAQSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Conversaciones.armar(unidad)
+            faq = await CrearFAQ(piezas.faqs, armar_embeddings(), unidad.publicador).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                pregunta=entrada.pregunta,
+                respuesta=entrada.respuesta,
+                ahora=unidad.reloj.ahora(),
+            )
+            salida = _a_faq(faq)
+        return _exigir(salida)
+
+    @router.put("/{faq_id}")
+    async def editar(request: Request, faq_id: UUID, entrada: FAQEntrada) -> FAQSalida:
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: FAQSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Conversaciones.armar(unidad)
+            faq = await EditarFAQ(piezas.faqs, armar_embeddings(), unidad.publicador).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                faq_id=faq_id,
+                pregunta=entrada.pregunta,
+                respuesta=entrada.respuesta,
+                ahora=unidad.reloj.ahora(),
+            )
+            salida = _a_faq(faq)
+        return _exigir(salida)
+
+    @router.delete(
+        "/{faq_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        # `response_class=Response`, como el logout de `auth.py`: sin esto FastAPI le arma un
+        # modelo de respuesta a un 204, que por definicion no tiene cuerpo, y falla al crear
+        # la ruta — no al llamarla.
+        response_class=Response,
+    )
+    async def eliminar(request: Request, faq_id: UUID) -> Response:
+        """HU-E9-04 RN-03: el agente deja de usarla de inmediato.
+
+        **El único borrado real del sistema.** Una FAQ no es un registro del negocio: no hay
+        nada que auditar en una pregunta que ya no se hace.
+        """
+        empresa_id, usuario_id, rol = _actor(request)
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Conversaciones.armar(unidad)
+            await EliminarFAQ(piezas.faqs, unidad.publicador).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                faq_id=faq_id,
+                ahora=unidad.reloj.ahora(),
+            )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    return router
+
+
+def _rutas_de_plantillas(recursos: Recursos) -> APIRouter:
+    """PAN-CFG-NOT (HU-E11-02). Todos leen; sólo el Administrador edita.
+
+    **No hay alta ni baja.** Los códigos los define el sistema, y `ListarPlantillas` siembra
+    las que falten la primera vez que alguien entra.
+    """
+    router = APIRouter()
+
+    @router.get("")
+    async def listar(request: Request) -> ListadoDePlantillas:
+        empresa_id, _, _ = _actor(request)
+        salida: ListadoDePlantillas | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = ConfiguracionDeNegocio.armar(unidad)
+            plantillas = await ListarPlantillas(piezas.plantillas).ejecutar(
+                empresa_id=empresa_id, ahora=unidad.reloj.ahora()
+            )
+            salida = ListadoDePlantillas(plantillas=[_a_plantilla(una) for una in plantillas])
+        return _exigir(salida)
+
+    @router.put("/{plantilla_id}")
+    async def editar(
+        request: Request, plantilla_id: UUID, entrada: PlantillaEntrada
+    ) -> PlantillaSalida:
+        """Segundo y tercer criterio: guarda con variables válidas, rechaza con la frase."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: PlantillaSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = ConfiguracionDeNegocio.armar(unidad)
+            plantilla = await EditarPlantilla(piezas.plantillas, unidad.publicador).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                plantilla_id=plantilla_id,
+                cuerpo=entrada.cuerpo,
+                ahora=unidad.reloj.ahora(),
+            )
+            salida = _a_plantilla(plantilla)
+        return _exigir(salida)
+
+    return router

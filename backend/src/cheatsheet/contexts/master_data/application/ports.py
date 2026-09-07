@@ -92,6 +92,18 @@ class PortRepositorioCliente(Protocol):
         """Used to name the duplicate, never to prevent it — that is the index's job."""
         ...
 
+    async def buscar_por_telefono(self, telefono: str) -> Cliente | None:
+        """The client behind a WhatsApp number, or `None` for a stranger.
+
+        Added by epic 8, whose agent has nothing but the number an inbound message came from.
+        `None` is not an error there: it is somebody writing for the first time, and the agent
+        has to be able to serve them.
+
+        The lookup compares digits only, the same normalisation `Telefono` applies on the way
+        in, so `+54 9 11 …` and `54911…` find the same row.
+        """
+        ...
+
     async def listar(
         self, *, empresa_id: EmpresaId, filtros: FiltrosDeCliente, pagina: Pagina
     ) -> tuple[Sequence[Cliente], int]:

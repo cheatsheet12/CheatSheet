@@ -409,6 +409,13 @@ class Settings:
     whatsapp_graph_version: str
     whatsapp_timeout_segundos: int
     whatsapp_sondeo_minutos: int
+    #: El secreto con el que Meta firma el webhook entrante (HS-T2). **Vacío significa que
+    #: ninguna firma valida**, igual que el de MercadoPago: lo cómodo —aceptar todo mientras
+    #: no haya secreto— convierte un despliegue mal configurado en un endpoint público que le
+    #: habla a los clientes de una empresa.
+    whatsapp_webhook_secret: str
+    #: El token del handshake `GET` con el que Meta verifica la URL al registrarla.
+    whatsapp_webhook_verify_token: str
     #: How often Beat retires tasks that ran out of attempts (HS-T6 RN-02).
     dlq_barrido_minutos: int
     #: spreadsheet_sync (HU-E2-04). Cloudflare R2 holds the uploaded workbooks.
@@ -529,6 +536,8 @@ class Settings:
             # 30 minutes against a wait Meta measures in days (HU-E2-03 RN-02): it bounds
             # the delay to about 1% of the wait at 48 calls per number per day.
             whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
+            whatsapp_webhook_secret=_opcional("WHATSAPP_WEBHOOK_SECRET", ""),
+            whatsapp_webhook_verify_token=_opcional("WHATSAPP_WEBHOOK_VERIFY_TOKEN", ""),
             dlq_barrido_minutos=_entero("DLQ_BARRIDO_MINUTOS", 15),
             planilla_adaptador=_adaptador_de_planilla(entorno),
             almacenamiento_adaptador=_adaptador_de_almacenamiento(entorno),

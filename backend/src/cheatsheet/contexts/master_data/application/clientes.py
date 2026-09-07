@@ -191,12 +191,21 @@ class RegistrarCliente:
         self,
         *,
         empresa_id: EmpresaId,
-        usuario_id: UsuarioId,
+        # `None` significa **el sistema**. Epic 8's agent creates a client from an inbound
+        # WhatsApp message, and there is no user behind that: inventing one would put a row in
+        # `usuario` that corresponds to nobody. The audit trail's initiator says who it was.
+        usuario_id: UsuarioId | None,
         rol: RolUsuario,
         datos: DatosDeCliente,
         direccion_ip: str | None = None,
+        origen: OrigenDato = OrigenDato.PANEL,
     ) -> VistaDeCliente:
-        """`origen` is `PANEL` and is not a parameter: this use case *is* the panel.
+        """`origen` defaults to `PANEL`, because this use case started out being the panel.
+
+        Epic 8 made it a parameter: the WhatsApp agent creates a client from an inbound
+        message, and the DER's `origen_dato` enum has had `AGENTE` for exactly that. A second
+        use case that differed in one enum value would have been the same code twice, with two
+        chances to drift on the checks around it.
 
         The duplicate CUIT of RN-03 is not checked here. `agregar` raises
         `ClienteDuplicado` from the unique index, which is the only check that cannot lose
@@ -210,7 +219,7 @@ class RegistrarCliente:
             id=uuid4(),
             empresa_id=empresa_id,
             nombre=_nombre_elegido(datos, fiscales),
-            origen=OrigenDato.PANEL,
+            origen=origen,
             momento=ahora,
             cuit=fiscales.cuit,
             condicion_iva=fiscales.condicion_iva,
@@ -366,11 +375,18 @@ class CambiarEstadoDeCliente:
         return VistaDeCliente(cliente)
 
 
+#: `OrigenDato` is re-exported deliberately, not by accident of the import above.
+#:
+#: `RegistrarCliente` takes it as a parameter, so a caller in another context needs the enum to
+#: call it — and reaching into `master_data.domain` for it is exactly what rule R3 forbids.
+#: Publishing it here is what makes the parameter usable: an argument type nobody outside can
+#: name is an argument nobody outside can pass.
 __all__ = [
     "CambiarEstadoDeCliente",
     "DatosDeCliente",
     "EditarCliente",
     "ListarClientes",
+    "OrigenDato",
     "RegistrarCliente",
     "VistaDeCliente",
 ]
