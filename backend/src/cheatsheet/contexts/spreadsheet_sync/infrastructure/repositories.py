@@ -12,13 +12,22 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import (
+    EntradaDeMapeo,
+    EstadoMapeo,
+    Mapeo,
+)
 from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
     DireccionSync,
     ProveedorPlanilla,
     ReferenciaDeArchivo,
 )
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
-from cheatsheet.contexts.spreadsheet_sync.infrastructure.models import VinculoDePlanillaORM
+from cheatsheet.contexts.spreadsheet_sync.infrastructure.models import (
+    EntradaDeMapeoORM,
+    MapeoORM,
+    VinculoDePlanillaORM,
+)
 from cheatsheet.shared.empresa import EmpresaId
 
 
@@ -112,3 +121,106 @@ class RepositorioVinculoPostgres:
             delete(VinculoDePlanillaORM).where(VinculoDePlanillaORM.id == vinculo_id)
         )
         await self._sesion.flush()
+
+
+def _entrada_a_dominio(fila: EntradaDeMapeoORM) -> EntradaDeMapeo:
+    return EntradaDeMapeo(
+        id=fila.id,
+        columna_origen=fila.columna_origen,
+        atributo_destino=fila.atributo_destino,
+        score=fila.score,
+        ejemplo=fila.ejemplo,
+        corregida_a_mano=fila.corregida_a_mano,
+    )
+
+
+def _mapeo_a_dominio(fila: MapeoORM, entradas: list[EntradaDeMapeoORM]) -> Mapeo:
+    return Mapeo(
+        id=fila.id,
+        empresa_id=EmpresaId(fila.empresa_id),
+        huella_encabezado=fila.huella_encabezado,
+        estado=EstadoMapeo(fila.estado),
+        version=fila.version,
+        # Ordered by the column's position in the sheet, which is the order the review
+        # screen shows and the order the user read them in.
+        entradas=[_entrada_a_dominio(e) for e in entradas],
+        created_at=fila.created_at,
+        updated_at=fila.updated_at,
+    )
+
+
+class RepositorioMapeoPostgres:
+    """Mappings and their entries, backed by PostgreSQL.
+
+    The entries are written with a delete-and-reinsert rather than a per-row diff. A
+    mapping has as many entries as the spreadsheet has columns -- dozens, not thousands --
+    and the diff would be more code for the same number of round trips.
+    """
+
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._sesion = sesion
+
+    async def agregar(self, mapeo: Mapeo) -> None:
+        self._sesion.add(
+            MapeoORM(
+                id=mapeo.id,
+                empresa_id=mapeo.empresa_id,
+                huella_encabezado=mapeo.huella_encabezado,
+                estado=mapeo.estado.value,
+                version=mapeo.version,
+                created_at=mapeo.created_at,
+                updated_at=mapeo.updated_at,
+            )
+        )
+        self._agregar_entradas(mapeo)
+        await self._sesion.flush()
+
+    async def actualizar(self, mapeo: Mapeo) -> None:
+        fila = await self._sesion.get(MapeoORM, mapeo.id)
+        if fila is None:
+            raise LookupError(f"El mapeo {mapeo.id} no existe para esta empresa")
+        fila.estado = mapeo.estado.value
+        fila.version = mapeo.version
+        fila.updated_at = mapeo.updated_at
+
+        await self._sesion.execute(
+            delete(EntradaDeMapeoORM).where(EntradaDeMapeoORM.mapeo_id == mapeo.id)
+        )
+        self._agregar_entradas(mapeo)
+        await self._sesion.flush()
+
+    async def buscar_por_id(self, mapeo_id: UUID) -> Mapeo | None:
+        fila = await self._sesion.get(MapeoORM, mapeo_id)
+        if fila is None:
+            return None
+        return _mapeo_a_dominio(fila, await self._entradas_de(mapeo_id))
+
+    async def buscar_por_huella(self, huella: str) -> Mapeo | None:
+        sentencia = select(MapeoORM).where(MapeoORM.huella_encabezado == huella)
+        fila = (await self._sesion.execute(sentencia)).scalar_one_or_none()
+        if fila is None:
+            return None
+        return _mapeo_a_dominio(fila, await self._entradas_de(fila.id))
+
+    async def _entradas_de(self, mapeo_id: UUID) -> list[EntradaDeMapeoORM]:
+        sentencia = (
+            select(EntradaDeMapeoORM)
+            .where(EntradaDeMapeoORM.mapeo_id == mapeo_id)
+            .order_by(EntradaDeMapeoORM.columna_origen)
+        )
+        return list((await self._sesion.execute(sentencia)).scalars().all())
+
+    def _agregar_entradas(self, mapeo: Mapeo) -> None:
+        for entrada in mapeo.entradas:
+            self._sesion.add(
+                EntradaDeMapeoORM(
+                    id=entrada.id,
+                    mapeo_id=mapeo.id,
+                    empresa_id=mapeo.empresa_id,
+                    columna_origen=entrada.columna_origen,
+                    atributo_destino=entrada.atributo_destino,
+                    score=entrada.score,
+                    ejemplo=entrada.ejemplo,
+                    corregida_a_mano=entrada.corregida_a_mano,
+                )
+            )

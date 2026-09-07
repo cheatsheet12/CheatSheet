@@ -112,3 +112,96 @@ export async function desvincularPlanilla(vinculoId: string): Promise<void> {
     await fallar(respuesta);
   }
 }
+
+// --- PAN-ING-02 — revisión del mapeo (HU-E3-01, HU-E3-02) --------------------
+
+/** Los tres niveles de HU-E3-01 RN-01, en las palabras que usa la pantalla. */
+export type NivelDeConfianza = "ALTA" | "MEDIA" | "BAJA";
+
+export interface EntradaDeMapeo {
+  readonly columna_origen: string;
+  /** `null` es el «Sin asignar» de RN-03, y es una respuesta válida. */
+  readonly atributo_destino: string | null;
+  readonly confianza: NivelDeConfianza;
+  /** Leído de la planilla y mostrado acá. Nunca pasó por el modelo (decisión D12). */
+  readonly ejemplo: string | null;
+  readonly corregida_a_mano: boolean;
+}
+
+export interface Mapeo {
+  readonly id: string;
+  readonly estado: string;
+  readonly version: number;
+  readonly entradas: readonly EntradaDeMapeo[];
+  /** Atributos obligatorios que ninguna columna alimenta todavía (RN-02). */
+  readonly faltantes: readonly string[];
+  readonly puede_confirmarse: boolean;
+  readonly propuesto_por_el_modelo: boolean;
+}
+
+/** Cómo se llama cada campo interno en pantalla. El backend nunca manda etiquetas. */
+export const ETIQUETAS_DE_ATRIBUTO: Readonly<Record<string, string>> = {
+  nombre: "Nombre / Razón social",
+  cuit: "CUIT",
+  condicion_iva: "Condición de IVA",
+  contacto_whatsapp: "WhatsApp",
+  contacto_email: "Email",
+  precio: "Precio",
+  alicuota_iva: "Alícuota de IVA",
+  agendable: "Agendable",
+  duracion_estandar_min: "Duración (min)",
+};
+
+export const ATRIBUTOS_DE_CLIENTE = [
+  "nombre",
+  "cuit",
+  "condicion_iva",
+  "contacto_whatsapp",
+  "contacto_email",
+] as const;
+
+export const MENSAJE_FALTAN_OBLIGATORIAS =
+  "Debe asignar todas las columnas obligatorias antes de continuar.";
+
+export async function proponerMapeo(
+  vinculoId: string,
+  columnas: readonly { nombre: string; ejemplo?: string }[],
+): Promise<Mapeo> {
+  const respuesta = await fetch("/api/planillas/mapeos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ vinculo_id: vinculoId, columnas }),
+  });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as Mapeo;
+}
+
+export async function corregirMapeo(
+  mapeoId: string,
+  columna: string,
+  atributo: string | null,
+): Promise<Mapeo> {
+  const respuesta = await fetch(`/api/planillas/mapeos/${mapeoId}/columnas`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ columna, atributo }),
+  });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as Mapeo;
+}
+
+export async function confirmarMapeo(mapeoId: string): Promise<Mapeo> {
+  const respuesta = await fetch(`/api/planillas/mapeos/${mapeoId}/confirmacion`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as Mapeo;
+}

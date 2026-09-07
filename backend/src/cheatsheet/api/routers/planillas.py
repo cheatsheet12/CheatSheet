@@ -31,6 +31,12 @@ from cheatsheet.contexts.spreadsheet_sync.application.errors import (
     ArchivoDemasiadoGrande,
     PermisosDePlanillaInsuficientes,
 )
+from cheatsheet.contexts.spreadsheet_sync.application.mapeos import (
+    ConfirmarMapeo,
+    CorregirMapeo,
+    ProponerMapeo,
+    VistaDeMapeo,
+)
 from cheatsheet.contexts.spreadsheet_sync.application.vinculos import (
     ConfirmarVinculacionConGoogle,
     DesvincularPlanilla,
@@ -38,6 +44,7 @@ from cheatsheet.contexts.spreadsheet_sync.application.vinculos import (
     ListarVinculos,
     SubirPlanilla,
 )
+from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import NivelDeConfianza
 from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
     LIMITE_TAMANO_BYTES,
     MENSAJE_ARCHIVO_DEMASIADO_GRANDE,
@@ -48,6 +55,7 @@ from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanill
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.ensamblado import (
     Planillas,
     almacenamiento,
+    modelo_de_lenguaje,
     proveedor_de_planilla,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
@@ -93,6 +101,79 @@ class ListadoDeVinculosSalida(BaseModel):
     vinculos: list[VinculoSalida]
 
 
+class ColumnaEntrada(BaseModel):
+    """One header, and optionally a sample value read from the sheet.
+
+    The sample travels **to** the panel, never to the model: decision D12. It arrives here
+    from whoever read the spreadsheet and is stored so PAN-ING-02 can show it.
+    """
+
+    nombre: str
+    ejemplo: str | None = None
+
+
+class PropuestaEntrada(BaseModel):
+    vinculo_id: UUID
+    columnas: list[ColumnaEntrada]
+    para_servicios: bool = False
+
+
+class CorreccionEntrada(BaseModel):
+    columna: str
+    #: `None` clears the assignment -- the `Sin asignar` of RN-03, chosen on purpose.
+    atributo: str | None = None
+    para_servicios: bool = False
+
+
+class ConfirmacionDeMapeoEntrada(BaseModel):
+    para_servicios: bool = False
+
+
+class EntradaDeMapeoSalida(BaseModel):
+    """The four things HU-E3-02's first criterion asks the review to show per column."""
+
+    columna_origen: str
+    atributo_destino: str | None
+    confianza: NivelDeConfianza
+    ejemplo: str | None
+    corregida_a_mano: bool
+
+
+class MapeoSalida(BaseModel):
+    id: UUID
+    estado: str
+    version: int
+    entradas: list[EntradaDeMapeoSalida]
+    #: RN-02: which required attributes still have no column. Empty means confirmable.
+    faltantes: list[str]
+    puede_confirmarse: bool
+    #: False when the model did not answer, or when a stored mapping was reused. The
+    #: screen says so: «lo propusimos nosotros» and «no pudimos proponerlo» are different
+    #: things to a user staring at a column marked Sin asignar.
+    propuesto_por_el_modelo: bool
+
+
+def _mapeo_a_salida(vista: VistaDeMapeo) -> MapeoSalida:
+    return MapeoSalida(
+        id=vista.mapeo.id,
+        estado=vista.mapeo.estado.value,
+        version=vista.mapeo.version,
+        entradas=[
+            EntradaDeMapeoSalida(
+                columna_origen=e.columna_origen,
+                atributo_destino=e.atributo_destino,
+                confianza=e.confianza,
+                ejemplo=e.ejemplo,
+                corregida_a_mano=e.corregida_a_mano,
+            )
+            for e in vista.mapeo.entradas
+        ],
+        faltantes=list(vista.faltantes),
+        puede_confirmarse=vista.puede_confirmarse,
+        propuesto_por_el_modelo=vista.propuesto_por_el_modelo,
+    )
+
+
 def _a_salida(vinculo: VinculoDePlanilla) -> VinculoSalida:
     return VinculoSalida(
         id=vinculo.id,
@@ -122,7 +203,87 @@ def crear_router(recursos: Recursos) -> APIRouter:
     router = APIRouter(tags=["spreadsheet_sync"])
     router.include_router(_rutas_de_google(recursos), prefix="/planillas")
     router.include_router(_rutas_de_vinculos(recursos), prefix="/planillas")
+    router.include_router(_rutas_de_mapeo(recursos), prefix="/planillas/mapeos")
     return router
+
+
+def _rutas_de_mapeo(recursos: Recursos) -> APIRouter:
+    """HU-E3-01 and HU-E3-02, on PAN-ING-02."""
+    router = APIRouter()
+
+    @router.post("", status_code=status.HTTP_201_CREATED)
+    async def proponer(request: Request, entrada: PropuestaEntrada) -> MapeoSalida:
+        """The model proposes; a stored mapping for this structure short-circuits it."""
+        empresa_id, usuario_id, _ = _actor(request)
+        salida: MapeoSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            vista = await ProponerMapeo(
+                mapeos=piezas.mapeos,
+                vinculos=piezas.vinculos,
+                modelo=modelo_de_lenguaje(recursos.settings),
+                publicador=unidad.publicador,
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                vinculo_id=entrada.vinculo_id,
+                columnas=tuple(c.nombre for c in entrada.columnas),
+                ejemplos={c.nombre: c.ejemplo for c in entrada.columnas if c.ejemplo},
+                ahora=unidad.reloj.ahora(),
+                para_servicios=entrada.para_servicios,
+            )
+            salida = _mapeo_a_salida(vista)
+        return _exigir_mapeo(salida)
+
+    @router.put("/{mapeo_id}/columnas")
+    async def corregir(request: Request, mapeo_id: UUID, entrada: CorreccionEntrada) -> MapeoSalida:
+        """RN-01. The corrected entry stops being the model's opinion and becomes a fact."""
+        empresa_id, _, rol = _actor(request)
+        salida: MapeoSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            vista = await CorregirMapeo(piezas.mapeos).ejecutar(
+                mapeo_id=mapeo_id,
+                rol=rol,
+                columna=entrada.columna,
+                atributo=entrada.atributo,
+                ahora=unidad.reloj.ahora(),
+                para_servicios=entrada.para_servicios,
+            )
+            salida = _mapeo_a_salida(vista)
+        return _exigir_mapeo(salida)
+
+    @router.post("/{mapeo_id}/confirmacion")
+    async def confirmar(
+        request: Request, mapeo_id: UUID, entrada: ConfirmacionDeMapeoEntrada
+    ) -> MapeoSalida:
+        """RN-02 and RN-03. Refuses while a required column is unassigned."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: MapeoSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            mapeo = await ConfirmarMapeo(
+                mapeos=piezas.mapeos, publicador=unidad.publicador
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                mapeo_id=mapeo_id,
+                ahora=unidad.reloj.ahora(),
+                para_servicios=entrada.para_servicios,
+            )
+            salida = _mapeo_a_salida(
+                VistaDeMapeo(mapeo=mapeo, faltantes=(), propuesto_por_el_modelo=False)
+            )
+        return _exigir_mapeo(salida)
+
+    return router
+
+
+def _exigir_mapeo(salida: MapeoSalida | None) -> MapeoSalida:
+    if salida is None:  # pragma: no cover — the unit of work always yields once
+        raise RuntimeError("La unidad de trabajo no produjo un resultado")
+    return salida
 
 
 def _rutas_de_google(recursos: Recursos) -> APIRouter:

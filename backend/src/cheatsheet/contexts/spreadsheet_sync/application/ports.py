@@ -12,9 +12,11 @@ has to stop here rather than reaching a use case.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
+from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import Mapeo
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
 
 
@@ -37,6 +39,22 @@ class DocumentoVinculado:
     def __post_init__(self) -> None:
         if not self.hojas:
             raise ValueError("Un documento vinculado tiene al menos una hoja")
+
+
+@dataclass(frozen=True, slots=True)
+class Asignacion:
+    """One column, one destination attribute, one confidence (HU-E3-01 RN-01).
+
+    Lives here and not beside the adapter because it is what the *application* receives:
+    rule R2 forbids `application/` importing `infrastructure/`, and it is right to -- a
+    use case that named a type from an adapter would be a use case bound to that adapter.
+    """
+
+    columna: str
+    #: `None` is a real answer: «I do not know what this column is». RN-03 has a state for
+    #: it, and it beats a guess that writes a CUIT into the phone field.
+    atributo: str | None
+    score: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,3 +116,38 @@ class PortProveedorDePlanilla(Protocol):
     async def describir_documento(self, *, token: str, identificador: str) -> DocumentoVinculado:
         """Read the document's structure. This is the call RN-01's read permission buys."""
         ...
+
+
+class PortRepositorioMapeo(Protocol):
+    """Persistence of mappings and their entries.
+
+    No `eliminar`: a mapping is what says how every row already ingested was interpreted.
+    Deleting one turns the history of a processing into a set of columns nobody can read
+    back. Superseding it is `nueva_version`, which keeps both.
+    """
+
+    async def agregar(self, mapeo: Mapeo) -> None: ...
+
+    async def actualizar(self, mapeo: Mapeo) -> None: ...
+
+    async def buscar_por_id(self, mapeo_id: UUID) -> Mapeo | None: ...
+
+    async def buscar_por_huella(self, huella: str) -> Mapeo | None:
+        """The stored mapping for a header structure, if any (HU-E3-01 RN-02)."""
+        ...
+
+
+class PortModeloDeLenguaje(Protocol):
+    """The LLM (ADR-0007). Declared in `docs/architecture.md`; this is its first consumer.
+
+    **It receives column names and the destination vocabulary. Never rows** -- decision
+    D12 of the units map, and `CLAUDE.md` section 3.6.
+
+    It returns an empty tuple when it cannot answer, rather than raising: a model outage
+    degrades to «every column Sin asignar» and the user maps by hand. An exception here
+    would make somebody else's downtime into a failed ingestion.
+    """
+
+    async def proponer_mapeo(
+        self, *, columnas: tuple[str, ...], atributos: tuple[str, ...]
+    ) -> tuple[Asignacion, ...]: ...

@@ -21,7 +21,9 @@ from functools import lru_cache
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     PortAlmacenamientoDeArchivos,
+    PortModeloDeLenguaje,
     PortProveedorDePlanilla,
+    PortRepositorioMapeo,
     PortRepositorioVinculo,
 )
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.almacenamiento import (
@@ -34,11 +36,18 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.google_sheets import (
     ProveedorDePlanillaSimulado,
     ProveedorGoogleSheets,
 )
+from cheatsheet.contexts.spreadsheet_sync.infrastructure.modelo import (
+    ConfiguracionDelModelo,
+    ModeloDeLenguajeAnthropic,
+    ModeloDeLenguajeSimulado,
+)
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.repositories import (
+    RepositorioMapeoPostgres,
     RepositorioVinculoPostgres,
 )
 from cheatsheet.platform.settings import (
     AdaptadorDeAlmacenamiento,
+    AdaptadorDeModelo,
     AdaptadorDePlanilla,
     Settings,
 )
@@ -49,10 +58,14 @@ class Planillas:
     """The context's request-scoped adapters, bound to one transaction."""
 
     vinculos: PortRepositorioVinculo
+    mapeos: PortRepositorioMapeo
 
     @classmethod
     def armar(cls, unidad: UnidadDeTrabajo) -> Planillas:
-        return cls(vinculos=RepositorioVinculoPostgres(unidad.sesion))
+        return cls(
+            vinculos=RepositorioVinculoPostgres(unidad.sesion),
+            mapeos=RepositorioMapeoPostgres(unidad.sesion),
+        )
 
 
 @lru_cache(maxsize=1)
@@ -89,3 +102,22 @@ def proveedor_de_planilla(settings: Settings) -> PortProveedorDePlanilla:
             )
         )
     return ProveedorDePlanillaSimulado(settings.entorno)
+
+
+@lru_cache(maxsize=1)
+def modelo_de_lenguaje(settings: Settings) -> PortModeloDeLenguaje:
+    """The LLM (ADR-0007), built once per process.
+
+    Cached like the other two: the client holds a connection pool, and building one per
+    request would open a new pool for every spreadsheet somebody links.
+    """
+    if settings.llm_adaptador is AdaptadorDeModelo.ANTHROPIC:
+        return ModeloDeLenguajeAnthropic(
+            ConfiguracionDelModelo(
+                api_key=settings.anthropic_api_key,
+                modelo=settings.llm_modelo,
+                timeout_segundos=settings.llm_timeout_segundos,
+                max_tokens=settings.llm_max_tokens,
+            )
+        )
+    return ModeloDeLenguajeSimulado(settings.entorno)

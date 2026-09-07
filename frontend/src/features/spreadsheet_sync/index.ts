@@ -9,23 +9,34 @@
  */
 
 export { IngestaDePlanillas } from "./components/IngestaDePlanillas";
+export { RevisionDeMapeo } from "./components/RevisionDeMapeo";
+export type { PropsDeRevision } from "./components/RevisionDeMapeo";
 export type { PropsDeIngesta } from "./components/IngestaDePlanillas";
 export {
+  ATRIBUTOS_DE_CLIENTE,
+  ETIQUETAS_DE_ATRIBUTO,
   ETIQUETAS_DE_PROVEEDOR,
   EXTENSIONES_ACEPTADAS,
   ErrorDePlanilla,
   LIMITE_TAMANO_BYTES,
   LIMITE_TAMANO_MB,
   MENSAJE_ARCHIVO_DEMASIADO_GRANDE,
+  MENSAJE_FALTAN_OBLIGATORIAS,
   MENSAJE_FORMATO_NO_ACEPTADO,
+  confirmarMapeo,
+  corregirMapeo,
   desvincularPlanilla,
   iniciarVinculacionConGoogle,
   listarPlanillas,
+  proponerMapeo,
   subirPlanilla,
   validarArchivo,
 } from "./api/planilla";
 export type {
   DireccionSync,
+  EntradaDeMapeo,
+  Mapeo,
+  NivelDeConfianza,
   ListadoDeVinculos,
   ProveedorPlanilla,
   Vinculo,

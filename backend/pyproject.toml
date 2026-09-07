@@ -56,6 +56,9 @@ dependencies = [
     # spreadsheet_sync: Cloudflare R2 holds the uploaded workbooks (HU-E3-03, decision
     # D10). Synchronous, so `almacenamiento.py` calls it through `asyncio.to_thread`.
     "boto3==1.35.54",
+    # spreadsheet_sync + conversational: the LLM (ADR-0007). First consumer is the header
+    # mapping of HU-E3-01; epic 8's WhatsApp agent inherits the same client.
+    "anthropic==1.4.0",
     # integrations: parsing ARCA's SOAP responses (HU-E2-01). `xml.etree` expands internal
     # entities — measured, not assumed: 300 bytes became 3 000 characters, ten times per
     # nesting level — and a provider response is untrusted input by definition.

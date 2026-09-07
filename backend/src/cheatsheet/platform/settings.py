@@ -30,6 +30,10 @@ from enum import StrEnum
 #: or never — so a test asserts they are equal.
 DLQ_MAX_INTENTOS_POR_DEFECTO = 5
 
+#: The model ADR-0007 chose. A default and not a constant in the code: `LLM_MODELO`
+#: overrides it, so trying a different one is a deployment change and not a release.
+MODELO_POR_DEFECTO = "claude-opus-5"
+
 
 class Entorno(StrEnum):
     LOCAL = "local"
@@ -116,6 +120,19 @@ class AdaptadorDeAlmacenamiento(StrEnum):
     MEMORIA = "memoria"
 
 
+class AdaptadorDeModelo(StrEnum):
+    """Which implementation answers for the LLM (ADR-0007).
+
+    `SIMULADO` maps headers by string similarity and opens no socket, so the ingestion flow
+    is walkable on a laptop with no API key and no test ever touches the network.
+    **Rejected in production**: a company whose mapping was guessed by string distance gets
+    a catalogue that looks plausible and is wrong.
+    """
+
+    ANTHROPIC = "anthropic"
+    SIMULADO = "simulado"
+
+
 class ConfiguracionFaltante(RuntimeError):
     """A required environment variable is absent. Raised at boot, never later."""
 
@@ -149,6 +166,29 @@ def _entero(nombre: str, por_defecto: int) -> int:
         return int(crudo)
     except ValueError as exc:
         raise ConfiguracionFaltante(f"{nombre} debe ser un numero entero, no '{crudo}'") from exc
+
+
+def _adaptador_de_modelo(entorno: Entorno) -> AdaptadorDeModelo:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("LLM_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno LLM_ADAPTADOR. En produccion debe valer 'anthropic'."
+            )
+        return AdaptadorDeModelo.SIMULADO
+    try:
+        adaptador = AdaptadorDeModelo(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"LLM_ADAPTADOR debe ser 'anthropic' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeModelo.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "LLM_ADAPTADOR=simulado no es valido en produccion: "
+            "el mapeo de columnas se adivinaria por parecido de texto."
+        )
+    return adaptador
 
 
 def _adaptador_de_planilla(entorno: Entorno) -> AdaptadorDePlanilla:
@@ -340,6 +380,13 @@ class Settings:
     r2_bucket: str
     r2_access_key_id: str
     r2_secret_access_key: str
+    #: The LLM (ADR-0007). `llm_modelo` is a plain string on purpose: pinning it to a
+    #: literal here would mean a release to try a different model.
+    llm_adaptador: AdaptadorDeModelo
+    anthropic_api_key: str
+    llm_modelo: str
+    llm_timeout_segundos: float
+    llm_max_tokens: int
     #: The retry ceiling the sweep judges against. Shares its default with
     #: `PoliticaDeReintentos` in `workers/base.py`; a mismatch would mean tasks are
     #: retired either before or long after they stopped being retried.
@@ -423,6 +470,11 @@ class Settings:
             r2_bucket=_opcional("R2_BUCKET", ""),
             r2_access_key_id=_opcional("R2_ACCESS_KEY_ID", ""),
             r2_secret_access_key=_opcional("R2_SECRET_ACCESS_KEY", ""),
+            llm_adaptador=_adaptador_de_modelo(entorno),
+            anthropic_api_key=_opcional("ANTHROPIC_API_KEY", ""),
+            llm_modelo=_opcional("LLM_MODELO", MODELO_POR_DEFECTO),
+            llm_timeout_segundos=float(_entero("LLM_TIMEOUT_SEGUNDOS", 30)),
+            llm_max_tokens=_entero("LLM_MAX_TOKENS", 4096),
             dlq_max_intentos=_entero("DLQ_MAX_INTENTOS", DLQ_MAX_INTENTOS_POR_DEFECTO),
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.

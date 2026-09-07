@@ -47,6 +47,19 @@ const { POST: postAutorizacion } = await import(
   "@/app/api/planillas/google/autorizacion/route"
 );
 const { POST: postGoogle } = await import("@/app/api/planillas/google/route");
+const { POST: postMapeo } = await import("@/app/api/planillas/mapeos/route");
+const { PUT: putColumna } = await import(
+  "@/app/api/planillas/mapeos/[mapeoId]/columnas/route"
+);
+const { POST: postConfirmacion } = await import(
+  "@/app/api/planillas/mapeos/[mapeoId]/confirmacion/route"
+);
+
+const MAPEO_ID = "3f1c2b8e-0000-4000-8000-000000000050";
+
+function pedidoJson(cuerpo: unknown): Request {
+  return new Request("http://localhost/x", { method: "POST", body: JSON.stringify(cuerpo) });
+}
 
 const VINCULO_ID = "3f1c2b8e-0000-4000-8000-000000000040";
 
@@ -69,6 +82,7 @@ describe("sin sesion", () => {
       postAutorizacion(),
       postGoogle(new Request("http://localhost/api/planillas/google", { method: "POST" })),
       postArchivo(pedidoDeSubida("clientes.xlsx")),
+      postMapeo(new Request("http://localhost/x", { method: "POST", body: "{}" })),
       deletePlanilla(new Request("http://localhost"), { params: { vinculoId: VINCULO_ID } }),
     ]);
 
@@ -156,6 +170,24 @@ describe("con sesion", () => {
 
     expect(respuesta.status).toBe(409);
     expect(await respuesta.json()).toEqual({ error: "InvarianteViolada" });
+  });
+
+  it("propone, corrige y confirma un mapeo", async () => {
+    cookieDeSesion = "token";
+    llamarApi.mockResolvedValue({ id: MAPEO_ID, faltantes: [] });
+
+    await postMapeo(pedidoJson({ vinculo_id: "v1", columnas: [{ nombre: "CUIT" }] }));
+    await putColumna(pedidoJson({ columna: "CUIT", atributo: "cuit" }), {
+      params: { mapeoId: MAPEO_ID },
+    });
+    await postConfirmacion(pedidoJson({}), { params: { mapeoId: MAPEO_ID } });
+
+    const rutas = llamarApi.mock.calls.map(([ruta]) => ruta as string);
+    expect(rutas).toEqual([
+      "/planillas/mapeos",
+      `/planillas/mapeos/${MAPEO_ID}/columnas`,
+      `/planillas/mapeos/${MAPEO_ID}/confirmacion`,
+    ]);
   });
 
   it("pide la url de autorizacion de Google", async () => {

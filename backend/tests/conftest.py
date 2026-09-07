@@ -22,10 +22,12 @@ from cheatsheet.contexts.observability.application.errors import RegistroDuplica
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.platform.settings import (
     DLQ_MAX_INTENTOS_POR_DEFECTO,
+    MODELO_POR_DEFECTO,
     AdaptadorDeAlmacenamiento,
     AdaptadorDeArca,
     AdaptadorDeEmail,
     AdaptadorDeMercadoPago,
+    AdaptadorDeModelo,
     AdaptadorDePlanilla,
     AdaptadorDeWhatsApp,
     Entorno,
@@ -140,6 +142,13 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         r2_bucket="",
         r2_access_key_id="",
         r2_secret_access_key="",
+        # The simulator and no key: a test that ever reached the model would fail loudly
+        # instead of quietly spending money and sending somebody's headers to a vendor.
+        llm_adaptador=AdaptadorDeModelo.SIMULADO,
+        anthropic_api_key="",
+        llm_modelo=MODELO_POR_DEFECTO,
+        llm_timeout_segundos=1.0,
+        llm_max_tokens=1024,
         dlq_max_intentos=DLQ_MAX_INTENTOS_POR_DEFECTO,
     )
 

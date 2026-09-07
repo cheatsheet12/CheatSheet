@@ -23,7 +23,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Catálogo de clientes y servicios | categorias-y-clasificacion | master_data | HU-E4-03, HU-E4-04 | catalogo-de-clientes, catalogo-de-servicios | Cristian | feature/master_data-categorias-y-clasificacion | en revisión |
 | Sincronización de planillas | dlq-y-tareas-asincronas | observability | HS-T6 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en curso |
 | Sincronización de planillas | vinculo-de-planilla | spreadsheet_sync | HU-E2-04 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en curso |
-| Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | pendiente |
+| Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en curso |
 | Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | pendiente |
 | Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | pendiente |
 
