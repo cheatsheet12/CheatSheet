@@ -485,3 +485,64 @@ Las dos ya están en §11, y siguen siendo tuyas:
 | **El write-back sólo empuja clientes, no servicios** | `RegistrosDeMasterData` consulta `PortRepositorioCliente` y nada más. HU-E3-07 habla de «los registros gestionados desde el panel» sin distinguir, pero el catálogo de servicios no tiene todavía un consumidor que lo cree desde el panel con destino a la planilla | Una consulta más en `ListarClientesParaEscrituraDeVuelta`, cuando haga falta |
 | **La escritura pisa la hoja entera en cada corrida** | `values.update` sobre `A1` reescribe desde arriba. Con hasta 500 registros por lote es correcto y simple; con más, la hoja quedaría truncada | Paginar la escritura, o pasar a `values.append`. Aparece el día que una empresa pase los 500 registros de origen PANEL |
 | **`ProcesamientoDePlanilla` no tiene pantalla de historial por vínculo** | El endpoint acepta `vinculo_id` y el listado lo soporta; la pantalla muestra todas las cargas de la empresa | Un filtro en PAN-ING-01, si alguien lo pide |
+
+---
+
+# Épico 5 — Facturación electrónica
+
+> Estado al **2026-09-07**. El mapa está escrito; las cuatro unidades arrancan sobre
+> `feature/billing-facturacion-electronica`. **Este es el épico de mayor riesgo del
+> sistema**: un CAE no se deshace, y lo único que revierte una factura es otra factura.
+
+## 16. Bloqueantes · **te tocan a vos**
+
+### 16.1 El certificado fiscal de homologación — sin esto no hay demo
+
+Ya está descrito en §5.2 y sigue siendo lo mismo, pero ahora **bloquea el criterio central
+del épico**: «se emite una factura contra ARCA en homologación y **se obtiene un CAE
+real**». Sin certificado, todo el flujo corre contra el adaptador simulado y ese CAE no
+existe.
+
+Recordá lo que ya está anotado en §5.2 y que ahora importa de verdad:
+
+| Qué | Por qué importa acá |
+|---|---|
+| El certificado tiene que estar autorizado para **`wsfe`** | Es el servicio de emisión. Un certificado autorizado sólo para `ws_sr_padron_a5` conecta y después no puede facturar |
+| El **punto de venta tiene que estar habilitado en ARCA** | HU-E5-05 RN-03. Se habilita en el sitio de ARCA, por CUIT, y no se puede hacer desde el sistema |
+| Los datos del emisor tienen que estar completos | Razón social, CUIT y condición de IVA de la empresa. Es el onboarding del épico 1, y ahora se factura con eso |
+
+### 16.2 Aprobar el ADR-0008 — bloquea `emision-de-comprobantes`
+
+[ADR-0008](../adr/0008-wsfev1-cliente-propio.md) **supersede al ADR-012 de Etapa 5**, que
+había elegido PyAfipWs. La propuesta es un cliente SOAP propio sobre `httpx` y `defusedxml`,
+por tres razones: PyAfipWs es GPL, no está tipado —y `mypy --strict` es obligatorio
+justamente en el camino fiscal— y trae su propio manejo de tickets, que choca con ADR-0004.
+
+**El contraargumento honesto está escrito en el ADR y conviene leerlo antes de aprobar:**
+PyAfipWs sabe cosas de ARCA que nosotros vamos a aprender siendo rechazados. Estamos
+cambiando experiencia acumulada ajena por una costura tipada y testeable. Es defendible
+porque la superficie es chica —cuatro operaciones— pero **no es gratis**.
+
+Es una decisión de arquitectura que revierte una de Etapa 5, así que la aprobás vos.
+
+## 17. Riesgos del épico que conviene tener a la vista antes de empezar
+
+| Riesgo | Por qué es distinto de todo lo anterior |
+|---|---|
+| **Un comprobante mal emitido es irreversible** | No hay `DELETE`, no hay rollback, no hay «lo arreglamos en el próximo deploy». Se arregla con una nota de crédito, que también va a ARCA y también queda |
+| **Dos emisiones simultáneas con el mismo número** | ARCA rechaza la segunda —o autoriza las dos, que es peor y se arregla con la AFIP. Decisión D14: se serializa con `SELECT … FOR UPDATE` sobre el punto de venta |
+| **Un CAE autorizado cuya respuesta se pierde** | El peor estado posible: ARCA lo emitió, nosotros no lo sabemos, y reintentar emite otro. **Ninguna historia lo cubre.** Es la pregunta que el Gate 1 de `emision-de-comprobantes` tiene que responder |
+| **Un centavo de redondeo** | ARCA valida que los totales cierren contra la suma de ítems y rechaza con un código que no dice que faltó un centavo. Decisión D15: se redondea por ítem y los totales son sumas de valores ya redondeados |
+
+## 18. Lo que este épico hereda y no vuelve a construir
+
+Es el primer épico que se apoya casi enteramente en lo anterior, y conviene decirlo porque
+significa que si algo de eso está flojo, se nota acá:
+
+- **El ticket de acceso a ARCA** (ADR-0004, épico 2). Si el ticket falla, no se factura.
+- **La consulta al padrón** (`padron-y-datos-fiscales`, épico 2), que HU-E5-03 RN-02 usa
+  para validar el CUIT del receptor.
+- **La DLQ** (HS-T6, épico 4), donde va a parar una emisión que agotó sus reintentos.
+- **El catálogo de clientes** (épico 3), de donde sale el receptor.
+- **La bitácora** (HS-T5, épico 1). Un comprobante emitido tiene que quedar registrado, y
+  es de las operaciones donde más importa.

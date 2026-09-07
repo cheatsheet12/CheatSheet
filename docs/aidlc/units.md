@@ -26,6 +26,10 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
 | Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
 | Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
+| Facturación electrónica | parametros-fiscales | reference_data | HS-T4 | — | Cristian | feature/billing-facturacion-electronica | pendiente |
+| Facturación electrónica | puntos-de-venta | billing | HU-E5-05 | — | Cristian | feature/billing-facturacion-electronica | pendiente |
+| Facturación electrónica | emision-de-comprobantes | billing | HU-E5-01, HU-E5-02, HU-E5-03 | parametros-fiscales, puntos-de-venta | Cristian | feature/billing-facturacion-electronica | pendiente |
+| Facturación electrónica | nota-de-credito | billing | HU-E5-04 | emision-de-comprobantes | Cristian | feature/billing-facturacion-electronica | pendiente |
 
 
 ---
@@ -593,3 +597,149 @@ estructura están; falta el token OAuth por empresa para volver a leer la hoja v
   dispara a mano contra la cola, sin pantalla.
 - **Más proveedores de planilla.** El DER cierra el enum en Google Sheets y Excel Online, y D10 le
   agrega el archivo suelto. Nada más.
+
+---
+
+## Épico 5 — Facturación electrónica
+
+> **Este es el épico de mayor riesgo del sistema.** `CLAUDE.md` §1 lo dice de una:
+> «**Legal/tax** — a wrongly issued document is irreversible». Un CAE no se deshace: lo
+> único que existe para revertir una factura es otra factura, la nota de crédito, que
+> también va a ARCA y también queda para siempre. Todo lo que sigue está ordenado por esa
+> frase.
+
+### Qué hace cada unidad
+
+| Unidad | Alcance |
+|---|---|
+| **parametros-fiscales** | HS-T4 — la tabla `parametro_fiscal` del DER, sin `empresa_id` porque es el catálogo de ARCA y es igual para todas las empresas, **versionada por vigencia**: un parámetro nuevo no reemplaza al anterior (RN-02), y la facturación usa el que regía **el día de emisión** y no el de hoy (RN-03). La sincronización periódica desde ARCA, con la regla de falla de RN-04: si no se puede sincronizar, se conserva el último vigente y se registra el error — nunca se queda sin catálogo. Sin pantalla. Va primera por la misma razón que `cimientos-y-bitacora` y `dlq-y-tareas-asincronas`: es contra lo que la emisión valida, y una emisión que valida contra nada no valida |
+| **puntos-de-venta** | HU-E5-05 — agregado `PuntoDeVenta` y su tabla: número, descripción, activo, y `numerador_por_tipo` (RN-02). Verificación contra ARCA de que el punto está habilitado antes de activarlo (RN-03), unicidad del número por empresa, y la desactivación que impide nuevas emisiones sin tocar las hechas (RN-04). Pantalla PAN-FAC-05. Trae además los cimientos de `billing` que ninguna otra unidad va a volver a decidir: repositorio con RLS, la migración inicial del contexto y el `features/billing` del frontend |
+| **emision-de-comprobantes** | HU-E5-03, HU-E5-01 y HU-E5-02 — el corazón del épico. Agregado `Comprobante` con Single Table Inheritance (ADR-010) e `ItemDeComprobante`; la máquina de estados `BORRADOR → VALIDADO → ENVIADO_A_ARCA → AUTORIZADO / RECHAZADO`; el adaptador de **WSFEv1** (ver D13) consumiendo el ticket que `integrations` ya emite (ADR-0004); la emisión asíncrona de RN-04; la validación del CUIT receptor contra el padrón (RN-02) reusando lo que dejó `padron-y-datos-fiscales`; la tabla de combinaciones válidas emisor/receptor (RN-01, ver D16); y la numeración por punto de venta y tipo, que es la que no puede repetirse nunca (D14). Pantallas PAN-FAC-01, PAN-FAC-02 y PAN-FAC-03 |
+| **nota-de-credito** | HU-E5-04 — la anulación total o parcial. `comprobante_origen_id` obligatorio contra un comprobante autorizado (RN-01), el tipo determinado por el del original (RN-02), el monto que no puede superarlo (RN-03), y el estado de anulación que el original refleja cuando ARCA autoriza (RN-05). Pantalla PAN-FAC-04. Reusa entera la máquina de emisión de la unidad anterior: una nota de crédito **es** un comprobante, con otro tipo y una referencia |
+
+### Orden
+
+```
+parametros-fiscales ──┐
+                      ├─ emision-de-comprobantes ── nota-de-credito
+puntos-de-venta ──────┘
+```
+
+Las dos primeras no dependen de nada y podrían ir en paralelo. `emision-de-comprobantes`
+espera a las dos: sin punto de venta habilitado no hay numeración fiscal (precondición de
+HU-E5-03), y sin catálogo de parámetros no hay contra qué validar el tipo.
+
+### Notas
+
+- **Cuatro unidades para seis historias.** HU-E5-01 y HU-E5-02 —listado y detalle— **no son
+  una unidad propia**, y esa es la decisión de corte que más vale explicar: un listado de
+  comprobantes que todavía no se pueden emitir es una tabla vacía, y el épico 3 ya rechazó
+  esa forma con las categorías. Al revés también: emitir sin poder ver el resultado no es
+  verificable. Las tres viajan juntas, y la unidad es grande a propósito.
+- **`nota-de-credito` sí se separa**, aunque sea el mismo agregado. No por tamaño: por
+  **riesgo**. Es la única operación del sistema que puede reversar plata ya documentada
+  ante ARCA, y merece su propio Gate 1 y su propia verificación en lugar de entrar como el
+  último tercio de un PR que ya trae tres pantallas.
+- **Una sola rama para el épico** (`feature/billing-facturacion-electronica`), unidades como
+  commits, igual que los épicos 1 y 4. Gates 1 y 2 siguen siendo por unidad.
+- **Lo que este épico hereda y no vuelve a construir:** el ticket de acceso a ARCA
+  (ADR-0004, `integrations`), la consulta al padrón (`padron-y-datos-fiscales`), la DLQ
+  (HS-T6, épico 4) y el catálogo de clientes (épico 3). Es el primer épico que se apoya
+  casi enteramente en lo anterior.
+
+### Decisión D13 — cómo habla `billing` con WSFEv1 · **escala a ADR**
+
+[ADR-0004](../adr/0004-arca-wsaa-access-tickets.md) lo dejó dicho con nombre y apellido:
+«ADR-012 stands and is not superseded. It decides how `billing` talks to **WSFEv1**, and
+**epic 5 makes that call**». Ese ADR de Etapa 5 nombra **PyAfipWs**, y
+`backend/pyproject.toml` lo anota como pendiente de llegar con este épico.
+
+La pregunta es real y no está resuelta: PyAfipWs es una librería grande, con estado propio y
+licencia GPL, y el épico 2 ya demostró que **no hacía falta** para WSAA — la firma CMS
+salieron cuarenta líneas con `cryptography`. WSFEv1 es otra cosa: es una superficie SOAP
+grande con semántica fiscal de verdad, donde equivocarse no es un bug sino un comprobante
+mal emitido.
+
+El ADR tiene que cerrar: PyAfipWs o un cliente propio sobre `defusedxml` —que ya está en el
+proyecto y ya parsea SOAP de ARCA—, qué se gana y qué se paga en cada caso, y muy
+concretamente **quién valida los montos antes de mandarlos**. Va antes del Gate 1 de
+`emision-de-comprobantes`.
+
+### Decisión D14 — la numeración no puede repetirse, y `jsonb` sola no lo garantiza
+
+`punto_de_venta.numerador_por_tipo` es un `jsonb`, y la numeración es **independiente por
+punto de venta y por tipo** (HU-E5-05 RN-02). Dos emisiones simultáneas sobre el mismo punto
+y el mismo tipo tienen que sacar números distintos: si sacan el mismo, ARCA rechaza el
+segundo —o peor, autoriza dos comprobantes con el mismo número, que es una inconsistencia
+fiscal que hay que arreglar con la AFIP y no con un `UPDATE`.
+
+Un `jsonb` leído y escrito sin candado es exactamente la carrera que produce eso. **Se
+serializa con `SELECT … FOR UPDATE` sobre la fila del punto de venta**, que es el mismo
+mecanismo con el que el épico 1 protegió el invariante del último Administrador, y por el
+mismo motivo: es el único chequeo que no puede perder contra una segunda pestaña.
+
+**Lo que se paga:** un candado por punto de venta. Dos operadores emitiendo a la vez sobre
+el mismo punto se serializan. Es correcto y es lento, y es el precio de que la numeración
+sea numeración.
+
+### Decisión D15 — el redondeo del IVA se decide una vez, acá
+
+`CLAUDE.md` §3.5 y §5 son terminantes: `Decimal` siempre, y redondeo **explícito** con
+`quantize` y `ROUND_HALF_UP`. Lo que esas reglas no dicen es **dónde** se redondea, y en un
+comprobante hay tres lugares posibles: por ítem, por alícuota, o sobre el total.
+
+Se redondea **por ítem** al calcular su subtotal, y los totales son sumas de valores ya
+redondeados. Es lo que hace que `subtotal + total_iva == total` sea cierto por construcción
+y no por suerte, y es lo que ARCA valida: un comprobante cuyos totales no cierran contra la
+suma de sus ítems se rechaza con un código que no explica que faltó un centavo.
+
+Queda escrito acá, en el mapa, porque las tres unidades que tocan plata tienen que hacer lo
+mismo y la tercera no puede descubrirlo leyendo la primera.
+
+### Decisión D16 — la tabla de tipos válidos es regla de negocio, no parámetro de ARCA
+
+HU-E5-03 RN-01 dice que el tipo disponible «se determina por la combinación de la condición
+IVA del emisor y del receptor». Eso podría vivir en `parametro_fiscal` —es fiscal, y ARCA lo
+publica— o en el dominio de `billing`.
+
+**Va en el dominio de `billing`.** `parametro_fiscal` está versionado por vigencia porque
+modela cosas que ARCA cambia: alícuotas, topes, códigos. La correspondencia A/B/C no es de
+esas: es estructura del régimen —un Responsable Inscripto le factura A a otro Responsable
+Inscripto y B a un Consumidor Final— y no cambia con una resolución trimestral. Modelarla
+como parámetro versionado invitaría a que alguien la «actualice» sincronizando, y a que un
+comprobante emitido ayer se valide contra la tabla de hoy.
+
+**Lo que se paga:** si el régimen cambia de verdad, es un release y no una fila. Ha pasado
+dos veces en veinte años.
+
+### Preguntas que resuelve el Gate 1 de cada unidad
+
+- **`parametros-fiscales`** — ¿qué parámetros exactamente se sincronizan, y de qué método de
+  WSFEv1 salen? El DER dice `tipo_catalogo_fiscal` sin enumerarlo.
+- **`puntos-de-venta`** — ¿la verificación de RN-03 pega contra ARCA en el momento de
+  activar, o se apoya en un catálogo sincronizado? Lo primero es más veraz y cuesta una
+  llamada por alta.
+- **`emision-de-comprobantes`** — ¿la emisión asíncrona de RN-04 usa `TareaAsincrona`
+  (épico 4) o una tarea suelta? Y la pregunta que más importa: **¿qué hace el sistema si
+  ARCA autoriza pero la respuesta se pierde?** Un CAE emitido que no llegó es el peor estado
+  posible y no lo cubre ninguna historia.
+- **`nota-de-credito`** — ¿el «estado de anulación» de RN-05 es un estado del original, una
+  suma de notas asociadas, o las dos cosas? El DER tiene `ANULADO` en el enum pero la
+  anulación puede ser parcial.
+
+### Estado
+
+**Mapa escrito el 2026-09-07.** Pendiente de aprobación. Responsable de las cuatro unidades:
+Cristian.
+
+### Fuera de alcance de este épico
+
+- **Asociar un cobro a un comprobante** (HU-E6-06) → épico 6. Acá `saldo_pendiente` se
+  registra (HU-E5-03 RN-06) y todavía no lo consume nadie.
+- **Emitir desde un turno completado.** HU-E5-03 RN-05 nombra `turno_id`, y la columna se
+  crea; quien lo produce llega en el **épico 7**.
+- **El Libro IVA Ventas** y el paquete contable → **épico 9**. Este épico emite; leerlos en
+  conjunto es reportería.
+- **Facturación recurrente o masiva.** Ninguna historia la pide.
+- **Otros comprobantes fiscales** —notas de débito, recibos, remitos—. El enum del DER cierra
+  en facturas y notas de crédito A/B/C.
