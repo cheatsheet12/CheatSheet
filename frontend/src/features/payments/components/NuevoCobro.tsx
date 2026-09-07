@@ -1,0 +1,126 @@
+/**
+ * PAN-COB-03 — Cobros · Nuevo cobro (HU-E6-03, HU-E6-06).
+ *
+ * Dos validaciones se muestran acá antes de mandar nada, y las dos las impone el backend
+ * igual: el concepto es obligatorio y el monto tiene que ser mayor a cero. Mostrarlas de este
+ * lado es la diferencia entre un formulario que se explica y uno que contesta 422 después de
+ * que alguien escribió todo.
+ *
+ * **El monto es un campo de texto.** Un `<input type="number">` devuelve un `number` de
+ * JavaScript, que es el float que este sistema no deja acercarse a la plata.
+ */
+
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+import { Alert, Button, Campo, Select } from "@/shared";
+
+import {
+  ErrorDeCobro,
+  MENSAJE_MONTO_NO_POSITIVO,
+  MENSAJE_SIN_CONCEPTO,
+  generarCobro,
+} from "../api/cobro";
+
+export interface PropsDeNuevoCobro {
+  /** A quién se le cobra. Se elige antes de llegar acá, como en la emisión. */
+  readonly clienteId: string;
+  /** HU-E6-06: los comprobantes con saldo, para poder asociar el cobro a uno. */
+  readonly comprobantes: readonly { readonly id: string; readonly etiqueta: string }[];
+}
+
+export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.Element {
+  const router = useRouter();
+  const [descripcion, setDescripcion] = useState("");
+  const [monto, setMonto] = useState("");
+  const [comprobanteId, setComprobanteId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [generando, setGenerando] = useState(false);
+
+  const sinConcepto = descripcion.trim() === "";
+  // `Number` sólo para decidir si el botón está gris: lo que viaja es el texto, y quien
+  // decide si el monto vale es el backend.
+  const montoInvalido = monto.trim() === "" || !(Number(monto) > 0);
+
+  async function generar(): Promise<void> {
+    setError(null);
+    setGenerando(true);
+    try {
+      const cobro = await generarCobro({
+        cliente_id: clienteId,
+        monto,
+        descripcion,
+        comprobante_id: comprobanteId === "" ? null : comprobanteId,
+      });
+      // Derecho al detalle: es la pantalla que muestra el link recién generado.
+      router.push(`/cobros/${cobro.id}`);
+    } catch (fallo) {
+      // «No se pudo generar el link de pago. Intente nuevamente.» y «El monto no puede superar
+      // el saldo pendiente del comprobante.» llegan por acá, con el texto del backend.
+      setError(fallo instanceof ErrorDeCobro ? fallo.message : "No se pudo generar el cobro.");
+    } finally {
+      setGenerando(false);
+    }
+  }
+
+  return (
+    <form
+      className="dm-formulario"
+      onSubmit={(evento) => {
+        evento.preventDefault();
+        void generar();
+      }}
+    >
+      {error !== null && (
+        <Alert tono="error" titulo="No se pudo generar">
+          {error}
+        </Alert>
+      )}
+
+      <Campo
+        id="cobro-concepto"
+        etiqueta="Concepto"
+        error={descripcion !== "" && sinConcepto ? MENSAJE_SIN_CONCEPTO : undefined}
+        value={descripcion}
+        onChange={(evento) => setDescripcion(evento.target.value)}
+      />
+
+      <Campo
+        id="cobro-monto"
+        etiqueta="Monto"
+        mono
+        ayuda="En pesos argentinos."
+        error={monto !== "" && montoInvalido ? MENSAJE_MONTO_NO_POSITIVO : undefined}
+        value={monto}
+        onChange={(evento) => setMonto(evento.target.value)}
+      />
+
+      {comprobantes.length > 0 && (
+        <Select
+          id="cobro-comprobante"
+          etiqueta="Comprobante asociado"
+          ayuda="Opcional. Al pagarse, el cobro baja el saldo pendiente del comprobante."
+          opciones={[
+            { valor: "", etiqueta: "Sin comprobante" },
+            ...comprobantes.map((uno) => ({ valor: uno.id, etiqueta: uno.etiqueta })),
+          ]}
+          value={comprobanteId}
+          onChange={(evento) => setComprobanteId(evento.target.value)}
+        />
+      )}
+
+      {sinConcepto && <Alert tono="neutral">{MENSAJE_SIN_CONCEPTO}</Alert>}
+
+      <div className="dm-formulario__acciones">
+        <Button variante="secundario" onClick={() => router.push("/cobros")}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={sinConcepto || montoInvalido} cargando={generando}>
+          Generar link de pago
+        </Button>
+      </div>
+    </form>
+  );
+}

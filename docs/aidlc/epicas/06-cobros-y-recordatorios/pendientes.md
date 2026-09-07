@@ -125,3 +125,17 @@ simulada, la respuesta es un doble configurable y no una segunda palabra mágica
 credencial nueva en la transacción del cobro, y un rollback por cualquier otro motivo perdería
 el refresco. El margen del barrido (15 días) es mucho mayor que la vida del token, así que la
 ventana es teórica — pero está dicha.
+
+### 14. `npm run format:check` marca 163 archivos en Windows, y ninguno está mal
+
+El repositorio no tiene `.gitattributes` y este entorno tiene `core.autocrlf=true`, así que git
+convierte a CRLF al bajar y Prettier —que espera LF— rechaza **todos** los archivos, los de este
+épico y los de los cinco anteriores por igual. En CI, sobre Linux, el checkout es LF y la
+verificación pasa.
+
+**La trampa es real:** correr `prettier --write` para «arreglarlo» produce un diff de 163
+archivos que git vuelve a convertir en el próximo checkout. La verificación local honesta es
+`npx prettier --check --end-of-line auto .`, que es la que se corrió acá.
+
+El arreglo de fondo es un `.gitattributes` con `* text=auto eol=lf`, y **no es de este épico**:
+toca el repositorio entero y merece su propio cambio, con la renormalización que implica.
