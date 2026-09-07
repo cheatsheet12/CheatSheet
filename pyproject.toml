@@ -82,7 +82,17 @@ exclude = ['^\.venv/', '^venv/', '^node_modules/', '^build/', '^dist/']
 # the narrow fix; the broad one — `ignore_missing_imports` globally — would also hide
 # the day our own package stops being importable, which is a bug we want loudly.
 [[tool.mypy.overrides]]
-module = ["celery.*", "kombu.*", "aiosmtplib.*", "boto3.*", "botocore.*", "openpyxl.*"]
+module = [
+    "celery.*",
+    "kombu.*",
+    "aiosmtplib.*",
+    "boto3.*",
+    "botocore.*",
+    "openpyxl.*",
+    # Draws the printable representation of a `Comprobante` (HU-E5-02 RN-03). Ships no
+    # stubs and has no stub package.
+    "reportlab.*",
+]
 ignore_missing_imports = true
 
 # Tests may leave `-> None` off a test function: the return value of a test is never

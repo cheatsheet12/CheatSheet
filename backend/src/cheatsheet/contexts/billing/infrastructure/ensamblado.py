@@ -14,18 +14,22 @@ nowhere legal to fill it from, here.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.billing.application.ports import (
     PortRepositorioComprobante,
     PortRepositorioPuntoDeVenta,
 )
+from cheatsheet.contexts.billing.infrastructure.pdf import PdfDeComprobante
 from cheatsheet.contexts.billing.infrastructure.repositories import (
     RepositorioPuntoDeVentaPostgres,
 )
 from cheatsheet.contexts.billing.infrastructure.repositorio_comprobante import (
     RepositorioComprobantePostgres,
 )
+from cheatsheet.platform.almacenamiento import almacenamiento
+from cheatsheet.platform.settings import Settings
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,3 +45,16 @@ class Facturacion:
             puntos=RepositorioPuntoDeVentaPostgres(unidad.sesion),
             comprobantes=RepositorioComprobantePostgres(unidad.sesion),
         )
+
+
+@lru_cache(maxsize=1)
+def pdf_de_comprobantes(settings: Settings) -> PdfDeComprobante:
+    """The PDF renderer and its cache, built once per process.
+
+    Cached here and **not** in `api/arca.py`, which builds its clients per request: this one
+    has no credential bound to a transaction, and the R2 client does hold a connection pool.
+
+    The store is the same `platform/almacenamiento.py` `spreadsheet_sync` uses -- one
+    adapter, two consumers, each with its own port (R3).
+    """
+    return PdfDeComprobante(almacenamiento(settings))

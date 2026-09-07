@@ -17,9 +17,14 @@ from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
+# The DTO comes from `platform/`, where the adapter that produces it lives: two copies of
+# the same two fields would be two types mypy considers unrelated, which is exactly the
+# seam a wrong mapping hides in. The *port* below stays here -- a port is the consumer's
+# contract, and `billing` declares its own with the same shape.
 from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import Mapeo
 from cheatsheet.contexts.spreadsheet_sync.domain.procesamiento import ProcesamientoDePlanilla
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
+from cheatsheet.platform.almacenamiento import ArchivoGuardado
 from cheatsheet.shared.empresa import EmpresaId
 
 
@@ -60,12 +65,28 @@ class Asignacion:
     score: Decimal
 
 
-@dataclass(frozen=True, slots=True)
-class ArchivoGuardado:
-    """The result of putting bytes in the object store."""
+class PortAlmacenamientoDeArchivos(Protocol):
+    """Cloudflare R2. Bytes in, key out.
 
-    clave: str
-    tamano_bytes: int
+    Deliberately narrow: no listing, no signed URLs, no metadata. Everything this system
+    needs to know about a stored workbook is already in `vinculo_de_planilla`, and an
+    object store that can be asked to enumerate a bucket is one call away from being asked
+    to enumerate somebody else's company.
+
+    **`billing` declares a port of its own with the same shape**, and that duplication is
+    the correct kind: a port is the *consumer's* contract, not the adapter's, and the two
+    contexts happen to want the same three operations. What is shared is the adapter, which
+    lives in `platform/almacenamiento.py` because object storage is platform infrastructure
+    and rule R3 forbids either context reaching into the other's.
+    """
+
+    async def guardar(
+        self, *, clave: str, contenido: bytes, tipo_de_contenido: str
+    ) -> ArchivoGuardado: ...
+
+    async def leer(self, clave: str) -> bytes: ...
+
+    async def eliminar(self, clave: str) -> None: ...
 
 
 class PortRepositorioVinculo(Protocol):
@@ -85,24 +106,6 @@ class PortRepositorioVinculo(Protocol):
     async def listar(self) -> list[VinculoDePlanilla]: ...
 
     async def eliminar(self, vinculo_id: UUID) -> None: ...
-
-
-class PortAlmacenamientoDeArchivos(Protocol):
-    """Cloudflare R2. Bytes in, key out.
-
-    Deliberately narrow: no listing, no signed URLs, no metadata. Everything this system
-    needs to know about a stored workbook is already in `vinculo_de_planilla`, and an
-    object store that can be asked to enumerate a bucket is one call away from being asked
-    to enumerate somebody else's company.
-    """
-
-    async def guardar(
-        self, *, clave: str, contenido: bytes, tipo_de_contenido: str
-    ) -> ArchivoGuardado: ...
-
-    async def leer(self, clave: str) -> bytes: ...
-
-    async def eliminar(self, clave: str) -> None: ...
 
 
 class PortProveedorDePlanilla(Protocol):

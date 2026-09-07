@@ -36,6 +36,22 @@ class ComprobanteInexistente(EntradaInvalida):
     """The document is not this company's, or never existed."""
 
 
+#: HU-E5-02: «El comprobante esta en Error» y por eso no se ofrece la descarga. Dicho como
+#: instruccion y no como diagnostico, porque quien lo lee quiere saber que hacer.
+MENSAJE_NO_DESCARGABLE = (
+    "Este comprobante todavia no fue autorizado por ARCA, asi que no tiene "
+    "representacion imprimible."
+)
+
+
+class ComprobanteNoDescargable(EntradaInvalida):
+    """HU-E5-02 RN-03: solo un comprobante autorizado tiene PDF.
+
+    Un PDF de algo que ARCA rechazo seria un papel identico a una factura que no lo es, y
+    alguien se lo daria a un cliente.
+    """
+
+
 class ComprobanteNoAnulable(InvarianteViolada):
     """Only an authorised document can be reversed (HU-E5-04 RN-01)."""
 

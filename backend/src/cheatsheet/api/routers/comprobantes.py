@@ -32,6 +32,10 @@ from cheatsheet.contexts.billing.application.emision import (
     ValidarReceptor,
     item,
 )
+from cheatsheet.contexts.billing.application.errors import (
+    MENSAJE_NO_DESCARGABLE,
+    ComprobanteNoDescargable,
+)
 from cheatsheet.contexts.billing.application.ports import (
     FiltrosDeComprobante,
     PortColaDeEmision,
@@ -44,11 +48,15 @@ from cheatsheet.contexts.billing.domain.comprobante import (
     Receptor,
 )
 from cheatsheet.contexts.billing.domain.punto_de_venta import TipoComprobante
-from cheatsheet.contexts.billing.infrastructure.ensamblado import Facturacion
+from cheatsheet.contexts.billing.infrastructure.ensamblado import (
+    Facturacion,
+    pdf_de_comprobantes,
+)
+from cheatsheet.contexts.billing.infrastructure.pdf import TIPO_DE_CONTENIDO
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.fiscal import CondicionIVA
 from cheatsheet.shared.roles import RolUsuario
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Query, Request, Response, status
 from pydantic import BaseModel
 
 
@@ -186,6 +194,53 @@ def _filtros(
 def crear_router(recursos: Recursos) -> APIRouter:
     router = APIRouter(tags=["billing"])
     router.include_router(_rutas(recursos), prefix="/comprobantes")
+    # The PDF is its own router, and the reason is the complexity ceiling of `CLAUDE.md`
+    # §5: with it inside, `_rutas` scored 13 against a limit of 10. Splitting is what the
+    # rule asks for -- «if it does not fit, the design is wrong» -- and it happens to be an
+    # honest seam, because this is the one route that answers bytes instead of JSON.
+    router.include_router(_rutas_de_pdf(recursos), prefix="/comprobantes")
+    return router
+
+
+def _rutas_de_pdf(recursos: Recursos) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/{comprobante_id}/pdf")
+    async def descargar_pdf(request: Request, comprobante_id: UUID) -> Response:
+        """HU-E5-02 RN-03 — the printable representation.
+
+        **Only for an authorised document.** A PDF of something ARCA rejected would be a
+        piece of paper that looks exactly like an invoice and is not one, and somebody
+        would hand it to a customer. `es_descargable` is the aggregate's own answer to
+        that, so the rule lives in one place.
+
+        Rendered on demand and cached in the object store, regenerated when the cache does
+        not have it. Every role may download: it is a read like any other.
+        """
+        empresa_id, _, _ = _actor(request)
+        contenido: bytes | None = None
+        nombre = "comprobante.pdf"
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Facturacion.armar(unidad)
+            comprobante = await VerComprobante(piezas.comprobantes).ejecutar(comprobante_id)
+            if not comprobante.es_descargable:
+                raise ComprobanteNoDescargable(MENSAJE_NO_DESCARGABLE)
+            punto = await piezas.puntos.buscar_por_id(comprobante.punto_de_venta_id)
+            numero = punto.numero if punto is not None else 0
+            contenido = await pdf_de_comprobantes(recursos.settings).obtener(comprobante, numero)
+            nombre = f"{numero:04d}-{comprobante.numero or 0:08d}.pdf"
+
+        if contenido is None:  # pragma: no cover -- the unit of work always yields once
+            raise RuntimeError("La unidad de trabajo no produjo un resultado")
+        return Response(
+            content=contenido,
+            media_type=TIPO_DE_CONTENIDO,
+            # `inline`, not `attachment`: the browser shows it, and whoever wants the file
+            # saves it from there. Forcing a download on somebody who only wanted to check
+            # a CAE leaves a folder full of PDFs nobody asked for.
+            headers={"Content-Disposition": f'inline; filename="{nombre}"'},
+        )
+
     return router
 
 

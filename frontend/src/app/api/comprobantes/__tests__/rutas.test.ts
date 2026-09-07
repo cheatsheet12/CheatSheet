@@ -26,15 +26,21 @@ vi.mock("next/headers", () => ({
 }));
 
 const llamarApi = vi.fn();
+const descargarBinario = vi.fn();
 vi.mock("@/lib/api", async () => {
   const real = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
-  return { ...real, llamarApi: (...args: unknown[]) => llamarApi(...args) };
+  return {
+    ...real,
+    llamarApi: (...args: unknown[]) => llamarApi(...args),
+    descargarBinario: (...args: unknown[]) => descargarBinario(...args),
+  };
 });
 
 const { ErrorDeApi } = await import("@/lib/api");
 const rutaBase = await import("@/app/api/comprobantes/route");
 const rutaDetalle = await import("@/app/api/comprobantes/[comprobanteId]/route");
 const rutaReceptor = await import("@/app/api/comprobantes/receptores/[cuit]/route");
+const rutaPdf = await import("@/app/api/comprobantes/[comprobanteId]/pdf/route");
 
 const COMPROBANTE = { id: "c1", tipo: "FACTURA_A", total: "2420.00" };
 
@@ -52,6 +58,7 @@ function listado(consulta = ""): Request {
 afterEach(() => {
   cookieDeSesion = undefined;
   llamarApi.mockReset();
+  descargarBinario.mockReset();
 });
 
 describe("sin sesión", () => {
@@ -61,10 +68,12 @@ describe("sin sesión", () => {
       rutaBase.POST(pedido({ tipo: "FACTURA_A" })),
       rutaDetalle.GET(listado(), { params: { comprobanteId: "c1" } }),
       rutaReceptor.GET(listado(), { params: { cuit: "30712345671" } }),
+      rutaPdf.GET(listado(), { params: { comprobanteId: "c1" } }),
     ]);
 
-    expect(respuestas.map((respuesta) => respuesta.status)).toEqual(Array(4).fill(401));
+    expect(respuestas.map((respuesta) => respuesta.status)).toEqual(Array(5).fill(401));
     expect(llamarApi).not.toHaveBeenCalled();
+    expect(descargarBinario).not.toHaveBeenCalled();
   });
 });
 
@@ -151,6 +160,44 @@ describe("con sesión", () => {
 
     expect(respuesta.status).toBe(503);
     expect(await respuesta.json()).toEqual({ error: "ArcaNoDisponible" });
+  });
+});
+
+describe("el PDF", () => {
+  it("devuelve los bytes con el tipo y el nombre que puso el backend", async () => {
+    cookieDeSesion = "un-access-token";
+    descargarBinario.mockResolvedValue({
+      contenido: new TextEncoder().encode("%PDF-1.4").buffer,
+      tipo: "application/pdf",
+      disposicion: 'inline; filename="0001-00000123.pdf"',
+    });
+
+    const respuesta = await rutaPdf.GET(listado(), { params: { comprobanteId: "c1" } });
+
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.headers.get("Content-Type")).toBe("application/pdf");
+    expect(respuesta.headers.get("Content-Disposition")).toContain("0001-00000123.pdf");
+    expect(descargarBinario).toHaveBeenCalledWith("/comprobantes/c1/pdf");
+  });
+
+  it("un comprobante sin autorizar contesta 422 con la frase, no una pestaña vacia", async () => {
+    cookieDeSesion = "un-access-token";
+    descargarBinario.mockRejectedValue(
+      new ErrorDeApi(
+        422,
+        "Este comprobante todavia no fue autorizado por ARCA, asi que no tiene representacion imprimible.",
+        "EntradaInvalida",
+      ),
+    );
+
+    const respuesta = await rutaPdf.GET(listado(), { params: { comprobanteId: "c1" } });
+
+    expect(respuesta.status).toBe(422);
+    expect(await respuesta.json()).toEqual({
+      error: "EntradaInvalida",
+      detalle:
+        "Este comprobante todavia no fue autorizado por ARCA, asi que no tiene representacion imprimible.",
+    });
   });
 });
 

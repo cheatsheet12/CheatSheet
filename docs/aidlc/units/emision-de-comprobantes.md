@@ -93,11 +93,41 @@ convierta en dos comprobantes.
 **El ticket deja de viajar como blob opaco fuera de `integrations`.** `empaquetar` y
 `desempaquetar` vivían en `infrastructure/arca/wsaa.py`, y `billing` no puede importar de
 ahí (R3). Se mueven a `integrations/application/`, que es donde vive el contrato del Open
-Host Service, y `wsaa.py` los reexporta para no tocar a sus cinco usuarios actuales.
+Host Service. Los dos importadores que tenían —`adaptadores.py` y `padron.py`— se
+actualizaron en vez de dejar un reexport en `wsaa.py`: son dos, y un reexport habría dejado
+dos lugares donde buscar el formato en vez de uno.
 
 **`HabilitacionEnArca` y `CatalogosDeWsfe` dejan de recibir un dict de credenciales** y
 reciben un resolutor. Es la pieza que las dos unidades anteriores dejaron anotada como
 pendiente, y es esta la que la necesita de verdad.
+
+## Decisiones que aparecieron implementando y el plan no anticipaba
+
+**D18 - ARCA es la autoridad de la correlatividad; nuestro contador es un cache.** WSFEv1
+exige numeracion estrictamente correlativa por `(punto, tipo)` y rechaza cualquier otra cosa
+hasta que los dos contadores coincidan. Un hueco entonces no es un detalle cosmetico: **es
+una caida de la facturacion**. Y los huecos pasan por razones que el agregado no puede
+evitar -- un comprobante rechazado despues de que uno posterior ya saco su numero, una fila
+restaurada de un backup, un punto usado desde otro lado.
+
+El numero que se saca es `max(el nuestro, FECompUltimoAutorizado) + 1`, preguntado dentro
+del candado del punto de venta. `devolver_numero` paso a informar si pudo en vez de romper:
+un comprobante rechazado es el resultado normal de preguntarle a ARCA, no una condicion de
+error del punto de venta, y el hueco que puede dejar lo cierra la sincronizacion siguiente.
+
+**El almacenamiento de objetos se promovio a `platform/`.** El PDF se cachea en R2, que
+vivia en `spreadsheet_sync/infrastructure/` y que R3 pone fuera del alcance de `billing`. Es
+el tercer ascenso del epico, despues de `soap.py` y `wsfe.py`, y por la misma razon: la
+alternativa era una segunda copia de un adaptador. **Los puertos no se movieron** -- un
+puerto es el contrato del consumidor, y cada contexto declara el suyo; lo que se comparte es
+el adaptador y su fabrica, que ademas **tiene** que ser una sola: dos instancias del doble en
+memoria serian dos buckets distintos.
+
+**El adaptador de R2 filtraba excepciones de `botocore`.** Se noto al escribir el cache del
+PDF: para ese llamador «no esta» y «R2 no contesta» significan lo mismo -- regenerar --, pero
+atraparlas sin tiparlas habria exigido un `except Exception`, que `CLAUDE.md` seccion 5
+prohibe. Ahora `leer` traduce a `FileNotFoundError` y `AlmacenamientoNoDisponible`, que es
+donde correspondia desde el principio: el otro consumidor **si** las distingue.
 
 ## Riesgos que obligan a tests
 
@@ -113,5 +143,86 @@ pendiente, y es esta la que la necesita de verdad.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 - Plan | 2026-09-07 | aprobado junto con el resto del epico; D17 decidida acá |
-| 2 - Verificacion | - | pendiente |
+| 2 - Verificacion | 2026-09-07 | **en verde, con servicios reales** |
 | 3 - PR | - | al cierre del epico |
+
+```
+ruff format --check .   393 files already formatted
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 393 source files
+guard_architecture      418 file(s) checked - architecture boundaries intact
+pytest --cov            1109 passed - 0 skipped - cobertura 93%  (umbral 80)
+alembic current         0018 (head)
+tsc --noEmit            sin errores
+eslint . --max-warnings=0   limpio
+vitest run --coverage   461 passed - cobertura sobre el umbral
+```
+
+## Casos de prueba
+
+| # | Caso | Tipo | Estado |
+|---|---|---|---|
+| 1 | El subtotal de un item se redondea a dos decimales (D15) | unit | **OK** |
+| 2 | El IVA se calcula sobre el subtotal **ya redondeado** | unit | **OK** |
+| 3 | Los totales cierran contra la suma de items | unit | **OK** |
+| 4 | Las alicuotas llevan los codigos reales de ARCA (3, 4, 5) | unit | **OK** |
+| 5 | `redondear` usa HALF_UP y no el del banquero | unit | **OK** |
+| 6 | La tabla de tipos es la del regimen (RN-01, D16) | unit | **OK** |
+| 7 | Un consumidor final no puede emitir | unit | **OK** |
+| 8 | **`AUTORIZADO` es terminal: no se pisa un CAE con otro** | unit | **OK** |
+| 9 | Un comprobante en vuelo no se puede modificar | unit | **OK** |
+| 10 | Un rechazado se puede corregir y volver a emitir | unit | **OK** |
+| 11 | Un CUIT invalido no consulta a ARCA | unit | **OK** |
+| 12 | Un CUIT dado de baja no es lo mismo que uno inexistente | unit | **OK** |
+| 13 | Sin condicion de IVA no se adivina | unit | **OK** |
+| 14 | Emitir deja el comprobante en vuelo y lo encola | unit | **OK** |
+| 15 | **Emitir pregunta a ARCA donde va la numeracion (D18)** | unit | **OK** |
+| 16 | Solo Lectura no emite | unit | **OK** |
+| 17 | Un rechazo guarda las palabras de ARCA y libera el numero | unit | **OK** |
+| 18 | Una tarea reentregada no reenvia un comprobante ya resuelto | unit | **OK** |
+| 19 | **ARCA caida deja el comprobante donde estaba y no libera el numero** | unit | **OK** |
+| 20 | **Si ARCA lo tiene registrado se guarda ese CAE y no se emite de nuevo (D17)** | unit | **OK** |
+| 21 | Si ARCA no lo tiene, el comprobante se puede volver a emitir | unit | **OK** |
+| 22 | Si tampoco se puede preguntar, no se toca nada | unit | **OK** |
+| 23 | Un comprobante recien enviado no se reconcilia | unit | **OK** |
+| 24 | Reconciliar dos veces no pisa el CAE | unit | **OK** |
+| 25 | Un comprobante sobrevive entero a la ida y vuelta, con `Decimal` | integracion | **OK** |
+| 26 | Editar un borrador reescribe sus items sin dejar huerfanos | integracion | **OK** |
+| 27 | Dos comprobantes con el mismo numero y tipo se rechazan | integracion | **OK** |
+| 28 | El mismo numero en dos tipos distintos convive (RN-02) | integracion | **OK** |
+| 29 | Dos borradores sin numero no son un duplicado | integracion | **OK** |
+| 30 | Una empresa no ve los comprobantes de otra, ni sus items | integracion | **OK** |
+| 31 | No se puede borrar un comprobante | integracion | **OK** |
+| 32 | Un CAE sin estado autorizado lo rechaza el esquema | integracion | **OK** |
+| 33 | Una factura no puede tener comprobante de origen | integracion | **OK** |
+| 34 | El barrido ve las empresas con algo en vuelo y nada mas | integracion | **OK** |
+| 35 | El listado ordena por fecha descendente, borradores al final | integracion | **OK** |
+| 36 | Los filtros de la historia funcionan juntos | integracion | **OK** |
+| 37 | La entrada de Beat de la reconciliacion existe | unit | **OK** |
+| 38 | Lo que sale del renderizador es un PDF | unit | **OK** |
+| 39 | El encabezado lleva el numero como lo imprime ARCA | unit | **OK** |
+| 40 | El pie dice que el papel no es el comprobante fiscal | unit | **OK** |
+| 41 | **Un fallo de lectura de la cache regenera en vez de romper** | unit | **OK** |
+| 42 | Un comprobante sin autorizar no es descargable | unit | **OK** |
+| 43 | PAN-FAC-01 muestra las seis columnas y filtra contra el servidor | frontend | **OK** |
+| 44 | PAN-FAC-02 muestra CAE, vencimiento y las palabras de ARCA | frontend | **OK** |
+| 45 | **PAN-FAC-02 avisa que no se vuelva a emitir uno en vuelo** | frontend | **OK** |
+| 46 | PAN-FAC-02 no ofrece editar nada (RN-01) | frontend | **OK** |
+| 47 | PAN-FAC-03 no ofrece nada hasta que el CUIT se valida | frontend | **OK** |
+| 48 | PAN-FAC-03 solo ofrece los tipos legales (RN-01) | frontend | **OK** |
+| 49 | Sin items el boton Emitir queda deshabilitado y se dice por que | frontend | **OK** |
+| 50 | Los montos cruzan como texto en el cliente y en el BFF | frontend | **OK** |
+| 51 | El BFF no llega al backend sin sesion, y el PDF tampoco | frontend | **OK** |
+
+## Lo que esta unidad deja abierto
+
+**El `saldo_pendiente` se registra y no lo consume nadie** (HU-E5-03 RN-06). Es del epico 6,
+y esta dicho en el mapa: aca se guarda igual al total y nada lo mueve.
+
+**`turno_id` se crea y nadie lo escribe** (RN-05). Quien produce un turno llega en el epico
+7. La columna existe, sin FK, por el hallazgo H4 del DER.
+
+**La emision no valida contra `parametro_fiscal`.** El catalogo se sincroniza desde la
+unidad 1 y la tabla de tipos vive en el dominio por D16, asi que hoy no se consulta. Lo que
+si haria falta consultarlo es el Libro IVA del epico 9, que necesita la alicuota **vigente
+el dia de emision** -- y para eso la unidad 1 dejo `ParametroVigenteA(fecha)`.

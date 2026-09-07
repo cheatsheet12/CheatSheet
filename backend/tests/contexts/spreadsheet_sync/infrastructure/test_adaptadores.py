@@ -7,13 +7,13 @@ comportamiento — por eso viven acá y no junto a los casos de uso.
 from __future__ import annotations
 
 import pytest
-from cheatsheet.contexts.spreadsheet_sync.infrastructure.almacenamiento import (
-    AlmacenamientoEnMemoria,
-)
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.escritura import EscrituraSimulada
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.google_sheets import (
     ALCANCE,
     ProveedorDePlanillaSimulado,
+)
+from cheatsheet.platform.almacenamiento import (
+    AlmacenamientoEnMemoria,
 )
 from cheatsheet.platform.settings import Entorno
 
