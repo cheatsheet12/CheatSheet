@@ -1,30 +1,31 @@
 """Wiring of the billing context onto one unit of work.
 
-The repository is request-scoped; the WSFEv1 client is process-scoped and cached, for the
-reason every other context's assembly gives: it holds a connection pool.
+Only the repositories. **The WSFEv1 clients are not built here**, and that is a change from
+what the two previous units of this epic did: resolving a company's ARCA credential means
+calling `integrations`, and a context's `infrastructure/` may not reach into another's
+(R3). They are built in `api/arca.py`, the composition root, which is the one layer allowed
+to wire two contexts together — the same place `api/padron.py` already assembles the
+registry lookup.
 
-**The credentials map is empty**, like `reference_data`'s. Resolving each company's ARCA
-ticket through `integrations` is the piece `emision-de-comprobantes` needs and builds.
+That is also what let the empty `credenciales={}` disappear: it was empty because there was
+nowhere legal to fill it from, here.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.billing.application.ports import (
-    PortHabilitacionDeArca,
+    PortRepositorioComprobante,
     PortRepositorioPuntoDeVenta,
-)
-from cheatsheet.contexts.billing.infrastructure.habilitacion import (
-    HabilitacionEnArca,
-    HabilitacionSimulada,
 )
 from cheatsheet.contexts.billing.infrastructure.repositories import (
     RepositorioPuntoDeVentaPostgres,
 )
-from cheatsheet.platform.settings import AdaptadorDeCatalogos, Settings
+from cheatsheet.contexts.billing.infrastructure.repositorio_comprobante import (
+    RepositorioComprobantePostgres,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,19 +33,11 @@ class Facturacion:
     """The context's request-scoped adapters, bound to one transaction."""
 
     puntos: PortRepositorioPuntoDeVenta
+    comprobantes: PortRepositorioComprobante
 
     @classmethod
     def armar(cls, unidad: UnidadDeTrabajo) -> Facturacion:
-        return cls(puntos=RepositorioPuntoDeVentaPostgres(unidad.sesion))
-
-
-@lru_cache(maxsize=1)
-def habilitacion_de_arca(settings: Settings) -> PortHabilitacionDeArca:
-    """`FEParamGetPtosVenta`, built once per process.
-
-    Switched by the same setting as the fiscal catalogue: both are WSFEv1 reads, and having
-    one simulated while the other is real would be a configuration nobody meant to make.
-    """
-    if settings.catalogos_fiscales_adaptador is AdaptadorDeCatalogos.WSFE:
-        return HabilitacionEnArca(url=settings.arca_wsfe_url, credenciales={})
-    return HabilitacionSimulada(settings.entorno)
+        return cls(
+            puntos=RepositorioPuntoDeVentaPostgres(unidad.sesion),
+            comprobantes=RepositorioComprobantePostgres(unidad.sesion),
+        )

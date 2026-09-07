@@ -17,7 +17,6 @@ private key. This module never sees either.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from xml.etree import ElementTree
 
 import httpx
@@ -34,6 +33,7 @@ from cheatsheet.platform.soap import (
     raiz,
 )
 from cheatsheet.platform.telemetry import obtener_logger
+from cheatsheet.platform.wsfe import CredencialDeWsfe, PortCredencialesDeWsfe
 from cheatsheet.shared.empresa import EmpresaId
 
 logger = obtener_logger(__name__)
@@ -68,15 +68,6 @@ _SOBRE = """<?xml version="1.0" encoding="utf-8"?>
 </soapenv:Envelope>"""
 
 
-@dataclass(frozen=True, slots=True)
-class CredencialDeWsfe:
-    """What one company's ticket looks like once `integrations` has handed it over."""
-
-    token: str
-    sign: str
-    cuit: str
-
-
 class CatalogosDeWsfe:
     """`PortCatalogosFiscales` against the real WSFEv1."""
 
@@ -84,24 +75,21 @@ class CatalogosDeWsfe:
         self,
         *,
         url: str,
-        credenciales: dict[EmpresaId, CredencialDeWsfe],
+        credenciales: PortCredencialesDeWsfe,
         transporte: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         # `transporte` is how every other SOAP client here is tested: `httpx.MockTransport`
         # goes where the socket would be. Without it the reader below is only exercisable
         # by reaching into a private attribute, which is a test that breaks on a rename.
         self._cliente = ClienteSoap(ConfiguracionSoap(url=url), transporte)
-        # Resolved by the composition root, which is allowed to talk to `integrations`.
-        # Passing the ticket in rather than fetching it keeps rule R3 intact and this class
-        # testable without a database.
+        # Resolved by the composition root, which is the one place allowed to wire two
+        # contexts together (R3). See `api/arca.py`.
         self._credenciales = credenciales
 
     async def obtener(self, *, empresa_id: EmpresaId) -> tuple[EntradaDeCatalogo, ...]:
-        credencial = self._credenciales.get(empresa_id)
-        if credencial is None:
-            raise CatalogoNoDisponible(
-                "La empresa no tiene un ticket de ARCA para consultar los catalogos"
-            )
+        # Raises the resolver's own "cannot reach ARCA" error when there is no usable
+        # credential, before a single socket is opened.
+        credencial = await self._credenciales.para(empresa_id)
 
         entradas: list[EntradaDeCatalogo] = []
         for operacion, tipo, etiqueta in OPERACIONES:

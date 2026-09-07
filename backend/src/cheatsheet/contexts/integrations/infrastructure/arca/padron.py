@@ -25,6 +25,7 @@ import httpx
 
 from cheatsheet.contexts.integrations.application.errors import ProveedorNoDisponible
 from cheatsheet.contexts.integrations.application.ports import DatosDePadron
+from cheatsheet.contexts.integrations.application.ticket import desempaquetar
 from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import CLAVE_CUIT, interpretar_falla
 from cheatsheet.contexts.integrations.infrastructure.arca.soap import (
     ClienteSoap,
@@ -32,7 +33,6 @@ from cheatsheet.contexts.integrations.infrastructure.arca.soap import (
     FallaRecibida,
     raiz,
 )
-from cheatsheet.contexts.integrations.infrastructure.arca.wsaa import desempaquetar
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.fiscal import CondicionIVA
 

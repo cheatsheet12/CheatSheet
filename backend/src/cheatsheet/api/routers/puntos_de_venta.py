@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
+from cheatsheet.api.arca import armar_habilitacion
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.contexts.billing.application.puntos_de_venta import (
     CambiarEstadoDePuntoDeVenta,
@@ -22,10 +23,7 @@ from cheatsheet.contexts.billing.application.puntos_de_venta import (
     RegistrarPuntoDeVenta,
 )
 from cheatsheet.contexts.billing.domain.punto_de_venta import PuntoDeVenta, TipoComprobante
-from cheatsheet.contexts.billing.infrastructure.ensamblado import (
-    Facturacion,
-    habilitacion_de_arca,
-)
+from cheatsheet.contexts.billing.infrastructure.ensamblado import Facturacion
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.roles import RolUsuario
 from fastapi import APIRouter, Request, status
@@ -105,7 +103,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
             piezas = Facturacion.armar(unidad)
             punto = await RegistrarPuntoDeVenta(
                 puntos=piezas.puntos,
-                habilitacion=habilitacion_de_arca(recursos.settings),
+                habilitacion=armar_habilitacion(unidad, recursos.settings),
                 publicador=unidad.publicador,
             ).ejecutar(
                 empresa_id=empresa_id,
@@ -128,7 +126,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
             piezas = Facturacion.armar(unidad)
             punto = await CambiarEstadoDePuntoDeVenta(
                 puntos=piezas.puntos,
-                habilitacion=habilitacion_de_arca(recursos.settings),
+                habilitacion=armar_habilitacion(unidad, recursos.settings),
                 publicador=unidad.publicador,
             ).ejecutar(
                 empresa_id=empresa_id,

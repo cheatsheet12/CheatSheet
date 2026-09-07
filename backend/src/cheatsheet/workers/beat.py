@@ -75,6 +75,15 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
             "schedule": timedelta(minutes=max(settings.sync_planillas_minutos, 1)),
             "options": {"queue": Cola.INCREMENTAL_SYNC.value},
         },
+        # Decision D17: the retry that `billing.autorizar_comprobante` deliberately does
+        # not have. Frequent, because what it settles is a document whose fate the company
+        # does not know -- and infrequent enough not to race the task still awaiting ARCA,
+        # which `VENTANA_DE_VUELO` is what actually guards.
+        "reconciliar-comprobantes-en-vuelo": {
+            "task": "billing.reconciliar_comprobantes",
+            "schedule": timedelta(minutes=5),
+            "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
+        },
         "barrer-tareas-agotadas": {
             "task": "observability.barrer_dlq",
             "schedule": timedelta(minutes=max(settings.dlq_barrido_minutos, 1)),

@@ -27,6 +27,7 @@ from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 from cheatsheet.workers import (
+    tasks_billing,
     tasks_integrations,
     tasks_observability,
     tasks_reference_data,
@@ -245,7 +246,7 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
     """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 6
+    assert len(entradas) == 7
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
@@ -256,6 +257,11 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
         tasks_observability.NOMBRE_BARRIDO,
         tasks_spreadsheet.NOMBRE_BARRIDO_SYNC,
         tasks_reference_data.NOMBRE_SINCRONIZAR,
+        # D17: la reconciliacion es el reintento que `billing.autorizar_comprobante` **no**
+        # tiene, y por eso su entrada de Beat no es opcional. Si desapareciera, un
+        # comprobante cuya respuesta se perdio se quedaria en `ENVIADO_A_ARCA` para
+        # siempre y nadie sabria si tiene CAE.
+        tasks_billing.NOMBRE_RECONCILIAR,
     }
 
 

@@ -24,6 +24,7 @@ from cheatsheet.api.routers import (
     auth,
     categorias,
     clientes,
+    comprobantes,
     health,
     integraciones,
     planillas,
@@ -86,5 +87,6 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(categorias.crear_router(recursos))
     app.include_router(planillas.crear_router(recursos))
     app.include_router(puntos_de_venta.crear_router(recursos))
+    app.include_router(comprobantes.crear_router(recursos))
 
     return app

@@ -28,6 +28,7 @@ from cheatsheet.contexts.integrations.application.ports import (
     ResultadoDeVerificacion,
     TicketEmitido,
 )
+from cheatsheet.contexts.integrations.application.ticket import empaquetar
 from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
 from cheatsheet.contexts.integrations.domain.valores import CLAVE_ETIQUETA, EstadoDeConexion
 from cheatsheet.contexts.integrations.infrastructure.arca import firma
@@ -38,7 +39,7 @@ from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import (
     YaAutenticado,
     estado_por_vencimiento,
 )
-from cheatsheet.contexts.integrations.infrastructure.arca.wsaa import ClienteWsaa, empaquetar
+from cheatsheet.contexts.integrations.infrastructure.arca.wsaa import ClienteWsaa
 from cheatsheet.shared.clock import Reloj
 
 #: The service a connection is validated against. WSFE rather than the padrón because it

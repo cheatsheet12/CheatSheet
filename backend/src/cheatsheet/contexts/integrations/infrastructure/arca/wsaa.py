@@ -19,12 +19,14 @@ answer nests a second XML document inside a string.
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
 
 from cheatsheet.contexts.integrations.application.errors import ProveedorNoDisponible
+from cheatsheet.contexts.integrations.application.ticket import (
+    TicketDeArca,
+)
 from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import interpretar_falla
 from cheatsheet.contexts.integrations.infrastructure.arca.soap import (
     ClienteSoap,
@@ -49,35 +51,12 @@ _SOBRE = (
     "</wsaa:loginCms></soapenv:Body></soapenv:Envelope>"
 )
 
-#: How the token and the sign travel once they leave this module: one blob, two lines.
-#: Defined here, next to the code that produces them, and read back by `empaquetar`'s
-#: counterpart — a format agreed by two modules in one place instead of two.
-_SEPARADOR = "\n"
-
-
-@dataclass(frozen=True, slots=True)
-class TicketDeArca:
-    """What `loginTicketResponse` carries: the two values every later call needs."""
-
-    token: str
-    sign: str
-    expira_en: datetime
-
-
-def empaquetar(ticket: TicketDeArca) -> bytes:
-    """The token and the sign together, because every later call needs both.
-
-    A pair split across two columns is a pair that eventually disagrees.
-    """
-    return f"{ticket.token}{_SEPARADOR}{ticket.sign}".encode()
-
-
-def desempaquetar(contenido: bytes) -> tuple[str, str]:
-    """Read back what `empaquetar` wrote. Raises when the stored blob is not a pair."""
-    partes = contenido.decode("utf-8", errors="replace").split(_SEPARADOR)
-    if len(partes) != 2 or not partes[0] or not partes[1]:
-        raise ProveedorNoDisponible("El ticket de acceso guardado no tiene token y firma")
-    return partes[0], partes[1]
+# `TicketDeArca`, `empaquetar` and `desempaquetar` used to live here, next to the code that
+# produces them, which was right while `integrations` was their only reader. They moved to
+# `integrations/application/ticket.py` when `billing` needed to read a ticket: rule R3
+# forbids reaching into another context's `infrastructure/`, and the Open Host Service's
+# contract belongs in `application/`. The two importers were updated rather than given a
+# re-export, so there is one place to find the format instead of two.
 
 
 class ClienteWsaa:

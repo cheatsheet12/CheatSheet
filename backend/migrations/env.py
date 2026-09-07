@@ -22,6 +22,9 @@ from alembic import context
 from cheatsheet.contexts.billing.infrastructure import (  # noqa: F401
     models as _billing_models,
 )
+from cheatsheet.contexts.billing.infrastructure import (  # noqa: F401
+    models_comprobante as _billing_comprobante_models,
+)
 
 # Imported for their side effect: registering their tables on Base.metadata.
 from cheatsheet.contexts.identity.infrastructure import (

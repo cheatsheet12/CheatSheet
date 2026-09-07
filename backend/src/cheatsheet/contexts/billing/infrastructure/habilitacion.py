@@ -12,7 +12,6 @@ outage or activate one ARCA never enabled.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from xml.etree import ElementTree
 
 import httpx
@@ -28,6 +27,7 @@ from cheatsheet.platform.soap import (
     raiz,
 )
 from cheatsheet.platform.telemetry import obtener_logger
+from cheatsheet.platform.wsfe import PortCredencialesDeWsfe
 from cheatsheet.shared.empresa import EmpresaId
 
 logger = obtener_logger(__name__)
@@ -50,13 +50,6 @@ _SOBRE = """<?xml version="1.0" encoding="utf-8"?>
 </soapenv:Envelope>"""
 
 
-@dataclass(frozen=True, slots=True)
-class CredencialDeWsfe:
-    token: str
-    sign: str
-    cuit: str
-
-
 class HabilitacionEnArca:
     """`PortHabilitacionDeArca` against the real WSFEv1."""
 
@@ -64,20 +57,19 @@ class HabilitacionEnArca:
         self,
         *,
         url: str,
-        credenciales: dict[EmpresaId, CredencialDeWsfe],
+        credenciales: PortCredencialesDeWsfe,
         transporte: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         # `transporte` is how every other SOAP client here is tested: `httpx.MockTransport`
         # goes where the socket would be. Without it the reader below is only exercisable
         # by reaching into a private attribute, which is a test that breaks on a rename.
         self._cliente = ClienteSoap(ConfiguracionSoap(url=url), transporte)
-        # Resolved by the composition root, which is allowed to talk to `integrations`.
+        # Resolved by the composition root, which is the one place allowed to wire two
+        # contexts together (R3). See `api/arca.py`.
         self._credenciales = credenciales
 
     async def puntos_habilitados(self, *, empresa_id: EmpresaId) -> tuple[PuntoHabilitado, ...]:
-        credencial = self._credenciales.get(empresa_id)
-        if credencial is None:
-            raise ArcaNoDisponible("La empresa no tiene un ticket de ARCA para consultar")
+        credencial = await self._credenciales.para(empresa_id)
 
         cuerpo = _SOBRE.format(token=credencial.token, sign=credencial.sign, cuit=credencial.cuit)
         try:

@@ -17,9 +17,9 @@ import httpx
 import pytest
 from cheatsheet.contexts.billing.application.errors import ArcaNoDisponible
 from cheatsheet.contexts.billing.infrastructure.habilitacion import (
-    CredencialDeWsfe,
     HabilitacionEnArca,
 )
+from cheatsheet.platform.wsfe import CredencialDeWsfe
 from cheatsheet.shared.empresa import EmpresaId
 
 pytestmark = pytest.mark.asyncio
@@ -27,6 +27,28 @@ pytestmark = pytest.mark.asyncio
 EMPRESA = EmpresaId(UUID("3f1c2b8e-0000-4000-8000-000000000050"))
 CREDENCIAL = CredencialDeWsfe(token="un-token", sign="una-firma", cuit="30712345674")
 URL = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx"
+
+
+class CredencialesFalsas:
+    """Un resolutor de credenciales que no habla con `integrations`.
+
+    `sin_credencial` es lo que prueba que el adaptador **no sale a la red** cuando la
+    empresa no tiene ARCA conectado: el error se levanta antes del socket.
+    """
+
+    def __init__(self, *, sin_credencial: bool = False, numero: int = 1) -> None:
+        self.sin_credencial = sin_credencial
+        self.numero = numero
+
+    async def para(self, empresa_id: EmpresaId) -> CredencialDeWsfe:
+        del empresa_id
+        if self.sin_credencial:
+            raise ArcaNoDisponible("La empresa no tiene conectada la integracion con ARCA")
+        return CREDENCIAL
+
+    async def numero_de_punto(self, empresa_id: EmpresaId, punto_id: UUID) -> int | None:
+        del empresa_id, punto_id
+        return self.numero
 
 
 def _sobre(cuerpo: str) -> str:
@@ -57,7 +79,7 @@ FALLA = _sobre(
 def _cliente(respuesta: httpx.Response) -> HabilitacionEnArca:
     return HabilitacionEnArca(
         url=URL,
-        credenciales={EMPRESA: CREDENCIAL},
+        credenciales=CredencialesFalsas(),
         transporte=httpx.MockTransport(lambda _: respuesta),
     )
 
@@ -132,7 +154,7 @@ async def test_arca_inalcanzable_es_un_error_distinto() -> None:
         raise httpx.ConnectError("sin ruta al host")
 
     cliente = HabilitacionEnArca(
-        url=URL, credenciales={EMPRESA: CREDENCIAL}, transporte=httpx.MockTransport(caer)
+        url=URL, credenciales=CredencialesFalsas(), transporte=httpx.MockTransport(caer)
     )
 
     with pytest.raises(ArcaNoDisponible):
@@ -143,7 +165,11 @@ async def test_una_empresa_sin_ticket_no_sale_a_la_red() -> None:
     def nunca(_: httpx.Request) -> httpx.Response:  # pragma: no cover - no debe llamarse
         raise AssertionError("no deberia haber salido a la red")
 
-    cliente = HabilitacionEnArca(url=URL, credenciales={}, transporte=httpx.MockTransport(nunca))
+    cliente = HabilitacionEnArca(
+        url=URL,
+        credenciales=CredencialesFalsas(sin_credencial=True),
+        transporte=httpx.MockTransport(nunca),
+    )
 
     with pytest.raises(ArcaNoDisponible):
         await cliente.puntos_habilitados(empresa_id=EMPRESA)
@@ -157,7 +183,7 @@ async def test_el_sobre_lleva_el_token_la_firma_y_el_cuit() -> None:
         return _ok(RESPUESTA)
 
     cliente = HabilitacionEnArca(
-        url=URL, credenciales={EMPRESA: CREDENCIAL}, transporte=httpx.MockTransport(espiar)
+        url=URL, credenciales=CredencialesFalsas(), transporte=httpx.MockTransport(espiar)
     )
     await cliente.puntos_habilitados(empresa_id=EMPRESA)
 

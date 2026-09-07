@@ -21,8 +21,8 @@ from cheatsheet.contexts.reference_data.domain.parametro import TipoCatalogoFisc
 from cheatsheet.contexts.reference_data.infrastructure.wsfe_catalogos import (
     OPERACIONES,
     CatalogosDeWsfe,
-    CredencialDeWsfe,
 )
+from cheatsheet.platform.wsfe import CredencialDeWsfe
 from cheatsheet.shared.empresa import EmpresaId
 
 pytestmark = pytest.mark.asyncio
@@ -30,6 +30,28 @@ pytestmark = pytest.mark.asyncio
 EMPRESA = EmpresaId(UUID("3f1c2b8e-0000-4000-8000-000000000060"))
 CREDENCIAL = CredencialDeWsfe(token="un-token", sign="una-firma", cuit="30712345674")
 URL = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx"
+
+
+class CredencialesFalsas:
+    """Un resolutor de credenciales que no habla con `integrations`.
+
+    `sin_credencial` es lo que prueba que el adaptador **no sale a la red** cuando la
+    empresa no tiene ARCA conectado: el error se levanta antes del socket.
+    """
+
+    def __init__(self, *, sin_credencial: bool = False, numero: int = 1) -> None:
+        self.sin_credencial = sin_credencial
+        self.numero = numero
+
+    async def para(self, empresa_id: EmpresaId) -> CredencialDeWsfe:
+        del empresa_id
+        if self.sin_credencial:
+            raise CatalogoNoDisponible("La empresa no tiene conectada la integracion con ARCA")
+        return CREDENCIAL
+
+    async def numero_de_punto(self, empresa_id: EmpresaId, punto_id: UUID) -> int | None:
+        del empresa_id, punto_id
+        return self.numero
 
 
 def _sobre(cuerpo: str) -> str:
@@ -72,7 +94,7 @@ def _responder_todo(pedido: httpx.Request) -> httpx.Response:
 def _cliente(manejar: object) -> CatalogosDeWsfe:
     return CatalogosDeWsfe(
         url=URL,
-        credenciales={EMPRESA: CREDENCIAL},
+        credenciales=CredencialesFalsas(),
         transporte=httpx.MockTransport(manejar),  # type: ignore[arg-type]
     )
 
@@ -157,7 +179,11 @@ async def test_una_empresa_sin_ticket_no_sale_a_la_red() -> None:
     def nunca(_: httpx.Request) -> httpx.Response:  # pragma: no cover - no debe llamarse
         raise AssertionError("no deberia haber salido a la red")
 
-    cliente = CatalogosDeWsfe(url=URL, credenciales={}, transporte=httpx.MockTransport(nunca))
+    cliente = CatalogosDeWsfe(
+        url=URL,
+        credenciales=CredencialesFalsas(sin_credencial=True),
+        transporte=httpx.MockTransport(nunca),
+    )
 
     with pytest.raises(CatalogoNoDisponible):
         await cliente.obtener(empresa_id=EMPRESA)

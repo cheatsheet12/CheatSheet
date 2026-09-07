@@ -22,6 +22,7 @@ from typing import Any
 
 from celery import Celery
 
+from cheatsheet.api.arca import armar_catalogos
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.contexts.integrations.infrastructure.repositories import (
     empresas_con_integracion_de_arca,
@@ -29,10 +30,7 @@ from cheatsheet.contexts.integrations.infrastructure.repositories import (
 from cheatsheet.contexts.reference_data.application.parametros import (
     SincronizarParametrosFiscales,
 )
-from cheatsheet.contexts.reference_data.infrastructure.ensamblado import (
-    ParametrosFiscales,
-    catalogos_fiscales,
-)
+from cheatsheet.contexts.reference_data.infrastructure.ensamblado import ParametrosFiscales
 from cheatsheet.platform.database import sesion_sin_empresa
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
@@ -68,7 +66,7 @@ async def sincronizar_parametros(recursos: Recursos) -> int:
         piezas = ParametrosFiscales.armar(unidad)
         resultado = await SincronizarParametrosFiscales(
             parametros=piezas.parametros,
-            catalogos=catalogos_fiscales(recursos.settings),
+            catalogos=armar_catalogos(unidad, recursos.settings),
             publicador=unidad.publicador,
         ).ejecutar(empresa_id=empresa_id, ahora=unidad.reloj.ahora())
         cambios = resultado.nuevos + resultado.cerrados

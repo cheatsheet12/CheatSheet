@@ -130,18 +130,39 @@ class PuntoDeVenta:
         self.numerador_por_tipo[tipo.value] = siguiente
         return siguiente
 
-    def devolver_numero(self, tipo: TipoComprobante, numero: int) -> None:
-        """Give a number back when ARCA never saw it.
+    def sincronizar_con_arca(self, tipo: TipoComprobante, ultimo_en_arca: int) -> None:
+        """Raise this counter to ARCA's if ARCA is ahead. **Decision D18.**
 
-        Only the last one, and only if it is still the last one. A document ARCA rejected
-        *after receiving it* keeps its number forever — the sequence has a hole and that is
-        correct, because ARCA counts what it was sent. This is for the narrower case where
-        the request never left: nothing was consumed, and leaving a hole would make the
-        next `FECompUltimoAutorizado` disagree with us.
+        WSFEv1 demands strictly correlative numbering per `(punto, tipo)`: send number 7
+        when ARCA last authorised 4 and it rejects with «numero de comprobante no
+        correlativo» — and it will keep rejecting until the two agree. So a gap is not a
+        cosmetic blemish, it is an outage of the invoicing.
+
+        Gaps happen for reasons this aggregate cannot prevent: a document rejected after a
+        later one already drew its number, a row restored from a backup, a point of sale
+        used from somewhere else. **ARCA's counter is the authority and ours is a cache**,
+        so the number actually drawn is `max(ours, ARCA's) + 1`.
+
+        It only ever goes **up**. Lowering it to match ARCA would hand out a number a
+        document in flight may already be carrying, which is the one thing D14 exists to
+        prevent -- and it would do it in the branch that looks like housekeeping.
+        """
+        if ultimo_en_arca > self.ultimo_numero(tipo):
+            self.numerador_por_tipo[tipo.value] = ultimo_en_arca
+
+    def devolver_numero(self, tipo: TipoComprobante, numero: int) -> bool:
+        """Give a number back when ARCA never recorded it. Returns whether it could.
+
+        Only the last one, and only if it is still the last one: giving back 5 when 6 has
+        been drawn would hand 6 out twice. When it cannot, the sequence keeps a gap, and
+        `sincronizar_con_arca` is what heals it on the next issue -- which is why this
+        returns a bool instead of raising. A rejected document is not an error condition
+        for the point of sale; it is the ordinary outcome of asking ARCA.
         """
         if self.ultimo_numero(tipo) != numero:
-            raise InvarianteViolada("Solo se puede devolver el ultimo numero tomado, y ya no lo es")
+            return False
         self.numerador_por_tipo[tipo.value] = numero - 1
+        return True
 
     def activar(self) -> None:
         """RN-03 is checked by the caller against ARCA; this only records the outcome.

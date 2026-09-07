@@ -33,20 +33,47 @@ def test_la_numeracion_es_independiente_por_tipo() -> None:
 
 
 def test_devolver_un_numero_solo_funciona_con_el_ultimo() -> None:
-    """Para el caso angosto en que el pedido nunca salió: nada se consumió.
+    """Devolver el 5 cuando ya se sacó el 6 entregaría el 6 dos veces.
 
-    Un comprobante que ARCA **recibió** y rechazó se queda con su número para siempre —
-    la serie tiene un hueco y está bien, porque ARCA cuenta lo que le mandaron.
+    Por eso devuelve `False` en vez de romper: un rechazo de ARCA no es una condición de
+    error para el punto de venta, es el resultado normal de preguntar. El hueco que queda
+    lo cierra `sincronizar_con_arca` en la emisión siguiente.
     """
     punto = PuntoDeVenta(id=uuid4(), empresa_id=EMPRESA, numero=1, created_at=AHORA)
     punto.siguiente_numero(TipoComprobante.FACTURA_B)
     segundo = punto.siguiente_numero(TipoComprobante.FACTURA_B)
 
-    punto.devolver_numero(TipoComprobante.FACTURA_B, segundo)
+    assert punto.devolver_numero(TipoComprobante.FACTURA_B, segundo) is True
     assert punto.ultimo_numero(TipoComprobante.FACTURA_B) == 1
 
-    with pytest.raises(InvarianteViolada):
-        punto.devolver_numero(TipoComprobante.FACTURA_B, segundo)
+    assert punto.devolver_numero(TipoComprobante.FACTURA_B, segundo) is False
+    assert punto.ultimo_numero(TipoComprobante.FACTURA_B) == 1
+
+
+def test_sincronizar_con_arca_solo_sube_el_contador() -> None:
+    """D18. ARCA es la autoridad de la correlatividad; nuestro contador es un caché.
+
+    Que sólo suba no es una simplificación: bajarlo para «coincidir» con ARCA entregaría
+    un número que un comprobante en vuelo quizá ya lleva, que es exactamente lo que D14
+    existe para impedir — y lo haría en la rama que parece mantenimiento.
+    """
+    punto = PuntoDeVenta(id=uuid4(), empresa_id=EMPRESA, numero=1, created_at=AHORA)
+    punto.siguiente_numero(TipoComprobante.FACTURA_B)  # el 1
+
+    punto.sincronizar_con_arca(TipoComprobante.FACTURA_B, 7)
+    assert punto.siguiente_numero(TipoComprobante.FACTURA_B) == 8
+
+    punto.sincronizar_con_arca(TipoComprobante.FACTURA_B, 2)
+    assert punto.ultimo_numero(TipoComprobante.FACTURA_B) == 8
+
+
+def test_sincronizar_no_toca_los_otros_tipos() -> None:
+    """La correlatividad es por `(punto, tipo)`, y ARCA las cuenta por separado."""
+    punto = PuntoDeVenta(id=uuid4(), empresa_id=EMPRESA, numero=1, created_at=AHORA)
+
+    punto.sincronizar_con_arca(TipoComprobante.FACTURA_B, 9)
+
+    assert punto.ultimo_numero(TipoComprobante.FACTURA_A) == 0
 
 
 def test_cada_factura_tiene_su_nota_de_credito_de_la_misma_letra() -> None:
