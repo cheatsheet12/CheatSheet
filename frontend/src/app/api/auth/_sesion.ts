@@ -70,6 +70,8 @@ export function respuestaDeError(error: ErrorDeApi | null): NextResponse {
     return NextResponse.json({ error: "ErrorInterno" }, { status: 500 });
   }
   const cuerpo =
-    error.status === 422 ? { error: error.codigo, detalle: error.detalle } : { error: error.codigo };
+    error.status === 422
+      ? { error: error.codigo, detalle: error.detalle }
+      : { error: error.codigo };
   return NextResponse.json(cuerpo, { status: error.status });
 }

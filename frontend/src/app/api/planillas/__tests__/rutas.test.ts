@@ -43,14 +43,10 @@ const { ErrorDeApi } = await import("@/lib/api");
 const { GET: getPlanillas } = await import("@/app/api/planillas/route");
 const { POST: postArchivo } = await import("@/app/api/planillas/archivo/route");
 const { DELETE: deletePlanilla } = await import("@/app/api/planillas/[vinculoId]/route");
-const { POST: postAutorizacion } = await import(
-  "@/app/api/planillas/google/autorizacion/route"
-);
+const { POST: postAutorizacion } = await import("@/app/api/planillas/google/autorizacion/route");
 const { POST: postGoogle } = await import("@/app/api/planillas/google/route");
 const { POST: postMapeo } = await import("@/app/api/planillas/mapeos/route");
-const { PUT: putColumna } = await import(
-  "@/app/api/planillas/mapeos/[mapeoId]/columnas/route"
-);
+const { PUT: putColumna } = await import("@/app/api/planillas/mapeos/[mapeoId]/columnas/route");
 const { POST: postConfirmacion } = await import(
   "@/app/api/planillas/mapeos/[mapeoId]/confirmacion/route"
 );
@@ -71,10 +67,13 @@ function pedidoJson(cuerpo: unknown): Request {
 const VINCULO_ID = "3f1c2b8e-0000-4000-8000-000000000040";
 
 function pedidoDeSubida(nombre: string, cuerpo = "bytes"): Request {
-  return new Request(`http://localhost/api/planillas/archivo?nombre=${encodeURIComponent(nombre)}`, {
-    method: "POST",
-    body: cuerpo,
-  });
+  return new Request(
+    `http://localhost/api/planillas/archivo?nombre=${encodeURIComponent(nombre)}`,
+    {
+      method: "POST",
+      body: cuerpo,
+    },
+  );
 }
 
 afterEach(() => {
@@ -150,7 +149,11 @@ describe("con sesion", () => {
   it("deja pasar el detalle de un 422 hasta el navegador", async () => {
     cookieDeSesion = "token";
     subirBinario.mockRejectedValue(
-      new ErrorDeApi(422, "Formato no aceptado. Use .xlsx, .xls o .csv.", "FormatoDePlanillaNoSoportado"),
+      new ErrorDeApi(
+        422,
+        "Formato no aceptado. Use .xlsx, .xls o .csv.",
+        "FormatoDePlanillaNoSoportado",
+      ),
     );
 
     const respuesta = await postArchivo(pedidoDeSubida("clientes.pdf"));

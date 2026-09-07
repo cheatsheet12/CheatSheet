@@ -26,7 +26,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const nombre = new URL(request.url).searchParams.get("nombre");
   if (nombre === null || nombre.trim() === "") {
-    return NextResponse.json({ error: "EntradaInvalida", detalle: "Falta el nombre del archivo" }, { status: 422 });
+    return NextResponse.json(
+      { error: "EntradaInvalida", detalle: "Falta el nombre del archivo" },
+      { status: 422 },
+    );
   }
 
   try {

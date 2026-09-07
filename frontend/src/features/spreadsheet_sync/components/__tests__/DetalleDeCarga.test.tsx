@@ -15,10 +15,9 @@ const reprocesarCarga = vi.fn();
 const verCarga = vi.fn();
 
 vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
-  const real =
-    await vi.importActual<typeof import("@/features/spreadsheet_sync/api/planilla")>(
-      "@/features/spreadsheet_sync/api/planilla",
-    );
+  const real = await vi.importActual<typeof import("@/features/spreadsheet_sync/api/planilla")>(
+    "@/features/spreadsheet_sync/api/planilla",
+  );
   return {
     ...real,
     reprocesarCarga: (...args: unknown[]) => reprocesarCarga(...args),
@@ -29,9 +28,7 @@ vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
 import type { DetalleDeCargaRespuesta } from "@/features/spreadsheet_sync";
 import { csvDeErrores } from "@/features/spreadsheet_sync";
 
-const { DetalleDeCarga } = await import(
-  "@/features/spreadsheet_sync/components/DetalleDeCarga"
-);
+const { DetalleDeCarga } = await import("@/features/spreadsheet_sync/components/DetalleDeCarga");
 
 const CON_ERRORES: DetalleDeCargaRespuesta = {
   carga: {
@@ -112,7 +109,9 @@ describe("DetalleDeCarga", () => {
 
   it("dice cuando la carga es un reproceso de otra", () => {
     render(
-      <DetalleDeCarga inicial={{ ...CON_ERRORES, carga: { ...CON_ERRORES.carga, es_reproceso: true } }} />,
+      <DetalleDeCarga
+        inicial={{ ...CON_ERRORES, carga: { ...CON_ERRORES.carga, es_reproceso: true } }}
+      />,
     );
 
     expect(screen.getByText(/reproceso de una carga anterior/)).toBeTruthy();

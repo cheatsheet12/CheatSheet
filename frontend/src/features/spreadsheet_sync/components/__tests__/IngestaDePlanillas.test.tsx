@@ -20,10 +20,9 @@ const listarCargas = vi.fn();
 const procesarPlanilla = vi.fn();
 
 vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
-  const real =
-    await vi.importActual<typeof import("@/features/spreadsheet_sync/api/planilla")>(
-      "@/features/spreadsheet_sync/api/planilla",
-    );
+  const real = await vi.importActual<typeof import("@/features/spreadsheet_sync/api/planilla")>(
+    "@/features/spreadsheet_sync/api/planilla",
+  );
   return {
     ...real,
     listarPlanillas: (...args: unknown[]) => listarPlanillas(...args),
