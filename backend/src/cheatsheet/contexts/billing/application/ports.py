@@ -237,8 +237,13 @@ class PortColaDeEmision(Protocol):
     async def encolar(self, *, empresa_id: EmpresaId, comprobante_id: UUID) -> None: ...
 
 
+#: `EstadoComprobante` y `TipoComprobante` se reexportan a propósito, como `master_data` hizo
+#: con `OrigenDato` en el épico 8: son tipos de **argumento** de `FiltrosDeComprobante`, y un
+#: tipo de argumento que nadie de afuera puede nombrar es un argumento que nadie puede pasar.
+#: Reexportarlos acá le permite a `reporting` filtrar por estado sin tocar este `domain/` (R3).
 __all__ = [
     "DatosDelReceptor",
+    "EstadoComprobante",
     "FiltrosDeComprobante",
     "PortAutorizacionDeArca",
     "PortColaDeEmision",

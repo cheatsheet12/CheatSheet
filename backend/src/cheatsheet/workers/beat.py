@@ -101,6 +101,14 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
             "schedule": timedelta(hours=6),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
+        # HU-E10-04. **Diario y no mensual**: el día de envío lo elige cada empresa, así que
+        # no hay un día del mes en el que corresponda correr — hay un día por empresa. La
+        # corrida de un día sin empresas programadas es una consulta que devuelve cero filas.
+        "armar-paquetes-contables": {
+            "task": "reporting.barrer_paquetes",
+            "schedule": timedelta(days=1),
+            "options": {"queue": Cola.NOTIFICATIONS.value},
+        },
         "barrer-tareas-agotadas": {
             "task": "observability.barrer_dlq",
             "schedule": timedelta(minutes=max(settings.dlq_barrido_minutos, 1)),

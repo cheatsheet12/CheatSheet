@@ -99,8 +99,7 @@ COLUMNA_VECTOR = "ALTER TABLE faq ADD COLUMN embedding_vector vector(1536)"
 
 #: La otra mitad del hueco H2. Ver el docstring del módulo.
 COLUMNA_INICIADOR = (
-    "ALTER TABLE registro_de_auditoria "
-    "ADD COLUMN iniciador varchar(20) NOT NULL DEFAULT 'sistema'"
+    "ALTER TABLE registro_de_auditoria ADD COLUMN iniciador varchar(20) NOT NULL DEFAULT 'sistema'"
 )
 
 #: La octava función `SECURITY DEFINER` del sistema, y la misma forma que las siete
@@ -170,9 +169,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("ventana_maximo >= 1", name="ck_conversacion_ventana"),
     )
-    op.create_index(
-        "ix_conversacion_cliente_estado", "conversacion", ["cliente_id", "estado"]
-    )
+    op.create_index("ix_conversacion_cliente_estado", "conversacion", ["cliente_id", "estado"])
     op.create_index(
         "ix_conversacion_empresa_actividad", "conversacion", ["empresa_id", "ultimo_mensaje_en"]
     )
@@ -231,12 +228,8 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
-    op.create_index(
-        "ix_escalamiento_hilo_estado", "escalamiento", ["conversacion_id", "estado"]
-    )
-    op.create_index(
-        "ix_escalamiento_empresa_estado", "escalamiento", ["empresa_id", "estado"]
-    )
+    op.create_index("ix_escalamiento_hilo_estado", "escalamiento", ["conversacion_id", "estado"])
+    op.create_index("ix_escalamiento_empresa_estado", "escalamiento", ["empresa_id", "estado"])
 
     op.create_table(
         "faq",

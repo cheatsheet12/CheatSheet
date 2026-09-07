@@ -1,0 +1,14 @@
+Hola,
+
+$empresa te compartió su paquete contable en CheatSheet.
+
+Podés ver los reportes del período y descargar la documentación fiscal desde este enlace:
+
+$enlace
+
+El enlace vence el $vence. No hace falta que crees una cuenta.
+
+Si no esperabas este correo, ignoralo: el enlace no da acceso a ningún otro dato de la
+empresa, y quien te lo mandó puede darlo de baja en cualquier momento.
+
+-- CheatSheet

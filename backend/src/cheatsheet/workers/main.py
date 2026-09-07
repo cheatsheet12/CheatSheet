@@ -23,6 +23,7 @@ from cheatsheet.workers.tasks_integrations import registrar_en as registrar_inte
 from cheatsheet.workers.tasks_observability import registrar as registrar_observability
 from cheatsheet.workers.tasks_payments import registrar as registrar_payments
 from cheatsheet.workers.tasks_reference_data import registrar as registrar_reference_data
+from cheatsheet.workers.tasks_reporting import registrar as registrar_reporting
 from cheatsheet.workers.tasks_spreadsheet import registrar as registrar_spreadsheet
 
 settings = Settings.desde_entorno()
@@ -41,4 +42,5 @@ registrar_observability(app, settings)
 registrar_payments(app, settings)
 registrar_conversational(app, settings)
 registrar_reference_data(app, settings)
+registrar_reporting(app, settings)
 registrar_spreadsheet(app, settings)

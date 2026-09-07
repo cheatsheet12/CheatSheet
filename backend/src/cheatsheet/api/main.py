@@ -27,12 +27,14 @@ from cheatsheet.api.routers import (
     clientes,
     cobros,
     comprobantes,
+    contador,
     conversaciones,
     health,
     integraciones,
     planillas,
     puntos_de_venta,
     reglas,
+    reporteria,
     servicios,
     usuarios,
     webhooks,
@@ -100,5 +102,8 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(conversaciones.crear_router(recursos))
     app.include_router(webhooks.crear_router(recursos))
     app.include_router(whatsapp.crear_router(recursos))
+    app.include_router(reporteria.crear_router(recursos))
+    # La única ruta pública del épico 9. Va última y con su propio módulo: ver `contador.py`.
+    app.include_router(contador.crear_router(recursos))
 
     return app

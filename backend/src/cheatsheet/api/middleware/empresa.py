@@ -56,9 +56,15 @@ RUTAS_PUBLICAS = frozenset(
 #: and the company comes from the URL because that is what was registered when the account
 #: was connected.
 #:
-#: A prefix set is more dangerous than an exact one, so it stays at one entry and the
+#: The second entry is the accountant's link (HU-E10-06). It needs a prefix because the
+#: credential is in the path: `/contador/<token>` and `/contador/<token>/paquetes/<id>`.
+#: What authenticates the request is the token itself -- its SHA-256 digest is looked up in
+#: `token_de_acceso_contable`, and `revocado` and `vencimiento` are checked inside the route
+#: (`api/routers/contador.py`). Nothing else in the system answers without a session.
+#:
+#: A prefix set is more dangerous than an exact one, so it stays at two entries and the
 #: docstring says why: anything added here is a route that answers to the open internet.
-PREFIJOS_PUBLICOS: tuple[str, ...] = ("/webhooks/",)
+PREFIJOS_PUBLICOS: tuple[str, ...] = ("/webhooks/", "/contador/")
 
 
 class EmpresaMiddleware(BaseHTTPMiddleware):

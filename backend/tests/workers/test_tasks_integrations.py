@@ -33,6 +33,7 @@ from cheatsheet.workers import (
     tasks_observability,
     tasks_payments,
     tasks_reference_data,
+    tasks_reporting,
     tasks_spreadsheet,
 )
 from cheatsheet.workers.base import EjecutorIdempotente
@@ -248,7 +249,7 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
     """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 9
+    assert len(entradas) == 10
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
@@ -272,6 +273,11 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
         # guardada mientras el proveedor de embeddings estaba caido nunca se encontraria por
         # significado, y la pantalla la mostraria como si estuviera lista.
         tasks_conversational.NOMBRE_BARRIDO,
+        # Epico 9: arma el paquete contable del mes cerrado de cada empresa que lo tenga
+        # programado para hoy. Sin esta entrada, el envio automatico que HU-E10-04 promete no
+        # ocurre nunca -- y la pantalla seguiria mostrando una fecha de proximo envio que no
+        # va a cumplirse, que es la forma mas silenciosa de fallar.
+        tasks_reporting.NOMBRE_BARRIDO,
     }
 
 
