@@ -46,19 +46,30 @@ export function borrarRefresh(): void {
 }
 
 /**
- * Passes the backend's error *code* through, and nothing else.
+ * Passes the backend's error *code* through, plus the detail when the status says the
+ * detail is the answer.
  *
- * The code is what the form turns into Spanish copy. The `detalle` is forwarded only for
- * validation errors: it is written for a developer reading a log, and the browser is not
- * that reader.
+ * The code is what a form turns into Spanish copy. The `detalle` is forwarded on **422**
+ * and nowhere else, because a 422 means "what you sent is wrong, and here is why" — the
+ * explanation is the whole content of the response. On a 409 or a 403 the message is
+ * written for a developer reading a log, and the browser is not that reader.
+ *
+ * **This used to test the code for the exact string `EntradaInvalida`**, which silently
+ * dropped the message of every subclass. `spreadsheet_sync` has four of them, and
+ * HU-E3-03 states its rejections word for word — «Formato no aceptado. Use .xlsx, .xls o
+ * .csv.» — so the acceptance criteria depend on the text arriving. Matching on the status
+ * instead of on one class name is what makes that true for the next subclass too, without
+ * anybody having to remember to widen a list.
+ *
+ * It does **not** fix `ClienteDuplicado` (`TODO.md` §10): that one is an
+ * `InvarianteViolada` and answers 409, so its message is still dropped here. Whether it
+ * should become a 422 is epic 3's call, not this one's.
  */
 export function respuestaDeError(error: ErrorDeApi | null): NextResponse {
   if (error === null) {
     return NextResponse.json({ error: "ErrorInterno" }, { status: 500 });
   }
   const cuerpo =
-    error.codigo === "EntradaInvalida"
-      ? { error: error.codigo, detalle: error.detalle }
-      : { error: error.codigo };
+    error.status === 422 ? { error: error.codigo, detalle: error.detalle } : { error: error.codigo };
   return NextResponse.json(cuerpo, { status: error.status });
 }

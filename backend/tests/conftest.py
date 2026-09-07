@@ -22,9 +22,11 @@ from cheatsheet.contexts.observability.application.errors import RegistroDuplica
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.platform.settings import (
     DLQ_MAX_INTENTOS_POR_DEFECTO,
+    AdaptadorDeAlmacenamiento,
     AdaptadorDeArca,
     AdaptadorDeEmail,
     AdaptadorDeMercadoPago,
+    AdaptadorDePlanilla,
     AdaptadorDeWhatsApp,
     Entorno,
     Settings,
@@ -130,6 +132,14 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         # HS-T6. The ceiling comes from the constant rather than a literal, so the
         # suite keeps testing whatever the default actually is.
         dlq_barrido_minutos=15,
+        # spreadsheet_sync: the simulator and an unconfigured bucket. A test that
+        # ever reached R2 would fail loudly instead of writing somebody's file.
+        planilla_adaptador=AdaptadorDePlanilla.SIMULADO,
+        almacenamiento_adaptador=AdaptadorDeAlmacenamiento.MEMORIA,
+        r2_endpoint="",
+        r2_bucket="",
+        r2_access_key_id="",
+        r2_secret_access_key="",
         dlq_max_intentos=DLQ_MAX_INTENTOS_POR_DEFECTO,
     )
 

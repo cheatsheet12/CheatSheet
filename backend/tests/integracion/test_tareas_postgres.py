@@ -34,7 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from tests.integracion.conftest import requiere_base
 
-pytestmark = [requiere_base, pytest.mark.integration]
+pytestmark = [requiere_base, pytest.mark.integration, pytest.mark.asyncio]
 
 CREAR_EMPRESA = text("INSERT INTO empresa (id, activa) VALUES (:id, true)")
 

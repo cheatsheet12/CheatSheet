@@ -26,6 +26,7 @@ from cheatsheet.api.routers import (
     clientes,
     health,
     integraciones,
+    planillas,
     servicios,
     usuarios,
 )
@@ -82,5 +83,6 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(clientes.crear_router(recursos))
     app.include_router(servicios.crear_router(recursos))
     app.include_router(categorias.crear_router(recursos))
+    app.include_router(planillas.crear_router(recursos))
 
     return app

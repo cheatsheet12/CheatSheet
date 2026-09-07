@@ -1,11 +1,32 @@
 /**
- * spreadsheet_sync — BC5, Core.
+ * Public entry point of the `spreadsheet_sync` feature (rule R5).
  *
- * Screens: spreadsheet upload and semantic mapping.
- *
- * This file is the feature's PUBLIC ENTRY POINT. Other features may only import
- * from here (rule R5); everything under api/, components/ and hooks/ is internal.
- * Anything genuinely shared belongs in @/shared instead.
+ * A route composes what is exported here; nothing outside reaches into the folders below.
+ * The imports are relative for the reason the other barrels explain: the
+ * `@/features/<name>/…` alias means "somebody reaching into a feature from outside", which
+ * is exactly what the lint rule forbids, and a barrel importing its own modules is not
+ * that.
  */
 
-export {};
+export { IngestaDePlanillas } from "./components/IngestaDePlanillas";
+export type { PropsDeIngesta } from "./components/IngestaDePlanillas";
+export {
+  ETIQUETAS_DE_PROVEEDOR,
+  EXTENSIONES_ACEPTADAS,
+  ErrorDePlanilla,
+  LIMITE_TAMANO_BYTES,
+  LIMITE_TAMANO_MB,
+  MENSAJE_ARCHIVO_DEMASIADO_GRANDE,
+  MENSAJE_FORMATO_NO_ACEPTADO,
+  desvincularPlanilla,
+  iniciarVinculacionConGoogle,
+  listarPlanillas,
+  subirPlanilla,
+  validarArchivo,
+} from "./api/planilla";
+export type {
+  DireccionSync,
+  ListadoDeVinculos,
+  ProveedorPlanilla,
+  Vinculo,
+} from "./api/planilla";
