@@ -63,6 +63,8 @@ export default async function PanelLayout({
           <Link href="/facturacion">Facturacion</Link>
           <Link href="/facturacion/puntos-de-venta">Puntos de venta</Link>
           <Link href="/cobros">Cobros</Link>
+          <Link href="/agenda">Agenda</Link>
+          <Link href="/agenda/recursos">Recursos</Link>
           <Link href="/configuracion/empresa">Empresa</Link>
           <Link href="/configuracion/usuarios">Usuarios</Link>
           <Link href="/configuracion/integraciones">Integraciones</Link>

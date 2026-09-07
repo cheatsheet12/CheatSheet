@@ -21,6 +21,7 @@ from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.errors import registrar_manejadores
 from cheatsheet.api.middleware.empresa import EmpresaMiddleware
 from cheatsheet.api.routers import (
+    agenda,
     auth,
     categorias,
     clientes,
@@ -92,6 +93,7 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(puntos_de_venta.crear_router(recursos))
     app.include_router(comprobantes.crear_router(recursos))
     app.include_router(cobros.crear_router(recursos))
+    app.include_router(agenda.crear_router(recursos))
     app.include_router(reglas.crear_router(recursos))
     app.include_router(webhooks.crear_router(recursos))
 
