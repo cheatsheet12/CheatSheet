@@ -86,19 +86,63 @@ propósito. La relación es al revés: agotar los intentos **publica** un evento
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Una tarea que falla con intentos disponibles queda `FALLIDA` y se reintenta (RN-01) | unit | pendiente |
-| 2 | Una tarea que agota el máximo configurado pasa a `DLQ` (RN-02) | unit | pendiente |
-| 3 | La derivación a DLQ publica `TareaAsincronaDerivadaADLQ` en la bitácora (RN-04) | unit | pendiente |
-| 4 | Una transición ilegal (`COMPLETADA → DLQ`, `DLQ → EN_CURSO`) es rechazada por el agregado | unit | pendiente |
-| 5 | Con una tarea en `DLQ`, el barrido sigue procesando las demás sin bloquearse (RN-03) | unit | pendiente |
-| 6 | El barrido corrido dos veces no vuelve a derivar lo ya derivado | unit | pendiente |
-| 7 | Una empresa no ve las tareas de otra | integración (PostgreSQL) | pendiente |
-| 8 | `resultado` guarda el motivo del fallo y nunca el payload completo | unit | pendiente |
+| 1 | Una tarea que falla con intentos disponibles queda `FALLIDA` y se reintenta (RN-01) | unit | **OK** |
+| 2 | Una tarea que agota el máximo configurado pasa a `DLQ` (RN-02) | unit | **OK** |
+| 3 | La derivación a DLQ publica `TareaAsincronaDerivadaADLQ` en la bitácora (RN-04) | unit | **OK** |
+| 4 | Ocho transiciones ilegales son rechazadas por el agregado | unit | **OK** |
+| 5 | Con una tarea en `DLQ`, el trabajo normal sigue fluyendo (RN-03) | unit | **OK** |
+| 6 | El barrido corrido dos veces no vuelve a derivar lo ya derivado | unit | **OK** |
+| 7 | Una empresa no ve las tareas de otra | integración (PostgreSQL) | **escrito, sin correr** |
+| 8 | `resultado` guarda el motivo del fallo y nunca el payload completo | unit | **OK** |
+| 9 | El techo de reintentos es el mismo en `settings.py` y en `workers/base.py` | unit | **OK** |
+| 10 | El barrido respeta el límite del lote | unit | **OK** |
+| 11 | No se puede borrar una tarea: el rol no tiene `DELETE` | integración (PostgreSQL) | **escrito, sin correr** |
+| 12 | Un `estado` fuera del catálogo es rechazado por el CHECK | integración (PostgreSQL) | **escrito, sin correr** |
+| 13 | `empresas_con_tareas_fallidas()` ve todas las empresas y devuelve sólo ids | integración (PostgreSQL) | **escrito, sin correr** |
+| 14 | La misma clave en dos empresas convive; repetida en una, es rechazada | integración (PostgreSQL) | **escrito, sin correr** |
+| 15 | Las cuatro entradas de Beat conviven, y el barrido va en `notifications` | unit | **OK** |
+
+**Los cinco de integración están escritos y no corrieron**: Docker Desktop no estaba
+levantado en la máquina donde se implementó, y la suite los saltea sola cuando no hay base.
+Los corre CI, que sí levanta PostgreSQL. Se dice acá en lugar de darlos por buenos porque
+el caso 7 —el aislamiento entre empresas— es justamente el que no se puede probar con un
+doble, y darlo por verde sin haberlo corrido sería exactamente la clase de afirmación que
+esta unidad existe para no hacer.
 
 ## Registro
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 — Plan | 2026-09-07 | pendiente de aprobación |
-| 2 — Verificación | — | — |
+| 1 — Plan | 2026-09-07 | **aprobado** |
+| 2 — Verificación | 2026-09-07 | ver abajo |
 | 3 — PR | — | al cierre del épico, con las cinco unidades |
+
+```
+ruff format --check .   294 files already formatted
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 294 source files
+guard_architecture      316 file(s) checked — architecture boundaries intact
+pytest --cov            680 passed · 155 skipped · cobertura 81%  (umbral 80)
+```
+
+Los 155 saltados son la suite de integración entera, del épico 1 en adelante: Docker no
+estaba levantado. Cinco de ellos son de esta unidad.
+
+## Lo que apareció al implementar y el plan no anticipaba
+
+**El barrido es entre empresas, y RLS le tapa todas las filas.** El plan decía «el barrido
+consulta las tareas en `FALLIDA`» sin preguntarse desde dónde. Beat corre sin empresa, así
+que `app.current_empresa` no está seteada y la política —correctamente— no le muestra nada:
+el barrido habría dado siempre cero sin fallar nunca, que es la peor forma de estar roto.
+
+Se resolvió con el patrón que el repositorio ya tiene: una función `SECURITY DEFINER`
+—`empresas_con_tareas_fallidas()`— que devuelve ids y nada más, y una tarea por empresa que
+abre una sesión normal donde RLS aplica. Es la **cuarta** función de este tipo en el
+sistema; las otras tres son de `integrations`, y entre las cuatro son las únicas lecturas
+entre empresas que existen.
+
+**El techo de reintentos quedó escrito dos veces.** `platform/settings.py` no puede importar
+`workers/base.py` sin invertir las capas, así que la constante está en los dos lados y hay
+un test (`tests/platform/test_dlq_settings.py`) que falla si se desincronizan. Sin él, el
+barrido podría juzgar contra un techo distinto del que se reintentó, y las tareas se
+retirarían de más o nunca — sin que nada diera error.

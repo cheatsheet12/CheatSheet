@@ -21,6 +21,7 @@ import pytest
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.platform.settings import (
+    DLQ_MAX_INTENTOS_POR_DEFECTO,
     AdaptadorDeArca,
     AdaptadorDeEmail,
     AdaptadorDeMercadoPago,
@@ -126,6 +127,10 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         smtp_remitente="no-reply@cheatsheet.test",
         smtp_tls=True,
         smtp_timeout_segundos=10,
+        # HS-T6. The ceiling comes from the constant rather than a literal, so the
+        # suite keeps testing whatever the default actually is.
+        dlq_barrido_minutos=15,
+        dlq_max_intentos=DLQ_MAX_INTENTOS_POR_DEFECTO,
     )
 
 

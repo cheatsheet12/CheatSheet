@@ -21,6 +21,15 @@ import os
 from dataclasses import dataclass
 from enum import StrEnum
 
+#: Default retry ceiling the DLQ sweep judges against (HS-T6 RN-01).
+#:
+#: Deliberately a literal and not an import of `workers.base.MAX_INTENTOS_POR_DEFECTO`:
+#: `platform/` is the floor every other layer stands on, and importing a worker into it
+#: would invert that. The two constants must agree — retiring tasks on a different
+#: ceiling than the one they were retried under means they are retired either too early
+#: or never — so a test asserts they are equal.
+DLQ_MAX_INTENTOS_POR_DEFECTO = 5
+
 
 class Entorno(StrEnum):
     LOCAL = "local"
@@ -250,6 +259,12 @@ class Settings:
     whatsapp_graph_version: str
     whatsapp_timeout_segundos: int
     whatsapp_sondeo_minutos: int
+    #: How often Beat retires tasks that ran out of attempts (HS-T6 RN-02).
+    dlq_barrido_minutos: int
+    #: The retry ceiling the sweep judges against. Shares its default with
+    #: `PoliticaDeReintentos` in `workers/base.py`; a mismatch would mean tasks are
+    #: retired either before or long after they stopped being retried.
+    dlq_max_intentos: int
     whatsapp_sondeo_maximo_dias: int
     arca_adaptador: AdaptadorDeArca
     arca_wsaa_url_homologacion: str
@@ -322,6 +337,8 @@ class Settings:
             # 30 minutes against a wait Meta measures in days (HU-E2-03 RN-02): it bounds
             # the delay to about 1% of the wait at 48 calls per number per day.
             whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
+            dlq_barrido_minutos=_entero("DLQ_BARRIDO_MINUTOS", 15),
+            dlq_max_intentos=_entero("DLQ_MAX_INTENTOS", DLQ_MAX_INTENTOS_POR_DEFECTO),
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.
             whatsapp_sondeo_maximo_dias=_entero("WHATSAPP_SONDEO_MAXIMO_DIAS", 7),

@@ -18,6 +18,7 @@ from cheatsheet.workers.beat import configurar_beat
 from cheatsheet.workers.celery_app import crear_celery
 from cheatsheet.workers.tasks_identity import registrar_en as registrar_identity
 from cheatsheet.workers.tasks_integrations import registrar_en as registrar_integrations
+from cheatsheet.workers.tasks_observability import registrar as registrar_observability
 
 settings = Settings.desde_entorno()
 configurar_logging(settings)
@@ -30,3 +31,4 @@ app: Celery = configurar_beat(crear_celery(settings), settings)
 # `workers/ejecucion.py` — this is the defect QA found by sending two invitations.
 registrar_identity(app, settings)
 registrar_integrations(app, settings)
+registrar_observability(app, settings)
