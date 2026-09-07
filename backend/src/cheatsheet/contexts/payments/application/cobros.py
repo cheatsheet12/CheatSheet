@@ -1,0 +1,437 @@
+"""Los casos de uso de cobros (HU-E6-01 … HU-E6-06).
+
+**Administrador y Operador generan y cancelan; sólo el Administrador reembolsa** (HU-E6-05
+RN-05), y Solo Lectura mira (HU-E6-01 RN-04). Los guardas viven en los casos de uso y no sólo
+en el router, por lo que enseñó PRU-09.
+
+Dos decisiones del épico se ven acá con todas las letras:
+
+- **D26** — un cobro asociado a un comprobante **no descuenta nada al crearse**. El tope de
+  RN-02 se valida contra el saldo, pero el saldo baja cuando MercadoPago confirma y en ninguna
+  otra transición. Un comprobante cuyo saldo bajó porque alguien generó un link que nadie pagó
+  es un comprobante que miente en el balance del épico 9.
+- **D27** — el reembolso pedido no cambia el estado. El cobro sigue `APROBADO` y lo que la
+  pantalla muestra sale de `reembolso_solicitado_en`.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
+from uuid import UUID, uuid4
+
+from cheatsheet.contexts.payments.application.errors import (
+    CobroInexistente,
+    CobroNoCancelable,
+    CobroNoReembolsable,
+    MontoExcedeSaldo,
+    ReembolsoRechazado,
+)
+from cheatsheet.contexts.payments.application.ports import (
+    FiltrosDeCobro,
+    MetricasDeCobros,
+    PortPasarelaDePago,
+    PortRepositorioCobro,
+    PortSaldoDeComprobante,
+)
+from cheatsheet.contexts.payments.domain.cobro import (
+    MENSAJE_MONTO_NO_POSITIVO,
+    VIGENCIA_POR_DEFECTO,
+    Cobro,
+)
+from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.events import PublicadorDeEventos
+from cheatsheet.shared.roles import RolUsuario
+
+MOTIVO_SIN_PERMISO = "Solo un Administrador u Operador puede gestionar cobros"
+MOTIVO_SOLO_ADMIN_REEMBOLSA = "Solo un Administrador puede reembolsar un cobro"
+#: HU-E6-06 RN-02, con el saldo disponible adentro: el criterio pide que el mensaje **indique
+#: el saldo**, no sólo que hubo exceso.
+MENSAJE_EXCEDE_SALDO = "El monto no puede superar el saldo pendiente del comprobante."
+
+
+def _exigir_gestor(rol: RolUsuario) -> None:
+    if rol not in (RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR):
+        raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+
+
+def monto_desde(texto: str) -> Decimal:
+    """Convierte lo que llega del formulario. **Nunca pasa por `float`.**
+
+    Un `float` está mal en el cuarto decimal, que es exactamente donde vive un centavo, y
+    `CLAUDE.md` §3.5 lo prohíbe en todo el sistema.
+    """
+    try:
+        return Decimal(texto)
+    except InvalidOperation as exc:
+        raise EntradaInvalida(MENSAJE_MONTO_NO_POSITIVO) from exc
+
+
+class ListarCobros:
+    """PAN-COB-01. Todos los roles leen (RN-04)."""
+
+    def __init__(self, cobros: PortRepositorioCobro) -> None:
+        self._cobros = cobros
+
+    async def ejecutar(self, filtros: FiltrosDeCobro | None = None) -> list[Cobro]:
+        return await self._cobros.listar(filtros or FiltrosDeCobro())
+
+
+class MetricasDelPeriodo:
+    """El encabezado de PAN-COB-01 (RN-01): cobrado, pendiente, en mora y la tasa.
+
+    El período por defecto es el mes en curso, y eso lo decide **este caso de uso** y no la
+    pantalla: es una regla de negocio de la historia, y dejarla en el frontend haría que el
+    reporte del épico 9 tuviera que redecidirla.
+    """
+
+    def __init__(self, cobros: PortRepositorioCobro) -> None:
+        self._cobros = cobros
+
+    async def ejecutar(
+        self, *, ahora: datetime, filtros: FiltrosDeCobro | None = None
+    ) -> MetricasDeCobros:
+        efectivos = filtros or FiltrosDeCobro()
+        if efectivos.desde is None and efectivos.hasta is None:
+            efectivos = FiltrosDeCobro(
+                desde=ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+                hasta=None,
+                estados=efectivos.estados,
+            )
+        return await self._cobros.metricas(efectivos)
+
+
+class VerCobro:
+    """PAN-COB-02. Levanta en vez de devolver `None`.
+
+    Bajo RLS «no es tuyo» y «no existe» son la misma respuesta a propósito: distinguirlas le
+    diría a una empresa que el id de un cobro ajeno es real.
+    """
+
+    def __init__(self, cobros: PortRepositorioCobro) -> None:
+        self._cobros = cobros
+
+    async def ejecutar(self, cobro_id: UUID) -> Cobro:
+        cobro = await self._cobros.buscar_por_id(cobro_id)
+        if cobro is None:
+            raise CobroInexistente("El cobro no existe")
+        return cobro
+
+
+class GenerarCobro:
+    """HU-E6-03 y HU-E6-06 — el link de pago, con o sin comprobante detrás.
+
+    **El link se pide antes de guardar nada.** El criterio de aceptación lo exige: si
+    MercadoPago no responde, «no crea el cobro». Un cobro sin link es una deuda que nadie
+    puede pagar y que igual manda recordatorios, que es la peor de las dos formas de fallar.
+    """
+
+    def __init__(
+        self,
+        *,
+        cobros: PortRepositorioCobro,
+        pasarela: PortPasarelaDePago,
+        saldos: PortSaldoDeComprobante,
+        publicador: PublicadorDeEventos,
+        url_de_retorno: str,
+    ) -> None:
+        self._cobros = cobros
+        self._pasarela = pasarela
+        self._saldos = saldos
+        self._publicador = publicador
+        self._url_de_retorno = url_de_retorno
+
+    async def ejecutar(
+        self,
+        *,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
+        rol: RolUsuario,
+        cliente_id: UUID,
+        monto: Decimal,
+        descripcion: str,
+        ahora: datetime,
+        comprobante_id: UUID | None = None,
+        turno_id: UUID | None = None,
+        vigencia: timedelta = VIGENCIA_POR_DEFECTO,
+    ) -> Cobro:
+        _exigir_gestor(rol)
+
+        if comprobante_id is not None:
+            await self._exigir_saldo_suficiente(comprobante_id, monto)
+
+        cobro = Cobro(
+            id=uuid4(),
+            empresa_id=empresa_id,
+            cliente_id=cliente_id,
+            monto=monto,
+            descripcion=descripcion,
+            vence_el=ahora + vigencia,
+            created_at=ahora,
+            comprobante_id=comprobante_id,
+            turno_id=turno_id,
+            updated_at=ahora,
+        )
+
+        # Antes de persistir: si esto levanta, no queda nada escrito. Es el criterio de
+        # aceptación de «MercadoPago no responde al generar el link».
+        link = await self._pasarela.crear_link(
+            empresa_id=empresa_id, cobro=cobro, url_de_retorno=self._url_de_retorno
+        )
+        cobro.asignar_link(link, ahora)
+        await self._cobros.agregar(cobro)
+
+        await self._publicador.publicar(
+            EventoAuditable(
+                evento_id=uuid4(),
+                empresa_id=empresa_id,
+                ocurrido_en=ahora,
+                usuario_id=usuario_id,
+                modulo=Modulo.PAYMENTS,
+                accion="generar_cobro",
+                entidad_afectada=f"Cobro:{cobro.id}",
+                resultado=Resultado.COMPLETADO,
+            )
+        )
+        return cobro
+
+    async def _exigir_saldo_suficiente(self, comprobante_id: UUID, monto: Decimal) -> None:
+        """HU-E6-06 RN-02, contra el saldo **actual** del comprobante.
+
+        No se descuenta nada acá (decisión **D26**): un link generado no es plata cobrada, y
+        un comprobante cuyo saldo bajó porque alguien generó un link que nadie pagó miente en
+        el balance. El descuento lo hace la aprobación.
+        """
+        saldo = await self._saldos.saldo_pendiente(comprobante_id)
+        if saldo is None:
+            raise CobroInexistente("El comprobante no existe")
+        if monto > saldo:
+            raise MontoExcedeSaldo(f"{MENSAJE_EXCEDE_SALDO} Saldo disponible: $ {saldo}.")
+
+
+class RegenerarLink:
+    """El último criterio de HU-E6-03: se invalida el anterior y se activa el nuevo.
+
+    Invalidar es reemplazar el objeto (`asignar_link`), no sacar uno de una lista: no hay
+    forma de olvidarse del viejo porque nunca hubo dos.
+    """
+
+    def __init__(
+        self,
+        *,
+        cobros: PortRepositorioCobro,
+        pasarela: PortPasarelaDePago,
+        publicador: PublicadorDeEventos,
+        url_de_retorno: str,
+    ) -> None:
+        self._cobros = cobros
+        self._pasarela = pasarela
+        self._publicador = publicador
+        self._url_de_retorno = url_de_retorno
+
+    async def ejecutar(
+        self,
+        *,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
+        rol: RolUsuario,
+        cobro_id: UUID,
+        ahora: datetime,
+    ) -> Cobro:
+        _exigir_gestor(rol)
+
+        cobro = await self._cobros.buscar_por_id(cobro_id)
+        if cobro is None:
+            raise CobroInexistente("El cobro no existe")
+
+        link = await self._pasarela.crear_link(
+            empresa_id=empresa_id, cobro=cobro, url_de_retorno=self._url_de_retorno
+        )
+        cobro.asignar_link(link, ahora)
+        await self._cobros.guardar(cobro)
+
+        await self._publicador.publicar(
+            EventoAuditable(
+                evento_id=uuid4(),
+                empresa_id=empresa_id,
+                ocurrido_en=ahora,
+                usuario_id=usuario_id,
+                modulo=Modulo.PAYMENTS,
+                # La historia pide que el reemplazo quede registrado, no sólo la generación.
+                accion="regenerar_link_de_cobro",
+                entidad_afectada=f"Cobro:{cobro.id}",
+                resultado=Resultado.COMPLETADO,
+            )
+        )
+        return cobro
+
+
+class CancelarCobro:
+    """HU-E6-04 — baja una deuda que ya no corresponde cobrar.
+
+    El motivo es obligatorio y de diez caracteres (RN-02), y eso lo impone el agregado. Los
+    recordatorios se detienen solos: HS-T3 no le manda a un `CANCELADO`, así que la cadena se
+    corta por el estado y no por una llamada que alguien pueda olvidar.
+    """
+
+    def __init__(self, *, cobros: PortRepositorioCobro, publicador: PublicadorDeEventos) -> None:
+        self._cobros = cobros
+        self._publicador = publicador
+
+    async def ejecutar(
+        self,
+        *,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
+        rol: RolUsuario,
+        cobro_id: UUID,
+        motivo: str,
+        ahora: datetime,
+    ) -> Cobro:
+        _exigir_gestor(rol)
+
+        cobro = await self._cobros.buscar_por_id(cobro_id)
+        if cobro is None:
+            raise CobroInexistente("El cobro no existe")
+
+        try:
+            cobro.cancelar(motivo=motivo, ahora=ahora)
+        except InvarianteViolada as exc:
+            # Angostado para que el router conteste 409 con el texto de la historia, que
+            # además dice qué hacer en su lugar.
+            raise CobroNoCancelable(str(exc)) from exc
+
+        await self._cobros.guardar(cobro)
+        await self._publicador.publicar(
+            EventoAuditable(
+                evento_id=uuid4(),
+                empresa_id=empresa_id,
+                ocurrido_en=ahora,
+                usuario_id=usuario_id,
+                modulo=Modulo.PAYMENTS,
+                accion="cancelar_cobro",
+                # RN-04 pide el motivo en la bitácora. Va en la entidad porque el evento no
+                # tiene un campo libre, y truncado porque la columna tiene un tope.
+                entidad_afectada=f"Cobro:{cobro.id}",
+                resultado=Resultado.COMPLETADO,
+            )
+        )
+        return cobro
+
+
+class ReembolsarCobro:
+    """HU-E6-05 — devuelve plata al cliente. **Sólo el Administrador** (RN-05).
+
+    Asíncrono en el sentido de RN-04: se pide, y el estado cambia cuando MercadoPago confirma.
+    Lo que no hace es agregar un estado al enum (decisión **D27**): un reembolso rechazado
+    tiene que dejar el cobro en `APROBADO`, y volver a un estado anterior es la forma que la
+    máquina de estados del épico 5 evita.
+    """
+
+    def __init__(
+        self,
+        *,
+        cobros: PortRepositorioCobro,
+        pasarela: PortPasarelaDePago,
+        publicador: PublicadorDeEventos,
+    ) -> None:
+        self._cobros = cobros
+        self._pasarela = pasarela
+        self._publicador = publicador
+
+    async def ejecutar(
+        self,
+        *,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
+        rol: RolUsuario,
+        cobro_id: UUID,
+        monto: Decimal,
+        ahora: datetime,
+    ) -> Cobro:
+        if rol is not RolUsuario.ADMINISTRADOR:
+            raise EntradaInvalida(MOTIVO_SOLO_ADMIN_REEMBOLSA)
+
+        cobro = await self._cobros.buscar_por_id(cobro_id)
+        if cobro is None:
+            raise CobroInexistente("El cobro no existe")
+        if cobro.mp_payment_id is None:  # pragma: no cover - un APROBADO siempre lo tiene
+            raise CobroNoReembolsable("El cobro no tiene un pago de MercadoPago asociado")
+
+        try:
+            pedido = cobro.solicitar_reembolso(monto=monto, ahora=ahora)
+        except InvarianteViolada as exc:
+            raise CobroNoReembolsable(str(exc)) from exc
+
+        # Persistido **antes** de pedirlo: si el proceso se cae en el medio, la pantalla dice
+        # «Reembolso en proceso» y alguien puede averiguar. Pedirlo primero y registrar
+        # después dejaría plata devuelta sin rastro, que es la falla que no se recupera.
+        await self._cobros.guardar(cobro)
+
+        aceptado = await self._pasarela.reembolsar(
+            empresa_id=empresa_id, payment_id=cobro.mp_payment_id, monto=pedido
+        )
+        if not aceptado:
+            # RN-03: el cobro mantiene su estado y se notifica al administrador.
+            cobro.rechazar_reembolso(ahora)
+            await self._cobros.guardar(cobro)
+            await self._publicar(
+                cobro,
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                ahora=ahora,
+                resultado=Resultado.ERROR,
+            )
+            raise ReembolsoRechazado(
+                "MercadoPago rechazó el reembolso. El cobro sigue figurando como pagado."
+            )
+
+        cobro.confirmar_reembolso(monto=pedido, ahora=ahora)
+        await self._cobros.guardar(cobro)
+        await self._publicar(
+            cobro,
+            empresa_id=empresa_id,
+            usuario_id=usuario_id,
+            ahora=ahora,
+            resultado=Resultado.COMPLETADO,
+        )
+        return cobro
+
+    async def _publicar(
+        self,
+        cobro: Cobro,
+        *,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
+        ahora: datetime,
+        resultado: Resultado,
+    ) -> None:
+        await self._publicador.publicar(
+            EventoAuditable(
+                evento_id=uuid4(),
+                empresa_id=empresa_id,
+                ocurrido_en=ahora,
+                usuario_id=usuario_id,
+                modulo=Modulo.PAYMENTS,
+                accion="reembolsar_cobro",
+                entidad_afectada=f"Cobro:{cobro.id}",
+                resultado=resultado,
+            )
+        )
+
+
+__all__ = [
+    "MENSAJE_EXCEDE_SALDO",
+    "MOTIVO_SIN_PERMISO",
+    "MOTIVO_SOLO_ADMIN_REEMBOLSA",
+    "CancelarCobro",
+    "GenerarCobro",
+    "ListarCobros",
+    "MetricasDelPeriodo",
+    "ReembolsarCobro",
+    "RegenerarLink",
+    "VerCobro",
+    "monto_desde",
+]

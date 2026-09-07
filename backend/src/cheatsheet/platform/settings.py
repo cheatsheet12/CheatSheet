@@ -468,6 +468,12 @@ class Settings:
     mercadopago_api_url: str
     mercadopago_timeout_segundos: int
     mercadopago_margen_renovacion_dias: int
+    #: HS-T1 RN-01. **Sin secreto configurado, ninguna firma vale**: lo cómodo sería aceptar
+    #: todo mientras no haya secreto, y eso convierte un despliegue mal configurado en un
+    #: endpoint público que mueve el estado de los cobros.
+    mercadopago_webhook_secret: str
+    #: A dónde vuelve el cliente después de pagar (HU-E6-03). Es el panel, no la API.
+    mercadopago_url_de_retorno: str
     mercadopago_autorizacion_ttl_minutos: int
 
     @property
@@ -600,6 +606,10 @@ class Settings:
             # retries before anything breaks, which is more than any outage this system
             # can survive anyway.
             mercadopago_margen_renovacion_dias=_entero("MERCADOPAGO_MARGEN_RENOVACION_DIAS", 15),
+            mercadopago_webhook_secret=_opcional("MERCADOPAGO_WEBHOOK_SECRET", ""),
+            mercadopago_url_de_retorno=_opcional(
+                "MERCADOPAGO_URL_DE_RETORNO", "http://localhost:3000/cobros"
+            ),
             # Longer than anyone takes to press a button, shorter than a tab left open
             # over lunch — which is the case this window exists to expire.
             mercadopago_autorizacion_ttl_minutos=_entero(

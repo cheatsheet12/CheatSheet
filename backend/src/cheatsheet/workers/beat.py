@@ -84,6 +84,14 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
             "schedule": timedelta(minutes=5),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
+        # HS-T3 y HU-E6-01 RN-03. Cada hora: una deuda no cambia de estado al minuto, y la
+        # cadena de recordatorios cuenta en días. Más seguido sería preguntar lo mismo
+        # sesenta veces para enterarse de que nada cambió.
+        "barrer-cobros": {
+            "task": "payments.barrer_cobros",
+            "schedule": timedelta(hours=1),
+            "options": {"queue": Cola.NOTIFICATIONS.value},
+        },
         "barrer-tareas-agotadas": {
             "task": "observability.barrer_dlq",
             "schedule": timedelta(minutes=max(settings.dlq_barrido_minutos, 1)),

@@ -48,6 +48,19 @@ RUTAS_PUBLICAS = frozenset(
 )
 
 
+#: Reachable without a session, matched by prefix instead of exactly.
+#:
+#: **One entry, and it needs a prefix because the company is in the path.** MercadoPago posts
+#: to `/webhooks/mercadopago/<empresa>` with no session and no JWT -- it has neither. What
+#: authenticates the request is the HMAC signature, checked inside the route (HS-T1 RN-01),
+#: and the company comes from the URL because that is what was registered when the account
+#: was connected.
+#:
+#: A prefix set is more dangerous than an exact one, so it stays at one entry and the
+#: docstring says why: anything added here is a route that answers to the open internet.
+PREFIJOS_PUBLICOS: tuple[str, ...] = ("/webhooks/",)
+
+
 class EmpresaMiddleware(BaseHTTPMiddleware):
     """Puts the authenticated company and user on `request.state`, or refuses."""
 
@@ -56,7 +69,7 @@ class EmpresaMiddleware(BaseHTTPMiddleware):
         self._settings = settings
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path in RUTAS_PUBLICAS:
+        if request.url.path in RUTAS_PUBLICAS or request.url.path.startswith(PREFIJOS_PUBLICOS):
             return await call_next(request)
 
         identidad = self._identidad(request)

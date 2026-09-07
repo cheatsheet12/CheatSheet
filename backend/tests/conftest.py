@@ -118,6 +118,11 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         mercadopago_api_url="https://api.mercadopago.invalid",
         mercadopago_timeout_segundos=1,
         mercadopago_margen_renovacion_dias=15,
+        # Un secreto de prueba, no vacio: con la cadena vacia **ninguna firma vale** (HS-T1
+        # RN-01), asi que dejarlo en blanco haria que el test del camino feliz del webhook
+        # pasara por el motivo equivocado.
+        mercadopago_webhook_secret="secreto-de-prueba",
+        mercadopago_url_de_retorno="http://localhost:3000/cobros",
         mercadopago_autorizacion_ttl_minutos=10,
         google_oauth_client_id="",
         google_oauth_client_secret="",

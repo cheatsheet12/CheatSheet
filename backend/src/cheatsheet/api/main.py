@@ -24,13 +24,16 @@ from cheatsheet.api.routers import (
     auth,
     categorias,
     clientes,
+    cobros,
     comprobantes,
     health,
     integraciones,
     planillas,
     puntos_de_venta,
+    reglas,
     servicios,
     usuarios,
+    webhooks,
 )
 from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
 from cheatsheet.platform.settings import Settings
@@ -88,5 +91,8 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(planillas.crear_router(recursos))
     app.include_router(puntos_de_venta.crear_router(recursos))
     app.include_router(comprobantes.crear_router(recursos))
+    app.include_router(cobros.crear_router(recursos))
+    app.include_router(reglas.crear_router(recursos))
+    app.include_router(webhooks.crear_router(recursos))
 
     return app

@@ -95,6 +95,11 @@ def sesiones(engine_aplicacion: AsyncEngine) -> async_sessionmaker[AsyncSession]
 #: the migrations are: a `f"DELETE FROM {x}"` is a SQL injection shape even when `x` is a
 #: constant, and the linter is right to say so.
 BORRADOS = (
+    # `recordatorio` y `cobro` antes que `comprobante`: un cobro apunta al comprobante que
+    # salda, y el comprobante apunta al cliente. El orden va de la hoja a la raiz.
+    "DELETE FROM recordatorio",
+    "DELETE FROM cobro",
+    "DELETE FROM regla_de_negocio",
     # `comprobante` primero: apunta a `cliente` y a `punto_de_venta` sin cascada, porque
     # un comprobante emitido no puede desaparecer porque alguien borre al cliente.
     "DELETE FROM item_de_comprobante",
