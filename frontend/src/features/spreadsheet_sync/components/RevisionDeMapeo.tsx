@@ -141,8 +141,8 @@ export function RevisionDeMapeo({
         // «No pudimos proponerlo» y «ya lo teníamos» son cosas distintas para alguien
         // mirando una tabla llena de «Sin asignar», y la diferencia se dice.
         <Alert tono="advertencia">
-          No pudimos proponerte un mapeo automatico esta vez. Asigná las columnas a mano; el
-          sistema lo va a recordar para las proximas sincronizaciones.
+          No pudimos proponerte un mapeo automatico esta vez. Asigná las columnas a mano; el sistema
+          lo va a recordar para las proximas sincronizaciones.
         </Alert>
       )}
 

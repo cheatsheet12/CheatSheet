@@ -86,11 +86,14 @@ export function validarArchivo(archivo: File): void {
 export async function subirPlanilla(archivo: File): Promise<Vinculo> {
   validarArchivo(archivo);
 
-  const respuesta = await fetch(`/api/planillas/archivo?nombre=${encodeURIComponent(archivo.name)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/octet-stream" },
-    body: archivo,
-  });
+  const respuesta = await fetch(
+    `/api/planillas/archivo?nombre=${encodeURIComponent(archivo.name)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: archivo,
+    },
+  );
   if (!respuesta.ok) {
     await fallar(respuesta);
   }

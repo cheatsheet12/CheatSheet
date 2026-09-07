@@ -752,7 +752,9 @@
   border-radius: var(--radio-md);
   padding: var(--espacio-xl);
   text-align: center;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .ingesta__zona--activa {

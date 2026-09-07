@@ -29,16 +29,16 @@ afterEach(() => {
 });
 
 describe("validarArchivo", () => {
-  it.each([".pdf", ".txt", ".exe", ""])("rechaza la extension %s con el texto de la historia", (ext) => {
-    expect(() => validarArchivo(archivo(`clientes${ext}`))).toThrow(MENSAJE_FORMATO_NO_ACEPTADO);
-  });
-
-  it.each(["clientes.xlsx", "Clientes.XLSX", "datos.csv", "viejo.xls"])(
-    "acepta %s",
-    (nombre) => {
-      expect(() => validarArchivo(archivo(nombre))).not.toThrow();
+  it.each([".pdf", ".txt", ".exe", ""])(
+    "rechaza la extension %s con el texto de la historia",
+    (ext) => {
+      expect(() => validarArchivo(archivo(`clientes${ext}`))).toThrow(MENSAJE_FORMATO_NO_ACEPTADO);
     },
   );
+
+  it.each(["clientes.xlsx", "Clientes.XLSX", "datos.csv", "viejo.xls"])("acepta %s", (nombre) => {
+    expect(() => validarArchivo(archivo(nombre))).not.toThrow();
+  });
 
   it("rechaza un archivo de mas de 25 MB con el texto de la historia", () => {
     expect(() => validarArchivo(archivo("grande.xlsx", LIMITE_TAMANO_BYTES + 1))).toThrow(

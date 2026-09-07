@@ -19,10 +19,9 @@ const corregirMapeo = vi.fn();
 const confirmarMapeo = vi.fn();
 
 vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
-  const real =
-    await vi.importActual<typeof import("@/features/spreadsheet_sync/api/planilla")>(
-      "@/features/spreadsheet_sync/api/planilla",
-    );
+  const real = await vi.importActual<typeof import("@/features/spreadsheet_sync/api/planilla")>(
+    "@/features/spreadsheet_sync/api/planilla",
+  );
   return {
     ...real,
     corregirMapeo: (...args: unknown[]) => corregirMapeo(...args),
@@ -33,9 +32,7 @@ vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
 import type { Mapeo } from "@/features/spreadsheet_sync";
 import { MENSAJE_FALTAN_OBLIGATORIAS } from "@/features/spreadsheet_sync";
 
-const { RevisionDeMapeo } = await import(
-  "@/features/spreadsheet_sync/components/RevisionDeMapeo"
-);
+const { RevisionDeMapeo } = await import("@/features/spreadsheet_sync/components/RevisionDeMapeo");
 
 const INCOMPLETO: Mapeo = {
   id: "m1",
@@ -120,10 +117,7 @@ describe("RevisionDeMapeo", () => {
 
   it("avisa cuando el modelo no pudo proponer nada", () => {
     render(
-      <RevisionDeMapeo
-        inicial={{ ...INCOMPLETO, propuesto_por_el_modelo: false }}
-        puedeEditar
-      />,
+      <RevisionDeMapeo inicial={{ ...INCOMPLETO, propuesto_por_el_modelo: false }} puedeEditar />,
     );
 
     // «No pudimos proponerlo» y «ya lo teniamos» son cosas distintas para alguien mirando

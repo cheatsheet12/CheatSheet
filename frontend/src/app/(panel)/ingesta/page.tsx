@@ -38,8 +38,8 @@ export default async function PaginaDeIngesta(): Promise<JSX.Element> {
     <>
       <h1>Ingesta de datos</h1>
       <p className="dm-intro">
-        Traé tus clientes y servicios desde una planilla. Podés subir un archivo o vincular una
-        hoja de Google para que se sincronice sola.
+        Traé tus clientes y servicios desde una planilla. Podés subir un archivo o vincular una hoja
+        de Google para que se sincronice sola.
       </p>
       <IngestaDePlanillas
         inicial={listado}
