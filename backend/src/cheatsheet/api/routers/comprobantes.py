@@ -36,6 +36,10 @@ from cheatsheet.contexts.billing.application.errors import (
     MENSAJE_NO_DESCARGABLE,
     ComprobanteNoDescargable,
 )
+from cheatsheet.contexts.billing.application.notas_de_credito import (
+    EmitirNotaDeCredito,
+    EstadoDeAnulacion,
+)
 from cheatsheet.contexts.billing.application.ports import (
     FiltrosDeComprobante,
     PortColaDeEmision,
@@ -116,6 +120,28 @@ class ComprobanteSalida(BaseModel):
 
 class ListadoSalida(BaseModel):
     comprobantes: list[ComprobanteSalida]
+
+
+class NotaDeCreditoEntrada(BaseModel):
+    """HU-E5-04. **No `tipo` and no receptor**: both come from the original (RN-02).
+
+    Accepting them would let a caller choose which kind of document reverses which, and
+    ARCA rejects the ones that do not match.
+    """
+
+    items: list[ItemEntrada]
+
+
+class AnulacionSalida(BaseModel):
+    """What PAN-FAC-04 preloads, and what the detail shows (RN-05)."""
+
+    total_original: Decimal
+    total_anulado: Decimal
+    #: The ceiling for the next credit note (RN-03), against what is **left**.
+    disponible: Decimal
+    es_total: bool
+    es_parcial: bool
+    notas: list[ComprobanteSalida]
 
 
 class ReceptorSalida(BaseModel):
@@ -199,7 +225,85 @@ def crear_router(recursos: Recursos) -> APIRouter:
     # rule asks for -- «if it does not fit, the design is wrong» -- and it happens to be an
     # honest seam, because this is the one route that answers bytes instead of JSON.
     router.include_router(_rutas_de_pdf(recursos), prefix="/comprobantes")
+    router.include_router(_rutas_de_anulacion(recursos), prefix="/comprobantes")
     return router
+
+
+def _rutas_de_anulacion(recursos: Recursos) -> APIRouter:
+    """HU-E5-04. Its own router for the same reason the PDF has one: the complexity ceiling.
+
+    It is also an honest seam -- these two routes are the only ones that talk about an
+    *original*, which is what makes a credit note different from any other document.
+    """
+    router = APIRouter()
+
+    @router.get("/{comprobante_id}/anulacion")
+    async def ver_anulacion(request: Request, comprobante_id: UUID) -> AnulacionSalida:
+        """RN-05, and what PAN-FAC-04 preloads: the ceiling for the next credit note.
+
+        Derived from the authorised credit notes every time (decision D19), never read off
+        a column.
+        """
+        empresa_id, _, _ = _actor(request)
+        salida: AnulacionSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Facturacion.armar(unidad)
+            estado = await EstadoDeAnulacion(piezas.comprobantes).ejecutar(comprobante_id)
+            notas = await piezas.comprobantes.notas_de(comprobante_id)
+            salida = AnulacionSalida(
+                total_original=estado.total_original,
+                total_anulado=estado.total_anulado,
+                disponible=estado.disponible,
+                es_total=estado.es_total,
+                es_parcial=estado.es_parcial,
+                notas=[_a_salida(nota) for nota in notas],
+            )
+        return _exigir_anulacion(salida)
+
+    @router.post("/{comprobante_id}/notas-de-credito", status_code=status.HTTP_202_ACCEPTED)
+    async def anular(
+        request: Request, comprobante_id: UUID, entrada: NotaDeCreditoEntrada
+    ) -> ComprobanteSalida:
+        """202, like an issue: the note exists and ARCA has not answered yet (RN-04)."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: ComprobanteSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Facturacion.armar(unidad)
+            emitida = await EmitirNotaDeCredito(
+                comprobantes=piezas.comprobantes,
+                emitir=EmitirComprobante(
+                    comprobantes=piezas.comprobantes,
+                    puntos=piezas.puntos,
+                    arca=armar_autorizacion(unidad, recursos.settings),
+                    cola=_cola(recursos),
+                    publicador=unidad.publicador,
+                ),
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                origen_id=comprobante_id,
+                items=[
+                    item(
+                        descripcion=linea.descripcion,
+                        cantidad=linea.cantidad,
+                        precio_unitario=linea.precio_unitario,
+                        alicuota_iva=AlicuotaIVA(linea.alicuota_iva),
+                    )
+                    for linea in entrada.items
+                ],
+                ahora=unidad.reloj.ahora(),
+            )
+            salida = _a_salida(emitida)
+        return _exigir(salida)
+
+    return router
+
+
+def _exigir_anulacion(salida: AnulacionSalida | None) -> AnulacionSalida:
+    if salida is None:  # pragma: no cover -- the unit of work always yields once
+        raise RuntimeError("La unidad de trabajo no produjo un resultado")
+    return salida
 
 
 def _rutas_de_pdf(recursos: Recursos) -> APIRouter:

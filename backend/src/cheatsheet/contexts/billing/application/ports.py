@@ -145,6 +145,15 @@ class PortRepositorioComprobante(Protocol):
         issue date, and sorting them by creation keeps them from floating to the top."""
         ...
 
+    async def notas_de(self, origen_id: UUID) -> list[Comprobante]:
+        """Every credit note issued against one document (HU-E5-04 RN-03, RN-05).
+
+        All of them, in every state, because the caller decides what counts: only the
+        authorised ones reverse anything (decision D19), and a filter here would hide the
+        rejected and in-flight ones from a screen that has reason to show them.
+        """
+        ...
+
     async def en_vuelo(self, *, anteriores_a: datetime) -> list[Comprobante]:
         """Documents stuck in `ENVIADO_A_ARCA`, for the reconciliation of D17.
 

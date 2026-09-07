@@ -102,6 +102,9 @@ class ComprobantesFalsos:
         del filtros
         return list(self.guardados.values())
 
+    async def notas_de(self, origen_id: UUID) -> list[Comprobante]:
+        return [c for c in self.guardados.values() if c.comprobante_origen_id == origen_id]
+
     async def en_vuelo(self, *, anteriores_a: datetime) -> list[Comprobante]:
         return [
             c

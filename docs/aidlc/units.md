@@ -29,7 +29,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Facturación electrónica | parametros-fiscales | reference_data | HS-T4 | — | Cristian | feature/billing-facturacion-electronica | hecha |
 | Facturación electrónica | puntos-de-venta | billing | HU-E5-05 | — | Cristian | feature/billing-facturacion-electronica | hecha |
 | Facturación electrónica | emision-de-comprobantes | billing | HU-E5-01, HU-E5-02, HU-E5-03 | parametros-fiscales, puntos-de-venta | Cristian | feature/billing-facturacion-electronica | hecha |
-| Facturación electrónica | nota-de-credito | billing | HU-E5-04 | emision-de-comprobantes | Cristian | feature/billing-facturacion-electronica | en curso |
+| Facturación electrónica | nota-de-credito | billing | HU-E5-04 | emision-de-comprobantes | Cristian | feature/billing-facturacion-electronica | hecha |
 
 
 ---
@@ -725,12 +725,24 @@ dos veces en veinte años.
   posible y no lo cubre ninguna historia.
 - **`nota-de-credito`** — ¿el «estado de anulación» de RN-05 es un estado del original, una
   suma de notas asociadas, o las dos cosas? El DER tiene `ANULADO` en el enum pero la
-  anulación puede ser parcial.
+  anulación puede ser parcial. **Respondida (D19): las dos, y la suma es la verdad.** Lo
+  anulado se calcula sumando las notas autorizadas; `ANULADO` es un caché de la anulación
+  total, y la parcial no es un estado sino un monto.
 
 ### Estado
 
-**Mapa escrito el 2026-09-07.** Pendiente de aprobación. Responsable de las cuatro unidades:
-Cristian.
+**Mapa escrito el 2026-09-07. Épico completo el 2026-09-07.** Las cuatro unidades hechas y
+verificadas con servicios reales. Responsable: Cristian.
+
+Decisiones que se tomaron durante la implementación y no estaban en este mapa:
+
+- **D17 — reconciliar antes de reintentar.** `FECAESolicitar` no es idempotente, así que un
+  resultado desconocido se resuelve preguntando (`FECompConsultar`) y nunca reenviando. Es la
+  respuesta a la pregunta que el mapa dejó abierta y ninguna historia cubría.
+- **D18 — ARCA es la autoridad de la correlatividad.** El número se saca como
+  `max(el nuestro, FECompUltimoAutorizado) + 1`, porque WSFEv1 rechaza cualquier hueco hasta
+  que los dos contadores coincidan.
+- **D19 — lo anulado se deriva, no se guarda.** Ver arriba.
 
 ### Fuera de alcance de este épico
 

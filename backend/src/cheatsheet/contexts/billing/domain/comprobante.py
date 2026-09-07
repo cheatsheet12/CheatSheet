@@ -404,6 +404,59 @@ class Comprobante:
         return self.estado in (EstadoComprobante.AUTORIZADO, EstadoComprobante.ANULADO)
 
 
+def nota_de_credito_para(
+    original: Comprobante,
+    *,
+    nota_id: UUID,
+    items: list[ItemDeComprobante],
+    ahora: datetime,
+) -> Comprobante:
+    """Build the credit note that reverses `original` (HU-E5-04 RN-01, RN-02).
+
+    **The type is determined, never chosen** (RN-02): a B invoice is reversed by a B credit
+    note, and offering the other two would be offering a document ARCA rejects. So is the
+    receptor -- copied from the original rather than re-read from the client catalogue,
+    because what is being reversed is what was issued, and the client may have edited their
+    name since.
+
+    The amount is *not* checked here. It needs the other credit notes already authorised
+    against the same original, which is a repository question, so it lives in the use case
+    -- and this function stays a pure construction that cannot be wrong about the database.
+    """
+    if original.estado is not EstadoComprobante.AUTORIZADO:
+        raise InvarianteViolada("Solo se puede anular un comprobante autorizado por ARCA")
+
+    nota = Comprobante(
+        id=nota_id,
+        empresa_id=original.empresa_id,
+        cliente_id=original.cliente_id,
+        # The same point of sale as the original. ARCA keeps a separate counter per type
+        # there, so the credit note gets its own sequence without any special handling.
+        punto_de_venta_id=original.punto_de_venta_id,
+        tipo=original.tipo.nota_de_credito,
+        receptor=original.receptor,
+        emisor_condicion_iva=original.emisor_condicion_iva,
+        created_at=ahora,
+        comprobante_origen_id=original.id,
+    )
+    for item in items:
+        nota.agregar_item(item)
+    return nota
+
+
+def monto_anulado(notas: list[Comprobante]) -> Decimal:
+    """How much of an original has been reversed. **Decision D19: derived, not stored.**
+
+    Only authorised notes count. One that ARCA rejected reversed nothing, and one still in
+    flight has not reversed anything *yet* -- counting it would let somebody reverse the
+    same amount twice while the first attempt is unresolved.
+    """
+    return sum(
+        (nota.total for nota in notas if nota.estado is EstadoComprobante.AUTORIZADO),
+        Decimal("0.00"),
+    )
+
+
 __all__ = [
     "CAE",
     "CENTAVOS",
@@ -419,6 +472,8 @@ __all__ = [
     "EstadoComprobante",
     "ItemDeComprobante",
     "Receptor",
+    "monto_anulado",
+    "nota_de_credito_para",
     "redondear",
     "tipos_permitidos",
 ]

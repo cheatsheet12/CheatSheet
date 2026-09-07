@@ -13,7 +13,7 @@ import pytest
 from cheatsheet.contexts.billing.application.emision import TiposDisponibles, item
 from cheatsheet.contexts.billing.domain.comprobante import AlicuotaIVA
 from cheatsheet.contexts.billing.domain.punto_de_venta import TipoComprobante
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 from cheatsheet.shared.fiscal import CondicionIVA
 
 RI = CondicionIVA.RESPONSABLE_INSCRIPTO
@@ -61,3 +61,24 @@ def test_un_monto_que_no_es_numero_se_rechaza_en_vez_de_romper() -> None:
             precio_unitario="1000",
             alicuota_iva=AlicuotaIVA.GENERAL,
         )
+
+
+def test_el_tipo_de_la_nota_lo_determina_la_letra_del_original() -> None:
+    """HU-E5-04 RN-02, en el dominio: A anula A, B anula B, C anula C.
+
+    Lo determina el sistema y no lo elige el usuario, porque ofrecer las otras dos sería
+    ofrecer un documento que ARCA rechaza.
+    """
+    esperados: dict[TipoComprobante, TipoComprobante] = {
+        TipoComprobante.FACTURA_A: TipoComprobante.NOTA_CREDITO_A,
+        TipoComprobante.FACTURA_B: TipoComprobante.NOTA_CREDITO_B,
+        TipoComprobante.FACTURA_C: TipoComprobante.NOTA_CREDITO_C,
+    }
+    for factura, nota in esperados.items():
+        assert factura.nota_de_credito is nota
+
+
+def test_una_nota_de_credito_no_tiene_nota_de_credito() -> None:
+    """Anular una anulación no es una operación: se emite una factura nueva."""
+    with pytest.raises(InvarianteViolada):
+        _ = TipoComprobante.NOTA_CREDITO_A.nota_de_credito

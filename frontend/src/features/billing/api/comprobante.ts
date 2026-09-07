@@ -227,3 +227,51 @@ export function tonoDeEstado(estado: EstadoComprobante): "ok" | "atencion" | "pe
   }
   return "pendiente";
 }
+
+/** HU-E5-04. What PAN-FAC-04 preloads and the detail shows (RN-05). */
+export interface Anulacion {
+  readonly total_original: string;
+  readonly total_anulado: string;
+  /** The ceiling for the next credit note (RN-03), **against what is left**. */
+  readonly disponible: string;
+  readonly es_total: boolean;
+  readonly es_parcial: boolean;
+  readonly notas: readonly Comprobante[];
+}
+
+/** HU-E5-04, word for word. */
+export const MENSAJE_MONTO_EXCEDIDO =
+  "El monto de la nota de crédito no puede superar el del comprobante original.";
+export const MENSAJE_SIN_ORIGEN = "Debe seleccionar el comprobante que desea anular.";
+
+export async function verAnulacion(comprobanteId: string): Promise<Anulacion> {
+  const respuesta = await fetch(`/api/comprobantes/${comprobanteId}/anulacion`, {
+    cache: "no-store",
+  });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as Anulacion;
+}
+
+/**
+ * Emit a credit note against one document.
+ *
+ * **No `tipo` and no receptor travel.** Both come from the original (RN-02), and sending
+ * them would let a caller choose which kind of document reverses which — which ARCA
+ * rejects. Only the lines being reversed go out.
+ */
+export async function emitirNotaDeCredito(
+  comprobanteId: string,
+  items: readonly ItemNuevo[],
+): Promise<Comprobante> {
+  const respuesta = await fetch(`/api/comprobantes/${comprobanteId}/notas-de-credito`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as Comprobante;
+}

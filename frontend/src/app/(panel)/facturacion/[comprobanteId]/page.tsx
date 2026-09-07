@@ -11,7 +11,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { DetalleDeComprobante } from "@/features/billing";
-import type { Comprobante, ListadoDePuntosDeVenta } from "@/features/billing";
+import type { Anulacion, Comprobante, ListadoDePuntosDeVenta } from "@/features/billing";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
 
@@ -38,13 +38,29 @@ export default async function PaginaDeComprobante({ params }: Props): Promise<JS
 
   // The point of sale's own number, for the `0001-00000123` form ARCA prints. Read
   // separately because the document stores the id and ARCA prints the number.
-  const puntos = await llamarApi<ListadoDePuntosDeVenta>("/puntos-de-venta");
+  // Two independent reads the screen needs together for its first paint.
+  const [puntos, anulacion] = await Promise.all([
+    llamarApi<ListadoDePuntosDeVenta>("/puntos-de-venta"),
+    llamarApi<Anulacion>(`/comprobantes/${comprobante.id}/anulacion`),
+  ]);
   const punto = puntos.puntos.find((uno) => uno.id === comprobante.punto_de_venta_id);
+
+  // Only an authorised invoice can be reversed (HU-E5-04 RN-01), and a credit note is not
+  // reversed with another one: undoing an annulment is a new invoice, not a second note.
+  const puedeAnular =
+    (claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR") &&
+    comprobante.estado === "AUTORIZADO" &&
+    !comprobante.tipo.startsWith("NOTA_CREDITO");
 
   return (
     <>
       <h1>Comprobante</h1>
-      <DetalleDeComprobante comprobante={comprobante} puntoNumero={punto?.numero ?? null} />
+      <DetalleDeComprobante
+        comprobante={comprobante}
+        puntoNumero={punto?.numero ?? null}
+        anulacion={anulacion}
+        puedeAnular={puedeAnular}
+      />
     </>
   );
 }

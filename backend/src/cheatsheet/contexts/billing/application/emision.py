@@ -392,6 +392,16 @@ async def _aplicar_respuesta(
             await puntos.guardar(punto)
 
     await comprobantes.guardar(comprobante)
+    if comprobante.comprobante_origen_id is not None:
+        # HU-E5-04 RN-05. Imported here rather than at module scope: `notas_de_credito`
+        # imports `EmitirComprobante` from this module, and naming it at the top would
+        # close the cycle. The direction of the dependency is right -- credit notes are
+        # built on issuance, not the other way round -- and this is the one call back.
+        from cheatsheet.contexts.billing.application.notas_de_credito import (
+            reflejar_anulacion,
+        )
+
+        await reflejar_anulacion(comprobantes, comprobante)
     await publicador.publicar(
         EventoAuditable(
             evento_id=uuid4(),

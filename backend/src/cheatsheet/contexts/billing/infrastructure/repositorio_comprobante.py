@@ -135,6 +135,14 @@ class RepositorioComprobantePostgres:
         )
         return await self._armar(sentencia)
 
+    async def notas_de(self, origen_id: UUID) -> list[Comprobante]:
+        sentencia = (
+            select(ComprobanteORM)
+            .where(ComprobanteORM.comprobante_origen_id == origen_id)
+            .order_by(ComprobanteORM.created_at)
+        )
+        return await self._armar(sentencia)
+
     async def en_vuelo(self, *, anteriores_a: datetime) -> list[Comprobante]:
         sentencia = (
             select(ComprobanteORM)

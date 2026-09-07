@@ -118,3 +118,15 @@ export function resumenDeNumeracion(punto: PuntoDeVenta): string {
   const entradas = Object.entries(punto.numerador_por_tipo) as [TipoComprobante, number][];
   return entradas.map(([tipo, ultimo]) => `${ETIQUETAS_DE_TIPO[tipo]}: ${ultimo}`).join(" · ");
 }
+
+/**
+ * The credit note that reverses this invoice (HU-E5-04 RN-02).
+ *
+ * Mirrors the backend's `TipoComprobante.nota_de_credito`, and it is duplicated here for
+ * one reason only: the screen has to *name* the document it is about to emit before the
+ * request exists. Which type is actually issued is still decided by the backend from the
+ * original — this never travels.
+ */
+export function notaDeCreditoDe(tipo: TipoComprobante): TipoComprobante {
+  return tipo.replace("FACTURA", "NOTA_CREDITO") as TipoComprobante;
+}

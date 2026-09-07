@@ -13,6 +13,8 @@
  * not that.
  */
 
+export { AnularComprobante } from "./components/AnularComprobante";
+export type { PropsDeAnularComprobante } from "./components/AnularComprobante";
 export { DetalleDeComprobante } from "./components/DetalleDeComprobante";
 export type { PropsDeDetalleDeComprobante } from "./components/DetalleDeComprobante";
 export { ListadoDeComprobantes } from "./components/ListadoDeComprobantes";
@@ -28,6 +30,7 @@ export {
   MENSAJE_NO_HABILITADO,
   cambiarEstadoDePuntoDeVenta,
   listarPuntosDeVenta,
+  notaDeCreditoDe,
   registrarPuntoDeVenta,
   resumenDeNumeracion,
 } from "./api/puntoDeVenta";
@@ -41,16 +44,21 @@ export {
   ALICUOTAS,
   ETIQUETAS_DE_ESTADO,
   ErrorDeComprobante,
+  MENSAJE_MONTO_EXCEDIDO,
   MENSAJE_SIN_ITEMS,
+  MENSAJE_SIN_ORIGEN,
   MENSAJE_SIN_RESULTADOS,
   emitirComprobante,
+  emitirNotaDeCredito,
   listarComprobantes,
   numeroFormateado,
   tonoDeEstado,
   validarReceptor,
+  verAnulacion,
   verComprobante,
 } from "./api/comprobante";
 export type {
+  Anulacion,
   Comprobante,
   ComprobanteNuevo,
   EstadoComprobante,

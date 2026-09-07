@@ -56,6 +56,15 @@ class ComprobanteNoAnulable(InvarianteViolada):
     """Only an authorised document can be reversed (HU-E5-04 RN-01)."""
 
 
+class MontoDeNotaExcedido(EntradaInvalida):
+    """HU-E5-04 RN-03: «El monto de la nota de credito no puede superar el del comprobante
+    original.»
+
+    `EntradaInvalida` and not `InvarianteViolada` on purpose: the message is one the story
+    writes for the user, so it has to reach the screen through the 422 seam.
+    """
+
+
 class ArcaNoDisponible(EntradaInvalida):
     """ARCA could not be reached. Retryable, and the document stays where it was."""
 

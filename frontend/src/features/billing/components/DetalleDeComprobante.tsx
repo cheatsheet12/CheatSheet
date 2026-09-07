@@ -14,6 +14,8 @@
 
 "use client";
 
+import Link from "next/link";
+
 import {
   Alert,
   Badge,
@@ -27,13 +29,17 @@ import {
 import type { Columna } from "@/shared";
 
 import { ETIQUETAS_DE_ESTADO, numeroFormateado, tonoDeEstado } from "../api/comprobante";
-import type { Comprobante, ItemDeComprobante } from "../api/comprobante";
+import type { Anulacion, Comprobante, ItemDeComprobante } from "../api/comprobante";
 import { ETIQUETAS_DE_TIPO } from "../api/puntoDeVenta";
 
 export interface PropsDeDetalleDeComprobante {
   readonly comprobante: Comprobante;
   /** The point of sale's own number, for the `0001-00000123` form ARCA prints. */
   readonly puntoNumero: number | null;
+  /** How much of it has been reversed (HU-E5-04 RN-05). */
+  readonly anulacion?: Anulacion | null;
+  /** Administrador and Operador reverse; Solo Lectura only looks. */
+  readonly puedeAnular?: boolean;
 }
 
 const COLUMNAS: readonly Columna<ItemDeComprobante>[] = [
@@ -69,9 +75,24 @@ const COLUMNAS: readonly Columna<ItemDeComprobante>[] = [
 export function DetalleDeComprobante({
   comprobante,
   puntoNumero,
+  anulacion = null,
+  puedeAnular = false,
 }: PropsDeDetalleDeComprobante): JSX.Element {
   return (
     <>
+      {anulacion !== null && Number(anulacion.total_anulado) > 0 && (
+        // RN-05. A partial reversal is not a state, it is an amount -- and saying it here
+        // is what stops the `AUTORIZADO` badge from reading as "nothing happened to this".
+        <Alert
+          tono={anulacion.es_total ? "neutral" : "advertencia"}
+          titulo={anulacion.es_total ? "Anulado por completo" : "Anulado parcialmente"}
+        >
+          Se anularon $ {formatearNumero(anulacion.total_anulado)} de ${" "}
+          {formatearNumero(anulacion.total_original)}
+          {anulacion.es_total ? "." : `, con $ ${formatearNumero(anulacion.disponible)} vigentes.`}
+        </Alert>
+      )}
+
       {comprobante.motivo_de_rechazo !== null && (
         // ARCA's own words. See the module docstring on why they are not translated.
         <Alert tono="error" titulo="ARCA rechazó el comprobante">
@@ -137,8 +158,13 @@ export function DetalleDeComprobante({
         <span className="fac-totales__final">Total: $ {formatearNumero(comprobante.total)}</span>
       </div>
 
-      {comprobante.descargable && (
-        <div className="fac-acciones">
+      <div className="fac-acciones">
+        {puedeAnular && (
+          <Link href={`/facturacion/${comprobante.id}/anular`} className="boton boton--secundario">
+            Anular con nota de crédito
+          </Link>
+        )}
+        {comprobante.descargable && (
           <Button
             onClick={() => {
               window.open(`/api/comprobantes/${comprobante.id}/pdf`, "_blank");
@@ -146,8 +172,8 @@ export function DetalleDeComprobante({
           >
             Descargar PDF
           </Button>
-        </div>
-      )}
+        )}
+      </div>
     </>
   );
 }
