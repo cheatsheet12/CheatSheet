@@ -13,6 +13,12 @@
  * not that.
  */
 
+export { DetalleDeComprobante } from "./components/DetalleDeComprobante";
+export type { PropsDeDetalleDeComprobante } from "./components/DetalleDeComprobante";
+export { ListadoDeComprobantes } from "./components/ListadoDeComprobantes";
+export type { PropsDeListadoDeComprobantes } from "./components/ListadoDeComprobantes";
+export { NuevaEmision } from "./components/NuevaEmision";
+export type { PropsDeNuevaEmision } from "./components/NuevaEmision";
 export { PuntosDeVenta } from "./components/PuntosDeVenta";
 export type { PropsDePuntosDeVenta } from "./components/PuntosDeVenta";
 export {
@@ -31,3 +37,26 @@ export type {
   PuntoDeVenta,
   TipoComprobante,
 } from "./api/puntoDeVenta";
+export {
+  ALICUOTAS,
+  ETIQUETAS_DE_ESTADO,
+  ErrorDeComprobante,
+  MENSAJE_SIN_ITEMS,
+  MENSAJE_SIN_RESULTADOS,
+  emitirComprobante,
+  listarComprobantes,
+  numeroFormateado,
+  tonoDeEstado,
+  validarReceptor,
+  verComprobante,
+} from "./api/comprobante";
+export type {
+  Comprobante,
+  ComprobanteNuevo,
+  EstadoComprobante,
+  FiltrosDeComprobante,
+  ItemDeComprobante,
+  ItemNuevo,
+  ListadoDeComprobantes as ListadoDeComprobantesRespuesta,
+  ReceptorValidado,
+} from "./api/comprobante";

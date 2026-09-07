@@ -146,7 +146,7 @@ export function PuntosDeVenta({ inicial, puedeEditar }: PropsDePuntosDeVenta): J
   }
 
   return (
-    <section className="dm-seccion">
+    <>
       {error !== null && (
         <Alert tono="error" titulo="No se pudo completar">
           {error}
@@ -154,7 +154,7 @@ export function PuntosDeVenta({ inicial, puedeEditar }: PropsDePuntosDeVenta): J
       )}
 
       {puedeEditar && (
-        <div className="dm-acciones">
+        <div className="fac-acciones">
           <Button onClick={abrirAlta}>Agregar punto de venta</Button>
         </div>
       )}
@@ -206,6 +206,6 @@ export function PuntosDeVenta({ inicial, puedeEditar }: PropsDePuntosDeVenta): J
           </div>
         </form>
       </Modal>
-    </section>
+    </>
   );
 }
