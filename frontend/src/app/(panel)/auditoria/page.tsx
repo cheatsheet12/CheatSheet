@@ -38,8 +38,8 @@ export default async function PaginaDeAuditoria(): Promise<JSX.Element> {
     <>
       <h1>Log de operaciones</h1>
       <p className="dm-intro">
-        Todo lo que el sistema ejecutó en nombre de tu empresa, con quién lo puso en marcha:
-        una persona, un proceso automático o el agente de WhatsApp.
+        Todo lo que el sistema ejecutó en nombre de tu empresa, con quién lo puso en marcha: una
+        persona, un proceso automático o el agente de WhatsApp.
       </p>
       {motivo !== undefined ? (
         <p className="tabla__vacia">{motivo}</p>

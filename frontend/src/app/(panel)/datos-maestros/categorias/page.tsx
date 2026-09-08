@@ -29,11 +29,16 @@ export default async function PaginaDeCategorias(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Categorias</h1>
-      <p className="dm-intro">
-        Las etiquetas con las que organizas tu catalogo. Cada una decide si sirve para clientes,
-        para servicios o para las dos cosas.
-      </p>
+      <header className="dm-encabezado">
+        <div>
+          <span className="dm-encabezado__cintillo">Datos maestros</span>
+          <h1>Categorias</h1>
+          <p className="dm-intro">
+            Las etiquetas con las que organizas tu catalogo. Cada una decide si sirve para clientes,
+            para servicios o para las dos cosas.
+          </p>
+        </div>
+      </header>
       <ListadoDeCategorias
         inicial={listado}
         puedeEditar={ROLES_QUE_ESCRIBEN.includes(claims.rol)}

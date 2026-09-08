@@ -4,6 +4,12 @@
  * Todo lo que RN-01 pide —monto, cliente, link y el historial de recordatorios con su estado
  * de entrega— más las dos acciones que cambian el estado.
  *
+ * **El prototipo lo dibuja como panel lateral y acá es una página.** La decisión es de la
+ * ruta y no de este archivo: es la pantalla que alguien deja abierta mientras habla por
+ * teléfono y la que manda por mensaje interno, y un cajón no tiene URL. La maqueta sí es la
+ * del prototipo: encabezado, caja del monto, pares clave/valor y la cadena de recordatorios
+ * como línea de tiempo.
+ *
  * **El reembolso sólo aparece para el Administrador** (HU-E6-05 RN-05) y sólo sobre un cobro
  * pagado (RN-01). Esconder el botón es una cortesía: el caso de uso lo rechaza igual, que es
  * lo que enseñó PRU-09.
@@ -21,14 +27,11 @@ import {
   Badge,
   Button,
   Campo,
-  Card,
   Modal,
-  Tabla,
   formatearFecha,
   formatearFechaHora,
   formatearNumero,
 } from "@/shared";
-import type { Columna } from "@/shared";
 
 import {
   ETIQUETAS_DE_ESTADO,
@@ -43,6 +46,15 @@ import {
   verCobro,
 } from "../api/cobro";
 import type { DetalleDeCobro as Detalle, Recordatorio } from "../api/cobro";
+import {
+  ICONO_CHAT,
+  ICONO_RELOJ,
+  inicialesDe,
+  referenciaDeCobro,
+  tonoDeCaja,
+  tonoDeEntrega,
+  varianteDeAvatar,
+} from "./presentacion";
 
 export interface PropsDeDetalleDeCobro {
   readonly inicial: Detalle;
@@ -51,23 +63,6 @@ export interface PropsDeDetalleDeCobro {
   /** Sólo el Administrador reembolsa (HU-E6-05 RN-05). */
   readonly puedeReembolsar: boolean;
 }
-
-const COLUMNAS: readonly Columna<Recordatorio>[] = [
-  { clave: "paso", titulo: "Paso", celda: (fila) => String(fila.paso) },
-  { clave: "canal", titulo: "Canal", celda: (fila) => fila.canal },
-  {
-    clave: "enviado",
-    titulo: "Enviado",
-    celda: (fila) => formatearFechaHora(fila.enviado_en),
-  },
-  {
-    clave: "entrega",
-    titulo: "Entrega",
-    // «Programado» y no un guión: la ausencia de fecha significa que todavía no salió, y eso
-    // es distinto de que haya salido y no sepamos qué pasó.
-    celda: (fila) => fila.estado_entrega ?? "Programado",
-  },
-];
 
 export function DetalleDeCobro({
   inicial,
@@ -82,6 +77,7 @@ export function DetalleDeCobro({
   const [reembolsando, setReembolsando] = useState(false);
   const [montoAReembolsar, setMontoAReembolsar] = useState(inicial.monto);
   const [trabajando, setTrabajando] = useState(false);
+  const [copiando, setCopiando] = useState(false);
 
   async function recargar(): Promise<void> {
     setCobro(await verCobro(cobro.id));
@@ -95,7 +91,9 @@ export function DetalleDeCobro({
     if (cobro.url_de_pago === null) {
       return;
     }
+    setCopiando(true);
     const copiado = await copiarLink(cobro.url_de_pago);
+    setCopiando(false);
     // Se dice cuando **no** se pudo: alguien que apretó «copiar» y no ve nada asume que copió.
     setAviso(copiado ? MENSAJE_LINK_COPIADO : "No se pudo copiar. Copialo a mano desde el link.");
   }
@@ -149,79 +147,120 @@ export function DetalleDeCobro({
         </Alert>
       )}
 
-      <div className="fac-detalle">
-        <Card titulo="Cobro">
-          <dl className="fac-datos">
-            <dt>Concepto</dt>
-            <dd>{cobro.descripcion}</dd>
-            <dt>Monto</dt>
-            <dd>$ {formatearNumero(cobro.monto)}</dd>
-            <dt>Estado</dt>
-            <dd>
-              <Badge estado={tonoDeEstado(cobro.estado)}>{ETIQUETAS_DE_ESTADO[cobro.estado]}</Badge>
-            </dd>
-            <dt>Vence</dt>
-            <dd>{formatearFecha(cobro.vence_el)}</dd>
-            <dt>Pagado</dt>
-            <dd>{formatearFechaHora(cobro.pagado_en)}</dd>
-            {cobro.monto_reembolsado !== null && (
-              <>
-                <dt>Reembolsado</dt>
-                <dd>$ {formatearNumero(cobro.monto_reembolsado)}</dd>
-              </>
-            )}
-            {cobro.motivo_de_cancelacion !== null && (
-              <>
-                <dt>Motivo de cancelación</dt>
-                <dd>{cobro.motivo_de_cancelacion}</dd>
-              </>
-            )}
-          </dl>
-        </Card>
+      <div className="cob-detalle">
+        <div>
+          <section className="cob-tarjeta">
+            <header className="cob-cabecera">
+              <span className={`cob-avatar cob-avatar--${varianteDeAvatar(cobro.id)}`} aria-hidden>
+                {inicialesDe(cobro.descripcion)}
+              </span>
+              <div>
+                <p className="cob-cabecera__rotulo">
+                  Detalle de cobro · {referenciaDeCobro(cobro.id)}
+                </p>
+                <h2 className="cob-cabecera__titulo">{cobro.descripcion}</h2>
+              </div>
+            </header>
 
-        <Card titulo="Link de pago">
-          {cobro.tiene_link_activo && cobro.url_de_pago !== null ? (
-            <>
-              <p className="fac-mono">{cobro.url_de_pago}</p>
-              <div className="fac-acciones">
-                <Button variante="secundario" onClick={() => void copiar()}>
+            {/* El monto y el estado en la misma caja: el número es lo que alguien busca y el
+                estado es lo que decide qué hacer con él. */}
+            <div className={`cob-monto cob-monto--${tonoDeCaja(cobro.estado)}`}>
+              <div>
+                <p className="cob-monto__rotulo">Monto</p>
+                <p className="cob-monto__valor">$ {formatearNumero(cobro.monto)}</p>
+              </div>
+              <div className="cob-monto__estado">
+                <Badge estado={tonoDeEstado(cobro.estado)}>
+                  {ETIQUETAS_DE_ESTADO[cobro.estado]}
+                </Badge>
+                <p className="cob-monto__nota">Vence el {formatearFecha(cobro.vence_el)}</p>
+              </div>
+            </div>
+
+            <p className="cob-rotulo">Detalle del cobro</p>
+            <dl className="cob-kv">
+              <div className="cob-kv__par">
+                <dt>Concepto</dt>
+                <dd>{cobro.descripcion}</dd>
+              </div>
+              <div className="cob-kv__par">
+                <dt>Operación</dt>
+                <dd className="cob-mono">{referenciaDeCobro(cobro.id)}</dd>
+              </div>
+              <div className="cob-kv__par">
+                <dt>Pagado</dt>
+                <dd>{formatearFechaHora(cobro.pagado_en)}</dd>
+              </div>
+              {cobro.monto_reembolsado !== null && (
+                <div className="cob-kv__par">
+                  <dt>Reembolsado</dt>
+                  <dd>$ {formatearNumero(cobro.monto_reembolsado)}</dd>
+                </div>
+              )}
+              {cobro.motivo_de_cancelacion !== null && (
+                <div className="cob-kv__par">
+                  <dt>Motivo de cancelación</dt>
+                  <dd className="cob-kv__alerta">{cobro.motivo_de_cancelacion}</dd>
+                </div>
+              )}
+            </dl>
+
+            <p className="cob-rotulo">
+              Link de pago — MercadoPago
+              {cobro.tiene_link_activo && <Badge estado="ok">Activo</Badge>}
+            </p>
+            {cobro.tiene_link_activo && cobro.url_de_pago !== null ? (
+              <div className="cob-link">
+                <span className="cob-link__marca" aria-hidden>
+                  MP
+                </span>
+                <span className="cob-link__url">{cobro.url_de_pago}</span>
+                <Button variante="secundario" cargando={copiando} onClick={() => void copiar()}>
                   Copiar link
                 </Button>
               </div>
-            </>
+            ) : (
+              <p className="cob-vacio">
+                Este cobro no tiene un link activo. Un cobro pagado, cancelado o reembolsado ya no
+                se puede pagar.
+              </p>
+            )}
+          </section>
+        </div>
+
+        <section className="cob-tarjeta">
+          <h2 className="cob-cabecera__titulo">Recordatorios</h2>
+          <p className="cob-rotulo">Cadena automática</p>
+          {cobro.recordatorios.length === 0 ? (
+            <p className="cob-vacio">Todavía no se envió ningún recordatorio para este cobro.</p>
           ) : (
-            <p className="dm-intro">
-              Este cobro no tiene un link activo. Un cobro pagado, cancelado o reembolsado ya no se
-              puede pagar.
-            </p>
+            <ol className="cob-timeline">
+              {cobro.recordatorios.map((recordatorio) => (
+                <Hito key={recordatorio.id} recordatorio={recordatorio} />
+              ))}
+            </ol>
           )}
-        </Card>
-      </div>
 
-      <Tabla
-        titulo="Recordatorios"
-        columnas={COLUMNAS}
-        filas={cobro.recordatorios}
-        claveDeFila={(fila) => fila.id}
-        vacia="Todavía no se envió ningún recordatorio para este cobro."
-      />
-
-      <div className="fac-acciones">
-        {puedeGestionar && cobro.tiene_link_activo && (
-          <Button variante="destructivo" onClick={() => setCancelando(true)}>
-            Cancelar cobro
-          </Button>
-        )}
-        {puedeReembolsar && cobro.estado === "APROBADO" && !cobro.reembolso_en_proceso && (
-          <Button variante="secundario" onClick={() => setReembolsando(true)}>
-            Reembolsar
-          </Button>
-        )}
+          {(puedeGestionar || puedeReembolsar) && (
+            <div className="cob-acciones">
+              {puedeGestionar && cobro.tiene_link_activo && (
+                <Button variante="destructivo" onClick={() => setCancelando(true)}>
+                  Cancelar cobro
+                </Button>
+              )}
+              {puedeReembolsar && cobro.estado === "APROBADO" && !cobro.reembolso_en_proceso && (
+                <Button variante="secundario" onClick={() => setReembolsando(true)}>
+                  Reembolsar
+                </Button>
+              )}
+            </div>
+          )}
+        </section>
       </div>
 
       <Modal abierto={cancelando} titulo="Cancelar cobro" onCerrar={() => setCancelando(false)}>
         <form
-          className="dm-formulario"
+          className="dm-formulario cob-modal"
           onSubmit={(evento) => {
             evento.preventDefault();
             void cancelar();
@@ -251,7 +290,7 @@ export function DetalleDeCobro({
 
       <Modal abierto={reembolsando} titulo="Reembolsar" onCerrar={() => setReembolsando(false)}>
         <form
-          className="dm-formulario"
+          className="dm-formulario cob-modal"
           onSubmit={(evento) => {
             evento.preventDefault();
             void reembolsar();
@@ -280,5 +319,31 @@ export function DetalleDeCobro({
         </form>
       </Modal>
     </>
+  );
+}
+
+/**
+ * Un eslabón de la cadena de recordatorios.
+ *
+ * El que todavía no salió se dibuja punteado y dice «Programado» y no un guión: la ausencia
+ * de fecha significa que no salió, y eso es distinto de que haya salido y no sepamos qué pasó.
+ */
+function Hito({ recordatorio }: { readonly recordatorio: Recordatorio }): JSX.Element {
+  const programado = recordatorio.enviado_en === null;
+  return (
+    <li className={`cob-hito${programado ? " cob-hito--programado" : ""}`}>
+      <span className="cob-hito__icono" aria-hidden>
+        {programado ? ICONO_RELOJ : ICONO_CHAT}
+      </span>
+      <span className="cob-hito__cuerpo">
+        <span className="cob-hito__titulo">Recordatorio {recordatorio.paso}</span>
+        <span className="cob-hito__detalle">
+          {formatearFechaHora(recordatorio.enviado_en)} · {recordatorio.canal}
+        </span>
+      </span>
+      <Badge estado={tonoDeEntrega(recordatorio.estado_entrega)}>
+        {recordatorio.estado_entrega ?? "Programado"}
+      </Badge>
+    </li>
   );
 }

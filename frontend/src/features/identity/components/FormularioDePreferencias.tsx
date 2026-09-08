@@ -106,7 +106,7 @@ export function FormularioDePreferencias({
   };
 
   return (
-    <Card titulo="Mis preferencias">
+    <Card>
       {error !== null && <Alert tono="error">{error}</Alert>}
       {guardado && <Alert tono="exito">Listo, tus preferencias quedaron guardadas.</Alert>}
 
@@ -140,14 +140,26 @@ export function FormularioDePreferencias({
           </strong>
         </p>
 
-        <fieldset className="suscripciones__grupo">
-          <legend className="campo__etiqueta">Avisos que querés recibir</legend>
-          <div className="suscripciones">
+        <fieldset className="dm-avisos__grupo">
+          <legend>Avisos que querés recibir</legend>
+          <div className="dm-avisos">
+            {/* La fila de canales arriba: sin ella son diez casillas sueltas y hay que
+                deducir cuál es cuál leyendo cada etiqueta. */}
+            <div className="dm-avisos__fila dm-avisos__fila--cabecera" aria-hidden="true">
+              <span />
+              {CANALES.map((canal) => (
+                <span key={canal.clave}>{canal.etiqueta}</span>
+              ))}
+            </div>
             {CATEGORIAS.map((categoria) => (
-              <div className="suscripciones__fila" key={categoria.clave}>
-                <span className="suscripciones__categoria">{categoria.etiqueta}</span>
+              <div className="dm-avisos__fila" key={categoria.clave}>
+                <span className="dm-avisos__categoria">{categoria.etiqueta}</span>
                 {CANALES.map((canal) => (
-                  <label key={canal.clave} htmlFor={`${categoria.clave}-${canal.clave}`}>
+                  <label
+                    className="dm-avisos__canal"
+                    key={canal.clave}
+                    htmlFor={`${categoria.clave}-${canal.clave}`}
+                  >
                     <input
                       id={`${categoria.clave}-${canal.clave}`}
                       type="checkbox"

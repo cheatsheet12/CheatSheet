@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { Alert, Badge, Button, Campo, Card, Select, Tabla } from "@/shared";
 import type { Columna } from "@/shared";
@@ -62,6 +62,16 @@ export function ReglasDeNegocio({ inicial, puedeEditar }: PropsDeReglasDeNegocio
   const [pasos, setPasos] = useState<readonly Fila[]>(() => filasDe(inicial.reglas));
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  /**
+   * El prefijo de los `id` de este formulario.
+   *
+   * `useId()` y no el `clave` de la fila, que es un UUID al azar: ese UUID se genera una vez
+   * en el servidor y otra en el cliente, así que el `id` del campo y el `htmlFor` de su
+   * etiqueta terminaban siendo distintos —React avisaba del desajuste de hidratación— y hacer
+   * clic en la etiqueta dejaba de enfocar el campo. `useId()` produce el mismo valor de los
+   * dos lados; el `clave` sigue siendo la key de React, que no viaja al DOM.
+   */
+  const prefijo = useId();
 
   const hayDiaInvalido = pasos.some((paso) => !(paso.dias > 0));
 
@@ -165,14 +175,14 @@ export function ReglasDeNegocio({ inicial, puedeEditar }: PropsDeReglasDeNegocio
             {pasos.map((paso, indice) => (
               <div className="fac-item" key={paso.clave}>
                 <Campo
-                  id={`paso-dias-${paso.clave}`}
+                  id={`${prefijo}-dias-${indice}`}
                   etiqueta={`Días del recordatorio ${indice + 1}`}
                   mono
                   value={String(paso.dias)}
                   onChange={(evento) => cambiar(paso.clave, "dias", evento.target.value)}
                 />
                 <Select
-                  id={`paso-canal-${paso.clave}`}
+                  id={`${prefijo}-canal-${indice}`}
                   etiqueta="Canal"
                   opciones={CANALES}
                   value={paso.canal}

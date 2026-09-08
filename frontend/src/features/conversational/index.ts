@@ -24,6 +24,7 @@ export {
   MENSAJE_SIN_ESCALADAS,
   MENSAJE_TOMAR_PRIMERO,
   cerrarEscalamiento,
+  horaDeMensaje,
   listarConversaciones,
   responder,
   tomarEscalamiento,

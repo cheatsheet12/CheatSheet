@@ -26,11 +26,16 @@ export default async function PaginaDeReglas(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Reglas de negocio</h1>
-      <p className="dm-intro">
-        Sin una cadena configurada rige la de por defecto —a los 3, 7 y 15 días— para que ningún
-        cobro se quede sin recordatorios.
-      </p>
+      <header className="dm-encabezado">
+        <div>
+          <span className="dm-encabezado__cintillo">Configuración</span>
+          <h1>Reglas de negocio</h1>
+          <p className="dm-intro">
+            Sin una cadena configurada rige la de por defecto —a los 3, 7 y 15 días— para que ningún
+            cobro se quede sin recordatorios.
+          </p>
+        </div>
+      </header>
       <ReglasDeNegocio inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />
     </>
   );

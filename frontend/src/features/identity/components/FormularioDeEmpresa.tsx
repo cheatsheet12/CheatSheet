@@ -15,6 +15,10 @@
  * **What arrives from ARCA fills gaps; it never overwrites.** An empty razón social gets
  * filled in (acceptance criterion 1). One that disagrees with what was typed is *offered*,
  * with a button, because a company's own name is not something to rewrite behind its back.
+ *
+ * **El cromo del paso sólo existe en el onboarding.** Stepper, «PASO 2 DE 3» y barra de
+ * progreso hablan de una secuencia; en Configuración → Empresa no hay secuencia, hay una
+ * pantalla que se edita cuando hace falta, y dibujarle un paso 2 sería mentir.
  */
 
 "use client";
@@ -22,17 +26,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Card, Stepper } from "@/shared";
+import { Alert, Button, Campo, Card, Select, Stepper } from "@/shared";
 
 import type { ConsultaDePadron, EmpresaActual } from "../api/cliente";
 import { ErrorDeFormulario, consultarPadron, guardarEmpresa } from "../api/cliente";
 import { errorDeCuit, esCuitValido, normalizarCuit } from "../validacion/cuit";
-
-const PASOS = [
-  { numero: 1, nombre: "Cuenta" },
-  { numero: 2, nombre: "Empresa" },
-  { numero: 3, nombre: "Integraciones" },
-] as const;
+import { PASOS_DEL_ONBOARDING, avanceDelPaso } from "./pasos";
 
 const CONDICIONES = [
   { valor: "RESPONSABLE_INSCRIPTO", texto: "Responsable Inscripto" },
@@ -40,6 +39,11 @@ const CONDICIONES = [
   { valor: "EXENTO", texto: "Exento" },
   { valor: "CONSUMIDOR_FINAL", texto: "Consumidor Final" },
 ] as const;
+
+const OPCIONES_DE_CONDICION = CONDICIONES.map((condicion) => ({
+  valor: condicion.valor,
+  etiqueta: condicion.texto,
+}));
 
 export type ModoDeFormularioDeEmpresa = "onboarding" | "edicion";
 
@@ -79,6 +83,7 @@ export function FormularioDeEmpresa({
   const [consultando, setConsultando] = useState(false);
   const [sugerencia, setSugerencia] = useState<Sugerencia | null>(null);
 
+  const enOnboarding = modo === "onboarding";
   const errorCuit = errorDeCuit(cuit);
   const cuitOk = esCuitValido(cuit);
   const rechazadoPorArca = consulta?.estado === "NO_ENCONTRADO";
@@ -166,7 +171,7 @@ export function FormularioDeEmpresa({
         nombre_responsable: nombreResponsable,
         email_contacto: emailContacto,
       });
-      if (modo === "onboarding") {
+      if (enOnboarding) {
         router.push("/panel");
         return;
       }
@@ -183,22 +188,9 @@ export function FormularioDeEmpresa({
     }
   };
 
-  return (
-    <Card titulo={modo === "onboarding" ? "Datos de tu empresa" : "Datos de la empresa"}>
-      {modo === "onboarding" && <Stepper pasos={PASOS} actual={2} />}
-
-      {general !== null && (
-        <div style={{ marginBottom: "var(--space-4)" }}>
-          <Alert tono="error">{general}</Alert>
-        </div>
-      )}
-      {guardado && (
-        <div style={{ marginBottom: "var(--space-4)" }}>
-          <Alert tono="exito">Guardamos los datos de la empresa.</Alert>
-        </div>
-      )}
-
-      <form onSubmit={(evento) => void enviar(evento)} noValidate>
+  const campos = (
+    <>
+      <div className={enOnboarding ? "onb-dos-columnas" : ""}>
         <Campo
           id="cuit"
           etiqueta="CUIT"
@@ -206,96 +198,185 @@ export function FormularioDeEmpresa({
           inputMode="numeric"
           required
           placeholder="30-71234567-1"
+          ayuda={enOnboarding ? "Se valida contra el padrón de ARCA." : undefined}
           error={errorCuit ?? undefined}
           value={cuit}
           onChange={(evento) => cambiarCuit(evento.target.value)}
         />
 
-        {cuitOk && (
-          <div style={{ marginBottom: "var(--space-4)" }}>
-            <Button
-              type="button"
-              variante="secundario"
-              cargando={consultando}
-              onClick={() => void validar()}
-            >
-              Validar contra ARCA
+        <Select
+          id="condicion-iva"
+          etiqueta="Condición IVA"
+          opciones={OPCIONES_DE_CONDICION}
+          value={condicionIva}
+          ayuda={enOnboarding ? "ARCA la completa cuando encuentra el CUIT." : undefined}
+          onChange={(evento) => {
+            setCondicionIva(evento.target.value);
+            setCondicionElegida(true);
+          }}
+        />
+      </div>
+
+      {cuitOk && (
+        <div style={{ marginBottom: "var(--space-4)" }}>
+          <Button
+            type="button"
+            variante="secundario"
+            cargando={consultando}
+            onClick={() => void validar()}
+          >
+            Validar contra ARCA
+          </Button>
+        </div>
+      )}
+
+      {consulta !== null && (
+        <div style={{ marginBottom: "var(--space-4)" }}>
+          <Alert tono={tonoDe(consulta)}>{mensajeDe(consulta)}</Alert>
+        </div>
+      )}
+
+      {/* Lo que el padrón devolvió, tal cual llegó y separado de los campos editables: es
+          la única forma de que se vea qué dijo ARCA sin confundirlo con lo que se tipeó. */}
+      {consulta !== null && consulta.datos !== null && (
+        <dl className="onb-padron">
+          <div className="onb-padron__titulo">Lo que devolvió el padrón</div>
+          <dt>Denominación</dt>
+          <dd>{consulta.datos.razon_social ?? "—"}</dd>
+          <dt>Condición</dt>
+          <dd>
+            {consulta.datos.condicion_iva === null
+              ? "—"
+              : etiquetaDeCondicion(consulta.datos.condicion_iva)}
+          </dd>
+          <dt>Situación</dt>
+          <dd>{consulta.datos.activo ? "Activa" : "Inactiva"}</dd>
+        </dl>
+      )}
+
+      {sugerencia !== null && (
+        <div style={{ marginBottom: "var(--space-4)" }}>
+          <Alert tono="advertencia">
+            {textoDeSugerencia(sugerencia)}
+            <div style={{ marginTop: "var(--space-2)" }}>
+              <Button type="button" variante="secundario" onClick={aceptarSugerencia}>
+                Usar los datos de ARCA
+              </Button>
+            </div>
+          </Alert>
+        </div>
+      )}
+
+      <Campo
+        id="razon-social"
+        etiqueta="Razón social"
+        required
+        value={razonSocial}
+        onChange={(evento) => setRazonSocial(evento.target.value)}
+      />
+
+      <Campo
+        id="responsable"
+        etiqueta="Nombre del responsable"
+        required
+        value={nombreResponsable}
+        onChange={(evento) => setNombreResponsable(evento.target.value)}
+      />
+
+      <Campo
+        id="email-contacto"
+        etiqueta="Email de contacto"
+        type="email"
+        required
+        value={emailContacto}
+        onChange={(evento) => setEmailContacto(evento.target.value)}
+      />
+    </>
+  );
+
+  const avisos = (
+    <>
+      {general !== null && (
+        <div className="acc-aviso">
+          <Alert tono="error">{general}</Alert>
+        </div>
+      )}
+      {guardado && (
+        <div className="acc-aviso">
+          <Alert tono="exito">Guardamos los datos de la empresa.</Alert>
+        </div>
+      )}
+    </>
+  );
+
+  // El título lo pone la página: repetirlo en la tarjeta daría dos encabezados iguales
+  // seguidos, que es lo que hacía antes.
+  if (!enOnboarding) {
+    return (
+      <Card>
+        {avisos}
+        <form onSubmit={(evento) => void enviar(evento)} noValidate>
+          {campos}
+          <div className="dm-formulario__acciones">
+            <Button type="submit" cargando={enviando} disabled={!completo}>
+              Guardar
             </Button>
           </div>
-        )}
+        </form>
+      </Card>
+    );
+  }
 
-        {consulta !== null && (
-          <div style={{ marginBottom: "var(--space-4)" }}>
-            <Alert tono={tonoDe(consulta)}>{mensajeDe(consulta)}</Alert>
-          </div>
-        )}
+  return (
+    <>
+      <div className="onb-stepper">
+        <div className="onb-stepper__caja">
+          <Stepper pasos={PASOS_DEL_ONBOARDING} actual={2} />
+        </div>
+      </div>
 
-        {sugerencia !== null && (
-          <div style={{ marginBottom: "var(--space-4)" }}>
-            <Alert tono="advertencia">
-              {textoDeSugerencia(sugerencia)}
-              <div style={{ marginTop: "var(--space-2)" }}>
-                <Button type="button" variante="secundario" onClick={aceptarSugerencia}>
-                  Usar los datos de ARCA
-                </Button>
-              </div>
-            </Alert>
-          </div>
-        )}
-
-        <Campo
-          id="razon-social"
-          etiqueta="Razón social"
-          required
-          value={razonSocial}
-          onChange={(evento) => setRazonSocial(evento.target.value)}
-        />
-
-        <div className="campo">
-          <label className="campo__etiqueta" htmlFor="condicion-iva">
-            Condición IVA
-          </label>
-          <select
-            id="condicion-iva"
-            className="campo__control"
-            value={condicionIva}
-            onChange={(evento) => {
-              setCondicionIva(evento.target.value);
-              setCondicionElegida(true);
-            }}
-          >
-            {CONDICIONES.map((condicion) => (
-              <option key={condicion.valor} value={condicion.valor}>
-                {condicion.texto}
-              </option>
-            ))}
-          </select>
+      <section className="acc-tarjeta">
+        <p className="onb-etiqueta">
+          <span className="onb-etiqueta__paso">PASO 2 DE 3</span>
+          <span className="onb-etiqueta__titulo">DATOS DE TU EMPRESA</span>
+        </p>
+        <div className="onb-progreso">
+          <span className="onb-progreso__avance" style={{ width: avanceDelPaso(2) }} />
         </div>
 
-        <Campo
-          id="responsable"
-          etiqueta="Nombre del responsable"
-          required
-          value={nombreResponsable}
-          onChange={(evento) => setNombreResponsable(evento.target.value)}
-        />
+        <h1 className="onb-titulo">Contanos sobre tu negocio</h1>
+        <p className="onb-sub">Solo lo esencial para conectarte con ARCA.</p>
 
-        <Campo
-          id="email-contacto"
-          etiqueta="Email de contacto"
-          type="email"
-          required
-          value={emailContacto}
-          onChange={(evento) => setEmailContacto(evento.target.value)}
-        />
+        {avisos}
 
-        {/* «"Continuar" permanece deshabilitado mientras el CUIT no sea válido», y ahora
-            también mientras ARCA diga que ese CUIT no existe (RN-01). */}
-        <Button type="submit" cargando={enviando} disabled={!completo}>
-          {modo === "onboarding" ? "Continuar" : "Guardar"}
-        </Button>
-      </form>
-    </Card>
+        <form onSubmit={(evento) => void enviar(evento)} noValidate>
+          {campos}
+
+          <div className="onb-proteccion">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="4" y="11" width="16" height="9" rx="2" />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+            </svg>
+            <p style={{ margin: 0 }}>
+              <b>Tus datos están protegidos.</b> Se usan únicamente para conectar con ARCA. No los
+              compartimos con terceros.
+            </p>
+          </div>
+
+          {/* «"Continuar" permanece deshabilitado mientras el CUIT no sea válido», y ahora
+              también mientras ARCA diga que ese CUIT no existe (RN-01). */}
+          <div className="onb-acciones">
+            <Button variante="secundario" onClick={() => router.back()}>
+              Volver
+            </Button>
+            <span className="onb-acciones__separador" />
+            <Button type="submit" cargando={enviando} disabled={!completo}>
+              Continuar
+            </Button>
+          </div>
+        </form>
+      </section>
+    </>
   );
 }
 

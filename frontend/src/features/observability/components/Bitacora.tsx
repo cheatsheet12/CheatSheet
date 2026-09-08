@@ -7,11 +7,15 @@
  * **El iniciador es la columna que hace que esta pantalla valga la pena.** Distingue si una
  * operación la ejecutó una persona, un barrido del sistema o el agente de WhatsApp sobre el
  * mensaje de un cliente (RN-02) — y esa última es la que alguien viene a buscar después de una
- * conversación rara.
+ * conversación rara. Por eso el agente de IA lleva marca propia (ver `MarcasDeOperacion`).
  *
  * **Los filtros mandan lo mismo que la tabla muestra.** El valor que viaja es `identity`,
  * `ia`, `error`: el mismo texto que llegó. Traducir de un lado y no del otro es cómo un filtro
  * termina devolviendo la lista entera sin que nadie lo note.
+ *
+ * **Las etiquetas de los filtros se ven.** El prototipo las mete adentro del control
+ * («Módulo: Todos»); §1.4 de la especificación pide etiqueta visible en todo campo de
+ * formulario, y un `<label>` real es además lo que un lector de pantalla anuncia.
  */
 
 "use client";
@@ -19,11 +23,10 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { Alert, Badge, Button, Campo, Select, Tabla, formatearFechaHora } from "@/shared";
+import { Alert, Badge, Campo, Select, Tabla } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import {
-  ETIQUETAS_DE_INICIADOR,
   ETIQUETAS_DE_MODULO,
   ETIQUETAS_DE_RESULTADO,
   ErrorDeBitacora,
@@ -32,6 +35,7 @@ import {
   listarOperaciones,
 } from "../api/bitacora";
 import type { FiltrosDeBitacora, ListadoDeOperaciones, Operacion } from "../api/bitacora";
+import { MarcaDeIniciador, MarcaDeModulo, MomentoDeOperacion } from "./MarcasDeOperacion";
 
 export interface PropsDeBitacora {
   readonly inicial: ListadoDeOperaciones;
@@ -59,13 +63,29 @@ function tonoDe(resultado: Operacion["resultado"]): EstadoDeBadge {
   return resultado === "error" ? "error" : "ok";
 }
 
+/**
+ * Qué números muestra el paginador.
+ *
+ * Primera, última y la vecindad de la actual. Listar 238 páginas es una fila de botones que
+ * nadie puede apuntar; estas cinco cubren los dos saltos que alguien realmente hace —al
+ * principio y al final— sin ocupar la pantalla.
+ */
+export function paginasVisibles(actual: number, ultima: number): readonly number[] {
+  const candidatas = [1, actual - 1, actual, actual + 1, ultima];
+  const dentro = candidatas.filter((numero) => numero >= 1 && numero <= ultima);
+  return [...new Set(dentro)].sort((una, otra) => una - otra);
+}
+
 export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
   const [listado, setListado] = useState<ListadoDeOperaciones>(inicial);
   const [filtros, setFiltros] = useState<FiltrosDeBitacora>({});
   const [error, setError] = useState<string | null>(null);
+  const [consultando, setConsultando] = useState(false);
 
   const pagina = filtros.pagina ?? 1;
   const ultimaPagina = Math.max(1, Math.ceil(listado.total / TAMANO_DE_PAGINA));
+  const primeraFila = listado.operaciones.length === 0 ? 0 : (pagina - 1) * TAMANO_DE_PAGINA + 1;
+  const ultimaFila = (pagina - 1) * TAMANO_DE_PAGINA + listado.operaciones.length;
 
   async function aplicar(cambios: FiltrosDeBitacora): Promise<void> {
     // Cualquier cambio de filtro vuelve a la primera página: quedarse en la cuarta de un
@@ -73,12 +93,15 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
     const siguientes = { ...filtros, ...cambios, pagina: cambios.pagina ?? 1 };
     setFiltros(siguientes);
     setError(null);
+    setConsultando(true);
     try {
       setListado(await listarOperaciones(siguientes));
     } catch (fallo) {
       setError(
         fallo instanceof ErrorDeBitacora ? fallo.message : "No se pudo consultar la bitácora.",
       );
+    } finally {
+      setConsultando(false);
     }
   }
 
@@ -86,29 +109,50 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
     {
       clave: "timestamp",
       titulo: "Momento",
-      celda: (fila) => formatearFechaHora(fila.timestamp),
+      celda: (fila) => <MomentoDeOperacion iso={fila.timestamp} />,
     },
     {
       clave: "modulo",
       titulo: "Módulo",
-      celda: (fila) => ETIQUETAS_DE_MODULO[fila.modulo] ?? fila.modulo,
+      celda: (fila) => <MarcaDeModulo modulo={fila.modulo} />,
     },
     {
       clave: "accion",
       titulo: "Operación",
-      celda: (fila) => <Link href={`/auditoria/${fila.id}`}>{fila.accion}</Link>,
+      celda: (fila) => (
+        <Link className="log-op" href={`/auditoria/${fila.id}`}>
+          {fila.accion}
+        </Link>
+      ),
     },
-    { clave: "entidad", titulo: "Entidad", celda: (fila) => fila.entidad_afectada },
+    {
+      clave: "entidad",
+      titulo: "Entidad afectada",
+      celda: (fila) => <span className="log-ent">{fila.entidad_afectada}</span>,
+    },
     {
       clave: "iniciador",
-      titulo: "Iniciador",
-      celda: (fila) => ETIQUETAS_DE_INICIADOR[fila.iniciador],
+      titulo: "Iniciado por",
+      celda: (fila) => <MarcaDeIniciador iniciador={fila.iniciador} />,
     },
     {
       clave: "resultado",
       titulo: "Estado",
       celda: (fila) => (
         <Badge estado={tonoDe(fila.resultado)}>{ETIQUETAS_DE_RESULTADO[fila.resultado]}</Badge>
+      ),
+    },
+    {
+      clave: "ver",
+      titulo: "",
+      alDerecha: true,
+      celda: (fila) => (
+        // El chevron del prototipo, con nombre accesible: un enlace cuyo único contenido es
+        // «›» se anuncia como «enlace, ›», que no dice a dónde va.
+        <Link className="log-ver" href={`/auditoria/${fila.id}`}>
+          <span className="solo-lectores">Ver el detalle de {fila.accion}</span>
+          <span aria-hidden="true">›</span>
+        </Link>
       ),
     },
   ];
@@ -121,7 +165,7 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
         </Alert>
       )}
 
-      <div className="rep-filtros">
+      <div className="log-filtros">
         <Campo
           id="log-desde"
           etiqueta="Desde"
@@ -157,45 +201,91 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
           value={filtros.iniciador ?? ""}
           onChange={(evento) => void aplicar({ iniciador: evento.target.value })}
         />
-        <Campo
-          id="log-texto"
-          etiqueta="Buscar"
-          type="search"
-          value={filtros.texto ?? ""}
-          ayuda="Por operación o entidad afectada."
-          onChange={(evento) => void aplicar({ texto: evento.target.value })}
-        />
+        <div className="log-filtros__ancho">
+          <Campo
+            id="log-texto"
+            etiqueta="Buscar"
+            type="search"
+            placeholder="Operación, entidad afectada, CAE…"
+            value={filtros.texto ?? ""}
+            onChange={(evento) => void aplicar({ texto: evento.target.value })}
+          />
+        </div>
       </div>
 
-      <Tabla
-        titulo="Operaciones registradas"
-        columnas={columnas}
-        filas={listado.operaciones}
-        claveDeFila={(fila) => fila.id}
-        vacia={MENSAJE_SIN_OPERACIONES}
-      />
+      <div className="log-barra">
+        <p className="log-barra__cuenta">
+          {listado.total} {listado.total === 1 ? "registro" : "registros"}
+        </p>
+        <button
+          type="button"
+          className="log-accion"
+          disabled={consultando}
+          onClick={() => void aplicar({ pagina })}
+        >
+          Actualizar
+        </button>
+      </div>
 
-      {listado.total > TAMANO_DE_PAGINA && (
-        <div className="rep-acciones">
-          <Button
-            variante="secundario"
-            disabled={pagina <= 1}
-            onClick={() => void aplicar({ pagina: pagina - 1 })}
-          >
-            Anterior
-          </Button>
-          <p className="rep-comparacion">
-            Página {pagina} de {ultimaPagina} · {listado.total} operaciones
-          </p>
-          <Button
-            variante="secundario"
-            disabled={pagina >= ultimaPagina}
-            onClick={() => void aplicar({ pagina: pagina + 1 })}
-          >
-            Siguiente
-          </Button>
-        </div>
-      )}
+      <div className="log-panel">
+        <Tabla
+          titulo="Operaciones registradas"
+          columnas={columnas}
+          filas={listado.operaciones}
+          claveDeFila={(fila) => fila.id}
+          vacia={MENSAJE_SIN_OPERACIONES}
+        />
+
+        {listado.operaciones.length > 0 && (
+          <div className="log-pager">
+            <p className="log-pager__resumen">
+              Mostrando{" "}
+              <b>
+                {primeraFila}–{ultimaFila}
+              </b>{" "}
+              de <b>{listado.total}</b>
+            </p>
+            {ultimaPagina > 1 && (
+              <div className="log-pager__paginas">
+                <button
+                  type="button"
+                  className="log-pg"
+                  disabled={pagina <= 1}
+                  onClick={() => void aplicar({ pagina: pagina - 1 })}
+                >
+                  Anterior
+                </button>
+                {paginasVisibles(pagina, ultimaPagina).map((numero, indice, todas) => (
+                  <span key={numero} className="log-pager__paginas">
+                    {indice > 0 && numero - (todas[indice - 1] ?? 0) > 1 && (
+                      <span className="log-pager__elipsis" aria-hidden="true">
+                        …
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className="log-pg"
+                      aria-label={`Página ${numero}`}
+                      aria-current={numero === pagina ? "page" : undefined}
+                      onClick={() => void aplicar({ pagina: numero })}
+                    >
+                      {numero}
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  className="log-pg"
+                  disabled={pagina >= ultimaPagina}
+                  onClick={() => void aplicar({ pagina: pagina + 1 })}
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </>
   );
 }

@@ -1,0 +1,975 @@
+/*
+ * Formas propias de dos pantallas: el inicio del panel (PAN-DSH-01) y las de ingesta
+ * (PAN-ING-01, PAN-ING-02, PAN-ING-03).
+ *
+ * **Por qué existe este archivo y no se agrega a `componentes.css`.** Ahí viven las
+ * primitivas que comparten las veinte pantallas —el botón, la tabla, el badge—, y una regla
+ * que sólo sirve para una pantalla las contamina: quien mañana toque `.stat` no tiene forma de
+ * saber que era del tablero. Acá todo lleva prefijo (`.dsh-` para el inicio, `.ing-` para
+ * ingesta), así que el alcance se lee en el nombre.
+ *
+ * **Nada de acá redefine una primitiva compartida.** Las tarjetas, tablas, badges y botones
+ * salen de `@/shared/ui`; lo que se estiliza acá es la composición alrededor: rejillas,
+ * cabeceras de sección y los cuatro o cinco patrones que el prototipo inventa y el sistema de
+ * diseño no tiene (la tarjeta de métrica, la zona de carga, la píldora de confianza).
+ *
+ * Los colores son siempre tokens (`docs/aidlc/inputs/prototipos/styles.css` transcripto en
+ * `tokens.css`). Un hexadecimal literal acá es un color que el día del modo oscuro nadie
+ * encuentra.
+ */
+
+/* ── Cabecera de pantalla ─────────────────────────────────────────────────────
+ *
+ * La comparten el inicio y las tres de ingesta porque son la misma cabecera del prototipo:
+ * un `eyebrow` monoespaciado, un título grande y un subtítulo. Está escrita una vez con los
+ * dos prefijos en vez de dos veces, para que no se separen con el primer retoque. */
+.dsh-encabezado,
+.ing-encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.dsh-eyebrow,
+.ing-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0;
+}
+
+.dsh-titulo,
+.ing-titulo {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  margin: var(--space-2) 0 var(--space-1);
+  color: var(--ink-900);
+}
+
+.ing-titulo {
+  font-size: 27px;
+}
+
+.dsh-subtitulo,
+.ing-subtitulo {
+  color: var(--ink-500);
+  font-size: 14.5px;
+  margin: 0;
+  max-width: 68ch;
+}
+
+.dsh-encabezado__acciones {
+  display: flex;
+  gap: var(--space-3);
+  flex: none;
+}
+
+/*
+ * Los dos botones de la cabecera son enlaces, no acciones: llevan a otra pantalla. Se
+ * escriben como enlaces —y no como `<Button onClick={router.push}>`— porque un enlace se
+ * abre en otra pestaña, se copia y se precarga, y un botón no hace nada de eso. El precio es
+ * tener que vestirlos acá, ya que `.boton` es de los botones. */
+.dsh-enlace,
+.dsh-enlace-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-control);
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.dsh-enlace {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink-700);
+  box-shadow: var(--shadow);
+}
+
+.dsh-enlace:hover {
+  border-color: var(--ink-300);
+}
+
+.dsh-enlace-cta {
+  background: var(--accent);
+  color: var(--primary);
+}
+
+.dsh-enlace-cta:hover {
+  background: var(--accent-700);
+  color: var(--color-text-on-dark);
+}
+
+.dsh-enlace svg,
+.dsh-enlace-cta svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Tarjetas de métrica (PAN-DSH-01) ─────────────────────────────────────────
+ *
+ * `minmax(0, 1fr)` y no `1fr`: un importe largo en tabular fuerza el ancho mínimo de su
+ * celda, y con `1fr` la primera columna se come a las otras tres. */
+.dsh-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 26px;
+}
+
+.dsh-stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 20px 22px;
+  box-shadow: var(--shadow);
+}
+
+.dsh-stat__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: 26px;
+}
+
+.dsh-stat__ico {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-control);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.dsh-stat__ico svg {
+  width: 19px;
+  height: 19px;
+}
+
+.dsh-stat__ico--menta {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.dsh-stat__ico--ambar {
+  background: var(--alert-050);
+  color: var(--warn);
+}
+
+.dsh-stat__ico--tinta {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.dsh-stat__tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  text-align: right;
+}
+
+.dsh-stat__label {
+  font-size: 13px;
+  color: var(--ink-500);
+  margin: 0;
+}
+
+/*
+ * `tabular-nums` no es coquetería: cuatro importes uno al lado del otro con anchos de dígito
+ * distintos se leen como cuatro escalas distintas. */
+.dsh-stat__valor {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+  margin: var(--space-1) 0 6px;
+  color: var(--ink-900);
+}
+
+.dsh-stat__pie {
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+/* ── Cuerpo del inicio: actividad + accesos ───────────────────────────────── */
+.dsh-grid {
+  display: grid;
+  /* `minmax(0, …)` y no `1fr` a secas: el mínimo por defecto de una columna de grilla es el
+     ancho mínimo de su contenido, así que una tabla ancha empuja la grilla más allá de la
+     página y aparece un scroll horizontal que nadie pidió. */
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.05fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.dsh-seccion,
+.ing-seccion {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.dsh-seccion__titulo,
+.ing-seccion__titulo {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.dsh-seccion__sub,
+.ing-seccion__sub {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  margin: 3px 0 0;
+}
+
+.dsh-seccion__enlace,
+.ing-seccion__enlace {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-700);
+  white-space: nowrap;
+  flex: none;
+}
+
+/* Celda «Operación» de la tabla de actividad: icono, qué pasó y su referencia técnica. */
+.dsh-op {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dsh-op__ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.dsh-op__ico--ok {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.dsh-op__ico--error {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.dsh-op__ico svg {
+  width: 17px;
+  height: 17px;
+}
+
+.dsh-op__nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  display: block;
+  color: var(--ink-900);
+}
+
+.dsh-op__ref {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  display: block;
+  margin-top: 1px;
+}
+
+.dsh-entidad {
+  font-size: 13.5px;
+  font-weight: 600;
+  display: block;
+  color: var(--ink-900);
+}
+
+.dsh-entidad__quien {
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+.dsh-fecha {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+/*
+ * El mensaje que aparece cuando la bitácora no se puede leer (Solo Lectura, 422). Es una
+ * explicación y no un error: la pantalla funciona, esta sección no le corresponde. */
+.dsh-vacio {
+  font-size: 13px;
+  color: var(--ink-500);
+  margin: 0;
+  padding: var(--space-6) 0;
+  text-align: center;
+}
+
+.dsh-accesos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.dsh-acceso {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  transition: border-color 0.14s ease;
+  text-decoration: none;
+}
+
+.dsh-acceso:hover {
+  border-color: var(--accent);
+}
+
+.dsh-acceso__ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.dsh-acceso__ico svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dsh-acceso__nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  display: block;
+  color: var(--ink-900);
+}
+
+.dsh-acceso__sub {
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.dsh-acceso__flecha {
+  margin-left: auto;
+  color: var(--ink-300);
+  flex: none;
+}
+
+.dsh-nota {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-300);
+  margin-top: 34px;
+}
+
+/* ── PAN-ING-01 · zona de carga ───────────────────────────────────────────── */
+.ing-dropzone {
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  padding: 44px var(--space-6);
+  text-align: center;
+  box-shadow: var(--shadow);
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease;
+}
+
+/* El único aviso de que el navegador va a aceptar el `drop`. Sin esto, arrastrar es fe. */
+.ing-dropzone--activa {
+  border-color: var(--accent);
+  background: var(--accent-050);
+}
+
+.ing-dz-ico {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-card);
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  margin: 0 auto var(--space-4);
+}
+
+.ing-dz-ico svg {
+  width: 30px;
+  height: 30px;
+}
+
+.ing-dz-titulo {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--ink-900);
+}
+
+.ing-dz-sub {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  margin: 6px 0 20px;
+}
+
+.ing-dz-acciones {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ing-dz-o {
+  color: var(--ink-400);
+  margin: 0;
+}
+
+/*
+ * El `<label>` es el botón, y adentro va el `<input type="file">` de verdad.
+ *
+ * Es el patrón de siempre y vale explicar por qué no se resolvió con un botón que llama a
+ * `input.click()`: ese botón necesita JavaScript para abrir el selector, y el input queda
+ * fuera del orden de tabulación o duplicado. Así hay **un solo control**, nativo, con su
+ * `aria-label`, que el teclado alcanza y el lector de pantalla anuncia; el label sólo le
+ * presta la cara.
+ *
+ * El input se oculta recortándolo, nunca con `display: none`: eso lo sacaría del árbol de
+ * accesibilidad y del foco, que es exactamente lo que no queremos. */
+.ing-archivo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-control);
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--primary);
+  cursor: pointer;
+  transition: background-color 0.14s ease;
+}
+
+.ing-archivo:hover {
+  background: var(--accent-700);
+  color: var(--color-text-on-dark);
+}
+
+/* El foco vive en el input recortado, así que el anillo lo dibuja el label por él. */
+.ing-archivo:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.ing-archivo svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ing-archivo input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ing-candado {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--ink-400);
+  margin: 18px 0 0;
+}
+
+.ing-candado svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+/* La banda que anuncia qué campos reconoce el modelo, con un chip por campo. */
+.ing-detect {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-4) 20px;
+  margin-top: 18px;
+  background: var(--accent-050);
+  border: 1px solid var(--accent-100);
+  border-radius: var(--radius-card);
+}
+
+.ing-detect__ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--color-text-on-dark);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.ing-detect__ico svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ing-detect__titulo {
+  font-size: 13.5px;
+  font-weight: 700;
+  display: block;
+  color: var(--ink-900);
+}
+
+.ing-detect__sub {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.ing-chips {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.ing-chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink-700);
+}
+
+/* Celda de una carga en «Cargas recientes»: el estado también entra por el icono. */
+.ing-carga {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ing-carga__ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.ing-carga__ico--ok {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.ing-carga__ico--atencion {
+  background: var(--alert-050);
+  color: var(--warn);
+}
+
+.ing-carga__ico--error {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.ing-carga__ico svg {
+  width: 17px;
+  height: 17px;
+}
+
+.ing-carga__nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  display: block;
+  color: var(--ink-900);
+}
+
+.ing-carga__ref {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-400);
+  display: block;
+  margin-top: 1px;
+}
+
+.ing-filas {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── PAN-ING-02 · revisión del mapeo ─────────────────────────────────────── */
+
+/* Barra de contexto: qué archivo se está mapeando y quién lo interpretó. */
+.ing-resumen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-4) 20px;
+  margin-bottom: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.ing-resumen__ico {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.ing-resumen__ico svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ing-resumen__datos {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.ing-resumen__nombre {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.ing-resumen__detalle {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  display: block;
+  margin-top: 3px;
+}
+
+.ing-marca-ia {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  flex: none;
+}
+
+.ing-marca-ia svg {
+  width: 13px;
+  height: 13px;
+  color: var(--accent-700);
+}
+
+/* Columna de origen: el número de orden ancla la fila cuando alguien la nombra en voz alta. */
+.ing-map-origen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ing-map-n {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-300);
+  width: 18px;
+  flex: none;
+}
+
+.ing-map-columna {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  display: block;
+  color: var(--ink-900);
+}
+
+.ing-map-destino {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ing-map-flecha {
+  color: var(--accent-700);
+  font-size: 16px;
+  flex: none;
+}
+
+.ing-map-campo {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+/*
+ * «Sin asignar» se dibuja en rojo y con borde porque es lo único de la tabla que **frena** el
+ * paso siguiente (HU-E3-02 RN-02). El resto de la fila puede leerse de reojo; ésta no. */
+.ing-map-sin-asignar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--err);
+  border: 1px solid var(--err);
+  border-radius: var(--radius-control);
+  padding: 7px 12px;
+  background: var(--err-bg);
+}
+
+.ing-map-sin-asignar svg {
+  width: 13px;
+  height: 13px;
+}
+
+.ing-map-ejemplo {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+/*
+ * La píldora de confianza. Baja 11 px como el badge del sistema de diseño y por la misma
+ * razón: el punto de color lleva el significado al lado de la palabra. */
+.ing-conf {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.ing-conf::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.ing-conf--alta {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.ing-conf--media {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.ing-conf--baja {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.ing-conf--manual {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+/* Pie del mapeo: el recuento y las dos acciones, en la misma línea que el prototipo. */
+.ing-pie {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: var(--space-4) 0 0;
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.ing-pie__dato {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--ink-600);
+}
+
+.ing-pie__dato b {
+  color: var(--ink-900);
+}
+
+.ing-pie__ic {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ing-pie__ic--ok {
+  background: var(--accent);
+  color: var(--color-text-on-dark);
+}
+
+.ing-pie__ic--ok svg {
+  width: 12px;
+  height: 12px;
+}
+
+.ing-pie__ic--atencion {
+  background: var(--alert);
+  color: var(--primary);
+}
+
+.ing-pie__acciones {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* ── PAN-ING-03 · detalle de un procesamiento ────────────────────────────── */
+
+/*
+ * Los tres números de HU-E3-05 RN-01, del mismo tamaño y en la misma línea: totales,
+ * procesadas y con error sólo significan algo comparados entre sí. */
+.ing-proc-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-6) 0;
+}
+
+.ing-proc-stat {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.ing-proc-stat__n {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-900);
+}
+
+.ing-proc-stat__l {
+  font-size: 12px;
+  color: var(--ink-500);
+  margin-top: 2px;
+}
+
+.ing-proc-stat--ok {
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.ing-proc-stat--ok .ing-proc-stat__n {
+  color: var(--accent-700);
+}
+
+.ing-proc-stat--error {
+  background: var(--err-bg);
+  border-color: var(--err-bg);
+}
+
+.ing-proc-stat--error .ing-proc-stat__n {
+  color: var(--err);
+}
+
+.ing-estado-carga {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.ing-acciones {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-6);
+}
+
+/* ── Angosto ─────────────────────────────────────────────────────────────────
+ *
+ * Un único corte. Las rejillas de cuatro y de dos columnas caben hasta ~1100 px; abajo de eso
+ * cada tarjeta de métrica quedaría con dos dígitos por línea, que es peor que apilarlas. */
+@media (width <= 1100px) {
+  .dsh-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dsh-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ing-chips {
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}
+
+@media (width <= 640px) {
+  .dsh-stats,
+  .dsh-accesos,
+  .ing-proc-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

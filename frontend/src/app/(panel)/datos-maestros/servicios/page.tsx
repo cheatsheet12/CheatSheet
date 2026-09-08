@@ -33,11 +33,16 @@ export default async function PaginaDeServicios(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Servicios</h1>
-      <p className="dm-intro">
-        Lo que tu empresa vende. El precio se carga sin IVA y la alicuota va aparte: el total lo
-        calcula cada comprobante.
-      </p>
+      <header className="dm-encabezado">
+        <div>
+          <span className="dm-encabezado__cintillo">Datos maestros</span>
+          <h1>Servicios</h1>
+          <p className="dm-intro">
+            Lo que tu empresa vende. El precio se carga sin IVA y la alicuota va aparte: el total lo
+            calcula cada comprobante.
+          </p>
+        </div>
+      </header>
       <ListadoDeServicios inicial={listado} puedeEditar={ROLES_QUE_ESCRIBEN.includes(claims.rol)} />
     </>
   );

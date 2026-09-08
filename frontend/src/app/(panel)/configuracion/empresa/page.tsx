@@ -24,7 +24,16 @@ export default async function PaginaDeEmpresa(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Datos de la empresa</h1>
+      <header className="dm-encabezado">
+        <div>
+          <span className="dm-encabezado__cintillo">Configuración</span>
+          <h1>Datos de la empresa</h1>
+          <p className="dm-intro">
+            Los datos fiscales con los que se emite cada comprobante. Desde acá se los valida contra
+            el padrón de ARCA, que es la única pantalla que puede hacerlo.
+          </p>
+        </div>
+      </header>
       <FormularioDeEmpresa modo="edicion" iniciales={actuales} />
     </>
   );

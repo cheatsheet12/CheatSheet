@@ -18,7 +18,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { Alert, Badge, Button, Campo, Card, Tabla, formatearFechaHora } from "@/shared";
 import type { Columna } from "@/shared";
@@ -55,6 +55,14 @@ export function ConfiguracionDelPaquete({
   paquetes: paquetesIniciales,
   puedeConfigurar,
 }: PropsDeConfiguracionDelPaquete): JSX.Element {
+  /**
+   * El prefijo de los `id` de las casillas.
+   *
+   * Cada casilla necesita su propio `id` y su `label htmlFor`: envolverlas en un `<label>` sin
+   * más funciona con el mouse, pero un lector de pantalla anuncia «casilla» sin decir cuál — y
+   * son siete decisiones sobre qué va adentro del paquete que le llega al contador.
+   */
+  const prefijo = useId();
   const [configuracion, setConfiguracion] = useState<Configuracion>(inicial);
   const [paquetes, setPaquetes] = useState<readonly Paquete[]>(paquetesIniciales);
   const [dia, setDia] = useState(String(inicial.dia_de_envio));
@@ -184,8 +192,9 @@ export function ConfiguracionDelPaquete({
         <fieldset className="rep-grupo">
           <legend>Formato</legend>
           {FORMATOS.map((uno) => (
-            <label key={uno} className="rep-grupo__opcion">
+            <label key={uno} className="rep-grupo__opcion" htmlFor={`${prefijo}-formato-${uno}`}>
               <input
+                id={`${prefijo}-formato-${uno}`}
                 type="checkbox"
                 checked={formatos.includes(uno)}
                 disabled={!puedeConfigurar}
@@ -199,8 +208,9 @@ export function ConfiguracionDelPaquete({
         <fieldset className="rep-grupo">
           <legend>Contenido</legend>
           {CONTENIDOS.map((uno) => (
-            <label key={uno} className="rep-grupo__opcion">
+            <label key={uno} className="rep-grupo__opcion" htmlFor={`${prefijo}-contenido-${uno}`}>
               <input
+                id={`${prefijo}-contenido-${uno}`}
                 type="checkbox"
                 checked={contenido.includes(uno)}
                 disabled={!puedeConfigurar}

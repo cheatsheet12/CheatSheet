@@ -190,7 +190,10 @@ describe("PAN-LOG-02 · el detalle", () => {
 
     expect(screen.getByText("70123456789012")).toBeTruthy();
     expect(screen.getByText("2.4 s")).toBeTruthy();
-    expect(within(screen.getByRole("table")).getByText("enviar_a_arca")).toBeTruthy();
+    // El timeline es una lista ordenada y no una tabla: lo que afirma es una secuencia
+    // —qué pasó, en qué orden y dónde se cortó— y no filas comparables entre sí.
+    const timeline = screen.getByRole("list", { name: "Pasos de la operación" });
+    expect(within(timeline).getByText("enviar_a_arca")).toBeTruthy();
   });
 
   it("avisa cuando la operación falló", () => {

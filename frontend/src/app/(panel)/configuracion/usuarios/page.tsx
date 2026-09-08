@@ -27,7 +27,16 @@ export default async function PaginaDeUsuarios(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Usuarios</h1>
+      <header className="dm-encabezado">
+        <div>
+          <span className="dm-encabezado__cintillo">Configuración</span>
+          <h1>Usuarios</h1>
+          <p className="dm-intro">
+            Quién entra a la empresa y con qué rol. Una invitación queda pendiente hasta que la
+            persona elige su contraseña.
+          </p>
+        </div>
+      </header>
       <TablaDeUsuarios
         usuarios={usuarios}
         rolDelUsuarioActual={claims.rol as RolUsuario}

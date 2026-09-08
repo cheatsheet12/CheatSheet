@@ -1,0 +1,1086 @@
+/*
+ * Pantallas del agente de WhatsApp (PAN-WA-01, PAN-WA-02) y de la agenda
+ * (PAN-AGE-01, PAN-AGE-02, PAN-AGE-03).
+ *
+ * Está separado de `componentes.css` por una razón de propiedad, no de estilo: el catálogo
+ * compartido lo tocan todas las pantallas, y una regla de una pantalla metida ahí termina
+ * pisando otra. Acá adentro sólo hay clases con prefijo `.wa-` y `.age-`, que nadie más usa.
+ *
+ * **No hay colores literales.** Todo sale de los alias del prototipo que expone `tokens.css`
+ * (`--accent`, `--ink-500`, `--line`…). Un `#00C48C` escrito acá sería el mismo verde con otro
+ * nombre, y el día que el token cambie esta hoja se queda vieja sin que nadie se entere.
+ *
+ * **Las animaciones son cortas y no se repiten.** Ninguna pasa de 200 ms, ninguna hace bucle y
+ * todas se apagan bajo `prefers-reduced-motion: reduce` — que está al final del archivo y no
+ * es opcional: para alguien con trastorno vestibular una interfaz que se mueve sola es una
+ * interfaz que marea.
+ */
+
+/* ── Encabezado de pantalla ─────────────────────────────────────────────────
+ *
+ * El bloque de arriba del prototipo: un cintillo mono, el título, y a la derecha la
+ * navegación entre las pantallas del mismo canal. */
+
+.wa-encabezado,
+.age-encabezado {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.wa-encabezado__eyebrow,
+.age-encabezado__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+.wa-encabezado__intro,
+.age-encabezado__intro {
+  color: var(--ink-500);
+  margin: var(--space-2) 0 0;
+  max-width: 68ch;
+}
+
+/* El control segmentado del prototipo. Son enlaces reales y no pestañas de JavaScript:
+   cada vista del canal tiene su URL, y una pestaña que no se puede compartir por chat es
+   media pestaña. */
+.wa-tabs,
+.age-tabs {
+  display: inline-flex;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 3px;
+  box-shadow: var(--shadow);
+}
+
+.wa-tabs a,
+.age-tabs a {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-500);
+  padding: 7px 14px;
+  border-radius: 7px;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.wa-tabs a:hover,
+.age-tabs a:hover {
+  color: var(--ink-900);
+}
+
+.wa-tabs a[aria-current="page"],
+.age-tabs a[aria-current="page"] {
+  background: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+/* ── PAN-WA-01 · bandeja + hilo ─────────────────────────────────────────── */
+
+/* La lista a la izquierda y el hilo a la derecha, como el prototipo. Por debajo de
+   1100 px la lista pasa arriba: dos columnas de 400 px no entran en una notebook chica. */
+.wa-grid {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .wa-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wa-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.wa-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 18px 20px 12px;
+}
+
+.wa-panel__titulo {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.wa-panel__cuenta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.wa-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0 20px 14px;
+}
+
+.wa-panel__vacio {
+  margin: 0;
+  padding: var(--space-6) 20px;
+  color: var(--ink-400);
+  font-size: var(--text-caption);
+  border-top: 1px solid var(--line-2);
+}
+
+.wa-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+/* La fila entera es el enlace: apuntar a un renglón de 60 px de alto es más fácil que
+   apuntar a las tres palabras del título. */
+.wa-fila {
+  display: flex;
+  gap: var(--space-3);
+  padding: 13px 20px;
+  border-top: 1px solid var(--line-2);
+  border-left: 3px solid transparent;
+  color: inherit;
+  transition:
+    background 140ms ease,
+    border-left-color 140ms ease;
+}
+
+.wa-fila:hover,
+.wa-fila:focus-visible {
+  background: var(--accent-050);
+  border-left-color: var(--accent);
+}
+
+/* Un hilo escalado se ve antes de leerlo: color de fondo, borde y badge. Es el estado que
+   hace que alguien tenga que hacer algo, y buscarlo renglón por renglón es perder minutos
+   mientras un cliente espera. */
+.wa-fila--escalada {
+  background: var(--err-bg);
+  border-left-color: var(--err);
+}
+
+.wa-fila--escalada:hover,
+.wa-fila--escalada:focus-visible {
+  background: var(--err-bg);
+  border-left-color: var(--err);
+}
+
+.wa-fila__cuerpo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.wa-fila__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.wa-fila__nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-fila__hora {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  flex: none;
+}
+
+.wa-fila__motivo {
+  font-size: var(--text-caption);
+  color: var(--ink-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.wa-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.wa-avatar svg {
+  width: 18px;
+  height: 18px;
+}
+
+.wa-avatar--alerta {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.wa-avatar--grande {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+}
+
+.wa-avatar--grande svg {
+  width: 21px;
+  height: 21px;
+}
+
+/* El panel derecho cuando todavía no se eligió ningún hilo. Un hueco vacío al lado de una
+   lista se lee como una pantalla que falló al cargar. */
+.wa-panel--sin-hilo {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--ink-500);
+}
+
+.wa-panel--sin-hilo b {
+  display: block;
+  color: var(--ink-900);
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+.wa-panel--sin-hilo p {
+  margin: 0;
+  font-size: var(--text-caption);
+  max-width: 40ch;
+}
+
+/* ── El hilo ─────────────────────────────────────────────────────────────── */
+
+.wa-chat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: var(--space-4);
+}
+
+.wa-chat__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wa-chat__quien {
+  flex: 1;
+  min-width: 0;
+}
+
+.wa-chat__numero {
+  display: block;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.wa-chat__canal {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.wa-chat__banner {
+  padding: var(--space-3) 22px 0;
+}
+
+.wa-chat__cuerpo {
+  background: var(--bg);
+  padding: 22px 26px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.wa-chat__pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+}
+
+.wa-chat__nota {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--ink-500);
+  margin: 0;
+}
+
+.wa-chat__nota b {
+  color: var(--accent-700);
+}
+
+/* El formulario de respuesta va en el pie del hilo y no en una tarjeta aparte: se escribe
+   mirando el último mensaje, no scrolleando hasta abajo de la página. */
+.wa-responder {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.wa-responder .campo {
+  flex: 1;
+  margin: 0;
+}
+
+.wa-hilo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wa-hilo__grupo {
+  list-style: none;
+}
+
+.wa-hilo__dia {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+.wa-hilo__mensajes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.wa-mensaje {
+  display: flex;
+  flex-direction: column;
+  max-width: 68%;
+  animation: wa-aparecer 180ms ease-out both;
+}
+
+/* Entrante a la izquierda, saliente a la derecha: la misma convención que WhatsApp, que es
+   donde el operador ya sabe leer una conversación. */
+.wa-mensaje--cliente {
+  align-items: flex-start;
+  align-self: flex-start;
+}
+
+.wa-mensaje--agente,
+.wa-mensaje--operador,
+.wa-mensaje--sistema {
+  align-items: flex-end;
+  align-self: flex-end;
+  text-align: right;
+}
+
+.wa-mensaje__autor {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-400);
+  margin: 0 0 5px;
+}
+
+.wa-mensaje--agente .wa-mensaje__autor {
+  color: var(--accent-700);
+}
+
+/* El operador tiene su propio color **y** su propia palabra. RN-04 pide distinguirlo del
+   agente, y un color solo no le dice nada a quien no sabe cuál es cuál. */
+.wa-mensaje--operador .wa-mensaje__autor {
+  color: var(--info);
+}
+
+.wa-mensaje__burbuja {
+  padding: 11px 15px;
+  border-radius: 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.wa-mensaje__burbuja p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.wa-mensaje--cliente .wa-mensaje__burbuja {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-top-left-radius: 4px;
+  color: var(--ink-900);
+}
+
+.wa-mensaje--agente .wa-mensaje__burbuja,
+.wa-mensaje--sistema .wa-mensaje__burbuja {
+  background: var(--primary);
+  color: var(--color-text-on-dark);
+  border-top-right-radius: 4px;
+}
+
+.wa-mensaje--operador .wa-mensaje__burbuja {
+  background: var(--info);
+  color: var(--color-text-on-dark);
+  border-top-right-radius: 4px;
+}
+
+.wa-mensaje__entrega {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-400);
+  margin: 5px 0 0;
+}
+
+.wa-hilo__vacio {
+  text-align: center;
+  color: var(--ink-400);
+  font-size: var(--text-caption);
+  margin: 0;
+}
+
+@keyframes wa-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── PAN-WA-02 · configuración ──────────────────────────────────────────── */
+
+.wa-config {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+  margin-bottom: var(--space-4);
+}
+
+.wa-config__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: 18px;
+}
+
+.wa-config__head h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.wa-config__head p {
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+  margin: 2px 0 0;
+}
+
+.wa-config__acciones {
+  margin-left: auto;
+}
+
+.wa-config__icono {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.wa-config__icono svg {
+  width: 17px;
+  height: 17px;
+}
+
+.wa-faqs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.wa-faq {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  transition: border-color 140ms ease;
+}
+
+.wa-faq:hover {
+  border-color: var(--ink-300);
+}
+
+.wa-faq--abierta {
+  border-color: var(--accent-100);
+}
+
+.wa-faq__pregunta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wa-faq__marca {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: var(--text-caption);
+  flex: none;
+}
+
+.wa-faq__texto {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.wa-faq__usos {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  flex: none;
+}
+
+.wa-faq__chevron {
+  color: var(--ink-300);
+  flex: none;
+  line-height: 1;
+  transition:
+    transform 160ms ease,
+    color 160ms ease;
+}
+
+.wa-faq--abierta .wa-faq__chevron {
+  color: var(--accent-700);
+  transform: rotate(180deg);
+}
+
+.wa-faq__respuesta {
+  padding: 0 16px 16px 47px;
+  animation: wa-aparecer 160ms ease-out both;
+}
+
+.wa-faq__cuerpo {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--ink-700);
+  line-height: 1.55;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.wa-faq__pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+
+.wa-faq__nota {
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+}
+
+.wa-faq__acciones {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ── Agenda · piezas comunes a PAN-AGE-01/02/03 ─────────────────────────── */
+
+.age-resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 18px 24px;
+  margin-bottom: var(--space-4);
+}
+
+.age-resumen__dato {
+  padding: 0 22px;
+  border-left: 1px solid var(--line);
+}
+
+.age-resumen__dato:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.age-resumen__valor {
+  display: block;
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--ink-900);
+}
+
+.age-resumen__etiqueta {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+.age-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 20px 24px;
+  margin-bottom: var(--space-4);
+}
+
+.age-panel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.age-panel__head h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.age-panel__head p {
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+  margin: 2px 0 0;
+}
+
+.age-panel__icono {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.age-panel__icono svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* Los próximos turnos, en columnas separadas por una línea fina: es la tira de arriba del
+   prototipo, y responde de un vistazo la pregunta con la que alguien abre esta pantalla. */
+.age-proximos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.age-proximo {
+  padding: 0 22px;
+  border-left: 1px solid var(--line);
+}
+
+.age-proximo:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.age-proximo__hora {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.age-proximo__recurso {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  margin-top: 10px;
+}
+
+.age-proximo__fecha {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+  margin: 2px 0 8px;
+}
+
+/* La tabla, más densa que la del catálogo: una agenda se lee de arriba abajo buscando una
+   hora, y cuanto menos scroll haya menos posibilidades de saltearse un turno. */
+.age-pantalla .tabla td {
+  padding: var(--space-2) var(--space-4);
+  transition: background 140ms ease;
+}
+
+.age-pantalla .tabla th {
+  padding: var(--space-3) var(--space-4) var(--space-2);
+}
+
+/* ── PAN-AGE-02 · los slots de disponibilidad ───────────────────────────── */
+
+.age-slots {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+
+.age-slots__titulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+  padding: 0 var(--space-2);
+}
+
+.age-slots__grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: var(--space-2);
+}
+
+.age-slots__leyenda {
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+  margin: var(--space-3) 0 0;
+}
+
+/*
+ * El borde mide 2 px en los tres estados y sólo cambia de color. Un borde que engorda al
+ * elegir mueve los slots de al lado: en una grilla de horarios eso significa apretar el de
+ * las 15:00 y que el cursor termine sobre el de las 15:30.
+ */
+.age-slot {
+  position: relative;
+  display: block;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  padding: 10px 6px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.age-slot:hover {
+  border-color: var(--accent-100);
+  background: var(--accent-050);
+}
+
+.age-slot__hora {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+/* El input está, y se puede tabular: lo que se esconde es su dibujo, no el control. */
+.age-slot__control {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.age-slot--elegido {
+  border-color: var(--accent);
+  background: var(--accent-050);
+}
+
+.age-slot--elegido .age-slot__hora {
+  color: var(--accent-700);
+}
+
+/* Los ocupados se muestran igual que los libres, en gris. Esconderlos dejaría una grilla
+   con huecos sin explicación: mostrarlos dice que el recurso atiende a esa hora y que ya
+   hay alguien. */
+.age-slot--ocupado {
+  border-color: var(--line-2);
+  background: var(--bg);
+  cursor: not-allowed;
+}
+
+.age-slot--ocupado:hover {
+  border-color: var(--line-2);
+  background: var(--bg);
+}
+
+.age-slot--ocupado .age-slot__hora {
+  color: var(--ink-300);
+  text-decoration: line-through;
+}
+
+.age-slot--ocupado .age-slot__control {
+  cursor: not-allowed;
+}
+
+.age-slot__control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── PAN-AGE-02 · detalle del turno ─────────────────────────────────────── */
+
+.age-turno {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 20px 24px;
+  margin-bottom: var(--space-4);
+}
+
+.age-turno__hora {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.age-turno__fecha {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+.age-turno__estado {
+  margin-left: auto;
+}
+
+/* ── PAN-AGE-03 · disponibilidad semanal ────────────────────────────────── */
+
+/*
+ * La tira de siete días es una **vista previa** del horario que se está editando, no un
+ * control: se pinta con lo que dicen las franjas de abajo. Alguien que agrega una franja el
+ * jueves ve el jueves encenderse, que es la comprobación que hoy hay que hacer leyendo cinco
+ * selects.
+ */
+.age-semana {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.age-dia {
+  min-width: 62px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  text-align: center;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.age-dia__nombre {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-400);
+}
+
+.age-dia__horas {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-300);
+  margin-top: 2px;
+}
+
+.age-dia--atiende {
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.age-dia--atiende .age-dia__nombre {
+  color: var(--accent-700);
+}
+
+.age-dia--atiende .age-dia__horas {
+  color: var(--ink-600);
+}
+
+.age-franja {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr auto;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line-2);
+}
+
+.age-franja:first-of-type {
+  border-top: 0;
+}
+
+.age-servicios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.age-servicio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: 13.5px;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.age-servicio:hover {
+  border-color: var(--ink-300);
+}
+
+.age-servicio--asociado {
+  border-color: var(--accent-100);
+  background: var(--accent-050);
+}
+
+.age-servicio__duracion {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+@media (max-width: 720px) {
+  .age-franja {
+    grid-template-columns: 1fr;
+  }
+
+  .age-resumen__dato,
+  .age-proximo {
+    border-left: 0;
+    padding: var(--space-2) 0 0;
+  }
+}
+
+/* ── Movimiento reducido ────────────────────────────────────────────────────
+ *
+ * No es una preferencia estética: para alguien con trastorno vestibular una interfaz que se
+ * mueve sola provoca mareo. Todo lo de arriba se apaga; los cambios de color quedan, porque
+ * lo que molesta es el desplazamiento, y sin transición el estado igual se ve. */
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-mensaje,
+  .wa-faq__respuesta {
+    animation: none;
+  }
+
+  .wa-tabs a,
+  .age-tabs a,
+  .wa-fila,
+  .wa-faq,
+  .wa-faq__chevron,
+  .age-pantalla .tabla td,
+  .age-slot,
+  .age-dia,
+  .age-servicio {
+    transition: none;
+  }
+}

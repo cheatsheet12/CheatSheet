@@ -1,0 +1,1489 @@
+/*
+ * Reportería — PAN-REP-01, PAN-REP-02 y la página pública del contador.
+ *
+ * Vive fuera de `componentes.css` porque son tres pantallas con una identidad propia y
+ * bastante superficie: mezcladas con el catálogo compartido, cualquier retoque de una
+ * pantalla obliga a leer mil líneas que no tienen nada que ver. Todo lo de acá lleva el
+ * prefijo `.rep-`, así que no puede pisar a nadie.
+ *
+ * Transcripto de `docs/aidlc/inputs/prototipos/reportes.html` y `reporte-libro-iva.html`,
+ * con los alias de `tokens.css`. **No hay un solo color literal**: si mañana cambia la
+ * paleta, cambia en un archivo y esto la sigue.
+ *
+ * Sobre el movimiento: las barras crecen desde cero una sola vez, al montar, y todo lo
+ * demás son transiciones de 140 ms. Nada se repite, nada rebota, nada dura más de 400 ms
+ * — un panel que se mueve solo mientras alguien lee un número es un panel que distrae.
+ * El bloque `prefers-reduced-motion` del final anula absolutamente todo.
+ */
+
+/* --- Encabezado de pantalla ---------------------------------------------------------- */
+
+.rep-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.rep-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0;
+}
+
+.rep-titulo {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  margin: var(--space-2) 0 6px;
+}
+
+.rep-sub {
+  color: var(--ink-500);
+  font-size: 14.5px;
+  margin: 0;
+  max-width: 62ch;
+}
+
+.rep-cabecera__lado {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+}
+
+/* El conmutador entre el tablero y la configuración. Son enlaces, no pestañas: cada mitad
+ * es una ruta propia, y una pestaña que en realidad navega miente sobre el botón «atrás». */
+.rep-seg {
+  display: inline-flex;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 3px;
+  box-shadow: var(--shadow);
+}
+
+.rep-seg__item {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-500);
+  padding: 7px 16px;
+  border-radius: 7px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 0.14s ease-out,
+    color 0.14s ease-out;
+}
+
+.rep-seg__item:hover {
+  color: var(--ink-900);
+}
+
+.rep-seg__item--activo,
+.rep-seg__item--activo:hover {
+  background: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+/* --- Barra de período ---------------------------------------------------------------- */
+
+.rep-periodo {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.rep-periodo__titulo {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 auto var(--space-2) 0;
+  align-self: center;
+}
+
+/* Los filtros de fecha y de tipo. `.rep-filtros` es anterior a esta unidad y lo usa también
+ * la bitácora: se mantiene el nombre y el comportamiento, sólo se afina el espaciado. */
+.rep-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+}
+
+.rep-periodo .rep-filtros {
+  margin-bottom: 0;
+}
+
+/* --- Tarjetas de métrica ------------------------------------------------------------- */
+
+.rep-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.rep-kpi {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 18px 20px 16px;
+  transition:
+    border-color 0.14s ease-out,
+    box-shadow 0.14s ease-out,
+    transform 0.14s ease-out;
+}
+
+.rep-kpi:hover {
+  border-color: var(--ink-300);
+  transform: translateY(-1px);
+}
+
+.rep-kpi__top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: var(--space-3);
+}
+
+.rep-kpi__icono {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.rep-kpi__icono svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rep-kpi__icono--menta {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.rep-kpi__icono--ambar {
+  background: var(--alert-050);
+  color: var(--warn);
+}
+
+.rep-kpi__icono--tinta {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.rep-kpi__titulo {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-500);
+  margin: 0;
+  min-width: 0;
+}
+
+.rep-kpi__valor {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 4px;
+}
+
+.rep-kpi__pie {
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+/* La variación cambia de color, y el color cambia con una transición: pasar de verde a
+ * ámbar de golpe al filtrar otro período se lee como un parpadeo de error. */
+.rep-variacion {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-300);
+  flex: none;
+  transition: color 0.14s ease-out;
+}
+
+.rep-variacion--sube {
+  color: var(--accent-700);
+}
+
+.rep-variacion--baja {
+  color: var(--warn);
+}
+
+/* --- Gráficos ------------------------------------------------------------------------ */
+
+.rep-graficos {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.rep-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+}
+
+.rep-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.rep-panel__titulo {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.rep-panel__sub {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  margin: 3px 0 0;
+}
+
+/* Barras verticales hechas con divs. No hay librería de gráficos en el repositorio y esta
+ * unidad no introduce ninguna: cinco columnas con su etiqueta se leen igual y pesan cero. */
+.rep-barras {
+  display: flex;
+  align-items: flex-end;
+  gap: 26px;
+  height: 260px;
+  padding: 0 var(--space-2) 0 56px;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  margin: var(--space-2) 0 0;
+  list-style: none;
+}
+
+.rep-barras__eje {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-300);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rep-barras__col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.rep-barras__barra {
+  width: 64%;
+  max-width: 78px;
+  min-height: 2px;
+  background: var(--accent);
+  border-radius: 7px 7px 0 0;
+  transform-origin: bottom center;
+  animation: rep-crecer-alto 0.3s ease-out both;
+  animation-delay: calc(var(--rep-orden, 0) * 25ms);
+  transition: background 0.14s ease-out;
+}
+
+.rep-barras__col:hover .rep-barras__barra {
+  background: var(--accent-700);
+}
+
+/* Una semana sin facturación no es una barra chiquita: es una barra que no está. */
+.rep-barras__barra--vacia {
+  background: var(--line-2);
+  min-height: 3px;
+  animation: none;
+}
+
+.rep-barras__x {
+  font-size: 12.5px;
+  color: var(--ink-500);
+  font-weight: 500;
+  margin-top: var(--space-3);
+  text-align: center;
+}
+
+.rep-barras__monto {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  transition: color 0.14s ease-out;
+}
+
+.rep-barras__col:hover .rep-barras__monto {
+  color: var(--ink-700);
+}
+
+/* Un período largo trae cincuenta semanas: se aprieta el espaciado y se cae el importe
+ * de cada columna, que ahí ya no entra. El eje y la tabla siguen diciendo el número. */
+.rep-barras--densa {
+  gap: 6px;
+}
+
+.rep-barras--densa .rep-barras__monto {
+  display: none;
+}
+
+.rep-barras--densa .rep-barras__x {
+  font-size: 10px;
+}
+
+.rep-panel__pie {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: var(--space-4);
+}
+
+.rep-panel__pie div:nth-child(2) {
+  text-align: center;
+}
+
+.rep-panel__pie div:last-child {
+  text-align: right;
+}
+
+.rep-panel__pie span {
+  font-size: 11.5px;
+  color: var(--ink-400);
+  display: block;
+}
+
+.rep-panel__pie b {
+  font-size: 13.5px;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Distribución por tipo: la misma idea, acostada. El ancho es la proporción. */
+.rep-dist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rep-dist__fila {
+  display: grid;
+  grid-template-columns: 11px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.rep-dist__fila:last-child {
+  border-bottom: 0;
+}
+
+.rep-dist__sw {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: var(--rep-tono);
+}
+
+.rep-dist__fila:nth-child(4n + 1) {
+  --rep-tono: var(--accent);
+}
+
+.rep-dist__fila:nth-child(4n + 2) {
+  --rep-tono: var(--info);
+}
+
+.rep-dist__fila:nth-child(4n + 3) {
+  --rep-tono: var(--alert);
+}
+
+.rep-dist__fila:nth-child(4n) {
+  --rep-tono: var(--accent-700);
+}
+
+.rep-dist__nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  display: block;
+}
+
+.rep-dist__pista {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line-2);
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.rep-dist__barra {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--rep-tono);
+  transform-origin: left center;
+  animation: rep-crecer-ancho 0.3s ease-out both;
+  animation-delay: calc(var(--rep-orden, 0) * 25ms);
+}
+
+.rep-dist__monto {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.rep-vacio {
+  font-size: 13px;
+  color: var(--ink-400);
+  margin: 0;
+  padding: var(--space-6) 0;
+  text-align: center;
+}
+
+/* --- Generador de reportes ----------------------------------------------------------- */
+
+.rep-tipos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.rep-tipo {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease-out,
+    background 0.14s ease-out,
+    transform 0.05s ease-out;
+}
+
+.rep-tipo:hover {
+  border-color: var(--ink-300);
+}
+
+.rep-tipo:active {
+  transform: translateY(1px);
+}
+
+.rep-tipo[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-050);
+}
+
+.rep-tipo__ic {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--info-bg);
+  color: var(--info);
+  transition:
+    background 0.14s ease-out,
+    color 0.14s ease-out;
+}
+
+.rep-tipo[aria-pressed="true"] .rep-tipo__ic {
+  background: var(--accent);
+  color: var(--color-text-on-dark);
+}
+
+.rep-tipo__ic svg {
+  width: 19px;
+  height: 19px;
+}
+
+.rep-tipo b {
+  font-size: 13.5px;
+  font-weight: 600;
+  display: block;
+}
+
+.rep-tipo span {
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.rep-generador {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* La previsualización: cambia sola con cada filtro y no genera nada, así que aparece con
+ * un fundido corto en vez de saltar. */
+.rep-previsualizacion {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-4);
+  margin: 0;
+  animation: rep-aparecer 0.18s ease-out both;
+}
+
+.rep-previsualizacion__rotulo {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-3);
+}
+
+.rep-previsualizacion__cifra {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.rep-previsualizacion__detalle {
+  font-size: 12.5px;
+  color: var(--ink-500);
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+.rep-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* --- Celdas de tabla ----------------------------------------------------------------- */
+
+.rep-celda-periodo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rep-mes {
+  width: 42px;
+  height: 42px;
+  border-radius: 9px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.rep-celda-periodo b {
+  font-size: 13.5px;
+  display: block;
+  color: var(--ink-900);
+}
+
+.rep-celda-periodo small {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.rep-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rep-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--ink-600);
+  background: var(--line-2);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.rep-chip b {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-900);
+}
+
+.rep-descarga {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 7px 12px;
+  text-decoration: none;
+  transition:
+    border-color 0.14s ease-out,
+    color 0.14s ease-out,
+    transform 0.05s ease-out;
+}
+
+.rep-descarga:hover {
+  border-color: var(--accent);
+  color: var(--accent-700);
+}
+
+.rep-descarga:active {
+  transform: translateY(1px);
+}
+
+.rep-descarga svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* --- PAN-REP-02 · configuración del envío automático --------------------------------- */
+
+.rep-cfg {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.rep-cfg__col {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.rep-cfg__aside {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--space-4));
+  display: grid;
+  gap: var(--space-4);
+}
+
+.rep-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--accent-050);
+  border: 1px solid var(--accent-100);
+  border-radius: var(--radius-card);
+  padding: var(--space-4) 20px;
+}
+
+.rep-hero__ic {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--color-text-on-dark);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.rep-hero__ic svg {
+  width: 20px;
+  height: 20px;
+}
+
+.rep-hero b {
+  font-size: 14px;
+  font-weight: 700;
+  display: block;
+  color: var(--ink-900);
+}
+
+.rep-hero span {
+  font-size: 12.5px;
+  color: var(--ink-600);
+}
+
+.rep-seccion__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.rep-num {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--info-bg);
+  color: var(--info);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.rep-num svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rep-fila {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--line-2);
+}
+
+.rep-fila b {
+  font-size: 13.5px;
+  color: var(--ink-900);
+  display: block;
+}
+
+.rep-fila p {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  margin: 2px 0 0;
+}
+
+.rep-fila__estado {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-400);
+  transition: color 0.14s ease-out;
+}
+
+.rep-fila__estado--activo {
+  color: var(--accent-700);
+}
+
+/* Las opciones de formato y de contenido son un control nativo con su `<label for>` al
+ * lado, y no un `<label>` que envuelve un checkbox anónimo: envuelto, el clic funciona
+ * igual, pero un lector de pantalla anuncia «casilla» sin decir cuál — y son siete
+ * decisiones sobre qué le llega al contador. */
+.rep-opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+.rep-opcion {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  padding: var(--space-4);
+  transition:
+    border-color 0.14s ease-out,
+    background 0.14s ease-out;
+}
+
+.rep-opcion:hover {
+  border-color: var(--ink-300);
+}
+
+.rep-opcion--activa {
+  border-color: var(--accent);
+  background: var(--accent-050);
+}
+
+.rep-opcion label {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.rep-opcion b {
+  font-size: 13.5px;
+  font-weight: 700;
+  display: block;
+  color: var(--ink-900);
+}
+
+.rep-opcion span {
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.rep-opcion input {
+  accent-color: var(--accent);
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 2px 0 0;
+  cursor: pointer;
+}
+
+.rep-incluye {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rep-incluye__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line-2);
+  transition: opacity 0.14s ease-out;
+}
+
+.rep-incluye__item:last-child {
+  border-bottom: 0;
+}
+
+.rep-incluye__item--apagado {
+  opacity: 0.55;
+}
+
+.rep-incluye__item input {
+  accent-color: var(--accent);
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin: 1px 0 0;
+  cursor: pointer;
+}
+
+.rep-incluye__item label {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.rep-incluye__item b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.rep-incluye__item p {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  margin: 2px 0 0;
+}
+
+.rep-etiqueta-formato {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+  background: var(--line-2);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+.rep-dias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.rep-dia {
+  border: 1px solid var(--line);
+  background: var(--card);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-600);
+  padding: 8px 16px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition:
+    background 0.14s ease-out,
+    color 0.14s ease-out,
+    border-color 0.14s ease-out,
+    transform 0.05s ease-out;
+}
+
+.rep-dia:hover:not(:disabled) {
+  border-color: var(--ink-300);
+}
+
+.rep-dia:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.rep-dia[aria-pressed="true"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+.rep-dia:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.rep-banda {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: var(--space-4);
+  padding: 12px 15px;
+  border-radius: var(--radius-control);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-700);
+  background: var(--accent-050);
+}
+
+.rep-banda svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent-700);
+}
+
+.rep-banda--info {
+  background: var(--info-bg);
+}
+
+.rep-banda--info svg {
+  color: var(--info);
+}
+
+.rep-banda b {
+  color: var(--ink-900);
+}
+
+/* --- El contador invitado ------------------------------------------------------------ */
+
+.rep-invitado {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.rep-invitado__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--alert);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.rep-invitado__datos {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.rep-invitado__datos b {
+  font-size: 13.5px;
+  color: var(--ink-900);
+  margin-right: 6px;
+}
+
+.rep-invitado__mail {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+  margin-top: 3px;
+}
+
+.rep-permisos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  list-style: none;
+  padding: 0;
+}
+
+.rep-permiso {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 11px 14px;
+  border-radius: var(--radius-control);
+}
+
+.rep-permiso svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.rep-permiso--si {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.rep-permiso--no {
+  background: var(--bg);
+  color: var(--ink-400);
+  border: 1px solid var(--line);
+}
+
+/* --- Vista previa del ZIP (aside de PAN-REP-02) -------------------------------------- */
+
+.rep-zip {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.rep-zip__rotulo {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0;
+}
+
+.rep-zip__archivo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 14px 0 var(--space-4);
+}
+
+.rep-zip__archivo .rep-num {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.rep-zip__archivo b {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-900);
+  display: block;
+  word-break: break-all;
+}
+
+.rep-zip__archivo span {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.rep-zip__lista {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.rep-zip__fila {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 7px 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-700);
+  transition:
+    opacity 0.14s ease-out,
+    color 0.14s ease-out;
+}
+
+.rep-zip__fila span:last-child {
+  color: var(--ink-400);
+}
+
+.rep-zip__fila--fuera {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.rep-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: 9px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.rep-kv:last-child {
+  border-bottom: 0;
+}
+
+.rep-kv dt {
+  color: var(--ink-500);
+}
+
+.rep-kv dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-900);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.rep-kv dd.rep-kv__ok {
+  color: var(--accent-700);
+}
+
+.rep-ayuda {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  font-size: 12.5px;
+  color: var(--ink-600);
+  line-height: 1.5;
+}
+
+.rep-ayuda svg {
+  width: 18px;
+  height: 18px;
+  color: var(--info);
+  flex: none;
+  margin-top: 1px;
+}
+
+.rep-ayuda b {
+  color: var(--ink-900);
+}
+
+/* La barra de guardar queda pegada abajo: la configuración es larga y el botón que la
+ * confirma no puede estar a dos pantallas de scroll del control que se acaba de tocar. */
+.rep-barra-guardar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  position: sticky;
+  bottom: var(--space-4);
+  margin-top: var(--space-4);
+  padding: 14px 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-lg);
+}
+
+.rep-barra-guardar__nota {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  margin: 0 auto 0 0;
+}
+
+/* --- Página pública del contador ----------------------------------------------------- */
+
+/*
+ * El layout de `(public)` centra una columna angosta, que es lo correcto para un login y
+ * demasiado angosto para un documento con una tabla. Se corrige desde acá, y no editando
+ * ese layout, porque el layout es de otra unidad y lo comparten tres pantallas más.
+ */
+main:has(> .rep-publico),
+main:has(> * > .rep-publico) {
+  display: block;
+  padding: 0;
+}
+
+main:has(> * > .rep-publico) > * {
+  max-width: none;
+}
+
+.rep-publico {
+  min-height: 100dvh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.rep-publico__barra {
+  background: var(--primary);
+  color: var(--color-text-on-dark);
+  padding: var(--space-4) var(--space-6);
+}
+
+.rep-publico__marca {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.rep-publico__logo {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: -0.5px;
+  flex: none;
+}
+
+.rep-publico__marca b {
+  font-size: 16px;
+  font-weight: 700;
+  display: block;
+}
+
+.rep-publico__marca span {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-300);
+}
+
+.rep-publico__sello {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--sidebar-active);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+.rep-publico__cuerpo {
+  flex: 1;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-8);
+}
+
+.rep-publico__titulo {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin: 0 0 6px;
+}
+
+.rep-publico__intro {
+  color: var(--ink-500);
+  font-size: 14px;
+  margin: 0 0 var(--space-6);
+  max-width: 62ch;
+}
+
+/* El enlace que no sirve: la frase del backend, sola y centrada. Ni un menú, ni un
+ * formulario de acceso, ni una sugerencia de escribirle a alguien. */
+.rep-publico__negado {
+  max-width: 34rem;
+  margin: var(--space-8) auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: var(--space-8);
+  text-align: center;
+  font-size: 15px;
+  color: var(--ink-700);
+}
+
+.rep-publico__pie {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-300);
+  margin: var(--space-8) 0 0;
+}
+
+.rep-publico .rep-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* --- Animaciones --------------------------------------------------------------------- */
+
+@keyframes rep-crecer-alto {
+  from {
+    transform: scaleY(0);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes rep-crecer-ancho {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes rep-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Movimiento reducido: acá no se atenúa nada, se apaga.
+ *
+ * Quien pide esto en su sistema operativo muchas veces lo pide porque el movimiento le
+ * produce náuseas o le dispara una migraña, y «una animación cortita» sigue siendo
+ * movimiento. Las barras aparecen en su alto final y las transiciones dejan de existir.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .rep-barras__barra,
+  .rep-dist__barra,
+  .rep-previsualizacion {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .rep-seg__item,
+  .rep-kpi,
+  .rep-variacion,
+  .rep-tipo,
+  .rep-tipo__ic,
+  .rep-descarga,
+  .rep-opcion,
+  .rep-dia,
+  .rep-incluye__item,
+  .rep-fila__estado,
+  .rep-zip__fila,
+  .rep-barras__barra,
+  .rep-barras__monto {
+    transition: none !important;
+  }
+
+  .rep-kpi:hover,
+  .rep-tipo:active,
+  .rep-descarga:active,
+  .rep-dia:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* --- Angosto ------------------------------------------------------------------------- */
+
+@media (max-width: 1200px) {
+  .rep-kpis {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .rep-graficos,
+  .rep-cfg,
+  .rep-generador {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rep-cfg__aside {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .rep-titulo {
+    font-size: 24px;
+  }
+
+  .rep-barras {
+    gap: var(--space-3);
+    height: 200px;
+  }
+
+  .rep-panel__pie {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .rep-panel__pie div,
+  .rep-panel__pie div:nth-child(2),
+  .rep-panel__pie div:last-child {
+    text-align: left;
+  }
+}

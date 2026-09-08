@@ -2,7 +2,14 @@
  * PAN-ING-02 — Ingesta de Datos · Revisión del mapeo (HU-E3-01, HU-E3-02).
  *
  * La tabla muestra las cuatro cosas que pide el primer criterio de HU-E3-02: la columna
- * original, el campo interno asignado, un ejemplo de dato y el nivel de confianza.
+ * original, el campo interno asignado, un ejemplo de dato y el nivel de confianza. La forma es
+ * la del prototipo: el stepper arriba para ubicar el paso, una fila por columna con su número
+ * de orden, y un pie que cuenta cuántas quedan listas y cuántas necesitan una mirada.
+ *
+ * **El stepper no es adorno.** Esta pantalla aparece en medio de un flujo de cuatro pasos y sin
+ * él no hay forma de saber si confirmar acá termina el trabajo o lo empieza. Cuando el mapeo
+ * queda validado el paso avanza solo, que es la única confirmación visible de que el botón hizo
+ * algo.
  *
  * **El ejemplo se lee de la planilla y nunca pasó por el modelo** (decisión D12): son
  * CUITs y teléfonos de clientes reales, y `CLAUDE.md` §3.6 no los deja salir. Que se vean
@@ -17,8 +24,8 @@
 
 import { useState } from "react";
 
-import { Alert, Badge, Button, Select, Tabla } from "@/shared";
-import type { Columna, EstadoDeBadge } from "@/shared";
+import { Alert, Button, Card, Select, Stepper, Tabla } from "@/shared";
+import type { Columna, Paso } from "@/shared";
 
 import {
   ATRIBUTOS_DE_CLIENTE,
@@ -29,6 +36,7 @@ import {
   corregirMapeo,
 } from "../api/planilla";
 import type { EntradaDeMapeo, Mapeo, NivelDeConfianza } from "../api/planilla";
+import { Icono } from "./iconos";
 
 export interface PropsDeRevision {
   readonly inicial: Mapeo;
@@ -36,10 +44,23 @@ export interface PropsDeRevision {
   readonly onConfirmado?: (mapeo: Mapeo) => void;
 }
 
-const TONO_DE_CONFIANZA: Readonly<Record<NivelDeConfianza, EstadoDeBadge>> = {
-  ALTA: "ok",
-  MEDIA: "atencion",
-  BAJA: "error",
+/**
+ * Cómo se lee cada nivel de confianza.
+ *
+ * En capitales («ALTA») es como llega del backend y como se escribe un enum; en una píldora al
+ * lado de un nombre propio se lee como un grito. Los tres niveles son los de HU-E3-01 RN-01 y
+ * dicen exactamente lo mismo.
+ */
+const ETIQUETAS_DE_CONFIANZA: Readonly<Record<NivelDeConfianza, string>> = {
+  ALTA: "Alta",
+  MEDIA: "Media",
+  BAJA: "Baja",
+};
+
+const CLASE_DE_CONFIANZA: Readonly<Record<NivelDeConfianza, string>> = {
+  ALTA: "ing-conf ing-conf--alta",
+  MEDIA: "ing-conf ing-conf--media",
+  BAJA: "ing-conf ing-conf--baja",
 };
 
 const OPCIONES = [
@@ -49,6 +70,19 @@ const OPCIONES = [
     etiqueta: ETIQUETAS_DE_ATRIBUTO[valor] ?? valor,
   })),
 ];
+
+/** Los cuatro pasos del prototipo. Esta pantalla es el segundo. */
+const PASOS: readonly Paso[] = [
+  { numero: 1, nombre: "Cargar archivo" },
+  { numero: 2, nombre: "Revisar mapeo" },
+  { numero: 3, nombre: "Procesar y validar" },
+  { numero: 4, nombre: "Sincronizar" },
+];
+
+/** El número de orden de la columna, con cero adelante, como en el prototipo. */
+function ordinal(indice: number): string {
+  return String(indice + 1).padStart(2, "0");
+}
 
 export function RevisionDeMapeo({
   inicial,
@@ -92,50 +126,99 @@ export function RevisionDeMapeo({
   }
 
   const columnas: readonly Columna<EntradaDeMapeo>[] = [
-    { clave: "origen", titulo: "Columna de tu planilla", celda: (e) => e.columna_origen },
     {
-      clave: "ejemplo",
-      titulo: "Ejemplo",
-      // Leído de la planilla, mostrado acá, nunca enviado al modelo (D12).
-      celda: (e) => <code>{e.ejemplo ?? "—"}</code>,
+      clave: "origen",
+      titulo: "Columna de tu planilla",
+      celda: (entrada) => (
+        <span className="ing-map-origen">
+          <span className="ing-map-n" aria-hidden="true">
+            {ordinal(mapeo.entradas.indexOf(entrada))}
+          </span>
+          <span className="ing-map-columna">{entrada.columna_origen}</span>
+        </span>
+      ),
     },
     {
       clave: "destino",
       titulo: "Campo del sistema",
-      celda: (entrada) =>
-        puedeEditar ? (
-          <Select
-            id={`mapeo-${entrada.columna_origen}`}
-            // La cabecera de la columna ya dice «Campo del sistema», pero un control cuyo
-            // unico nombre es su columna es inusable con lector de pantalla, que anuncia
-            // las celdas de a una. Oculta, no ausente.
-            etiqueta={`Campo del sistema para ${entrada.columna_origen}`}
-            etiquetaOculta
-            value={entrada.atributo_destino ?? ""}
-            opciones={OPCIONES}
-            disabled={trabajando}
-            onChange={(evento) => {
-              void corregir(entrada.columna_origen, evento.target.value);
-            }}
-          />
-        ) : (
-          (ETIQUETAS_DE_ATRIBUTO[entrada.atributo_destino ?? ""] ?? "Sin asignar")
-        ),
+      celda: (entrada) => (
+        <span className="ing-map-destino">
+          <span className="ing-map-flecha" aria-hidden="true">
+            →
+          </span>
+          {puedeEditar ? (
+            <Select
+              id={`mapeo-${entrada.columna_origen}`}
+              // La cabecera de la columna ya dice «Campo del sistema», pero un control cuyo
+              // unico nombre es su columna es inusable con lector de pantalla, que anuncia
+              // las celdas de a una. Oculta, no ausente.
+              etiqueta={`Campo del sistema para ${entrada.columna_origen}`}
+              etiquetaOculta
+              value={entrada.atributo_destino ?? ""}
+              opciones={OPCIONES}
+              disabled={trabajando}
+              onChange={(evento) => {
+                void corregir(entrada.columna_origen, evento.target.value);
+              }}
+            />
+          ) : (
+            <DestinoDeSoloLectura atributo={entrada.atributo_destino} />
+          )}
+        </span>
+      ),
+    },
+    {
+      clave: "ejemplo",
+      titulo: "Ejemplo",
+      // Leído de la planilla, mostrado acá, nunca enviado al modelo (D12).
+      celda: (entrada) => <span className="ing-map-ejemplo">{entrada.ejemplo ?? "—"}</span>,
     },
     {
       clave: "confianza",
       titulo: "Confianza",
-      celda: (entrada) => (
-        <Badge estado={TONO_DE_CONFIANZA[entrada.confianza]}>
-          {entrada.corregida_a_mano ? "Corregida" : entrada.confianza}
-        </Badge>
-      ),
+      alDerecha: true,
+      celda: (entrada) =>
+        // Una corrección a mano ya no tiene confianza que reportar: la asignación la puso una
+        // persona, y decir «Baja» al lado de una decisión humana invita a desconfiar de ella.
+        entrada.corregida_a_mano ? (
+          <span className="ing-conf ing-conf--manual">Corregida</span>
+        ) : (
+          <span className={CLASE_DE_CONFIANZA[entrada.confianza]}>
+            {ETIQUETAS_DE_CONFIANZA[entrada.confianza]}
+          </span>
+        ),
     },
   ];
+
+  const validado = mapeo.estado === "VALIDADO";
+  const asignadas = mapeo.entradas.filter((entrada) => entrada.atributo_destino !== null).length;
+  const sinAsignar = mapeo.entradas.length - asignadas;
 
   return (
     <>
       {error !== null && <Alert tono="error">{error}</Alert>}
+
+      <Stepper pasos={PASOS} actual={validado ? 3 : 2} />
+
+      {/* Qué archivo se está mapeando y quién lo interpretó. La marca «Analizado por IA» sólo
+          aparece cuando el modelo efectivamente propuso: es una atribución, no un adorno. */}
+      <div className="ing-resumen">
+        <span className="ing-resumen__ico">
+          <Icono nombre="planilla" />
+        </span>
+        <span className="ing-resumen__datos">
+          <b className="ing-resumen__nombre">Mapeo de tu planilla</b>
+          <span className="ing-resumen__detalle">
+            {mapeo.entradas.length} columnas detectadas · versión {mapeo.version}
+          </span>
+        </span>
+        {mapeo.propuesto_por_el_modelo && (
+          <span className="ing-marca-ia">
+            <Icono nombre="chispa" />
+            Analizado por IA
+          </span>
+        )}
+      </div>
 
       {!mapeo.propuesto_por_el_modelo && (
         // «No pudimos proponerlo» y «ya lo teníamos» son cosas distintas para alguien
@@ -153,29 +236,65 @@ export function RevisionDeMapeo({
         </Alert>
       )}
 
-      {mapeo.estado === "VALIDADO" && (
+      {validado && (
         <Alert tono="exito">El mapeo quedo confirmado. Ya podes procesar la planilla.</Alert>
       )}
 
-      <Tabla
-        titulo="Revision del mapeo"
-        columnas={columnas}
-        filas={mapeo.entradas}
-        claveDeFila={(entrada) => entrada.columna_origen}
-        vacia="La planilla no tiene columnas para mapear."
-      />
+      <Card>
+        <Tabla
+          titulo="Revision del mapeo"
+          columnas={columnas}
+          filas={mapeo.entradas}
+          claveDeFila={(entrada) => entrada.columna_origen}
+          vacia="La planilla no tiene columnas para mapear."
+        />
 
-      {puedeEditar && mapeo.estado !== "VALIDADO" && (
-        <Button
-          disabled={!mapeo.puede_confirmarse || trabajando}
-          cargando={trabajando}
-          onClick={() => {
-            void confirmar();
-          }}
-        >
-          Confirmar y procesar
-        </Button>
-      )}
+        <div className="ing-pie">
+          <span className="ing-pie__dato">
+            <span className="ing-pie__ic ing-pie__ic--ok" aria-hidden="true">
+              <Icono nombre="tilde" />
+            </span>
+            <b>{asignadas}</b> columnas asignadas
+          </span>
+          <span className="ing-pie__dato">
+            <span className="ing-pie__ic ing-pie__ic--atencion" aria-hidden="true">
+              !
+            </span>
+            <b>{sinAsignar}</b> sin asignar · revisión manual
+          </span>
+          {puedeEditar && !validado && (
+            <span className="ing-pie__acciones">
+              <Button
+                disabled={!mapeo.puede_confirmarse || trabajando}
+                cargando={trabajando}
+                onClick={() => {
+                  void confirmar();
+                }}
+              >
+                Confirmar y procesar
+              </Button>
+            </span>
+          )}
+        </div>
+      </Card>
     </>
   );
+}
+
+/**
+ * El destino cuando no se puede editar.
+ *
+ * «Sin asignar» va en rojo y con borde porque es lo único de la tabla que frena el paso
+ * siguiente (RN-02); un campo asignado es sólo información y se lee en negro.
+ */
+function DestinoDeSoloLectura({ atributo }: { readonly atributo: string | null }): JSX.Element {
+  if (atributo === null) {
+    return (
+      <span className="ing-map-sin-asignar">
+        <Icono nombre="alerta" />
+        Sin asignar
+      </span>
+    );
+  }
+  return <span className="ing-map-campo">{ETIQUETAS_DE_ATRIBUTO[atributo] ?? atributo}</span>;
 }

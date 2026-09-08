@@ -17,6 +17,15 @@ import type { ReactNode } from "react";
 
 import "@/shared/tokens.css";
 import "@/shared/componentes.css";
+// Las cuatro pantallas de auditoría, notificaciones y soporte traen su propia hoja: lo que
+// sólo usa un puñado de pantallas no engorda el catálogo compartido.
+import "@/shared/pantallas-auditoria.css";
+import "@/shared/pantallas-agente.css";
+// Después del catálogo compartido: las pantallas de Cobros y Facturación ajustan piezas
+// propias sobre él, y un import antes las dejaría perdiendo la cascada por orden de carga.
+import "@/shared/pantallas-cobros.css";
+import "@/shared/pantallas-identidad.css";
+import "@/shared/pantallas-ingesta.css";
 
 // §1.2: DM Sans for the panel, JetBrains Mono for CUIT, CAE and document numbers.
 const dmSans = DM_Sans({
