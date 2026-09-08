@@ -1002,3 +1002,45 @@
   padding: var(--space-3);
   margin: var(--space-3) 0;
 }
+
+/* --- Auditoría y notificaciones (PAN-LOG-01, PAN-LOG-02, PAN-CFG-NOT) ---------------- */
+
+.log-resumen {
+  display: grid;
+  grid-template-columns: 12rem 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.log-resumen dt {
+  color: var(--color-text-secondary);
+}
+
+.log-resumen dd {
+  margin: 0;
+}
+
+.log-resumen__par {
+  display: contents;
+}
+
+.log-avisos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.log-avisos__encabezado {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+}
+
+.log-avisos__urgente {
+  color: var(--color-error);
+  font-weight: 600;
+  font-size: var(--text-caption);
+}

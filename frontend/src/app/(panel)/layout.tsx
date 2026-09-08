@@ -67,6 +67,8 @@ export default async function PanelLayout({
           <Link href="/agenda/recursos">Recursos</Link>
           <Link href="/conversaciones">Conversaciones</Link>
           <Link href="/reportes">Reportes</Link>
+          <Link href="/auditoria">Log de operaciones</Link>
+          <Link href="/soporte">Soporte</Link>
           <Link href="/configuracion/empresa">Empresa</Link>
           <Link href="/configuracion/usuarios">Usuarios</Link>
           <Link href="/configuracion/integraciones">Integraciones</Link>
@@ -74,6 +76,7 @@ export default async function PanelLayout({
           <Link href="/configuracion/respuestas">Respuestas frecuentes</Link>
           <Link href="/configuracion/plantillas">Plantillas</Link>
           <Link href="/configuracion/paquete-contable">Paquete contable</Link>
+          <Link href="/configuracion/notificaciones">Notificaciones</Link>
           <Link href="/configuracion/preferencias">Mis preferencias</Link>
           <BotonDeSalida />
         </nav>
