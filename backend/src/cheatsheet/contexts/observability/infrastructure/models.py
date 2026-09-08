@@ -49,6 +49,11 @@ class RegistroDeAuditoriaORM(Base):
     entidad_afectada: Mapped[str] = mapped_column(String(200), nullable=False)
     resultado: Mapped[str] = mapped_column(String(20), nullable=False)
     direccion_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    #: Lo que la operación registró de sí misma (HU-E12-02 RN-01). Nulo en casi todas las
+    #: filas, y la pantalla lo dice en vez de reconstruir algo que nadie escribió. Llega en la
+    #: migración 0023, sin `server_default`: una columna nullable se agrega sin reescribir la
+    #: tabla, que es lo que esta tabla no admite.
+    detalle: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     # `timezone=True` is not optional here. Without it SQLAlchemy maps to TIMESTAMP
     # WITHOUT TIME ZONE, the driver refuses the aware datetime the domain produces, and
@@ -109,3 +114,53 @@ class TareaAsincronaORM(Base):
             postgresql_where=text("estado = 'FALLIDA'"),
         ),
     )
+
+
+TABLA_NOTIFICACION = "notificacion"
+
+
+class NotificacionORM(Base):
+    """El centro de notificaciones (HU-E11-03).
+
+    `destinatario_id` es lo que hace que esto sea una bandeja y no un tablón: dos operadores de
+    la misma empresa comparten política de RLS y no comparten avisos.
+    """
+
+    __tablename__ = TABLA_NOTIFICACION
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    destinatario_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    #: La plantilla que la generó, si salió de una. Sin FK desde este ORM: la tabla vive en
+    #: `conversational` y la migración es la que decide si la restricción existe (regla R3).
+    plantilla_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
+    categoria: Mapped[str] = mapped_column(String(30), nullable=False)
+    severidad: Mapped[str] = mapped_column(String(10), nullable=False)
+    cuerpo: Mapped[str] = mapped_column(Text, nullable=False)
+    leida: Mapped[bool] = mapped_column(nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        # La consulta de la pantalla, y la del globito: la bandeja de una persona, lo no leído
+        # primero. Sin este índice son dos escaneos por carga del panel.
+        Index("ix_notificacion_destinatario", "destinatario_id", "leida", "created_at"),
+    )
+
+
+TABLA_SOLICITUD = "solicitud_de_soporte"
+
+
+class SolicitudDeSoporteORM(Base):
+    __tablename__ = TABLA_SOLICITUD
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    usuario_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    asunto: Mapped[str] = mapped_column(String(200), nullable=False)
+    descripcion: Mapped[str] = mapped_column(Text, nullable=False)
+    prioridad: Mapped[str] = mapped_column(String(10), nullable=False)
+    estado: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (Index("ix_solicitud_empresa_estado", "empresa_id", "estado"),)

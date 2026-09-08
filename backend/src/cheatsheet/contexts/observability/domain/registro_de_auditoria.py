@@ -24,6 +24,7 @@ will ever do.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -59,6 +60,10 @@ class RegistroDeAuditoria:
     #: Who set it in motion (HS-T5 RN-02). Defaults to what `usuario_id` implies, so the
     #: seven epics written before this column keep saying what they said.
     iniciador: Iniciador = Iniciador.SISTEMA
+    #: What the operation recorded about itself (HU-E12-02 RN-01). `None` for almost every
+    #: row, and the panel says so rather than reconstructing something that was not written.
+    #: Never personal data and never a secret — see `EventoAuditable.detalle`.
+    detalle: Mapping[str, str] | None = None
 
     def __post_init__(self) -> None:
         if self.timestamp.tzinfo is None:

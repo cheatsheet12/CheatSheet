@@ -19,6 +19,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
+from cheatsheet.contexts.observability.application.ports import FiltrosDeBitacora
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.platform.settings import (
     DLQ_MAX_INTENTOS_POR_DEFECTO,
@@ -61,6 +62,25 @@ class RepositorioDeAuditoriaEnMemoria:
 
     async def buscar_por_id(self, registro_id: UUID) -> RegistroDeAuditoria | None:
         return self.registros.get(registro_id)
+
+    async def listar(self, filtros: FiltrosDeBitacora) -> list[RegistroDeAuditoria]:
+        """Lo mínimo que hace falta para que este doble siga satisfaciendo el puerto.
+
+        Sin filtrar: los tests que ejercitan los filtros usan el doble de
+        `tests/contexts/observability`, que sí los reproduce, y los que ejercitan el SQL de
+        verdad corren contra PostgreSQL. Un tercer lugar donde reproducir el `WHERE` sería un
+        tercer lugar donde equivocarse.
+        """
+        ordenados = sorted(self.registros.values(), key=lambda uno: uno.timestamp, reverse=True)
+        return ordenados[filtros.desplazamiento : filtros.desplazamiento + filtros.limite]
+
+    async def listar_de_entidad(self, entidad: str) -> list[RegistroDeAuditoria]:
+        de_la_entidad = [uno for uno in self.registros.values() if uno.entidad_afectada == entidad]
+        return sorted(de_la_entidad, key=lambda uno: uno.timestamp)
+
+    async def contar(self, filtros: FiltrosDeBitacora) -> int:
+        del filtros
+        return len(self.registros)
 
 
 def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:

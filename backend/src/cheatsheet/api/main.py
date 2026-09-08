@@ -23,6 +23,7 @@ from cheatsheet.api.middleware.empresa import EmpresaMiddleware
 from cheatsheet.api.routers import (
     agenda,
     auth,
+    bitacora,
     categorias,
     clientes,
     cobros,
@@ -103,6 +104,7 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(webhooks.crear_router(recursos))
     app.include_router(whatsapp.crear_router(recursos))
     app.include_router(reporteria.crear_router(recursos))
+    app.include_router(bitacora.crear_router(recursos))
     # La única ruta pública del épico 9. Va última y con su propio módulo: ver `contador.py`.
     app.include_router(contador.crear_router(recursos))
 

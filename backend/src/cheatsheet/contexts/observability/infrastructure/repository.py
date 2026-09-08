@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +41,7 @@ def _a_orm(registro: RegistroDeAuditoria) -> RegistroDeAuditoriaORM:
         resultado=registro.resultado.value,
         direccion_ip=registro.direccion_ip,
         iniciador=registro.iniciador.value,
+        detalle=dict(registro.detalle) if registro.detalle is not None else None,
         timestamp=registro.timestamp,
     )
 
@@ -57,6 +58,7 @@ def _a_dominio(fila: RegistroDeAuditoriaORM) -> RegistroDeAuditoria:
         resultado=Resultado(fila.resultado),
         direccion_ip=fila.direccion_ip,
         iniciador=Iniciador(fila.iniciador),
+        detalle=dict(fila.detalle) if fila.detalle is not None else None,
         timestamp=fila.timestamp,
     )
 
@@ -94,7 +96,25 @@ class RepositorioDeAuditoriaPostgres:
 
     async def listar(self, filtros: FiltrosDeBitacora) -> list[RegistroDeAuditoria]:
         consulta = _acotar(select(RegistroDeAuditoriaORM), filtros)
-        consulta = consulta.order_by(RegistroDeAuditoriaORM.timestamp.desc()).limit(filtros.limite)
+        consulta = (
+            consulta.order_by(RegistroDeAuditoriaORM.timestamp.desc())
+            .limit(filtros.limite)
+            .offset(filtros.desplazamiento)
+        )
+        filas = (await self._sesion.execute(consulta)).scalars().all()
+        return [_a_dominio(fila) for fila in filas]
+
+    async def listar_de_entidad(self, entidad: str) -> list[RegistroDeAuditoria]:
+        """El timeline de HU-E12-02: todo lo que le pasó a una entidad, en orden.
+
+        Ascendente y no descendente como el listado: un timeline se lee desde el principio, y
+        que la pantalla tenga que darlo vuelta es cómo un paso termina fuera de lugar.
+        """
+        consulta = (
+            select(RegistroDeAuditoriaORM)
+            .where(RegistroDeAuditoriaORM.entidad_afectada == entidad)
+            .order_by(RegistroDeAuditoriaORM.timestamp.asc())
+        )
         filas = (await self._sesion.execute(consulta)).scalars().all()
         return [_a_dominio(fila) for fila in filas]
 
@@ -121,5 +141,24 @@ def _acotar(consulta: Select[Any], filtros: FiltrosDeBitacora) -> Select[Any]:
     if filtros.modulos:
         consulta = consulta.where(
             RegistroDeAuditoriaORM.modulo.in_([uno.value for uno in filtros.modulos])
+        )
+    if filtros.resultados:
+        consulta = consulta.where(
+            RegistroDeAuditoriaORM.resultado.in_([uno.value for uno in filtros.resultados])
+        )
+    if filtros.iniciadores:
+        consulta = consulta.where(
+            RegistroDeAuditoriaORM.iniciador.in_([uno.value for uno in filtros.iniciadores])
+        )
+    if filtros.texto:
+        # `ILIKE` sobre las dos columnas donde está escrito qué se hizo y sobre qué. El
+        # patrón se pasa como parámetro y nunca interpolado: lo escribe un usuario en una caja
+        # de búsqueda, que es exactamente la entrada que no se concatena en un SQL.
+        patron = f"%{filtros.texto.strip()}%"
+        consulta = consulta.where(
+            or_(
+                RegistroDeAuditoriaORM.accion.ilike(patron),
+                RegistroDeAuditoriaORM.entidad_afectada.ilike(patron),
+            )
         )
     return consulta

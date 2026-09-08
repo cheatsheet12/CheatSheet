@@ -19,9 +19,12 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from cheatsheet.contexts.observability.domain.notificacion import Notificacion
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
+from cheatsheet.contexts.observability.domain.solicitud_de_soporte import SolicitudDeSoporte
 from cheatsheet.contexts.observability.domain.tarea_asincrona import TareaAsincrona
-from cheatsheet.shared.auditoria import Modulo
+from cheatsheet.shared.auditoria import Iniciador, Modulo, Resultado
+from cheatsheet.shared.empresa import UsuarioId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 
 
@@ -41,7 +44,20 @@ class FiltrosDeBitacora:
     desde: datetime | None = None
     hasta: datetime | None = None
     modulos: tuple[Modulo, ...] = ()
+    #: HU-E12-01 RN-03: por estado y por iniciador.
+    resultados: tuple[Resultado, ...] = ()
+    iniciadores: tuple[Iniciador, ...] = ()
+    #: «Búsqueda por operación, cliente o archivo» (RN-03). Se busca sobre `accion` y
+    #: `entidad_afectada`, que es donde esas tres cosas están escritas: la acción dice qué se
+    #: hizo, y la entidad dice sobre qué —`Cliente:<id>`, `Planilla:<id>`—. Buscar el
+    #: **nombre** de un cliente exigiría un join contra otro contexto, que R3 no permite y que
+    #: además convertiría la bitácora en una vista de clientes.
+    texto: str | None = None
     limite: int = 500
+    #: Desde qué fila continuar. Un desplazamiento y no un cursor porque la pantalla del panel
+    #: es una tabla con paginado clásico, y un `OFFSET` sobre un índice por timestamp es
+    #: barato en las primeras páginas — que son las que alguien mira.
+    desplazamiento: int = 0
 
 
 class PortRegistroDeAuditoria(Protocol):
@@ -69,6 +85,16 @@ class PortRegistroDeAuditoria(Protocol):
         """
         ...
 
+    async def listar_de_entidad(self, entidad: str) -> list[RegistroDeAuditoria]:
+        """Todo lo que le pasó a una entidad, de lo más viejo a lo más nuevo.
+
+        Es el timeline de HU-E12-02: cada paso ya escribió su fila nombrando la misma entidad,
+        así que el timeline se lee en vez de construirse. Sin límite y a propósito — una
+        entidad de negocio deja media docena de filas en toda su vida, y cortar el timeline es
+        cortar justo la parte que alguien fue a buscar.
+        """
+        ...
+
     async def contar(self, filtros: FiltrosDeBitacora) -> int:
         """How many records match — **without** materialising them.
 
@@ -76,6 +102,70 @@ class PortRegistroDeAuditoria(Protocol):
         needs the number is a dashboard metric over a whole month, and hydrating tens of
         thousands of aggregates to count them would be work done to be thrown away.
         `limite` is ignored here: a count is not a page.
+        """
+        ...
+
+
+class PortRepositorioNotificaciones(Protocol):
+    """Persistencia del centro de notificaciones (HU-E11-03).
+
+    **Sin `eliminar`.** Una notificación leída es la evidencia de que el sistema avisó; la que
+    molesta se marca leída, que es lo que RN-03 pide.
+    """
+
+    async def agregar(self, notificacion: Notificacion) -> None: ...
+
+    async def guardar(self, notificacion: Notificacion) -> None: ...
+
+    async def buscar_por_id(self, notificacion_id: UUID) -> Notificacion | None: ...
+
+    async def listar_de(
+        self, destinatario_id: UsuarioId, *, solo_no_leidas: bool = False, limite: int = 50
+    ) -> list[Notificacion]:
+        """Las de una persona, de la más nueva a la más vieja.
+
+        El destinatario es un argumento y no algo que el repositorio deduzca: RLS acota a la
+        empresa, y adentro de una empresa hay varias personas que no comparten bandeja.
+        """
+        ...
+
+    async def contar_no_leidas(self, destinatario_id: UsuarioId) -> int:
+        """El número del globito. Un `count` y no `len(listar(...))`: es lo que se pide en
+        cada carga del panel, y traer cincuenta filas para contarlas es trabajo tirado."""
+        ...
+
+
+class PortRepositorioSolicitudes(Protocol):
+    """Persistencia de las solicitudes de soporte (HU-E9-03).
+
+    **Sin `eliminar`.** Un pedido de ayuda borrado es un pedido que nadie puede demostrar que
+    hizo, y RN-04 pide poder consultar el estado de lo abierto.
+    """
+
+    async def agregar(self, solicitud: SolicitudDeSoporte) -> None: ...
+
+    async def guardar(self, solicitud: SolicitudDeSoporte) -> None: ...
+
+    async def buscar_por_id(self, solicitud_id: UUID) -> SolicitudDeSoporte | None: ...
+
+    async def listar(
+        self, *, solo_abiertas: bool = False, limite: int = 50
+    ) -> list[SolicitudDeSoporte]: ...
+
+
+class PortDestinatarios(Protocol):
+    """A quién le corresponde una notificación, según sus preferencias (HU-E11-03 RN-02).
+
+    ACL sobre `identity`, de **sólo lectura**: devuelve ids de usuario y nada más. No devuelve
+    usuarios porque este contexto no tiene nada que hacer con un email o un rol — lo único que
+    necesita saber es a quién escribirle.
+    """
+
+    async def suscriptos_a(self, categoria: str) -> list[UsuarioId]:
+        """Quiénes eligieron recibir esa categoría **en el panel**.
+
+        El canal está fijo en `PANEL` porque esto alimenta el centro de notificaciones. Quien
+        además la quiera por mail la recibe por el camino del épico 2, que es otro adaptador.
         """
         ...
 
