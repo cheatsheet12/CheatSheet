@@ -82,7 +82,7 @@ describe("FormularioDeServicio", () => {
   it("la duracion no esta en pantalla mientras el servicio no es agendable", () => {
     montar();
 
-    expect(screen.queryByLabelText(/Duracion estandar/)).toBeNull();
+    expect(screen.queryByLabelText(/Duración estándar/)).toBeNull();
   });
 
   it("marcar agendable hace aparecer la duracion", () => {
@@ -90,7 +90,7 @@ describe("FormularioDeServicio", () => {
 
     fireEvent.click(screen.getByLabelText(/Se puede reservar por agenda/));
 
-    expect(screen.getByLabelText(/Duracion estandar/)).toBeDefined();
+    expect(screen.getByLabelText(/Duración estándar/)).toBeDefined();
   });
 
   it("desmarcar agendable manda duracion nula, no la ultima que se escribio", async () => {
@@ -140,7 +140,7 @@ describe("FormularioDeServicio", () => {
 
     expect((screen.getByLabelText(/^Nombre/) as HTMLInputElement).value).toBe("Corte de pelo");
     expect((screen.getByLabelText(/Precio sin IVA/) as HTMLInputElement).value).toBe("5000.00");
-    expect((screen.getByLabelText(/Duracion estandar/) as HTMLInputElement).value).toBe("45");
+    expect((screen.getByLabelText(/Duración estándar/) as HTMLInputElement).value).toBe("45");
   });
 
   it("muestra el error que le pasan", () => {

@@ -45,6 +45,17 @@ interface Fila extends PasoDeEscalamiento {
   readonly clave: string;
 }
 
+/**
+ * Por qué «Quitar» está apagado cuando queda un solo paso.
+ *
+ * El botón no se puede esconder —la fila tiene que seguir teniendo su acción en el mismo
+ * lugar que las demás, y una acción que aparece y desaparece según la cantidad de filas se
+ * lee como un error— así que se queda apagado y dice el motivo, en el `title` del control y
+ * en un renglón debajo de la lista. Un rectángulo gris sin explicación es la peor de las
+ * tres opciones.
+ */
+const MOTIVO_PASO_UNICO = "Una cadena necesita al menos un recordatorio: el último no se quita.";
+
 function filasDe(reglas: readonly ReglaDeNegocio[]): Fila[] {
   const escalamiento = reglas.find((una) => una.tipo === "ESCALAMIENTO_DE_COBRO");
   if (escalamiento === undefined) {
@@ -142,21 +153,26 @@ export function ReglasDeNegocio({ inicial, puedeEditar }: PropsDeReglasDeNegocio
     },
   ];
 
+  // Las dos superficies en una columna y las dos en tarjeta: el listado y el editor son el
+  // mismo nivel de la pantalla —lo que rige y lo que se cambia— y antes eran una caja
+  // punteada suelta encima de una tarjeta, que se lee como una carga que falló.
   return (
-    <>
+    <div className="cob-reglas">
       {error !== null && (
         <Alert tono="error" titulo="No se pudo completar">
           {error}
         </Alert>
       )}
 
-      <Tabla
-        titulo="Reglas configuradas"
-        columnas={columnas}
-        filas={listado.reglas}
-        claveDeFila={(fila) => fila.id}
-        vacia="Todavía no configuraste ninguna regla. Rige la cadena por defecto."
-      />
+      <Card titulo="Reglas configuradas">
+        <Tabla
+          titulo="Reglas configuradas"
+          columnas={columnas}
+          filas={listado.reglas}
+          claveDeFila={(fila) => fila.id}
+          vacia="Todavía no configuraste ninguna regla. Rige la cadena por defecto."
+        />
+      </Card>
 
       {puedeEditar && (
         <Card titulo="Cadena de recordatorios de cobro">
@@ -166,43 +182,58 @@ export function ReglasDeNegocio({ inicial, puedeEditar }: PropsDeReglasDeNegocio
           </p>
 
           <form
-            className="dm-formulario"
+            className="cob-reglas__form"
             onSubmit={(evento) => {
               evento.preventDefault();
               void guardar();
             }}
           >
-            {pasos.map((paso, indice) => (
-              <div className="fac-item" key={paso.clave}>
-                <Campo
-                  id={`${prefijo}-dias-${indice}`}
-                  etiqueta={`Días del recordatorio ${indice + 1}`}
-                  mono
-                  value={String(paso.dias)}
-                  onChange={(evento) => cambiar(paso.clave, "dias", evento.target.value)}
-                />
-                <Select
-                  id={`${prefijo}-canal-${indice}`}
-                  etiqueta="Canal"
-                  opciones={CANALES}
-                  value={paso.canal}
-                  onChange={(evento) => cambiar(paso.clave, "canal", evento.target.value)}
-                />
-                <Button
-                  variante="secundario"
-                  disabled={pasos.length === 1}
-                  onClick={() =>
-                    setPasos((previos) => previos.filter((otro) => otro.clave !== paso.clave))
-                  }
-                >
-                  Quitar
-                </Button>
-              </div>
-            ))}
+            {/* Una lista ordenada y no un montón de `div`: la cadena tiene orden, y el
+                orden es parte de lo que se está configurando. */}
+            <ol className="cob-pasos">
+              {pasos.map((paso, indice) => (
+                <li className="cob-paso" key={paso.clave}>
+                  <Campo
+                    id={`${prefijo}-dias-${indice}`}
+                    etiqueta={`Días del recordatorio ${indice + 1}`}
+                    mono
+                    inputMode="numeric"
+                    value={String(paso.dias)}
+                    onChange={(evento) => cambiar(paso.clave, "dias", evento.target.value)}
+                  />
+                  <Select
+                    id={`${prefijo}-canal-${indice}`}
+                    etiqueta="Canal"
+                    opciones={CANALES}
+                    value={paso.canal}
+                    onChange={(evento) => cambiar(paso.clave, "canal", evento.target.value)}
+                  />
+                  <Button
+                    variante="secundario"
+                    disabled={pasos.length === 1}
+                    // Siempre una cadena y nunca `undefined`: `exactOptionalPropertyTypes`
+                    // trata a un `title={undefined}` como un error, no como «sin título».
+                    // El nombre accesible lo sigue dando el texto del botón, no esto.
+                    title={
+                      pasos.length === 1
+                        ? MOTIVO_PASO_UNICO
+                        : `Quitar el recordatorio ${indice + 1}`
+                    }
+                    onClick={() =>
+                      setPasos((previos) => previos.filter((otro) => otro.clave !== paso.clave))
+                    }
+                  >
+                    Quitar
+                  </Button>
+                </li>
+              ))}
+            </ol>
+
+            {pasos.length === 1 && <p className="cob-paso__nota">{MOTIVO_PASO_UNICO}</p>}
 
             {hayDiaInvalido && <Alert tono="error">{MENSAJE_DIAS_INVALIDOS}</Alert>}
 
-            <div className="dm-formulario__acciones">
+            <div className="cob-reglas__acciones">
               <Button
                 variante="secundario"
                 disabled={pasos.length >= MAXIMO_DE_PASOS}
@@ -222,6 +253,6 @@ export function ReglasDeNegocio({ inicial, puedeEditar }: PropsDeReglasDeNegocio
           </form>
         </Card>
       )}
-    </>
+    </div>
   );
 }

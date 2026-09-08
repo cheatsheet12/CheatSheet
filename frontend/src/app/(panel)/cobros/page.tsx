@@ -27,7 +27,10 @@ export default async function PaginaDeCobros(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Cobros</h1>
+      {/* El cintillo que ya llevan la agenda, facturación y respuestas: dice en qué sección
+          está parado alguien que entró por un enlace directo, antes de que lea el título. */}
+      <span className="cob-cintillo">Operaciones · Cobros</span>
+      <h1 className="cob-titulo">Cobros</h1>
       <p className="dm-intro">
         Lo cobrado, lo pendiente y lo que está en mora, con la cadena de recordatorios corriendo
         sola según la regla que configuraste.

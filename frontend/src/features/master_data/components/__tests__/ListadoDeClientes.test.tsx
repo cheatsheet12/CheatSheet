@@ -140,7 +140,7 @@ describe("ListadoDeClientes", () => {
     render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
 
     fireEvent.click(screen.getByRole("button", { name: "Nuevo cliente" }));
-    fireEvent.change(screen.getByLabelText(/Nombre o razon social/), {
+    fireEvent.change(screen.getByLabelText(/Nombre o razón social/), {
       target: { value: "Rosa otra vez" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Crear cliente" }));
@@ -222,7 +222,7 @@ describe("ListadoDeClientes", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
 
-    const nombre = screen.getByLabelText(/Nombre o razon social/) as HTMLInputElement;
+    const nombre = screen.getByLabelText(/Nombre o razón social/) as HTMLInputElement;
     expect(nombre.value).toBe("Panaderia Dona Rosa");
 
     fireEvent.change(nombre, { target: { value: "Rosa Diaz" } });
@@ -247,7 +247,7 @@ describe("ListadoDeClientes", () => {
     render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
 
     fireEvent.click(screen.getByRole("button", { name: "Nuevo cliente" }));
-    fireEvent.change(screen.getByLabelText(/Nombre o razon social/), {
+    fireEvent.change(screen.getByLabelText(/Nombre o razón social/), {
       target: { value: "Rosa otra vez" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Crear cliente" }));
@@ -268,7 +268,7 @@ describe("ListadoDeClientes", () => {
     render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
 
     fireEvent.click(screen.getByRole("button", { name: "Nuevo cliente" }));
-    fireEvent.change(screen.getByLabelText(/Nombre o razon social/), {
+    fireEvent.change(screen.getByLabelText(/Nombre o razón social/), {
       target: { value: "Rosa" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Crear cliente" }));
@@ -284,7 +284,7 @@ describe("ListadoDeClientes", () => {
     render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
 
     fireEvent.click(screen.getByRole("button", { name: "Nuevo cliente" }));
-    fireEvent.change(screen.getByLabelText(/Nombre o razon social/), {
+    fireEvent.change(screen.getByLabelText(/Nombre o razón social/), {
       target: { value: "Otro cliente" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Crear cliente" }));

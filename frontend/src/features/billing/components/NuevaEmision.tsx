@@ -10,6 +10,13 @@
  * «El tipo de comprobante no es válido…» therefore belongs to a request that did not come
  * from this screen; the check on the way in is what makes it unreachable from here.
  *
+ * **Los tres pasos son tres `<fieldset>` numerados y no un indicador de progreso decorativo.**
+ * Son tres grupos de campos de verdad, y agruparlos es lo que hace que un lector de pantalla
+ * anuncie «Receptor» antes de leer el CUIT. Los pasos 2 y 3 se dibujan desde el principio,
+ * apagados y diciendo qué falta: una pantalla que sólo muestra un campo no deja ver cuánto
+ * queda, y ese es el motivo por el que alguien la abandona a mitad de camino. Lo que **no**
+ * se dibuja hasta que ARCA contesta son sus controles, que es RN-01.
+ *
  * **Nothing on this screen multiplies anything.** No running total, no VAT preview. The
  * amounts are text, they travel as text, and what the customer owes is decided by the
  * backend and authorised by ARCA (`CLAUDE.md` §5: no business logic in the frontend).
@@ -56,6 +63,14 @@ function lineaVacia(): Linea {
 
 function mensajeDe(fallo: unknown, porDefecto: string): string {
   return fallo instanceof ErrorDeComprobante ? fallo.message : porDefecto;
+}
+
+/** Hecho, en curso o todavía no: es lo único que decide el color del número del paso. */
+function estadoDePaso(hecho: boolean, actual: boolean): string {
+  if (hecho) {
+    return " fac-nuevo-paso--hecho";
+  }
+  return actual ? " fac-nuevo-paso--actual" : "";
 }
 
 export function NuevaEmision({ puntos, clienteId }: PropsDeNuevaEmision): JSX.Element {
@@ -130,9 +145,11 @@ export function NuevaEmision({ puntos, clienteId }: PropsDeNuevaEmision): JSX.El
     }
   }
 
+  const validado = receptor !== null;
+
   return (
     <form
-      className="dm-formulario"
+      className="fac-nuevo-formulario"
       onSubmit={(evento) => {
         evento.preventDefault();
         void emitir();
@@ -144,72 +161,120 @@ export function NuevaEmision({ puntos, clienteId }: PropsDeNuevaEmision): JSX.El
         </Alert>
       )}
 
-      <div className="dm-formulario__cuit">
-        <Campo
-          id="emision-cuit"
-          etiqueta="CUIT del receptor"
-          mono
-          ayuda="Lo verificamos contra el padrón de ARCA antes de habilitar el resto."
-          error={errorDeCuit ?? undefined}
-          value={cuit}
-          onChange={(evento) => {
-            setCuit(evento.target.value);
-            // A changed CUIT invalidates everything that depended on it -- including which
-            // types are legal. Keeping the old answer visible would be the screen lying.
-            setReceptor(null);
-            setTipo("");
-          }}
-        />
-        <Button variante="secundario" cargando={validando} onClick={() => void validar()}>
-          Validar
-        </Button>
-      </div>
+      <fieldset className={`fac-nuevo-paso${estadoDePaso(validado, !validado)}`}>
+        <legend>
+          <span className="fac-nuevo-paso__numero" aria-hidden>
+            1
+          </span>
+          Receptor
+        </legend>
+        <p className="fac-nuevo-paso__ayuda">
+          Lo verificamos contra el padrón de ARCA. De esa respuesta depende qué se puede emitir, así
+          que es lo primero.
+        </p>
 
-      {receptor !== null && (
-        <>
+        <div className="fac-nuevo-cuit">
+          <Campo
+            id="emision-cuit"
+            etiqueta="CUIT del receptor"
+            mono
+            error={errorDeCuit ?? undefined}
+            value={cuit}
+            onChange={(evento) => {
+              setCuit(evento.target.value);
+              // A changed CUIT invalidates everything that depended on it -- including which
+              // types are legal. Keeping the old answer visible would be the screen lying.
+              setReceptor(null);
+              setTipo("");
+            }}
+          />
+          <Button variante="secundario" cargando={validando} onClick={() => void validar()}>
+            Validar
+          </Button>
+        </div>
+
+        {receptor !== null && (
           <Alert tono="exito" titulo="CUIT validado">
             {receptor.nombre} — {receptor.condicion_iva.replaceAll("_", " ").toLowerCase()}
           </Alert>
+        )}
+      </fieldset>
 
-          <Select
-            id="emision-tipo"
-            etiqueta="Tipo de comprobante"
-            opciones={[
-              { valor: "", etiqueta: "Elegí un tipo" },
-              ...receptor.tipos_disponibles.map((valor) => ({
-                valor,
-                etiqueta: ETIQUETAS_DE_TIPO[valor],
-              })),
-            ]}
-            value={tipo}
-            onChange={(evento) => setTipo(evento.target.value)}
-            ayuda="Solo se ofrecen los tipos válidos para tu condición de IVA y la del receptor."
-          />
+      <fieldset className={`fac-nuevo-paso${estadoDePaso(validado && tipo !== "", validado)}`}>
+        <legend>
+          <span className="fac-nuevo-paso__numero" aria-hidden>
+            2
+          </span>
+          Comprobante
+        </legend>
+        <p className="fac-nuevo-paso__ayuda">
+          Qué se puede emitir lo decide la condición de IVA del receptor, y con qué numeración lo
+          decide el punto de venta.
+        </p>
 
-          <Select
-            id="emision-punto"
-            etiqueta="Punto de venta"
-            opciones={puntos.map((punto) => ({
-              valor: punto.id,
-              etiqueta: `${String(punto.numero).padStart(4, "0")}${
-                punto.descripcion === null ? "" : ` — ${punto.descripcion}`
-              }`,
-            }))}
-            value={puntoId}
-            onChange={(evento) => setPuntoId(evento.target.value)}
-          />
+        {receptor === null ? (
+          <p className="fac-nuevo-vacio">Validá el CUIT del paso 1 para continuar.</p>
+        ) : (
+          <>
+            <Select
+              id="emision-tipo"
+              etiqueta="Tipo de comprobante"
+              opciones={[
+                { valor: "", etiqueta: "Elegí un tipo" },
+                ...receptor.tipos_disponibles.map((valor) => ({
+                  valor,
+                  etiqueta: ETIQUETAS_DE_TIPO[valor],
+                })),
+              ]}
+              value={tipo}
+              onChange={(evento) => setTipo(evento.target.value)}
+              ayuda="Solo se ofrecen los tipos válidos para tu condición de IVA y la del receptor."
+            />
 
-          <Campo
-            id="emision-domicilio"
-            etiqueta="Domicilio del receptor"
-            value={domicilio}
-            onChange={(evento) => setDomicilio(evento.target.value)}
-          />
+            <Select
+              id="emision-punto"
+              etiqueta="Punto de venta"
+              opciones={puntos.map((punto) => ({
+                valor: punto.id,
+                etiqueta: `${String(punto.numero).padStart(4, "0")}${
+                  punto.descripcion === null ? "" : ` — ${punto.descripcion}`
+                }`,
+              }))}
+              value={puntoId}
+              onChange={(evento) => setPuntoId(evento.target.value)}
+            />
 
-          <fieldset className="dm-selector">
-            <legend>Items</legend>
+            <Campo
+              id="emision-domicilio"
+              etiqueta="Domicilio del receptor"
+              value={domicilio}
+              onChange={(evento) => setDomicilio(evento.target.value)}
+            />
+          </>
+        )}
+      </fieldset>
+
+      <fieldset
+        className={`fac-nuevo-paso${estadoDePaso(lineasCargadas.length > 0, validado && tipo !== "")}`}
+      >
+        <legend>
+          <span className="fac-nuevo-paso__numero" aria-hidden>
+            3
+          </span>
+          Ítems
+        </legend>
+        <p className="fac-nuevo-paso__ayuda">
+          Los importes viajan como texto y los calcula el backend: acá no se multiplica nada.
+        </p>
+
+        {receptor === null ? (
+          <p className="fac-nuevo-vacio">
+            Los ítems se cargan cuando ya sabemos a quién se le factura.
+          </p>
+        ) : (
+          <>
             {lineas.map((linea, indice) => (
-              <div className="fac-item" key={linea.clave}>
+              <div className="fac-nuevo-item" key={linea.clave}>
                 <Campo
                   id={`item-descripcion-${linea.clave}`}
                   etiqueta={`Descripcion ${indice + 1}`}
@@ -256,22 +321,25 @@ export function NuevaEmision({ puntos, clienteId }: PropsDeNuevaEmision): JSX.El
                 </Button>
               </div>
             ))}
-            <Button
-              variante="secundario"
-              onClick={() => setLineas((previas) => [...previas, lineaVacia()])}
-            >
-              Agregar item
-            </Button>
-          </fieldset>
+            <div className="fac-nuevo-acciones">
+              <Button
+                variante="secundario"
+                onClick={() => setLineas((previas) => [...previas, lineaVacia()])}
+              >
+                Agregar item
+              </Button>
+            </div>
+            {lineasCargadas.length === 0 && <Alert tono="neutral">{MENSAJE_SIN_ITEMS}</Alert>}
+          </>
+        )}
+      </fieldset>
 
-          {lineasCargadas.length === 0 && <Alert tono="neutral">{MENSAJE_SIN_ITEMS}</Alert>}
-
-          <div className="dm-formulario__acciones">
-            <Button type="submit" disabled={!puedeEmitir} cargando={emitiendo}>
-              Emitir
-            </Button>
-          </div>
-        </>
+      {receptor !== null && (
+        <div className="fac-nuevo-acciones">
+          <Button type="submit" disabled={!puedeEmitir} cargando={emitiendo}>
+            Emitir
+          </Button>
+        </div>
       )}
     </form>
   );

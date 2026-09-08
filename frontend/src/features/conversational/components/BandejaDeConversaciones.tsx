@@ -24,7 +24,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { Alert, Badge, Button } from "@/shared";
+import { Alert, Badge } from "@/shared";
 
 import {
   ErrorDeConversacion,
@@ -121,21 +121,28 @@ export function BandejaDeConversaciones({
             </span>
           </header>
 
-          <div className="wa-filtros">
-            <Button
-              variante={soloEscaladas ? "primario" : "secundario"}
+          {/* Píldoras de filtro y no botones verdes: en el resto del panel el verde sólido es
+              la acción principal de la pantalla, y acá esto es un estado. Con la bandeja vacía
+              lo más llamativo terminaba siendo un filtro que no filtraba nada. Mismo
+              tratamiento que en `/facturacion` y `/cobros`. */}
+          <div className="wa-filtros" role="group" aria-label="Filtros de la bandeja">
+            <button
+              type="button"
+              className="wa-chip"
               aria-pressed={soloEscaladas}
               onClick={() => void cambiarFiltro(true)}
             >
+              <span className="wa-chip__punto" aria-hidden="true" />
               Esperan a un asesor
-            </Button>
-            <Button
-              variante={soloEscaladas ? "secundario" : "primario"}
+            </button>
+            <button
+              type="button"
+              className="wa-chip"
               aria-pressed={!soloEscaladas}
               onClick={() => void cambiarFiltro(false)}
             >
               Todas
-            </Button>
+            </button>
           </div>
 
           {hilos.length === 0 ? (

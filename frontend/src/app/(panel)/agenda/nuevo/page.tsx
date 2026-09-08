@@ -37,13 +37,18 @@ export default async function PaginaDeNuevoTurno({ searchParams }: Props): Promi
   const clienteId = searchParams.cliente;
   if (clienteId === undefined) {
     return (
-      <>
-        <h1>Nuevo turno</h1>
-        <p className="dm-intro">
-          Elegí primero para quién es el turno.{" "}
-          <Link href="/datos-maestros/clientes">Ir a Clientes</Link>.
-        </p>
-      </>
+      <div className="age-pantalla">
+        <div className="age-encabezado">
+          <div>
+            <p className="age-encabezado__eyebrow">Operaciones · Agenda</p>
+            <h1 className="age-encabezado__titulo">Nuevo turno</h1>
+            <p className="age-encabezado__intro">
+              Elegí primero para quién es el turno.{" "}
+              <Link href="/datos-maestros/clientes">Ir a Clientes</Link>.
+            </p>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -53,13 +58,23 @@ export default async function PaginaDeNuevoTurno({ searchParams }: Props): Promi
   ]);
 
   return (
-    <>
-      <h1>Nuevo turno</h1>
-      <p className="dm-intro">
-        El horario se elige de los que el recurso ofrece ese día. Si alguien se adelanta entre que
-        elegís y confirmás, el sistema te lo va a decir.
-      </p>
+    <div className="age-pantalla">
+      <div className="age-encabezado">
+        <div>
+          <p className="age-encabezado__eyebrow">Operaciones · Agenda</p>
+          <h1 className="age-encabezado__titulo">Nuevo turno</h1>
+          <p className="age-encabezado__intro">
+            El horario se elige de los que el recurso ofrece ese día. Si alguien se adelanta entre
+            que elegís y confirmás, el sistema te lo va a decir.
+          </p>
+        </div>
+        <div className="age-encabezado__acciones">
+          <Link className="age-volver" href="/agenda">
+            Volver a la agenda
+          </Link>
+        </div>
+      </div>
       <NuevoTurno clienteId={clienteId} recursos={recursos.recursos} servicios={servicios} />
-    </>
+    </div>
   );
 }

@@ -478,7 +478,11 @@ describe("PAN-CFG-NOT — plantillas", () => {
     render(<PlantillasDeNotificacion inicial={{ plantillas: [PLANTILLA] }} puedeEditar />);
     fireEvent.click(screen.getByRole("button", { name: "Editar texto" }));
 
-    expect(screen.getByText(/\{\{nombre\}\}/)).toBeTruthy();
+    // Acotado a la lista de variables y no a la pantalla entera: el cuerpo se edita en un
+    // `textarea`, cuyo texto también dice `{{nombre}}`. Lo que la historia pide es que la
+    // variable se **ofrezca**, no que aparezca en el mensaje que alguien ya escribió.
+    const disponibles = within(screen.getByRole("list", { name: "Variables disponibles" }));
+    expect(disponibles.getByText("{{nombre}}")).toBeTruthy();
   });
 
   it("avisa la variable invalida con la frase de la historia y deja el boton gris", () => {

@@ -662,52 +662,319 @@
   gap: var(--space-2);
 }
 
-/* ── Agenda · piezas comunes a PAN-AGE-01/02/03 ─────────────────────────── */
+/* ══ Agenda · PAN-AGE-01, PAN-AGE-02 y PAN-AGE-03 ══════════════════════════
+ *
+ * Las tres pantallas de la agenda comparten un encabezado —cintillo mono, título grande,
+ * bajada y las acciones a la derecha— con el resto del panel, y de ahí para abajo tienen
+ * formas propias que el catálogo compartido no tiene: la fila de un turno con su hora en
+ * monoespaciada, la grilla de horarios de un recurso, la ficha de un recurso con su semana.
+ *
+ * **Todo con prefijo `.age-`.** Nada de acá redefine una primitiva compartida: los botones,
+ * los badges y los campos siguen saliendo de `@/shared/ui`, y lo que se viste acá es la
+ * composición alrededor.
+ *
+ * **No hay un solo hexadecimal.** Los colores son los alias del prototipo que expone
+ * `tokens.css`; un `#00C48C` escrito acá sería el mismo verde con otro nombre, y el día que
+ * el token cambie esta hoja se queda vieja sin que nadie se entere.
+ *
+ * **Ninguna transición pasa de 250 ms, ninguna se repite y ninguna rebota.** El bloque
+ * `prefers-reduced-motion` del final las apaga todas: para alguien con trastorno vestibular
+ * una interfaz que se mueve sola es una interfaz que marea.
+ */
 
-.age-resumen {
+/* ── Encabezado de pantalla ──────────────────────────────────────────────
+ *
+ * La caja la comparte con `.wa-encabezado` unas líneas más arriba. Lo que cambia acá es la
+ * alineación: con `flex-end` el CTA se pega al final de la bajada, y una bajada de dos
+ * renglones lo deja flotando lejos del título al que pertenece. */
+
+.age-encabezado {
+  align-items: flex-start;
+}
+
+.age-encabezado__titulo {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--ink-900);
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.age-encabezado__acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+/*
+ * El CTA verde del prototipo. Es un enlace y no un `<Button onClick={router.push}>` porque
+ * lleva a otra pantalla: un enlace se abre en otra pestaña, se copia y se precarga, y un
+ * botón no hace nada de eso. El precio de escribirlo así es tener que vestirlo acá —`.boton`
+ * es de los botones— y, sobre todo, apagarle el subrayado que el panel le pone a todo `<a>`:
+ * un CTA subrayado se lee como un enlace de texto que quedó pintado de verde.
+ */
+.age-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--accent);
+  color: var(--primary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: 11px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 80ms ease;
+}
+
+.age-cta:hover {
+  background: var(--accent-700);
+  color: var(--color-text-on-dark);
+  text-decoration: none;
+}
+
+.age-cta:active {
+  transform: translateY(1px);
+}
+
+/* El «+» del CTA y el de «Agregar recurso», que sí es un `<Button>`. La caja fija evita que
+   el icono empuje el texto medio píxel mientras la fuente termina de cargar. */
+.age-cta__icono {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.age-cta__icono svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* La vuelta al listado, desde el alta y desde el detalle. Ghost, no CTA: es la salida, no
+   lo que se vino a hacer. */
+.age-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow);
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 80ms ease;
+}
+
+.age-volver:hover {
+  border-color: var(--ink-300);
+  color: var(--ink-900);
+  text-decoration: none;
+}
+
+.age-volver:active {
+  transform: translateY(1px);
+}
+
+/* ── PAN-AGE-01 · la fila de filtros ─────────────────────────────────────
+ *
+ * Una fila, no una tarjeta. Cuatro controles adentro de una superficie elevada pesan lo
+ * mismo que la lista que filtran, y la lista es lo que se vino a mirar; una línea fina
+ * abajo alcanza para decir que ese renglón es el mando y lo de abajo el resultado. */
+
+.age-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Los campos compartidos traen la separación de un formulario en columna; en una fila la
+   pone el `gap`. El ancho es un rango: cuatro controles estirados a lo ancho de 1600 px
+   dejan un `<select>` de «Estado» de medio metro. */
+.age-filtros .campo {
+  margin-bottom: 0;
+  flex: 0 1 180px;
+  min-width: 150px;
+}
+
+.age-filtros .campo__etiqueta {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.age-cuenta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0 0 var(--space-3);
+}
+
+/* ── PAN-AGE-01 · la lista de turnos ─────────────────────────────────────
+ *
+ * Un panel con las filas separadas por una línea fina, no una tarjeta por turno: una agenda
+ * se lee bajando y comparando horas, y para eso las horas tienen que caer en la misma
+ * columna. */
+
+.age-lista {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow);
-  padding: 18px 24px;
-  margin-bottom: var(--space-4);
+  overflow: hidden;
 }
 
-.age-resumen__dato {
-  padding: 0 22px;
-  border-left: 1px solid var(--line);
+/* La tabla compartida trae su propia caja con borde y radio. Dentro del panel sobra: dos
+   bordes concéntricos se leen como un error de maquetación, no como una jerarquía. */
+.age-lista .tabla__contenedor {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
-.age-resumen__dato:first-child {
-  border-left: 0;
-  padding-left: 0;
+.age-lista .tabla th {
+  padding: 16px 18px 10px;
 }
 
-.age-resumen__valor {
+.age-lista .tabla td {
+  padding: 12px 18px;
+  transition: background-color 160ms ease;
+}
+
+.age-lista .tabla tbody tr:hover td {
+  background: var(--bg);
+}
+
+/*
+ * La hora, monoespaciada y con cifras de ancho fijo. `tabular-nums` es la diferencia entre
+ * una columna de horas que se lee de un vistazo y una en la que el «1» de las 11:00 mide
+ * menos que el «8» de las 18:00 y los dos puntos bailan renglón a renglón.
+ */
+.age-hora {
   display: block;
   font-family: var(--mono);
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.age-resumen__etiqueta {
+.age-hora b {
   display: block;
-  font-size: var(--text-caption);
-  color: var(--ink-400);
-  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+  letter-spacing: -0.2px;
 }
+
+.age-hora span {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.age-fecha {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+/* El cliente es el enlace: es lo que alguien busca en la fila mientras atiende el teléfono,
+   y por lo tanto lo que va a intentar apretar. */
+.age-quien {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.age-quien:hover {
+  color: var(--accent-700);
+  text-decoration: underline;
+}
+
+.age-dato {
+  font-size: 13px;
+  color: var(--ink-700);
+}
+
+/* El recurso, un tono más claro: dice dónde es el turno, no de quién. */
+.age-dato--tenue {
+  color: var(--ink-500);
+}
+
+.age-ver {
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: var(--radius);
+  color: var(--ink-300);
+  font-size: 18px;
+  text-decoration: none;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
+}
+
+.age-ver:hover {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  text-decoration: none;
+}
+
+/*
+ * El vacío en una línea. La caja punteada de media pantalla que había antes decía lo mismo
+ * y se leía como una carga que falló: el día sin turnos es un día normal, no un error.
+ */
+.age-vacio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-500);
+}
+
+.age-vacio::before {
+  content: "";
+  width: 26px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* ── PAN-AGE-02 · el formulario de alta ──────────────────────────────────
+ *
+ * En tarjeta, con la cabecera de sección del prototipo: icono, título y una línea que dice
+ * qué decide este formulario. */
 
 .age-panel {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow);
-  padding: 20px 24px;
+  padding: 22px 24px;
   margin-bottom: var(--space-4);
 }
 
@@ -746,79 +1013,72 @@
   height: 17px;
 }
 
-/* Los próximos turnos, en columnas separadas por una línea fina: es la tira de arriba del
-   prototipo, y responde de un vistazo la pregunta con la que alguien abre esta pantalla. */
-.age-proximos {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* Un formulario no crece con la pantalla: un `<select>` de 1500 px de ancho para elegir
+   entre tres recursos obliga a barrer la cabeza de un borde al otro para leer una línea. */
+.age-form {
+  max-width: 1000px;
+}
+
+/* Recurso, servicio y fecha entran en una fila cuando la pantalla da; en un teléfono, en
+   tres. Ninguno de los tres necesita el ancho completo. */
+.age-form__campos {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
 }
 
-.age-proximo {
-  padding: 0 22px;
-  border-left: 1px solid var(--line);
+.age-form__campos .campo {
+  margin-bottom: 0;
 }
 
-.age-proximo:first-child {
-  border-left: 0;
-  padding-left: 0;
+.age-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-2);
 }
 
-.age-proximo__hora {
-  font-family: var(--mono);
-  font-size: 19px;
-  font-weight: 700;
-  color: var(--ink-900);
-  font-variant-numeric: tabular-nums;
-}
-
-.age-proximo__recurso {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-700);
-  margin-top: 10px;
-}
-
-.age-proximo__fecha {
-  display: block;
-  font-size: var(--text-caption);
-  color: var(--ink-400);
-  margin: 2px 0 8px;
-}
-
-/* La tabla, más densa que la del catálogo: una agenda se lee de arriba abajo buscando una
-   hora, y cuanto menos scroll haya menos posibilidades de saltearse un turno. */
-.age-pantalla .tabla td {
-  padding: var(--space-2) var(--space-4);
-  transition: background 140ms ease;
-}
-
-.age-pantalla .tabla th {
-  padding: var(--space-3) var(--space-4) var(--space-2);
-}
-
-/* ── PAN-AGE-02 · los slots de disponibilidad ───────────────────────────── */
+/* ── PAN-AGE-02 · los slots de disponibilidad ────────────────────────────
+ *
+ * La grilla muestra **el día entero**, ocupados incluidos. Esconder lo tomado dejaría una
+ * grilla con huecos sin explicación; mostrarlo contesta la pregunta con la que alguien
+ * llama por teléfono: «¿y a las tres no hay?». */
 
 .age-slots {
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
+  background: var(--bg);
   padding: var(--space-4);
   margin: 0 0 var(--space-4);
 }
 
+.age-slots__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
 .age-slots__titulo {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink-900);
-  padding: 0 var(--space-2);
+  margin: 0;
+}
+
+.age-slots__cuenta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
 }
 
 .age-slots__grilla {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
   gap: var(--space-2);
 }
 
@@ -829,46 +1089,42 @@
 }
 
 /*
- * El borde mide 2 px en los tres estados y sólo cambia de color. Un borde que engorda al
+ * El borde mide 1.5 px en los tres estados y sólo cambia de color. Un borde que engorda al
  * elegir mueve los slots de al lado: en una grilla de horarios eso significa apretar el de
  * las 15:00 y que el cursor termine sobre el de las 15:30.
  */
 .age-slot {
-  position: relative;
   display: block;
-  border: 2px solid var(--line);
+  width: 100%;
+  border: 1.5px solid var(--line);
   border-radius: var(--radius-control);
   background: var(--card);
   padding: 10px 6px;
   text-align: center;
+  font: inherit;
   cursor: pointer;
   transition:
-    background 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease;
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 80ms ease;
 }
 
-.age-slot:hover {
+.age-slot:hover:not(:disabled) {
   border-color: var(--accent-100);
   background: var(--accent-050);
 }
 
+.age-slot:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
 .age-slot__hora {
   font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-700);
-}
-
-/* El input está, y se puede tabular: lo que se esconde es su dibujo, no el control. */
-.age-slot__control {
-  position: absolute;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  inset: 0;
-  margin: 0;
-  cursor: pointer;
 }
 
 .age-slot--elegido {
@@ -880,35 +1136,24 @@
   color: var(--accent-700);
 }
 
-/* Los ocupados se muestran igual que los libres, en gris. Esconderlos dejaría una grilla
-   con huecos sin explicación: mostrarlos dice que el recurso atiende a esa hora y que ya
-   hay alguien. */
-.age-slot--ocupado {
+/* El tachado, y no sólo el gris: el color solo no distingue «tomado» de «deshabilitado
+   porque todavía no elegiste el servicio», y quien no ve bien los grises no ve ninguna de
+   las dos. */
+.age-slot:disabled {
   border-color: var(--line-2);
   background: var(--bg);
   cursor: not-allowed;
 }
 
-.age-slot--ocupado:hover {
-  border-color: var(--line-2);
-  background: var(--bg);
-}
-
-.age-slot--ocupado .age-slot__hora {
+.age-slot:disabled .age-slot__hora {
   color: var(--ink-300);
   text-decoration: line-through;
 }
 
-.age-slot--ocupado .age-slot__control {
-  cursor: not-allowed;
-}
-
-.age-slot__control:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* ── PAN-AGE-02 · detalle del turno ─────────────────────────────────────── */
+/* ── PAN-AGE-02 · la tira del detalle ────────────────────────────────────
+ *
+ * Hora, día y estado arriba de todo, en grande. Son las tres cosas que se miran mientras se
+ * habla por teléfono con alguien que quiere cambiar el horario. */
 
 .age-turno {
   display: flex;
@@ -925,16 +1170,20 @@
 
 .age-turno__hora {
   font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.5px;
   color: var(--ink-900);
-  font-variant-numeric: tabular-nums;
+  margin: 0;
 }
 
 .age-turno__fecha {
   display: block;
+  font-family: var(--sans);
   font-size: var(--text-caption);
+  font-weight: 400;
+  letter-spacing: 0;
   color: var(--ink-400);
   margin-top: 2px;
 }
@@ -943,37 +1192,210 @@
   margin-left: auto;
 }
 
-/* ── PAN-AGE-03 · disponibilidad semanal ────────────────────────────────── */
+/* ── PAN-AGE-03 · la ficha de un recurso ─────────────────────────────────
+ *
+ * Cada recurso es una ficha con superficie propia, separada de la de al lado; por debajo
+ * sigue siendo una fila de tabla porque lo que hay que comparar entre recursos son
+ * columnas —¿cuál atiende el jueves?, ¿cuál presta este servicio?— y en una grilla de
+ * tarjetas sueltas el mismo dato cae en un lugar distinto de cada una.
+ *
+ * `border-spacing` en vez de `margin` porque un `<tr>` no acepta margen: es la única forma
+ * de separar filas sin envolver cada una en algo que ya no sea una tabla. */
+
+.age-fichas .tabla {
+  border-collapse: separate;
+  border-spacing: 0 var(--space-2);
+}
+
+.age-fichas .tabla__contenedor {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.age-fichas .tabla th {
+  padding: 0 18px 2px;
+}
+
+.age-fichas .tabla td {
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 18px;
+  vertical-align: top;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
 
 /*
- * La tira de siete días es una **vista previa** del horario que se está editando, no un
- * control: se pinta con lo que dicen las franjas de abajo. Alguien que agrega una franja el
- * jueves ve el jueves encenderse, que es la comprobación que hoy hay que hacer leyendo cinco
- * selects.
+ * Los anchos mínimos existen para que el horario —que es la columna con más fichas— no le
+ * coma el lugar al nombre del recurso. Sin esto, «Sillón 1 · Carla» se parte en dos renglones
+ * al lado de cinco fichas de horario que tienen todo el ancho que quieren.
  */
-.age-semana {
+.age-fichas .tabla td:first-child {
+  min-width: 175px;
+}
+
+.age-fichas .tabla td:nth-child(2) {
+  min-width: 140px;
+}
+
+/*
+ * El horario es la columna que más fichas lleva —hasta siete, una por día—: sin un piso
+ * ancho entran de a una por renglón y la fila se estira a lo alto sin necesidad. 360 px es
+ * lo que miden dos fichas, y es todo lo que se le puede dar sin empujar a «Acciones» fuera
+ * del ancho útil de una notebook y obligar a scrollear de costado para desactivar un
+ * recurso.
+ */
+.age-fichas .tabla td:nth-child(3) {
+  min-width: 360px;
+}
+
+/* Las dos acciones de un recurso van una al lado de la otra —apiladas parecen dos niveles
+   de decisión y son la misma— y en el cuerpo chico de una fila de tabla, no en el de un
+   botón de encabezado. */
+.age-fichas .tabla__acciones {
+  flex-wrap: nowrap;
+}
+
+.age-fichas .tabla td:first-child {
+  border-left: 1px solid var(--line);
+  border-top-left-radius: var(--radius-card);
+  border-bottom-left-radius: var(--radius-card);
+}
+
+.age-fichas .tabla td:last-child {
+  border-right: 1px solid var(--line);
+  border-top-right-radius: var(--radius-card);
+  border-bottom-right-radius: var(--radius-card);
+}
+
+.age-fichas .tabla tbody tr:hover td {
+  background: var(--card);
+  border-color: var(--ink-300);
+}
+
+.age-ficha__quien {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.age-ficha__icono {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.age-ficha__icono svg {
+  width: 16px;
+  height: 16px;
+}
+
+.age-ficha__nombre {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.age-ficha__tipo {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+/* Las fichas de texto: un servicio, una franja del horario, una excepción. Son datos, no
+   controles — de ahí que no tengan `cursor: pointer` ni estado activo. */
+.age-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
+  gap: 6px;
+}
+
+.age-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 11px;
+  white-space: nowrap;
+}
+
+.age-chip--horario {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--ink-700);
+}
+
+/* La excepción es lo que rompe la semana habitual: lleva el ámbar del sistema, que es
+   fondo y borde y nunca texto. */
+.age-chip--excepcion {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--warn-bg);
+  border-color: var(--alert);
+  color: var(--warn);
+}
+
+/* «Sin servicios asociados», «Sin horario configurado». Un recurso a medio configurar no
+   acepta reservas: decirlo en gris es más honesto que dejar la celda vacía. */
+.age-nada {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  font-style: italic;
+}
+
+/* ── PAN-AGE-03 · el editor del recurso ──────────────────────────────────
+ *
+ * La tira de siete días es una **vista previa** del horario que se está editando, no un
+ * control: se pinta con lo que dicen las franjas de abajo. Alguien que agrega una franja el
+ * jueves ve el jueves encenderse, que es la comprobación que hoy hay que hacer leyendo
+ * cinco selects. */
+
+/* Siete columnas iguales y no una fila que envuelve: la semana se lee como una semana, y
+   con `flex-wrap` el domingo se cae solo a un renglón propio adentro del modal. */
+.age-semana {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
 }
 
 .age-dia {
-  min-width: 62px;
-  padding: 8px 10px;
+  min-width: 0;
+  padding: 8px 4px;
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   background: var(--card);
   text-align: center;
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
 }
 
 .age-dia__nombre {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--ink-400);
 }
@@ -999,17 +1421,34 @@
   color: var(--ink-600);
 }
 
+/*
+ * Tres columnas y no cinco. La franja vive adentro del modal compartido, que mide 544 px:
+ * cinco controles en fila ahí adentro no entran, y lo que se sale por la derecha es
+ «Minutos por turno» y el botón de quitar — justo los dos que hay que poder tocar.
+ */
 .age-franja {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr 1fr auto;
-  align-items: flex-end;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) 0;
   border-top: 1px solid var(--line-2);
+}
+
+/* «Quitar» cierra la segunda fila por la derecha: es la acción sobre la franja, no un
+   campo más de la franja. */
+.age-franja .boton {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .age-franja:first-of-type {
   border-top: 0;
+  padding-top: 0;
+}
+
+.age-franja .campo {
+  margin-bottom: 0;
 }
 
 .age-servicios {
@@ -1027,9 +1466,11 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   font-size: 13.5px;
+  color: var(--ink-700);
+  cursor: pointer;
   transition:
-    border-color 140ms ease,
-    background 140ms ease;
+    border-color 180ms ease,
+    background-color 180ms ease;
 }
 
 .age-servicio:hover {
@@ -1039,6 +1480,7 @@
 .age-servicio--asociado {
   border-color: var(--accent-100);
   background: var(--accent-050);
+  color: var(--ink-900);
 }
 
 .age-servicio__duracion {
@@ -1048,15 +1490,52 @@
   color: var(--ink-400);
 }
 
+.age-excepcion {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.age-excepcion .campo {
+  margin-bottom: 0;
+}
+
+/* La fecha de una excepción, sin formatear: es la clave por la que se borra, y la que hay
+   que poder comparar carácter por carácter con lo que se cargó. */
+.age-fecha-iso {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--ink-700);
+}
+
+/* ── Cuando la pantalla se angosta ───────────────────────────────────── */
+
 @media (max-width: 720px) {
   .age-franja {
     grid-template-columns: 1fr;
   }
 
-  .age-resumen__dato,
-  .age-proximo {
-    border-left: 0;
-    padding: var(--space-2) 0 0;
+  .age-franja .boton {
+    grid-column: 1;
+    justify-self: stretch;
+  }
+
+  /* Siete columnas en un teléfono dejan 40 px por día y «atiende» no entra. */
+  .age-semana {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .age-encabezado__acciones {
+    width: 100%;
+  }
+
+  .age-cta,
+  .age-volver {
+    flex: 1;
+    justify-content: center;
   }
 }
 
@@ -1077,10 +1556,994 @@
   .wa-fila,
   .wa-faq,
   .wa-faq__chevron,
-  .age-pantalla .tabla td,
+  .age-cta,
+  .age-volver,
+  .age-lista .tabla td,
+  .age-quien,
+  .age-ver,
   .age-slot,
+  .age-fichas .tabla td,
   .age-dia,
   .age-servicio {
     transition: none;
+  }
+
+  .age-cta:active,
+  .age-volver:active,
+  .age-slot:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ══ PAN-WA-02 · configuración del agente ══════════════════════════════════
+ *
+ * Las dos pantallas que configuran lo que el canal dice solo: las respuestas frecuentes
+ * (`.faq-`) y las plantillas de notificación (`.plt-`). Comparten encabezado, barra de
+ * conteo y caja de listado a propósito — son la misma pantalla dos veces, una para lo que
+ * el agente contesta y otra para lo que el sistema avisa, y verse distintas sería una
+ * diferencia sin causa.
+ *
+ * Este bloque va **después** del `prefers-reduced-motion` de arriba y trae el suyo propio
+ * al final, en vez de sumar selectores a aquel. Aquel apaga el movimiento de PAN-WA-01 y
+ * de la agenda; que dos pantallas editen la misma lista de selectores es exactamente cómo
+ * una termina borrando la línea de la otra.
+ *
+ * Ninguna transición pasa de 250 ms, ninguna se repite y ninguna rebota.
+ */
+
+/* ── Encabezado de pantalla ───────────────────────────────────────────────
+ *
+ * El CTA vive acá, alineado con la base del título, y no suelto arriba del listado: un
+ * botón flotando solo en una franja vacía no pertenece a nada y obliga a mirar dos veces
+ * para entender sobre qué actúa. */
+
+.faq-encabezado,
+.plt-encabezado {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.faq-encabezado__eyebrow,
+.plt-encabezado__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+/* 27 px y no los 24 del `h1` de base: es el título de una pantalla del panel, y con el
+   cintillo encima necesita ganarle en peso, o los dos se leen como una sola línea gris. */
+.faq-encabezado h1,
+.plt-encabezado h1 {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.faq-encabezado__intro,
+.plt-encabezado__intro {
+  color: var(--ink-500);
+  font-size: 14.5px;
+  margin: var(--space-2) 0 0;
+  max-width: 62ch;
+}
+
+.faq-encabezado__acciones,
+.plt-encabezado__acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/*
+ * La caja de información del catálogo no trae aire abajo —cada pantalla decide dónde va— y
+ * acá queda apoyada sobre el listado, sin nada que diga dónde termina el aviso y dónde
+ * empieza la tabla. El selector es de hermanos porque son exactamente esos: los avisos que
+ * la pantalla pone entre el encabezado y el contenido.
+ */
+.faq-encabezado ~ .caja,
+.plt-encabezado ~ .caja {
+  margin-bottom: var(--space-4);
+}
+
+/* ── Barra de conteo ──────────────────────────────────────────────────────
+ *
+ * Cuántas hay y cuánto se usaron, arriba del listado. Es el dato con el que alguien decide
+ * si esta pantalla necesita trabajo, y en mono se lee como una cifra y no como una frase
+ * más. */
+
+.faq-barra,
+.plt-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.faq-barra__cuenta,
+.plt-barra__cuenta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+.faq-barra__cuenta b,
+.plt-barra__cuenta b {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+/* ── La caja del listado ──────────────────────────────────────────────── */
+
+.faq-panel,
+.plt-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* La tabla compartida trae su propia caja con borde, radio y sombra. Adentro del panel
+   sobra: dos bordes concéntricos se leen como un error de maquetación, no como jerarquía. */
+.faq-panel .tabla__contenedor,
+.plt-panel .tabla__contenedor {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.faq-panel .tabla td,
+.plt-panel .tabla td {
+  transition: background-color 140ms ease;
+}
+
+/*
+ * **El estado vacío es un renglón adentro de la tarjeta.** La caja punteada del catálogo
+ * ocupa media pantalla con una frase en el medio y se lee como una carga que falló; una
+ * raya corta y una línea dicen exactamente lo mismo y dejan ver que la pantalla está
+ * entera. Es la misma decisión que `.log-nada` en auditoría.
+ */
+.faq-panel .tabla__vacia,
+.plt-panel .tabla__vacia {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 18px 20px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.faq-panel .tabla__vacia::before,
+.plt-panel .tabla__vacia::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* ── Celdas de las respuestas frecuentes ────────────────────────────────── */
+
+/* La marca del prototipo: el «?» en un círculo de acento dice de un vistazo que la fila es
+   una pregunta del cliente y no un mensaje que el sistema manda. */
+.faq-q {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.faq-q__marca {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+  margin-top: 1px;
+}
+
+.faq-q__texto {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+/*
+ * Un fragmento de la respuesta, no la respuesta entera: el listado sirve para reconocer
+ * cuál es cuál, y una respuesta de ocho renglones convierte la tabla en un muro.
+ *
+ * Se corta con `line-clamp` y no con puntos suspensivos escritos a mano: el texto completo
+ * sigue en el DOM, así que un lector de pantalla lo lee entero y el formulario lo trae
+ * completo. Recortarlo en JavaScript sería perderlo de verdad.
+ */
+.faq-frag {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 46ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-500);
+}
+
+.faq-usos {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Las que todavía no se indexaron se explican al pie del panel y no en una tarjeta aparte.
+ * Es una nota sobre la tabla de arriba; separarla en su propia caja la aleja justo de lo
+ * que está describiendo.
+ */
+.faq-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-500);
+}
+
+/* `--warn` y no `--alert`: el ámbar de marca es demasiado claro para dibujarse sobre
+   blanco, y los tokens lo dicen — sirve de fondo o de borde, nunca de tinta. */
+.faq-nota__marca {
+  color: var(--warn);
+  flex: none;
+  line-height: 1.55;
+}
+
+/* ── Celdas de las plantillas ──────────────────────────────────────────── */
+
+.plt-nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+/* El canal es un valor de un conjunto cerrado y corto: la píldora lo dice sin gastar una
+   columna de texto corrido. */
+.plt-canal {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-600);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.plt-idioma {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+/* ── Acciones de fila ─────────────────────────────────────────────────────
+ *
+ * Texto y no botones con caja, como el prototipo: una tabla con dos botones sólidos por
+ * renglón pesa más que los datos que muestra. La caja aparece en hover y en foco, que es
+ * cuando hace falta saber dónde termina el área que responde. */
+
+.faq-accion,
+.plt-accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.faq-accion:hover:not(:disabled),
+.plt-accion:hover:not(:disabled) {
+  color: var(--ink-900);
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.faq-accion:active:not(:disabled),
+.plt-accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.faq-accion:disabled,
+.plt-accion:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* La baja lleva el rojo desde el principio: es la única acción de la fila que no se
+   deshace, y descubrirlo recién al pasar el mouse llega tarde. */
+.faq-accion--baja {
+  color: var(--err);
+}
+
+.faq-accion--baja:hover:not(:disabled) {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err-bg);
+}
+
+/* §1.4 pide 44 x 44 px donde el puntero es un dedo. Con mouse, 34 px de alto se acierta sin
+   pensarlo, y estirar cada fila de la tabla al doble la volvería ilegible. */
+@media (pointer: coarse) {
+  .faq-accion,
+  .plt-accion {
+    min-height: var(--touch-min);
+  }
+}
+
+/* ── El formulario y el editor, en tarjeta ────────────────────────────────
+ *
+ * El alta y la edición ocurren a la vista y no en un modal. Escribir una respuesta es mirar
+ * las que ya existen —para no repetir una y para copiar el tono—, y un modal tapa
+ * justamente eso. Lo que sí queda en modal es la baja: ahí la interrupción es el punto. */
+
+.faq-form,
+.plt-editor {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 20px 24px;
+  margin-bottom: var(--space-4);
+  animation: cfg-entrar 160ms ease-out both;
+}
+
+.faq-form__head,
+.plt-editor__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.faq-form__eyebrow,
+.plt-editor__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0;
+}
+
+.faq-form__titulo,
+.plt-editor__titulo {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 3px 0 0;
+}
+
+.plt-editor__meta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.faq-form__cuerpo,
+.plt-editor__cuerpo {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Los campos compartidos traen la separación de un formulario en columna; acá la pone la
+   grilla, y sumar las dos deja el pie flotando lejos del último campo. */
+.faq-form__cuerpo .campo,
+.plt-editor__cuerpo .campo {
+  margin-bottom: 0;
+}
+
+.faq-form__ayuda {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-500);
+}
+
+.faq-form__pie,
+.plt-editor__pie {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+/* El motivo por el que «Guardar» está gris, a la izquierda del propio botón: un control
+   deshabilitado sin explicación al lado es un callejón sin salida. */
+.faq-form__aviso {
+  margin: 0 auto 0 0;
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+/* Una respuesta y el cuerpo de una plantilla son párrafos, no renglones. El `input` del
+   catálogo esconde todo menos las últimas palabras justo cuando hay que releerlas. */
+.faq-area,
+.plt-area {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+/* La plantilla se escribe en mono: lleva `{{variables}}` que alguien compara carácter por
+   carácter contra la lista de acá arriba. */
+.plt-area {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+/* ── Las variables disponibles ─────────────────────────────────────────────
+ *
+ * Se ofrecen, no se adivinan: el backend rechaza una que el código no admita, y llegar a
+ * ese 422 después de redactar el mensaje entero es perder el mensaje. Cada una inserta su
+ * marca donde está el cursor, así que la lista no es sólo un cartel. */
+
+.plt-vars {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 14px 16px;
+}
+
+.plt-vars__titulo {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.plt-vars__ayuda {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-500);
+  margin: 0 0 var(--space-3);
+}
+
+.plt-vars__lista {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.plt-var {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-700);
+  background: var(--card);
+  border: 1px solid var(--accent-100);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.plt-var:hover {
+  background: var(--accent-050);
+  border-color: var(--accent);
+}
+
+.plt-var:active {
+  transform: translateY(1px);
+}
+
+/* ── La confirmación de baja ─────────────────────────────────────────────── */
+
+.faq-modal__texto {
+  margin: 0 0 var(--space-3);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-700);
+}
+
+/* La pregunta que se está por borrar, textual: un «¿Seguro?» que no dice sobre qué es cómo
+   se elimina la respuesta equivocada. */
+.faq-modal__pregunta {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.faq-modal__acciones {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+@keyframes cfg-entrar {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Movimiento reducido · PAN-WA-02 ──────────────────────────────────────
+ *
+ * Todo lo que se mueve en estas dos pantallas se apaga acá. Los cambios de color quedan: lo
+ * que marea es el desplazamiento, y sin transición el estado igual se ve. */
+
+@media (prefers-reduced-motion: reduce) {
+  .faq-form,
+  .plt-editor {
+    animation: none;
+  }
+
+  .faq-panel .tabla td,
+  .plt-panel .tabla td,
+  .faq-accion,
+  .plt-accion,
+  .plt-var {
+    transition: none;
+  }
+
+  .faq-accion:active:not(:disabled),
+  .plt-accion:active:not(:disabled),
+  .plt-var:active {
+    transform: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Correcciones de composición — PAN-WA-01, PAN-CFG-NOT, PAN-AGE-03, PAN-FAC-05
+ *
+ * Van al final y no intercaladas con los bloques de arriba. Lo de arriba explica cómo se
+ * construyó cada pantalla; esto corrige defectos que recién se vieron con los datos reales
+ * cargados —una sola fila de recurso midiendo 230 px, una bandeja vacía con dos tarjetas
+ * desalineadas, una grilla de un elemento con 1150 px muertos al lado—. Separadas se lee
+ * qué cambió y por qué; mezcladas habría que releer el archivo entero para saberlo.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── PAN-WA-01 · el encabezado de la bandeja ──────────────────────────────
+ *
+ * La pantalla llevaba un `<h1>` pelado mientras su hermana —respuestas frecuentes— tenía
+ * cintillo, título de 27 px y bajada. Dos criterios distintos dentro del mismo contexto es
+ * lo que hace que un panel se lea como dos productos pegados. */
+
+.wa-encabezado__titulo {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+/* ── PAN-WA-01 · las dos columnas comparten altura ────────────────────────
+ *
+ * Con `align-items: start` y la bandeja vacía, la tarjeta izquierda medía ~240 px y la
+ * derecha ~440: dos tarjetas del mismo nivel con tamaños muy distintos, desalineadas por
+ * abajo, y la izquierda leyéndose como cortada. Estiradas, el par se ve como un bloque. */
+
+.wa-grid {
+  align-items: stretch;
+}
+
+/* ── PAN-WA-01 · un filtro no es la acción principal ──────────────────────
+ *
+ * El verde sólido es, en todo el resto del panel, la acción principal de la pantalla. Acá
+ * era un estado de filtro: con la bandeja vacía el elemento más llamativo terminaba siendo
+ * un filtro que no filtraba nada. Es el mismo tratamiento de píldora que ya usan
+ * `/facturacion` y `/cobros` —chip oscuro para el activo, chip claro con punto de color
+ * para el resto—, escrito acá porque esa hoja es de otra pantalla. */
+
+.wa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 60ms ease;
+}
+
+.wa-chip:hover {
+  border-color: var(--ink-300);
+  color: var(--ink-700);
+}
+
+.wa-chip:active {
+  transform: translateY(1px);
+}
+
+.wa-chip[aria-pressed="true"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+/* Decorativo: el texto del chip ya nombra el corte, así que no hace falta anunciarlo dos
+   veces a un lector de pantalla. */
+.wa-chip__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex: none;
+}
+
+/* ── PAN-CFG-NOT · el ancho va al mensaje ─────────────────────────────────
+ *
+ * Canal e idioma eran constantes en las seis filas: doce celdas idénticas ocupando un
+ * tercio del ancho, mientras «Mensaje» —lo único que distingue una fila de otra— se
+ * quedaba con la mitad de ese lugar. Lo constante se dice una vez arriba y el listado se
+ * queda con lo que varía; las columnas vuelven solas el día que dejen de ser constantes. */
+
+.plt-barra__constante {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+.plt-barra__constante b {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+/* «Mensaje» se lleva el sobrante y el resto pide lo que ocupa. `first-child` y no un ancho
+   por columna: la última cambia según el rol —con permiso es «Acciones», sin permiso es
+   «Estado»— y fijarla por posición se rompería sola. */
+.plt-panel .tabla th:first-child,
+.plt-panel .tabla td:first-child {
+  width: 100%;
+}
+
+/* Y el sobrante se lo lleva de verdad: sin esto, «Mensaje» al 100 % aplasta la columna de
+   estado y «Pendiente de aprobación» se parte en tres renglones, que es alto de fila
+   comprado con el ancho que este bloque acababa de liberar. Por negación de la primera y no
+   por posición: la última columna cambia según el rol. */
+.plt-panel .tabla th:not(:first-child),
+.plt-panel .tabla td:not(:first-child) {
+  white-space: nowrap;
+}
+
+/* ── PAN-AGE-03 · la fila vuelve a la densidad del panel ──────────────────
+ *
+ * El horario semanal pintaba una ficha por franja: con cinco días y un piso de 360 px se
+ * partían en cuatro renglones y estiraban la fila a ~230 px de alto, dejando «Excepciones»,
+ * «Estado» y «Acciones» arriba con 150 px de blanco debajo. Tres recursos ocupaban la
+ * pantalla entera, contra la densidad de `/facturacion` o `/cobros`.
+ *
+ * Ahora las franjas que comparten horario se resumen en una sola ficha —«Lun a Vie ·
+ * 09:00 a 18:00»— y el detalle aparece sólo cuando los horarios difieren de verdad, así que
+ * la columna necesita mucho menos piso. */
+
+.age-fichas .tabla td:nth-child(3) {
+  min-width: 210px;
+}
+
+/* La acción no se parte en dos renglones: son dos palabras, y partirlas volvería a sumar
+   alto a la fila que este bloque vino a bajar. */
+.age-fichas .tabla td:last-child {
+  white-space: nowrap;
+}
+
+/*
+ * Y la fila entra en su caja: con la acción en `nowrap`, una ficha de servicio sin techo
+ * empujaba la tabla 42 px más allá del contenedor y «Desactivar» quedaba cortada por el
+ * borde —una acción a medio dibujar es peor que una tabla ancha—. El techo es de ancho, no
+ * de texto: el nombre se sigue leyendo entero, en dos renglones si hace falta.
+ *
+ * La ficha del horario queda afuera de la regla: es corta, ya viene resumida y se lee de un
+ * tirón; partir «Lun a Vie · 09:00 a 18:00» sería romper lo único que este bloque compactó.
+ */
+.age-fichas .age-chip:not(.age-chip--horario) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 220px;
+}
+
+/* ── PAN-AGE-03 · la acción por fila es texto ─────────────────────────────
+ *
+ * Dos rectángulos con borde por fila pesaban más que los datos que la fila muestra —tanto
+ * que hubo que bajarles el padding para que entraran, que es la señal de que la caja no
+ * cabía—. Mismo tratamiento que `.faq-accion` y `.plt-accion`: texto, y la caja aparece en
+ * hover y en foco, que es cuando hace falta saber dónde termina el área que responde. */
+
+.age-accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.age-accion:hover:not(:disabled),
+.age-accion:focus-visible {
+  color: var(--ink-900);
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.age-accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* §1.4 pide 44 x 44 px donde el puntero es un dedo. Con mouse, 34 px de alto se acierta sin
+   pensarlo, y estirar cada fila al doble la volvería ilegible. */
+@media (pointer: coarse) {
+  .age-accion {
+    min-height: var(--touch-min);
+  }
+}
+
+/* ── PAN-FAC-05 · puntos de venta, a ancho completo ───────────────────────
+ *
+ * Una grilla de `minmax(280px, 1fr)` con un solo punto de venta —el caso normal de una
+ * PyME— dejaba una tarjeta de ~500 px y 1150 px muertos a la derecha: la pantalla parecía
+ * haber fallado la carga. Un renglón a ancho completo dice lo mismo y ocupa la pantalla que
+ * tiene, y sigue funcionando cuando ARCA habilita cinco.
+ *
+ * Las clases son propias y no las de las tarjetas de `/facturacion`: a partir de acá las dos
+ * pantallas cambian por motivos distintos, y colgarse de aquellos selectores sería atarlas. */
+
+.pdv-lista {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.pdv-punto {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 14px var(--space-6);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.pdv-punto:hover {
+  border-color: var(--accent);
+}
+
+/* El inactivo se apaga en vez de esconderse: sigue estando, y con él la numeración de todo
+   lo que ya emitió. */
+.pdv-punto--inactivo {
+  background: var(--bg);
+}
+
+.pdv-punto__numero {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--ink-900);
+  flex: none;
+}
+
+.pdv-punto__quien {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.pdv-punto__descripcion {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.pdv-punto__numeracion {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.pdv-punto__rotulo {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 2px;
+}
+
+.pdv-punto__cifras {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-500);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pdv-punto__acciones {
+  flex: none;
+  margin-left: auto;
+}
+
+/* La acción por fila también es texto acá, con el rojo puesto desde el principio: es la
+   única que frena la facturación de una empresa, y descubrirlo recién al pasar el mouse
+   llega tarde. La confirmación no se toca: sigue interrumpiendo antes de correr. */
+
+.pdv-accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.pdv-accion:hover,
+.pdv-accion:focus-visible {
+  color: var(--ink-900);
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.pdv-accion:active {
+  transform: translateY(1px);
+}
+
+.pdv-accion--baja {
+  color: var(--err);
+}
+
+.pdv-accion--baja:hover,
+.pdv-accion--baja:focus-visible {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err-bg);
+}
+
+@media (pointer: coarse) {
+  .pdv-accion {
+    min-height: var(--touch-min);
+  }
+}
+
+/* El vacío es un renglón dentro de la tarjeta, como en `.plt-panel` y en auditoría: la caja
+   punteada de media pantalla decía lo mismo y se leía como una carga que falló. Con cero
+   puntos de venta la pantalla está entera, sólo que todavía no se cargó ninguno. */
+
+.pdv-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.pdv-vacio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 18px 20px;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.pdv-vacio::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* ── Movimiento reducido · lo agregado en este bloque ─────────────────────
+ *
+ * En su propio bloque y no sumado a las listas de arriba: así se ve de un vistazo que todo
+ * lo que este bloque hace mover está apagado acá, sin cruzarlo con lo de las otras
+ * pantallas. Los cambios de color quedan: lo que marea es el desplazamiento. */
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-chip,
+  .age-accion,
+  .pdv-accion,
+  .pdv-punto {
+    transition: none;
+  }
+
+  .wa-chip:active,
+  .age-accion:active:not(:disabled),
+  .pdv-accion:active {
+    transform: none;
   }
 }

@@ -3,6 +3,8 @@
  *
  * Todos los roles ven el listado con nombre, tipo, servicios y estado, que es lo que pide el
  * primer criterio. Sólo el Administrador configura, y el caso de uso lo refuerza.
+ *
+ * El encabezado lo dibuja el componente: «Agregar recurso» es parte de él y depende del rol.
  */
 
 import { redirect } from "next/navigation";
@@ -28,17 +30,10 @@ export default async function PaginaDeRecursos(): Promise<JSX.Element> {
   ]);
 
   return (
-    <>
-      <h1>Recursos reservables</h1>
-      <p className="dm-intro">
-        Una persona, un espacio o un equipo, con el horario en el que atiende y los servicios que se
-        prestan en él. Sin al menos uno activo no se pueden reservar turnos.
-      </p>
-      <RecursosReservables
-        inicial={recursos}
-        servicios={servicios}
-        puedeEditar={claims.rol === "ADMINISTRADOR"}
-      />
-    </>
+    <RecursosReservables
+      inicial={recursos}
+      servicios={servicios}
+      puedeEditar={claims.rol === "ADMINISTRADOR"}
+    />
   );
 }

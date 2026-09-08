@@ -162,7 +162,17 @@ h3 {
   --primary-soft: #2a2a3d;
   --sidebar-active: var(--color-mid);
   --accent: var(--color-accent);
-  --accent-700: #00a879;
+  /* Cuarto valor del prototipo que no se copia tal cual, por la misma razón que los tres
+   * anotados en `componentes.css`: la accesibilidad de §1.4 gana sobre el píxel.
+   *
+   * El prototipo lo fija en `#00a879`, que sobre blanco da **3,05:1** — por debajo del
+   * 4,5:1 que AA pide para texto normal. Y no es un tono decorativo: de sus 56 usos, 45
+   * son color de texto (toda acción de texto del panel y, vía `--ok`, la palabra de cada
+   * badge en verde). `#00805c` da **4,95:1** y es el paso «700» que el nombre promete.
+   *
+   * El verde de marca no cambia: `--accent` y `--primary` son el relleno de los CTA, donde
+   * el texto va en blanco encima y el contraste se mide al revés. */
+  --accent-700: #00805c;
   --accent-050: #e4f8f1;
   --accent-100: #c9f1e4;
   --alert: var(--color-warning);

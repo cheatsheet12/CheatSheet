@@ -10,6 +10,10 @@
  * que sacarlo.
  */
 
+import { PREFERENCIAS_POR_DEFECTO } from "@/shared";
+import type { PreferenciasDeFormato } from "@/shared";
+
+import { nombreDeTipoDeComprobante } from "./reporte";
 import type { Tablero } from "./reporte";
 
 export type ContenidoDelPaquete =
@@ -88,6 +92,42 @@ export const CONTENIDOS: readonly ContenidoDelPaquete[] = [
 
 /** Del 1 al 28: febrero existe, y un envío del 30 no saldría nunca en febrero. */
 export const DIA_MAXIMO_DE_ENVIO = 28;
+
+/**
+ * `2026`, `8` → `Agosto 2026`.
+ *
+ * El mes y el año vienen ya separados en el `Paquete`, así que no hay nada que parsear: se
+ * arma un `Date` en UTC sólo para que `Intl` ponga el nombre del mes en el idioma del usuario.
+ * **El mes se formatea aparte del año** porque `{ month: "long", year: "numeric" }` en es-AR
+ * devuelve «agosto de 2026», y el rótulo de una columna no lleva preposición.
+ */
+export function nombreDelPeriodo(
+  anio: number,
+  mes: number,
+  preferencias: PreferenciasDeFormato = PREFERENCIAS_POR_DEFECTO,
+): string {
+  const fecha = new Date(Date.UTC(anio, mes - 1, 1));
+  if (Number.isNaN(fecha.getTime())) {
+    return `${mes}/${anio}`;
+  }
+  const nombre = new Intl.DateTimeFormat(preferencias.idioma, {
+    month: "long",
+    timeZone: "UTC",
+  }).format(fecha);
+  return `${nombre.charAt(0).toUpperCase()}${nombre.slice(1)} ${anio}`;
+}
+
+/**
+ * Cómo se llama en pantalla cada clave de `totales_por_tipo`.
+ *
+ * Hoy el backend agrupa por contenido del paquete (`FACTURAS`, `NOTAS_DE_CREDITO`), pero el
+ * campo es un `jsonb` de claves libres y nada impide que mañana agrupe por tipo de comprobante.
+ * Se prueban los dos mapas y, si ninguno la conoce, se muestra legible igual: la alternativa
+ * es que la pantalla escupa el identificador de un enum del backend.
+ */
+export function nombreDeClaveDePaquete(clave: string): string {
+  return ETIQUETAS_DE_CONTENIDO[clave as ContenidoDelPaquete] ?? nombreDeTipoDeComprobante(clave);
+}
 
 export class ErrorDePaquete extends Error {
   constructor(mensaje: string) {

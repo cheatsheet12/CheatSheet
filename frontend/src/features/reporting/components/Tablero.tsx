@@ -1,121 +1,74 @@
 /**
  * PAN-REP-01 — Reportería · Tablero (HU-E10-01).
  *
- * Las cuatro métricas del encabezado con su variación, la distribución por tipo de
- * comprobante y el facturado por semana, todo del período que el selector elige.
+ * Las seis cifras del período, la distribución por tipo de comprobante y el facturado por
+ * semana, todo del rango que el selector elige.
  *
  * **Nada acá calcula nada.** Ni la variación, ni el neto, ni el total por semana: llegan
  * calculados del backend, donde son reglas de negocio (RN-02 y RN-03). Recalcularlos en el
  * navegador haría que el mismo mes diera un número en el panel y otro en el resumen ejecutivo
  * que se le manda al contador.
  *
+ * **Una sola grilla de tarjetas, y no tres.** Lo facturado, lo cobrado, lo pendiente, lo en
+ * mora, los turnos y las operaciones son seis respuestas a la misma pregunta —«cómo le fue al
+ * negocio en este período»— y se leen en una sola pasada si tienen el mismo tamaño, el mismo
+ * ritmo y el mismo tratamiento que las del tablero de inicio. Repartidas en tres cajas de
+ * tamaños distintos, el ojo asume una jerarquía que los datos no tienen.
+ *
  * **Un guion no es un cero.** Cuando el período anterior fue cero no hay con qué comparar, y
  * la variación llega en `null`: mostrar «0%» le diría a alguien que su negocio no creció
- * cuando la verdad es que el mes pasado no existía.
- *
- * **El gráfico son barras hechas con divs.** No hay librería de gráficos en este repositorio y
- * este épico no la introduce: cuatro o cinco barras con su valor al lado se leen igual, pesan
- * cero y funcionan sin JavaScript una vez renderizadas.
+ * cuando la verdad es que el mes pasado no existía. Lo pendiente y lo en mora, en cambio, no
+ * llevan variación **ninguna**: son un saldo a hoy, no un flujo del período, y no hay período
+ * anterior contra el cual medirlos ni siquiera en principio.
  */
 
 "use client";
 
 import { useState } from "react";
 
-import { Alert, Campo, Card, formatearNumero } from "@/shared";
+import { Alert, Campo, formatearNumero } from "@/shared";
 
-import { ErrorDeReporte, MENSAJE_SIN_ACTIVIDAD, verTablero } from "../api/reporte";
+import {
+  ErrorDeReporte,
+  MENSAJE_SIN_ACTIVIDAD,
+  etiquetaDeSemana,
+  nombreDeSemana,
+  nombreDeTipoDeComprobante,
+  textoDePeriodo,
+  verTablero,
+} from "../api/reporte";
 import type { Metrica, RangoDePeriodo, Tablero as TableroDatos } from "../api/reporte";
+import { Cifra } from "./Cifras";
+import { BarrasPorSemana, Distribucion } from "./Graficos";
+import {
+  IconoAlerta,
+  IconoCalendario,
+  IconoDocumento,
+  IconoLista,
+  IconoReloj,
+  IconoTarjeta,
+} from "./Iconos";
 
 export interface PropsDeTablero {
   readonly inicial: TableroDatos;
 }
 
-/** Lo que el gráfico dibuja como alto máximo de una barra, en porcentaje. */
-const ALTO_MAXIMO = 100;
-
-function mayorDe(valores: readonly string[]): number {
-  const numeros = valores.map((uno) => Math.abs(Number(uno)));
-  const mayor = Math.max(0, ...numeros);
-  return mayor === 0 ? 1 : mayor;
+/** Un importe del backend, listo para mostrar. Nunca se opera con él. */
+function pesos(valor: string): string {
+  return `$ ${formatearNumero(valor)}`;
 }
 
-function Variacion({ metrica }: { readonly metrica: Metrica }): JSX.Element {
-  if (metrica.variacion === null) {
-    return (
-      <span className="rep-variacion" title="No hay período anterior con el que comparar">
-        —
-      </span>
-    );
-  }
-  const sube = Number(metrica.variacion) >= 0;
-  return (
-    <span
-      className={sube ? "rep-variacion rep-variacion--sube" : "rep-variacion rep-variacion--baja"}
-    >
-      {sube ? "▲" : "▼"} {metrica.variacion}%
-    </span>
-  );
+/** Un conteo: con separador de miles y sin decimales, que los turnos no vienen en centavos. */
+function cantidad(valor: string): string {
+  return formatearNumero(valor, undefined, 0);
 }
 
-function Numero({
-  titulo,
-  metrica,
-  moneda = true,
-}: {
-  readonly titulo: string;
-  readonly metrica: Metrica;
-  readonly moneda?: boolean;
-}): JSX.Element {
-  return (
-    <Card titulo={titulo}>
-      <p className="fac-totales__final">
-        {moneda ? `$ ${formatearNumero(metrica.valor)}` : metrica.valor}
-      </p>
-      <p className="rep-comparacion">
-        <Variacion metrica={metrica} /> vs. período anterior
-      </p>
-    </Card>
-  );
+function pieDeMoneda(metrica: Metrica): string {
+  return `Período anterior · ${pesos(metrica.anterior)}`;
 }
 
-function Barras({
-  titulo,
-  datos,
-  vacio,
-}: {
-  readonly titulo: string;
-  readonly datos: Readonly<Record<string, string>>;
-  readonly vacio: string;
-}): JSX.Element {
-  const entradas = Object.entries(datos);
-  if (entradas.length === 0) {
-    return (
-      <Card titulo={titulo}>
-        <p className="tabla__vacia">{vacio}</p>
-      </Card>
-    );
-  }
-  const tope = mayorDe(entradas.map(([, valor]) => valor));
-
-  return (
-    <Card titulo={titulo}>
-      <ul className="rep-barras">
-        {entradas.map(([clave, valor]) => (
-          <li key={clave} className="rep-barras__fila">
-            <span className="rep-barras__clave">{clave}</span>
-            <span className="rep-barras__pista">
-              <span
-                className="rep-barras__barra"
-                style={{ width: `${(Math.abs(Number(valor)) / tope) * ALTO_MAXIMO}%` }}
-              />
-            </span>
-            <span className="rep-barras__valor">$ {formatearNumero(valor)}</span>
-          </li>
-        ))}
-      </ul>
-    </Card>
-  );
+function pieDeCantidad(metrica: Metrica): string {
+  return `Período anterior · ${cantidad(metrica.anterior)}`;
 }
 
 export function Tablero({ inicial }: PropsDeTablero): JSX.Element {
@@ -150,21 +103,28 @@ export function Tablero({ inicial }: PropsDeTablero): JSX.Element {
         </Alert>
       )}
 
-      <div className="rep-filtros">
-        <Campo
-          id="rep-desde"
-          etiqueta="Desde"
-          type="date"
-          value={rango.desde ?? ""}
-          onChange={(evento) => void aplicar({ desde: evento.target.value })}
-        />
-        <Campo
-          id="rep-hasta"
-          etiqueta="Hasta"
-          type="date"
-          value={rango.hasta ?? ""}
-          onChange={(evento) => void aplicar({ hasta: evento.target.value })}
-        />
+      <div className="rep-periodo">
+        <p className="rep-periodo__titulo">Período</p>
+        <div className="rep-filtros">
+          <Campo
+            id="rep-desde"
+            etiqueta="Desde"
+            type="date"
+            value={rango.desde ?? ""}
+            onChange={(evento) => void aplicar({ desde: evento.target.value })}
+          />
+          <Campo
+            id="rep-hasta"
+            etiqueta="Hasta"
+            type="date"
+            value={rango.hasta ?? ""}
+            onChange={(evento) => void aplicar({ hasta: evento.target.value })}
+          />
+        </div>
+        {/* El rango que efectivamente contestó el backend, en el formato del resto del panel.
+            Los dos campos de arriba muestran lo que el usuario pidió; esto, lo que se está
+            viendo — y no son lo mismo mientras una consulta está en el aire. */}
+        <p className="rep-periodo__resumen">{textoDePeriodo(tablero.desde, tablero.hasta)}</p>
       </div>
 
       {tablero.sin_actividad ? (
@@ -173,32 +133,85 @@ export function Tablero({ inicial }: PropsDeTablero): JSX.Element {
         </Alert>
       ) : null}
 
-      <div className="fac-detalle">
-        <Numero titulo="Facturado" metrica={tablero.facturado} />
-        <Numero titulo="Cobrado" metrica={tablero.cobrado} />
-        <Numero titulo="Turnos gestionados" metrica={tablero.turnos} moneda={false} />
-        <Numero titulo="Operaciones" metrica={tablero.operaciones} moneda={false} />
+      <div className="rep-kpis">
+        <Cifra
+          titulo="Facturado"
+          valor={pesos(tablero.facturado.valor)}
+          pie={pieDeMoneda(tablero.facturado)}
+          icono={<IconoDocumento />}
+          tono="menta"
+          variacion={tablero.facturado.variacion}
+        />
+        <Cifra
+          titulo="Cobrado"
+          valor={pesos(tablero.cobrado.valor)}
+          pie={pieDeMoneda(tablero.cobrado)}
+          icono={<IconoTarjeta />}
+          tono="menta"
+          variacion={tablero.cobrado.variacion}
+        />
+        <Cifra
+          titulo="Pendiente de cobro"
+          valor={pesos(tablero.pendiente)}
+          pie="Emitido y todavía sin cobrar"
+          icono={<IconoReloj />}
+          tono="ambar"
+        />
+        <Cifra
+          titulo="En mora"
+          valor={pesos(tablero.en_mora)}
+          pie="Vencido y sin cobrar"
+          icono={<IconoAlerta />}
+          tono="ambar"
+        />
+        <Cifra
+          titulo="Turnos gestionados"
+          valor={cantidad(tablero.turnos.valor)}
+          pie={pieDeCantidad(tablero.turnos)}
+          icono={<IconoCalendario />}
+          tono="tinta"
+          variacion={tablero.turnos.variacion}
+        />
+        <Cifra
+          titulo="Operaciones"
+          valor={cantidad(tablero.operaciones.valor)}
+          pie={pieDeCantidad(tablero.operaciones)}
+          icono={<IconoLista />}
+          tono="tinta"
+          variacion={tablero.operaciones.variacion}
+        />
       </div>
 
-      <div className="fac-detalle">
-        <Card titulo="Pendiente de cobro">
-          <p className="fac-totales__final">$ {formatearNumero(tablero.pendiente)}</p>
-        </Card>
-        <Card titulo="En mora">
-          <p className="fac-totales__final">$ {formatearNumero(tablero.en_mora)}</p>
-        </Card>
-      </div>
+      <div className="rep-graficos">
+        <section className="rep-panel">
+          <div className="rep-panel__head">
+            <div>
+              <h2 className="rep-panel__titulo">Facturación por semana</h2>
+              <p className="rep-panel__sub">Lo emitido en cada semana del período</p>
+            </div>
+          </div>
+          <BarrasPorSemana
+            datos={tablero.por_semana}
+            vacio="No hubo facturación en este período."
+            nombrar={etiquetaDeSemana}
+            detallar={nombreDeSemana}
+          />
+        </section>
 
-      <Barras
-        titulo="Facturación por semana"
-        datos={tablero.por_semana}
-        vacio="No hubo facturación en este período."
-      />
-      <Barras
-        titulo="Distribución por tipo de comprobante"
-        datos={tablero.por_tipo}
-        vacio="No se emitieron comprobantes en este período."
-      />
+        <section className="rep-panel">
+          <div className="rep-panel__head">
+            <div>
+              <h2 className="rep-panel__titulo">Distribución por tipo de comprobante</h2>
+              <p className="rep-panel__sub">Qué parte de lo facturado aportó cada tipo</p>
+            </div>
+          </div>
+          <Distribucion
+            datos={tablero.por_tipo}
+            vacio="No se emitieron comprobantes en este período."
+            nombrar={nombreDeTipoDeComprobante}
+          />
+        </section>
+      </div>
     </>
   );
 }

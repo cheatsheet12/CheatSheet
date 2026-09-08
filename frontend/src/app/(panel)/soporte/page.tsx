@@ -26,10 +26,16 @@ export default async function PaginaDeSoporte(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Soporte</h1>
-      <p className="dm-intro">
-        Contanos qué necesitás y el equipo de CheatSheet te contesta por email.
-      </p>
+      {/* Mismo encabezado que el resto del panel: cintillo mono, título de 27 px y bajada. */}
+      <header className="log-encabezado">
+        <div>
+          <p className="log-encabezado__eyebrow">Sistema · Soporte</p>
+          <h1>Soporte</h1>
+          <p className="log-encabezado__sub">
+            Contanos qué necesitás y el equipo de CheatSheet te contesta por email.
+          </p>
+        </div>
+      </header>
       <Soporte inicial={listado.solicitudes} puedeAbrir={claims.rol === "ADMINISTRADOR"} />
     </>
   );

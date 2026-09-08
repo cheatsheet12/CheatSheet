@@ -31,11 +31,16 @@ export default async function PaginaDeReportes(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Reportes</h1>
-      <p className="dm-intro">
-        Lo que pasó en el período: facturación, cobranzas, agenda y operaciones, con la variación
-        contra el período anterior.
-      </p>
+      <header className="rep-cabecera">
+        <div>
+          <p className="rep-eyebrow">Análisis · Reportes</p>
+          <h1 className="rep-titulo">Reportes</h1>
+          <p className="rep-sub">
+            Lo que pasó en el período: facturación, cobranzas, agenda y operaciones, con la
+            variación contra el período anterior.
+          </p>
+        </div>
+      </header>
       <Tablero inicial={tablero} />
       <GeneradorDeReportes
         inicial={reportes.reportes}

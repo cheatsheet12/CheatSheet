@@ -27,6 +27,41 @@
  *   donde se apunta con un mouse.
  */
 
+/* ── Enlaces ─────────────────────────────────────────────────────────────── */
+
+/*
+ * No había ninguna regla para `a`, así que todo enlace sin clase salía con el azul
+ * subrayado del navegador. En una pantalla donde el acento es verde, ese azul es el
+ * elemento más llamativo y no pertenece a la paleta.
+ *
+ * La regla es deliberadamente débil —un solo selector de tipo— para que cualquier clase
+ * de pantalla la pise sin necesidad de `!important`. El subrayado aparece al pasar por
+ * encima y no antes: el color ya dice que es un enlace, y un panel lleno de subrayados
+ * permanentes se lee como un documento, no como una herramienta.
+ */
+
+a {
+  color: var(--accent-700);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a {
+    transition: none;
+  }
+}
+
 /* ── Tipografía de página ────────────────────────────────────────────────── */
 
 /*
@@ -876,7 +911,10 @@
 .org-switch__datos small {
   display: block;
   font-family: var(--mono);
-  font-size: 10px;
+  /* 11px y no 10: es una palabra para leer («administrador»), no un rótulo de columna.
+     Las dos excepciones declaradas arriba del archivo son el badge y el encabezado de
+     tabla; ésta no era ninguna de las dos. */
+  font-size: 11px;
   color: var(--ink-400);
 }
 

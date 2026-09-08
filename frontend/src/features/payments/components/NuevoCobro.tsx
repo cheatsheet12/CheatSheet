@@ -15,7 +15,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Select } from "@/shared";
+import { Alert, Button, Campo, Card, Select } from "@/shared";
 
 import {
   ErrorDeCobro,
@@ -65,62 +65,69 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
     }
   }
 
+  // En tarjeta y con ancho acotado, como el resto de los formularios del panel: un campo de
+  // texto de 1400 px no es más fácil de completar, y sin superficie propia el formulario se
+  // lee como texto suelto sobre el fondo.
   return (
-    <form
-      className="dm-formulario"
-      onSubmit={(evento) => {
-        evento.preventDefault();
-        void generar();
-      }}
-    >
-      {error !== null && (
-        <Alert tono="error" titulo="No se pudo generar">
-          {error}
-        </Alert>
-      )}
+    <div className="cob-alta">
+      <Card titulo="Datos del cobro">
+        <form
+          className="dm-formulario"
+          onSubmit={(evento) => {
+            evento.preventDefault();
+            void generar();
+          }}
+        >
+          {error !== null && (
+            <Alert tono="error" titulo="No se pudo generar">
+              {error}
+            </Alert>
+          )}
 
-      <Campo
-        id="cobro-concepto"
-        etiqueta="Concepto"
-        error={descripcion !== "" && sinConcepto ? MENSAJE_SIN_CONCEPTO : undefined}
-        value={descripcion}
-        onChange={(evento) => setDescripcion(evento.target.value)}
-      />
+          <Campo
+            id="cobro-concepto"
+            etiqueta="Concepto"
+            error={descripcion !== "" && sinConcepto ? MENSAJE_SIN_CONCEPTO : undefined}
+            value={descripcion}
+            onChange={(evento) => setDescripcion(evento.target.value)}
+          />
 
-      <Campo
-        id="cobro-monto"
-        etiqueta="Monto"
-        mono
-        ayuda="En pesos argentinos."
-        error={monto !== "" && montoInvalido ? MENSAJE_MONTO_NO_POSITIVO : undefined}
-        value={monto}
-        onChange={(evento) => setMonto(evento.target.value)}
-      />
+          <Campo
+            id="cobro-monto"
+            etiqueta="Monto"
+            mono
+            ayuda="En pesos argentinos."
+            error={monto !== "" && montoInvalido ? MENSAJE_MONTO_NO_POSITIVO : undefined}
+            value={monto}
+            onChange={(evento) => setMonto(evento.target.value)}
+          />
 
-      {comprobantes.length > 0 && (
-        <Select
-          id="cobro-comprobante"
-          etiqueta="Comprobante asociado"
-          ayuda="Opcional. Al pagarse, el cobro baja el saldo pendiente del comprobante."
-          opciones={[
-            { valor: "", etiqueta: "Sin comprobante" },
-            ...comprobantes.map((uno) => ({ valor: uno.id, etiqueta: uno.etiqueta })),
-          ]}
-          value={comprobanteId}
-          onChange={(evento) => setComprobanteId(evento.target.value)}
-        />
-      )}
+          {comprobantes.length > 0 && (
+            <Select
+              id="cobro-comprobante"
+              etiqueta="Comprobante asociado"
+              ayuda="Opcional. Al pagarse, el cobro baja el saldo pendiente del comprobante."
+              opciones={[
+                { valor: "", etiqueta: "Sin comprobante" },
+                ...comprobantes.map((uno) => ({ valor: uno.id, etiqueta: uno.etiqueta })),
+              ]}
+              value={comprobanteId}
+              onChange={(evento) => setComprobanteId(evento.target.value)}
+            />
+          )}
 
-      {sinConcepto && <Alert tono="neutral">{MENSAJE_SIN_CONCEPTO}</Alert>}
+          {sinConcepto && <Alert tono="neutral">{MENSAJE_SIN_CONCEPTO}</Alert>}
 
-      <div className="dm-formulario__acciones">
-        <Button variante="secundario" onClick={() => router.push("/cobros")}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={sinConcepto || montoInvalido} cargando={generando}>
-          Generar link de pago
-        </Button>
-      </div>
-    </form>
+          <div className="dm-formulario__acciones">
+            <Button variante="secundario" onClick={() => router.push("/cobros")}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={sinConcepto || montoInvalido} cargando={generando}>
+              Generar link de pago
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </div>
   );
 }

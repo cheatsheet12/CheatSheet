@@ -26,6 +26,14 @@ import "@/shared/pantallas-agente.css";
 import "@/shared/pantallas-cobros.css";
 import "@/shared/pantallas-identidad.css";
 import "@/shared/pantallas-ingesta.css";
+// Reportería va después de `componentes.css` a propósito: ahí sobrevive un `.rep-…` viejo del
+// catálogo compartido (la barra horizontal, el filtro, la previsualización) que estas tres
+// pantallas rehacen, y cargada antes las perdería por orden de carga y no por especificidad.
+import "@/shared/pantallas-reportes.css";
+// Datos Maestros va última de las hojas de pantalla: sus reglas `.mae-panel .tabla…` ajustan
+// la tabla del catálogo compartido, y cargarla antes de `pantallas-identidad.css` la dejaría
+// perdiendo la cascada contra `.dm-` por orden de carga y no por especificidad.
+import "@/shared/pantallas-maestros.css";
 
 // §1.2: DM Sans for the panel, JetBrains Mono for CUIT, CAE and document numbers.
 const dmSans = DM_Sans({

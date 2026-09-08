@@ -26,11 +26,19 @@ export default async function PaginaDeConversaciones(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Conversaciones</h1>
-      <p className="dm-intro">
-        Los hilos que el agente derivó a una persona. Tomar una conversación hace que el agente deje
-        de responderla hasta que la cierres.
-      </p>
+      {/* El mismo encabezado que su pantalla hermana, `/configuracion/respuestas`: cintillo,
+          título de 27 px y bajada. Dos criterios distintos dentro del mismo contexto es lo que
+          hace que un panel se lea como dos productos pegados. */}
+      <header className="wa-encabezado">
+        <div>
+          <p className="wa-encabezado__eyebrow">Agente WhatsApp · Conversaciones</p>
+          <h1 className="wa-encabezado__titulo">Conversaciones</h1>
+          <p className="wa-encabezado__intro">
+            Los hilos que el agente derivó a una persona. Tomar una conversación hace que el agente
+            deje de responderla hasta que la cierres.
+          </p>
+        </div>
+      </header>
       <BandejaDeConversaciones
         inicial={listado}
         puedeAtender={claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR"}

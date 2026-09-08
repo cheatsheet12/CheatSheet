@@ -12,6 +12,16 @@
  * **There is no delete action.** Deactivating is what the catalogue has instead, because
  * `comprobante`, `cobro` and `turno` reference a client by id and a removed row would
  * leave tax documents pointing at nothing.
+ *
+ * **El encabezado lo dibuja este componente y no `page.tsx`.** El CTA depende del rol y abre
+ * el formulario, así que necesita estado; dejar el título en el server component y el botón
+ * acá los separaba en dos bloques, y el botón terminaba metido en la fila de filtros —que es
+ * donde estaba— sin pertenecer a nada. Es lo mismo que hacen PAN-FAC-01 y PAN-WA-02.
+ *
+ * **Las acciones de fila son texto, no botones con caja.** Diez filas con un botón de borde
+ * rojo cada una convierten el rojo en decoración justo donde tendría que ser una advertencia.
+ * La advertencia la da la confirmación, que sigue siendo un diálogo modal y dice qué pasa si
+ * se sigue adelante.
  */
 
 "use client";
@@ -32,10 +42,11 @@ import type { Cliente, DatosDeCliente, ListadoDeClientes as Listado } from "../a
 import { categoriasDeCliente, clasificarCliente, listarCategorias } from "../api/categoria";
 import type { Categoria } from "../api/categoria";
 import { FormularioDeCliente } from "./FormularioDeCliente";
+import { IconoDeMas } from "./iconos";
 import { SelectorDeCategorias } from "./SelectorDeCategorias";
 
 const ORIGENES: readonly { valor: string; etiqueta: string }[] = [
-  { valor: "", etiqueta: "Todos los origenes" },
+  { valor: "", etiqueta: "Todos los orígenes" },
   { valor: "PANEL", etiqueta: "Panel" },
   { valor: "PLANILLA", etiqueta: "Planilla" },
   { valor: "AGENTE", etiqueta: "Agente" },
@@ -133,7 +144,20 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
     }
   }
 
+  /**
+   * La baja pregunta antes de correr; la reactivación no, porque no hay nada que deshacer.
+   *
+   * La confirmación la disparaba `Button variante="destructivo"`, que además pintaba la
+   * celda con un borde rojo. Acá la acción es texto y la pregunta se hace a mano: es el
+   * mismo diálogo modal del navegador, con la misma frase, sin la caja roja en cada fila.
+   */
   async function alternarEstado(cliente: Cliente): Promise<void> {
+    if (
+      cliente.activo &&
+      !window.confirm(`¿Desactivar a ${cliente.nombre}? Deja de estar en el catálogo.`)
+    ) {
+      return;
+    }
     await cambiarEstadoDeCliente(cliente.id, !cliente.activo);
     await recargar();
   }
@@ -153,10 +177,38 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
   }
 
   const columnas: readonly Columna<Cliente>[] = [
-    { clave: "nombre", titulo: "Nombre", celda: (fila) => fila.nombre },
-    { clave: "cuit", titulo: "CUIT", celda: (fila) => fila.cuit ?? "—" },
-    { clave: "origen", titulo: "Origen", celda: (fila) => fila.origen },
-    { clave: "whatsapp", titulo: "WhatsApp", celda: (fila) => fila.contacto_whatsapp ?? "—" },
+    {
+      clave: "nombre",
+      titulo: "Nombre",
+      celda: (fila) => <span className="mae-nombre">{fila.nombre}</span>,
+    },
+    {
+      clave: "cuit",
+      titulo: "CUIT",
+      // El guion largo va sin envoltorio propio de estilo distinto al del dato ausente: es
+      // «acá no hay nada», y en tinta plena competiría con los CUIT que sí están.
+      celda: (fila) =>
+        fila.cuit === null ? (
+          <span className="mae-dato mae-dato--tenue">—</span>
+        ) : (
+          <span className="mae-mono">{fila.cuit}</span>
+        ),
+    },
+    {
+      clave: "origen",
+      titulo: "Origen",
+      celda: (fila) => <span className="mae-origen">{fila.origen}</span>,
+    },
+    {
+      clave: "whatsapp",
+      titulo: "WhatsApp",
+      celda: (fila) =>
+        fila.contacto_whatsapp === null ? (
+          <span className="mae-dato mae-dato--tenue">—</span>
+        ) : (
+          <span className="mae-mono">{fila.contacto_whatsapp}</span>
+        ),
+    },
     {
       clave: "estado",
       titulo: "Estado",
@@ -172,27 +224,46 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
       alDerecha: true,
       celda: (fila) =>
         puedeEditar ? (
-          <>
-            <Button variante="secundario" onClick={() => void abrirEdicion(fila)}>
+          <span className="tabla__acciones">
+            <button type="button" className="mae-accion" onClick={() => void abrirEdicion(fila)}>
               Editar
-            </Button>{" "}
-            <Button
-              variante={fila.activo ? "destructivo" : "secundario"}
-              {...(fila.activo
-                ? { confirmacion: `Desactivar a ${fila.nombre}? Deja de estar en el catalogo.` }
-                : {})}
+            </button>
+            <button
+              type="button"
+              className={`mae-accion${fila.activo ? " mae-accion--baja" : ""}`}
               onClick={() => void alternarEstado(fila)}
             >
               {fila.activo ? "Desactivar" : "Reactivar"}
-            </Button>
-          </>
+            </button>
+          </span>
         ) : null,
     },
   ];
 
   return (
     <>
-      <div className="dm-filtros">
+      <header className="mae-encabezado">
+        <div>
+          <p className="mae-encabezado__eyebrow">Datos maestros · Clientes</p>
+          <h1>Clientes</h1>
+          <p className="mae-encabezado__intro">
+            El catálogo de clientes de tu empresa. Lo que creés acá queda disponible para
+            facturación, cobros y agenda.
+          </p>
+        </div>
+        {puedeEditar && (
+          <div className="mae-encabezado__acciones">
+            <Button onClick={() => setEdicion({ cliente: undefined })}>
+              <span className="mae-cta__icono" aria-hidden="true">
+                <IconoDeMas />
+              </span>
+              Nuevo cliente
+            </Button>
+          </div>
+        )}
+      </header>
+
+      <div className="mae-filtros">
         <Campo
           id="dm-buscador"
           etiqueta="Buscar"
@@ -201,7 +272,7 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
             setTexto(evento.target.value);
             void recargar({ texto: evento.target.value });
           }}
-          ayuda="Por nombre o por CUIT."
+          placeholder="Nombre o CUIT"
         />
         <Select
           id="dm-origen"
@@ -215,9 +286,9 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
         />
         <Select
           id="dm-categoria"
-          etiqueta="Categoria"
+          etiqueta="Categoría"
           opciones={[
-            { valor: "", etiqueta: "Todas las categorias" },
+            { valor: "", etiqueta: "Todas las categorías" },
             ...categoriasDisponibles.map((c) => ({ valor: c.id, etiqueta: c.nombre })),
           ]}
           value={categoria}
@@ -226,7 +297,7 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
             void recargar({ categoriaId: evento.target.value });
           }}
         />
-        <label className="dm-filtros__casilla" htmlFor="dm-solo-activos">
+        <label className="mae-casilla" htmlFor="dm-solo-activos">
           <input
             id="dm-solo-activos"
             type="checkbox"
@@ -238,18 +309,23 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
           />
           Solo activos
         </label>
-        {puedeEditar && (
-          <Button onClick={() => setEdicion({ cliente: undefined })}>Nuevo cliente</Button>
-        )}
       </div>
 
-      <Tabla
-        titulo={`${listado.total} cliente${listado.total === 1 ? "" : "s"}`}
-        columnas={columnas}
-        filas={listado.clientes}
-        claveDeFila={(fila) => fila.id}
-        vacia="Todavia no hay clientes en el catalogo."
-      />
+      <div className="mae-barra">
+        <p className="mae-barra__cuenta">
+          <b>{listado.total}</b> {listado.total === 1 ? "cliente" : "clientes"} en el catálogo
+        </p>
+      </div>
+
+      <div className="mae-panel">
+        <Tabla
+          titulo={`${listado.total} cliente${listado.total === 1 ? "" : "s"}`}
+          columnas={columnas}
+          filas={listado.clientes}
+          claveDeFila={(fila) => fila.id}
+          vacia="Todavía no hay clientes en el catálogo."
+        />
+      </div>
 
       <Modal
         abierto={edicion !== null}
@@ -267,12 +343,17 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
           />
         )}
         {edicion?.cliente !== undefined && (
-          // Sólo al editar: una asignación necesita un elemento que ya tenga id.
-          <SelectorDeCategorias
-            ambito="CLIENTE"
-            asignadas={asignadas}
-            onAlternar={alternarCategoria}
-          />
+          // Sólo al editar: una asignación necesita un elemento que ya tenga id. La línea
+          // separa lo que el cliente **es** de cómo está etiquetado; sin ella los dos bloques
+          // se leen como un único formulario largo.
+          <>
+            <hr className="mae-form__separador" />
+            <SelectorDeCategorias
+              ambito="CLIENTE"
+              asignadas={asignadas}
+              onAlternar={alternarCategoria}
+            />
+          </>
         )}
       </Modal>
     </>

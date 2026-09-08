@@ -30,11 +30,16 @@ export default async function PaginaDelPaqueteContable(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Paquete contable</h1>
-      <p className="dm-intro">
-        El paquete del mes cerrado sale solo el día que elijas, y tu contador lo descarga con un
-        enlace que podés revocar cuando quieras.
-      </p>
+      <header className="rep-cabecera">
+        <div>
+          <p className="rep-eyebrow">Configuración · Paquete contable</p>
+          <h1 className="rep-titulo">Paquete contable</h1>
+          <p className="rep-sub">
+            El paquete del mes cerrado sale solo el día que elijas, y tu contador lo descarga con un
+            enlace que podés revocar cuando quieras.
+          </p>
+        </div>
+      </header>
       <ConfiguracionDelPaquete
         inicial={configuracion}
         paquetes={paquetes.paquetes}

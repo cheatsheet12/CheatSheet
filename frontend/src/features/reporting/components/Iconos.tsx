@@ -77,6 +77,16 @@ export function IconoLista(): JSX.Element {
   );
 }
 
+export function IconoAlerta(): JSX.Element {
+  return (
+    <Trazo>
+      <path d="M12 3.5 22 20H2L12 3.5Z" />
+      <path d="M12 10v4" />
+      <circle cx="12" cy="17.2" r="0.6" fill="currentColor" />
+    </Trazo>
+  );
+}
+
 export function IconoBarras(): JSX.Element {
   return (
     <Trazo>

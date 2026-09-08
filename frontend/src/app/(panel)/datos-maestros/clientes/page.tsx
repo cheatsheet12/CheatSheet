@@ -14,6 +14,11 @@
  * The role decides whether the write actions render: the navigation map §5 grades Datos
  * Maestros **Admin ● · Operador ● · Solo Lectura RO**. Hiding them is a courtesy, not the
  * guard — the backend refuses regardless.
+ *
+ * **El encabezado ya no vive acá.** El CTA «Nuevo cliente» va al lado del título y depende del
+ * mismo `puedeEditar` que el listado; tenerlos separados obligaba a pasar el rol dos veces por
+ * dos caminos que pueden discrepar, y dejaba el botón caído dentro de la fila de filtros. Es
+ * lo mismo que hicieron PAN-FAC-01 y PAN-WA-02 cuando se rediseñaron.
  */
 
 import { redirect } from "next/navigation";
@@ -38,18 +43,6 @@ export default async function PaginaDeClientes(): Promise<JSX.Element> {
   const listado = await llamarApi<ListadoDeClientesRespuesta>("/clientes");
 
   return (
-    <>
-      <header className="dm-encabezado">
-        <div>
-          <span className="dm-encabezado__cintillo">Datos maestros</span>
-          <h1>Clientes</h1>
-          <p className="dm-intro">
-            El catalogo de clientes de tu empresa. Lo que crees aca queda disponible para
-            facturacion, cobros y agenda.
-          </p>
-        </div>
-      </header>
-      <ListadoDeClientes inicial={listado} puedeEditar={ROLES_QUE_ESCRIBEN.includes(claims.rol)} />
-    </>
+    <ListadoDeClientes inicial={listado} puedeEditar={ROLES_QUE_ESCRIBEN.includes(claims.rol)} />
   );
 }

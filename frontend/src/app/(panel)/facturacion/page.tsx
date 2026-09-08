@@ -8,6 +8,10 @@
  * Administrador and the Operador, and RN-04 of HU-E5-01 gives Solo Lectura the right to see
  * and filter without actions. Hiding the button is a courtesy — the use case refuses
  * regardless, which is what PRU-09 taught.
+ *
+ * **El encabezado lo dibuja el componente**, y no esta página como en el resto del panel:
+ * el CTA verde vive al lado del título y depende del mismo `puedeEmitir` que el listado, así
+ * que tenerlos separados sería pasar el rol dos veces por dos caminos que pueden discrepar.
  */
 
 import { redirect } from "next/navigation";
@@ -30,16 +34,9 @@ export default async function PaginaDeFacturacion(): Promise<JSX.Element> {
   const listado = await llamarApi<ListadoDeComprobantesRespuesta>("/comprobantes");
 
   return (
-    <>
-      <h1>Facturación</h1>
-      <p className="dm-intro">
-        Los comprobantes que emitiste, con su CAE cuando ARCA los autorizó. Un comprobante
-        autorizado no se modifica ni se borra: se anula con una nota de crédito.
-      </p>
-      <ListadoDeComprobantes
-        inicial={listado}
-        puedeEmitir={claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR"}
-      />
-    </>
+    <ListadoDeComprobantes
+      inicial={listado}
+      puedeEmitir={claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR"}
+    />
   );
 }

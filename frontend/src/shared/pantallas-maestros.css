@@ -1,0 +1,491 @@
+/*
+ * Datos Maestros — PAN-DM-01 (clientes), PAN-DM-02 (servicios) y PAN-DM-03 (categorías).
+ *
+ * Hoja propia, con prefijo `.mae-` y nada más adentro, por la misma razón de propiedad que
+ * separó `pantallas-agente.css` del catálogo compartido: una regla de estas tres pantallas
+ * metida en `componentes.css` termina pisando una tabla de otra unidad, y una metida en la
+ * hoja de otra pantalla se la lleva puesta el día que esa pantalla se rediseñe.
+ *
+ * **Estas tres pantallas se quedaron con el estilo genérico viejo.** El resto del panel ya
+ * pasó por el rediseño —auditoría (`.log-`), agente (`.faq-`, `.plt-`), agenda (`.age-`) y
+ * facturación (`.fac-nuevo-`)— y traían tres defectos que se ven de lejos:
+ *
+ * 1. **Las acciones de fila eran botones con caja**, y la baja con borde rojo. Con diez filas
+ *    la pantalla es una pared de rojo, y el rojo deja de significar nada. Acá son texto, como
+ *    en `.faq-accion`: la caja aparece en hover y en foco, que es cuando hace falta saber
+ *    dónde termina el área que responde. El aviso de que la baja no se deshace lo da la
+ *    confirmación, no el borde.
+ * 2. **El CTA vivía dentro de la fila de filtros**, con las bases de los controles a distinta
+ *    altura. Un botón que crea algo no es un filtro: va en el encabezado, alineado con el
+ *    título al que pertenece, igual que en agenda y en facturación.
+ * 3. **El vacío era una caja punteada de media pantalla.** Se lee como una carga que falló;
+ *    una raya corta y un renglón adentro de la tarjeta dicen lo mismo y dejan ver que la
+ *    pantalla está entera. Misma decisión que `.log-nada` y que `.faq-panel .tabla__vacia`.
+ *
+ * **No hay colores literales.** Todo sale de los alias de `tokens.css` (`--accent`,
+ * `--ink-500`, `--line`, `--err`…). Un `#00C48C` escrito acá sería el mismo verde con otro
+ * nombre, y el día que el token cambie esta hoja se queda vieja sin que nadie se entere.
+ *
+ * **El movimiento es corto y no se repite.** Ninguna transición pasa de 140 ms, el hundido
+ * del click dura 60 ms, la entrada del panel 220 ms y una sola vez. Todo se apaga en el
+ * bloque `prefers-reduced-motion` del final, que es de esta hoja y no toca los de las otras:
+ * dos pantallas editando la misma lista de selectores es exactamente cómo una termina
+ * borrando la línea de la otra.
+ */
+
+/* ── Encabezado de pantalla ──────────────────────────────────────────────────
+ *
+ * Cintillo mono en versalitas, título, bajada, y el CTA a la derecha alineado con la base
+ * del bloque de texto. `flex-end` y no `flex-start`: con una bajada de dos renglones el
+ * botón queda a la altura de lo último que se leyó, que es cuando se decide apretarlo. */
+
+.mae-encabezado {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.mae-encabezado__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+/* 27 px y no los 24 del `h1` de base: es el título de una pantalla del panel y lleva un
+   cintillo encima, así que necesita ganarle en peso o los dos se leen como una sola línea
+   gris. Es el mismo valor que usan `.faq-encabezado h1` y `.age-encabezado__titulo`. */
+.mae-encabezado h1 {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.mae-encabezado__intro {
+  color: var(--ink-500);
+  font-size: 14.5px;
+  margin: var(--space-2) 0 0;
+  max-width: 62ch;
+}
+
+.mae-encabezado__acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  flex: none;
+}
+
+/* El «+» del CTA. La caja fija evita que el icono empuje el texto medio píxel mientras la
+   fuente termina de cargar. */
+.mae-cta__icono {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.mae-cta__icono svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+/* La caja de información del catálogo no trae aire abajo —cada pantalla decide dónde va— y
+   acá queda apoyada sobre los filtros sin nada que diga dónde termina el aviso. */
+.mae-encabezado ~ .caja {
+  margin-bottom: var(--space-4);
+}
+
+/* ── La fila de filtros ──────────────────────────────────────────────────────
+ *
+ * Una fila con una línea fina abajo, no una tarjeta. Tres controles adentro de una
+ * superficie elevada pesan lo mismo que la lista que filtran, y la lista es lo que se vino a
+ * mirar; la línea alcanza para decir que ese renglón es el mando y lo de abajo el resultado.
+ *
+ * `align-items: flex-end` es lo que arregla el defecto visible: los campos llevan la etiqueta
+ * arriba y la casilla no, así que alineados por el tope quedaban con las bases a distinta
+ * altura. Alineados por la base, todos apoyan en la misma línea. */
+
+.mae-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+  margin: 0 0 var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Los campos compartidos traen la separación de un formulario en columna; en una fila la
+   pone el `gap`. El ancho es un rango: tres controles estirados a lo ancho de 1600 px dejan
+   un `<select>` de «Categoría» de medio metro. */
+.mae-filtros .campo {
+  margin-bottom: 0;
+  flex: 0 1 240px;
+  min-width: 200px;
+}
+
+.mae-filtros .campo__etiqueta {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+/* El primer control es el que más se usa —el buscador en clientes y servicios, el ámbito en
+   categorías— y en los dos primeros es además el único donde se escribe: se lleva más ancho.
+   Va por posición y no por una clase porque `Campo` no acepta `className`: el catálogo lo
+   omite a propósito para que ninguna pantalla le cambie el aspecto al control compartido. */
+.mae-filtros > .campo:first-child {
+  flex: 1 1 260px;
+  max-width: 340px;
+}
+
+.mae-filtros .campo__ayuda {
+  color: var(--ink-400);
+}
+
+/* ── La casilla de «Solo activos» ───────────────────────────────────────────
+ *
+ * Fuera de la fila de filtros —el formulario de servicio la usa para «agendable»— es una
+ * casilla común. Adentro, se apoya en la misma base que los campos con etiqueta arriba. */
+
+.mae-casilla {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-600);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mae-casilla input {
+  accent-color: var(--accent-700);
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.mae-filtros .mae-casilla {
+  flex: none;
+  /* Los campos vecinos miden 40 px de control; centra la casilla contra ese alto. */
+  min-height: 40px;
+}
+
+/* ── La barra de conteo ──────────────────────────────────────────────────────
+ *
+ * Cuántas hay, arriba de la tabla. En mono se lee como una cifra y no como una frase más, y
+ * es el dato con el que alguien decide si el filtro que acaba de tocar hizo algo. */
+
+.mae-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.mae-barra__cuenta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+.mae-barra__cuenta b {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+/* ── La caja del listado ─────────────────────────────────────────────────────
+ *
+ * La tarjeta elevada que usan el resto de las pantallas. La tabla compartida trae su propia
+ * caja con borde, radio y sombra: adentro del panel sobra, porque dos bordes concéntricos se
+ * leen como un error de maquetación y no como jerarquía. */
+
+.mae-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: mae-entra 220ms ease-out both;
+}
+
+.mae-panel .tabla__contenedor {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.mae-panel .tabla th {
+  padding: 16px 18px 10px;
+}
+
+/*
+ * El encabezado de una columna alineada a la derecha también va a la derecha.
+ *
+ * El catálogo compartido pone `text-align: left` en `.tabla th` y `text-align: right` en
+ * `.tabla__celda--derecha`; la primera gana por especificidad (0,1,1 contra 0,1,0), así que
+ * «PRECIO» y «ACCIONES» quedaban pegados a la izquierda de una columna cuyos valores están
+ * pegados a la derecha. Se arregla acá, dentro del panel, y no en `componentes.css`: esa hoja
+ * la comparten todas las pantallas y este es el rediseño de tres.
+ */
+.mae-panel .tabla th.tabla__celda--derecha {
+  text-align: right;
+}
+
+/* Las filas eran demasiado altas: 15 px arriba y abajo sobre un renglón de 13,5 px dejan
+   seis filas por pantalla en una notebook. Con 12 px entran diez y se siguen leyendo. */
+.mae-panel .tabla td {
+  padding: 12px 18px;
+  transition: background-color 140ms ease;
+}
+
+.mae-panel .tabla tbody tr:hover td {
+  background: var(--bg);
+}
+
+/*
+ * **El vacío es un renglón adentro de la tarjeta.** La caja punteada del catálogo ocupa media
+ * pantalla con una frase en el medio y se lee como una carga que falló; un catálogo todavía
+ * sin cargar es una pantalla normal, no un error. Misma decisión que `.log-nada`.
+ */
+.mae-panel .tabla__vacia {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 18px 20px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.mae-panel .tabla__vacia::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* ── Celdas ──────────────────────────────────────────────────────────────────
+ *
+ * El nombre es lo que alguien busca cuando recorre la lista con el dedo en la pantalla: es
+ * lo único de la fila que va en tinta plena. */
+
+.mae-nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.mae-dato {
+  font-size: 13px;
+  color: var(--ink-700);
+}
+
+/* Lo que no está cargado, y el dato de contexto: un tono más claro para que la columna que
+   sí tiene información gane sin que ninguna desaparezca. */
+.mae-dato--tenue {
+  color: var(--ink-400);
+}
+
+/* El CUIT y el WhatsApp son números que se comparan de arriba abajo. `tabular-nums` es la
+   diferencia entre una columna que se lee de un vistazo y una donde el «1» mide menos que el
+   «8» y los guiones bailan renglón a renglón. */
+.mae-mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-600);
+  white-space: nowrap;
+}
+
+/*
+ * `origen` es un valor de un conjunto cerrado y corto —PANEL, PLANILLA, AGENTE— y dice de
+ * dónde vino la fila. La píldora lo separa del texto corrido de la columna vecina sin gastar
+ * un color de estado, que acá significaría algo que no significa: ninguno de los tres origenes
+ * es mejor ni peor que otro.
+ */
+.mae-origen {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-600);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+/* El precio, alineado a la derecha y monoespaciado: una columna de importes se compara por
+   la coma, y para eso las comas tienen que caer una debajo de la otra. */
+.mae-importe {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-900);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Acciones de fila ────────────────────────────────────────────────────────
+ *
+ * Texto y no botones con caja, como en `.faq-accion` y en el prototipo: una tabla con dos
+ * botones sólidos por renglón pesa más que los datos que muestra, y diez renglones con un
+ * borde rojo cada uno convierten el rojo en decoración.
+ *
+ * La caja aparece en hover y en foco, que es cuando hace falta saber dónde termina el área
+ * que responde. La confirmación de la baja sigue estando —es un diálogo modal del navegador,
+ * disparado por la acción— y es ahí donde se dice qué pasa si se sigue adelante. */
+
+.mae-accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.mae-accion:hover:not(:disabled) {
+  color: var(--ink-900);
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.mae-accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.mae-accion:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/*
+ * La baja lleva el rojo en el texto y no en un borde. Es la diferencia entre una fila que
+ * avisa y una fila que grita: la palabra ya es roja, y el fondo tenue aparece recién cuando
+ * el puntero está encima de ella.
+ */
+.mae-accion--baja {
+  color: var(--err);
+}
+
+.mae-accion--baja:hover:not(:disabled) {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err-bg);
+}
+
+/* §1.4 pide 44 × 44 px donde el puntero es un dedo. Con mouse, 34 px de alto se acierta sin
+   pensarlo, y estirar cada fila de la tabla al doble la volvería ilegible. */
+@media (pointer: coarse) {
+  .mae-accion {
+    min-height: var(--touch-min);
+  }
+}
+
+/* ── Los tres formularios, adentro del modal ─────────────────────────────────
+ *
+ * La caja y la columna las pone `.dm-formulario`, que comparten media docena de pantallas.
+ * Acá va sólo lo que es de estas tres: la línea que dice qué decide el formulario, arriba de
+ * todo, para que quien lo abre no tenga que deducirlo de los nombres de los campos. */
+
+/*
+ * El CUIT y su botón «Validar contra ARCA», a la misma altura.
+ *
+ * `.dm-formulario__cuit` alinea por la base, y la ayuda del campo —«Opcional. Un cliente sin
+ * CUIT no puede recibir Factura A.»— ocupa dos renglones: la base del campo quedaba treinta
+ * píxeles por debajo del input y arrastraba el botón con ella, hasta dejarlo flotando debajo
+ * de la caja que valida. Alineado por el tope, y bajado exactamente lo que mide la etiqueta
+ * del campo vecino (13 px × 1,5 de interlínea, más los 7 px de `gap` de `.campo`), el botón
+ * apoya en la misma línea que el input sin importar cuántos renglones ocupe la ayuda.
+ *
+ * La regla vive acá, colgada de `.mae-form`, y no en la hoja donde está `.dm-formulario__cuit`:
+ * esa clase la comparten media docena de pantallas y este es el rediseño de tres.
+ */
+.mae-form .dm-formulario__cuit {
+  align-items: flex-start;
+}
+
+.mae-form .dm-formulario__cuit > .boton {
+  margin-top: calc(13px * 1.5 + 7px);
+}
+
+.mae-form__nota {
+  font-size: 13px;
+  color: var(--ink-500);
+  margin: 0 0 var(--space-1);
+}
+
+/* El separador entre los campos del elemento y las categorías que se le asignan: son dos
+   cosas distintas —lo que el elemento es y cómo está etiquetado— y sin una línea se leen
+   como un solo formulario largo. */
+.mae-form__separador {
+  margin: var(--space-4) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ── Movimiento ──────────────────────────────────────────────────────────────
+ *
+ * Una sola entrada, de una sola pasada, sobre el panel del listado. No hay bucles, no hay
+ * rebote y nada se mueve por su cuenta después del primer cuadro. */
+
+@keyframes mae-entra {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Todo lo que se mueve en estas tres pantallas se apaga acá. Los cambios de color quedan: lo
+ * que marea es el desplazamiento, y sin transición el estado igual se ve.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .mae-panel {
+    animation: none;
+  }
+
+  .mae-panel .tabla td,
+  .mae-accion {
+    transition: none;
+  }
+
+  .mae-accion:active:not(:disabled) {
+    transform: none;
+  }
+}

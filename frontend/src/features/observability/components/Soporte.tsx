@@ -11,6 +11,12 @@
  * **No hay forma de cerrar un ticket desde el panel.** El estado lo mueve el equipo de
  * CheatSheet (RN-03): un botón de «resolver» del lado de la empresa convierte «resuelta» en
  * una opinión.
+ *
+ * **Formulario y listado conviven en dos columnas.** La tabla tiene cuatro columnas cortas; a
+ * ancho completo del panel el asunto y su prioridad quedan a medio metro uno del otro y la
+ * fecha se va contra el borde derecho de la pantalla. Con el formulario al lado, la fila
+ * vuelve a un ancho que se lee de una pasada, y el asunto gana su descripción como segundo
+ * renglón.
  */
 
 "use client";
@@ -39,6 +45,29 @@ const PRIORIDADES: readonly { valor: string; etiqueta: string }[] = [
   { valor: "MEDIA", etiqueta: "Media" },
   { valor: "ALTA", etiqueta: "Alta" },
 ];
+
+/**
+ * Las mismas etiquetas del selector, indexadas por el valor que viaja.
+ *
+ * Se derivan de `PRIORIDADES` en vez de repetirse: el listado tiene que mostrar exactamente lo
+ * que el formulario ofrece, y dos listas paralelas se desincronizan en cuanto alguien agrega
+ * una prioridad de un solo lado. Lo que la tabla no muestra nunca es el enum crudo: «MEDIA» en
+ * mayúsculas es un valor de base de datos, no una palabra.
+ */
+const ETIQUETAS_DE_PRIORIDAD: Readonly<Record<string, string>> = Object.fromEntries(
+  PRIORIDADES.map((una) => [una.valor, una.etiqueta]),
+);
+
+/** El punto de color de la prioridad. El texto la sigue diciendo: el color solo no informa. */
+function claseDePunto(prioridad: PrioridadDeSoporte): string {
+  if (prioridad === "ALTA") {
+    return "log-prio__punto log-prio__punto--alta";
+  }
+  if (prioridad === "MEDIA") {
+    return "log-prio__punto log-prio__punto--media";
+  }
+  return "log-prio__punto";
+}
 
 export function Soporte({ inicial, puedeAbrir }: PropsDeSoporte): JSX.Element {
   const [solicitudes, setSolicitudes] = useState<readonly Solicitud[]>(inicial);
@@ -71,8 +100,28 @@ export function Soporte({ inicial, puedeAbrir }: PropsDeSoporte): JSX.Element {
   }
 
   const columnas: readonly Columna<Solicitud>[] = [
-    { clave: "asunto", titulo: "Asunto", celda: (fila) => fila.asunto },
-    { clave: "prioridad", titulo: "Prioridad", celda: (fila) => fila.prioridad },
+    {
+      clave: "asunto",
+      titulo: "Asunto",
+      // La descripción entra como segundo renglón: es lo que distingue dos solicitudes que se
+      // llamaron parecido, y la columna tenía ancho de sobra para cargarla.
+      celda: (fila) => (
+        <span className="log-sol">
+          <b>{fila.asunto}</b>
+          <span>{fila.descripcion}</span>
+        </span>
+      ),
+    },
+    {
+      clave: "prioridad",
+      titulo: "Prioridad",
+      celda: (fila) => (
+        <span className="log-prio">
+          <span className={claseDePunto(fila.prioridad)} aria-hidden="true" />
+          {ETIQUETAS_DE_PRIORIDAD[fila.prioridad] ?? fila.prioridad}
+        </span>
+      ),
+    },
     {
       clave: "estado",
       titulo: "Estado",
@@ -85,7 +134,13 @@ export function Soporte({ inicial, puedeAbrir }: PropsDeSoporte): JSX.Element {
     {
       clave: "creada",
       titulo: "Abierta el",
-      celda: (fila) => (fila.created_at !== null ? formatearFecha(fila.created_at) : "—"),
+      // Sin alinear a la derecha: es la última de cuatro columnas cortas, y empujarla contra
+      // el borde es justamente lo que dejaba la fecha lejos de la fila que fecha.
+      celda: (fila) => (
+        <span className="log-fecha">
+          {fila.created_at !== null ? formatearFecha(fila.created_at) : "—"}
+        </span>
+      ),
     },
   ];
 
@@ -98,46 +153,60 @@ export function Soporte({ inicial, puedeAbrir }: PropsDeSoporte): JSX.Element {
       )}
       {aviso !== null && <Alert tono="exito">{aviso}</Alert>}
 
-      {puedeAbrir && (
-        <Card titulo="Nueva solicitud">
-          <Campo
-            id="sop-asunto"
-            etiqueta="Asunto"
-            value={asunto}
-            onChange={(evento) => setAsunto(evento.target.value)}
-          />
-          <label className="campo" htmlFor="sop-descripcion">
-            <span className="campo__etiqueta">Descripción</span>
-            <textarea
-              id="sop-descripcion"
-              className="campo__control"
-              rows={5}
-              value={descripcion}
-              onChange={(evento) => setDescripcion(evento.target.value)}
+      <div className={`log-soporte${puedeAbrir ? "" : " log-soporte--sola"}`}>
+        {puedeAbrir && (
+          <Card titulo="Nueva solicitud">
+            <Campo
+              id="sop-asunto"
+              etiqueta="Asunto"
+              value={asunto}
+              onChange={(evento) => setAsunto(evento.target.value)}
             />
-          </label>
-          <Select
-            id="sop-prioridad"
-            etiqueta="Prioridad"
-            opciones={PRIORIDADES}
-            value={prioridad}
-            onChange={(evento) => setPrioridad(evento.target.value as PrioridadDeSoporte)}
-          />
-          <Button onClick={() => void enviar()} cargando={enviando} disabled={!completo}>
-            Enviar
-          </Button>
-        </Card>
-      )}
+            {/*
+             * El catálogo compartido no tiene área de texto y ésta es la única pantalla del
+             * panel que necesita una, así que se arma con la envoltura del catálogo —`.campo`
+             * y su etiqueta— y un control propio, `.log-area`, que hereda el mismo borde,
+             * radio y foco de acento que cualquier otro campo.
+             */}
+            <div className="campo">
+              <label className="campo__etiqueta" htmlFor="sop-descripcion">
+                Descripción
+              </label>
+              <textarea
+                id="sop-descripcion"
+                className="log-area"
+                rows={4}
+                placeholder="Qué pasó, en qué pantalla y desde cuándo."
+                value={descripcion}
+                onChange={(evento) => setDescripcion(evento.target.value)}
+              />
+            </div>
+            <Select
+              id="sop-prioridad"
+              etiqueta="Prioridad"
+              opciones={PRIORIDADES}
+              value={prioridad}
+              onChange={(evento) => setPrioridad(evento.target.value as PrioridadDeSoporte)}
+            />
+            {/* La acción de cierre va a la derecha, donde termina de leerse el formulario. */}
+            <div className="log-soporte__pie">
+              <Button onClick={() => void enviar()} cargando={enviando} disabled={!completo}>
+                Enviar
+              </Button>
+            </div>
+          </Card>
+        )}
 
-      <Card titulo="Mis solicitudes">
-        <Tabla
-          titulo="Solicitudes de soporte"
-          columnas={columnas}
-          filas={solicitudes}
-          claveDeFila={(fila) => fila.id}
-          vacia="Todavía no abriste ninguna solicitud."
-        />
-      </Card>
+        <Card titulo="Mis solicitudes">
+          <Tabla
+            titulo="Solicitudes de soporte"
+            columnas={columnas}
+            filas={solicitudes}
+            claveDeFila={(fila) => fila.id}
+            vacia="Todavía no abriste ninguna solicitud."
+          />
+        </Card>
+      </div>
     </>
   );
 }

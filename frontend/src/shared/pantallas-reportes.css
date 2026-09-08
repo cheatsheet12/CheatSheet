@@ -38,7 +38,7 @@
 }
 
 .rep-titulo {
-  font-size: 30px;
+  font-size: 27px;
   font-weight: 800;
   letter-spacing: -0.6px;
   margin: var(--space-2) 0 6px;
@@ -109,13 +109,25 @@
 
 .rep-periodo__titulo {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-400);
   font-weight: 600;
-  margin: 0 auto var(--space-2) 0;
+  margin: 0;
   align-self: center;
+}
+
+/* El rango que el backend efectivamente contestó, al otro extremo de la barra: los campos
+ * dicen lo que se pidió y esto dice lo que se está viendo. */
+.rep-periodo__resumen {
+  margin: 0 0 0 auto;
+  align-self: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* Los filtros de fecha y de tipo. `.rep-filtros` es anterior a esta unidad y lo usa también
@@ -134,11 +146,19 @@
 
 /* --- Tarjetas de métrica ------------------------------------------------------------- */
 
+/*
+ * Seis tarjetas, tres columnas, dos filas completas.
+ *
+ * Con cuatro columnas la sexta tarjeta arranca una fila que queda con dos huecos al lado, y
+ * un hueco del tamaño de una tarjeta se lee como algo que falta. `minmax(0, 1fr)` y no `1fr`:
+ * un importe largo en tabular fuerza el ancho mínimo de su celda, y con `1fr` la primera
+ * columna se come a las otras dos.
+ */
 .rep-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 26px;
 }
 
 .rep-kpi {
@@ -166,8 +186,8 @@
 }
 
 .rep-kpi__icono {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border-radius: var(--radius);
   display: grid;
   place-items: center;
@@ -175,8 +195,8 @@
 }
 
 .rep-kpi__icono svg {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
 }
 
 .rep-kpi__icono--menta {
@@ -194,8 +214,10 @@
   color: var(--info);
 }
 
+/* El rótulo es texto de apoyo y la cifra es el dato: 13 px en gris medio contra 28 px a
+ * peso 800 es lo que hace que el ojo aterrice en el número y no en la palabra. */
 .rep-kpi__titulo {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--ink-500);
   margin: 0;
@@ -203,7 +225,7 @@
 }
 
 .rep-kpi__valor {
-  font-size: 27px;
+  font-size: 28px;
   font-weight: 800;
   letter-spacing: -1px;
   color: var(--ink-900);
@@ -282,7 +304,7 @@
   align-items: flex-end;
   gap: 26px;
   height: 260px;
-  padding: 0 var(--space-2) 0 56px;
+  padding: 0 var(--space-2) 0 68px;
   border-bottom: 1px solid var(--line);
   position: relative;
   margin: var(--space-2) 0 0;
@@ -298,8 +320,8 @@
   flex-direction: column;
   justify-content: space-between;
   font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--ink-300);
+  font-size: 11px;
+  color: var(--ink-400);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -370,7 +392,7 @@
 }
 
 .rep-barras--densa .rep-barras__x {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .rep-panel__pie {
@@ -471,6 +493,14 @@
   animation-delay: calc(var(--rep-orden, 0) * 25ms);
 }
 
+/* El importe manda y el porcentaje lo acompaña: la barra ya dibujó la proporción, y el
+ * número exacto de la fila es el de pesos. */
+.rep-dist__cifras {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
 .rep-dist__monto {
   font-family: var(--mono);
   font-size: 13px;
@@ -478,6 +508,51 @@
   color: var(--ink-900);
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.rep-dist__parte {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * El dato solo, para cuando la serie trae una sola categoría.
+ *
+ * Una barra al 100 % del ancho no dice «esto es todo lo que hay», dice «completado». Con un
+ * único valor, la respuesta honesta es la misma jerarquía de una tarjeta de cifra —rótulo,
+ * número grande, una línea de contexto— y ninguna barra.
+ */
+.rep-unico {
+  display: grid;
+  gap: 6px;
+  padding: var(--space-6) 0 var(--space-4);
+  animation: rep-aparecer 0.22s ease-out both;
+}
+
+.rep-unico__rotulo {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  margin: 0;
+}
+
+.rep-unico__cifra {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -1.2px;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.rep-unico__nota {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-400);
+  margin: 0;
+  max-width: 48ch;
 }
 
 .rep-vacio {
@@ -583,7 +658,7 @@
 
 .rep-previsualizacion__rotulo {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-400);
@@ -616,10 +691,11 @@
 
 /* --- Celdas de tabla ----------------------------------------------------------------- */
 
+/* El mes en castellano arriba y el código del período abajo: uno se lee, el otro se cita
+ * (es como se llama el archivo que se descarga). Apilados, no en fila: son un dato con su
+ * referencia, no dos columnas. */
 .rep-celda-periodo {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+  display: block;
 }
 
 .rep-mes {
@@ -632,7 +708,7 @@
   place-items: center;
   flex: none;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1.1;
   text-align: center;
@@ -649,6 +725,26 @@
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--ink-400);
+}
+
+/* El rango de un reporte, en la tabla del historial. */
+.rep-rango {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* `CSV`, `PDF`, `XML`: una sigla, no una palabra. En monoespaciada y dentro de una píldora
+ * se lee como el formato de un archivo y no como una columna de texto más. */
+.rep-sello {
+  display: inline-flex;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-600);
+  background: var(--line-2);
+  border-radius: 999px;
+  padding: 2px 9px;
 }
 
 .rep-chips {
@@ -673,27 +769,31 @@
   color: var(--ink-900);
 }
 
+/*
+ * «Descargar» es una acción de texto, no un botón con caja.
+ *
+ * Lleva el acento del sistema —el mismo `--accent-700` que usan los enlaces de acción del
+ * tablero de inicio— y no el azul que el navegador le pone a un `<a>` sin estilo. El subrayado
+ * aparece al pasar por encima: permanente, cinco filas de texto subrayado compiten con los
+ * datos de la tabla.
+ */
 .rep-descarga {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 12.5px;
+  gap: 6px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--ink-700);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  padding: 7px 12px;
+  color: var(--accent-700);
   text-decoration: none;
+  padding: var(--space-2) 0;
   transition:
-    border-color 0.14s ease-out,
     color 0.14s ease-out,
-    transform 0.05s ease-out;
+    transform 0.06s ease-out;
 }
 
 .rep-descarga:hover {
-  border-color: var(--accent);
-  color: var(--accent-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .rep-descarga:active {
@@ -706,6 +806,94 @@
 }
 
 /* --- PAN-REP-02 · configuración del envío automático --------------------------------- */
+
+/*
+ * Los dos `fieldset` de esta pantalla y su tarjeta contenedora.
+ *
+ * `.rep-grupo` viene del catálogo compartido con `--color-border` (el gris legacy) y un radio
+ * de 8 px, adentro de una `Card` que usa `--line` y `--radius-card`: dos grises y dos radios
+ * en la misma caja, que se ven como dos sistemas de diseño superpuestos. Se emparejan desde
+ * acá y no desde `componentes.css`, que es el catálogo de las veinte pantallas.
+ */
+.rep-grupo {
+  border-color: var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-4);
+  gap: var(--space-4);
+}
+
+.rep-grupo legend {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  padding: 0 var(--space-2);
+}
+
+.rep-grupo__opcion {
+  font-size: 13.5px;
+  color: var(--ink-700);
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+/* Sin `accent-color`, una casilla nativa se pinta del azul del sistema operativo: siete
+ * casillas azules en una pantalla verde se leen como de otro producto. */
+.rep-grupo__opcion input {
+  accent-color: var(--accent);
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/*
+ * El ancho de un campo dice qué se espera adentro.
+ *
+ * `.campo__control` ocupa el 100 % de su contenedor, que es lo correcto para un formulario en
+ * una columna angosta y absurdo para el día del mes dentro de una tarjeta de mil píxeles: un
+ * cuadro de esa medida para escribir «5» hace dudar de si falta algo. El tope se pone acá, en
+ * la hoja de esta pantalla, y no en el catálogo compartido que usan las otras diecinueve.
+ */
+.rep-campo--corto .campo__control {
+  max-width: 9rem;
+}
+
+.rep-campo--medio .campo__control {
+  max-width: 26rem;
+}
+
+/* El vencimiento y los accesos del contador, fuera del párrafo corrido. */
+.rep-datos {
+  margin: var(--space-4) 0;
+}
+
+/*
+ * Revocar el acceso es una acción de texto, no un botón rojo con caja.
+ *
+ * Sigue siendo un `<Button variante="destructivo">` —la confirmación que pide §1.3 vive en el
+ * componente, y reimplementarla acá sería la manera de olvidarla— pero vestido como lo que es:
+ * una acción entre otras dentro de una tarjeta, y no la acción principal de la pantalla. El
+ * área tocable sigue midiendo los 44 px del mínimo aunque el texto no tenga caja.
+ */
+.rep-accion-destructiva .boton--destructivo {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  min-height: var(--touch-min);
+  color: var(--err);
+  font-size: 13px;
+  transition:
+    color 0.14s ease-out,
+    transform 0.06s ease-out;
+}
+
+.rep-accion-destructiva .boton--destructivo:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 .rep-cfg {
   display: grid;
@@ -930,7 +1118,7 @@
 
 .rep-etiqueta-formato {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--ink-500);
@@ -1109,7 +1297,7 @@
 
 .rep-zip__rotulo {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-400);
@@ -1312,7 +1500,7 @@ main:has(> * > .rep-publico) > * {
 
 .rep-publico__marca span {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--ink-300);
 }
 
@@ -1419,6 +1607,7 @@ main:has(> * > .rep-publico) > * {
 @media (prefers-reduced-motion: reduce) {
   .rep-barras__barra,
   .rep-dist__barra,
+  .rep-unico,
   .rep-previsualizacion {
     animation: none !important;
     transform: none !important;
@@ -1436,14 +1625,16 @@ main:has(> * > .rep-publico) > * {
   .rep-fila__estado,
   .rep-zip__fila,
   .rep-barras__barra,
-  .rep-barras__monto {
+  .rep-barras__monto,
+  .rep-accion-destructiva .boton--destructivo {
     transition: none !important;
   }
 
   .rep-kpi:hover,
   .rep-tipo:active,
   .rep-descarga:active,
-  .rep-dia:active:not(:disabled) {
+  .rep-dia:active:not(:disabled),
+  .rep-accion-destructiva .boton--destructivo:active:not(:disabled) {
     transform: none;
   }
 }
@@ -1452,7 +1643,13 @@ main:has(> * > .rep-publico) > * {
 
 @media (max-width: 1200px) {
   .rep-kpis {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  }
+
+  /* La barra de período deja de tener dos extremos y pasa a ser una lista que se envuelve:
+     el resumen empujado a la derecha en una fila de una sola columna queda flotando solo. */
+  .rep-periodo__resumen {
+    margin-left: 0;
   }
 
   .rep-graficos,
@@ -1468,7 +1665,11 @@ main:has(> * > .rep-publico) > * {
 
 @media (max-width: 720px) {
   .rep-titulo {
-    font-size: 24px;
+    font-size: 22px;
+  }
+
+  .rep-unico__cifra {
+    font-size: 28px;
   }
 
   .rep-barras {

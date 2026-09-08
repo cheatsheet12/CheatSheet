@@ -122,7 +122,7 @@ describe("el alta", () => {
     render(<PuntosDeVenta inicial={{ puntos: [] }} puedeEditar />);
 
     abrirAlta();
-    fireEvent.change(screen.getByLabelText("Numero"), { target: { value: "7" } });
+    fireEvent.change(screen.getByLabelText("Número"), { target: { value: "7" } });
     fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
     expect(await screen.findByText(MENSAJE_NO_HABILITADO)).toBeDefined();
@@ -134,7 +134,7 @@ describe("el alta", () => {
     render(<PuntosDeVenta inicial={INICIAL} puedeEditar />);
 
     abrirAlta();
-    fireEvent.change(screen.getByLabelText("Numero"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Número"), { target: { value: "1" } });
     fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
     expect(await screen.findByText(MENSAJE_DUPLICADO)).toBeDefined();
@@ -146,7 +146,7 @@ describe("el alta", () => {
     render(<PuntosDeVenta inicial={{ puntos: [] }} puedeEditar />);
 
     abrirAlta();
-    fireEvent.change(screen.getByLabelText("Numero"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("Número"), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
     await waitFor(() =>

@@ -354,7 +354,7 @@
 
 .cob-celda-cliente__ref {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--ink-400);
   display: block;
 }
@@ -906,6 +906,372 @@
   margin-top: var(--space-4);
 }
 
+/* ── Facturación · piezas de las cinco pantallas ─────────────────────────── */
+
+/*
+ * Siguen con el prefijo `.fac-nuevo-` de arriba y no con uno propio: `componentes.css` ya
+ * define `.fac-acciones`, `.fac-detalle`, `.fac-item` y `.fac-totales` de otro dueño, y dos
+ * archivos con la misma clase son una cascada que depende del orden de los imports. Y usan
+ * `--cob-transicion` y `cob-aparecer` a propósito: son los tokens de movimiento de esta
+ * hoja, compartidos con Cobros, porque dos duraciones distintas para el mismo gesto se leen
+ * como dos sistemas.
+ */
+
+/* El cintillo del encabezado: dice en qué sección está parado alguien que entró por un
+   enlace directo, antes de que lea el título. */
+.fac-nuevo-encabezado__cintillo {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+/*
+ * Un enlace que hace de botón. Sin esto el CTA aparece subrayado —la regla global de `a`
+ * gana— y un botón verde con el texto subrayado se lee como algo a medio hacer.
+ */
+.fac-nuevo-boton-enlace {
+  text-decoration: none;
+  transition:
+    var(--cob-transicion),
+    transform 0.05s ease;
+}
+
+.fac-nuevo-boton-enlace:active {
+  transform: translateY(1px);
+}
+
+/*
+ * `.caja` no trae margen propio —está pensada para vivir dentro de un contenedor con `gap`—
+ * y en estas pantallas es hermana suelta de un panel o de una tarjeta. Sin esto, el error
+ * queda pegado a lo que explica y se lee como parte del panel.
+ */
+.fac-nuevo-avisos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.fac-nuevo-avisos:not(:empty) {
+  margin-bottom: var(--space-4);
+}
+
+.fac-nuevo-formulario > .caja {
+  margin-bottom: var(--space-4);
+}
+
+.fac-nuevo-paso > .caja {
+  margin-top: var(--space-4);
+}
+
+/* Los atajos a los tres cortes que se miran a diario. Sin contador: contar sobre la página
+   contaría la hoja y no el período, y un número que cambia al pasar de hoja miente. */
+.fac-nuevo-chips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.fac-nuevo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  cursor: pointer;
+  transition:
+    var(--cob-transicion),
+    transform 0.05s ease;
+}
+
+.fac-nuevo-chip:hover {
+  border-color: var(--ink-300);
+  color: var(--ink-700);
+}
+
+.fac-nuevo-chip:active {
+  transform: translateY(1px);
+}
+
+.fac-nuevo-chip[aria-pressed="true"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+/* Decorativo: el texto del chip ya nombra el estado, así que no hace falta anunciarlo dos
+   veces a un lector de pantalla. */
+.fac-nuevo-chip__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentcolor;
+  flex: none;
+}
+
+.fac-nuevo-chip--autorizado .fac-nuevo-chip__punto {
+  background: var(--ok);
+}
+
+.fac-nuevo-chip--pendiente .fac-nuevo-chip__punto {
+  background: var(--warn);
+}
+
+.fac-nuevo-chip--error .fac-nuevo-chip__punto {
+  background: var(--err);
+}
+
+/*
+ * El vacío dentro del panel: una línea, no media pantalla. La caja punteada de
+ * `.tabla__vacia` existe para una tabla suelta sobre el fondo; adentro del panel ya hay un
+ * marco, y el segundo sólo agrega altura a una pantalla que no tiene nada que mostrar.
+ */
+.fac-nuevo-panel .tabla__vacia,
+.cob-panel .tabla__vacia {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-6) var(--space-4);
+  text-align: left;
+}
+
+/*
+ * Estado de carga: la tabla se apaga y deja de aceptar clics mientras el servidor contesta.
+ * Sin esto un filtro lento se ve igual que un filtro que no hizo nada, y la reacción natural
+ * es volver a apretarlo.
+ */
+.fac-nuevo-cargando {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+}
+
+.fac-nuevo-panel .tabla tr {
+  transition: var(--cob-transicion);
+}
+
+/* ── Celdas del listado ──────────────────────────────────────────────────── */
+
+/* El número es lo que alguien compara contra un papel: monoespaciado y con las cifras
+   alineadas, para que el 1 y el l no se confundan. */
+.fac-nuevo-numero {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-900);
+  text-decoration: none;
+}
+
+.fac-nuevo-numero:hover {
+  color: var(--accent-700);
+  text-decoration: underline;
+}
+
+.fac-nuevo-cliente {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.fac-nuevo-importe {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.fac-nuevo-fecha {
+  color: var(--ink-500);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * El CUIT y su botón de validación viven juntos: el botón no significa nada sin el campo, y
+ * separarlos hace que la respuesta de ARCA aparezca lejos de lo que la provocó.
+ */
+.fac-nuevo-cuit {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) auto;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+@media (max-width: 600px) {
+  .fac-nuevo-cuit {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Detalle (PAN-FAC-02) ────────────────────────────────────────────────── */
+
+.fac-nuevo-tarjeta {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: var(--space-6);
+  animation: cob-aparecer var(--cob-entrada);
+}
+
+.fac-nuevo-rotulo {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-2);
+}
+
+.fac-nuevo-kv {
+  margin: 0;
+}
+
+.fac-nuevo-kv__par {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line-2);
+  font-size: 13.5px;
+}
+
+.fac-nuevo-kv__par:last-child {
+  border-bottom: 0;
+}
+
+.fac-nuevo-kv dt {
+  color: var(--ink-500);
+  flex: none;
+}
+
+.fac-nuevo-kv dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-900);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* La misma razón que `.fac-nuevo-fiscal`, aplicada a un `<dd>`: CUIT y CAE se dictan por
+   teléfono y se comparan contra un papel. */
+.fac-nuevo-kv dd.fac-nuevo-fiscal {
+  font-size: 13px;
+}
+
+/*
+ * Que un comprobante autorizado se reversa y no se borra tiene que estar escrito al lado de
+ * los botones, no sólo en la ausencia de un botón «Eliminar»: la ausencia se lee como un
+ * olvido y la frase se lee como una regla.
+ */
+.fac-nuevo-inmutable {
+  flex: 1;
+  min-width: 220px;
+  font-size: 12px;
+  color: var(--ink-500);
+  margin: 0;
+  align-self: center;
+}
+
+.fac-nuevo-vacio {
+  color: var(--ink-400);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* ── Puntos de venta (PAN-FAC-05) ────────────────────────────────────────── */
+
+/*
+ * Tarjetas y no filas: un punto de venta es una cosa con estado propio y una numeración por
+ * tipo que no entra en una celda sin partirse en tres líneas. Son pocos —los que ARCA
+ * habilitó— así que la grilla nunca se convierte en un scroll.
+ */
+.fac-nuevo-puntos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.fac-nuevo-punto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  transition: var(--cob-transicion);
+  animation: cob-aparecer var(--cob-entrada);
+}
+
+.fac-nuevo-punto:hover {
+  border-color: var(--accent);
+}
+
+/* El inactivo se apaga en vez de esconderse: sigue estando, y con él la numeración de todo
+   lo que ya emitió. */
+.fac-nuevo-punto--inactivo {
+  background: var(--bg);
+}
+
+.fac-nuevo-punto__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.fac-nuevo-punto__numero {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--ink-900);
+}
+
+.fac-nuevo-punto__descripcion {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+/* La tarjeta ya separa con `gap`; el margen propio del rótulo se sumaría al espacio y
+   dejaría el título flotando lejos del dato que titula. */
+.fac-nuevo-punto .fac-nuevo-rotulo {
+  margin-bottom: 0;
+}
+
+.fac-nuevo-punto__numeracion {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-500);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.fac-nuevo-punto__acciones {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: var(--space-3);
+}
+
 /* ── Movimiento reducido ─────────────────────────────────────────────────── */
 
 /*
@@ -938,5 +1304,268 @@
   .cob-chip:active,
   .cob-boton-enlace:active {
     transform: none;
+  }
+}
+
+/*
+ * Lo mismo para las piezas de Facturación, en un bloque propio y no agregadas a la lista de
+ * arriba: así se ve de un vistazo que todo lo que se mueve en estas cinco pantallas está
+ * apagado acá, sin tener que leer una lista mezclada con la de Cobros.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .fac-nuevo-tarjeta,
+  .fac-nuevo-punto {
+    animation: none;
+  }
+
+  .fac-nuevo-boton-enlace,
+  .fac-nuevo-cargando,
+  .fac-nuevo-chip,
+  .fac-nuevo-punto {
+    transition: none;
+  }
+
+  .fac-nuevo-boton-enlace:active,
+  .fac-nuevo-chip:active {
+    transform: none;
+  }
+}
+
+/* ── PAN-COB-01 / PAN-COB-03 / PAN-CFG-RN · el rediseño de estas tres ────────
+ *
+ * Todo lo de abajo es nuevo y con prefijo `.cob-`: nada de acá pisa una regla que ya usan
+ * el listado de cobros o las cinco pantallas de facturación. Los tres problemas que
+ * resuelve son el mismo problema visto tres veces —una pieza que no existía y se resolvió
+ * pidiéndole prestada la clase a otra pantalla— así que en vez de reusar `.fac-item` o
+ * `.tabla__vacia` tal como vienen, cada pieza tiene su regla y su motivo.
+ */
+
+/*
+ * El cintillo de sección, mono y en versalitas, igual al de la agenda y al de facturación.
+ * Es un `.cob-` propio y no un tercer alias del de facturación porque estas pantallas
+ * pueden querer moverlo sin arrastrar a las otras cinco.
+ */
+.cob-cintillo {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin: 0 0 var(--space-1);
+}
+
+/*
+ * El título de pantalla del panel: 27 px / 800, el mismo que la agenda. El `<h1>` pelado
+ * del sistema es 24 px / 700 y al lado de una agenda o de una emisión se lee como una
+ * pantalla de segunda categoría. No toca `.cob-encabezado__titulo`, que es de facturación.
+ */
+.cob-titulo {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--ink-900);
+  margin: 0 0 6px;
+}
+
+/* ── PAN-COB-03 · falta elegir el cliente ────────────────────────────────────
+ *
+ * Antes eran dos renglones de texto sobre mil píxeles de fondo vacío, con el enlace a
+ * Clientes suelto en medio de una oración. Un estado vacío del panel es una tarjeta: dice
+ * qué falta, por qué, y tiene la salida como acción y no como palabra subrayada.
+ */
+.cob-eleccion {
+  max-width: 520px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 26px 24px;
+  animation: cob-aparecer var(--cob-entrada);
+}
+
+.cob-eleccion__icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  margin-bottom: var(--space-3);
+}
+
+.cob-eleccion__icono svg {
+  width: 20px;
+  height: 20px;
+}
+
+.cob-eleccion__titulo {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--ink-900);
+  margin: 0 0 6px;
+}
+
+.cob-eleccion__texto {
+  font-size: 13.5px;
+  color: var(--ink-500);
+  margin: 0 0 var(--space-4);
+}
+
+/* El formulario de alta, acotado. Un campo de concepto de 1400 px de ancho no se completa
+   más rápido: el ojo tiene que volver desde el final de la línea hasta la etiqueta de la
+   siguiente. */
+.cob-alta {
+  max-width: 720px;
+}
+
+/* ── PAN-CFG-RN · reglas de negocio ──────────────────────────────────────────
+ *
+ * Las dos superficies —lo que rige y lo que se edita— en una columna con la misma
+ * separación que hay entre las tarjetas del resto del panel. Antes eran una caja punteada
+ * de ancho completo flotando fuera de toda tarjeta, arriba de una tarjeta de verdad.
+ */
+.cob-reglas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/*
+ * El vacío del listado, adentro de la tarjeta: una raya corta y un renglón, el mismo
+ * criterio que `.age-vacio` en la agenda y `.log-nada` en la auditoría. La caja punteada de
+ * `.tabla__vacia` existe para una tabla suelta sobre el fondo; adentro de una tarjeta ya
+ * hay un marco, y el segundo se lee como un error de carga.
+ */
+.cob-reglas .tabla__vacia {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: var(--ink-500);
+}
+
+.cob-reglas .tabla__vacia::before {
+  content: "";
+  width: 26px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* Acotado, y no del ancho de la tarjeta: los tres controles de un paso miden 540 px y la
+   tarjeta mide mil quinientos. Con el ancho completo, la franja del paso quedaba con
+   novecientos píxeles de gris vacío a la derecha y los botones de la cadena a un metro de
+   los campos que gobiernan. */
+.cob-reglas__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 720px;
+}
+
+.cob-reglas__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.cob-pasos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/*
+ * La grilla del paso, propia y con tres columnas porque el paso tiene tres cosas.
+ * Reutilizaba `.fac-item`, que declara `2fr 1fr 1fr 1fr auto` para la línea de un
+ * comprobante: con tres hijos, «Días del recordatorio 1» se comía 570 px para un campo de
+ * un dígito y «Quitar» se estiraba a 310 px de losa gris. Las dos primeras columnas son
+ * fijas —lo que mide su contenido y nada más— y la tercera es `max-content`, que es lo que
+ * impide que el botón se coma el espacio sobrante.
+ */
+.cob-paso {
+  display: grid;
+  grid-template-columns: 190px minmax(180px, 230px) max-content;
+  align-items: end;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  transition: border-color 0.14s ease;
+}
+
+.cob-paso:hover {
+  border-color: var(--line);
+}
+
+/* `.campo` trae 16 px de margen inferior para apilarse en un formulario; acá el aire lo
+   pone la grilla, y el margen sólo descoloca la línea de base de la fila. */
+.cob-paso .campo {
+  margin-bottom: 0;
+}
+
+/* El botón vive adentro de una fila que ya tiene su propio marco: la sombra de tarjeta del
+   ghost lo haría flotar sobre ella. */
+.cob-paso .boton {
+  box-shadow: none;
+}
+
+/*
+ * El renglón que explica por qué «Quitar» está apagado cuando queda un solo paso. Misma
+ * raya corta que el vacío de arriba, para que se lea como una nota del sistema y no como un
+ * error del formulario.
+ */
+.cob-paso__nota {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+.cob-paso__nota::before {
+  content: "";
+  width: 26px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* En pantalla angosta la fila se apila: tres controles de 190 px no entran en un teléfono,
+   y el que se rompe primero es el que lleva el botón. */
+@media (max-width: 760px) {
+  .cob-paso {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
+/*
+ * Movimiento reducido, en un bloque propio como los dos de arriba: lo que se agregó acá se
+ * apaga acá, sin mezclarse con la lista de Cobros ni con la de Facturación.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .cob-eleccion {
+    animation: none;
+  }
+
+  .cob-paso {
+    transition: none;
   }
 }

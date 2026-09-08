@@ -8,6 +8,9 @@
  *
  * The role decides whether the write actions render. Hiding them is a courtesy — the
  * backend refuses regardless.
+ *
+ * **El encabezado lo dibuja el componente**, por la misma razón que en PAN-DM-01: el CTA
+ * depende del rol y abre el formulario, así que título y acción son una sola pieza.
  */
 
 import { redirect } from "next/navigation";
@@ -32,18 +35,6 @@ export default async function PaginaDeServicios(): Promise<JSX.Element> {
   const listado = await llamarApi<ListadoDeServiciosRespuesta>("/servicios");
 
   return (
-    <>
-      <header className="dm-encabezado">
-        <div>
-          <span className="dm-encabezado__cintillo">Datos maestros</span>
-          <h1>Servicios</h1>
-          <p className="dm-intro">
-            Lo que tu empresa vende. El precio se carga sin IVA y la alicuota va aparte: el total lo
-            calcula cada comprobante.
-          </p>
-        </div>
-      </header>
-      <ListadoDeServicios inicial={listado} puedeEditar={ROLES_QUE_ESCRIBEN.includes(claims.rol)} />
-    </>
+    <ListadoDeServicios inicial={listado} puedeEditar={ROLES_QUE_ESCRIBEN.includes(claims.rol)} />
   );
 }

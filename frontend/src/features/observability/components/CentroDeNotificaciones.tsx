@@ -10,13 +10,18 @@
  *
  * **Lo destacado deja de destacarse al leerlo.** Una alta ya leída que sigue en rojo enseña a
  * ignorar el rojo, que es exactamente lo contrario de lo que RN-04 quiere.
+ *
+ * **Hay un solo estado vacío.** Antes había dos, uno debajo del otro: «No tenés notificaciones
+ * sin leer» y, en la caja punteada de ancho completo, «No tenés notificaciones». La segunda
+ * frase implica la primera, y esa caja ocupaba casi toda la pantalla para decir que no pasó
+ * nada. El resumen de no leídas sólo tiene sentido cuando hay algo que contar.
  */
 
 "use client";
 
 import { useState } from "react";
 
-import { Alert, Badge, Button, Card, formatearFechaHora } from "@/shared";
+import { Alert, Badge, Card, formatearFechaHora } from "@/shared";
 
 import {
   ETIQUETAS_DE_CATEGORIA,
@@ -29,6 +34,16 @@ import type { ListadoDeNotificaciones, Notificacion } from "../api/notificacione
 export interface PropsDeCentroDeNotificaciones {
   readonly inicial: ListadoDeNotificaciones;
 }
+
+/**
+ * RN-01 pide que la severidad se vea. El enum no se muestra crudo: «ALTA» es el valor que
+ * viaja, no una palabra que alguien escriba en una pantalla.
+ */
+const ETIQUETAS_DE_SEVERIDAD: Readonly<Record<string, string>> = {
+  ALTA: "Severidad alta",
+  MEDIA: "Severidad media",
+  BAJA: "Severidad baja",
+};
 
 export function CentroDeNotificaciones({ inicial }: PropsDeCentroDeNotificaciones): JSX.Element {
   const [listado, setListado] = useState<ListadoDeNotificaciones>(inicial);
@@ -53,6 +68,26 @@ export function CentroDeNotificaciones({ inicial }: PropsDeCentroDeNotificacione
     }
   }
 
+  if (listado.notificaciones.length === 0) {
+    return (
+      <>
+        {error !== null && (
+          <Alert tono="error" titulo="No se pudo completar">
+            {error}
+          </Alert>
+        )}
+        {/* Una raya corta y un renglón, dentro de la tarjeta: el mismo tratamiento que la
+            operación sin datos registrados en PAN-LOG-02. La envoltura la acota para que la
+            tarjeta no vuelva a ser la caja gigante que se acaba de sacar de la pantalla. */}
+        <div className="log-bandeja__vacia">
+          <Card>
+            <p className="log-nada">{MENSAJE_SIN_NOTIFICACIONES}</p>
+          </Card>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {error !== null && (
@@ -61,41 +96,57 @@ export function CentroDeNotificaciones({ inicial }: PropsDeCentroDeNotificacione
         </Alert>
       )}
 
-      <p className="dm-intro">
+      <p className="log-bandeja__resumen">
         {listado.no_leidas === 0
           ? "No tenés notificaciones sin leer."
           : `Tenés ${listado.no_leidas} notificación${listado.no_leidas === 1 ? "" : "es"} sin leer.`}
       </p>
 
-      {listado.notificaciones.length === 0 ? (
-        <p className="tabla__vacia">{MENSAJE_SIN_NOTIFICACIONES}</p>
-      ) : (
-        <ul className="log-avisos">
-          {listado.notificaciones.map((una) => (
-            <li key={una.id}>
-              <Card>
-                <p className="log-avisos__encabezado">
-                  <Badge estado={una.se_destaca ? "error" : "pendiente"}>
-                    {ETIQUETAS_DE_CATEGORIA[una.categoria] ?? una.categoria}
-                  </Badge>
-                  {una.se_destaca && <span className="log-avisos__urgente">Requiere atención</span>}
-                  {una.created_at !== null && (
-                    <span className="rep-comparacion">{formatearFechaHora(una.created_at)}</span>
-                  )}
-                </p>
-                <p>{una.cuerpo}</p>
-                {una.leida ? (
-                  <p className="rep-comparacion">Leída</p>
-                ) : (
-                  <Button variante="secundario" onClick={() => void leer(una)}>
-                    Marcar como leída
-                  </Button>
+      <ul className="log-bandeja">
+        {listado.notificaciones.map((una) => (
+          <li key={una.id}>
+            {/*
+             * La tarjeta es propia y no el `Card` compartido porque su fondo y su borde
+             * cambian al marcarla leída, y una transición sólo existe si el elemento que la
+             * sufre es el mismo antes y después.
+             */}
+            <article
+              className={`log-aviso${una.se_destaca ? " log-aviso--destacado" : ""}${
+                una.leida ? " log-aviso--leida" : ""
+              }`}
+            >
+              <p className="log-aviso__cab">
+                <Badge estado={una.se_destaca ? "error" : "pendiente"}>
+                  {ETIQUETAS_DE_CATEGORIA[una.categoria] ?? una.categoria}
+                </Badge>
+                <span className="log-aviso__sev">
+                  {ETIQUETAS_DE_SEVERIDAD[una.severidad] ?? una.severidad}
+                </span>
+                {una.se_destaca && <span className="log-aviso__urgente">Requiere atención</span>}
+                {una.created_at !== null && (
+                  <span className="log-aviso__fecha">{formatearFechaHora(una.created_at)}</span>
                 )}
-              </Card>
-            </li>
-          ))}
-        </ul>
-      )}
+              </p>
+              <p className="log-aviso__cuerpo">{una.cuerpo}</p>
+              <div className="log-aviso__pie">
+                {una.leida ? (
+                  <p className="log-aviso__leida">Leída</p>
+                ) : (
+                  // Acción de fila: texto, como el resto del panel. Un botón con caja por
+                  // tarjeta arma una columna de botones que pesa más que los avisos mismos.
+                  <button
+                    type="button"
+                    className="log-aviso__accion"
+                    onClick={() => void leer(una)}
+                  >
+                    Marcar como leída
+                  </button>
+                )}
+              </div>
+            </article>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }

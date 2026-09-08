@@ -79,7 +79,7 @@ function avisoDePadron(resultado: ResultadoDePadron): {
   }
   return {
     tono: "advertencia",
-    texto: `No se pudo validar contra ARCA: ${resultado.motivo ?? "el servicio no respondio"}. El cliente se guarda igual.`,
+    texto: `No se pudo validar contra ARCA: ${resultado.motivo ?? "el servicio no respondió"}. El cliente se guarda igual.`,
   };
 }
 
@@ -144,12 +144,19 @@ export function FormularioDeCliente({
 
   return (
     <form
-      className="dm-formulario"
+      className="dm-formulario mae-form"
       onSubmit={(evento) => {
         evento.preventDefault();
         void guardar();
       }}
     >
+      {/* Qué decide este formulario, antes de los campos: quien lo abre no tendría que
+          deducirlo de los nombres de las etiquetas. */}
+      <p className="mae-form__nota">
+        Sólo el nombre es obligatorio. El CUIT y la condición frente al IVA son lo que después
+        necesita la facturación; el WhatsApp, el agente.
+      </p>
+
       {error !== null && (
         <Alert tono="error" titulo="No se pudo guardar">
           {error}
@@ -166,10 +173,10 @@ export function FormularioDeCliente({
 
       <Campo
         id="cliente-nombre"
-        etiqueta="Nombre o razon social"
+        etiqueta="Nombre o razón social"
         value={campos.nombre}
         onChange={(evento) => cambiar("nombre", evento.target.value)}
-        ayuda="Si validas un CUIT contra ARCA y dejas esto vacio, se completa solo."
+        ayuda="Si validás un CUIT contra ARCA y dejás esto vacío, se completa solo."
       />
 
       <div className="dm-formulario__cuit">
@@ -196,7 +203,7 @@ export function FormularioDeCliente({
 
       <Select
         id="cliente-condicion-iva"
-        etiqueta="Condicion frente al IVA"
+        etiqueta="Condición frente al IVA"
         opciones={CONDICIONES}
         value={campos.condicion_iva}
         onChange={(evento) => cambiar("condicion_iva", evento.target.value)}

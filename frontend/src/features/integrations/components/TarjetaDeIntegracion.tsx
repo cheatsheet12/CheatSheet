@@ -110,6 +110,10 @@ export function TarjetaDeIntegracion({
   // on their side, and a "Reconectar" button here would invite the Administrator to start
   // a second review that resets the clock on the first.
   const enEspera = estado === "PENDIENTE";
+  const partes = [etiqueta, ambiente !== null ? AMBIENTE[ambiente] : null].filter(
+    (una): una is string => una !== null && una !== "",
+  );
+  const subtitulo = partes.length > 0 ? partes.join(" · ") : null;
 
   return (
     <article className={`int-card${estado === "CONECTADO" ? " is-on" : ""}`}>
@@ -120,9 +124,12 @@ export function TarjetaDeIntegracion({
         <div>
           <b>{info.nombre}</b>
           {/* The verified name identifies *which* account is connected, which matters more
-              to the reader than the environment; the environment follows it. */}
-          {etiqueta !== null ? <span className="int-card__sub">{etiqueta}</span> : null}
-          {ambiente !== null ? <span className="int-card__sub">{AMBIENTE[ambiente]}</span> : null}
+              to the reader than the environment; the environment follows it.
+
+              Both go in **one** span joined by the panel's separator. Two adjacent inline
+              spans render with nothing between them — the card read
+              «vence 2027-09-08Homologación», one word made of two facts. */}
+          {subtitulo !== null ? <span className="int-card__sub">{subtitulo}</span> : null}
         </div>
       </div>
       <p>{info.descripcion}</p>

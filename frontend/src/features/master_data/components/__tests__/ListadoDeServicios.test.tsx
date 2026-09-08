@@ -84,10 +84,10 @@ describe("ListadoDeServicios", () => {
   it("muestra las cinco columnas del criterio de aceptacion", () => {
     render(<ListadoDeServicios inicial={INICIAL} puedeEditar />);
 
-    for (const titulo of ["Nombre", "Precio", "IVA", "Duracion", "Estado"]) {
+    for (const titulo of ["Nombre", "Precio", "IVA", "Duración", "Estado"]) {
       expect(screen.getByRole("columnheader", { name: titulo })).toBeDefined();
     }
-    expect(screen.getByText("$ 5000.00")).toBeDefined();
+    expect(screen.getByText("$ 5.000,00")).toBeDefined();
     expect(screen.getByText("21%")).toBeDefined();
     expect(screen.getByText("45 min")).toBeDefined();
   });

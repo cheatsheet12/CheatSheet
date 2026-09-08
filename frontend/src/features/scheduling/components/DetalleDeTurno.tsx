@@ -17,16 +17,7 @@
 
 import { useState } from "react";
 
-import {
-  Alert,
-  Badge,
-  Button,
-  Campo,
-  Card,
-  Modal,
-  formatearFecha,
-  formatearFechaHora,
-} from "@/shared";
+import { Alert, Badge, Button, Campo, Card, Modal, formatearFecha } from "@/shared";
 
 import {
   ETIQUETAS_DE_ESTADO,
@@ -89,6 +80,24 @@ export function DetalleDeTurno({
         </Alert>
       )}
 
+      {/*
+       * La hora, la fecha y el estado suben a una tira propia y **salen de la lista de
+       * abajo**: son las tres cosas que se miran mientras se habla por teléfono con alguien
+       * que quiere cambiar el horario, y repetirlas en los dos lugares obligaría a mirar cuál
+       * de las dos se actualizó después de reprogramar.
+       */}
+      <div className="age-turno">
+        <p className="age-turno__hora">
+          {horaDe(turno.inicio)}
+          <span className="age-turno__fecha">
+            {formatearFecha(turno.inicio)} · hasta {horaDe(turno.fin)}
+          </span>
+        </p>
+        <span className="age-turno__estado">
+          <Badge estado={tonoDeEstado(turno.estado)}>{ETIQUETAS_DE_ESTADO[turno.estado]}</Badge>
+        </span>
+      </div>
+
       <div className="fac-detalle">
         <Card titulo="Turno">
           <dl className="fac-datos">
@@ -96,16 +105,6 @@ export function DetalleDeTurno({
             <dd>{servicio}</dd>
             <dt>Recurso</dt>
             <dd>{recurso}</dd>
-            <dt>Fecha</dt>
-            <dd>{formatearFecha(turno.inicio)}</dd>
-            <dt>Horario</dt>
-            <dd>
-              {horaDe(turno.inicio)} a {horaDe(turno.fin)}
-            </dd>
-            <dt>Estado</dt>
-            <dd>
-              <Badge estado={tonoDeEstado(turno.estado)}>{ETIQUETAS_DE_ESTADO[turno.estado]}</Badge>
-            </dd>
             <dt>Origen</dt>
             {/* HU-E7-06 RN-02: distingue los turnos del panel de los del agente. */}
             <dd>{turno.canal_reserva === "PANEL" ? "Cargado desde el panel" : "Agente"}</dd>
@@ -130,7 +129,6 @@ export function DetalleDeTurno({
               Un turno habilita la emisión del comprobante cuando queda marcado como completado.
             </p>
           )}
-          <p className="fac-mono">Creado {formatearFechaHora(turno.inicio)}</p>
         </Card>
       </div>
 

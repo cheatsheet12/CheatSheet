@@ -18,14 +18,21 @@ export type { PropsDeGeneradorDeReportes } from "./components/GeneradorDeReporte
 export { Tablero } from "./components/Tablero";
 export type { PropsDeTablero } from "./components/Tablero";
 export {
+  ETIQUETAS_DE_ESTADO_DE_REPORTE,
   ETIQUETAS_DE_TIPO,
+  ETIQUETAS_DE_TIPO_DE_COMPROBANTE,
   ErrorDeReporte,
   FORMATOS_POR_TIPO,
   MENSAJE_SIN_ACTIVIDAD,
   MENSAJE_SIN_DATOS,
+  etiquetaDeSemana,
   generarReporte,
   listarReportes,
+  nombreDeSemana,
+  nombreDeTipoDeComprobante,
   previsualizar,
+  textoDeDia,
+  textoDePeriodo,
   urlDeReporte,
   verTablero,
 } from "./api/reporte";
@@ -52,6 +59,8 @@ export {
   guardarConfiguracion,
   invitarContador,
   listarPaquetes,
+  nombreDeClaveDePaquete,
+  nombreDelPeriodo,
   revocarContador,
   urlDePaquete,
   urlDePaqueteDelContador,

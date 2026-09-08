@@ -46,6 +46,22 @@
   text-decoration: underline;
 }
 
+/*
+ * El cintillo mono del prototipo, el mismo que llevan la agenda y el canal de WhatsApp.
+ * Dice en qué parte del panel está parado quien mira antes de que lea el título, que es lo
+ * que un `<h1>` suelto no puede decir: «Notificaciones» a secas no distingue la bandeja de
+ * la pantalla donde se eligen las preferencias.
+ */
+.log-encabezado__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
 .log-encabezado h1 {
   font-size: 27px;
   font-weight: 800;
@@ -697,12 +713,21 @@
   margin: 0 0 var(--space-4);
 }
 
+/* El `main` del panel llega a 1640 px: sin tope, el cuerpo de un aviso se estira a lineas de
+   casi doscientos caracteres, que es el doble de lo que se lee sin perder el renglón. */
 .log-bandeja {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   gap: var(--space-3);
+  max-width: 1320px;
+}
+
+/* El estado vacío es una frase corta. Una tarjeta de ancho completo para sostenerla vuelve a
+   ser la caja gigante que se acaba de sacar de la pantalla. */
+.log-bandeja__vacia {
+  max-width: 620px;
 }
 
 /*
@@ -762,6 +787,7 @@
 
 .log-aviso__cuerpo {
   margin: 0;
+  max-width: 96ch;
   font-size: 13.5px;
   line-height: 1.55;
   color: var(--ink-700);
@@ -793,13 +819,73 @@
   content: "✓";
 }
 
+/*
+ * La acción de la fila es texto, no una caja con borde.
+ *
+ * Es el mismo criterio que `.faq-accion` y que el chevron del log: en una lista de avisos, un
+ * botón con borde por tarjeta dibuja una columna de cajas que compite por atención con el
+ * aviso mismo, y el aviso es lo único que hay que leer. El acuse de recibo es además la
+ * acción más barata del panel: no borra nada.
+ *
+ * El margen negativo compensa el padding para que el texto arranque en la misma vertical que
+ * el cuerpo del aviso; sin él la acción queda visiblemente corrida a la derecha.
+ */
+.log-aviso__accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  margin-left: -11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.log-aviso__accion:hover:not(:disabled) {
+  color: var(--ink-900);
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.log-aviso__accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.log-aviso__accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* --- PAN-SOP-01 · soporte ------------------------------------------------------------ */
 
+/*
+ * Formulario a la izquierda, listado a la derecha, y el conjunto acotado.
+ *
+ * El `main` del panel llega a 1640 px. Cuatro columnas cortas —asunto, prioridad, estado y
+ * fecha— repartidas sobre ese ancho dejan medio metro de vacío entre el asunto y su
+ * prioridad, y obligan a barrer la pantalla entera para leer una fila. El tope de 1320 px y
+ * la columna del formulario son las dos cosas que devuelven la fila a un ancho que se lee de
+ * una sola pasada.
+ */
 .log-soporte {
   display: grid;
   grid-template-columns: minmax(320px, 400px) 1fr;
   gap: var(--space-4);
   align-items: start;
+  max-width: 1320px;
+}
+
+/* Sin permiso para abrir solicitudes no hay formulario: el listado no debe estirarse a
+   ocupar las dos columnas, sólo la que le corresponde. */
+.log-soporte--sola {
+  grid-template-columns: minmax(0, 900px);
 }
 
 @media (max-width: 1080px) {
@@ -808,28 +894,89 @@
   }
 }
 
+/* La prioridad se lee antes de leerla: el punto de color la ordena de un vistazo, igual que
+   el punto de módulo ordena la bitácora. El texto la sigue diciendo, porque el color solo no
+   es información accesible. */
+.log-prio {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  white-space: nowrap;
+}
+
+.log-prio__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--ink-300);
+}
+
+.log-prio__punto--alta {
+  background: var(--err);
+}
+
+.log-prio__punto--media {
+  background: var(--alert);
+}
+
+/* «Abierta el» parte en dos renglones cuando su columna se angosta, y una cabecera de dos
+   líneas entre tres de una sola desalinea la fila entera. */
+.log-soporte .tabla th {
+  white-space: nowrap;
+}
+
 .log-soporte__pie {
   display: flex;
   justify-content: flex-end;
   margin-top: var(--space-2);
 }
 
+/*
+ * El área de texto que al catálogo compartido le falta.
+ *
+ * Hereda del `.campo__control` todo lo que la hace parte del mismo juego de controles —tipo,
+ * borde, radio, padding y el foco de acento con halo— y sólo cambia lo que un `textarea`
+ * necesita: alto propio.
+ *
+ * **`resize: none` es deliberado.** El tirador nativo es el único control del panel que se
+ * dibuja solo, con una diagonal gris que ningún otro campo tiene, y aparece justo sobre el
+ * borde de la tarjeta. Cuatro renglones alcanzan para describir un problema; lo que no entra,
+ * hace scroll.
+ */
 .log-area {
   width: 100%;
-  min-height: 120px;
-  resize: vertical;
+  min-height: 104px;
+  resize: none;
   font-family: inherit;
-  font-size: var(--text-body);
-  color: var(--ink-700);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-900);
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
-  padding: 11px 13px;
-  transition: border-color 140ms ease;
+  padding: 10px 13px;
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.log-area::placeholder {
+  color: var(--ink-300);
+}
+
+.log-area:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-050);
 }
 
 .log-area:focus-visible {
-  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .log-sol b {
@@ -861,6 +1008,7 @@
   .log-tl__paso,
   .log-tl__paso::before,
   .log-aviso,
+  .log-aviso__accion,
   .log-accion,
   .log-area,
   .log-pg,
@@ -880,6 +1028,7 @@
   }
 
   .log-accion:active:not(:disabled),
+  .log-aviso__accion:active:not(:disabled),
   .log-pg:active:not(:disabled) {
     transform: none;
   }

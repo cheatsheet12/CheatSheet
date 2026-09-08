@@ -11,6 +11,8 @@
  * dice que alguien se adelantó.
  */
 
+import { PREFERENCIAS_POR_DEFECTO } from "@/shared";
+
 export type EstadoTurno = "RESERVADO" | "CONFIRMADO" | "CANCELADO" | "COMPLETADO" | "NO_SHOW";
 
 export interface Turno {
@@ -56,6 +58,20 @@ export interface FiltrosDeAgenda {
   readonly desde?: string;
   readonly hasta?: string;
   readonly estado?: string;
+}
+
+/**
+ * Lo mínimo que la agenda necesita de algo que se nombra: su id y cómo se llama.
+ *
+ * Un `Turno` viaja con `cliente_id` y `servicio_id`, no con los nombres. La fila los muestra
+ * porque un UUID en una agenda no le dice nada a quien la mira, y quien resuelve el nombre es
+ * la página del servidor. Esta forma se declara acá —y no se importa de `master_data`— para
+ * que la agenda no dependa de la definición completa de un cliente: de un cliente sólo usa el
+ * nombre, y pedir el tipo entero ataría esta pantalla a cada campo que se le agregue allá.
+ */
+export interface Nombrado {
+  readonly id: string;
+  readonly nombre: string;
 }
 
 /** HU-E7-01, HU-E7-02, HU-E7-03 y HU-E7-06, palabra por palabra. */
@@ -222,5 +238,23 @@ export function horaDe(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+  });
+}
+
+/**
+ * El día que va en el cintillo de la agenda: «lunes 7 de septiembre».
+ *
+ * **La zona es fija y no la del navegador**, al revés que en `horaDe`. Este texto lo dibuja un
+ * componente de cliente que Next renderiza primero en el servidor: si cada lado eligiera su
+ * propia zona, el servidor podría escribir «domingo 6» y el navegador «lunes 7», y React
+ * descartaría el HTML entero por no coincidir. La hora de un turno se lee de a una y en el
+ * local; el encabezado tiene que ser el mismo texto en los dos renders.
+ */
+export function fechaLargaDe(iso: string): string {
+  return new Date(iso).toLocaleDateString(PREFERENCIAS_POR_DEFECTO.idioma, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: PREFERENCIAS_POR_DEFECTO.zonaHoraria,
   });
 }

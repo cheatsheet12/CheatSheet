@@ -26,10 +26,18 @@ export default async function PaginaDeNotificaciones(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Notificaciones</h1>
-      <p className="dm-intro">
-        Lo que necesita tu atención. Qué recibís lo elegís vos en tus preferencias.
-      </p>
+      {/* El encabezado del panel: cintillo mono, título de 27 px y bajada. Un `<h1>` pelado
+          no dice de qué sección es esta pantalla, y «Notificaciones» a secas se confunde con
+          la de preferencias, que es donde se elige qué llega. */}
+      <header className="log-encabezado">
+        <div>
+          <p className="log-encabezado__eyebrow">Configuración · Notificaciones</p>
+          <h1>Notificaciones</h1>
+          <p className="log-encabezado__sub">
+            Lo que necesita tu atención. Qué recibís lo elegís vos en tus preferencias.
+          </p>
+        </div>
+      </header>
       <CentroDeNotificaciones inicial={listado} />
     </>
   );

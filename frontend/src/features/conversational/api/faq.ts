@@ -70,6 +70,39 @@ export const ETIQUETAS_DE_CODIGO: Readonly<Record<string, string>> = {
   cobro_generado: "Link de pago generado",
 };
 
+/**
+ * Cómo se lee un canal y un idioma.
+ *
+ * Misma razón que `ETIQUETAS_DE_CODIGO`, aplicada a las otras dos columnas del listado:
+ * `WHATSAPP` y `es_AR` son identificadores del sistema, y una pantalla de configuración que
+ * imprime `es_AR` seis veces obliga a adivinar de qué idioma habla.
+ */
+export const ETIQUETAS_DE_CANAL: Readonly<Record<CanalDePlantilla, string>> = {
+  WHATSAPP: "WhatsApp",
+  EMAIL: "Email",
+  PANEL: "Panel",
+};
+
+/**
+ * Los idiomas que el backend puede mandar hoy.
+ *
+ * El código es una etiqueta BCP 47 con guion bajo, no un enum cerrado del dominio: si aparece
+ * uno que no está acá se muestra crudo, que es más honesto que inventarle un nombre.
+ */
+export const ETIQUETAS_DE_IDIOMA: Readonly<Record<string, string>> = {
+  es_AR: "Español (Argentina)",
+  es_ES: "Español (España)",
+  es: "Español",
+  en_US: "Inglés (Estados Unidos)",
+  en: "Inglés",
+  pt_BR: "Portugués (Brasil)",
+};
+
+/** El idioma legible; un código desconocido se muestra tal cual llegó. */
+export function nombreDeIdioma(codigo: string): string {
+  return ETIQUETAS_DE_IDIOMA[codigo] ?? codigo;
+}
+
 export const ETIQUETAS_DE_APROBACION: Readonly<Record<EstadoDeAprobacion, string>> = {
   NO_APLICA: "No requiere aprobación",
   PENDIENTE: "Pendiente de aprobación",

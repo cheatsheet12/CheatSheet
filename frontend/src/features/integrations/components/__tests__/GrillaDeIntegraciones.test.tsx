@@ -472,8 +472,11 @@ describe("GrillaDeIntegraciones", () => {
 
     render(<GrillaDeIntegraciones inicial={conectada} puedeConectar />);
 
-    expect(screen.getByText("CUIT 20123456789 · vence 2027-09-23")).toBeTruthy();
-    expect(screen.getByText("Homologación")).toBeTruthy();
+    // Los tres datos en un solo elemento, y no en dos: dos `span` en línea se renderizan
+    // sin nada en medio, y la tarjeta leía «vence 2027-09-23Homologación» — una palabra
+    // hecha de dos hechos. El criterio de aceptación pide que se vean el ambiente y el
+    // estado, no que vivan en nodos separados.
+    expect(screen.getByText("CUIT 20123456789 · vence 2027-09-23 · Homologación")).toBeTruthy();
     expect(screen.getByText("Conectado")).toBeTruthy();
   });
 

@@ -3,6 +3,10 @@
  *
  * El listado se pide siempre: el backend siembra las plantillas de fábrica que falten la
  * primera vez que una empresa entra acá.
+ *
+ * El encabezado lo dibuja el componente, igual que en respuestas frecuentes: las dos pantallas
+ * de configuración del canal comparten la misma cabecera, y tenerla en un solo lado es lo que
+ * evita que se separen con el tiempo.
  */
 
 import { redirect } from "next/navigation";
@@ -25,13 +29,6 @@ export default async function PaginaDePlantillas(): Promise<JSX.Element> {
   const listado = await llamarApi<ListadoDePlantillas>("/plantillas");
 
   return (
-    <>
-      <h1>Plantillas de notificación</h1>
-      <p className="dm-intro">
-        Los mensajes que el sistema manda a tus clientes. Podés editar el texto y usar las variables
-        que cada uno admite; el sistema las reemplaza al enviar.
-      </p>
-      <PlantillasDeNotificacion inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />
-    </>
+    <PlantillasDeNotificacion inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />
   );
 }

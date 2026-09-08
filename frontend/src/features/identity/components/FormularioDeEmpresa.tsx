@@ -19,6 +19,12 @@
  * **El cromo del paso sólo existe en el onboarding.** Stepper, «PASO 2 DE 3» y barra de
  * progreso hablan de una secuencia; en Configuración → Empresa no hay secuencia, hay una
  * pantalla que se edita cuando hace falta, y dibujarle un paso 2 sería mentir.
+ *
+ * **Los campos se arman una vez y se acomodan dos.** El onboarding los apila en una tarjeta
+ * angosta —una columna, una pregunta por vez— y el panel los agrupa en secciones de dos
+ * columnas, porque a 1440 px un campo de once dígitos estirado a todo el ancho es un
+ * renglón vacío de un metro. Es la misma lista de campos con dos maquetados, no dos
+ * formularios: dos copias de «Razón social» son dos lugares donde arreglar un solo bug.
  */
 
 "use client";
@@ -26,11 +32,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Card, Select, Stepper } from "@/shared";
+import { Alert, Button, Campo, Select, Stepper } from "@/shared";
 
 import type { ConsultaDePadron, EmpresaActual } from "../api/cliente";
 import { ErrorDeFormulario, consultarPadron, guardarEmpresa } from "../api/cliente";
-import { errorDeCuit, esCuitValido, normalizarCuit } from "../validacion/cuit";
+import { errorDeCuit, esCuitValido, formatearCuit, normalizarCuit } from "../validacion/cuit";
 import { PASOS_DEL_ONBOARDING, avanceDelPaso } from "./pasos";
 
 const CONDICIONES = [
@@ -188,50 +194,65 @@ export function FormularioDeEmpresa({
     }
   };
 
-  const campos = (
+  /*
+   * Los campos, armados una vez. Abajo se acomodan de dos maneras distintas.
+   *
+   * El CUIT se reescribe con guiones al salir del campo y no mientras se tipea: mover el
+   * cursor por debajo de quien está escribiendo es cómo se pierde un dígito en el medio.
+   * Al backend viaja normalizado igual, así que los guiones son presentación y nada más.
+   */
+  const campoCuit = (
+    <Campo
+      id="cuit"
+      etiqueta="CUIT"
+      mono
+      inputMode="numeric"
+      required
+      placeholder="30-71234567-1"
+      ayuda={enOnboarding ? "Se valida contra el padrón de ARCA." : undefined}
+      error={errorCuit ?? undefined}
+      value={cuit}
+      onChange={(evento) => cambiarCuit(evento.target.value)}
+      onBlur={() => setCuit((previo) => formatearCuit(previo))}
+    />
+  );
+
+  const campoCondicion = (
+    <Select
+      id="condicion-iva"
+      etiqueta="Condición IVA"
+      opciones={OPCIONES_DE_CONDICION}
+      value={condicionIva}
+      ayuda={enOnboarding ? "ARCA la completa cuando encuentra el CUIT." : undefined}
+      onChange={(evento) => {
+        setCondicionIva(evento.target.value);
+        setCondicionElegida(true);
+      }}
+    />
+  );
+
+  const botonValidar = cuitOk ? (
+    <Button
+      type="button"
+      variante="secundario"
+      cargando={consultando}
+      onClick={() => void validar()}
+    >
+      Validar contra ARCA
+    </Button>
+  ) : null;
+
+  /*
+   * La respuesta de ARCA, con la clase del envoltorio como parámetro.
+   *
+   * En el panel el aviso es lo último de su sección y separa por arriba; en el alta guiada
+   * queda en el medio de una columna de campos y separa por abajo. Es la misma respuesta
+   * con dos aires distintos, no dos bloques.
+   */
+  const respuestaDelPadron = (clase: string): JSX.Element => (
     <>
-      <div className={enOnboarding ? "onb-dos-columnas" : ""}>
-        <Campo
-          id="cuit"
-          etiqueta="CUIT"
-          mono
-          inputMode="numeric"
-          required
-          placeholder="30-71234567-1"
-          ayuda={enOnboarding ? "Se valida contra el padrón de ARCA." : undefined}
-          error={errorCuit ?? undefined}
-          value={cuit}
-          onChange={(evento) => cambiarCuit(evento.target.value)}
-        />
-
-        <Select
-          id="condicion-iva"
-          etiqueta="Condición IVA"
-          opciones={OPCIONES_DE_CONDICION}
-          value={condicionIva}
-          ayuda={enOnboarding ? "ARCA la completa cuando encuentra el CUIT." : undefined}
-          onChange={(evento) => {
-            setCondicionIva(evento.target.value);
-            setCondicionElegida(true);
-          }}
-        />
-      </div>
-
-      {cuitOk && (
-        <div style={{ marginBottom: "var(--space-4)" }}>
-          <Button
-            type="button"
-            variante="secundario"
-            cargando={consultando}
-            onClick={() => void validar()}
-          >
-            Validar contra ARCA
-          </Button>
-        </div>
-      )}
-
       {consulta !== null && (
-        <div style={{ marginBottom: "var(--space-4)" }}>
+        <div className={clase}>
           <Alert tono={tonoDe(consulta)}>{mensajeDe(consulta)}</Alert>
         </div>
       )}
@@ -255,7 +276,7 @@ export function FormularioDeEmpresa({
       )}
 
       {sugerencia !== null && (
-        <div style={{ marginBottom: "var(--space-4)" }}>
+        <div className={clase}>
           <Alert tono="advertencia">
             {textoDeSugerencia(sugerencia)}
             <div style={{ marginTop: "var(--space-2)" }}>
@@ -266,32 +287,38 @@ export function FormularioDeEmpresa({
           </Alert>
         </div>
       )}
-
-      <Campo
-        id="razon-social"
-        etiqueta="Razón social"
-        required
-        value={razonSocial}
-        onChange={(evento) => setRazonSocial(evento.target.value)}
-      />
-
-      <Campo
-        id="responsable"
-        etiqueta="Nombre del responsable"
-        required
-        value={nombreResponsable}
-        onChange={(evento) => setNombreResponsable(evento.target.value)}
-      />
-
-      <Campo
-        id="email-contacto"
-        etiqueta="Email de contacto"
-        type="email"
-        required
-        value={emailContacto}
-        onChange={(evento) => setEmailContacto(evento.target.value)}
-      />
     </>
+  );
+
+  const campoRazonSocial = (
+    <Campo
+      id="razon-social"
+      etiqueta="Razón social"
+      required
+      value={razonSocial}
+      onChange={(evento) => setRazonSocial(evento.target.value)}
+    />
+  );
+
+  const campoResponsable = (
+    <Campo
+      id="responsable"
+      etiqueta="Nombre del responsable"
+      required
+      value={nombreResponsable}
+      onChange={(evento) => setNombreResponsable(evento.target.value)}
+    />
+  );
+
+  const campoEmail = (
+    <Campo
+      id="email-contacto"
+      etiqueta="Email de contacto"
+      type="email"
+      required
+      value={emailContacto}
+      onChange={(evento) => setEmailContacto(evento.target.value)}
+    />
   );
 
   const avisos = (
@@ -313,17 +340,65 @@ export function FormularioDeEmpresa({
   // seguidos, que es lo que hacía antes.
   if (!enOnboarding) {
     return (
-      <Card>
+      <>
         {avisos}
-        <form onSubmit={(evento) => void enviar(evento)} noValidate>
-          {campos}
-          <div className="dm-formulario__acciones">
-            <Button type="submit" cargando={enviando} disabled={!completo}>
-              Guardar
-            </Button>
+        <div className="cfg-panel">
+          <div className="cfg-panel__cab">
+            <h2 className="cfg-panel__titulo">Datos fiscales</h2>
+            {/* El CUIT con guiones vive acá, en la cabecera, y no dentro del campo: el
+                campo es editable y reescribirlo mientras alguien tipea mueve el cursor por
+                debajo de su mano. Acá se lee de un vistazo y en el formato en el que se
+                dicta por teléfono. */}
+            {cuitOk ? (
+              <p className="cfg-panel__cuenta">CUIT {formatearCuit(cuit)}</p>
+            ) : (
+              <p className="cfg-panel__nota">Se imprimen en cada comprobante</p>
+            )}
           </div>
-        </form>
-      </Card>
+
+          <form onSubmit={(evento) => void enviar(evento)} noValidate>
+            <section className="cfg-seccion">
+              <h3 className="cfg-seccion__titulo">Identificación ante ARCA</h3>
+              <p className="cfg-seccion__nota">
+                El CUIT y la condición con la que se emite. Validalos contra el padrón antes de
+                facturar: un comprobante mal identificado no se corrige, se anula.
+              </p>
+
+              <div className="cfg-campos">
+                {/* El botón va pegado al campo que valida. Suelto entre «Condición IVA» y
+                    «Razón social» no pertenecía a ninguno de los dos. */}
+                <div className="cfg-cuit cfg-campos__ancho">
+                  {campoCuit}
+                  {botonValidar}
+                </div>
+                {campoCondicion}
+              </div>
+
+              {respuestaDelPadron("cfg-aviso")}
+            </section>
+
+            <section className="cfg-seccion">
+              <h3 className="cfg-seccion__titulo">Quién figura y a quién escribirle</h3>
+              <p className="cfg-seccion__nota">
+                La razón social sale impresa en el comprobante. El email es al que llegan los avisos
+                de facturación.
+              </p>
+
+              <div className="cfg-campos">
+                <div className="cfg-campos__ancho">{campoRazonSocial}</div>
+                {campoResponsable}
+                {campoEmail}
+              </div>
+            </section>
+
+            <div className="cfg-panel__pie">
+              <Button type="submit" cargando={enviando} disabled={!completo}>
+                Guardar
+              </Button>
+            </div>
+          </form>
+        </div>
+      </>
     );
   }
 
@@ -350,7 +425,20 @@ export function FormularioDeEmpresa({
         {avisos}
 
         <form onSubmit={(evento) => void enviar(evento)} noValidate>
-          {campos}
+          <div className="onb-dos-columnas">
+            {campoCuit}
+            {campoCondicion}
+          </div>
+
+          {botonValidar !== null && (
+            <div style={{ marginBottom: "var(--space-4)" }}>{botonValidar}</div>
+          )}
+
+          {respuestaDelPadron("cfg-aviso cfg-aviso--abajo")}
+
+          {campoRazonSocial}
+          {campoResponsable}
+          {campoEmail}
 
           <div className="onb-proteccion">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
