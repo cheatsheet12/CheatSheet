@@ -56,6 +56,7 @@ class RegistrarOperacion:
             entidad_afectada=evento.entidad_afectada,
             resultado=evento.resultado,
             direccion_ip=evento.direccion_ip,
+            iniciador=evento.quien_inicio,
             # The event's own instant, read from the emitter's injected clock. The row
             # records when the operation happened, not when it got persisted.
             timestamp=evento.ocurrido_en,

@@ -58,6 +58,24 @@ class Resultado(StrEnum):
     ERROR = "error"
 
 
+class Iniciador(StrEnum):
+    """Who set the operation in motion (HS-T5 RN-02, HS-T2 RN-05).
+
+    The DER has no such column, exactly as it has no `modulo` — gap H2, already resolved once
+    in migration 0001 by adding the column the rule requires. This is the same resolution for
+    the other half of the same sentence: the rule lists «iniciador» among what the record
+    captures, and epic 10's panel filters by it (HU-E12-01).
+
+    `usuario_id is None` was enough while «not a person» meant one thing. Epic 8 makes it mean
+    two very different things — a Beat sweep and **an LLM acting on a stranger's message** —
+    and the first question anyone asks after an odd conversation is which of the two it was.
+    """
+
+    USUARIO = "usuario"
+    SISTEMA = "sistema"
+    IA = "ia"
+
+
 LARGO_MAXIMO_ACCION = 120
 LARGO_MAXIMO_ENTIDAD = 200
 
@@ -99,6 +117,10 @@ class EventoAuditable(EventoDeDominio):
     #: audit trail and never leaves it — in particular it is never sent to an LLM
     #: (CLAUDE.md §3.6).
     direccion_ip: str | None = None
+    #: Who set this in motion. Left `None`, it is derived from `usuario_id`, so every call
+    #: site written before epic 8 keeps meaning exactly what it meant; only the agent has to
+    #: say so explicitly.
+    iniciador: Iniciador | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -108,3 +130,15 @@ class EventoAuditable(EventoDeDominio):
     @property
     def fue_del_sistema(self) -> bool:
         return self.usuario_id is None
+
+    @property
+    def quien_inicio(self) -> Iniciador:
+        """The initiator, derived when it was not stated.
+
+        A derived default rather than a required field: making it mandatory would have meant
+        touching every call site in seven epics to say something the code already implied,
+        and each of those edits is a chance to say the wrong thing.
+        """
+        if self.iniciador is not None:
+            return self.iniciador
+        return Iniciador.SISTEMA if self.usuario_id is None else Iniciador.USUARIO

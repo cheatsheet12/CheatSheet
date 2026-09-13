@@ -95,6 +95,31 @@ def sesiones(engine_aplicacion: AsyncEngine) -> async_sessionmaker[AsyncSession]
 #: the migrations are: a `f"DELETE FROM {x}"` is a SQL injection shape even when `x` is a
 #: constant, and the linter is right to say so.
 BORRADOS = (
+    # `token_de_acceso_contable` antes que `paquete_contable`, y los dos antes que `empresa`.
+    # `reporte` apunta además a `usuario`. El orden va de la hoja a la raíz, como el resto.
+    "DELETE FROM token_de_acceso_contable",
+    "DELETE FROM paquete_contable",
+    "DELETE FROM reporte",
+    "DELETE FROM configuracion_de_paquete",
+    # `mensaje` y `escalamiento` antes que `conversacion`, y `conversacion` antes que
+    # `cliente`: el orden va de la hoja a la raiz, como el resto de la lista.
+    "DELETE FROM mensaje",
+    "DELETE FROM escalamiento",
+    "DELETE FROM conversacion",
+    "DELETE FROM faq",
+    "DELETE FROM plantilla_de_notificacion",
+    # `turno` antes que `cobro`: un turno apunta a la seña que lo reserva, y también al
+    # cliente y al servicio. El orden va de la hoja a la raíz, como el resto de la lista.
+    "DELETE FROM turno",
+    "DELETE FROM servicio_de_recurso",
+    "DELETE FROM excepcion_de_disponibilidad",
+    "DELETE FROM patron_de_disponibilidad",
+    "DELETE FROM recurso_reservable",
+    # `recordatorio` y `cobro` antes que `comprobante`: un cobro apunta al comprobante que
+    # salda, y el comprobante apunta al cliente. El orden va de la hoja a la raiz.
+    "DELETE FROM recordatorio",
+    "DELETE FROM cobro",
+    "DELETE FROM regla_de_negocio",
     # `comprobante` primero: apunta a `cliente` y a `punto_de_venta` sin cascada, porque
     # un comprobante emitido no puede desaparecer porque alguien borre al cliente.
     "DELETE FROM item_de_comprobante",

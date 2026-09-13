@@ -84,6 +84,31 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
             "schedule": timedelta(minutes=5),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
+        # HS-T3 y HU-E6-01 RN-03. Cada hora: una deuda no cambia de estado al minuto, y la
+        # cadena de recordatorios cuenta en días. Más seguido sería preguntar lo mismo
+        # sesenta veces para enterarse de que nada cambió.
+        "barrer-cobros": {
+            "task": "payments.barrer_cobros",
+            "schedule": timedelta(hours=1),
+            "options": {"queue": Cola.NOTIFICATIONS.value},
+        },
+        # Las FAQ que quedaron sin vector. Cada seis horas: sólo hay algo que hacer cuando el
+        # proveedor de embeddings estuvo caído o cuando alguien cambió de modelo, y ninguna de
+        # las dos cosas pasa varias veces por día. Mientras tanto la FAQ se lee y se edita; lo
+        # único que no puede es encontrarse por significado.
+        "reindexar-faqs": {
+            "task": "conversational.barrer_faqs",
+            "schedule": timedelta(hours=6),
+            "options": {"queue": Cola.NOTIFICATIONS.value},
+        },
+        # HU-E10-04. **Diario y no mensual**: el día de envío lo elige cada empresa, así que
+        # no hay un día del mes en el que corresponda correr — hay un día por empresa. La
+        # corrida de un día sin empresas programadas es una consulta que devuelve cero filas.
+        "armar-paquetes-contables": {
+            "task": "reporting.barrer_paquetes",
+            "schedule": timedelta(days=1),
+            "options": {"queue": Cola.NOTIFICATIONS.value},
+        },
         "barrer-tareas-agotadas": {
             "task": "observability.barrer_dlq",
             "schedule": timedelta(minutes=max(settings.dlq_barrido_minutos, 1)),

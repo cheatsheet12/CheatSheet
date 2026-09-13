@@ -29,6 +29,7 @@ from datetime import datetime
 from uuid import UUID
 
 from cheatsheet.shared.auditoria import (
+    Iniciador,
     Modulo,
     Resultado,
     validar_accion,
@@ -55,6 +56,9 @@ class RegistroDeAuditoria:
     resultado: Resultado
     direccion_ip: str | None
     timestamp: datetime
+    #: Who set it in motion (HS-T5 RN-02). Defaults to what `usuario_id` implies, so the
+    #: seven epics written before this column keep saying what they said.
+    iniciador: Iniciador = Iniciador.SISTEMA
 
     def __post_init__(self) -> None:
         if self.timestamp.tzinfo is None:
@@ -71,3 +75,13 @@ class RegistroDeAuditoria:
     @property
     def fue_del_sistema(self) -> bool:
         return self.usuario_id is None
+
+    @property
+    def fue_de_la_ia(self) -> bool:
+        """What the audit panel of epic 10 filters by, and what HS-T2 RN-05 asks to record.
+
+        A separate value from `SISTEMA` because a Beat sweep and an LLM reading a stranger's
+        message fail in completely different ways, and the first question after an odd
+        conversation is which of the two it was.
+        """
+        return self.iniciador is Iniciador.IA

@@ -409,6 +409,13 @@ class Settings:
     whatsapp_graph_version: str
     whatsapp_timeout_segundos: int
     whatsapp_sondeo_minutos: int
+    #: El secreto con el que Meta firma el webhook entrante (HS-T2). **Vacío significa que
+    #: ninguna firma valida**, igual que el de MercadoPago: lo cómodo —aceptar todo mientras
+    #: no haya secreto— convierte un despliegue mal configurado en un endpoint público que le
+    #: habla a los clientes de una empresa.
+    whatsapp_webhook_secret: str
+    #: El token del handshake `GET` con el que Meta verifica la URL al registrarla.
+    whatsapp_webhook_verify_token: str
     #: How often Beat retires tasks that ran out of attempts (HS-T6 RN-02).
     dlq_barrido_minutos: int
     #: spreadsheet_sync (HU-E2-04). Cloudflare R2 holds the uploaded workbooks.
@@ -468,6 +475,12 @@ class Settings:
     mercadopago_api_url: str
     mercadopago_timeout_segundos: int
     mercadopago_margen_renovacion_dias: int
+    #: HS-T1 RN-01. **Sin secreto configurado, ninguna firma vale**: lo cómodo sería aceptar
+    #: todo mientras no haya secreto, y eso convierte un despliegue mal configurado en un
+    #: endpoint público que mueve el estado de los cobros.
+    mercadopago_webhook_secret: str
+    #: A dónde vuelve el cliente después de pagar (HU-E6-03). Es el panel, no la API.
+    mercadopago_url_de_retorno: str
     mercadopago_autorizacion_ttl_minutos: int
 
     @property
@@ -523,6 +536,8 @@ class Settings:
             # 30 minutes against a wait Meta measures in days (HU-E2-03 RN-02): it bounds
             # the delay to about 1% of the wait at 48 calls per number per day.
             whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
+            whatsapp_webhook_secret=_opcional("WHATSAPP_WEBHOOK_SECRET", ""),
+            whatsapp_webhook_verify_token=_opcional("WHATSAPP_WEBHOOK_VERIFY_TOKEN", ""),
             dlq_barrido_minutos=_entero("DLQ_BARRIDO_MINUTOS", 15),
             planilla_adaptador=_adaptador_de_planilla(entorno),
             almacenamiento_adaptador=_adaptador_de_almacenamiento(entorno),
@@ -600,6 +615,10 @@ class Settings:
             # retries before anything breaks, which is more than any outage this system
             # can survive anyway.
             mercadopago_margen_renovacion_dias=_entero("MERCADOPAGO_MARGEN_RENOVACION_DIAS", 15),
+            mercadopago_webhook_secret=_opcional("MERCADOPAGO_WEBHOOK_SECRET", ""),
+            mercadopago_url_de_retorno=_opcional(
+                "MERCADOPAGO_URL_DE_RETORNO", "http://localhost:3000/cobros"
+            ),
             # Longer than anyone takes to press a button, shorter than a tab left open
             # over lunch — which is the case this window exists to expire.
             mercadopago_autorizacion_ttl_minutos=_entero(

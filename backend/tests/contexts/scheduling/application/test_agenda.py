@@ -1,0 +1,688 @@
+"""Los casos de uso de la agenda (HU-E7-01 … HU-E7-06).
+
+Cuatro cosas se prueban acá y las cuatro son decisiones del épico:
+
+- **D28** — el caso de uso **no pretende** garantizar que la franja esté libre. Lo que se
+  afirma es que deja pasar el `FranjaOcupada` del repositorio con la frase de la historia, y
+  que un turno cuya reprogramación fue rechazada **queda donde estaba** (criterio textual).
+- **D30** — reprogramar conserva el estado. Ya está probado en el dominio; acá se prueba que
+  el caso de uso no lo pisa al pasar por el aviso y la bitácora.
+- **D33** — el aviso por WhatsApp es de mejor esfuerzo. Un cliente sin teléfono es un camino
+  previsto (RN-03 dice «si tiene número registrado»), y cancelar tiene que funcionar igual.
+- **HU-E7-04 RN-02/RN-03** — un servicio no asociado y un recurso desactivado se rechazan
+  **antes** de tocar el repositorio.
+
+Los permisos se prueban una vez por familia y no por método: el guarda es la misma función en
+los cinco casos de uso, y cinco copias del mismo test no encuentran un bug más.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime, time
+from uuid import UUID, uuid4
+
+import pytest
+from cheatsheet.contexts.scheduling.application.errors import (
+    FranjaOcupada,
+    FueraDeHorario,
+    RecursoInactivo,
+    RecursoInexistente,
+    ServicioNoAdmitido,
+    TurnoInexistente,
+    TurnoNoModificable,
+)
+from cheatsheet.contexts.scheduling.application.ports import FiltrosDeAgenda, ServicioAgendable
+from cheatsheet.contexts.scheduling.application.recursos import (
+    MOTIVO_SOLO_ADMIN,
+    AsociarServicios,
+    CambiarEstadoDeRecurso,
+    ConfigurarDisponibilidad,
+    ListarRecursos,
+    QuitarExcepcion,
+    RegistrarExcepcion,
+    RegistrarRecurso,
+    VerRecurso,
+)
+from cheatsheet.contexts.scheduling.application.turnos import (
+    MOTIVO_SIN_PERMISO,
+    AsignarSenaAlTurno,
+    Avisador,
+    CancelarTurno,
+    RegistrarAsistencia,
+    ReprogramarTurno,
+    ReservarTurno,
+    VerAgenda,
+    VerTurno,
+)
+from cheatsheet.contexts.scheduling.domain.recurso import (
+    ZONA_DE_LA_AGENDA,
+    ExcepcionDeDisponibilidad,
+    PatronDeDisponibilidad,
+    RecursoReservable,
+    TipoExcepcion,
+    TipoRecurso,
+)
+from cheatsheet.contexts.scheduling.domain.turno import (
+    MENSAJE_HORARIO_OCUPADO,
+    CanalDeReserva,
+    EstadoTurno,
+    Franja,
+    Turno,
+)
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.roles import RolUsuario
+
+from tests.contexts.scheduling.application.dobles import (
+    CatalogoEnMemoria,
+    DirectorioEnMemoria,
+    NotificadorEnMemoria,
+    PublicadorEnMemoria,
+    RepositorioRecursoEnMemoria,
+    RepositorioTurnoEnMemoria,
+)
+
+pytestmark = pytest.mark.asyncio
+
+EMPRESA = EmpresaId(uuid4())
+USUARIO = UsuarioId(uuid4())
+#: Martes 8 de septiembre de 2026, 15:00 hora de la agenda.
+MARTES = date(2026, 9, 8)
+AHORA = datetime(2026, 9, 1, 12, 0, tzinfo=ZONA_DE_LA_AGENDA)
+CORTE = ServicioAgendable(id=uuid4(), nombre="Corte", duracion_estandar_min=30)
+COLOR = ServicioAgendable(id=uuid4(), nombre="Color", duracion_estandar_min=90)
+
+
+def local(hora: int, minuto: int = 0, dia: date = MARTES) -> datetime:
+    return datetime.combine(dia, time(hora, minuto), tzinfo=ZONA_DE_LA_AGENDA)
+
+
+def un_recurso(
+    *, activo: bool = True, servicios: frozenset[UUID] | None = None
+) -> RecursoReservable:
+    return RecursoReservable(
+        id=uuid4(),
+        empresa_id=EMPRESA,
+        nombre="Consultorio 1",
+        tipo=TipoRecurso.ESPACIO,
+        activo=activo,
+        patrones=(
+            PatronDeDisponibilidad(
+                dia_semana=1, hora_inicio=time(9), hora_fin=time(18), duracion_slot_min=30
+            ),
+        ),
+        servicios=servicios if servicios is not None else frozenset({CORTE.id}),
+        created_at=AHORA,
+    )
+
+
+def un_turno(recurso: RecursoReservable, **cambios: object) -> Turno:
+    base: dict[str, object] = {
+        "id": uuid4(),
+        "empresa_id": EMPRESA,
+        "cliente_id": uuid4(),
+        "servicio_id": CORTE.id,
+        "recurso_id": recurso.id,
+        "franja": Franja(inicio=local(15), duracion_min=30),
+        "created_at": AHORA,
+        "updated_at": AHORA,
+    }
+    base.update(cambios)
+    return Turno(**base)  # type: ignore[arg-type]
+
+
+def _estado(uno: Turno) -> EstadoTurno:
+    return uno.estado
+
+
+class Escena:
+    """Todo lo que un caso de uso de turnos necesita, cableado de una vez."""
+
+    def __init__(
+        self, recurso: RecursoReservable, *turnos: Turno, con_telefono: bool = True
+    ) -> None:
+        self.recurso = recurso
+        self.recursos = RepositorioRecursoEnMemoria(recurso)
+        self.turnos = RepositorioTurnoEnMemoria(*turnos)
+        self.catalogo = CatalogoEnMemoria(CORTE, COLOR)
+        contactos = (
+            {uno.cliente_id: ("Ana Diaz", "5491112345678") for uno in turnos}
+            if con_telefono
+            else {}
+        )
+        self.directorio = DirectorioEnMemoria(contactos)
+        self.notificador = NotificadorEnMemoria()
+        self.publicador = PublicadorEnMemoria()
+        self.avisador = Avisador(
+            clientes=self.directorio,
+            servicios=self.catalogo,
+            notificador=self.notificador,
+        )
+
+    def reservar(self) -> ReservarTurno:
+        return ReservarTurno(
+            turnos=self.turnos,
+            recursos=self.recursos,
+            servicios=self.catalogo,
+            avisador=self.avisador,
+            publicador=self.publicador,
+        )
+
+    def cancelar(self) -> CancelarTurno:
+        return CancelarTurno(
+            turnos=self.turnos,
+            recursos=self.recursos,
+            avisador=self.avisador,
+            publicador=self.publicador,
+        )
+
+    def reprogramar(self) -> ReprogramarTurno:
+        return ReprogramarTurno(
+            turnos=self.turnos,
+            recursos=self.recursos,
+            avisador=self.avisador,
+            publicador=self.publicador,
+        )
+
+    def con_contacto(self, cliente_id: UUID) -> Escena:
+        self.directorio.contactos[cliente_id] = ("Ana Diaz", "5491112345678")
+        return self
+
+
+class TestReservar:
+    async def test_crea_el_turno_con_canal_panel_y_avisa(self) -> None:
+        """HU-E7-06, primer criterio, con RN-04 encima."""
+        escena = Escena(un_recurso())
+        cliente = uuid4()
+        escena.con_contacto(cliente)
+
+        turno = await escena.reservar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            cliente_id=cliente,
+            servicio_id=CORTE.id,
+            recurso_id=escena.recurso.id,
+            inicio=local(15),
+            ahora=AHORA,
+        )
+
+        assert turno.canal_reserva == CanalDeReserva.PANEL
+        assert _estado(turno) is EstadoTurno.RESERVADO
+        # La duración sale del servicio, no del formulario.
+        assert turno.franja.duracion_min == CORTE.duracion_estandar_min
+        assert [clase for clase, _ in escena.notificador.avisos] == ["reserva"]
+        assert "reservar_turno" in escena.publicador.acciones
+
+    async def test_rechaza_un_servicio_que_no_se_presta_en_ese_recurso(self) -> None:
+        """HU-E7-04 RN-02, y el tercer criterio de HU-E7-06."""
+        escena = Escena(un_recurso())
+
+        with pytest.raises(ServicioNoAdmitido):
+            await escena.reservar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                cliente_id=uuid4(),
+                servicio_id=COLOR.id,
+                recurso_id=escena.recurso.id,
+                inicio=local(15),
+                ahora=AHORA,
+            )
+
+        assert escena.turnos.turnos == {}
+
+    async def test_rechaza_un_recurso_desactivado(self) -> None:
+        """HU-E7-04 RN-03: no acepta reservas nuevas."""
+        escena = Escena(un_recurso(activo=False))
+
+        with pytest.raises(RecursoInactivo):
+            await escena.reservar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                cliente_id=uuid4(),
+                servicio_id=CORTE.id,
+                recurso_id=escena.recurso.id,
+                inicio=local(15),
+                ahora=AHORA,
+            )
+
+    async def test_rechaza_un_horario_en_el_que_el_recurso_no_atiende(self) -> None:
+        escena = Escena(un_recurso())
+
+        with pytest.raises(FueraDeHorario):
+            await escena.reservar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                cliente_id=uuid4(),
+                servicio_id=CORTE.id,
+                recurso_id=escena.recurso.id,
+                inicio=local(22),
+                ahora=AHORA,
+            )
+
+    async def test_deja_pasar_el_rechazo_del_motor_con_la_frase_de_la_historia(self) -> None:
+        """**Decisión D28.** El caso de uso no decide; traduce lo que el motor decidió."""
+        escena = Escena(un_recurso())
+        escena.turnos.ocupado = True
+
+        with pytest.raises(FranjaOcupada) as fallo:
+            await escena.reservar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                cliente_id=uuid4(),
+                servicio_id=CORTE.id,
+                recurso_id=escena.recurso.id,
+                inicio=local(15),
+                ahora=AHORA,
+            )
+
+        assert str(fallo.value) == MENSAJE_HORARIO_OCUPADO
+
+    async def test_solo_lectura_no_reserva(self) -> None:
+        """HU-E7-01 RN-03. El guarda vive en el caso de uso, no sólo en el router (PRU-09)."""
+        escena = Escena(un_recurso())
+
+        with pytest.raises(EntradaInvalida) as fallo:
+            await escena.reservar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.SOLO_LECTURA,
+                cliente_id=uuid4(),
+                servicio_id=CORTE.id,
+                recurso_id=escena.recurso.id,
+                inicio=local(15),
+                ahora=AHORA,
+            )
+
+        assert str(fallo.value) == MOTIVO_SIN_PERMISO
+
+    async def test_un_recurso_de_otra_empresa_no_existe(self) -> None:
+        escena = Escena(un_recurso())
+
+        with pytest.raises(RecursoInexistente):
+            await escena.reservar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.ADMINISTRADOR,
+                cliente_id=uuid4(),
+                servicio_id=CORTE.id,
+                recurso_id=uuid4(),
+                inicio=local(15),
+                ahora=AHORA,
+            )
+
+
+class TestCancelar:
+    async def test_cancela_y_avisa_al_cliente_con_telefono(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno)
+
+        cancelado = await escena.cancelar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            turno_id=turno.id,
+            ahora=AHORA,
+        )
+
+        assert _estado(cancelado) is EstadoTurno.CANCELADO
+        assert [clase for clase, _ in escena.notificador.avisos] == ["cancelacion"]
+        assert "cancelar_turno" in escena.publicador.acciones
+
+    async def test_cancela_igual_a_un_cliente_sin_telefono(self) -> None:
+        """RN-03 dice «si tiene número registrado»: sin número es un camino previsto."""
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno, con_telefono=False)
+
+        cancelado = await escena.cancelar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            turno_id=turno.id,
+            ahora=AHORA,
+        )
+
+        assert _estado(cancelado) is EstadoTurno.CANCELADO
+        assert escena.notificador.avisos == []
+
+    async def test_un_turno_ya_cancelado_no_se_cancela_de_nuevo(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso, estado=EstadoTurno.CANCELADO)
+        escena = Escena(recurso, turno)
+
+        with pytest.raises(TurnoNoModificable):
+            await escena.cancelar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                turno_id=turno.id,
+                ahora=AHORA,
+            )
+
+    async def test_un_turno_de_otra_empresa_no_existe(self) -> None:
+        escena = Escena(un_recurso())
+
+        with pytest.raises(TurnoInexistente):
+            await escena.cancelar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                turno_id=uuid4(),
+                ahora=AHORA,
+            )
+
+
+class TestReprogramar:
+    async def test_mueve_la_franja_conservando_el_estado_y_avisa_con_el_horario_viejo(
+        self,
+    ) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso, estado=EstadoTurno.CONFIRMADO)
+        escena = Escena(recurso, turno)
+
+        movido = await escena.reprogramar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            turno_id=turno.id,
+            inicio=local(16),
+            ahora=AHORA,
+        )
+
+        assert _estado(movido) is EstadoTurno.CONFIRMADO
+        assert movido.franja.inicio == local(16)
+        clase, datos = escena.notificador.avisos[0]
+        assert clase == "reprogramacion"
+        # El horario viejo viaja: sólo el nuevo dejaría a alguien sin saber si es el mismo
+        # turno o uno más.
+        assert datos.inicio_anterior == local(15)
+
+    async def test_el_turno_queda_donde_estaba_cuando_el_horario_no_sirve(self) -> None:
+        """Cuarto criterio de HU-E7-02, textual: «mantiene el turno en su franja original»."""
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno)
+
+        with pytest.raises(FueraDeHorario) as fallo:
+            await escena.reprogramar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                turno_id=turno.id,
+                inicio=local(23),
+                ahora=AHORA,
+            )
+
+        assert str(fallo.value) == MENSAJE_HORARIO_OCUPADO
+        assert escena.turnos.turnos[turno.id].franja.inicio == local(15)
+        assert escena.notificador.avisos == []
+
+    async def test_un_turno_cancelado_no_se_reprograma(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso, estado=EstadoTurno.CANCELADO)
+        escena = Escena(recurso, turno)
+
+        with pytest.raises(TurnoNoModificable):
+            await escena.reprogramar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                turno_id=turno.id,
+                inicio=local(16),
+                ahora=AHORA,
+            )
+
+
+class TestAsistencia:
+    async def test_marca_completado_un_turno_pasado(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno)
+
+        marcado = await RegistrarAsistencia(escena.turnos, escena.publicador).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            turno_id=turno.id,
+            asistio=True,
+            ahora=local(16),
+        )
+
+        assert _estado(marcado) is EstadoTurno.COMPLETADO
+        assert marcado.habilita_facturacion
+        assert "marcar_turno_completado" in escena.publicador.acciones
+
+    async def test_no_deja_marcar_un_turno_futuro(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno)
+
+        with pytest.raises(TurnoNoModificable):
+            await RegistrarAsistencia(escena.turnos, escena.publicador).ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                turno_id=turno.id,
+                asistio=False,
+                ahora=AHORA,
+            )
+
+    async def test_registra_el_no_show_en_la_bitacora(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno)
+
+        await RegistrarAsistencia(escena.turnos, escena.publicador).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            turno_id=turno.id,
+            asistio=False,
+            ahora=local(16),
+        )
+
+        assert "marcar_turno_no_show" in escena.publicador.acciones
+
+
+class TestConsultas:
+    async def test_la_agenda_filtra_por_recurso_y_rango(self) -> None:
+        recurso = un_recurso()
+        otro = un_recurso()
+        de_hoy = un_turno(recurso)
+        de_manana = un_turno(
+            recurso, franja=Franja(inicio=local(15, dia=date(2026, 9, 15)), duracion_min=30)
+        )
+        ajeno = un_turno(otro, recurso_id=otro.id)
+        escena = Escena(recurso, de_hoy, de_manana, ajeno)
+
+        encontrados = await VerAgenda(escena.turnos).ejecutar(
+            FiltrosDeAgenda(
+                recurso_id=recurso.id, desde=local(0), hasta=local(0, dia=date(2026, 9, 9))
+            )
+        )
+
+        assert [uno.id for uno in encontrados] == [de_hoy.id]
+
+    async def test_ver_un_turno_inexistente_levanta(self) -> None:
+        escena = Escena(un_recurso())
+
+        with pytest.raises(TurnoInexistente):
+            await VerTurno(escena.turnos).ejecutar(uuid4())
+
+
+class TestSena:
+    async def test_asocia_el_cobro_al_turno_y_lo_registra(self) -> None:
+        """HU-E6-07. El id cruza el límite de contexto y nada más."""
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno)
+        cobro = uuid4()
+
+        con_sena = await AsignarSenaAlTurno(escena.turnos, escena.publicador).ejecutar(
+            empresa_id=EMPRESA, usuario_id=USUARIO, turno_id=turno.id, cobro_id=cobro, ahora=AHORA
+        )
+
+        assert con_sena.cobro_id == cobro
+        assert "asociar_sena" in escena.publicador.acciones
+
+
+class TestRecursos:
+    async def test_registra_un_recurso_y_lo_lista(self) -> None:
+        repositorio = RepositorioRecursoEnMemoria()
+        publicador = PublicadorEnMemoria()
+
+        creado = await RegistrarRecurso(repositorio, publicador).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            nombre="  Sala 2  ",
+            tipo=TipoRecurso.ESPACIO,
+            ahora=AHORA,
+        )
+
+        assert creado.nombre == "Sala 2"
+        assert creado.activo
+        # Nace sin servicios, así que no admite ninguno: un recurso a medio configurar no
+        # acepta cualquier reserva.
+        assert not creado.admite_servicio(CORTE.id)
+        assert [uno.id for uno in await ListarRecursos(repositorio).ejecutar()] == [creado.id]
+
+    async def test_solo_el_administrador_configura(self) -> None:
+        repositorio = RepositorioRecursoEnMemoria()
+
+        with pytest.raises(EntradaInvalida) as fallo:
+            await RegistrarRecurso(repositorio, PublicadorEnMemoria()).ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                nombre="Sala 2",
+                tipo=TipoRecurso.ESPACIO,
+                ahora=AHORA,
+            )
+
+        assert str(fallo.value) == MOTIVO_SOLO_ADMIN
+
+    async def test_configurar_la_disponibilidad_reemplaza_el_horario_entero(self) -> None:
+        recurso = un_recurso()
+        repositorio = RepositorioRecursoEnMemoria(recurso)
+        nuevo = (
+            PatronDeDisponibilidad(
+                dia_semana=3, hora_inicio=time(10), hora_fin=time(14), duracion_slot_min=60
+            ),
+        )
+
+        actualizado = await ConfigurarDisponibilidad(repositorio, PublicadorEnMemoria()).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            recurso_id=recurso.id,
+            patrones=nuevo,
+            ahora=AHORA,
+        )
+
+        # Reemplaza: el martes ya no atiende.
+        assert actualizado.patrones == nuevo
+        assert not actualizado.esta_disponible_en(local(15), 30)
+
+    async def test_desactivar_no_toca_los_turnos_ya_reservados(self) -> None:
+        """HU-E7-04, quinto criterio: «los turnos reservados se mantienen»."""
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno)
+
+        await CambiarEstadoDeRecurso(escena.recursos, escena.publicador).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            recurso_id=recurso.id,
+            activo=False,
+            ahora=AHORA,
+        )
+
+        assert _estado(escena.turnos.turnos[turno.id]) is EstadoTurno.RESERVADO
+        assert not (await VerRecurso(escena.recursos).ejecutar(recurso.id)).activo
+
+    async def test_asociar_servicios_reemplaza_la_lista(self) -> None:
+        recurso = un_recurso()
+        repositorio = RepositorioRecursoEnMemoria(recurso)
+
+        actualizado = await AsociarServicios(repositorio, PublicadorEnMemoria()).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            recurso_id=recurso.id,
+            servicios=frozenset({COLOR.id}),
+            ahora=AHORA,
+        )
+
+        assert actualizado.admite_servicio(COLOR.id)
+        assert not actualizado.admite_servicio(CORTE.id)
+
+
+class TestExcepciones:
+    async def test_registra_una_excepcion_y_la_quita(self) -> None:
+        recurso = un_recurso()
+        repositorio = RepositorioRecursoEnMemoria(recurso)
+        publicador = PublicadorEnMemoria()
+        bloqueo = ExcepcionDeDisponibilidad(fecha=MARTES, tipo=TipoExcepcion.BLOQUEO)
+
+        con_feriado = await RegistrarExcepcion(repositorio, publicador).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            recurso_id=recurso.id,
+            excepcion=bloqueo,
+            ahora=AHORA,
+        )
+        assert not con_feriado.esta_disponible_en(local(15), 30)
+
+        sin_feriado = await QuitarExcepcion(repositorio, publicador).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            recurso_id=recurso.id,
+            fecha=MARTES,
+            ahora=AHORA,
+        )
+        assert sin_feriado.esta_disponible_en(local(15), 30)
+
+    async def test_la_segunda_excepcion_para_la_misma_fecha_es_un_422_y_no_un_409(self) -> None:
+        """La traducción existe para que la frase de la historia llegue a la pantalla.
+
+        `InvarianteViolada` se mapea a 409 y el BFF descarta su detalle; `ExcepcionDuplicada`
+        deriva de `EntradaInvalida`, que se mapea a 422 reenviando el texto.
+        """
+        from cheatsheet.contexts.scheduling.application.errors import ExcepcionDuplicada
+
+        recurso = un_recurso()
+        repositorio = RepositorioRecursoEnMemoria(recurso)
+        publicador = PublicadorEnMemoria()
+        caso = RegistrarExcepcion(repositorio, publicador)
+        argumentos = {
+            "empresa_id": EMPRESA,
+            "usuario_id": USUARIO,
+            "rol": RolUsuario.ADMINISTRADOR,
+            "recurso_id": recurso.id,
+            "ahora": AHORA,
+        }
+        await caso.ejecutar(
+            excepcion=ExcepcionDeDisponibilidad(fecha=MARTES, tipo=TipoExcepcion.BLOQUEO),
+            **argumentos,  # type: ignore[arg-type]
+        )
+
+        with pytest.raises(ExcepcionDuplicada):
+            await caso.ejecutar(
+                excepcion=ExcepcionDeDisponibilidad(
+                    fecha=MARTES,
+                    tipo=TipoExcepcion.APERTURA_ESPECIAL,
+                    franja_inicio=local(20),
+                    franja_duracion_min=60,
+                ),
+                **argumentos,  # type: ignore[arg-type]
+            )

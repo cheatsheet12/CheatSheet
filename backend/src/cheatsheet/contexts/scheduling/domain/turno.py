@@ -1,0 +1,232 @@
+"""`Turno` — una franja reservada, y la máquina de estados que la gobierna.
+
+El riesgo de este contexto es uno solo y tiene nombre: **doble booking**. Dos personas con el
+mismo horario con el mismo profesional es el error que el cliente descubre en la puerta del
+local, y ninguna cantidad de validación en Python lo evita — entre el `SELECT` que dice
+«libre» y el `INSERT` que reserva hay una ventana, y dos requests concurrentes caben en ella.
+
+Por eso la decisión **D28**: la unicidad de la franja la garantiza una **restricción de
+exclusión** de PostgreSQL sobre `(recurso_id, tstzrange(franja))`, y este archivo no intenta
+duplicarla. Lo que sí vive acá es todo lo demás: qué transiciones existen, qué significa
+reprogramar y cuándo se puede marcar asistencia.
+
+**Reprogramar no es un estado** (HU-E7-01 RN-02 y HU-E7-02 RN-02, las dos explícitas). Un
+turno reprogramado sigue Reservado o Confirmado; lo que cambia es la franja. La historia se
+tomó el trabajo de decirlo, así que el enum no gana un valor y `reprogramar` conserva el
+estado.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import StrEnum
+from uuid import UUID
+
+from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+
+#: HU-E7-01, HU-E7-02, HU-E7-03 y HU-E7-06, palabra por palabra.
+MENSAJE_SIN_TURNOS = "No hay turnos para el período seleccionado."
+MENSAJE_HORARIO_OCUPADO = "El horario seleccionado no está disponible."
+MENSAJE_TURNO_NO_TRANSCURRIO = "El turno aún no transcurrió."
+
+#: Un turno de más de un día no es un turno. El techo evita que un `franja_duracion_min`
+#: escrito con un cero de más bloquee la agenda de un recurso durante una semana.
+DURACION_MAXIMA_MIN = 24 * 60
+
+
+class EstadoTurno(StrEnum):
+    """El enum `estado_turno` del DER.
+
+    Los cinco que HU-E7-01 RN-02 enumera, y **ningún «REPROGRAMADO»**: la misma regla dice que
+    la reprogramación conserva el estado.
+    """
+
+    RESERVADO = "RESERVADO"
+    CONFIRMADO = "CONFIRMADO"
+    CANCELADO = "CANCELADO"
+    COMPLETADO = "COMPLETADO"
+    NO_SHOW = "NO_SHOW"
+
+
+class CanalDeReserva(StrEnum):
+    """De dónde vino la reserva (HU-E7-06 RN-02).
+
+    El DER guarda esto como `varchar` y no como enum, así que la columna acepta lo que se le
+    mande; el tipo existe igual para que el código no escriba la cadena a mano en cuatro
+    lugares. `AGENTE` lo va a usar el épico 8 y está desde ahora por lo mismo que `EQUIPO`.
+    """
+
+    PANEL = "PANEL"
+    AGENTE = "AGENTE"
+
+
+#: Qué transiciones existen, como tabla y no como diez `if`.
+#:
+#: **`RESERVADO → CONFIRMADO` y no al revés.** Confirmar es el cliente diciendo que viene; que
+#: se «desconfirme» solo no lo pide ninguna historia, y una transición que nadie pide es una
+#: por la que después hay que preguntarse cómo llegó un turno ahí.
+#:
+#: **Los tres estados finales no salen.** Un turno cancelado no se reprograma: se crea otro.
+#: Un completado no se vuelve no-show. Cambiar el pasado registrado es justo lo que la
+#: bitácora de HU-E7-03 RN-03 existe para impedir.
+TRANSICIONES_LEGALES: dict[EstadoTurno, frozenset[EstadoTurno]] = {
+    EstadoTurno.RESERVADO: frozenset(
+        {
+            EstadoTurno.CONFIRMADO,
+            EstadoTurno.CANCELADO,
+            EstadoTurno.COMPLETADO,
+            EstadoTurno.NO_SHOW,
+        }
+    ),
+    EstadoTurno.CONFIRMADO: frozenset(
+        {EstadoTurno.CANCELADO, EstadoTurno.COMPLETADO, EstadoTurno.NO_SHOW}
+    ),
+    EstadoTurno.CANCELADO: frozenset(),
+    EstadoTurno.COMPLETADO: frozenset(),
+    EstadoTurno.NO_SHOW: frozenset(),
+}
+
+#: Los estados sobre los que HU-E7-02 permite actuar: «el turno existe y está en estado
+#: Reservado o Confirmado».
+ESTADOS_ABIERTOS = frozenset({EstadoTurno.RESERVADO, EstadoTurno.CONFIRMADO})
+
+
+@dataclass(frozen=True, slots=True)
+class Franja:
+    """Inicio más duración, que es como el DER la modela — no un rango.
+
+    La restricción de exclusión de la migración construye el rango a partir de estas dos
+    columnas. Guardar el rango además sería guardar el mismo hecho dos veces, con la
+    posibilidad de que discrepen.
+    """
+
+    inicio: datetime
+    duracion_min: int
+
+    def __post_init__(self) -> None:
+        if self.inicio.tzinfo is None:
+            # Sin zona, dos turnos «a las 15» pueden ser el mismo o distintos según quién los
+            # lea. La restricción de exclusión los compararía como iguales y rechazaría uno de
+            # los dos sin que nadie entienda por qué.
+            raise EntradaInvalida("La franja de un turno necesita zona horaria")
+        if not 0 < self.duracion_min <= DURACION_MAXIMA_MIN:
+            raise EntradaInvalida(
+                f"La duración de un turno debe estar entre 1 y {DURACION_MAXIMA_MIN} minutos"
+            )
+
+    @property
+    def fin(self) -> datetime:
+        return self.inicio + timedelta(minutes=self.duracion_min)
+
+    def se_solapa_con(self, otra: Franja) -> bool:
+        """Dos franjas se solapan si una empieza antes de que la otra termine.
+
+        Los extremos **no** se solapan: un turno de 15:00 a 16:00 y otro de 16:00 a 17:00
+        conviven. Es la misma semántica del rango `[)` que usa la restricción de exclusión, y
+        tiene que serlo — si acá dijera otra cosa, la pantalla y la base darían respuestas
+        distintas sobre el mismo par de turnos.
+        """
+        return self.inicio < otra.fin and otra.inicio < self.fin
+
+
+@dataclass(slots=True)
+class Turno:
+    """Un cliente, un servicio, un recurso y una franja."""
+
+    id: UUID
+    empresa_id: EmpresaId
+    cliente_id: UUID
+    servicio_id: UUID
+    recurso_id: UUID
+    franja: Franja
+    estado: EstadoTurno = EstadoTurno.RESERVADO
+    canal_reserva: str = CanalDeReserva.PANEL
+    #: La seña (HU-E6-07). Se escribe desde `payments` a través del servicio de aplicación de
+    #: este contexto, nunca con un join: `turno.cobro_id` cruza un límite de contexto y el DER
+    #: lo declara sin FK a propósito (hallazgo H4).
+    cobro_id: UUID | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    # -- transiciones -----------------------------------------------------------------
+
+    def confirmar(self) -> None:
+        self._transicionar_a(EstadoTurno.CONFIRMADO)
+
+    def cancelar(self) -> None:
+        """HU-E7-02. Cancelar no pide que el turno haya transcurrido ni que falte para él.
+
+        Un turno pasado que nadie marcó se puede cancelar, y eso es deliberado: la alternativa
+        deja turnos viejos en `RESERVADO` para siempre, que es ruido en toda consulta de
+        ocupación.
+        """
+        self._transicionar_a(EstadoTurno.CANCELADO)
+
+    def reprogramar(self, franja: Franja) -> None:
+        """Mueve el turno a otra franja **conservando el estado** (RN-02).
+
+        No hay `estado` de por medio y no lo va a haber: la historia dice que la reprogramación
+        no es un estado, y este método es donde esa frase se vuelve código.
+        """
+        if self.estado not in ESTADOS_ABIERTOS:
+            raise InvarianteViolada(
+                f"Un turno {self.estado.value.lower()} no se reprograma: se crea uno nuevo"
+            )
+        self.franja = franja
+
+    def marcar_completado(self, ahora: datetime) -> None:
+        """HU-E7-03. Sólo cuando el turno ya transcurrió (RN-01)."""
+        self._exigir_transcurrido(ahora)
+        self._transicionar_a(EstadoTurno.COMPLETADO)
+
+    def marcar_no_show(self, ahora: datetime) -> None:
+        self._exigir_transcurrido(ahora)
+        self._transicionar_a(EstadoTurno.NO_SHOW)
+
+    # -- consultas --------------------------------------------------------------------
+
+    @property
+    def esta_abierto(self) -> bool:
+        return self.estado in ESTADOS_ABIERTOS
+
+    @property
+    def habilita_facturacion(self) -> bool:
+        """HU-E7-03 RN-02: un turno completado habilita emitir el comprobante del servicio.
+
+        Es una propiedad y no un flag guardado por lo mismo que en el épico 6: un dato que se
+        deriva de otro y se guarda igual es un dato que algún día va a discrepar.
+        """
+        return self.estado is EstadoTurno.COMPLETADO
+
+    def ya_transcurrio(self, ahora: datetime) -> bool:
+        """El turno terminó. Se mide contra el **fin** de la franja, no contra el inicio.
+
+        Marcar «no se presentó» a los cinco minutos de empezado un turno de una hora sería
+        marcarlo mientras el cliente todavía puede llegar.
+        """
+        return ahora >= self.franja.fin
+
+    def asignar_cobro(self, cobro_id: UUID) -> None:
+        """Asocia la seña (HU-E6-07).
+
+        Un turno tiene a lo sumo una: pedir dos señas por el mismo turno es un error de quien
+        las pide, y sobrescribir la primera dejaría un cobro cobrado sin turno que lo explique.
+        """
+        if self.cobro_id is not None and self.cobro_id != cobro_id:
+            raise InvarianteViolada("El turno ya tiene una seña asociada")
+        self.cobro_id = cobro_id
+
+    # -- interno ----------------------------------------------------------------------
+
+    def _exigir_transcurrido(self, ahora: datetime) -> None:
+        if not self.ya_transcurrio(ahora):
+            raise InvarianteViolada(MENSAJE_TURNO_NO_TRANSCURRIO)
+
+    def _transicionar_a(self, destino: EstadoTurno) -> None:
+        if destino not in TRANSICIONES_LEGALES[self.estado]:
+            raise InvarianteViolada(
+                f"Un turno {self.estado.value.lower()} no puede pasar a {destino.value.lower()}"
+            )
+        self.estado = destino

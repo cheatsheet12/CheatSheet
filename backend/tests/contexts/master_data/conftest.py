@@ -81,6 +81,23 @@ class RepositorioClienteEnMemoria:
             None,
         )
 
+    async def buscar_por_telefono(self, telefono: str) -> Cliente | None:
+        """Agregado por el epico 8: el agente solo tiene el numero que escribio.
+
+        Compara solo digitos, igual que el adaptador real: la columna guarda lo que `Telefono`
+        dejo, asi que un `+54 9 11 ...` del panel y el `54911...` de Meta encuentran la misma
+        fila.
+        """
+        digitos = "".join(caracter for caracter in telefono if caracter.isdigit())
+        return next(
+            (
+                c
+                for c in self.clientes.values()
+                if c.contacto_whatsapp is not None and str(c.contacto_whatsapp) == digitos
+            ),
+            None,
+        )
+
     async def listar(
         self, *, empresa_id: EmpresaId, filtros: FiltrosDeCliente, pagina: Pagina
     ) -> tuple[Sequence[Cliente], int]:

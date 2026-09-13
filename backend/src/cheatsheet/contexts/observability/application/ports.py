@@ -14,12 +14,34 @@ keeps exhausted tasks for analysis and replay.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.contexts.observability.domain.tarea_asincrona import TareaAsincrona
+from cheatsheet.shared.auditoria import Modulo
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
+
+
+@dataclass(frozen=True, slots=True)
+class FiltrosDeBitacora:
+    """What a reader of the log may narrow it down by.
+
+    Introduced by epic 9, which needs "how many operations happened in this period" for
+    the dashboard, and reused by the audit panel of epic 10. Every field optional; absent
+    means "do not filter by this".
+
+    `limite` is not optional and is not unbounded: this table grows with every operation
+    the system performs, and a read without a ceiling is the one query that takes the
+    process down on the busiest company.
+    """
+
+    desde: datetime | None = None
+    hasta: datetime | None = None
+    modulos: tuple[Modulo, ...] = ()
+    limite: int = 500
 
 
 class PortRegistroDeAuditoria(Protocol):
@@ -38,6 +60,24 @@ class PortRegistroDeAuditoria(Protocol):
         ...
 
     async def buscar_por_id(self, registro_id: UUID) -> RegistroDeAuditoria | None: ...
+
+    async def listar(self, filtros: FiltrosDeBitacora) -> list[RegistroDeAuditoria]:
+        """The records matching the filters, most recent first.
+
+        Reading is not writing: this addition keeps the port append-and-read, which is
+        what HS-T5 RN-03 asks of it.
+        """
+        ...
+
+    async def contar(self, filtros: FiltrosDeBitacora) -> int:
+        """How many records match — **without** materialising them.
+
+        A separate method rather than `len(await listar(...))` because the caller that
+        needs the number is a dashboard metric over a whole month, and hydrating tens of
+        thousands of aggregates to count them would be work done to be thrown away.
+        `limite` is ignored here: a count is not a page.
+        """
+        ...
 
 
 class PortRepositorioTareaAsincrona(Protocol):

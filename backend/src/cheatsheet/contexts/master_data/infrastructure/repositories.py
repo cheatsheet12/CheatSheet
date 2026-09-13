@@ -148,6 +148,20 @@ class RepositorioClientePostgres:
         fila = await self._sesion.scalar(select(ClienteORM).where(ClienteORM.cuit == cuit))
         return _a_dominio(fila) if fila is not None else None
 
+    async def buscar_por_telefono(self, telefono: str) -> Cliente | None:
+        """El cliente detrás de un numero de WhatsApp (epico 8).
+
+        Compara solo digitos, que es la misma normalizacion que `Telefono` aplica al entrar:
+        la columna guarda lo que el value object dejo, asi que un `+54 9 11 ...` escrito en el
+        panel y el `54911...` que manda Meta encuentran la misma fila.
+        """
+        digitos = "".join(caracter for caracter in telefono if caracter.isdigit())
+        if not digitos:
+            return None
+        sentencia = select(ClienteORM).where(ClienteORM.contacto_whatsapp == digitos)
+        fila = (await self._sesion.execute(sentencia)).scalars().first()
+        return _a_dominio(fila) if fila is not None else None
+
     async def listar(
         self, *, empresa_id: EmpresaId, filtros: FiltrosDeCliente, pagina: Pagina
     ) -> tuple[Sequence[Cliente], int]:

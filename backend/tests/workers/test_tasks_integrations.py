@@ -28,9 +28,12 @@ from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 from cheatsheet.workers import (
     tasks_billing,
+    tasks_conversational,
     tasks_integrations,
     tasks_observability,
+    tasks_payments,
     tasks_reference_data,
+    tasks_reporting,
     tasks_spreadsheet,
 )
 from cheatsheet.workers.base import EjecutorIdempotente
@@ -246,7 +249,7 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
     """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 7
+    assert len(entradas) == 10
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
@@ -262,6 +265,19 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
         # comprobante cuya respuesta se perdio se quedaria en `ENVIADO_A_ARCA` para
         # siempre y nadie sabria si tiene CAE.
         tasks_billing.NOMBRE_RECONCILIAR,
+        # Epico 6: vence lo vencido (D23) y despacha la cadena (HS-T3). Sin esta entrada, un
+        # cobro nunca pasaria a mora y nadie recibiria un recordatorio -- las dos cosas se
+        # notarian tarde, que es lo que una lista exhaustiva evita.
+        tasks_payments.NOMBRE_BARRIDO,
+        # Epico 8: reindexa las FAQ que quedaron sin vector. Sin esta entrada, una FAQ
+        # guardada mientras el proveedor de embeddings estaba caido nunca se encontraria por
+        # significado, y la pantalla la mostraria como si estuviera lista.
+        tasks_conversational.NOMBRE_BARRIDO,
+        # Epico 9: arma el paquete contable del mes cerrado de cada empresa que lo tenga
+        # programado para hoy. Sin esta entrada, el envio automatico que HU-E10-04 promete no
+        # ocurre nunca -- y la pantalla seguiria mostrando una fecha de proximo envio que no
+        # va a cumplirse, que es la forma mas silenciosa de fallar.
+        tasks_reporting.NOMBRE_BARRIDO,
     }
 
 
