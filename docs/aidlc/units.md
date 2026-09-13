@@ -21,15 +21,20 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Catálogo de clientes y servicios | catalogo-de-clientes | master_data | HU-E4-01 | — | Cristian | feature/master_data-catalogo-de-clientes | mergeada |
 | Catálogo de clientes y servicios | catalogo-de-servicios | master_data | HU-E4-02 | catalogo-de-clientes | Cristian | feature/master_data-catalogo-de-servicios | mergeada |
 | Catálogo de clientes y servicios | categorias-y-clasificacion | master_data | HU-E4-03, HU-E4-04 | catalogo-de-clientes, catalogo-de-servicios | Cristian | feature/master_data-categorias-y-clasificacion | mergeada |
-| Sincronización de planillas | dlq-y-tareas-asincronas | observability | HS-T6 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
-| Sincronización de planillas | vinculo-de-planilla | spreadsheet_sync | HU-E2-04 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
-| Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
-| Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
-| Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
-| Facturación electrónica | parametros-fiscales | reference_data | HS-T4 | — | Cristian | feature/billing-facturacion-electronica | hecha |
-| Facturación electrónica | puntos-de-venta | billing | HU-E5-05 | — | Cristian | feature/billing-facturacion-electronica | hecha |
-| Facturación electrónica | emision-de-comprobantes | billing | HU-E5-01, HU-E5-02, HU-E5-03 | parametros-fiscales, puntos-de-venta | Cristian | feature/billing-facturacion-electronica | hecha |
-| Facturación electrónica | nota-de-credito | billing | HU-E5-04 | emision-de-comprobantes | Cristian | feature/billing-facturacion-electronica | hecha |
+| Sincronización de planillas | dlq-y-tareas-asincronas | observability | HS-T6 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
+| Sincronización de planillas | vinculo-de-planilla | spreadsheet_sync | HU-E2-04 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
+| Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
+| Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
+| Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
+| Facturación electrónica | parametros-fiscales | reference_data | HS-T4 | — | Cristian | feature/billing-facturacion-electronica | mergeada |
+| Facturación electrónica | puntos-de-venta | billing | HU-E5-05 | — | Cristian | feature/billing-facturacion-electronica | mergeada |
+| Facturación electrónica | emision-de-comprobantes | billing | HU-E5-01, HU-E5-02, HU-E5-03 | parametros-fiscales, puntos-de-venta | Cristian | feature/billing-facturacion-electronica | mergeada |
+| Facturación electrónica | nota-de-credito | billing | HU-E5-04 | emision-de-comprobantes | Cristian | feature/billing-facturacion-electronica | mergeada |
+| Cobros y recordatorios | cobros-y-recordatorios | payments | HU-E6-01 … HU-E6-06, HU-E11-01, HS-T1, HS-T3 | emision-de-comprobantes | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
+| Agenda y recursos | agenda-y-recursos | scheduling | HU-E7-01 … HU-E7-06, HU-E6-07 | cobros-y-recordatorios | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
+| Agente de WhatsApp y atención humana | agente-y-atencion-humana | conversational | HU-E8-01 … HU-E8-05, HU-E9-01, HU-E9-02, HU-E9-04, HU-E11-02, HS-T2, HS-T7 | agenda-y-recursos | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
+| Reportería y paquete contable | reporteria-y-paquete-contable | reporting | HU-E10-01 … HU-E10-06 | agente-y-atencion-humana | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
+| Panel de auditoría y notificaciones | panel-de-auditoria-y-notificaciones | observability | HU-E12-01, HU-E12-02, HU-E11-03, HU-E9-03 | reporteria-y-paquete-contable | vichen12 | feature/observability-panel-de-auditoria | mergeada |
 
 
 ---
@@ -576,9 +581,9 @@ Se prefiere un mapeo que pregunta más a uno que filtra datos de clientes.
 
 **Mapa aprobado el 2026-09-07.** Responsable de las cinco unidades: Cristian.
 
-Las cinco están **implementadas y verificadas en verde**, en una sola rama
-(`feature/spreadsheet_sync-sincronizacion-de-planillas`), un commit por unidad. Falta el
-Gate 3: el push y el PR, que por regla del repositorio no se hacen sin que los pidas.
+Las cinco están **mergeadas a `develop`** el 2026-09-13, en una sola rama
+(`feature/spreadsheet_sync-sincronizacion-de-planillas`), un commit por unidad, por el
+PR [#28](https://github.com/cheatsheet12/CheatSheet/pull/28). El Gate 3 quedó cerrado ahí.
 
 La corrida con la que se cierran las cinco, **con PostgreSQL y Redis reales**:
 
@@ -746,8 +751,9 @@ dos veces en veinte años.
 
 ### Estado
 
-**Mapa escrito el 2026-09-07. Épico completo el 2026-09-07.** Las cuatro unidades hechas y
-verificadas con servicios reales. Responsable: Cristian.
+**Mapa escrito el 2026-09-07. Épico completo el 2026-09-07 y mergeado a `develop` el
+2026-09-13** por el PR [#34](https://github.com/cheatsheet12/CheatSheet/pull/34). Las cuatro
+unidades verificadas con servicios reales. Responsable: Cristian.
 
 Decisiones que se tomaron durante la implementación y no estaban en este mapa:
 
@@ -770,3 +776,53 @@ Decisiones que se tomaron durante la implementación y no estaban en este mapa:
 - **Facturación recurrente o masiva.** Ninguna historia la pide.
 - **Otros comprobantes fiscales** —notas de débito, recibos, remitos—. El enum del DER cierra
   en facturas y notas de crédito A/B/C.
+
+---
+
+## Épicos 6 a 10 — construidos sin plan de unidad
+
+Los cinco épicos que cierran el sistema —cobros, agenda, agente de WhatsApp, reportería y
+panel de auditoría— **no tienen un plan de unidad cada uno**, y el mapa de arriba los lista
+con una sola fila por épico en lugar de con las unidades en que se habrían cortado. Esto no
+es una omisión que haya que completar en silencio: es lo que efectivamente pasó, y queda
+escrito acá porque un mapa que no dice la verdad sobre cómo se construyó algo es peor que no
+tener mapa.
+
+### Qué hay en su lugar
+
+Cada uno dejó dos documentos bajo [`epicas/`](epicas/), y son buenos:
+
+| Épico | Decisiones | Pendientes |
+|---|---|---|
+| 6 — Cobros y recordatorios | [`decisiones.md`](epicas/06-cobros-y-recordatorios/decisiones.md) | [`pendientes.md`](epicas/06-cobros-y-recordatorios/pendientes.md) |
+| 7 — Agenda y recursos | [`decisiones.md`](epicas/07-agenda-y-recursos/decisiones.md) | [`pendientes.md`](epicas/07-agenda-y-recursos/pendientes.md) |
+| 8 — Agente de WhatsApp | [`decisiones.md`](epicas/08-agente-de-whatsapp/decisiones.md) | [`pendientes.md`](epicas/08-agente-de-whatsapp/pendientes.md) |
+| 9 — Reportería y paquete contable | [`decisiones.md`](epicas/09-reporteria-y-paquete-contable/decisiones.md) | [`pendientes.md`](epicas/09-reporteria-y-paquete-contable/pendientes.md) |
+| 10 — Panel de auditoría y notificaciones | [`decisiones.md`](epicas/10-panel-de-auditoria-y-notificaciones/decisiones.md) | [`pendientes.md`](epicas/10-panel-de-auditoria-y-notificaciones/pendientes.md) |
+
+Las decisiones continúan la serie del sistema sin cortarla —D1–D19 están en este archivo y
+la serie sigue en D20 y llega hasta el épico 10—, cada una con su porqué y con lo que se
+paga por haberla tomado. En ese sentido el rastro de decisiones **no** se perdió.
+
+### Qué sí falta, y conviene decirlo con todas las letras
+
+Lo que no existe es el **plan de unidad**, que es el artefacto del Gate 1: el documento que
+se aprueba *antes* de escribir código y que fija alcance, orden, casos de prueba y preguntas
+abiertas. Los épicos 1 a 5 tienen uno por unidad bajo [`units/`](units/); los épicos 6 a 10
+no tienen ninguno. En términos del workflow, esos cinco épicos pasaron del insumo al código
+sin la compuerta del medio.
+
+La consecuencia práctica es una sola y es acotada: no hay contra qué contrastar lo
+implementado salvo el código y sus tests. Por eso la verificación de estos cinco épicos se
+apoyó en los gates del repositorio y en QA sobre la aplicación corriendo, y no en el recorrido
+de casos de prueba que un plan de unidad habría declarado de antemano.
+
+### Por qué no se escriben los planes ahora
+
+Un plan de unidad escrito después de que el código existe no es un plan: es una descripción
+con forma de plan. No sirve para lo único que un Gate 1 sirve —discutir el alcance cuando
+todavía es barato cambiarlo— y al quedar archivado junto a los nueve planes reales de los
+épicos 1 a 5 haría creer que estos cinco épicos se planificaron igual que aquellos.
+
+La regla que queda para lo que venga: **`epicas/` documenta decisiones, `units/` documenta
+planes, y el mapa de arriba dice cuál de las dos cosas tiene cada épico.**
