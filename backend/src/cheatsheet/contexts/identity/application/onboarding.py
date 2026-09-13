@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
+from cheatsheet.contexts.identity.application.autorizacion import exigir_administrador
 from cheatsheet.contexts.identity.application.errors import (
     CuitInexistenteEnPadron,
     CuitYaRegistrado,
@@ -15,7 +16,7 @@ from cheatsheet.contexts.identity.application.ports import (
     PortRepositorioEmpresa,
 )
 from cheatsheet.contexts.identity.domain.empresa import Empresa
-from cheatsheet.contexts.identity.domain.valores import CUIT, CondicionIVA, Email
+from cheatsheet.contexts.identity.domain.valores import CUIT, CondicionIVA, Email, RolUsuario
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import InvarianteViolada
@@ -47,6 +48,7 @@ class CompletarDatosDeEmpresa:
         *,
         empresa_id: EmpresaId,
         usuario_id: UsuarioId,
+        rol: RolUsuario,
         razon_social: str,
         cuit: CUIT,
         condicion_iva: CondicionIVA,
@@ -55,6 +57,15 @@ class CompletarDatosDeEmpresa:
         ahora: datetime,
         direccion_ip: str | None = None,
     ) -> Empresa:
+        # HU-E1-02's actor is the Administrador and nobody else. The check sits here, and
+        # not only in the router, for the reason `autorizacion.py` states: the rule has to
+        # travel with the operation. `ConsultarPadronDeCuit` — the other half of this same
+        # story — already guards itself this way; this use case did not, and an Operador
+        # could rewrite the company's razon social, CUIT and condicion de IVA.
+        exigir_administrador(
+            rol, "Solo un Administrador puede modificar los datos fiscales de la empresa"
+        )
+
         empresa = await self._empresas.buscar_por_id(empresa_id)
         if empresa is None:
             raise InvarianteViolada("La empresa no existe")

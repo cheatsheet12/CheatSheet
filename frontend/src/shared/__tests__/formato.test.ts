@@ -45,6 +45,24 @@ describe("formatearFechaHora", () => {
   });
 });
 
+describe("determinismo entre runtimes (hidratación)", () => {
+  /*
+   * The bug this guards against cost the whole page, not one label: Node's ICU writes
+   * "p." U+00A0 "m." and Chrome's writes "p." U+0020 "m.", React saw two different
+   * strings while hydrating and threw away the server HTML for the entire root.
+   *
+   * The assertion is on the characters rather than on the rendered string on purpose —
+   * this suite runs under Node, so a test comparing against a literal would pass here
+   * and still ship the mismatch to the browser.
+   */
+  it("ningun formateador devuelve espacios que el navegador escriba distinto", () => {
+    const sospechosos = /[\u00a0\u202f]/;
+    expect(sospechosos.test(formatearFechaHora(MADRUGADA, PREFERENCIAS_POR_DEFECTO))).toBe(false);
+    expect(sospechosos.test(formatearFecha(MADRUGADA, PREFERENCIAS_POR_DEFECTO))).toBe(false);
+    expect(sospechosos.test(formatearNumero("1234.5"))).toBe(false);
+  });
+});
+
 describe("formatearFecha", () => {
   it("escribe solo el día, en la zona del usuario", () => {
     expect(formatearFecha(MADRUGADA, PREFERENCIAS_POR_DEFECTO)).toBe("17/8/26");
