@@ -26,7 +26,7 @@ from cheatsheet.platform.cache import RegistroDeIdempotenciaEnMemoria
 from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
-from cheatsheet.workers import tasks_integrations
+from cheatsheet.workers import tasks_integrations, tasks_observability, tasks_spreadsheet
 from cheatsheet.workers.base import EjecutorIdempotente
 from cheatsheet.workers.beat import programacion
 from kombu.exceptions import OperationalError
@@ -230,16 +230,51 @@ def test_beat_programa_la_revision_de_vencimientos_una_vez_por_dia() -> None:
     assert entrada["options"]["queue"] == "integrations_sync"
 
 
-def test_las_tres_entradas_de_beat_conviven() -> None:
-    """Beat es singleton: dos schedulers son dos barridos y dos mails por Administrador."""
+def test_todas_las_entradas_de_beat_conviven() -> None:
+    """Beat es singleton: dos schedulers son dos barridos y dos mails por Administrador.
+
+    La lista es exhaustiva a propósito. Este test vive en el archivo de `integrations`
+    porque tres de las cuatro entradas son suyas, pero afirma sobre la **programación
+    entera**: una entrada nueva de cualquier épico tiene que pasar por acá, que es
+    exactamente lo que se quiere de un proceso que no se puede replicar.
+    """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 3
+    assert len(entradas) == 5
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
         tasks_integrations.NOMBRE_BARRIDO_RENOVACION,
+        # Las dos del épico 4, y las únicas que no son de `integrations`.
+        tasks_observability.NOMBRE_BARRIDO,
+        tasks_spreadsheet.NOMBRE_BARRIDO_SYNC,
     }
+
+
+def test_la_sincronizacion_incremental_corre_por_hora_y_en_su_propia_cola() -> None:
+    """HU-E3-04. Una planilla de una PyME cambia varias veces por dia, no por minuto.
+
+    Y en `incremental_sync`, que es la cola que ADR-003 creo justamente para esto: un
+    barrido de planillas no puede demorar un webhook de pago.
+    """
+    entrada = programacion(settings_de_prueba())["sincronizar-planillas"]
+
+    assert entrada["task"] == tasks_spreadsheet.NOMBRE_BARRIDO_SYNC
+    assert entrada["schedule"].total_seconds() == 60 * 60
+    assert entrada["options"]["queue"] == "incremental_sync"
+
+
+def test_el_barrido_de_la_dlq_corre_seguido_y_en_notifications() -> None:
+    """HS-T6. Corto por visibilidad, no por urgencia: una tarea en FALLIDA no se ve.
+
+    Y en `notifications` en lugar de una cola propia: ADR-003 fijó cinco colas a un
+    deployment cada una, y el barrido es una lectura corta más un puñado de updates.
+    """
+    entrada = programacion(settings_de_prueba())["barrer-tareas-agotadas"]
+
+    assert entrada["task"] == tasks_observability.NOMBRE_BARRIDO
+    assert entrada["schedule"].total_seconds() == 15 * 60
+    assert entrada["options"]["queue"] == "notifications"
 
 
 def test_la_renovacion_corre_a_diario() -> None:

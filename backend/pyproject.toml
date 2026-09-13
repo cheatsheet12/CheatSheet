@@ -23,8 +23,10 @@ requires-python = ">=3.11"
 # (see docs/architecture.md §2): FastAPI/Uvicorn, SQLAlchemy + asyncpg, Alembic,
 # Celery + Redis, boto3 (Cloudflare R2), PyAfipWs (ADR-012).
 #
-# Still absent, and deliberately: boto3 (R2 is first used by the report generator,
-# epic 9). A dependency arrives with its first caller.
+# boto3 arrived in epic 4, not epic 9 as this comment used to predict: the first
+# caller of R2 turned out to be the uploaded spreadsheet of HU-E3-03, well before the
+# report generator. A dependency arrives with its first caller, and this is what that
+# looks like when the guess about which caller comes first is wrong.
 #
 # PyAfipWs was expected here for ARCA and did NOT arrive: WSAA needs one XML document
 # signed once as CMS, which `cryptography` already does in-process. See ADR-0004. The
@@ -51,6 +53,15 @@ dependencies = [
     # primitive comes from a library rather than from `hashlib` and a mode written here,
     # because a hand-rolled AEAD is how a nonce gets reused.
     "cryptography==43.0.3",
+    # spreadsheet_sync: Cloudflare R2 holds the uploaded workbooks (HU-E3-03, decision
+    # D10). Synchronous, so `almacenamiento.py` calls it through `asyncio.to_thread`.
+    "boto3==1.35.54",
+    # spreadsheet_sync + conversational: the LLM (ADR-0007). First consumer is the header
+    # mapping of HU-E3-01; epic 8's WhatsApp agent inherits the same client.
+    "anthropic==1.4.0",
+    # spreadsheet_sync: reading .xlsx/.xls (HU-E3-03). CSV needs nothing beyond the
+    # standard library. Read in `read_only` mode -- see `infrastructure/lector.py`.
+    "openpyxl==3.1.5",
     # integrations: parsing ARCA's SOAP responses (HU-E2-01). `xml.etree` expands internal
     # entities — measured, not assumed: 300 bytes became 3 000 characters, ten times per
     # nesting level — and a provider response is untrusted input by definition.

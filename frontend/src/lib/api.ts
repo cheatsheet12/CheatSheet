@@ -107,3 +107,52 @@ async function leerFalla(respuesta: Response): Promise<Falla> {
     return { codigo: "ErrorDeSolicitud", detalle: respuesta.statusText };
   }
 }
+
+/** How long an upload may take. A 25 MB workbook over a slow uplink is not 10 seconds. */
+const TIMEOUT_DE_SUBIDA_MS = 120_000;
+
+/**
+ * Send raw bytes to the backend — the spreadsheet upload of HU-E3-03, and nothing else so
+ * far.
+ *
+ * A separate function rather than an option on `llamarApi`, because everything about it
+ * differs: the body is not serialised, the content type is not JSON, and the timeout is
+ * twelve times longer. Folding those into the JSON path would mean three conditionals in
+ * the function every other call in the app goes through.
+ */
+export async function subirBinario<T>(
+  ruta: string,
+  contenido: ArrayBuffer,
+  opciones: { readonly timeoutMs?: number } = {},
+): Promise<T> {
+  const { timeoutMs = TIMEOUT_DE_SUBIDA_MS } = opciones;
+  const token = leerToken();
+  const control = new AbortController();
+  const corte = setTimeout(() => control.abort(), timeoutMs);
+
+  try {
+    const respuesta = await fetch(`${urlDelBackend()}${ruta}`, {
+      method: "POST",
+      signal: control.signal,
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...(token !== undefined ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: contenido,
+    });
+
+    if (!respuesta.ok) {
+      const { codigo, detalle } = await leerFalla(respuesta);
+      throw new ErrorDeApi(respuesta.status, detalle, codigo);
+    }
+    return (await respuesta.json()) as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ErrorDeApi(504, `La subida no termino en ${timeoutMs} ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(corte);
+  }
+}

@@ -9,9 +9,19 @@ sequential scan with extra steps.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, Index, String
+from sqlalchemy import (
+    DateTime,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -46,4 +56,51 @@ class RegistroDeAuditoriaORM(Base):
         # that is a scan over every company's history.
         Index("ix_auditoria_empresa_timestamp", "empresa_id", "timestamp"),
         Index("ix_auditoria_empresa_modulo", "empresa_id", "modulo"),
+    )
+
+
+TABLA_TAREA = "tarea_asincrona"
+
+
+class TareaAsincronaORM(Base):
+    """Execution state of one deferred unit of work (HS-T6).
+
+    Unlike the audit row above, this one is updated in place: a task changes state on
+    every attempt. It lives in the same context and the same migration chain, and shares
+    nothing else with it.
+    """
+
+    __tablename__ = TABLA_TAREA
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+
+    tipo: Mapped[str] = mapped_column(String(120), nullable=False)
+    #: JSONB rather than JSON so the column can be indexed if a later epic ever needs to
+    #: look inside it. Nothing does today, and nothing should: see the aggregate on why
+    #: the payload is not something to go copying around.
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    estado: Mapped[str] = mapped_column(String(20), nullable=False)
+    intentos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    clave_idempotencia: Mapped[str] = mapped_column(String(200), nullable=False)
+    resultado: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        # The key identifies one intended effect within one company (ADR-009). Unique
+        # per company and not globally: two companies legitimately run the same work on
+        # the same payload, and a global constraint would make the second one a
+        # duplicate of the first.
+        UniqueConstraint("empresa_id", "clave_idempotencia", name="uq_tarea_empresa_clave"),
+        # The sweep's only query: this company's failed tasks, oldest first. Partial, so
+        # the index holds the handful of rows that are failing rather than every task
+        # the system has ever run.
+        Index(
+            "ix_tarea_empresa_fallidas",
+            "empresa_id",
+            "created_at",
+            postgresql_where=text("estado = 'FALLIDA'"),
+        ),
     )

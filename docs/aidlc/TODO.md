@@ -357,3 +357,131 @@ el alcance: si ves otro problema, reportalo»).
 | **`ClienteDuplicado` no llega al navegador con su mensaje ni con el id del duplicado** | El backend hace lo correcto —`api/main.py` registra un manejador propio que agrega `cliente_existente_id`— pero **el BFF lo descarta**: `leerFalla` (`lib/api.ts`) sólo extrae `codigo` y `detalle`, y `respuestaDeError` (`app/api/auth/_sesion.ts`) reenvía `detalle` **sólo** para `EntradaInvalida`. Un `ClienteDuplicado` es un `InvarianteViolada`, así que la pantalla recibe `{error}` pelado: muestra «No se pudo completar la operacion» en vez del texto de la historia, y el botón «Ver el cliente existente» nunca aparece. **El criterio de aceptación «ofrece ver el duplicado» de HU-E4-01 no se cumple end to end.** El test de componente de #23 no lo vio porque mockea `crearCliente` para que lance `ErrorDeCatalogo` con id, salteándose la ruta HTTP real | Épico 3 lo esquiva: `CategoriaDuplicada` se declaró `EntradaInvalida` (422) justamente por esto. Arreglarlo para clientes es decidir si `respuestaDeError` amplía su lista blanca o si `ClienteDuplicado` pasa a 422. Es una decisión de equipo sobre la política del BFF, no de una unidad |
 | **Un endpoint que devuelve 204 rompe la construcción de la app si se anota `-> None`** | Todos los módulos tienen `from __future__ import annotations`, así que FastAPI recibe la anotación como el string `"None"`, la resuelve a `NoneType` —una clase, y por lo tanto *truthy*— y afirma que un 204 no puede tener response model. **Falla al importar**, o sea que se cae la aplicación entera, no el endpoint. Pasó al escribir el `DELETE` de categorías: 6 fallas y 81 errores, ninguno en el archivo culpable | Ya resuelto acá con `response_model=None` y un comentario que explica por qué. Vale la pena saberlo antes de escribir el próximo 204 |
 | **Ninguna `page.tsx` tenía test, y esta unidad hizo que eso bloqueara** | Las once páginas estaban en 0 %. Cada unidad que agrega una empuja la cobertura de funciones hacia abajo, y con la de categorías el umbral del 80 % se cruzó. Se escribió el **primer test de páginas del proyecto** (`app/(panel)/datos-maestros/__tests__/paginas.test.tsx`), que cubre las tres de Datos Maestros y prueba cosas reales: el redirect sin sesión y el mapeo de rol a `puedeEditar` | Las otras ocho siguen sin test. El mismo archivo sirve de patrón |
+
+---
+
+# Épico 4 — Sincronización de planillas
+
+> Estado al **2026-09-07**. El épico está **en curso** sobre
+> `feature/spreadsheet_sync-sincronizacion-de-planillas`, con las cinco unidades en una sola rama
+> (decisión del mapa). Lo de acá abajo **no se resuelve escribiendo el código del épico**: son
+> decisiones tuyas, credenciales, o cosas que arrastramos de épicos anteriores.
+
+## 11. Bloqueantes de una unidad · **te tocan a vos**
+
+### 11.1 Elegir el proveedor de LLM — bloquea `mapeo-asistido` (D11)
+
+`docs/architecture.md` declara el puerto `PortModeloDeLenguaje` y le asigna dos contextos
+(`spreadsheet_sync` y `conversational`), y reserva el worker 8 para sus llamadas. **Ningún documento
+del repositorio elige un proveedor**, y los ADR van del 0001 al 0006 sin tocar el tema.
+
+`mapeo-asistido` es el primer consumidor del sistema, pero la decisión **la hereda el épico 8
+entero** —el agente de WhatsApp—, así que no es de una unidad: es un **ADR**, y hay que escribirlo
+antes del Gate 1 de esa unidad.
+
+Lo que el ADR tiene que cerrar:
+
+| Qué | Por qué no se puede dejar abierto |
+|---|---|
+| Proveedor y modelo | Define el SDK, el formato de la respuesta y el costo por corrida |
+| Dónde viven los prompts versionados | `CLAUDE.md` §5 los saca del medio de la lógica de negocio, sí o sí |
+| El schema contra el que se valida cada respuesta | `CLAUDE.md` §5: la salida de un modelo es entrada no confiable, como un formulario |
+| Timeout y límite de tokens | Obligatorios en toda llamada externa (`CLAUDE.md` §5) |
+| Qué pasa cuando el modelo no contesta | Para el mapeo: degradar a «todas las columnas Sin asignar» y que el usuario mapee a mano. **Nunca** bloquear la ingesta |
+
+**Credenciales:** además del ADR hace falta la API key del proveedor en el `.env` de despliegue. Como
+con ARCA y MercadoPago, hasta que exista, `staging` corre contra un adaptador simulado.
+
+### 11.2 Credenciales de Google para vincular planillas — bloquea la demo de `vinculo-de-planilla`
+
+HU-E2-04 RN-01 pide OAuth2 con permiso de lectura **sobre el archivo elegido y no sobre todo el
+Drive**, o sea el selector de archivos de Google, no un scope amplio. Hace falta:
+
+| Qué | Dónde |
+|---|---|
+| Cliente OAuth2 con las APIs de Sheets y Drive habilitadas | Google Cloud Console |
+| El scope acotado por archivo (`drive.file`) | En la configuración del cliente |
+
+Es el **mismo proyecto de Google Cloud** que quedó pendiente en §2.1 para el login con Google del
+épico 1. Si se crea uno, sirve para las dos cosas.
+
+El código se puede construir y testear entero sin esto —ningún test toca la red—, pero la demo en
+`staging` contra una planilla real no.
+
+## 12. Decisiones ya tomadas en el mapa, para que nadie las redescubra
+
+Las tres están argumentadas en [`units.md`](units.md), en el bloque del épico 4. Acá quedan
+resumidas porque tienen consecuencias que se van a ver en el código:
+
+| # | Decisión | La consecuencia que se va a ver |
+|---|---|---|
+| **D10** | `ARCHIVO` se agrega al enum `proveedor_planilla`, que el DER cerraba en Google Sheets y Excel Online | Queda un «vínculo» que no vincula nada. La sincronización incremental (HU-E3-04) y el write-back (HU-E3-07) **no aplican** a `ARCHIVO` y tienen que decirlo con una guarda explícita, igual que ya la tienen para `EXCEL_ONLINE` |
+| **D11** | El proveedor de LLM escala a ADR | Ver §11.1 |
+| **D12** | Al modelo se le mandan **solo los nombres de las columnas**, nunca filas de muestra | Un encabezado ambiguo (`Codigo`, `Tipo`, `Nro`) va a caer más seguido en confianza Baja, que es exactamente lo que HU-E3-01 RN-03 manda hacer con ella. Se prefiere un mapeo que pregunta más a uno que filtra datos de clientes |
+
+## 13. Arrastrado de antes, todavía abierto
+
+Nada de esto es del épico 4, pero sigue sin cerrarse y se cruza con él.
+
+| Qué | Estado | Dónde se salda |
+|---|---|---|
+| **El épico 3 no está cerrado en el mapa** | El PR [#27](https://github.com/cheatsheet12/CheatSheet/pull/27) está **abierto y en verde desde el 2026-09-01**. Hasta que se mergee, `aidlc_next.py` sigue diciendo que el épico en curso es el 3 | Mergear el #27 |
+| **Un commit del épico 2 nunca llegó a `develop`** | `1577d03`, en `feature/infra-staging-database`, hecho **seis minutos después** de que se mergeara el PR #14. Corrige el registro de la unidad: `develop` todavía afirma que la base de Neon quedó en la revisión `0003` y que «falta 0004→0007», cuando ese mismo día se migró y verificó sobre `0007` con las 8 comprobaciones en verde | Un `cherry-pick` a cualquier rama |
+| **El fix de PRU-09 no tiene PR** | Commiteado como `35f9ae5` en `fix/identity-empresa-role-guard`. `CompletarDatosDeEmpresa` no miraba el rol, así que un Operador podía reescribir razón social, CUIT y condición de IVA. Verificado en verde, sin PR abierto | Gate 3 de esa rama, cuando lo pidas |
+| **`migrations/env.py` no importa los modelos de `integrations`** | Cuatro tablas del épico 2 siguen sin registrar, o sea que autogenerate propone borrarlas en silencio. Detectado por `catalogo-de-clientes` (§9) y todavía sin dueño | Una línea en `env.py`. **Este épico agrega la de `observability` y `spreadsheet_sync`; la de `integrations` sigue huérfana** |
+| **`npm run format:check` falla en 113 archivos por CRLF** | El gate de formato del frontend no discrimina en una laptop Windows. En CI (Linux) pasa | Un `.gitattributes` con `* text=auto eol=lf`. Es decisión de equipo |
+
+## 14. Hallazgos de `vinculo-de-planilla` que no son de esta unidad
+
+| Que | Por que importa | Donde se salda |
+|---|---|---|
+| **`Tabla` pierde su titulo cuando no hay filas** | El `titulo` se renderiza como `<caption>` dentro de `<table>`, y el camino vacio devuelve solo un `<p class="tabla__vacia">`. Un lector de pantalla recibe un parrafo suelto sin ninguna etiqueta que diga de que listado esta vacio. Afecta a **cinco pantallas** -usuarios, clientes, servicios, categorias e ingesta- y el estado vacio es justamente el primero que ve una empresa recien registrada | Tres lineas en `frontend/src/shared/ui/Tabla.tsx`. Es del sistema de diseno, no de una unidad |
+| **`localhost` no resuelve a los contenedores en Windows** | Resuelve a IPv6 y `asyncpg` queda colgado hasta el timeout, con un `TimeoutError` que no nombra la causa. Con `127.0.0.1` funciona. `argumentos_de_conexion()` acepta los dos, asi que no es del codigo -- pero cuesta media hora la primera vez y no esta escrito en ningun lado | Una linea en `backend/.env.example` o en la skill `run-local` |
+| **`ClienteDuplicado` sigue sin llegar al navegador** | `respuestaDeError` ahora reenvia el `detalle` de **todo 422**, lo que arregla las cuatro subclases de `spreadsheet_sync`. `ClienteDuplicado` es un `InvarianteViolada` y responde 409, asi que sigue perdiendo su mensaje y el boton «Ver el cliente existente» sigue sin aparecer | Decidir si pasa a 422. Es del epico 3 (seccion 10) |
+
+## 15. Lo que el épico 4 deja abierto · **te toca a vos**
+
+### 15.1 La lectura incremental no lee todavía — HU-E3-04 queda a medias
+
+`sincronizar_empresa` hace la mitad del write-back y **no vuelve a leer la hoja viva**. Lo
+que falta es el **token OAuth por empresa**: `escritura_de_planilla()` construye el
+adaptador con un token vacío, porque resolver la credencial cifrada de cada empresa desde
+`integrations` (ADR-0003) es la pieza que la unidad 5 no llegó a armar.
+
+Se implementó primero la mitad con riesgo de bucle —los tres guardas anti-bucle de
+ADR-007— y no la mitad que sólo lee, porque los guardas son los que conviene tener en
+producción antes de que algo empiece a escribir por horario.
+
+**Los dos criterios que quedan incumplidos**, dichos con precisión:
+
+| Criterio de HU-E3-04 | Estado |
+|---|---|
+| «Se modifica una fila en la planilla vinculada → el sistema lo sincroniza en la siguiente corrida» | **incumplido** |
+| «Se agregan filas nuevas → procesa sólo las nuevas» | **incumplido** |
+| «Cambia la estructura de columnas → pausa y muestra el mensaje» | ✅ implementado y probado |
+| «Una sincronización falla → se registra en la bitácora y se notifica» | ✅ el evento se publica |
+
+Lo que hace falta para cerrarlos es lo mismo que ya está escrito en §11.2: el cliente
+OAuth2 de Google. Con la credencial resuelta por empresa, el barrido que ya corre en Beat
+pasa a leer además de escribir.
+
+### 15.2 Credenciales que este épico necesita y no tiene
+
+Las dos ya están en §11, y siguen siendo tuyas:
+
+- **La API key de Anthropic** (§11.1). Sin ella el mapeo corre con el adaptador simulado,
+  que empareja por parecido de texto: alcanza para recorrer el flujo en una laptop y
+  produce un catálogo plausible y equivocado si alguien lo usara de verdad. `Settings` lo
+  rechaza en `production`.
+- **El cliente OAuth2 de Google con la API de Sheets habilitada** (§11.2). Sin él no hay
+  vinculación real, ni lectura incremental, ni escritura de vuelta.
+
+### 15.3 Deuda declarada del épico 4
+
+| Qué | Por qué queda afuera | Dónde se salda |
+|---|---|---|
+| **Correr una carga inicial completa dos veces duplica todos los servicios** | `PortRepositorioServicio` no tiene `buscar_por_nombre` a propósito —dos sucursales venden el mismo «Corte»— así que la ingesta siempre crea. Ninguna historia pide evitarlo: el reproceso sólo vuelve sobre lo que falló y el sync incremental sólo lee lo que cambió | Es una decisión sobre identidad de servicio, y se toma con `master_data` el día que importe |
+| **Una regresión en la calidad del mapeo es invisible para CI** | Ningún test llama al modelo real, y así tiene que ser. Quien ajuste el prompt necesita un juego de encabezados de verdad y una comparación manual | Declarado en ADR-0007. Es problema del épico 8 antes que de nadie |
+| **El write-back sólo empuja clientes, no servicios** | `RegistrosDeMasterData` consulta `PortRepositorioCliente` y nada más. HU-E3-07 habla de «los registros gestionados desde el panel» sin distinguir, pero el catálogo de servicios no tiene todavía un consumidor que lo cree desde el panel con destino a la planilla | Una consulta más en `ListarClientesParaEscrituraDeVuelta`, cuando haga falta |
+| **La escritura pisa la hoja entera en cada corrida** | `values.update` sobre `A1` reescribe desde arriba. Con hasta 500 registros por lote es correcto y simple; con más, la hoja quedaría truncada | Paginar la escritura, o pasar a `values.append`. Aparece el día que una empresa pase los 500 registros de origen PANEL |
+| **`ProcesamientoDePlanilla` no tiene pantalla de historial por vínculo** | El endpoint acepta `vinculo_id` y el listado lo soporta; la pantalla muestra todas las cargas de la empresa | Un filtro en PAN-ING-01, si alguien lo pide |

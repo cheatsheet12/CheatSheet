@@ -21,6 +21,19 @@ import os
 from dataclasses import dataclass
 from enum import StrEnum
 
+#: Default retry ceiling the DLQ sweep judges against (HS-T6 RN-01).
+#:
+#: Deliberately a literal and not an import of `workers.base.MAX_INTENTOS_POR_DEFECTO`:
+#: `platform/` is the floor every other layer stands on, and importing a worker into it
+#: would invert that. The two constants must agree — retiring tasks on a different
+#: ceiling than the one they were retried under means they are retired either too early
+#: or never — so a test asserts they are equal.
+DLQ_MAX_INTENTOS_POR_DEFECTO = 5
+
+#: The model ADR-0007 chose. A default and not a constant in the code: `LLM_MODELO`
+#: overrides it, so trying a different one is a deployment change and not a release.
+MODELO_POR_DEFECTO = "claude-opus-5"
+
 
 class Entorno(StrEnum):
     LOCAL = "local"
@@ -82,6 +95,44 @@ class AdaptadorDeMercadoPago(StrEnum):
     SIMULADO = "simulado"
 
 
+class AdaptadorDePlanilla(StrEnum):
+    """Which implementation answers for Google Sheets (HU-E2-04).
+
+    `SIMULADO` walks the whole OAuth2 round trip against our own callback and returns a
+    fabricated workbook through the real Anti-Corruption Layer. **Rejected in production**,
+    like the three adapters of epic 2: a company believing its spreadsheet is linked when
+    nothing ever reached Google is a company whose catalogue will never fill.
+    """
+
+    GOOGLE = "google"
+    SIMULADO = "simulado"
+
+
+class AdaptadorDeAlmacenamiento(StrEnum):
+    """Where uploaded workbooks go.
+
+    `MEMORIA` keeps them in the process, which is enough to walk the ingestion flow on a
+    laptop with no bucket. **Rejected in production** for the obvious reason: the files
+    would vanish on the next restart, silently.
+    """
+
+    R2 = "r2"
+    MEMORIA = "memoria"
+
+
+class AdaptadorDeModelo(StrEnum):
+    """Which implementation answers for the LLM (ADR-0007).
+
+    `SIMULADO` maps headers by string similarity and opens no socket, so the ingestion flow
+    is walkable on a laptop with no API key and no test ever touches the network.
+    **Rejected in production**: a company whose mapping was guessed by string distance gets
+    a catalogue that looks plausible and is wrong.
+    """
+
+    ANTHROPIC = "anthropic"
+    SIMULADO = "simulado"
+
+
 class ConfiguracionFaltante(RuntimeError):
     """A required environment variable is absent. Raised at boot, never later."""
 
@@ -115,6 +166,76 @@ def _entero(nombre: str, por_defecto: int) -> int:
         return int(crudo)
     except ValueError as exc:
         raise ConfiguracionFaltante(f"{nombre} debe ser un numero entero, no '{crudo}'") from exc
+
+
+def _adaptador_de_modelo(entorno: Entorno) -> AdaptadorDeModelo:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("LLM_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno LLM_ADAPTADOR. En produccion debe valer 'anthropic'."
+            )
+        return AdaptadorDeModelo.SIMULADO
+    try:
+        adaptador = AdaptadorDeModelo(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"LLM_ADAPTADOR debe ser 'anthropic' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeModelo.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "LLM_ADAPTADOR=simulado no es valido en produccion: "
+            "el mapeo de columnas se adivinaria por parecido de texto."
+        )
+    return adaptador
+
+
+def _adaptador_de_planilla(entorno: Entorno) -> AdaptadorDePlanilla:
+    """Defaults to the simulator outside production, and is forbidden inside it."""
+    crudo = _opcional("PLANILLA_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno PLANILLA_ADAPTADOR. En produccion debe valer 'google'."
+            )
+        return AdaptadorDePlanilla.SIMULADO
+    try:
+        adaptador = AdaptadorDePlanilla(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"PLANILLA_ADAPTADOR debe ser 'google' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDePlanilla.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "PLANILLA_ADAPTADOR=simulado no es valido en produccion: "
+            "ninguna planilla llegaria a vincularse."
+        )
+    return adaptador
+
+
+def _adaptador_de_almacenamiento(entorno: Entorno) -> AdaptadorDeAlmacenamiento:
+    """Defaults to memory outside production, and is forbidden inside it."""
+    crudo = _opcional("ALMACENAMIENTO_ADAPTADOR", "")
+    if not crudo:
+        if entorno is Entorno.PRODUCTION:
+            raise ConfiguracionFaltante(
+                "Falta la variable de entorno ALMACENAMIENTO_ADAPTADOR. "
+                "En produccion debe valer 'r2'."
+            )
+        return AdaptadorDeAlmacenamiento.MEMORIA
+    try:
+        adaptador = AdaptadorDeAlmacenamiento(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"ALMACENAMIENTO_ADAPTADOR debe ser 'r2' o 'memoria', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeAlmacenamiento.MEMORIA and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "ALMACENAMIENTO_ADAPTADOR=memoria no es valido en produccion: "
+            "las planillas subidas se perderian al reiniciar el proceso."
+        )
+    return adaptador
 
 
 def _adaptador_de_email(entorno: Entorno) -> AdaptadorDeEmail:
@@ -250,6 +371,28 @@ class Settings:
     whatsapp_graph_version: str
     whatsapp_timeout_segundos: int
     whatsapp_sondeo_minutos: int
+    #: How often Beat retires tasks that ran out of attempts (HS-T6 RN-02).
+    dlq_barrido_minutos: int
+    #: spreadsheet_sync (HU-E2-04). Cloudflare R2 holds the uploaded workbooks.
+    planilla_adaptador: AdaptadorDePlanilla
+    almacenamiento_adaptador: AdaptadorDeAlmacenamiento
+    r2_endpoint: str
+    r2_bucket: str
+    r2_access_key_id: str
+    r2_secret_access_key: str
+    #: The LLM (ADR-0007). `llm_modelo` is a plain string on purpose: pinning it to a
+    #: literal here would mean a release to try a different model.
+    llm_adaptador: AdaptadorDeModelo
+    anthropic_api_key: str
+    llm_modelo: str
+    llm_timeout_segundos: float
+    llm_max_tokens: int
+    #: How often Beat re-reads live spreadsheets and pushes the write-back (HU-E3-04).
+    sync_planillas_minutos: int
+    #: The retry ceiling the sweep judges against. Shares its default with
+    #: `PoliticaDeReintentos` in `workers/base.py`; a mismatch would mean tasks are
+    #: retired either before or long after they stopped being retried.
+    dlq_max_intentos: int
     whatsapp_sondeo_maximo_dias: int
     arca_adaptador: AdaptadorDeArca
     arca_wsaa_url_homologacion: str
@@ -322,6 +465,20 @@ class Settings:
             # 30 minutes against a wait Meta measures in days (HU-E2-03 RN-02): it bounds
             # the delay to about 1% of the wait at 48 calls per number per day.
             whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
+            dlq_barrido_minutos=_entero("DLQ_BARRIDO_MINUTOS", 15),
+            planilla_adaptador=_adaptador_de_planilla(entorno),
+            almacenamiento_adaptador=_adaptador_de_almacenamiento(entorno),
+            r2_endpoint=_opcional("R2_ENDPOINT", ""),
+            r2_bucket=_opcional("R2_BUCKET", ""),
+            r2_access_key_id=_opcional("R2_ACCESS_KEY_ID", ""),
+            r2_secret_access_key=_opcional("R2_SECRET_ACCESS_KEY", ""),
+            llm_adaptador=_adaptador_de_modelo(entorno),
+            anthropic_api_key=_opcional("ANTHROPIC_API_KEY", ""),
+            llm_modelo=_opcional("LLM_MODELO", MODELO_POR_DEFECTO),
+            llm_timeout_segundos=float(_entero("LLM_TIMEOUT_SEGUNDOS", 30)),
+            llm_max_tokens=_entero("LLM_MAX_TOKENS", 4096),
+            sync_planillas_minutos=_entero("SYNC_PLANILLAS_MINUTOS", 60),
+            dlq_max_intentos=_entero("DLQ_MAX_INTENTOS", DLQ_MAX_INTENTOS_POR_DEFECTO),
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.
             whatsapp_sondeo_maximo_dias=_entero("WHATSAPP_SONDEO_MAXIMO_DIAS", 7),

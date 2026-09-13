@@ -21,9 +21,14 @@ import pytest
 from cheatsheet.contexts.observability.application.errors import RegistroDuplicado
 from cheatsheet.contexts.observability.domain.registro_de_auditoria import RegistroDeAuditoria
 from cheatsheet.platform.settings import (
+    DLQ_MAX_INTENTOS_POR_DEFECTO,
+    MODELO_POR_DEFECTO,
+    AdaptadorDeAlmacenamiento,
     AdaptadorDeArca,
     AdaptadorDeEmail,
     AdaptadorDeMercadoPago,
+    AdaptadorDeModelo,
+    AdaptadorDePlanilla,
     AdaptadorDeWhatsApp,
     Entorno,
     Settings,
@@ -126,6 +131,26 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         smtp_remitente="no-reply@cheatsheet.test",
         smtp_tls=True,
         smtp_timeout_segundos=10,
+        # HS-T6. The ceiling comes from the constant rather than a literal, so the
+        # suite keeps testing whatever the default actually is.
+        dlq_barrido_minutos=15,
+        # spreadsheet_sync: the simulator and an unconfigured bucket. A test that
+        # ever reached R2 would fail loudly instead of writing somebody's file.
+        planilla_adaptador=AdaptadorDePlanilla.SIMULADO,
+        almacenamiento_adaptador=AdaptadorDeAlmacenamiento.MEMORIA,
+        r2_endpoint="",
+        r2_bucket="",
+        r2_access_key_id="",
+        r2_secret_access_key="",
+        # The simulator and no key: a test that ever reached the model would fail loudly
+        # instead of quietly spending money and sending somebody's headers to a vendor.
+        llm_adaptador=AdaptadorDeModelo.SIMULADO,
+        anthropic_api_key="",
+        llm_modelo=MODELO_POR_DEFECTO,
+        llm_timeout_segundos=1.0,
+        llm_max_tokens=1024,
+        sync_planillas_minutos=60,
+        dlq_max_intentos=DLQ_MAX_INTENTOS_POR_DEFECTO,
     )
 
 

@@ -749,3 +749,62 @@
   font-size: var(--text-caption);
   margin-top: var(--space-3);
 }
+
+/* PAN-ING-01 — la zona de carga (HU-E3-03).
+   El borde punteado es lo que dice «soltá algo acá» sin una sola palabra; el cambio de
+   color al arrastrar es la unica confirmacion de que el navegador va a aceptar el drop. */
+.ingesta__zona {
+  border: 2px dashed var(--color-borde);
+  border-radius: var(--radio-md);
+  padding: var(--espacio-xl);
+  text-align: center;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.ingesta__zona--activa {
+  border-color: var(--color-primario);
+  background-color: var(--color-fondo-sutil);
+}
+
+.ingesta__titulo {
+  font-size: var(--texto-lg);
+  font-weight: 600;
+  margin: 0 0 var(--espacio-xs);
+}
+
+.ingesta__ayuda {
+  color: var(--color-texto-secundario);
+  font-size: var(--texto-sm);
+  margin: var(--espacio-xs) 0;
+}
+
+.ingesta__o {
+  color: var(--color-texto-secundario);
+  margin: var(--espacio-md) 0;
+  text-transform: uppercase;
+  font-size: var(--texto-xs);
+  letter-spacing: 0.08em;
+}
+
+/* PAN-ING-03 — el resumen de una carga (HU-E3-05 RN-01).
+   Una lista de definiciones y no una tabla: son tres pares etiqueta/valor, y una tabla de
+   una fila le miente al lector de pantalla sobre lo que está mirando. */
+.resumen-de-carga {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--espacio-md);
+  margin: var(--espacio-lg) 0;
+}
+
+.resumen-de-carga dt {
+  color: var(--color-texto-secundario);
+  font-size: var(--texto-sm);
+}
+
+.resumen-de-carga dd {
+  font-size: var(--texto-xl);
+  font-weight: 600;
+  margin: 0;
+}

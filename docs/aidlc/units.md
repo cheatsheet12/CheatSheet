@@ -21,6 +21,11 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Catálogo de clientes y servicios | catalogo-de-clientes | master_data | HU-E4-01 | — | Cristian | feature/master_data-catalogo-de-clientes | mergeada |
 | Catálogo de clientes y servicios | catalogo-de-servicios | master_data | HU-E4-02 | catalogo-de-clientes | Cristian | feature/master_data-catalogo-de-servicios | mergeada |
 | Catálogo de clientes y servicios | categorias-y-clasificacion | master_data | HU-E4-03, HU-E4-04 | catalogo-de-clientes, catalogo-de-servicios | Cristian | feature/master_data-categorias-y-clasificacion | mergeada |
+| Sincronización de planillas | dlq-y-tareas-asincronas | observability | HS-T6 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
+| Sincronización de planillas | vinculo-de-planilla | spreadsheet_sync | HU-E2-04 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
+| Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
+| Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
+| Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | en revisión |
 
 
 ---
@@ -441,3 +446,165 @@ del mapa, que es lo mismo que hizo el épico 2 con `mecanismo-de-integraciones`.
   del producto es la planilla.
 - **Historial de cambios de un cliente o un servicio** más allá de lo que ya registra la bitácora del
   épico 1.
+
+---
+
+## Épico 4 — Sincronización de planillas
+
+### Qué hace cada unidad
+
+| Unidad | Alcance |
+|---|---|
+| **dlq-y-tareas-asincronas** | HS-T6 — el agregado `TareaAsincrona` y su tabla, con `intentos`, el máximo configurado y la máquina de estados que ADR-009 ya declara, más la derivación a la cola de fallos al agotar los reintentos (RN-02) y el evento `TareaAsincronaDerivadaADLQ` en la bitácora del épico 1 (RN-04). Sin pantalla: leer la DLQ es el épico 10. Va primera por la misma razón por la que `cimientos-y-bitacora` abrió el épico 1 — es el sumidero que todo lo demás necesita, y este épico es el primero que mete trabajo asíncrono pesado de verdad. Sin ella, una fila envenenada en la carga inicial reintenta para siempre y traba la cola `ingesta` entera (RN-03) |
+| **vinculo-de-planilla** | HU-E2-04 — el agregado `VinculoDePlanilla` y su tabla, y **las tres vías por las que una planilla entra al sistema**: OAuth2 de Google con permiso de lectura sobre el archivo elegido y no sobre todo el Drive (RN-01), Excel Online, y el archivo subido a mano (ver D10). Registra proveedor, dirección de sincronización y hojas involucradas (RN-02). Pantalla PAN-ING-01 con la zona de arrastre y el vínculo, más `Cargas recientes` todavía vacío. Trae además los cimientos del contexto que ninguna otra unidad va a volver a decidir: repositorio con RLS por `empresa_id`, la migración inicial de `spreadsheet_sync`, el almacenamiento del archivo en R2 y el `features/spreadsheet_sync` del frontend con su `index.ts` |
+| **mapeo-asistido** | HU-E3-01 y HU-E3-02 — los agregados `Mapeo` y `EntradaDeMapeo`: el modelo propone la asignación de cada columna al esquema interno con un nivel de confianza (RN-01), la `huella_encabezado` permite reutilizar el mapeo mientras la estructura no cambie (RN-02), y las columnas de confianza Baja quedan `Sin asignar` (RN-03). Encima, la revisión de HU-E3-02 sobre PAN-ING-02: corrección manual, vista previa, y el bloqueo de `Confirmar y procesar` mientras falte una columna obligatoria. **Es el primer LLM del sistema** — ver D11 y D12 |
+| **carga-y-errores** | HU-E3-03, HU-E3-05 y HU-E3-06 — el agregado `ProcesamientoDePlanilla` con `ErrorDeFila`, la tarea asíncrona que lee el archivo y escribe `Cliente` y `Servicio` en `master_data` con `origen = PLANILLA`, y el aislamiento de RN-02: una fila inválida se marca y no aborta el resto. Validaciones de entrada de HU-E3-03 (formatos `.xlsx`/`.xls`/`.csv`, límite de 25 MB). Pantalla PAN-ING-03 con el resumen, el detalle por fila con su número original y su motivo, y la descarga del listado de errores (RN-03), en solo lectura para el rol Solo Lectura (RN-04). El reprocesamiento de HU-E3-06 reutiliza el mapeo confirmado, no duplica lo ya procesado y queda vinculado al procesamiento original |
+| **sincronizacion-y-write-back** | HU-E3-04 y HU-E3-07 — la sincronización incremental que procesa solo lo nuevo o modificado desde `ultima_lectura`, la detección de cambio de estructura que **pausa** la sincronización y manda a revisar el mapeo (RN-03), y la escritura de vuelta: solo sobre vínculos `LECTURA_Y_ESCRITURA`, solo sobre la hoja propia protegida del sistema y nunca sobre la hoja original de la empresa, y solo para registros con `origen` PANEL o AGENTE — que es el mecanismo anti-bucle de ADR-007 hecho código. Excel Online no escribe: es de solo lectura, y la pantalla lo dice |
+
+### Orden
+
+```
+dlq-y-tareas-asincronas ───────────────┐
+                                       ├─ carga-y-errores ── sincronizacion-y-write-back
+vinculo-de-planilla ── mapeo-asistido ─┘
+```
+
+Las dos primeras no dependen de nada y son las únicas del proyecto hasta hoy que **podrían ir en
+paralelo** si hubiera dos responsables. No los hay, así que se hacen en ese orden y la observación
+queda escrita por si eso cambia (regla 1c).
+
+**`carga-y-errores` es la única que espera a dos.** Necesita el mapeo confirmado para saber qué
+significa cada columna, y necesita la DLQ porque es la primera tarea del sistema que procesa miles
+de filas de datos ajenos: es exactamente donde un reintento infinito duele.
+
+### Notas
+
+- **Cinco unidades para nueve historias**, y es el épico más grande hasta ahora: `spreadsheet_sync`
+  hoy son cuatro `__init__.py` vacíos, hay **cinco tablas nuevas** del DER más la de `TareaAsincrona`,
+  y **tres pantallas**. No se agrupa más porque cada unidad habla un protocolo distinto —OAuth2 de
+  Google, un LLM, lectura de archivos binarios, escritura remota— que es el mismo criterio por el que
+  el épico 2 abrió cinco unidades para cuatro historias.
+- **Todo el épico comparte una sola rama** (`feature/spreadsheet_sync-sincronizacion-de-planillas`),
+  decisión del **2026-09-07**, igual que el épico 1 el 2026-08-13. Cada unidad es **uno o más commits**
+  con su propio mensaje, no un PR. **Lo que se gana:** una sola ceremonia de PR en lugar de cinco
+  encadenadas, y ningún rebase entre unidades que dependen unas de otras — que acá son casi todas.
+  **Lo que se paga:** un PR con nueve historias y seis tablas, y un revert que se lleva el épico
+  entero. Los **gates 1 y 2 siguen siendo por unidad**; lo unificado es la rama y el gate 3.
+- **La fila de estado de cada unidad se mueve en el commit de la unidad siguiente**, nunca en uno
+  propio, por lo que le pasó al épico 3 con [#24](https://github.com/cheatsheet12/CheatSheet/pull/24)
+  y [#25](https://github.com/cheatsheet12/CheatSheet/pull/25): filas contiguas del mismo épico chocan
+  porque git necesita al menos una línea sin cambiar entre dos modificaciones. Acá el riesgo es menor
+  —una sola rama— pero la regla se mantiene.
+- **HS-T6 entra en este épico y no en el 1, aunque sea infraestructura.** El épico 1 la declaró deuda
+  con dueño explícito («No hay DLQ → épico 4», `TODO.md` §3). Llega ahora porque ahora hay quien la
+  use: hasta este épico, el trabajo asíncrono del sistema era mandar un mail y sondear una API.
+
+### Decisión D10 — el archivo subido a mano no tiene proveedor en el DER
+
+`proveedor_planilla` tiene exactamente dos valores, `GOOGLE_SHEETS` y `EXCEL_ONLINE`. Pero
+HU-E3-03 tiene dos criterios de aceptación sobre **subir un archivo** —«Formato no aceptado. Use
+.xlsx, .xls o .csv.» y «El archivo supera el límite de 25 MB.»— y el prototipo `ingesta.html` tiene
+la zona de arrastre al lado del botón de vincular. La vía existe, el enum no la contempla, y
+`procesamiento_de_planilla.vinculo_id` es `NN`: un procesamiento **tiene** que colgar de un vínculo.
+
+**Se agrega `ARCHIVO` al enum.** Un archivo subido es un vínculo con `direccion = SOLO_LECTURA`, sin
+credencial OAuth, cuyo `hoja_empresa` es la hoja del libro y cuya referencia vive en R2. Con eso el
+`vinculo_id` obligatorio sigue siendo cierto, y las unidades 3, 4 y 5 tratan las tres vías igual en
+lugar de arrastrar dos caminos paralelos por todo el contexto.
+
+**Lo que se paga, dicho de frente:** queda un «vínculo» que no vincula nada — no hay a qué volver a
+leer, porque el archivo es una foto. La sincronización incremental de HU-E3-04 y el write-back de
+HU-E3-07 **no aplican** a `ARCHIVO` y tienen que decirlo explícitamente, igual que ya lo dicen para
+`EXCEL_ONLINE`. Es una guarda más en la unidad 5.
+
+**Alternativa descartada:** hacer `vinculo_id` nullable. Cuesta un `None` en cada consulta del
+contexto y en cada guarda de escritura, para siempre, a cambio de no tocar un enum.
+
+**Por eso la subida vive en `vinculo-de-planilla` y no en `carga-y-errores`:** esa unidad es «cómo
+entra una planilla al sistema», por cualquiera de las tres vías. Procesar los bytes es la unidad 4.
+
+### Decisión D11 — no hay proveedor de LLM elegido, y este épico lo necesita · **escala a ADR**
+
+[`docs/architecture.md`](../architecture.md) declara el puerto `PortModeloDeLenguaje` y lo asigna a
+`spreadsheet_sync` y `conversational`, y reserva el worker 8 para llamadas de LLM. **Ningún documento
+elige un proveedor**, y los ADR del repositorio van del 0001 al 0006 sin tocar el tema.
+
+`mapeo-asistido` es el primer consumidor. La decisión no es de una unidad —la hereda el épico 8
+entero, que es el agente conversacional— así que **es un ADR**, y va antes del Gate 1 de esa unidad.
+Tiene que cubrir: proveedor y modelo, dónde viven los prompts versionados (`CLAUDE.md` §5), el schema
+contra el que se valida cada respuesta, timeout y límite de tokens, y qué hace el sistema cuando el
+modelo no contesta — que para el mapeo es degradar a «todas las columnas Sin asignar» y dejar que el
+usuario mapee a mano, nunca bloquear la ingesta.
+
+### Decisión D12 — al modelo se le mandan encabezados, nunca filas
+
+`CLAUDE.md` §3.6 es absoluto: **nunca se mandan datos personales o fiscales reales a un LLM sin
+anonimizar**. Y HU-E3-02 pide mostrar «un ejemplo de dato» por columna en la revisión del mapeo, lo
+que invita a mandarle filas de muestra al modelo para que infiera mejor. Son clientes reales: nombre,
+CUIT, teléfono, dirección.
+
+**El modelo recibe únicamente los nombres de las columnas** y el catálogo de atributos internos de
+destino. El ejemplo de dato de PAN-ING-02 se lee de la planilla y se muestra en pantalla **sin pasar
+por el modelo**. La huella de encabezado de RN-02 se calcula sobre los nombres de columna, que es lo
+único que el modelo vio, así que la reutilización del mapeo tampoco filtra nada.
+
+**Lo que se paga:** un encabezado ambiguo (`Codigo`, `Tipo`, `Nro`) se resuelve peor sin ver datos, y
+va a caer más seguido en confianza Baja. Eso es exactamente lo que RN-03 manda hacer con la confianza
+Baja —marcarla `Sin asignar` y pedir intervención manual—, así que el modo de falla ya está diseñado.
+Se prefiere un mapeo que pregunta más a uno que filtra datos de clientes.
+
+### Preguntas que resuelve el Gate 1 de cada unidad
+
+- **`dlq-y-tareas-asincronas`** — ¿`TareaAsincrona` es una tabla propia de `observability` o el
+  registro que ya escribe cada worker? ¿La DLQ es una cola de Celery, una tabla, o las dos?
+- **`vinculo-de-planilla`** — ¿el OAuth2 de Google reusa el mecanismo de `integrations` del épico 2
+  (`ConfiguracionDeIntegracion`, credencial cifrada) o es propio? La FK
+  `vinculo_de_planilla.configuracion_integracion_id` sugiere lo primero, y eso decide si esta unidad
+  toca dos contextos.
+- **`mapeo-asistido`** — ¿cuáles son las columnas «obligatorias» de RN-02, y salen de los agregados
+  `Cliente` y `Servicio` del épico 3 o de una lista propia?
+- **`carga-y-errores`** — ¿una fila de planilla puede crear un `Cliente` **y** un `Servicio`, o cada
+  vínculo apunta a una sola entidad de destino? El DER no lo dice y cambia el mapeo entero.
+- **`sincronizacion-y-write-back`** — ¿cada cuánto corre el sondeo, y en qué cola? ¿Qué detecta el
+  cambio de estructura: la huella de encabezado de RN-02, o algo más barato?
+
+### Estado
+
+**Mapa aprobado el 2026-09-07.** Responsable de las cinco unidades: Cristian.
+
+Las cinco están **implementadas y verificadas en verde**, en una sola rama
+(`feature/spreadsheet_sync-sincronizacion-de-planillas`), un commit por unidad. Falta el
+Gate 3: el push y el PR, que por regla del repositorio no se hacen sin que los pidas.
+
+La corrida con la que se cierran las cinco, **con PostgreSQL y Redis reales**:
+
+```
+ruff format --check .   335 files already formatted
+ruff check .            All checks passed!
+mypy .                  Success: no issues found in 335 source files
+guard_architecture      361 file(s) checked - architecture boundaries intact
+pytest --cov            969 passed - 0 skipped - cobertura 94%  (umbral 80)
+alembic current         0015 (head)
+frontend lint           No ESLint warnings or errors
+frontend test:coverage  386 passed - 85.84 % lineas
+frontend build          compila
+```
+
+**Lo que el épico no cierra:** los dos criterios de lectura incremental de HU-E3-04 («se
+modifica una fila», «se agregan filas nuevas»). El write-back y la detección de cambio de
+estructura están; falta el token OAuth por empresa para volver a leer la hoja viva. Dicho en
+`units/sincronizacion-y-write-back.md` y en `TODO.md`.
+
+### Fuera de alcance de este épico
+
+- **Leer la DLQ desde el panel.** HS-T6 deja el sumidero y el evento en la bitácora; la pantalla es
+  del **épico 10**, igual que pasó con HS-T5 en el épico 1.
+- **Que el agente de WhatsApp escriba en la planilla.** HU-E3-07 RN-03 nombra el origen `AGENTE`, y
+  la guarda se construye acá, pero quien lo produce llega en el **épico 8**.
+- **Emitir un comprobante a un cliente ingerido** → épico 5. Acá el catálogo se puebla y todavía no
+  lo consume nadie.
+- **Reprocesamiento manual de una tarea de la DLQ.** HS-T6 RN-04 pide que el evento quede registrado
+  «para permitir su análisis y eventual reprocesamiento manual»: se registra, y el reprocesamiento se
+  dispara a mano contra la cola, sin pantalla.
+- **Más proveedores de planilla.** El DER cierra el enum en Google Sheets y Excel Online, y D10 le
+  agrega el archivo suelto. Nada más.
