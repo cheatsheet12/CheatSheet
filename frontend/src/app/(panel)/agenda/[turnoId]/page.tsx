@@ -9,6 +9,7 @@
  * más por cada turno que alguien abre.
  */
 
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { DetalleDeTurno } from "@/features/scheduling";
@@ -43,15 +44,29 @@ export default async function PaginaDeTurno({ params }: Props): Promise<JSX.Elem
   ]);
 
   return (
-    <>
-      <h1>Turno</h1>
+    <div className="age-pantalla">
+      <div className="age-encabezado">
+        <div>
+          <p className="age-encabezado__eyebrow">Operaciones · Agenda</p>
+          <h1 className="age-encabezado__titulo">Turno</h1>
+          <p className="age-encabezado__intro">
+            El turno, con las acciones que su estado permite. Reprogramarlo lo mueve de franja y le
+            deja el estado que tenía.
+          </p>
+        </div>
+        <div className="age-encabezado__acciones">
+          <Link className="age-volver" href="/agenda">
+            Volver a la agenda
+          </Link>
+        </div>
+      </div>
       <DetalleDeTurno
         inicial={turno}
         puedeGestionar={claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR"}
         recurso={recursos.recursos.find((uno) => uno.id === turno.recurso_id)?.nombre ?? "—"}
         servicio={servicios.find((uno) => uno.id === turno.servicio_id)?.nombre ?? "—"}
       />
-    </>
+    </div>
   );
 }
 

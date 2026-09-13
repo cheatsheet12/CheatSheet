@@ -27,6 +27,7 @@ export {
   MENSAJE_NO_TRANSCURRIO,
   MENSAJE_SIN_TURNOS,
   cancelarTurno,
+  fechaLargaDe,
   horaDe,
   listarTurnos,
   registrarAsistencia,
@@ -42,6 +43,7 @@ export type {
   FiltrosDeAgenda,
   Horario,
   ListadoDeTurnos,
+  Nombrado,
   Turno,
   TurnoNuevo,
 } from "./api/turno";

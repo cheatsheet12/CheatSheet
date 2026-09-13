@@ -164,6 +164,32 @@ export async function responder(
   return (await respuesta.json()) as Mensaje;
 }
 
+/**
+ * La hora de un mensaje, sola, para el renglón de la bandeja.
+ *
+ * La lista muestra la hora y no la fecha completa porque el ancho de la columna es de tres
+ * palabras: una bandeja de mensajería se lee por lo que pasó hoy. La fecha entera sigue
+ * estando en el hilo, arriba de cada grupo de mensajes.
+ *
+ * **`hour12: false` explícito**, por lo mismo que en la agenda: sin él el ICU de algunos
+ * entornos devuelve «03:00 p. m.» para `es-AR`, que no es como se escribe una hora en
+ * Argentina y hace que dos renglones consecutivos no se puedan comparar de un vistazo.
+ */
+export function horaDeMensaje(iso: string | null): string {
+  if (iso === null || iso.trim() === "") {
+    return "—";
+  }
+  const momento = new Date(iso);
+  if (Number.isNaN(momento.getTime())) {
+    return "—";
+  }
+  return momento.toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 /** Qué tono de badge le toca a un hilo según espere o no a una persona. */
 export function tonoDeEscalamiento(estado: EstadoEscalamiento | null): "ok" | "atencion" | "error" {
   if (estado === "ABIERTO") {

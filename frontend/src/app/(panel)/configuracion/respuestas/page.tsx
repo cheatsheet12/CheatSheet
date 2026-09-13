@@ -3,6 +3,10 @@
  *
  * Todos los roles ven las respuestas y su contador de usos —es información del negocio— y
  * sólo el Administrador las administra.
+ *
+ * El encabezado lo dibuja el componente y no esta página: el CTA depende del rol y abre el
+ * formulario, así que necesita estado, y partir título y acción en dos archivos era lo que
+ * dejaba al botón flotando solo arriba del listado.
  */
 
 import { redirect } from "next/navigation";
@@ -24,14 +28,5 @@ export default async function PaginaDeFaqs(): Promise<JSX.Element> {
 
   const listado = await llamarApi<ListadoDeFaqs>("/faqs");
 
-  return (
-    <>
-      <h1>Respuestas frecuentes</h1>
-      <p className="dm-intro">
-        Lo que el agente contesta solo. Busca por significado, así que no hace falta que el cliente
-        escriba la pregunta igual; cuando ninguna alcanza, deriva a una persona.
-      </p>
-      <RespuestasFrecuentes inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />
-    </>
-  );
+  return <RespuestasFrecuentes inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />;
 }

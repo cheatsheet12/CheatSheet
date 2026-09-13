@@ -9,13 +9,19 @@
  * **The price is rendered, never computed.** It arrives as text and leaves as text; the
  * VAT column shows the rate beside it. What a customer ends up paying is a `Comprobante`,
  * and that is epic 5.
+ *
+ * **El encabezado lo dibuja este componente**, como en PAN-DM-01 y por la misma razón: el
+ * CTA depende del rol y abre el formulario, así que vive donde está el estado.
+ *
+ * **Las acciones de fila son texto.** La caja aparece en hover; el rojo del borde en cada
+ * renglón era una advertencia repetida diez veces, que es una advertencia que ya no avisa.
  */
 
 "use client";
 
 import { useEffect, useState } from "react";
 
-import { Badge, Button, Campo, Modal, Select, Tabla } from "@/shared";
+import { Badge, Button, Campo, Modal, Select, Tabla, formatearNumero } from "@/shared";
 import type { Columna } from "@/shared";
 
 import {
@@ -30,6 +36,7 @@ import type { DatosDeServicio, ListadoDeServicios as Listado, Servicio } from ".
 import { categoriasDeServicio, clasificarServicio, listarCategorias } from "../api/categoria";
 import type { Categoria } from "../api/categoria";
 import { FormularioDeServicio } from "./FormularioDeServicio";
+import { IconoDeMas } from "./iconos";
 import { SelectorDeCategorias } from "./SelectorDeCategorias";
 
 const AGENDABLE: readonly { valor: string; etiqueta: string }[] = [
@@ -130,24 +137,46 @@ export function ListadoDeServicios({
     }
   }
 
+  /** La baja pregunta antes de correr; la reactivación no, porque no hay nada que deshacer. */
   async function alternarEstado(servicio: Servicio): Promise<void> {
+    if (
+      servicio.activo &&
+      !window.confirm(`¿Desactivar ${servicio.nombre}? Deja de estar en el catálogo.`)
+    ) {
+      return;
+    }
     await cambiarEstadoDeServicio(servicio.id, !servicio.activo);
     await recargar();
   }
 
   const columnas: readonly Columna<Servicio>[] = [
-    { clave: "nombre", titulo: "Nombre", celda: (fila) => fila.nombre },
-    { clave: "precio", titulo: "Precio", celda: (fila) => `$ ${fila.precio}` },
+    {
+      clave: "nombre",
+      titulo: "Nombre",
+      celda: (fila) => <span className="mae-nombre">{fila.nombre}</span>,
+    },
+    {
+      clave: "precio",
+      titulo: "Precio",
+      // Interpolado entero y no partido en dos hijos: un salto de línea entre el signo y el
+      // número deja el «$» huérfano al final de un renglón.
+      celda: (fila) => <span className="mae-importe">{`$ ${formatearNumero(fila.precio)}`}</span>,
+      alDerecha: true,
+    },
     {
       clave: "iva",
       titulo: "IVA",
-      celda: (fila) => ETIQUETAS_DE_ALICUOTA[fila.alicuota_iva],
+      celda: (fila) => <span className="mae-dato">{ETIQUETAS_DE_ALICUOTA[fila.alicuota_iva]}</span>,
     },
     {
       clave: "duracion",
-      titulo: "Duracion",
+      titulo: "Duración",
       celda: (fila) =>
-        fila.duracion_estandar_min !== null ? `${fila.duracion_estandar_min} min` : "—",
+        fila.duracion_estandar_min === null ? (
+          <span className="mae-dato mae-dato--tenue">—</span>
+        ) : (
+          <span className="mae-mono">{`${fila.duracion_estandar_min} min`}</span>
+        ),
     },
     {
       clave: "estado",
@@ -164,27 +193,46 @@ export function ListadoDeServicios({
       alDerecha: true,
       celda: (fila) =>
         puedeEditar ? (
-          <>
-            <Button variante="secundario" onClick={() => void abrirEdicion(fila)}>
+          <span className="tabla__acciones">
+            <button type="button" className="mae-accion" onClick={() => void abrirEdicion(fila)}>
               Editar
-            </Button>{" "}
-            <Button
-              variante={fila.activo ? "destructivo" : "secundario"}
-              {...(fila.activo
-                ? { confirmacion: `Desactivar ${fila.nombre}? Deja de estar en el catalogo.` }
-                : {})}
+            </button>
+            <button
+              type="button"
+              className={`mae-accion${fila.activo ? " mae-accion--baja" : ""}`}
               onClick={() => void alternarEstado(fila)}
             >
               {fila.activo ? "Desactivar" : "Reactivar"}
-            </Button>
-          </>
+            </button>
+          </span>
         ) : null,
     },
   ];
 
   return (
     <>
-      <div className="dm-filtros">
+      <header className="mae-encabezado">
+        <div>
+          <p className="mae-encabezado__eyebrow">Datos maestros · Servicios</p>
+          <h1>Servicios</h1>
+          <p className="mae-encabezado__intro">
+            Lo que tu empresa vende. El precio se carga sin IVA y la alícuota va aparte: el total lo
+            calcula cada comprobante.
+          </p>
+        </div>
+        {puedeEditar && (
+          <div className="mae-encabezado__acciones">
+            <Button onClick={() => setEdicion({ servicio: undefined })}>
+              <span className="mae-cta__icono" aria-hidden="true">
+                <IconoDeMas />
+              </span>
+              Nuevo servicio
+            </Button>
+          </div>
+        )}
+      </header>
+
+      <div className="mae-filtros">
         <Campo
           id="dm-buscador-servicios"
           etiqueta="Buscar"
@@ -193,7 +241,7 @@ export function ListadoDeServicios({
             setTexto(evento.target.value);
             void recargar({ texto: evento.target.value });
           }}
-          ayuda="Por nombre."
+          placeholder="Nombre del servicio"
         />
         <Select
           id="dm-agendable"
@@ -207,9 +255,9 @@ export function ListadoDeServicios({
         />
         <Select
           id="dm-categoria-servicios"
-          etiqueta="Categoria"
+          etiqueta="Categoría"
           opciones={[
-            { valor: "", etiqueta: "Todas las categorias" },
+            { valor: "", etiqueta: "Todas las categorías" },
             ...categoriasDisponibles.map((c) => ({ valor: c.id, etiqueta: c.nombre })),
           ]}
           value={categoria}
@@ -218,7 +266,7 @@ export function ListadoDeServicios({
             void recargar({ categoriaId: evento.target.value });
           }}
         />
-        <label className="dm-filtros__casilla" htmlFor="dm-servicios-activos">
+        <label className="mae-casilla" htmlFor="dm-servicios-activos">
           <input
             id="dm-servicios-activos"
             type="checkbox"
@@ -230,18 +278,23 @@ export function ListadoDeServicios({
           />
           Solo activos
         </label>
-        {puedeEditar && (
-          <Button onClick={() => setEdicion({ servicio: undefined })}>Nuevo servicio</Button>
-        )}
       </div>
 
-      <Tabla
-        titulo={`${listado.total} servicio${listado.total === 1 ? "" : "s"}`}
-        columnas={columnas}
-        filas={listado.servicios}
-        claveDeFila={(fila) => fila.id}
-        vacia="Todavia no hay servicios en el catalogo."
-      />
+      <div className="mae-barra">
+        <p className="mae-barra__cuenta">
+          <b>{listado.total}</b> {listado.total === 1 ? "servicio" : "servicios"} en el catálogo
+        </p>
+      </div>
+
+      <div className="mae-panel">
+        <Tabla
+          titulo={`${listado.total} servicio${listado.total === 1 ? "" : "s"}`}
+          columnas={columnas}
+          filas={listado.servicios}
+          claveDeFila={(fila) => fila.id}
+          vacia="Todavía no hay servicios en el catálogo."
+        />
+      </div>
 
       <Modal
         abierto={edicion !== null}
@@ -257,11 +310,14 @@ export function ListadoDeServicios({
           />
         )}
         {edicion?.servicio !== undefined && (
-          <SelectorDeCategorias
-            ambito="SERVICIO"
-            asignadas={asignadas}
-            onAlternar={alternarCategoria}
-          />
+          <>
+            <hr className="mae-form__separador" />
+            <SelectorDeCategorias
+              ambito="SERVICIO"
+              asignadas={asignadas}
+              onAlternar={alternarCategoria}
+            />
+          </>
         )}
       </Modal>
     </>

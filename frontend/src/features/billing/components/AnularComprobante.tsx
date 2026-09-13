@@ -10,6 +10,10 @@
  * them down is what a partial one is, and that is the only thing this screen really lets
  * somebody do.
  *
+ * **La pantalla arranca mostrando qué comprobante se está reversando**, con su número en
+ * monoespaciada y su estado. No es decoración: se llega acá desde un enlace, y quien abrió
+ * dos pestañas para comparar dos facturas necesita ver en cuál está antes de tocar un ítem.
+ *
  * **The ceiling is checked here and enforced by the backend**, and the duplication is
  * deliberate: showing it disabled is the difference between a form that explains itself and
  * one that answers 422 after somebody typed everything. The backend's check is the
@@ -21,13 +25,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Select, formatearNumero } from "@/shared";
+import { Alert, Badge, Button, Campo, Select, formatearNumero } from "@/shared";
 
 import {
   ALICUOTAS,
+  ETIQUETAS_DE_ESTADO,
   ErrorDeComprobante,
   MENSAJE_MONTO_EXCEDIDO,
   emitirNotaDeCredito,
+  tonoDeEstado,
 } from "../api/comprobante";
 import type { Anulacion, Comprobante, ItemNuevo } from "../api/comprobante";
 import { ETIQUETAS_DE_TIPO, notaDeCreditoDe } from "../api/puntoDeVenta";
@@ -110,16 +116,19 @@ export function AnularComprobante({ original, anulacion }: PropsDeAnularComproba
 
   if (anulacion.es_total) {
     return (
-      <Alert tono="neutral" titulo="Ya está anulado del todo">
-        Este comprobante fue anulado por el total de ${formatearNumero(anulacion.total_anulado)}. No
-        queda saldo para emitir otra nota de crédito.
-      </Alert>
+      <>
+        <Original original={original} />
+        <Alert tono="neutral" titulo="Ya está anulado del todo">
+          Este comprobante fue anulado por el total de ${formatearNumero(anulacion.total_anulado)}.
+          No queda saldo para emitir otra nota de crédito.
+        </Alert>
+      </>
     );
   }
 
   return (
     <form
-      className="dm-formulario"
+      className="fac-nuevo-formulario"
       onSubmit={(evento) => {
         evento.preventDefault();
         void anular();
@@ -131,6 +140,13 @@ export function AnularComprobante({ original, anulacion }: PropsDeAnularComproba
         </Alert>
       )}
 
+      <Original original={original} />
+
+      {/*
+        El tope, el receptor y el tipo que se va a emitir, en una sola frase y no en una lista
+        de pares: es lo que alguien tiene que leer entero antes de tocar un ítem, y partirlo en
+        celdas hace que se lea la mitad.
+      */}
       <Alert tono="neutral" titulo={`Anulando ${ETIQUETAS_DE_TIPO[original.tipo]}`}>
         Se emite una {ETIQUETAS_DE_TIPO[notaDeCreditoDe(original.tipo)]} a nombre de{" "}
         {original.receptor_nombre}. Podés anular hasta $ {formatearNumero(anulacion.disponible)}
@@ -139,10 +155,20 @@ export function AnularComprobante({ original, anulacion }: PropsDeAnularComproba
           : "."}
       </Alert>
 
-      <fieldset className="dm-selector">
-        <legend>Qué se anula</legend>
+      <fieldset className="fac-nuevo-paso fac-nuevo-paso--actual">
+        <legend>
+          <span className="fac-nuevo-paso__numero" aria-hidden>
+            1
+          </span>
+          Qué se anula
+        </legend>
+        <p className="fac-nuevo-paso__ayuda">
+          Vienen los ítems del original, que es lo que anula una nota de crédito total. Bajá las
+          cantidades o quitá líneas para anular sólo una parte.
+        </p>
+
         {lineas.map((linea, indice) => (
-          <div className="fac-item" key={linea.clave}>
+          <div className="fac-nuevo-item" key={linea.clave}>
             <Campo
               id={`anular-descripcion-${linea.clave}`}
               etiqueta={`Descripcion ${indice + 1}`}
@@ -185,7 +211,10 @@ export function AnularComprobante({ original, anulacion }: PropsDeAnularComproba
 
       {excede && <Alert tono="error">{MENSAJE_MONTO_EXCEDIDO}</Alert>}
 
-      <div className="dm-formulario__acciones">
+      <div className="fac-nuevo-acciones">
+        <p className="fac-nuevo-inmutable">
+          La nota de crédito también va a ARCA y también queda: reversa la factura, no la borra.
+        </p>
         <Button variante="secundario" onClick={() => router.push(`/facturacion/${original.id}`)}>
           Cancelar
         </Button>
@@ -194,5 +223,30 @@ export function AnularComprobante({ original, anulacion }: PropsDeAnularComproba
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * El comprobante que se está reversando.
+ *
+ * **Sin importes.** El tope y lo ya anulado se dicen una sola vez, en la caja de abajo:
+ * repetir un número que puede coincidir con otro haría que dos cajas muestren el mismo
+ * importe con dos significados distintos, que es la confusión que se paga con una nota de
+ * crédito emitida por el monto equivocado.
+ */
+function Original({ original }: { readonly original: Comprobante }): JSX.Element {
+  return (
+    <header className="fac-nuevo-documento">
+      <div>
+        <p className="fac-nuevo-documento__rotulo">Comprobante original</p>
+        <p className="fac-nuevo-documento__numero">
+          {original.numero === null ? "Sin numerar" : String(original.numero).padStart(8, "0")}
+        </p>
+        <p className="fac-nuevo-documento__tipo">{ETIQUETAS_DE_TIPO[original.tipo]}</p>
+      </div>
+      <div className="fac-nuevo-documento__estado">
+        <Badge estado={tonoDeEstado(original.estado)}>{ETIQUETAS_DE_ESTADO[original.estado]}</Badge>
+      </div>
+    </header>
   );
 }

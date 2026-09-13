@@ -18,7 +18,15 @@ export default async function PaginaDePreferencias(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Mis preferencias</h1>
+      <header className="cfg-encabezado">
+        <div>
+          <span className="cfg-encabezado__eyebrow">Configuración · Preferencias</span>
+          <h1>Mis preferencias</h1>
+          <p className="cfg-encabezado__intro">
+            Cómo querés ver las fechas y los números, y por qué canal querés que te avisemos.
+          </p>
+        </div>
+      </header>
       <FormularioDePreferencias iniciales={actuales} />
     </>
   );

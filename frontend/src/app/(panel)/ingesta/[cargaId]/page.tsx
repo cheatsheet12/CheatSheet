@@ -32,11 +32,16 @@ export default async function PaginaDeCarga({
 
   return (
     <>
-      <h1>Detalle de la carga</h1>
-      <p className="dm-intro">
-        Qué entró, qué no, y por qué. Podés corregir las filas en tu planilla y reprocesar sólo
-        esas.
-      </p>
+      <div className="ing-encabezado">
+        <div>
+          <p className="ing-eyebrow">Operaciones · Ingesta de datos · Detalle</p>
+          <h1 className="ing-titulo">Detalle de la carga</h1>
+          <p className="ing-subtitulo">
+            Qué entró, qué no, y por qué. Podés corregir las filas en tu planilla y reprocesar sólo
+            esas.
+          </p>
+        </div>
+      </div>
       <DetalleDeCarga inicial={detalle} />
     </>
   );

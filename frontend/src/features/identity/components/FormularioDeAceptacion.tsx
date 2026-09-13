@@ -16,7 +16,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Card } from "@/shared";
+import { Alert, Button, Campo } from "@/shared";
 
 import { ErrorDeFormulario, aceptarInvitacion } from "../api/cliente";
 
@@ -81,46 +81,57 @@ export function FormularioDeAceptacion({ token }: PropsDeFormularioDeAceptacion)
   };
 
   return (
-    <Card titulo="Activá tu cuenta">
-      {errores.general !== undefined && <Alert tono="error">{errores.general}</Alert>}
+    <section className="acc-tarjeta acc-tarjeta--angosta">
+      <header className="acc-encabezado">
+        <h1 className="acc-titulo">Activá tu cuenta</h1>
+        <p className="acc-sub">Te invitaron a CheatSheet. Elegí una contraseña y entrás.</p>
+      </header>
 
-      <p>Te invitaron a CheatSheet. Elegí una contraseña y entrás.</p>
+      {errores.general !== undefined && (
+        <div className="acc-aviso">
+          <Alert tono="error">{errores.general}</Alert>
+        </div>
+      )}
 
       <form onSubmit={(evento) => void enviar(evento)} noValidate>
-        <Campo
-          id="nombre"
-          etiqueta="Tu nombre"
-          autoComplete="name"
-          required
-          error={errores.nombre}
-          value={nombre}
-          onChange={(evento) => setNombre(evento.target.value)}
-        />
-        <Campo
-          id="contrasena"
-          etiqueta="Contraseña"
-          type="password"
-          autoComplete="new-password"
-          required
-          ayuda="Mínimo 8 caracteres."
-          error={errores.contrasena}
-          value={contrasena}
-          onChange={(evento) => setContrasena(evento.target.value)}
-        />
-        <Campo
-          id="confirmacion"
-          etiqueta="Repetí la contraseña"
-          type="password"
-          autoComplete="new-password"
-          required
-          error={errores.confirmacion}
-          value={confirmacion}
-          onChange={(evento) => setConfirmacion(evento.target.value)}
-        />
-        <Button type="submit" cargando={enviando}>
-          Activar mi cuenta
-        </Button>
+        <div className="acc-campos">
+          <Campo
+            id="nombre"
+            etiqueta="Tu nombre"
+            autoComplete="name"
+            required
+            error={errores.nombre}
+            value={nombre}
+            onChange={(evento) => setNombre(evento.target.value)}
+          />
+          <Campo
+            id="contrasena"
+            etiqueta="Contraseña"
+            type="password"
+            autoComplete="new-password"
+            required
+            ayuda="Mínimo 8 caracteres."
+            error={errores.contrasena}
+            value={contrasena}
+            onChange={(evento) => setContrasena(evento.target.value)}
+          />
+          <Campo
+            id="confirmacion"
+            etiqueta="Repetí la contraseña"
+            type="password"
+            autoComplete="new-password"
+            required
+            error={errores.confirmacion}
+            value={confirmacion}
+            onChange={(evento) => setConfirmacion(evento.target.value)}
+          />
+        </div>
+        <div className="acc-accion">
+          <Button type="submit" cargando={enviando}>
+            Activar mi cuenta
+          </Button>
+        </div>
       </form>
-    </Card>
+    </section>
   );
 }

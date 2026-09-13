@@ -72,7 +72,7 @@ describe("FormularioDeCliente", () => {
     });
 
     await waitFor(() => {
-      const nombre = screen.getByLabelText(/Nombre o razon social/) as HTMLInputElement;
+      const nombre = screen.getByLabelText(/Nombre o razón social/) as HTMLInputElement;
       expect(nombre.value).toBe("PANADERIA DONA ROSA SRL");
     });
   });
@@ -84,7 +84,7 @@ describe("FormularioDeCliente", () => {
       motivo: null,
     });
     montar();
-    fireEvent.change(screen.getByLabelText(/Nombre o razon social/), {
+    fireEvent.change(screen.getByLabelText(/Nombre o razón social/), {
       target: { value: "Panaderia de la esquina" },
     });
     fireEvent.change(screen.getByLabelText(/CUIT/), { target: { value: CUIT } });
@@ -94,7 +94,7 @@ describe("FormularioDeCliente", () => {
     await waitFor(() => {
       expect(consultarPadron).toHaveBeenCalled();
     });
-    const nombre = screen.getByLabelText(/Nombre o razon social/) as HTMLInputElement;
+    const nombre = screen.getByLabelText(/Nombre o razón social/) as HTMLInputElement;
     expect(nombre.value).toBe("Panaderia de la esquina");
   });
 

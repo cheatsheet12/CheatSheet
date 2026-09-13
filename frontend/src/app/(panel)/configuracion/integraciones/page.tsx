@@ -69,10 +69,15 @@ export default async function PaginaDeIntegraciones({
 
   return (
     <>
-      <h1>Integraciones</h1>
-      <p className="int-intro">
-        Conectá las herramientas que ya usás. El estado se verifica contra cada servicio.
-      </p>
+      <header className="dm-encabezado">
+        <div>
+          <span className="dm-encabezado__cintillo">Configuración · Paso 3 del onboarding</span>
+          <h1>Integraciones</h1>
+          <p className="dm-intro">
+            Conectá las herramientas que ya usás. El estado se verifica contra cada servicio.
+          </p>
+        </div>
+      </header>
       <GrillaDeIntegraciones
         inicial={listado}
         puedeConectar={claims.rol === "ADMINISTRADOR"}

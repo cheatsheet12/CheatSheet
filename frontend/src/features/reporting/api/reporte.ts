@@ -14,6 +14,9 @@
  * contador y cuándo»; the backend grants no DELETE, so a function here could only ever fail.
  */
 
+import { PREFERENCIAS_POR_DEFECTO, formatearFecha } from "@/shared";
+import type { PreferenciasDeFormato } from "@/shared";
+
 export type TipoReporte = "FACTURACION" | "COBROS" | "OPERACIONES" | "RESUMEN_EJECUTIVO";
 export type FormatoReporte = "PDF" | "CSV" | "XML";
 export type EstadoReporte = "PENDIENTE" | "EN_CURSO" | "LISTO" | "FALLIDO";
@@ -78,6 +81,162 @@ export const ETIQUETAS_DE_TIPO: Readonly<Record<TipoReporte, string>> = {
   OPERACIONES: "Operaciones",
   RESUMEN_EJECUTIVO: "Resumen ejecutivo",
 };
+
+/** Cómo se llama cada estado **en pantalla**. `EN_CURSO` es un enum, no una palabra. */
+export const ETIQUETAS_DE_ESTADO_DE_REPORTE: Readonly<Record<EstadoReporte, string>> = {
+  PENDIENTE: "Pendiente",
+  EN_CURSO: "En curso",
+  LISTO: "Listo",
+  FALLIDO: "Fallido",
+};
+
+/**
+ * Cómo se llama en pantalla cada tipo de comprobante que el tablero agrupa.
+ *
+ * **No se importa el mapa de `billing` aunque diga casi lo mismo.** Las claves de `por_tipo`
+ * llegan como texto libre —reportería agrupa por lo que encontró en la base, no por un enum
+ * de esta feature—, así que el tipo de allá no describe lo que llega acá; y una feature que
+ * importa a otra para leer una etiqueta ata dos módulos por el motivo más flojo que existe
+ * (regla R5 de `CLAUDE.md` §2.1). Lo que sí se comparte es la redacción, que es de ARCA.
+ */
+export const ETIQUETAS_DE_TIPO_DE_COMPROBANTE: Readonly<Record<string, string>> = {
+  FACTURA_A: "Factura A",
+  FACTURA_B: "Factura B",
+  FACTURA_C: "Factura C",
+  NOTA_CREDITO_A: "Nota de crédito A",
+  NOTA_CREDITO_B: "Nota de crédito B",
+  NOTA_CREDITO_C: "Nota de crédito C",
+  NOTA_DEBITO_A: "Nota de débito A",
+  NOTA_DEBITO_B: "Nota de débito B",
+  NOTA_DEBITO_C: "Nota de débito C",
+};
+
+/** `FACTURA_B` → `Factura B`. Las letras sueltas quedan en mayúscula: son de ARCA. */
+function humanizarCodigo(clave: string): string {
+  return clave
+    .toLowerCase()
+    .split("_")
+    .map((palabra, indice) => {
+      if (palabra.length === 1) {
+        return palabra.toUpperCase();
+      }
+      return indice === 0 ? palabra.charAt(0).toUpperCase() + palabra.slice(1) : palabra;
+    })
+    .join(" ");
+}
+
+/**
+ * El nombre legible de un tipo de comprobante, incluido el que este archivo todavía no conoce.
+ *
+ * El mapa cubre lo que hoy emite el sistema y el humanizador cubre lo que va a emitir mañana:
+ * un `RECIBO_C` nuevo se lee «Recibo c», que es feo, pero infinitamente mejor que mostrarle
+ * a alguien el identificador de una columna de la base en su tablero.
+ */
+export function nombreDeTipoDeComprobante(clave: string): string {
+  return ETIQUETAS_DE_TIPO_DE_COMPROBANTE[clave] ?? humanizarCodigo(clave);
+}
+
+const MS_POR_DIA = 86_400_000;
+const DIAS_POR_SEMANA = 7;
+const SEMANA_ISO = /^(\d{4})-W(\d{1,2})$/;
+
+/**
+ * El lunes de una semana ISO-8601, en UTC.
+ *
+ * La norma ancla la semana 1 en la que contiene al 4 de enero; a partir del lunes de esa
+ * semana, todo son saltos de siete días. **Toda la aritmética es en UTC a propósito**: hecha
+ * con horas locales, la noche en que cambia el huso horario corre un día entero y la semana
+ * pasa a empezar un domingo.
+ */
+function lunesDeSemanaIso(anio: number, semana: number): Date {
+  const cuatroDeEnero = Date.UTC(anio, 0, 4);
+  // `getUTCDay` devuelve 0 para el domingo; ISO lo cuenta como el séptimo día, no el primero.
+  const diaDeLaSemana = new Date(cuatroDeEnero).getUTCDay() || DIAS_POR_SEMANA;
+  const lunesDeLaSemana1 = cuatroDeEnero - (diaDeLaSemana - 1) * MS_POR_DIA;
+  return new Date(lunesDeLaSemana1 + (semana - 1) * DIAS_POR_SEMANA * MS_POR_DIA);
+}
+
+interface SemanaResuelta {
+  readonly lunes: Date;
+  readonly domingo: Date;
+}
+
+function resolverSemana(clave: string): SemanaResuelta | null {
+  const partes = SEMANA_ISO.exec(clave);
+  if (partes === null) {
+    return null;
+  }
+  const lunes = lunesDeSemanaIso(Number(partes[1]), Number(partes[2]));
+  return { lunes, domingo: new Date(lunes.getTime() + (DIAS_POR_SEMANA - 1) * MS_POR_DIA) };
+}
+
+/**
+ * Los dos extremos de la semana se formatean **en UTC**, y no en la zona del usuario.
+ *
+ * Una semana ISO es un rango de días del calendario, no un instante: no ocurre en ninguna
+ * zona horaria. Pasarla por `America/Argentina/Buenos_Aires` le restaría tres horas a una
+ * medianoche que no existe y devolvería el domingo anterior.
+ */
+function partesDeDia(fecha: Date, idioma: string, mes: "short" | "long" | undefined): string {
+  return new Intl.DateTimeFormat(idioma, {
+    day: "numeric",
+    ...(mes === undefined ? {} : { month: mes }),
+    timeZone: "UTC",
+  }).format(fecha);
+}
+
+/** `2026-W37` → `7–13 sept`. Para el eje del gráfico, donde la frase larga no entra. */
+export function etiquetaDeSemana(
+  clave: string,
+  preferencias: PreferenciasDeFormato = PREFERENCIAS_POR_DEFECTO,
+): string {
+  const semana = resolverSemana(clave);
+  if (semana === null) {
+    // Una clave que este archivo no sabe leer se muestra tal cual: fea, pero cierta.
+    return clave;
+  }
+  const inicio = partesDeDia(semana.lunes, preferencias.idioma, undefined);
+  return `${inicio}–${partesDeDia(semana.domingo, preferencias.idioma, "short")}`;
+}
+
+/** `2026-W37` → `Semana del 7 al 13 de septiembre`. */
+export function nombreDeSemana(
+  clave: string,
+  preferencias: PreferenciasDeFormato = PREFERENCIAS_POR_DEFECTO,
+): string {
+  const semana = resolverSemana(clave);
+  if (semana === null) {
+    return clave;
+  }
+  const mismoMes = semana.lunes.getUTCMonth() === semana.domingo.getUTCMonth();
+  const desde = partesDeDia(semana.lunes, preferencias.idioma, mismoMes ? undefined : "long");
+  const hasta = partesDeDia(semana.domingo, preferencias.idioma, "long");
+  return `Semana del ${desde} al ${hasta}`;
+}
+
+/**
+ * Un día suelto del backend (`2026-09-01`), tal como se lee en el resto del panel.
+ *
+ * **El mediodía no es un capricho.** `new Date("2026-09-01")` es medianoche *UTC*, y en
+ * Buenos Aires esa medianoche todavía es el 31 de agosto: el período de septiembre se
+ * mostraría arrancando en agosto. Anclado al mediodía quedan doce horas de margen de cada
+ * lado, así que el día del calendario sobrevive a cualquier zona que las preferencias elijan.
+ */
+export function textoDeDia(
+  dia: string,
+  preferencias: PreferenciasDeFormato = PREFERENCIAS_POR_DEFECTO,
+): string {
+  return formatearFecha(`${dia}T12:00:00Z`, preferencias);
+}
+
+/** `2026-09-01`, `2026-09-30` → `1/9/26 – 30/9/26`. */
+export function textoDePeriodo(
+  desde: string,
+  hasta: string,
+  preferencias: PreferenciasDeFormato = PREFERENCIAS_POR_DEFECTO,
+): string {
+  return `${textoDeDia(desde, preferencias)} – ${textoDeDia(hasta, preferencias)}`;
+}
 
 /**
  * Qué formatos tiene sentido pedir para cada tipo.

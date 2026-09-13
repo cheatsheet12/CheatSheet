@@ -1,30 +1,35 @@
 /**
  * PAN-ING-01 — Ingesta de Datos · Carga (HU-E2-04, HU-E3-03).
  *
- * The drop zone and the link button sit side by side because the prototype
- * (`docs/aidlc/inputs/prototipos/ingesta.html`) puts them there: they are two answers to
- * the same question, and a company picks one.
+ * La forma es la del prototipo (`docs/aidlc/inputs/prototipos/ingesta.html`): una zona de
+ * carga grande con las dos maneras de traer datos —subir un archivo o vincular una hoja— y,
+ * debajo, la banda que anuncia qué campos reconoce el modelo y las tablas de lo ya vinculado.
  *
- * **The two rejections happen before anything is uploaded.** `validarArchivo` runs on the
- * chosen file and shows the story's own sentence; the backend refuses the same two things
- * and that is the guarantee, but making somebody wait out a 30 MB upload to be told the
- * limit is 25 is a minute of their connection spent on a foregone answer.
+ * **Las dos formas de traer datos van juntas y no en pestañas.** Son dos respuestas a la misma
+ * pregunta y una empresa elige una sola vez; esconder una detrás de una pestaña obliga a
+ * descubrirla.
  *
- * `Cargas recientes` is a listing and every role reads it (HU-E3-05 RN-04). `puedeEditar`
- * only decides whether the actions render — hiding a button is a courtesy, and the
- * backend refuses regardless.
+ * **Los dos rechazos ocurren antes de subir nada.** `validarArchivo` corre sobre el archivo
+ * elegido y muestra la frase de la historia; el backend rechaza lo mismo y ésa es la garantía,
+ * pero hacer esperar 30 MB de subida para enterarse de que el límite son 25 es un minuto de la
+ * conexión de alguien gastado en una respuesta ya conocida.
+ *
+ * `Cargas recientes` es un listado y lo lee todo rol (HU-E3-05 RN-04). `puedeEditar` sólo
+ * decide si se dibujan las acciones — esconder un botón es cortesía, y el backend rechaza igual.
  */
 
 "use client";
 
 import { useRef, useState } from "react";
 
-import { Alert, Badge, Button, Card, Tabla } from "@/shared";
+import { Alert, Badge, Button, Card, Tabla, formatearFechaHora } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import Link from "next/link";
 
 import {
+  ATRIBUTOS_DE_CLIENTE,
+  ETIQUETAS_DE_ATRIBUTO,
   ETIQUETAS_DE_ESTADO,
   ETIQUETAS_DE_PROVEEDOR,
   EXTENSIONES_ACEPTADAS,
@@ -37,7 +42,9 @@ import {
   procesarPlanilla,
   subirPlanilla,
 } from "../api/planilla";
-import type { Carga, ListadoDeVinculos, Vinculo } from "../api/planilla";
+import type { Carga, EstadoProcesamiento, ListadoDeVinculos, Vinculo } from "../api/planilla";
+import { Icono } from "./iconos";
+import type { NombreDeIcono } from "./iconos";
 
 export interface PropsDeIngesta {
   readonly inicial: ListadoDeVinculos;
@@ -65,24 +72,77 @@ function tamanoLegible(bytes: number | null): string {
   return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+/**
+ * Cómo se ve cada estado de un procesamiento.
+ *
+ * Los cuatro estados se distinguen dos veces: por el tono del badge y por el icono. «Con
+ * errores» en verde —que es lo que hacía la versión anterior— le decía a alguien que su carga
+ * salió bien cuando no salió bien.
+ */
+const ASPECTO_DE_ESTADO: Readonly<
+  Record<EstadoProcesamiento, { readonly tono: EstadoDeBadge; readonly icono: NombreDeIcono }>
+> = {
+  EN_CURSO: { tono: "pendiente", icono: "refrescar" },
+  COMPLETADO: { tono: "ok", icono: "planilla" },
+  CON_ERRORES: { tono: "atencion", icono: "alerta" },
+  FALLIDO: { tono: "error", icono: "alerta" },
+};
+
+/** El tono del icono de la carga, que sigue al del badge sin repetir su vocabulario. */
+const TONO_DE_ICONO: Readonly<Record<EstadoDeBadge, string>> = {
+  ok: "ok",
+  atencion: "atencion",
+  error: "error",
+  pendiente: "",
+};
+
 /** `Cargas recientes`: el estado y los tres contadores que pide HU-E3-03. */
 const COLUMNAS_DE_CARGA: readonly Columna<Carga>[] = [
   {
-    clave: "estado",
-    titulo: "Estado",
-    celda: (carga) => (
-      <Badge estado={carga.estado === "FALLIDO" ? "error" : "ok"}>
-        {ETIQUETAS_DE_ESTADO[carga.estado]}
-      </Badge>
-    ),
+    clave: "carga",
+    titulo: "Carga",
+    celda: (carga) => {
+      const aspecto = ASPECTO_DE_ESTADO[carga.estado];
+      const tono = TONO_DE_ICONO[aspecto.tono];
+      return (
+        <span className="ing-carga">
+          <span
+            className={tono === "" ? "ing-carga__ico" : `ing-carga__ico ing-carga__ico--${tono}`}
+          >
+            <Icono nombre={aspecto.icono} />
+          </span>
+          <span>
+            <b className="ing-carga__nombre">
+              {carga.es_reproceso ? "Reproceso" : "Carga de planilla"}
+            </b>
+            <span className="ing-carga__ref">{formatearFechaHora(carga.created_at)}</span>
+          </span>
+        </span>
+      );
+    },
   },
   {
     clave: "filas",
     titulo: "Filas",
     // El criterio de HU-E3-03: «indicando la cantidad de filas validas y fallidas».
-    celda: (carga) => `${carga.filas_ok} de ${carga.filas_totales}`,
+    celda: (carga) => (
+      <span className="ing-filas">{`${carga.filas_ok} de ${carga.filas_totales}`}</span>
+    ),
   },
-  { clave: "errores", titulo: "Con error", celda: (carga) => carga.filas_error },
+  {
+    clave: "errores",
+    titulo: "Con error",
+    celda: (carga) => <span className="ing-filas">{carga.filas_error}</span>,
+  },
+  {
+    clave: "estado",
+    titulo: "Estado",
+    celda: (carga) => (
+      <Badge estado={ASPECTO_DE_ESTADO[carga.estado].tono}>
+        {ETIQUETAS_DE_ESTADO[carga.estado]}
+      </Badge>
+    ),
+  },
   {
     clave: "detalle",
     titulo: "Detalle",
@@ -178,11 +238,15 @@ export function IngestaDePlanillas({
       clave: "origen",
       titulo: "Origen",
       celda: (vinculo) => (
-        <>
-          <strong>{vinculo.nombre_archivo ?? vinculo.hoja_empresa}</strong>
-          <br />
-          <small>{ETIQUETAS_DE_PROVEEDOR[vinculo.proveedor]}</small>
-        </>
+        <span className="ing-carga">
+          <span className="ing-carga__ico">
+            <Icono nombre={vinculo.proveedor === "ARCHIVO" ? "documento" : "planilla"} />
+          </span>
+          <span>
+            <b className="ing-carga__nombre">{vinculo.nombre_archivo ?? vinculo.hoja_empresa}</b>
+            <span className="ing-carga__ref">{ETIQUETAS_DE_PROVEEDOR[vinculo.proveedor]}</span>
+          </span>
+        </span>
       ),
     },
     { clave: "tamano", titulo: "Tamano", celda: (v) => tamanoLegible(v.tamano_bytes) },
@@ -240,9 +304,9 @@ export function IngestaDePlanillas({
       {aviso !== null && <Alert tono="exito">{aviso}</Alert>}
 
       {puedeEditar && (
-        <Card>
+        <>
           <div
-            className={`ingesta__zona${arrastrando ? " ingesta__zona--activa" : ""}`}
+            className={arrastrando ? "ing-dropzone ing-dropzone--activa" : "ing-dropzone"}
             onDragOver={(evento) => {
               evento.preventDefault();
               setArrastrando(true);
@@ -256,54 +320,108 @@ export function IngestaDePlanillas({
               void cargar(evento.dataTransfer.files[0]);
             }}
           >
-            <p className="ingesta__titulo">Arrastrá tu planilla acá</p>
-            <p className="ingesta__ayuda">
-              {EXTENSIONES_ACEPTADAS.join(", ")} · hasta {LIMITE_TAMANO_MB} MB
+            <span className="ing-dz-ico">
+              <Icono nombre="nube" />
+            </span>
+            <p className="ing-dz-titulo">Arrastrá tu planilla acá</p>
+            <p className="ing-dz-sub">
+              Formatos aceptados: {EXTENSIONES_ACEPTADAS.join(", ")} · tamaño máximo{" "}
+              {LIMITE_TAMANO_MB} MB
             </p>
-            <input
-              ref={entrada}
-              type="file"
-              accept={EXTENSIONES_ACEPTADAS.join(",")}
-              aria-label="Elegir una planilla"
-              disabled={subiendo}
-              onChange={(evento) => {
-                void cargar(evento.target.files?.[0]);
-              }}
-            />
-            <p className="ingesta__o">o</p>
-            <Button
-              variante="secundario"
-              disabled={subiendo}
-              onClick={() => {
-                void vincularConGoogle();
-              }}
-            >
-              Vincular Google Sheets
-            </Button>
-            <p className="ingesta__ayuda">
+            <div className="ing-dz-acciones">
+              {/* El label es el botón y el input de verdad vive adentro: un solo control,
+                  nativo, que el teclado alcanza y el lector de pantalla anuncia. */}
+              <label className="ing-archivo">
+                <Icono nombre="archivo" />
+                Seleccionar archivo
+                <input
+                  ref={entrada}
+                  type="file"
+                  accept={EXTENSIONES_ACEPTADAS.join(",")}
+                  aria-label="Elegir una planilla"
+                  disabled={subiendo}
+                  onChange={(evento) => {
+                    void cargar(evento.target.files?.[0]);
+                  }}
+                />
+              </label>
+              <span className="ing-dz-o">o</span>
+              <Button
+                variante="secundario"
+                disabled={subiendo}
+                onClick={() => {
+                  void vincularConGoogle();
+                }}
+              >
+                Vincular Google Sheets
+              </Button>
+            </div>
+            <p className="ing-candado">
+              <Icono nombre="candado" />
               Te vamos a pedir permiso de lectura <strong>sobre la planilla que elijas</strong>, no
               sobre todo tu Drive.
             </p>
+            {subiendo && <p role="status">Subiendo la planilla…</p>}
           </div>
-          {subiendo && <p role="status">Subiendo la planilla…</p>}
-        </Card>
+
+          {/* Qué campos reconoce el modelo, dicho antes de subir y no después de fallar
+              (HU-E3-01 RN-01): saber que el orden y el nombre de las columnas no importan es
+              justo lo que evita que alguien reordene su planilla a mano. */}
+          <div className="ing-detect">
+            <span className="ing-detect__ico">
+              <Icono nombre="chispa" />
+            </span>
+            <span>
+              <b className="ing-detect__titulo">La IA va a detectar automáticamente</b>
+              <span className="ing-detect__sub">
+                Sin importar el orden o el nombre exacto de tus columnas
+              </span>
+            </span>
+            <ul className="ing-chips">
+              {ATRIBUTOS_DE_CLIENTE.map((atributo) => (
+                <li key={atributo} className="ing-chip">
+                  {ETIQUETAS_DE_ATRIBUTO[atributo] ?? atributo}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
       )}
 
-      <Tabla
-        titulo="Planillas vinculadas"
-        columnas={columnas}
-        filas={listado.vinculos}
-        claveDeFila={(vinculo) => vinculo.id}
-        vacia="Todavia no vinculaste ninguna planilla."
-      />
+      {/* Las dos tablas van en tarjeta y con encabezado visible: `Tabla` pone su título en un
+          `<caption>` oculto, así que sin esto quien mira la pantalla ve dos rejillas seguidas y
+          tiene que deducir dónde termina una. */}
+      <Card>
+        <div className="ing-seccion">
+          <div>
+            <h2 className="ing-seccion__titulo">Planillas vinculadas</h2>
+            <p className="ing-seccion__sub">Las fuentes desde las que entran tus datos</p>
+          </div>
+        </div>
+        <Tabla
+          titulo="Planillas vinculadas"
+          columnas={columnas}
+          filas={listado.vinculos}
+          claveDeFila={(vinculo) => vinculo.id}
+          vacia="Todavia no vinculaste ninguna planilla."
+        />
+      </Card>
 
-      <Tabla
-        titulo="Cargas recientes"
-        columnas={COLUMNAS_DE_CARGA}
-        filas={cargas}
-        claveDeFila={(carga) => carga.id}
-        vacia="Todavia no procesaste ninguna planilla."
-      />
+      <Card>
+        <div className="ing-seccion">
+          <div>
+            <h2 className="ing-seccion__titulo">Cargas recientes</h2>
+            <p className="ing-seccion__sub">Tus últimas ingestas de datos</p>
+          </div>
+        </div>
+        <Tabla
+          titulo="Cargas recientes"
+          columnas={COLUMNAS_DE_CARGA}
+          filas={cargas}
+          claveDeFila={(carga) => carga.id}
+          vacia="Todavia no procesaste ninguna planilla."
+        />
+      </Card>
     </>
   );
 }

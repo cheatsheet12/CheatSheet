@@ -71,7 +71,7 @@ describe("ListadoDeCategorias", () => {
   it("no ofrece acciones a quien no puede escribir", () => {
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar={false} />);
 
-    expect(screen.queryByRole("button", { name: "Nueva categoria" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nueva categoría" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Eliminar" })).toBeNull();
   });
 
@@ -108,7 +108,7 @@ describe("ListadoDeCategorias", () => {
       expect(eliminarCategoria).toHaveBeenCalledWith(VIP.id);
     });
     await waitFor(() => {
-      expect(screen.getByText("Todavia no creaste ninguna categoria.")).toBeDefined();
+      expect(screen.getByText("Todavía no creaste ninguna categoría.")).toBeDefined();
     });
   });
 
@@ -118,9 +118,9 @@ describe("ListadoDeCategorias", () => {
     );
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Nueva categoria" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nueva categoría" }));
     fireEvent.change(screen.getByLabelText(/^Nombre/), { target: { value: "VIP" } });
-    fireEvent.click(screen.getByRole("button", { name: "Crear categoria" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crear categoría" }));
 
     await waitFor(() => {
       expect(
@@ -133,7 +133,7 @@ describe("ListadoDeCategorias", () => {
     listarCategorias.mockResolvedValue({ categorias: [] });
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
 
-    fireEvent.change(screen.getByLabelText(/Filtrar por ambito/), { target: { value: "CLIENTE" } });
+    fireEvent.change(screen.getByLabelText(/Filtrar por ámbito/), { target: { value: "CLIENTE" } });
 
     await waitFor(() => {
       expect(listarCategorias).toHaveBeenCalledWith("CLIENTE");
@@ -144,9 +144,9 @@ describe("ListadoDeCategorias", () => {
     listarCategorias.mockResolvedValue({ categorias: [] });
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
 
-    fireEvent.change(screen.getByLabelText(/Filtrar por ambito/), { target: { value: "CLIENTE" } });
+    fireEvent.change(screen.getByLabelText(/Filtrar por ámbito/), { target: { value: "CLIENTE" } });
     await waitFor(() => expect(listarCategorias).toHaveBeenCalled());
-    fireEvent.change(screen.getByLabelText(/Filtrar por ambito/), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText(/Filtrar por ámbito/), { target: { value: "" } });
 
     await waitFor(() => {
       expect(listarCategorias).toHaveBeenLastCalledWith(undefined);

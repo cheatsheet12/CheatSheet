@@ -17,18 +17,21 @@
 
 import { useState } from "react";
 
-import { Alert, Badge, Button, Campo, Card, Select, Tabla } from "@/shared";
+import { Alert, Badge, Button, Campo, Select, Tabla, formatearNumero } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import {
+  ETIQUETAS_DE_ESTADO_DE_REPORTE,
   ETIQUETAS_DE_TIPO,
   ErrorDeReporte,
   FORMATOS_POR_TIPO,
   generarReporte,
   listarReportes,
   previsualizar,
+  textoDePeriodo,
   urlDeReporte,
 } from "../api/reporte";
+import { IconoDescarga } from "./Iconos";
 import type {
   FormatoReporte,
   Previsualizacion,
@@ -120,12 +123,24 @@ export function GeneradorDeReportes({
 
   const columnas: readonly Columna<Reporte>[] = [
     { clave: "tipo", titulo: "Tipo", celda: (fila) => ETIQUETAS_DE_TIPO[fila.tipo] },
-    { clave: "formato", titulo: "Formato", celda: (fila) => fila.formato },
-    { clave: "periodo", titulo: "Período", celda: (fila) => `${fila.desde} a ${fila.hasta}` },
+    {
+      clave: "formato",
+      titulo: "Formato",
+      celda: (fila) => <span className="rep-sello">{fila.formato}</span>,
+    },
+    {
+      clave: "periodo",
+      titulo: "Período",
+      celda: (fila) => <span className="rep-rango">{textoDePeriodo(fila.desde, fila.hasta)}</span>,
+    },
     {
       clave: "estado",
       titulo: "Estado",
-      celda: (fila) => <Badge estado={tonoDeEstado(fila.estado)}>{fila.estado}</Badge>,
+      celda: (fila) => (
+        <Badge estado={tonoDeEstado(fila.estado)}>
+          {ETIQUETAS_DE_ESTADO_DE_REPORTE[fila.estado]}
+        </Badge>
+      ),
     },
     {
       clave: "archivo",
@@ -133,7 +148,15 @@ export function GeneradorDeReportes({
       alDerecha: true,
       celda: (fila) =>
         fila.descargable ? (
-          <a href={urlDeReporte(fila.id)} download>
+          // El nombre accesible dice qué se descarga: fuera de su fila, «Descargar» a secas
+          // se repite idéntico en cinco enlaces que traen cinco archivos distintos.
+          <a
+            className="rep-descarga"
+            href={urlDeReporte(fila.id)}
+            download
+            aria-label={`Descargar el reporte de ${ETIQUETAS_DE_TIPO[fila.tipo].toLowerCase()} en ${fila.formato}`}
+          >
+            <IconoDescarga />
             Descargar
           </a>
         ) : (
@@ -151,53 +174,92 @@ export function GeneradorDeReportes({
       )}
 
       {puedeGenerar && (
-        <Card titulo="Generar un reporte">
-          <div className="rep-filtros">
-            <Select
-              id="rep-tipo"
-              etiqueta="Tipo"
-              opciones={TIPOS.map((uno) => ({ valor: uno.valor, etiqueta: uno.etiqueta }))}
-              value={tipo}
-              onChange={(evento) => cambiarTipo(evento.target.value)}
-            />
-            <Select
-              id="rep-formato"
-              etiqueta="Formato"
-              opciones={formatos.map((uno) => ({ valor: uno, etiqueta: uno }))}
-              value={formato}
-              onChange={(evento) => setFormato(evento.target.value as FormatoReporte)}
-            />
-            <Campo
-              id="rep-gen-desde"
-              etiqueta="Desde"
-              type="date"
-              value={rango.desde ?? ""}
-              onChange={(evento) => cambiarRango({ desde: evento.target.value })}
-            />
-            <Campo
-              id="rep-gen-hasta"
-              etiqueta="Hasta"
-              type="date"
-              value={rango.hasta ?? ""}
-              onChange={(evento) => cambiarRango({ hasta: evento.target.value })}
-            />
+        <section className="rep-panel">
+          <div className="rep-panel__head">
+            <div>
+              <h2 className="rep-panel__titulo">Generar un reporte</h2>
+              <p className="rep-panel__sub">
+                Ajustar los filtros no genera nada: la estimación se recalcula sola.
+              </p>
+            </div>
           </div>
 
-          {estimacion !== null && (
-            <p className="rep-previsualizacion">
-              {estimacion.hay_datos
-                ? `Se van a exportar ${estimacion.cantidad} registros por $ ${estimacion.total}.`
-                : "El período seleccionado no tiene datos para este tipo de reporte."}
-            </p>
-          )}
+          <div className="rep-generador">
+            <div>
+              <div className="rep-filtros">
+                <Select
+                  id="rep-tipo"
+                  etiqueta="Tipo"
+                  opciones={TIPOS.map((uno) => ({ valor: uno.valor, etiqueta: uno.etiqueta }))}
+                  value={tipo}
+                  onChange={(evento) => cambiarTipo(evento.target.value)}
+                />
+                <Select
+                  id="rep-formato"
+                  etiqueta="Formato"
+                  opciones={formatos.map((uno) => ({ valor: uno, etiqueta: uno }))}
+                  value={formato}
+                  onChange={(evento) => setFormato(evento.target.value as FormatoReporte)}
+                />
+                <Campo
+                  id="rep-gen-desde"
+                  etiqueta="Desde"
+                  type="date"
+                  value={rango.desde ?? ""}
+                  onChange={(evento) => cambiarRango({ desde: evento.target.value })}
+                />
+                <Campo
+                  id="rep-gen-hasta"
+                  etiqueta="Hasta"
+                  type="date"
+                  value={rango.hasta ?? ""}
+                  onChange={(evento) => cambiarRango({ hasta: evento.target.value })}
+                />
+              </div>
 
-          <Button onClick={() => void generar()} cargando={generando}>
-            Generar
-          </Button>
-        </Card>
+              <div className="rep-acciones">
+                <Button onClick={() => void generar()} cargando={generando}>
+                  Generar
+                </Button>
+              </div>
+            </div>
+
+            {/* `aria-live`: la estimación cambia sola al tocar un filtro, y un número que se
+                actualiza sin que nadie lo haya pedido no existe para un lector de pantalla. */}
+            <aside className="rep-previsualizacion" aria-live="polite">
+              <p className="rep-previsualizacion__rotulo">Previsualización</p>
+              {estimacion === null ? (
+                <p className="rep-previsualizacion__detalle">
+                  Elegí un tipo y un período para ver cuánto va a exportar el reporte.
+                </p>
+              ) : (
+                <>
+                  {estimacion.hay_datos && (
+                    <p className="rep-previsualizacion__cifra">
+                      $ {formatearNumero(estimacion.total)}
+                    </p>
+                  )}
+                  <p className="rep-previsualizacion__detalle">
+                    {estimacion.hay_datos
+                      ? `Se van a exportar ${estimacion.cantidad} registros del período seleccionado.`
+                      : "El período seleccionado no tiene datos para este tipo de reporte."}
+                  </p>
+                </>
+              )}
+            </aside>
+          </div>
+        </section>
       )}
 
-      <Card titulo="Reportes generados">
+      <section className="rep-panel">
+        <div className="rep-panel__head">
+          <div>
+            <h2 className="rep-panel__titulo">Reportes generados</h2>
+            <p className="rep-panel__sub">
+              El historial no se borra: es lo que contesta qué se le mandó al contador y cuándo.
+            </p>
+          </div>
+        </div>
         <Tabla
           titulo="Historial de reportes"
           columnas={columnas}
@@ -205,7 +267,7 @@ export function GeneradorDeReportes({
           claveDeFila={(fila) => fila.id}
           vacia="Todavía no generaste ningún reporte."
         />
-      </Card>
+      </section>
     </>
   );
 }

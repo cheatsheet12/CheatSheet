@@ -7,13 +7,19 @@
  * interface is not translated — see `shared/formato.ts`. What the preference governs is
  * how dates, times and numbers are written, which the preview below shows live so the
  * setting is not an unexplained dropdown.
+ *
+ * **La grilla de avisos escribe el nombre del canal una sola vez.** Antes lo decía dos: la
+ * cabecera de columna y otra vez al lado de cada casilla, cinco veces. La etiqueta sigue
+ * existiendo para quien escucha la pantalla —una casilla sin nombre accesible es una
+ * casilla que no se puede tildar con un lector— pero no se dibuja, y cada renglón lleva su
+ * categoría como nombre de grupo para que «Email» no se escuche suelto.
  */
 
 "use client";
 
 import { useEffect, useState } from "react";
 
-import { Alert, Button, Card, Select, formatearFechaHora } from "@/shared";
+import { Alert, Button, Select, formatearFechaHora } from "@/shared";
 
 import type { Preferencias, Suscripciones } from "../api/cliente";
 import { ErrorDeFormulario, guardarPreferencias } from "../api/cliente";
@@ -106,66 +112,123 @@ export function FormularioDePreferencias({
   };
 
   return (
-    <Card titulo="Mis preferencias">
-      {error !== null && <Alert tono="error">{error}</Alert>}
+    <>
+      {error !== null && (
+        <Alert tono="error" titulo="No se pudo guardar">
+          {error}
+        </Alert>
+      )}
       {guardado && <Alert tono="exito">Listo, tus preferencias quedaron guardadas.</Alert>}
 
-      <form onSubmit={(evento) => void enviar(evento)}>
-        <Select
-          id="idioma"
-          etiqueta="Idioma"
-          opciones={IDIOMAS}
-          value={idioma}
-          ayuda="Define el formato de fechas, horas y números. La interfaz está en español."
-          onChange={(evento) => {
-            setIdioma(evento.target.value);
-            setGuardado(false);
-          }}
-        />
-        <Select
-          id="zona-horaria"
-          etiqueta="Zona horaria"
-          opciones={ZONAS}
-          value={zona}
-          onChange={(evento) => {
-            setZona(evento.target.value);
-            setGuardado(false);
-          }}
-        />
+      <div className="cfg-panel">
+        <div className="cfg-panel__cab">
+          {/* No repite el `<h1>`: aquel nombra la pantalla, este dice qué se está editando. */}
+          <h2 className="cfg-panel__titulo">Ajustes de tu cuenta</h2>
+          <p className="cfg-panel__nota">Valen sólo para vos</p>
+        </div>
 
-        <p className="campo__ayuda">
-          Así vas a ver las fechas:{" "}
-          <strong>
-            {montado ? formatearFechaHora(EJEMPLO, { idioma, zonaHoraria: zona }) : "…"}
-          </strong>
-        </p>
+        <form onSubmit={(evento) => void enviar(evento)}>
+          <section className="cfg-seccion">
+            <h3 className="cfg-seccion__titulo">Formato regional</h3>
+            <p className="cfg-seccion__nota">
+              Define cómo se escriben las fechas, las horas y los números en todo el panel. La
+              interfaz está en español y no se traduce.
+            </p>
 
-        <fieldset className="suscripciones__grupo">
-          <legend className="campo__etiqueta">Avisos que querés recibir</legend>
-          <div className="suscripciones">
-            {CATEGORIAS.map((categoria) => (
-              <div className="suscripciones__fila" key={categoria.clave}>
-                <span className="suscripciones__categoria">{categoria.etiqueta}</span>
-                {CANALES.map((canal) => (
-                  <label key={canal.clave} htmlFor={`${categoria.clave}-${canal.clave}`}>
-                    <input
-                      id={`${categoria.clave}-${canal.clave}`}
-                      type="checkbox"
-                      checked={recibe(categoria.clave, canal.clave)}
-                      onChange={() => alternar(categoria.clave, canal.clave)}
-                    />{" "}
-                    {canal.etiqueta}
-                  </label>
+            <div className="cfg-campos">
+              <Select
+                id="idioma"
+                etiqueta="Idioma"
+                opciones={IDIOMAS}
+                value={idioma}
+                onChange={(evento) => {
+                  setIdioma(evento.target.value);
+                  setGuardado(false);
+                }}
+              />
+              <Select
+                id="zona-horaria"
+                etiqueta="Zona horaria"
+                opciones={ZONAS}
+                value={zona}
+                onChange={(evento) => {
+                  setZona(evento.target.value);
+                  setGuardado(false);
+                }}
+              />
+            </div>
+
+            {/* El texto suelto y el `<strong>` viven en el mismo párrafo a propósito: es una
+                sola frase, y partirla en dos elementos la deja como una etiqueta con un dato
+                al lado en vez de como el resultado que es. */}
+            <p className="cfg-vista">
+              Así vas a ver las fechas:{" "}
+              <strong>
+                {montado ? formatearFechaHora(EJEMPLO, { idioma, zonaHoraria: zona }) : "…"}
+              </strong>
+            </p>
+          </section>
+
+          <section className="cfg-seccion">
+            {/* `fieldset` y `legend` de verdad, pero sin la caja: la agrupación es semántica
+                —diez casillas que contestan una sola pregunta— y el borde dibujaba una
+                tarjeta adentro de otra. */}
+            <fieldset className="cfg-grupo">
+              <legend className="cfg-seccion__titulo">Avisos que querés recibir</legend>
+              <p className="cfg-seccion__nota">
+                Elegí por qué canal te llega cada tipo de aviso. Sin ninguno tildado, ese tema no te
+                interrumpe.
+              </p>
+
+              <div className="cfg-avisos">
+                {/* La fila de canales nombra las columnas: sin ella son diez casillas
+                    sueltas y hay que deducir cuál es cuál. Va oculta para un lector de
+                    pantalla porque cada casilla ya lleva su propio nombre. */}
+                <div className="cfg-avisos__fila cfg-avisos__cab" aria-hidden="true">
+                  <span />
+                  {CANALES.map((canal) => (
+                    <span key={canal.clave}>{canal.etiqueta}</span>
+                  ))}
+                </div>
+
+                {CATEGORIAS.map((categoria) => (
+                  <div
+                    className="cfg-avisos__fila"
+                    key={categoria.clave}
+                    role="group"
+                    aria-label={categoria.etiqueta}
+                  >
+                    <span className="cfg-avisos__categoria">{categoria.etiqueta}</span>
+                    {CANALES.map((canal) => (
+                      <label
+                        className="cfg-avisos__casilla"
+                        key={canal.clave}
+                        htmlFor={`${categoria.clave}-${canal.clave}`}
+                      >
+                        <input
+                          id={`${categoria.clave}-${canal.clave}`}
+                          type="checkbox"
+                          checked={recibe(categoria.clave, canal.clave)}
+                          onChange={() => alternar(categoria.clave, canal.clave)}
+                        />
+                        <span className="solo-lectores">{canal.etiqueta}</span>
+                      </label>
+                    ))}
+                  </div>
                 ))}
               </div>
-            ))}
-          </div>
-        </fieldset>
+            </fieldset>
+          </section>
 
-        <Button type="submit" cargando={enviando}>
-          Guardar cambios
-        </Button>
-      </form>
-    </Card>
+          {/* A la derecha, como el «Guardar» de Empresa: la misma acción en dos pantallas de
+              la misma sección no puede estar en dos lugares distintos. */}
+          <div className="cfg-panel__pie">
+            <Button type="submit" cargando={enviando}>
+              Guardar cambios
+            </Button>
+          </div>
+        </form>
+      </div>
+    </>
   );
 }

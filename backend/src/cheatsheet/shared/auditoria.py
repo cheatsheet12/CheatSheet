@@ -21,6 +21,7 @@ sit on top of it, each because a rule demands it and neither on taste:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -121,6 +122,18 @@ class EventoAuditable(EventoDeDominio):
     #: site written before epic 8 keeps meaning exactly what it meant; only the agent has to
     #: say so explicitly.
     iniciador: Iniciador | None = None
+    #: What the operation is worth remembering beyond its outcome: the input that triggered
+    #: it, and what an external service answered (HU-E12-02 RN-01 and RN-02).
+    #:
+    #: Optional, and **empty for almost every emitter**. An operation that has nothing to add
+    #: says nothing, and the detail screen says "no se registró" instead of inventing a
+    #: timeline. The one populated case today is a document authorised by ARCA, because RN-02
+    #: names it: CAE, número and status.
+    #:
+    #: **Never personal data and never a secret** (`CLAUDE.md` §3.2 and §3.6). What goes here
+    #: is read by whoever opens the audit panel, and it is stored forever in a table nobody
+    #: can update or delete.
+    detalle: Mapping[str, str] | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()

@@ -195,8 +195,10 @@ describe("PAN-WA-01 — bandeja", () => {
     const listado: ListadoDeConversaciones = { conversaciones: [ESCALADA] };
     render(<BandejaDeConversaciones inicial={listado} puedeAtender />);
 
-    const tabla = within(screen.getByRole("table"));
-    expect(tabla.getByText("Espera un asesor")).toBeTruthy();
+    // La bandeja es una lista de conversaciones y no una tabla: cada fila es un hilo que se
+    // abre, no un registro que se compara con el de al lado.
+    const lista = within(screen.getByRole("list", { name: "Conversaciones" }));
+    expect(lista.getByText("Espera un asesor")).toBeTruthy();
   });
 
   it("cambiar el filtro pide todas al backend", async () => {
@@ -476,7 +478,11 @@ describe("PAN-CFG-NOT — plantillas", () => {
     render(<PlantillasDeNotificacion inicial={{ plantillas: [PLANTILLA] }} puedeEditar />);
     fireEvent.click(screen.getByRole("button", { name: "Editar texto" }));
 
-    expect(screen.getByText(/\{\{nombre\}\}/)).toBeTruthy();
+    // Acotado a la lista de variables y no a la pantalla entera: el cuerpo se edita en un
+    // `textarea`, cuyo texto también dice `{{nombre}}`. Lo que la historia pide es que la
+    // variable se **ofrezca**, no que aparezca en el mensaje que alguien ya escribió.
+    const disponibles = within(screen.getByRole("list", { name: "Variables disponibles" }));
+    expect(disponibles.getByText("{{nombre}}")).toBeTruthy();
   });
 
   it("avisa la variable invalida con la frase de la historia y deja el boton gris", () => {

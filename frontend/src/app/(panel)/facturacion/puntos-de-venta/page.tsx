@@ -8,6 +8,10 @@
  * The role decides whether the write actions render: HU-E5-05's actor is the
  * Administrador. Hiding them is a courtesy — the use case refuses regardless of what the
  * browser draws, which is what PRU-09 taught.
+ *
+ * **El encabezado lo dibuja el componente**, como en el listado de comprobantes: el alta
+ * vive al lado del título y depende del mismo `puedeEditar` que las tarjetas, así que
+ * tenerlos separados sería pasar el rol dos veces por dos caminos que pueden discrepar.
  */
 
 import { redirect } from "next/navigation";
@@ -29,14 +33,5 @@ export default async function PaginaDePuntosDeVenta(): Promise<JSX.Element> {
 
   const listado = await llamarApi<ListadoDePuntosDeVenta>("/puntos-de-venta");
 
-  return (
-    <>
-      <h1>Puntos de venta</h1>
-      <p className="dm-intro">
-        Cada punto de venta lleva su propia numeración por tipo de comprobante, igual que en ARCA.
-        Agregá acá los que la AFIP te tiene habilitados.
-      </p>
-      <PuntosDeVenta inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />
-    </>
-  );
+  return <PuntosDeVenta inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />;
 }

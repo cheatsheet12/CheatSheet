@@ -414,9 +414,38 @@ async def _aplicar_respuesta(
             accion="autorizar_comprobante",
             entidad_afectada=f"Comprobante:{comprobante.id}",
             resultado=Resultado.COMPLETADO if respuesta.autorizado else Resultado.ERROR,
+            # HU-E12-02 RN-02: «para operaciones fiscales, el detalle incluye los datos del
+            # comprobante y el resultado de ARCA». Es la única operación del sistema que lo
+            # llena, y es la que la historia nombra. Sin datos personales del receptor: lo que
+            # se guarda es lo fiscal, que es lo que alguien va a ir a buscar cuando pregunte
+            # por qué un comprobante quedó como quedó.
+            detalle=_detalle_de_arca(comprobante, respuesta),
         )
     )
     return comprobante
+
+
+def _detalle_de_arca(comprobante: Comprobante, respuesta: RespuestaDeArca) -> dict[str, str]:
+    """Lo que la autorización deja escrito en la bitácora (HU-E12-02 RN-02).
+
+    Todo como texto, incluido el total: es la misma regla que en el resto del sistema, y acá
+    además el valor se guarda en un `jsonb` que nadie va a poder corregir después.
+    """
+    detalle = {
+        "tipo": comprobante.tipo.value,
+        "numero": str(comprobante.numero or ""),
+        "total": str(comprobante.total),
+        "estado": comprobante.estado.value,
+    }
+    if respuesta.cae is not None:
+        detalle["cae"] = respuesta.cae.codigo
+        detalle["cae_vence"] = f"{respuesta.cae.vence_el:%Y-%m-%d}"
+    if respuesta.codigo is not None:
+        # El código y la descripción tal como los contestó ARCA. Parafrasearlos los volvería
+        # imposibles de buscar, que es justo lo que alguien hace con un rechazo en la mano.
+        detalle["codigo_arca"] = respuesta.codigo
+        detalle["descripcion_arca"] = respuesta.descripcion or ""
+    return detalle
 
 
 def item(

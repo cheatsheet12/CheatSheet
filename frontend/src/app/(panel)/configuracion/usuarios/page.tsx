@@ -25,14 +25,14 @@ export default async function PaginaDeUsuarios(): Promise<JSX.Element> {
 
   const usuarios = await llamarApi<readonly UsuarioDeLaEmpresa[]>("/usuarios");
 
+  // El encabezado lo dibuja `TablaDeUsuarios`: el CTA depende del rol y abre un modal, así
+  // que necesita estado, y partir el bloque en dos archivos deja dos lugares donde
+  // desalinear el mismo renglón.
   return (
-    <>
-      <h1>Usuarios</h1>
-      <TablaDeUsuarios
-        usuarios={usuarios}
-        rolDelUsuarioActual={claims.rol as RolUsuario}
-        usuarioActualId={claims.usuarioId}
-      />
-    </>
+    <TablaDeUsuarios
+      usuarios={usuarios}
+      rolDelUsuarioActual={claims.rol as RolUsuario}
+      usuarioActualId={claims.usuarioId}
+    />
   );
 }

@@ -36,11 +36,19 @@ export default async function PaginaDeIngesta(): Promise<JSX.Element> {
 
   return (
     <>
-      <h1>Ingesta de datos</h1>
-      <p className="dm-intro">
-        Traé tus clientes y servicios desde una planilla. Podés subir un archivo o vincular una hoja
-        de Google para que se sincronice sola.
-      </p>
+      {/* La cabecera del prototipo: la miga de pan en el `eyebrow`, el título grande y el
+          subtítulo. La miga se escribe acá y no en el layout porque es la única que dice en qué
+          grupo del menú está esta pantalla, y ese dato es de la pantalla. */}
+      <div className="ing-encabezado">
+        <div>
+          <p className="ing-eyebrow">Operaciones · Ingesta de datos</p>
+          <h1 className="ing-titulo">Ingesta de datos</h1>
+          <p className="ing-subtitulo">
+            Traé tus clientes y servicios desde una planilla. Podés subir un archivo o vincular una
+            hoja de Google para que se sincronice sola.
+          </p>
+        </div>
+      </div>
       <IngestaDePlanillas
         inicial={listado}
         cargasIniciales={cargas.cargas}

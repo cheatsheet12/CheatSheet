@@ -1,15 +1,24 @@
 /**
  * PAN-FAC-02 — Facturación · Detalle (HU-E5-02).
  *
- * Everything RN-02 asks for — número, tipo, fecha, receptor, ítems, total, CAE y su
- * vencimiento — and nothing that could change it. **There is no edit here at all**, and
- * that is RN-01 rather than an omission: an authorised document is immutable, and a form
- * that let somebody try would be a form whose Save button can only fail.
+ * Todo lo que pide RN-02 —número, tipo, fecha, receptor, ítems, total, CAE y su
+ * vencimiento— y nada que pueda cambiarlo. **Acá no hay ninguna edición**, y eso es RN-01 y
+ * no un olvido: un comprobante autorizado es inmutable, y un formulario que dejara
+ * intentarlo sería un formulario cuyo botón Guardar sólo puede fallar.
  *
- * **The download is offered only for an authorised document** and the rejection message is
- * shown instead when there is one — ARCA's own code and words, because the story asks for
- * «Error 10016: …» verbatim and paraphrasing forty numeric codes is how one of them ends up
- * meaning the wrong thing in a message somebody takes to their accountant.
+ * **Que sea inmutable está escrito, no sólo ausente.** La ausencia de un botón «Eliminar»
+ * se lee como un olvido; la frase al lado de las acciones se lee como una regla, y es la
+ * que explica por qué la única salida es una nota de crédito.
+ *
+ * **El número, el CAE y el CUIT van en monoespaciada.** Son identificadores fiscales que
+ * alguien compara carácter por carácter contra un papel o dicta por teléfono, y en una
+ * tipografía proporcional el 1 y la l son el mismo trazo.
+ *
+ * **La descarga se ofrece sólo para un comprobante autorizado** y en su lugar se muestra el
+ * motivo del rechazo cuando lo hay — con el código y las palabras de ARCA, porque la
+ * historia pide «Error 10016: …» textual y parafrasear cuarenta códigos numéricos es la
+ * forma de que uno termine significando otra cosa en un mensaje que alguien le lleva a su
+ * contador.
  */
 
 "use client";
@@ -20,7 +29,6 @@ import {
   Alert,
   Badge,
   Button,
-  Card,
   Tabla,
   formatearFecha,
   formatearFechaHora,
@@ -47,13 +55,17 @@ const COLUMNAS: readonly Columna<ItemDeComprobante>[] = [
   {
     clave: "cantidad",
     titulo: "Cantidad",
-    celda: (fila) => formatearNumero(fila.cantidad, undefined, 2),
+    celda: (fila) => (
+      <span className="fac-nuevo-importe">{formatearNumero(fila.cantidad, undefined, 2)}</span>
+    ),
     alDerecha: true,
   },
   {
     clave: "precio",
     titulo: "Precio unitario",
-    celda: (fila) => `$ ${formatearNumero(fila.precio_unitario)}`,
+    celda: (fila) => (
+      <span className="fac-nuevo-importe">{`$ ${formatearNumero(fila.precio_unitario)}`}</span>
+    ),
     alDerecha: true,
   },
   {
@@ -67,7 +79,9 @@ const COLUMNAS: readonly Columna<ItemDeComprobante>[] = [
   {
     clave: "subtotal",
     titulo: "Subtotal",
-    celda: (fila) => `$ ${formatearNumero(fila.subtotal)}`,
+    celda: (fila) => (
+      <span className="fac-nuevo-importe">{`$ ${formatearNumero(fila.subtotal)}`}</span>
+    ),
     alDerecha: true,
   },
 ];
@@ -80,87 +94,136 @@ export function DetalleDeComprobante({
 }: PropsDeDetalleDeComprobante): JSX.Element {
   return (
     <>
-      {anulacion !== null && Number(anulacion.total_anulado) > 0 && (
-        // RN-05. A partial reversal is not a state, it is an amount -- and saying it here
-        // is what stops the `AUTORIZADO` badge from reading as "nothing happened to this".
-        <Alert
-          tono={anulacion.es_total ? "neutral" : "advertencia"}
-          titulo={anulacion.es_total ? "Anulado por completo" : "Anulado parcialmente"}
-        >
-          Se anularon $ {formatearNumero(anulacion.total_anulado)} de ${" "}
-          {formatearNumero(anulacion.total_original)}
-          {anulacion.es_total ? "." : `, con $ ${formatearNumero(anulacion.disponible)} vigentes.`}
-        </Alert>
-      )}
+      {/* Los tres avisos juntos y arriba de todo: son lo que cambia qué significa el resto de
+          la pantalla, así que se leen antes que el comprobante y no intercalados en él. */}
+      <div className="fac-nuevo-avisos">
+        {anulacion !== null && Number(anulacion.total_anulado) > 0 && (
+          // RN-05. A partial reversal is not a state, it is an amount -- and saying it here
+          // is what stops the `AUTORIZADO` badge from reading as "nothing happened to this".
+          <Alert
+            tono={anulacion.es_total ? "neutral" : "advertencia"}
+            titulo={anulacion.es_total ? "Anulado por completo" : "Anulado parcialmente"}
+          >
+            Se anularon $ {formatearNumero(anulacion.total_anulado)} de ${" "}
+            {formatearNumero(anulacion.total_original)}
+            {anulacion.es_total
+              ? "."
+              : `, con $ ${formatearNumero(anulacion.disponible)} vigentes.`}
+          </Alert>
+        )}
 
-      {comprobante.motivo_de_rechazo !== null && (
-        // ARCA's own words. See the module docstring on why they are not translated.
-        <Alert tono="error" titulo="ARCA rechazó el comprobante">
-          {comprobante.motivo_de_rechazo}
-        </Alert>
-      )}
+        {comprobante.motivo_de_rechazo !== null && (
+          // ARCA's own words. See the module docstring on why they are not translated.
+          <Alert tono="error" titulo="ARCA rechazó el comprobante">
+            {comprobante.motivo_de_rechazo}
+          </Alert>
+        )}
 
-      {comprobante.estado === "ENVIADO_A_ARCA" && (
-        <Alert tono="neutral" titulo="Esperando la respuesta de ARCA">
-          El comprobante ya salió. Cuando ARCA conteste, acá vas a ver el CAE o el motivo del
-          rechazo. No lo emitas de nuevo: si ARCA lo autorizó, un segundo intento sería un segundo
-          comprobante por la misma venta.
-        </Alert>
-      )}
-
-      <div className="fac-detalle">
-        <Card titulo="Comprobante">
-          <dl className="fac-datos">
-            <dt>Número</dt>
-            <dd className="fac-mono">{numeroFormateado(comprobante, puntoNumero)}</dd>
-            <dt>Tipo</dt>
-            <dd>{ETIQUETAS_DE_TIPO[comprobante.tipo]}</dd>
-            <dt>Estado</dt>
-            <dd>
-              <Badge estado={tonoDeEstado(comprobante.estado)}>
-                {ETIQUETAS_DE_ESTADO[comprobante.estado]}
-              </Badge>
-            </dd>
-            <dt>Fecha de emisión</dt>
-            <dd>{formatearFechaHora(comprobante.fecha_emision)}</dd>
-            <dt>CAE</dt>
-            <dd className="fac-mono">{comprobante.cae ?? "—"}</dd>
-            <dt>Vencimiento del CAE</dt>
-            <dd>{formatearFecha(comprobante.cae_vence_el)}</dd>
-          </dl>
-        </Card>
-
-        <Card titulo="Receptor">
-          <dl className="fac-datos">
-            <dt>Razón social</dt>
-            <dd>{comprobante.receptor_nombre}</dd>
-            <dt>CUIT</dt>
-            <dd className="fac-mono">{comprobante.receptor_cuit}</dd>
-            <dt>Condición de IVA</dt>
-            <dd>{comprobante.receptor_condicion_iva.replaceAll("_", " ").toLowerCase()}</dd>
-            <dt>Saldo pendiente</dt>
-            <dd>$ {formatearNumero(comprobante.saldo_pendiente)}</dd>
-          </dl>
-        </Card>
+        {comprobante.estado === "ENVIADO_A_ARCA" && (
+          <Alert tono="neutral" titulo="Esperando la respuesta de ARCA">
+            El comprobante ya salió. Cuando ARCA conteste, acá vas a ver el CAE o el motivo del
+            rechazo. No lo emitas de nuevo: si ARCA lo autorizó, un segundo intento sería un segundo
+            comprobante por la misma venta.
+          </Alert>
+        )}
       </div>
 
-      <Tabla
-        titulo="Detalle"
-        columnas={COLUMNAS}
-        filas={comprobante.items}
-        claveDeFila={(fila) => fila.id}
-        vacia="Este comprobante no tiene items."
-      />
+      {/* El número una sola vez y en grande: es el dato con el que alguien reconoce este
+          comprobante, y repetirlo abajo sólo daría dos lugares donde mirar. */}
+      <header className="fac-nuevo-documento">
+        <div>
+          <p className="fac-nuevo-documento__rotulo">Número</p>
+          <p className="fac-nuevo-documento__numero">
+            {numeroFormateado(comprobante, puntoNumero)}
+          </p>
+          <p className="fac-nuevo-documento__tipo">{ETIQUETAS_DE_TIPO[comprobante.tipo]}</p>
+        </div>
+        <div className="fac-nuevo-documento__estado">
+          <Badge estado={tonoDeEstado(comprobante.estado)}>
+            {ETIQUETAS_DE_ESTADO[comprobante.estado]}
+          </Badge>
+          <p className="fac-nuevo-documento__fecha">
+            Emitido el {formatearFechaHora(comprobante.fecha_emision)}
+          </p>
+        </div>
+      </header>
 
-      <div className="fac-totales">
-        <span>Subtotal: $ {formatearNumero(comprobante.subtotal)}</span>
-        <span>IVA: $ {formatearNumero(comprobante.total_iva)}</span>
-        <span className="fac-totales__final">Total: $ {formatearNumero(comprobante.total)}</span>
+      <div className="fac-nuevo-columnas">
+        <section className="fac-nuevo-tarjeta">
+          <p className="fac-nuevo-rotulo">Datos fiscales</p>
+          <dl className="fac-nuevo-kv">
+            <div className="fac-nuevo-kv__par">
+              <dt>CAE</dt>
+              <dd className="fac-nuevo-fiscal">{comprobante.cae ?? "—"}</dd>
+            </div>
+            <div className="fac-nuevo-kv__par">
+              <dt>Vencimiento del CAE</dt>
+              <dd className="fac-nuevo-fiscal">{formatearFecha(comprobante.cae_vence_el)}</dd>
+            </div>
+            <div className="fac-nuevo-kv__par">
+              <dt>Punto de venta</dt>
+              <dd className="fac-nuevo-fiscal">
+                {puntoNumero === null ? "—" : String(puntoNumero).padStart(4, "0")}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="fac-nuevo-tarjeta">
+          <p className="fac-nuevo-rotulo">Receptor</p>
+          <dl className="fac-nuevo-kv">
+            <div className="fac-nuevo-kv__par">
+              <dt>Razón social</dt>
+              <dd>{comprobante.receptor_nombre}</dd>
+            </div>
+            <div className="fac-nuevo-kv__par">
+              <dt>CUIT</dt>
+              <dd className="fac-nuevo-fiscal">{comprobante.receptor_cuit}</dd>
+            </div>
+            <div className="fac-nuevo-kv__par">
+              <dt>Condición de IVA</dt>
+              <dd>{comprobante.receptor_condicion_iva.replaceAll("_", " ").toLowerCase()}</dd>
+            </div>
+            <div className="fac-nuevo-kv__par">
+              <dt>Saldo pendiente</dt>
+              <dd className="fac-nuevo-importe">
+                {`$ ${formatearNumero(comprobante.saldo_pendiente)}`}
+              </dd>
+            </div>
+          </dl>
+        </section>
       </div>
 
-      <div className="fac-acciones">
+      <section className="fac-nuevo-panel">
+        <Tabla
+          titulo="Detalle"
+          columnas={COLUMNAS}
+          filas={comprobante.items}
+          claveDeFila={(fila) => fila.id}
+          vacia="Este comprobante no tiene items."
+        />
+      </section>
+
+      <div className="fac-nuevo-totales">
+        <span>{`Subtotal: $ ${formatearNumero(comprobante.subtotal)}`}</span>
+        <span>{`IVA: $ ${formatearNumero(comprobante.total_iva)}`}</span>
+        <span className="fac-nuevo-totales__final">
+          {`Total: $ ${formatearNumero(comprobante.total)}`}
+        </span>
+      </div>
+
+      <div className="fac-nuevo-acciones">
+        {comprobante.estado === "AUTORIZADO" && (
+          <p className="fac-nuevo-inmutable">
+            Un comprobante que ARCA autorizó no se modifica ni se borra: se reversa emitiendo una
+            nota de crédito, que también va a ARCA y también queda.
+          </p>
+        )}
         {puedeAnular && (
-          <Link href={`/facturacion/${comprobante.id}/anular`} className="boton boton--secundario">
+          <Link
+            href={`/facturacion/${comprobante.id}/anular`}
+            className="boton boton--secundario fac-nuevo-boton-enlace"
+          >
             Anular con nota de crédito
           </Link>
         )}

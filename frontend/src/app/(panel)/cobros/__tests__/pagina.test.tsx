@@ -163,8 +163,8 @@ describe("PaginaDeNuevoCobro", () => {
     const html = renderToString(await PaginaDeNuevoCobro({ searchParams: { cliente: "cl1" } }));
 
     expect(llamarApi).toHaveBeenCalledWith("/comprobantes?estado=AUTORIZADO");
-    expect(html).toContain("FACTURA_B 123");
-    expect(html).not.toContain("FACTURA_B 124");
+    expect(html).toContain("Factura B 123");
+    expect(html).not.toContain("Factura B 124");
   });
 });
 

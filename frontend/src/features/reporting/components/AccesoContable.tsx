@@ -15,8 +15,9 @@
 import { Alert, Card, Tabla, formatearFechaHora, formatearNumero } from "@/shared";
 import type { Columna } from "@/shared";
 
-import { urlDePaqueteDelContador } from "../api/paquete";
+import { nombreDeClaveDePaquete, nombreDelPeriodo, urlDePaqueteDelContador } from "../api/paquete";
 import type { AccesoDelContador, Paquete } from "../api/paquete";
+import { IconoDescarga } from "./Iconos";
 
 export interface PropsDeAccesoContable {
   /** El valor del enlace, que es la credencial: viaja en cada descarga. */
@@ -36,15 +37,38 @@ export function AccesoContable({ valor, acceso, motivo }: PropsDeAccesoContable)
   }
 
   const columnas: readonly Columna<Paquete>[] = [
-    { clave: "periodo", titulo: "Período", celda: (fila) => fila.periodo },
+    {
+      clave: "periodo",
+      titulo: "Período",
+      // El mes en castellano y, debajo, el código: así se llama el archivo que se baja y es
+      // lo que el contador cita cuando pide «el de 2026-03».
+      celda: (fila) => (
+        <span className="rep-celda-periodo">
+          <b>{nombreDelPeriodo(fila.anio, fila.mes)}</b>
+          <small>{fila.periodo}</small>
+        </span>
+      ),
+    },
     {
       clave: "contenido",
       titulo: "Contenido",
-      celda: (fila) =>
-        Object.entries(fila.totales_por_tipo)
-          .filter(([, totales]) => totales.cantidad !== "0")
-          .map(([clave, totales]) => `${clave}: ${totales.cantidad}`)
-          .join(" · ") || "Sin movimientos",
+      celda: (fila) => {
+        const partes = Object.entries(fila.totales_por_tipo).filter(
+          ([, totales]) => totales.cantidad !== "0",
+        );
+        if (partes.length === 0) {
+          return "Sin movimientos";
+        }
+        return (
+          <span className="rep-chips">
+            {partes.map(([clave, totales]) => (
+              <span key={clave} className="rep-chip">
+                {nombreDeClaveDePaquete(clave)} <b>{totales.cantidad}</b>
+              </span>
+            ))}
+          </span>
+        );
+      },
     },
     {
       clave: "archivo",
@@ -52,7 +76,13 @@ export function AccesoContable({ valor, acceso, motivo }: PropsDeAccesoContable)
       alDerecha: true,
       celda: (fila) =>
         fila.disponible ? (
-          <a href={urlDePaqueteDelContador(valor, fila.id)} download>
+          <a
+            className="rep-descarga"
+            href={urlDePaqueteDelContador(valor, fila.id)}
+            download
+            aria-label={`Descargar el paquete de ${nombreDelPeriodo(fila.anio, fila.mes)}`}
+          >
+            <IconoDescarga />
             Descargar
           </a>
         ) : (

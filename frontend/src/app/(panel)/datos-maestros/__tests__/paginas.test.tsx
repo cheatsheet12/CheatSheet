@@ -69,8 +69,8 @@ const paginas = [
     pagina: PaginaDeCategorias,
     respuesta: { categorias: [] },
     ruta: "/categorias",
-    titulo: "Categorias",
-    boton: "Nueva categoria",
+    titulo: "Categorías",
+    boton: "Nueva categoría",
   },
 ];
 

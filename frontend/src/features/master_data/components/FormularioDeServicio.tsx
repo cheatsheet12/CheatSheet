@@ -95,12 +95,19 @@ export function FormularioDeServicio({
 
   return (
     <form
-      className="dm-formulario"
+      className="dm-formulario mae-form"
       onSubmit={(evento) => {
         evento.preventDefault();
         void guardar();
       }}
     >
+      {/* Qué decide este formulario, antes de los campos. La frase también dice lo que el
+          panel **no** hace: el total con IVA lo arma el comprobante, no esta pantalla. */}
+      <p className="mae-form__nota">
+        El precio se carga sin IVA y la alícuota va aparte. Marcá «se puede reservar por agenda»
+        sólo si el servicio ocupa un turno.
+      </p>
+
       {error !== null && (
         <Alert tono="error" titulo="No se pudo guardar">
           {error}
@@ -126,13 +133,13 @@ export function FormularioDeServicio({
 
       <Select
         id="servicio-alicuota"
-        etiqueta="Alicuota de IVA"
+        etiqueta="Alícuota de IVA"
         opciones={ALICUOTAS}
         value={campos.alicuota_iva}
         onChange={(evento) => cambiar("alicuota_iva", evento.target.value as AlicuotaIVA)}
       />
 
-      <label className="dm-filtros__casilla" htmlFor="servicio-agendable">
+      <label className="mae-casilla" htmlFor="servicio-agendable">
         <input
           id="servicio-agendable"
           type="checkbox"
@@ -145,7 +152,7 @@ export function FormularioDeServicio({
       {campos.agendable && (
         <Campo
           id="servicio-duracion"
-          etiqueta="Duracion estandar (minutos)"
+          etiqueta="Duración estándar (minutos)"
           inputMode="numeric"
           value={campos.duracion}
           onChange={(evento) => cambiar("duracion", evento.target.value)}

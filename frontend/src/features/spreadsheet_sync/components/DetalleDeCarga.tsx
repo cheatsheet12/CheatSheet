@@ -10,6 +10,10 @@
  *   están en pantalla, y pedirlos otra vez al backend sería la misma tabla viajando dos
  *   veces para producir un archivo que el navegador escribe solo.
  *
+ * **Los tres números van juntos y del mismo tamaño**, como en el prototipo. Totales,
+ * procesadas y con error sólo significan algo comparados entre sí: 4 con error es una
+ * anécdota sobre 142 filas y un desastre sobre 6.
+ *
  * `puede_reprocesar` viene del backend y ya contempla las dos razones por las que no se
  * puede: el rol es Solo Lectura (RN-04) o no hay filas que corregir.
  */
@@ -18,7 +22,7 @@
 
 import { useState } from "react";
 
-import { Alert, Badge, Button, Tabla } from "@/shared";
+import { Alert, Badge, Button, Card, Tabla, formatearFechaHora } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import {
@@ -94,45 +98,80 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
       {error !== null && <Alert tono="error">{error}</Alert>}
       {aviso !== null && <Alert tono="exito">{aviso}</Alert>}
 
-      <p>
-        <Badge estado={TONO[carga.estado]}>{ETIQUETAS_DE_ESTADO[carga.estado]}</Badge>
-        {carga.es_reproceso && " · reproceso de una carga anterior"}
-      </p>
+      <Card>
+        <p className="ing-estado-carga">
+          <Badge estado={TONO[carga.estado]}>{ETIQUETAS_DE_ESTADO[carga.estado]}</Badge>
+          <span className="ing-carga__ref">{formatearFechaHora(carga.created_at)}</span>
+          {carga.es_reproceso && (
+            <span className="ing-carga__ref">reproceso de una carga anterior</span>
+          )}
+        </p>
 
-      <dl className="resumen-de-carga">
-        <dt>Filas totales</dt>
-        <dd>{carga.filas_totales}</dd>
-        <dt>Procesadas</dt>
-        <dd>{carga.filas_ok}</dd>
-        <dt>Con error</dt>
-        <dd>{carga.filas_error}</dd>
-      </dl>
+        {/* Los tres números de RN-01. Una lista de definiciones y no una tabla: son tres pares
+            etiqueta/valor, y una tabla de una fila le miente al lector de pantalla sobre lo que
+            está mirando. */}
+        <dl className="ing-proc-stats">
+          <div className="ing-proc-stat">
+            <dd className="ing-proc-stat__n">{carga.filas_totales}</dd>
+            <dt className="ing-proc-stat__l">Filas totales</dt>
+          </div>
+          <div className="ing-proc-stat ing-proc-stat--ok">
+            <dd className="ing-proc-stat__n">{carga.filas_ok}</dd>
+            <dt className="ing-proc-stat__l">Procesadas</dt>
+          </div>
+          <div className="ing-proc-stat ing-proc-stat--error">
+            <dd className="ing-proc-stat__n">{carga.filas_error}</dd>
+            <dt className="ing-proc-stat__l">Con error</dt>
+          </div>
+        </dl>
+      </Card>
 
-      <Tabla
-        titulo="Filas con error"
-        columnas={COLUMNAS}
-        filas={detalle.errores}
-        claveDeFila={(e) => String(e.numero_fila)}
-        vacia="Esta carga no dejo ninguna fila con error."
-      />
+      <Card>
+        <div className="ing-seccion">
+          <div>
+            <h2 className="ing-seccion__titulo">Filas con error</h2>
+            <p className="ing-seccion__sub">
+              El número de fila es el de tu archivo original, para que lo busques en el margen
+            </p>
+          </div>
+        </div>
+        <Tabla
+          titulo="Filas con error"
+          columnas={COLUMNAS}
+          filas={detalle.errores}
+          claveDeFila={(e) => String(e.numero_fila)}
+          vacia="Esta carga no dejo ninguna fila con error."
+        />
 
-      {detalle.errores.length > 0 && (
-        <Button variante="secundario" onClick={descargar}>
-          Descargar el listado de errores
-        </Button>
-      )}
+        {detalle.puede_reprocesar && (
+          // Lo que el reproceso hace y lo que no, dicho antes de apretar el botón: sin esto,
+          // «reprocesar» se lee como «volver a subir todo» y nadie lo toca por miedo a duplicar
+          // (HU-E3-06 RN-01 y RN-02).
+          <Alert tono="neutral">
+            Corregí los datos en la fuente y reprocesá: el sistema reutiliza el mapeo confirmado e
+            incorpora sólo las filas corregidas, sin duplicar las ya procesadas.
+          </Alert>
+        )}
 
-      {detalle.puede_reprocesar && (
-        <Button
-          disabled={trabajando}
-          cargando={trabajando}
-          onClick={() => {
-            void reprocesar();
-          }}
-        >
-          Reprocesar las filas con error
-        </Button>
-      )}
+        <div className="ing-acciones">
+          {detalle.puede_reprocesar && (
+            <Button
+              disabled={trabajando}
+              cargando={trabajando}
+              onClick={() => {
+                void reprocesar();
+              }}
+            >
+              Reprocesar las filas con error
+            </Button>
+          )}
+          {detalle.errores.length > 0 && (
+            <Button variante="secundario" onClick={descargar}>
+              Descargar el listado de errores
+            </Button>
+          )}
+        </div>
+      </Card>
     </>
   );
 }

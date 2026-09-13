@@ -20,7 +20,13 @@ from dataclasses import dataclass
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from cheatsheet.contexts.identity.infrastructure.repositories import RepositorioUsuarioPostgres
+from cheatsheet.contexts.observability.application.notificaciones import NotificarPorEventos
 from cheatsheet.contexts.observability.application.registrar_operacion import RegistrarOperacion
+from cheatsheet.contexts.observability.infrastructure.destinatarios import DestinatariosViaIdentity
+from cheatsheet.contexts.observability.infrastructure.notificaciones_repository import (
+    RepositorioNotificacionesPostgres,
+)
 from cheatsheet.contexts.observability.infrastructure.repository import (
     RepositorioDeAuditoriaPostgres,
 )
@@ -65,16 +71,29 @@ class Recursos:
         return RegistroDeIdempotenciaRedis(self.redis)
 
 
-def construir_publicador(sesion: AsyncSession) -> PublicadorEnProceso:
-    """Wire the audit sink onto one session.
+def construir_publicador(sesion: AsyncSession, empresa_id: EmpresaId) -> PublicadorEnProceso:
+    """Wire the two sinks onto one session: the audit log and the notification centre.
 
     This is the single point where `all → observability` (Context Map §4) becomes
     executable code. No emitting context appears in this function, and no emitting
     context imports `observability` — that is rule R3 holding.
+
+    **The order matters and the second one cannot break the first.** Auditing is the record
+    that the operation happened; notifying is a courtesy about it. `NotificarPorEventos`
+    swallows its own failures for that reason (see its docstring), so a panel notice that
+    could not be written never undoes the work it was describing.
     """
     publicador = PublicadorEnProceso()
     repositorio = RepositorioDeAuditoriaPostgres(sesion)
     publicador.suscribir(SuscriptorDeAuditoria(RegistrarOperacion(repositorio)))
+    publicador.suscribir(
+        NotificarPorEventos(
+            notificaciones=RepositorioNotificacionesPostgres(sesion),
+            destinatarios=DestinatariosViaIdentity(
+                RepositorioUsuarioPostgres(sesion), empresa_id=empresa_id
+            ),
+        )
+    )
     return publicador
 
 
@@ -94,6 +113,6 @@ async def unidad_de_trabajo(
     async with sesion_de_empresa(recursos.sesiones, empresa_id) as sesion:
         yield UnidadDeTrabajo(
             sesion=sesion,
-            publicador=construir_publicador(sesion),
+            publicador=construir_publicador(sesion, empresa_id),
             reloj=recursos.reloj,
         )

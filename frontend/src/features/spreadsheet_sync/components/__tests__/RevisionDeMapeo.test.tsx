@@ -82,7 +82,9 @@ describe("RevisionDeMapeo", () => {
     // El ejemplo: leido de la planilla, mostrado aca, nunca enviado al modelo (D12).
     expect(screen.getByText("Panaderia Dona Rosa")).toBeTruthy();
     expect(screen.getByText("30712345671")).toBeTruthy();
-    expect(screen.getByText("BAJA")).toBeTruthy();
+    // El nivel se muestra con su etiqueta legible —«Baja»— y no con el valor del enum: lo
+    // que la pantalla dice es cuánta confianza tuvo la propuesta, no cómo se guarda.
+    expect(screen.getByText("Baja")).toBeTruthy();
     expect(screen.getByLabelText("Campo del sistema para CUIT")).toBeTruthy();
   });
 

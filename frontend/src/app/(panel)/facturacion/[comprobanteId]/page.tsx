@@ -8,6 +8,7 @@
  * Every role reads it. There are no actions here at all, so nothing depends on the role.
  */
 
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { DetalleDeComprobante } from "@/features/billing";
@@ -54,7 +55,23 @@ export default async function PaginaDeComprobante({ params }: Props): Promise<JS
 
   return (
     <>
-      <h1>Comprobante</h1>
+      {/* El encabezado vive acá y no en el componente: la vuelta al listado es navegación de
+          la ruta, y el componente se renderiza igual desde una pestaña abierta a mano. */}
+      <header className="fac-nuevo-encabezado">
+        <div>
+          <span className="fac-nuevo-encabezado__cintillo">Facturación</span>
+          <h1 className="fac-nuevo-encabezado__titulo">Comprobante</h1>
+          <p className="fac-nuevo-encabezado__sub">
+            Lo que ARCA autorizó, tal como quedó. Es la página que se manda al contador y la que se
+            abre al lado de un papel.
+          </p>
+        </div>
+        <div className="fac-nuevo-encabezado__acciones">
+          <Link href="/facturacion" className="boton boton--secundario fac-nuevo-boton-enlace">
+            Volver al listado
+          </Link>
+        </div>
+      </header>
       <DetalleDeComprobante
         comprobante={comprobante}
         puntoNumero={punto?.numero ?? null}

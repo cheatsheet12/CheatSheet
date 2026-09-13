@@ -18,7 +18,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { Alert, Badge, Button, Campo, Card, Tabla, formatearFechaHora } from "@/shared";
 import type { Columna } from "@/shared";
@@ -32,6 +32,8 @@ import {
   guardarConfiguracion,
   invitarContador,
   listarPaquetes,
+  nombreDeClaveDePaquete,
+  nombreDelPeriodo,
   revocarContador,
   urlDePaquete,
 } from "../api/paquete";
@@ -40,6 +42,7 @@ import type {
   ContenidoDelPaquete,
   Paquete,
 } from "../api/paquete";
+import { IconoDescarga } from "./Iconos";
 
 export interface PropsDeConfiguracionDelPaquete {
   readonly inicial: Configuracion;
@@ -55,6 +58,14 @@ export function ConfiguracionDelPaquete({
   paquetes: paquetesIniciales,
   puedeConfigurar,
 }: PropsDeConfiguracionDelPaquete): JSX.Element {
+  /**
+   * El prefijo de los `id` de las casillas.
+   *
+   * Cada casilla necesita su propio `id` y su `label htmlFor`: envolverlas en un `<label>` sin
+   * más funciona con el mouse, pero un lector de pantalla anuncia «casilla» sin decir cuál — y
+   * son siete decisiones sobre qué va adentro del paquete que le llega al contador.
+   */
+  const prefijo = useId();
   const [configuracion, setConfiguracion] = useState<Configuracion>(inicial);
   const [paquetes, setPaquetes] = useState<readonly Paquete[]>(paquetesIniciales);
   const [dia, setDia] = useState(String(inicial.dia_de_envio));
@@ -128,15 +139,43 @@ export function ConfiguracionDelPaquete({
   }
 
   const columnas: readonly Columna<Paquete>[] = [
-    { clave: "periodo", titulo: "Período", celda: (fila) => fila.periodo },
+    {
+      clave: "periodo",
+      titulo: "Período",
+      /**
+       * El mes en castellano y, debajo, el código del período.
+       *
+       * El código no es ruido: es como se llama el archivo que se descarga y es lo que el
+       * contador escribe cuando pide «el de 2026-03». Lo que no puede ser es lo único que se
+       * ve, porque nadie lee un mes en un número de dos dígitos.
+       */
+      celda: (fila) => (
+        <span className="rep-celda-periodo">
+          <b>{nombreDelPeriodo(fila.anio, fila.mes)}</b>
+          <small>{fila.periodo}</small>
+        </span>
+      ),
+    },
     {
       clave: "contenido",
       titulo: "Contenido",
-      celda: (fila) =>
-        Object.entries(fila.totales_por_tipo)
-          .filter(([, totales]) => totales.cantidad !== "0")
-          .map(([clave, totales]) => `${clave}: ${totales.cantidad}`)
-          .join(" · ") || "Sin movimientos",
+      celda: (fila) => {
+        const partes = Object.entries(fila.totales_por_tipo).filter(
+          ([, totales]) => totales.cantidad !== "0",
+        );
+        if (partes.length === 0) {
+          return "Sin movimientos";
+        }
+        return (
+          <span className="rep-chips">
+            {partes.map(([clave, totales]) => (
+              <span key={clave} className="rep-chip">
+                {nombreDeClaveDePaquete(clave)} <b>{totales.cantidad}</b>
+              </span>
+            ))}
+          </span>
+        );
+      },
     },
     {
       clave: "archivo",
@@ -144,7 +183,13 @@ export function ConfiguracionDelPaquete({
       alDerecha: true,
       celda: (fila) =>
         fila.disponible ? (
-          <a href={urlDePaquete(fila.id)} download>
+          <a
+            className="rep-descarga"
+            href={urlDePaquete(fila.id)}
+            download
+            aria-label={`Descargar el paquete de ${nombreDelPeriodo(fila.anio, fila.mes)}`}
+          >
+            <IconoDescarga />
             Descargar
           </a>
         ) : (
@@ -162,139 +207,187 @@ export function ConfiguracionDelPaquete({
       )}
       {aviso !== null && <Alert tono="exito">{aviso}</Alert>}
 
-      <Card titulo="Envío automático">
-        <p className="dm-intro">
-          {configuracion.activo && configuracion.proximo_envio !== null
-            ? `Activo. Próximo envío: ${formatearFechaHora(configuracion.proximo_envio)}.`
-            : "Desactivado. El paquete no sale solo."}
-        </p>
-
-        <Campo
-          id="paq-dia"
-          etiqueta="Día de envío"
-          type="number"
-          min={1}
-          max={DIA_MAXIMO_DE_ENVIO}
-          value={dia}
-          disabled={!puedeConfigurar}
-          ayuda="Del 1 al 28: el paquete lleva los datos del mes cerrado."
-          onChange={(evento) => setDia(evento.target.value)}
-        />
-
-        <fieldset className="rep-grupo">
-          <legend>Formato</legend>
-          {FORMATOS.map((uno) => (
-            <label key={uno} className="rep-grupo__opcion">
-              <input
-                type="checkbox"
-                checked={formatos.includes(uno)}
-                disabled={!puedeConfigurar}
-                onChange={() => setFormatos(alternar(formatos, uno))}
-              />
-              {uno}
-            </label>
-          ))}
-        </fieldset>
-
-        <fieldset className="rep-grupo">
-          <legend>Contenido</legend>
-          {CONTENIDOS.map((uno) => (
-            <label key={uno} className="rep-grupo__opcion">
-              <input
-                type="checkbox"
-                checked={contenido.includes(uno)}
-                disabled={!puedeConfigurar}
-                onChange={() => setContenido(alternar(contenido, uno))}
-              />
-              {ETIQUETAS_DE_CONTENIDO[uno]}
-            </label>
-          ))}
-        </fieldset>
-
-        <Campo
-          id="paq-email"
-          etiqueta="Email del contador"
-          type="email"
-          value={email}
-          disabled={!puedeConfigurar}
-          ayuda="Sin este dato no se puede activar el envío automático."
-          onChange={(evento) => setEmail(evento.target.value)}
-        />
-
-        {puedeConfigurar && (
-          <div className="rep-acciones">
-            <Button onClick={() => void guardar(configuracion.activo)} cargando={trabajando}>
-              Guardar
-            </Button>
-            {configuracion.activo ? (
-              <Button variante="secundario" onClick={() => void guardar(false)}>
-                Desactivar envío
-              </Button>
-            ) : (
-              <Button variante="secundario" onClick={() => void guardar(true)}>
-                Activar envío
-              </Button>
-            )}
-            <Button variante="secundario" onClick={() => void generar()}>
-              Generar paquete de prueba
-            </Button>
-          </div>
-        )}
-      </Card>
-
-      <Card titulo="Acceso del contador">
-        {configuracion.contador.invitado ? (
-          <>
+      {/* Dos columnas: a la izquierda qué sale y cuándo, a la derecha quién lo recibe. En una
+          sola columna de 1500 px, un campo para escribir «5» ocupa el ancho de la pantalla y
+          deja de parecer un número del 1 al 28. */}
+      <div className="rep-cfg">
+        <div className="rep-cfg__col">
+          <Card titulo="Envío automático">
+            {/* Sin punto final después de la fecha: `formatearFechaHora` termina en la hora, y un
+            punto pegado a un valor formateado es el que produjo «9:00 p. m..». Lo que cierra
+            la línea es el dato, no la puntuación. */}
             <p className="dm-intro">
-              <Badge estado="ok">Invitado con acceso limitado</Badge> {configuracion.contador.email}
+              {configuracion.activo && configuracion.proximo_envio !== null
+                ? `Activo · Próximo envío el ${formatearFechaHora(configuracion.proximo_envio)}`
+                : "Desactivado. El paquete no sale solo."}
             </p>
-            <p className="rep-comparacion">
-              Puede ver los reportes mensuales y descargar los paquetes contables. No accede a
-              facturación, cobros, configuración ni datos de clientes.
-              {configuracion.contador.vence !== null &&
-                ` El enlace vence el ${formatearFechaHora(configuracion.contador.vence)}.`}{" "}
-              Accesos registrados: {configuracion.contador.accesos}.
-            </p>
+
+            {/* El ancho del campo es una pista sobre lo que espera adentro: un día del mes
+                son dos dígitos, y un cuadro de mil píxeles para escribir «5» hace dudar. */}
+            <div className="rep-campo--corto">
+              <Campo
+                id="paq-dia"
+                etiqueta="Día de envío"
+                type="number"
+                min={1}
+                max={DIA_MAXIMO_DE_ENVIO}
+                value={dia}
+                disabled={!puedeConfigurar}
+                ayuda="Del 1 al 28: el paquete lleva los datos del mes cerrado."
+                onChange={(evento) => setDia(evento.target.value)}
+              />
+            </div>
+
+            <fieldset className="rep-grupo">
+              <legend>Formato</legend>
+              {FORMATOS.map((uno) => (
+                <label
+                  key={uno}
+                  className="rep-grupo__opcion"
+                  htmlFor={`${prefijo}-formato-${uno}`}
+                >
+                  <input
+                    id={`${prefijo}-formato-${uno}`}
+                    type="checkbox"
+                    checked={formatos.includes(uno)}
+                    disabled={!puedeConfigurar}
+                    onChange={() => setFormatos(alternar(formatos, uno))}
+                  />
+                  {uno}
+                </label>
+              ))}
+            </fieldset>
+
+            <fieldset className="rep-grupo">
+              <legend>Contenido</legend>
+              {CONTENIDOS.map((uno) => (
+                <label
+                  key={uno}
+                  className="rep-grupo__opcion"
+                  htmlFor={`${prefijo}-contenido-${uno}`}
+                >
+                  <input
+                    id={`${prefijo}-contenido-${uno}`}
+                    type="checkbox"
+                    checked={contenido.includes(uno)}
+                    disabled={!puedeConfigurar}
+                    onChange={() => setContenido(alternar(contenido, uno))}
+                  />
+                  {ETIQUETAS_DE_CONTENIDO[uno]}
+                </label>
+              ))}
+            </fieldset>
+
+            <div className="rep-campo--medio">
+              <Campo
+                id="paq-email"
+                etiqueta="Email del contador"
+                type="email"
+                value={email}
+                disabled={!puedeConfigurar}
+                ayuda="Sin este dato no se puede activar el envío automático."
+                onChange={(evento) => setEmail(evento.target.value)}
+              />
+            </div>
+
             {puedeConfigurar && (
-              <Button
-                variante="destructivo"
-                confirmacion="El enlace deja de funcionar de inmediato. ¿Revocar el acceso?"
-                onClick={() => void revocar()}
-              >
-                Revocar acceso
-              </Button>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="dm-intro">Todavía no invitaste a ningún contador.</p>
-            {puedeConfigurar && (
-              <>
-                <Campo
-                  id="paq-contador"
-                  etiqueta="Email del contador"
-                  type="email"
-                  value={emailDelContador}
-                  onChange={(evento) => setEmailDelContador(evento.target.value)}
-                />
-                <Button onClick={() => void invitar()} cargando={trabajando}>
-                  Invitar
+              <div className="rep-acciones">
+                <Button onClick={() => void guardar(configuracion.activo)} cargando={trabajando}>
+                  Guardar
                 </Button>
+                {configuracion.activo ? (
+                  <Button variante="secundario" onClick={() => void guardar(false)}>
+                    Desactivar envío
+                  </Button>
+                ) : (
+                  <Button variante="secundario" onClick={() => void guardar(true)}>
+                    Activar envío
+                  </Button>
+                )}
+                <Button variante="secundario" onClick={() => void generar()}>
+                  Generar paquete de prueba
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          <Card titulo="Paquetes generados">
+            <Tabla
+              titulo="Paquetes contables"
+              columnas={columnas}
+              filas={paquetes}
+              claveDeFila={(fila) => fila.id}
+              vacia="Todavía no hay ningún paquete contable."
+            />
+          </Card>
+        </div>
+
+        <aside className="rep-cfg__aside">
+          <Card titulo="Acceso del contador">
+            {configuracion.contador.invitado ? (
+              <>
+                <p className="dm-intro">
+                  <Badge estado="ok">Invitado con acceso limitado</Badge>{" "}
+                  {configuracion.contador.email}
+                </p>
+                <p className="rep-comparacion">
+                  Puede ver los reportes mensuales y descargar los paquetes contables. No accede a
+                  facturación, cobros, configuración ni datos de clientes.
+                </p>
+                {/* El vencimiento y los accesos salen de la frase corrida y pasan a una lista de
+                dato-y-valor: metidos en el párrafo hay que leerlo entero para encontrarlos, y
+                era ahí donde una fecha con punto final terminaba en «9:20 p. m..». */}
+                <dl className="rep-datos">
+                  <div className="rep-kv">
+                    <dt>El enlace vence</dt>
+                    <dd>
+                      {configuracion.contador.vence === null
+                        ? "—"
+                        : formatearFechaHora(configuracion.contador.vence)}
+                    </dd>
+                  </div>
+                  <div className="rep-kv">
+                    <dt>Accesos registrados</dt>
+                    <dd>{configuracion.contador.accesos}</dd>
+                  </div>
+                </dl>
+                {puedeConfigurar && (
+                  // Acción de texto y no un botón rojo con caja: es una acción entre otras dentro
+                  // de la tarjeta, no la acción principal de la pantalla. El componente sigue
+                  // siendo `Button` para no reimplementar la confirmación que exige §1.3.
+                  <span className="rep-accion-destructiva">
+                    <Button
+                      variante="destructivo"
+                      confirmacion="El enlace deja de funcionar de inmediato. ¿Revocar el acceso?"
+                      onClick={() => void revocar()}
+                    >
+                      Revocar acceso
+                    </Button>
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="dm-intro">Todavía no invitaste a ningún contador.</p>
+                {puedeConfigurar && (
+                  <>
+                    <Campo
+                      id="paq-contador"
+                      etiqueta="Email del contador"
+                      type="email"
+                      value={emailDelContador}
+                      onChange={(evento) => setEmailDelContador(evento.target.value)}
+                    />
+                    <Button onClick={() => void invitar()} cargando={trabajando}>
+                      Invitar
+                    </Button>
+                  </>
+                )}
               </>
             )}
-          </>
-        )}
-      </Card>
-
-      <Card titulo="Paquetes generados">
-        <Tabla
-          titulo="Paquetes contables"
-          columnas={columnas}
-          filas={paquetes}
-          claveDeFila={(fila) => fila.id}
-          vacia="Todavía no hay ningún paquete contable."
-        />
-      </Card>
+          </Card>
+        </aside>
+      </div>
     </>
   );
 }

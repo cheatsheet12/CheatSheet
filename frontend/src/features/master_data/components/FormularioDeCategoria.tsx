@@ -51,12 +51,19 @@ export function FormularioDeCategoria({
 
   return (
     <form
-      className="dm-formulario"
+      className="dm-formulario mae-form"
       onSubmit={(evento) => {
         evento.preventDefault();
         void guardar();
       }}
     >
+      {/* El ámbito es la mitad de la historia de esta pantalla, y no se deduce del nombre
+          del campo: la nota lo dice antes de que alguien elija mal. */}
+      <p className="mae-form__nota">
+        El ámbito decide dónde se puede usar la etiqueta. Cambiarlo más tarde no borra lo que ya
+        está clasificado.
+      </p>
+
       {error !== null && (
         <Alert tono="error" titulo="No se pudo guardar">
           {error}
@@ -76,7 +83,7 @@ export function FormularioDeCategoria({
         opciones={AMBITOS}
         value={ambito}
         onChange={(evento) => setAmbito(evento.target.value as AmbitoDeCategoria)}
-        ayuda="Decide que se puede clasificar con esta categoria."
+        ayuda="Decide qué se puede clasificar con esta categoría."
       />
 
       <div className="dm-formulario__acciones">
@@ -84,7 +91,7 @@ export function FormularioDeCategoria({
           Cancelar
         </Button>
         <Button type="submit" cargando={guardando}>
-          {categoria === undefined ? "Crear categoria" : "Guardar cambios"}
+          {categoria === undefined ? "Crear categoría" : "Guardar cambios"}
         </Button>
       </div>
     </form>

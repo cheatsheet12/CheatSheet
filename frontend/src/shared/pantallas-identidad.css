@@ -1,0 +1,1441 @@
+/*
+ * Pantallas de identidad: acceso, onboarding y configuración.
+ *
+ * Tres prefijos, tres territorios, y ninguno pisa a otro:
+ *
+ * - `.acc-*` — lo que se ve sin sesión (PAN-ONB-01 y la aceptación de invitación).
+ *   No tienen el shell del panel: quien llega acá todavía no tiene a dónde navegar,
+ *   así que la pantalla es marca + una tarjeta centrada y nada más.
+ * - `.onb-*` — el cromo del onboarding (PAN-ONB-01/02/03): stepper, etiqueta de paso,
+ *   barra de progreso y las tarjetas seleccionables de integraciones.
+ * - `.dm-*` — datos maestros y las pantallas de configuración que comparten su forma:
+ *   encabezado, barra de filtros, formulario y selector de categorías.
+ *
+ * El origen visual es `docs/aidlc/inputs/prototipos/onboarding.html` y el sistema de
+ * `styles.css` del prototipo. Todos los colores salen de los alias que `tokens.css`
+ * expone (`--accent`, `--ink-*`, `--line`, `--card`…): acá no hay ni un hex literal,
+ * porque un color escrito a mano es el que después nadie encuentra cuando la paleta
+ * cambia.
+ *
+ * **El movimiento vive al final del archivo, en un solo bloque.** Toda transición y
+ * toda animación de estas pantallas se anula bajo `prefers-reduced-motion: reduce`.
+ * Nada acá dura más de 250 ms, nada se repite en bucle y nada rebota: el movimiento
+ * explica de dónde vino un elemento, no adorna.
+ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Acceso — la maqueta pública (PAN-ONB-01 y la aceptación de invitación)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Es lo primero que alguien ve del producto, así que no es un formulario suelto sobre
+   blanco: hay un fondo propio, la marca arriba y la tarjeta centrada en el eje óptico. */
+.acc-pantalla {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-4);
+  background: radial-gradient(60rem 32rem at 50% -12rem, var(--accent-050) 0%, transparent 70%),
+    var(--bg);
+}
+
+.acc-contenido {
+  width: 100%;
+  max-width: 40rem;
+  margin: auto 0;
+}
+
+/* La marca del imagotipo: símbolo + «Cheat» en primario y «Sheet» en acento. */
+.acc-marca {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.acc-marca__simbolo {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-control);
+  background: var(--primary);
+  color: var(--color-text-on-dark);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: var(--text-caption);
+  letter-spacing: -0.02em;
+  flex: none;
+}
+
+.acc-marca__texto {
+  text-align: left;
+}
+
+.acc-marca__nombre {
+  font-size: var(--text-h2);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+  line-height: 1.1;
+  display: block;
+}
+
+.acc-marca__nombre em {
+  font-style: normal;
+  color: var(--accent-700);
+}
+
+.acc-marca__bajada {
+  display: block;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+.acc-tarjeta {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: var(--space-8) var(--space-6);
+}
+
+/* El ingreso y la invitación son formularios cortos: a 40 rem las líneas quedan largas
+   y la mirada tiene que volver de más lejos en cada campo. */
+.acc-tarjeta--angosta {
+  max-width: 26rem;
+  margin: 0 auto;
+}
+
+.acc-encabezado {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.acc-titulo {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+  margin: 0 0 var(--space-1);
+}
+
+.acc-sub {
+  color: var(--ink-500);
+  font-size: var(--text-body);
+  margin: 0;
+}
+
+.acc-aviso {
+  margin-bottom: var(--space-4);
+}
+
+/* Cada campo se separa acá y no dentro del control, para que la tarjeta pueda apretar
+   el ritmo vertical sin tocar el sistema de diseño. */
+.acc-campos > .campo {
+  margin-bottom: var(--space-3);
+}
+
+.acc-secundario {
+  display: flex;
+  justify-content: flex-end;
+  margin: calc(var(--space-1) * -1) 0 var(--space-4);
+}
+
+/* Un enlace escrito como enlace aunque sea un `<button>`: lo que hace es navegar de
+   modo, no ejecutar una acción, y un botón sólido ahí competiría con el CTA. */
+.acc-enlace {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-700);
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: var(--radius-input);
+}
+
+.acc-enlace:hover {
+  text-decoration: underline;
+}
+
+.acc-terminos {
+  margin-bottom: var(--space-4);
+  text-align: left;
+}
+
+/* El CTA ocupa el ancho de la tarjeta: es la única acción de la pantalla. */
+.acc-accion > .boton {
+  width: 100%;
+}
+
+.acc-o {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--ink-300);
+  font-size: var(--text-caption);
+  margin: var(--space-4) 0;
+}
+
+.acc-o::before,
+.acc-o::after {
+  content: "";
+  height: 1px;
+  background: var(--line);
+  flex: 1;
+}
+
+.acc-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--touch-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--ink-700);
+  font-size: var(--text-body);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.acc-google:hover {
+  border-color: var(--ink-300);
+}
+
+.acc-google svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.acc-pie {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  margin-top: var(--space-4);
+}
+
+.acc-nota {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-300);
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Onboarding — PAN-ONB-01/02/03
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* El stepper vive en su propia cápsula, separado de la tarjeta del paso: es contexto de
+   todo el flujo, no contenido de este paso. */
+.onb-stepper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-6);
+}
+
+.onb-stepper__caja {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: var(--space-4) var(--space-6);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.onb-etiqueta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.onb-etiqueta__paso {
+  color: var(--ink-500);
+}
+
+.onb-etiqueta__titulo {
+  color: var(--accent-700);
+  font-weight: 700;
+  text-align: right;
+}
+
+/* La barra sí se anima: es la que traduce «pasaste de 2 a 3» en algo que se ve. */
+.onb-progreso {
+  height: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  margin-bottom: var(--space-6);
+  overflow: hidden;
+}
+
+.onb-progreso__avance {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 240ms ease;
+}
+
+.onb-titulo {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+  margin: 0 0 var(--space-1);
+}
+
+.onb-sub {
+  color: var(--ink-500);
+  font-size: var(--text-body);
+  margin: 0 0 var(--space-6);
+}
+
+.onb-encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.onb-dos-columnas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .onb-dos-columnas {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Lo que el padrón devolvió, junto y en un tono que dice «esto no lo escribiste vos».
+   Separarlo del campo editable evita la duda de si ARCA pisó lo tipeado. */
+.onb-padron {
+  background: var(--accent-050);
+  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-caption);
+}
+
+.onb-padron__titulo {
+  grid-column: 1 / -1;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-700);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+.onb-padron dt {
+  color: var(--ink-500);
+}
+
+.onb-padron dd {
+  margin: 0;
+  color: var(--ink-900);
+  font-weight: 600;
+}
+
+/* El aviso de datos protegidos del prototipo. No es decorativo: es lo que responde la
+   pregunta «¿para qué quieren mi CUIT?» en el momento exacto en que se la hacen. */
+.onb-proteccion {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  background: var(--accent-050);
+  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-caption);
+  color: var(--ink-600);
+}
+
+.onb-proteccion svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent-700);
+  flex: none;
+  margin-top: 1px;
+}
+
+.onb-proteccion b {
+  color: var(--ink-900);
+}
+
+.onb-acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+
+.onb-acciones__separador {
+  flex: 1;
+}
+
+/* Tarjetas seleccionables de integraciones (PAN-ONB-03).
+   El estado elegido se dice con borde de acento y fondo tenue, no sólo con una palabra. */
+.onb-tarjetas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .onb-tarjetas {
+    grid-template-columns: 1fr;
+  }
+}
+
+.onb-opcion {
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  padding: var(--space-4);
+  text-align: left;
+  transition:
+    border-color 200ms ease,
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.onb-opcion:hover {
+  border-color: var(--ink-300);
+}
+
+.onb-opcion.is-on {
+  border-color: var(--accent);
+  background: var(--accent-050);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.onb-opcion:has(:focus-visible) {
+  border-color: var(--accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Datos maestros y configuración
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* --- PAN-DM-01 · Datos Maestros — Clientes -------------------------------------------
+   Sin prototipo (hueco P10 del mapa de unidades del épico 3): la maquetación de Etapa 5
+   codifica la pantalla y no la dibuja. Se arma con los tokens y el catálogo de
+   componentes de la especificación §1.3, igual que PAN-USR-01 en su momento. */
+
+.dm-intro {
+  color: var(--ink-500);
+  margin: 0 0 var(--space-6);
+  max-width: 62ch;
+}
+
+/* El encabezado de una pantalla de configuración: cintillo, título y bajada, con las
+   acciones a la derecha cuando las hay. Es el mismo bloque en las nueve pantallas, así
+   que vive acá y no repetido en cada `page.tsx`. */
+.dm-encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.dm-encabezado__cintillo {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+.dm-encabezado h1 {
+  margin: 0;
+}
+
+.dm-encabezado .dm-intro {
+  margin: var(--space-2) 0 0;
+}
+
+.dm-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.dm-filtros__casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-500);
+  font-size: var(--text-caption);
+  /* Alineada con la base de los campos, que llevan etiqueta arriba. */
+  padding-bottom: var(--space-2);
+}
+
+.dm-formulario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* El CUIT y su botón de validación viven juntos: el botón no significa nada sin el campo,
+   y separarlos hacía que la respuesta de ARCA apareciera lejos de lo que la provocó. */
+.dm-formulario__cuit {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.dm-formulario__cuit > *:first-child {
+  flex: 1;
+}
+
+.dm-formulario__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* --- PAN-DM-03 y el selector de categorías (HU-E4-04) -------------------------------- */
+
+.dm-selector {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-3);
+  margin-top: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.dm-selector legend {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  padding: 0 var(--space-1);
+}
+
+/* Cada categoría es una píldora que se pinta al quedar asignada: el mismo lenguaje que
+   las tarjetas seleccionables del onboarding, para que «elegido» se lea igual en las dos. */
+.dm-selector__opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-600);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.dm-selector__opcion:hover {
+  border-color: var(--ink-300);
+}
+
+.dm-selector__opcion:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.dm-selector__vacio {
+  color: var(--ink-400);
+  font-size: var(--text-caption);
+  margin-top: var(--space-3);
+}
+
+/* Las preferencias de notificación: una grilla de categoría × canal, con la cabecera de
+   canales arriba, porque una lista de casillas sin encabezado no dice qué se está
+   eligiendo. */
+.dm-avisos__grupo {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  margin: var(--space-4) 0;
+}
+
+.dm-avisos__grupo > legend {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  padding: 0 var(--space-1);
+}
+
+.dm-avisos {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.dm-avisos__fila {
+  display: grid;
+  grid-template-columns: 1fr repeat(2, 7rem);
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  transition: background-color 160ms ease;
+}
+
+.dm-avisos__fila:hover {
+  background: var(--line-2);
+}
+
+.dm-avisos__fila--cabecera {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+}
+
+.dm-avisos__fila--cabecera:hover {
+  background: none;
+}
+
+.dm-avisos__categoria {
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.dm-avisos__canal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-600);
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .dm-avisos__fila {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Movimiento
+   ─────────────────────────────────────────────────────────────────────────────
+
+   Dos entradas y nada más: la tarjeta pública y el mensaje de error. Las dos existen
+   para explicar de dónde salió algo que antes no estaba — no para decorar. */
+
+@keyframes acc-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.acc-tarjeta,
+.onb-stepper__caja {
+  animation: acc-entrada 220ms ease-out both;
+}
+
+/* El error aparece desplazándose 4 px, no saltando: un mensaje que empuja el formulario
+   de golpe hace perder el lugar donde estaba el cursor. */
+@keyframes acc-error {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.campo__error,
+.acc-aviso {
+  animation: acc-error 160ms ease-out both;
+}
+
+/* El punto del stepper del onboarding cambia de color al avanzar el paso. La regla está
+   acotada a `.onb-stepper` para no alterar el stepper de otras pantallas. */
+.onb-stepper .stepper__marca {
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+/*
+ * Quien pidió menos movimiento no recibe ninguno. No es una cortesía: para algunas
+ * personas una transición es un síntoma, no un detalle. Todo lo de arriba queda en su
+ * estado final, instantáneo.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .acc-tarjeta,
+  .onb-stepper__caja,
+  .campo__error,
+  .acc-aviso {
+    animation: none;
+  }
+
+  .acc-google,
+  .onb-progreso__avance,
+  .onb-opcion,
+  .dm-selector__opcion,
+  .dm-avisos__fila,
+  .onb-stepper .stepper__marca {
+    transition: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Configuración · PAN-USR-01, PAN-USR-02 y Configuración → Empresa
+   ─────────────────────────────────────────────────────────────────────────────
+
+   Las tres pantallas que `identity` pone en Configuración —usuarios, datos de la empresa
+   y preferencias— comparten una sola forma: cintillo mono, título de 27 px, la acción a
+   la derecha del encabezado, y abajo un panel elevado partido en secciones. Es el mismo
+   bloque que ya usan la agenda (`.age-`), la auditoría (`.log-`) y las pantallas del
+   agente (`.faq-`). Que estas tres tuvieran cada una su propia forma era la única razón
+   por la que Usuarios parecía de otro producto.
+
+   **Prefijo `.cfg-`, y nada más.** Nada de acá redefine una primitiva compartida: los
+   botones, los badges, los campos y la tabla siguen saliendo de `@/shared/ui`, y lo que
+   se viste es la composición alrededor. Las reglas `.acc-`, `.onb-` y `.dm-` de más
+   arriba quedan intactas: las usan el ingreso, el alta guiada y datos maestros, y
+   reescribirlas para arreglar esta pantalla habría roto aquellas.
+
+   **No hay un solo hexadecimal.** Todo sale de los alias de `tokens.css`; un `#00C48C`
+   escrito acá sería el mismo verde con otro nombre, y el día que el token cambie esta
+   hoja se queda vieja sin que nadie se entere.
+
+   **Ninguna transición pasa de 250 ms, ninguna se repite y ninguna rebota.** El bloque
+   `prefers-reduced-motion` del final es propio y no suma selectores al de más arriba:
+   que dos secciones editen la misma lista es exactamente cómo una termina borrando la
+   línea de la otra.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Encabezado de pantalla ───────────────────────────────────────────────────
+ *
+ * El CTA vive acá, alineado con la base de la bajada, y no adentro de la tarjeta arriba
+ * de la tabla: un botón metido en el listado se lee como si actuara sobre una fila, y el
+ * título que lo acompañaba —«Usuarios de la empresa» debajo de un `<h1>` que ya decía
+ * «Usuarios»— era el mismo encabezado dos veces. */
+
+.cfg-encabezado {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.cfg-encabezado__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  display: block;
+  margin: 0 0 var(--space-1);
+}
+
+/* 27 px y no los 24 del `h1` de base: con el cintillo encima el título necesita ganarle
+   en peso, o los dos se leen como una sola línea gris. Es el mismo tamaño que la agenda
+   y que las respuestas frecuentes. */
+.cfg-encabezado h1 {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.cfg-encabezado__intro {
+  color: var(--ink-500);
+  font-size: 14.5px;
+  margin: var(--space-2) 0 0;
+  max-width: 62ch;
+}
+
+.cfg-encabezado__acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+}
+
+/* La caja fija del icono evita que el «+» empuje el texto medio píxel mientras la fuente
+   termina de cargar. */
+.cfg-cta__icono {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.cfg-cta__icono svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+/* Los avisos que la pantalla pone entre el encabezado y el panel. El catálogo no les da
+   aire abajo —cada pantalla decide dónde va— y sin esto quedan apoyados sobre el panel,
+   sin nada que diga dónde termina el aviso y dónde empieza el contenido. */
+.cfg-encabezado ~ .caja {
+  margin-bottom: var(--space-4);
+}
+
+/* ── El panel ─────────────────────────────────────────────────────────────────
+ *
+ * Una sola superficie elevada por pantalla, con cabecera, cuerpo y pie. La cabecera es
+ * la que le da ritmo vertical a un listado de una sola fila: sin ella la tarjeta es un
+ * encabezado de columna flotando arriba de un renglón y sobra la mitad del alto. */
+
+.cfg-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.cfg-panel__cab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cfg-panel__titulo {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+/* El conteo en mono: es una cifra, y en la misma sans que el título se lee como una
+   frase más. */
+.cfg-panel__cuenta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+.cfg-panel__cuenta b {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+/* La misma ranura, para cuando lo que va ahí es una frase y no una cifra. La mono existe
+   para que un número se lea como número; una oración entera escrita así se lee como salida
+   de consola. */
+.cfg-panel__nota {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+.cfg-panel__pie {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: 16px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+/* El aviso a la izquierda y la acción a la derecha, en la misma línea: un mensaje debajo
+   del botón que lo explica llega después de haberlo apretado. */
+.cfg-panel__pie p {
+  margin: 0 auto 0 0;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+/* ── Secciones dentro del panel ───────────────────────────────────────────────
+ *
+ * Un formulario de seis campos en una columna sola es una lista, no un formulario: nada
+ * dice qué campo va con qué. Las secciones agrupan por a qué pregunta contestan, y la
+ * línea entre ellas es toda la separación que hace falta. */
+
+.cfg-seccion {
+  padding: 20px 22px 22px;
+}
+
+.cfg-seccion + .cfg-seccion {
+  border-top: 1px solid var(--line-2);
+}
+
+.cfg-seccion__titulo {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+.cfg-seccion__nota {
+  font-size: 12.5px;
+  color: var(--ink-500);
+  margin: 0 0 var(--space-4);
+  max-width: 64ch;
+}
+
+/* Dos columnas, y una sola cuando no entran. Estirar seis campos a lo ancho de 1440 px
+   deja un renglón de un metro para escribir un CUIT de once dígitos.
+
+   Las dos columnas son explícitas y no un `auto-fit`: con `auto-fit` la cantidad de
+   columnas depende de cuántos campos haya en la grilla —una fila que ocupa el ancho entero
+   impide que las pistas vacías se colapsen— y el mismo campo terminaba midiendo 240 px en
+   una sección y 370 px en la de al lado. */
+.cfg-campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+  max-width: 720px;
+}
+
+@media (max-width: 720px) {
+  .cfg-campos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cfg-campos .campo {
+  margin-bottom: 0;
+}
+
+/* Un campo que ocupa el renglón entero —la razón social, que es larga— dentro de la
+   misma grilla. */
+.cfg-campos__ancho {
+  grid-column: 1 / -1;
+}
+
+/* La ayuda del catálogo es monoespaciada porque casi siempre describe un formato. Acá
+   varias son frases enteras, y una oración larga en mono se lee como salida de consola. */
+.cfg-panel .campo__ayuda,
+.cfg-modal .campo__ayuda {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+/* El CUIT y su validación viven juntos y apoyados en la misma base: el botón no significa
+   nada sin el campo, y separarlos hacía aparecer la respuesta de ARCA lejos de lo que la
+   provocó. */
+.cfg-cuit {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* El campo no se estira: once dígitos no necesitan medio renglón, y el botón tiene que
+   quedar al lado y no a media pantalla de distancia. */
+.cfg-cuit > .campo {
+  flex: 0 1 260px;
+  min-width: 180px;
+  margin-bottom: 0;
+}
+
+/* Un `fieldset` sin caja. La agrupación es semántica —diez casillas que contestan una sola
+   pregunta, y un lector de pantalla las anuncia como un grupo— pero el borde dibujaba una
+   tarjeta adentro del panel, que ya es una tarjeta. */
+.cfg-grupo {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.cfg-grupo > legend {
+  padding: 0;
+}
+
+.cfg-aviso {
+  margin-top: var(--space-4);
+}
+
+/* En el alta guiada el aviso queda entre dos campos y separa por abajo; en el panel es lo
+   último de su sección y separa por arriba. */
+.cfg-aviso--abajo {
+  margin: 0 0 var(--space-4);
+}
+
+/* ── La tabla, adentro del panel ──────────────────────────────────────────────
+ *
+ * La tabla compartida trae su propia caja con borde, radio y sombra. Adentro del panel
+ * sobra: dos bordes concéntricos se leen como un error de maquetación, no como una
+ * jerarquía. */
+
+.cfg-panel .tabla__contenedor {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.cfg-panel .tabla th {
+  padding: 14px 22px 10px;
+}
+
+.cfg-panel .tabla td {
+  padding: 12px 22px;
+  border-top: 1px solid var(--line-2);
+  transition: background-color 140ms ease;
+}
+
+.cfg-panel .tabla tbody tr:first-child td {
+  border-top: 0;
+}
+
+.cfg-panel .tabla tbody tr:hover td {
+  background: var(--bg);
+}
+
+/* El vacío es un renglón adentro del panel. La caja punteada del catálogo ocupa media
+   pantalla con una frase en el medio y se lee como una carga que falló; una raya corta y
+   una línea dicen lo mismo y dejan ver que la pantalla está entera. */
+.cfg-panel .tabla__vacia {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 18px 22px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+  color: var(--ink-500);
+}
+
+.cfg-panel .tabla__vacia::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* ── Las celdas de PAN-USR-01 ─────────────────────────────────────────────── */
+
+/* El aire lo pone el disco y no un `gap`: con `gap` el «· vos» quedaba a doce píxeles del
+   nombre al que pertenece, leyéndose como una tercera columna. */
+.cfg-persona {
+  display: flex;
+  align-items: center;
+}
+
+/* La inicial en un disco. No es adorno: con dos o tres personas la columna de nombres es
+   texto suelto, y el disco le da a cada fila un ancla para el ojo. Va oculto para un
+   lector de pantalla — el nombre está al lado, entero. */
+.cfg-persona__inicial {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 999px;
+  margin-right: var(--space-3);
+  background: var(--info-bg);
+  color: var(--ink-600);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Quien está mirando la pantalla se reconoce en su propia fila: es la única en la que
+   «Desactivar» le saca el acceso a sí mismo. */
+.cfg-persona__inicial--yo {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.cfg-persona__nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.cfg-yo {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-400);
+  margin-left: var(--space-1);
+}
+
+.cfg-email {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+/* El rol, como parte de la fila y no como un formulario suelto en la celda. El control
+   arranca sin caja y la muestra al pasar por encima o al enfocarlo, que es cuando hace
+   falta saber dónde termina el área que responde. Sigue siendo un `<select>` nativo: el
+   teclado, el foco y el selector del teléfono vienen de arriba. */
+/* Alineado con el encabezado de su columna: el control tiene 9 px de borde y relleno a la
+   izquierda, y sin compensarlos la palabra empieza nueve píxeles más adentro que «ROL». */
+.cfg-rol {
+  display: inline-block;
+  margin-left: -9px;
+}
+
+/* El `.campo` del catálogo es una columna que se estira; acá el control tiene que medir lo
+   que mide la palabra más larga, no lo que mide la celda. */
+.cfg-rol .campo {
+  margin-bottom: 0;
+  align-items: flex-start;
+}
+
+.cfg-rol .campo__control {
+  min-height: 34px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: transparent;
+  border-color: transparent;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.cfg-rol .campo__control:hover {
+  border-color: var(--line);
+  background: var(--card);
+}
+
+.cfg-rol .campo__control:focus {
+  background: var(--card);
+}
+
+/* El rol que no se puede editar —una invitación pendiente, o cualquier fila para un
+   Operador— se escribe con el mismo peso y en el mismo lugar que el control, para que la
+   columna no se vea desalineada según quién mire. */
+.cfg-rol--fijo {
+  display: inline-block;
+  margin-left: -9px;
+  padding: 5px 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-500);
+}
+
+/* Acciones como texto, no como botones con caja: una tabla con un botón sólido por
+   renglón pesa más que los datos que muestra, y un borde rojo permanente grita desde una
+   fila donde no está pasando nada. La caja aparece en hover y en foco. */
+.cfg-accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.cfg-accion:hover:not(:disabled) {
+  color: var(--ink-900);
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.cfg-accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.cfg-accion:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* La baja lleva el rojo en el texto desde el principio: es la única acción de la fila que
+   no se deshace, y descubrirlo recién al pasar el mouse llega tarde. Lo que no lleva es
+   el borde rojo permanente, que convertía una fila normal en una advertencia. */
+.cfg-accion--baja {
+  color: var(--err);
+}
+
+.cfg-accion--baja:hover:not(:disabled) {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err-bg);
+}
+
+/* §1.4 pide 44 x 44 px donde el puntero es un dedo. Con mouse, 34 px de alto se acierta
+   sin pensarlo, y estirar cada fila al doble volvería la tabla ilegible. */
+@media (pointer: coarse) {
+  .cfg-accion {
+    min-height: var(--touch-min);
+  }
+}
+
+/* ── Qué puede cada rol ───────────────────────────────────────────────────────
+ *
+ * Al pie del panel y no en una tarjeta aparte: es la leyenda de la columna «Rol» de
+ * arriba, y lejos de ella habría que recordar cuál era cuál para leerla. De paso le da
+ * cuerpo al panel cuando la empresa tiene una sola persona, que es el caso del primer
+ * día y el que se veía más vacío. */
+
+.cfg-roles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-3) var(--space-6);
+  margin: 0;
+  padding: 16px 22px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.cfg-roles__nombre {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.cfg-roles__que {
+  font-size: 12.5px;
+  color: var(--ink-500);
+  margin: 2px 0 0;
+}
+
+/* ── PAN-USR-02 · la grilla de avisos ─────────────────────────────────────────
+ *
+ * Categoría por canal. La fila de canales de arriba es la que nombra las columnas: sin
+ * ella son diez casillas sueltas y hay que deducir cuál es cuál. Y con ella puesta,
+ * repetir «Email» al lado de cada casilla es decir lo mismo dos veces en el mismo
+ * renglón — la etiqueta sigue existiendo para quien escucha la pantalla, sólo que no se
+ * dibuja. */
+
+.cfg-avisos {
+  display: grid;
+  gap: 2px;
+  max-width: 520px;
+}
+
+.cfg-avisos__fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, 88px);
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
+  transition: background-color 140ms ease;
+}
+
+.cfg-avisos__fila:hover {
+  background: var(--bg);
+}
+
+.cfg-avisos__cab {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  padding-bottom: var(--space-1);
+}
+
+.cfg-avisos__cab:hover {
+  background: none;
+}
+
+.cfg-avisos__cab span {
+  text-align: center;
+}
+
+.cfg-avisos__categoria {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+/* La celda entera es el área que responde, no los 17 px de la casilla. */
+.cfg-avisos__casilla {
+  display: grid;
+  place-items: center;
+  min-height: 32px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.cfg-avisos__casilla input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent-700);
+}
+
+@media (max-width: 640px) {
+  .cfg-avisos__fila {
+    grid-template-columns: minmax(0, 1fr) repeat(2, 64px);
+  }
+}
+
+/* La muestra de cómo va a quedar escrita una fecha. En una caja tenue y no como una ayuda
+   más: es el resultado de los dos controles de arriba, no una aclaración sobre uno. */
+.cfg-vista {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  font-size: 12.5px;
+  color: var(--ink-500);
+  max-width: 520px;
+}
+
+.cfg-vista strong {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+/* ── El modal de invitación ───────────────────────────────────────────────── */
+
+.cfg-modal__texto {
+  margin: 0 0 var(--space-4);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-700);
+}
+
+.cfg-modal__campos > .campo:last-of-type {
+  margin-bottom: 0;
+}
+
+.cfg-modal__acciones {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* ── Movimiento ───────────────────────────────────────────────────────────────
+ *
+ * El panel entra una vez, en 200 ms, y nada más se mueve solo. La entrada explica de
+ * dónde salió una superficie que antes no estaba; repetirla en cada sección sería una
+ * coreografía, y quien abre Configuración viene a cambiar un dato. */
+
+@keyframes cfg-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cfg-panel {
+  animation: cfg-aparecer 200ms ease-out both;
+}
+
+/*
+ * Quien pidió menos movimiento no recibe ninguno. Los cambios de color quedan: lo que
+ * marea es el desplazamiento, y sin transición el estado igual se ve.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .cfg-panel {
+    animation: none;
+  }
+
+  .cfg-panel .tabla td,
+  .cfg-accion,
+  .cfg-avisos__fila,
+  .cfg-rol .campo__control {
+    transition: none;
+  }
+
+  .cfg-accion:active:not(:disabled) {
+    transform: none;
+  }
+}
