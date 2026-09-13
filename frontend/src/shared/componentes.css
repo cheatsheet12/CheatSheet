@@ -587,6 +587,12 @@
   font-family: var(--font-mono);
   font-size: var(--text-caption);
   color: var(--color-text-secondary);
+  /*
+   * A card can carry two of these at once — the verified name and the environment — and
+   * a `span` is inline, so without this they render glued together as
+   * "+54 9 11 5555-0000Homologación". Found by QA on every connected card.
+   */
+  display: block;
 }
 
 .int-card p {

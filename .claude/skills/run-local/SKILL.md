@@ -66,7 +66,7 @@ Nothing shared, nothing to lose, no credentials.
 docker compose -f backend/docker-compose.yml up -d      # postgres:5433, redis:6380
 source .venv/bin/activate
 
-export APP_ENV=dev
+export APP_ENV=local          # 'dev' is not a valid Entorno: local | test | staging | production
 export DATABASE_URL=postgresql+asyncpg://cheatsheet_app:test-only-local-container@localhost:5433/cheatsheet
 export DATABASE_URL_MIGRATIONS=postgresql+asyncpg://cheatsheet_owner:test-only-local-container@localhost:5433/cheatsheet
 export REDIS_URL=redis://localhost:6380/0
