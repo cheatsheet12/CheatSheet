@@ -23,6 +23,27 @@ export const PREFERENCIAS_POR_DEFECTO: PreferenciasDeFormato = {
   zonaHoraria: "America/Argentina/Buenos_Aires",
 };
 
+/**
+ * Node and Chrome disagree on exactly one character, and it costs the whole page.
+ *
+ * `Intl.DateTimeFormat("es-AR")` separates "p." from "m." with U+00A0 on Node's ICU and
+ * with a plain space on Chrome's, so one instant renders as two different strings on the
+ * server and on the client. React compares them while hydrating, finds them different,
+ * and — because the mismatch is outside any Suspense boundary — throws away the
+ * server-rendered HTML for the **entire root** and re-renders on the client. Found by QA
+ * on the integrations screen, where the only such string is "Última verificación".
+ *
+ * Collapsing the non-breaking variants to a plain space makes the helper return the same
+ * text in both runtimes, which is what server-side rendering requires of anything it
+ * renders. It is applied to every formatter here, not just the one that was caught: the
+ * trap is in `Intl`, not in the caller.
+ */
+const ESPACIOS_NO_SEPARABLES = /[\u00a0\u202f]/g;
+
+function determinista(texto: string): string {
+  return texto.replace(ESPACIOS_NO_SEPARABLES, " ");
+}
+
 /** An ISO-8601 instant, or `null` when there is nothing to show. */
 export function formatearFechaHora(
   iso: string | null,
@@ -32,20 +53,22 @@ export function formatearFechaHora(
   if (fecha === null) {
     return "—";
   }
-  return new Intl.DateTimeFormat(preferencias.idioma, {
-    dateStyle: "short",
-    // `hour12: false` explícito, y por eso no alcanza con `timeStyle: "short"`: el ICU de
-    // algunos entornos devuelve «9:00 p. m.» para `es-AR`, que no es como se escribe una
-    // hora acá. Tres pantallas —agenda, conversaciones y auditoría— ya lo habían parcheado
-    // por su cuenta; el arreglo va en el único lugar donde no hace falta repetirlo.
-    //
-    // Va junto a `timeStyle` y no como `hour`/`minute` sueltos: `dateStyle`/`timeStyle` no
-    // se pueden combinar con los componentes individuales —`Intl` lo rechaza con
-    // «Invalid option»—, pero `hour12` sí es compatible con ellos.
-    timeStyle: "short",
-    hour12: false,
-    timeZone: preferencias.zonaHoraria,
-  }).format(fecha);
+  return determinista(
+    new Intl.DateTimeFormat(preferencias.idioma, {
+      dateStyle: "short",
+      // `hour12: false` explícito, y por eso no alcanza con `timeStyle: "short"`: el ICU de
+      // algunos entornos devuelve «9:00 p. m.» para `es-AR`, que no es como se escribe una
+      // hora acá. Tres pantallas —agenda, conversaciones y auditoría— ya lo habían parcheado
+      // por su cuenta; el arreglo va en el único lugar donde no hace falta repetirlo.
+      //
+      // Va junto a `timeStyle` y no como `hour`/`minute` sueltos: `dateStyle`/`timeStyle` no
+      // se pueden combinar con los componentes individuales —`Intl` lo rechaza con
+      // «Invalid option»—, pero `hour12` sí es compatible con ellos.
+      timeStyle: "short",
+      hour12: false,
+      timeZone: preferencias.zonaHoraria,
+    }).format(fecha),
+  );
 }
 
 export function formatearFecha(
@@ -56,10 +79,12 @@ export function formatearFecha(
   if (fecha === null) {
     return "—";
   }
-  return new Intl.DateTimeFormat(preferencias.idioma, {
-    dateStyle: "short",
-    timeZone: preferencias.zonaHoraria,
-  }).format(fecha);
+  return determinista(
+    new Intl.DateTimeFormat(preferencias.idioma, {
+      dateStyle: "short",
+      timeZone: preferencias.zonaHoraria,
+    }).format(fecha),
+  );
 }
 
 /**
@@ -78,10 +103,12 @@ export function formatearNumero(
   if (!Number.isFinite(numero)) {
     return valor;
   }
-  return new Intl.NumberFormat(preferencias.idioma, {
-    minimumFractionDigits: decimales,
-    maximumFractionDigits: decimales,
-  }).format(numero);
+  return determinista(
+    new Intl.NumberFormat(preferencias.idioma, {
+      minimumFractionDigits: decimales,
+      maximumFractionDigits: decimales,
+    }).format(numero),
+  );
 }
 
 /**

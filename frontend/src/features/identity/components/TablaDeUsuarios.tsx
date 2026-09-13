@@ -373,6 +373,11 @@ export function TablaDeUsuarios({
         onInvitado={(usuario) => {
           setFilas((previas) => [...previas, usuario]);
           setInvitando(false);
+          // Same clearing `ejecutar` does before acting: without it a failure from an
+          // earlier action — «La empresa debe conservar al menos un Administrador
+          // activo», say — stays on screen next to this success, and the screen tells
+          // the Administrator two contradictory things at once (found by QA).
+          setError(null);
           setAviso(`Invitación enviada a ${usuario.email}.`);
         }}
       />

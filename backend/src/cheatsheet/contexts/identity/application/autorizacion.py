@@ -17,8 +17,16 @@ from __future__ import annotations
 from cheatsheet.contexts.identity.application.errors import PermisoDenegado
 from cheatsheet.contexts.identity.domain.valores import RolUsuario
 
+#: What the caller reads when the guard bites and the use case says nothing more precise.
+MOTIVO_POR_DEFECTO = "Solo un Administrador puede administrar los usuarios de la empresa"
 
-def exigir_administrador(rol: RolUsuario) -> None:
-    """Everything that touches somebody else's account."""
+
+def exigir_administrador(rol: RolUsuario, motivo: str = MOTIVO_POR_DEFECTO) -> None:
+    """Everything that touches somebody else's account.
+
+    `motivo` exists because this guard now protects more than the user list: the message
+    reaches the screen, and telling an Operador editing the company's fiscal data that
+    they may not "administrar los usuarios" sends them looking for the wrong problem.
+    """
     if rol is not RolUsuario.ADMINISTRADOR:
-        raise PermisoDenegado("Solo un Administrador puede administrar los usuarios de la empresa")
+        raise PermisoDenegado(motivo)
