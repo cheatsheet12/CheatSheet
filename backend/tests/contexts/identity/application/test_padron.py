@@ -142,6 +142,7 @@ async def _guardar(empresa: Empresa, padron: PadronFalso | None) -> RepositorioE
     ).ejecutar(
         empresa_id=empresa.id,
         usuario_id=USUARIO,
+        rol=RolUsuario.ADMINISTRADOR,
         razon_social="Panaderia Dona Rosa",
         cuit=CUIT(CUIT_VALIDO),
         condicion_iva=CondicionIVA.MONOTRIBUTO,
@@ -163,6 +164,7 @@ async def test_un_cuit_que_arca_desconoce_bloquea_el_guardado() -> None:
         ).ejecutar(
             empresa_id=empresa.id,
             usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
             razon_social="Panaderia Dona Rosa",
             cuit=CUIT(CUIT_VALIDO),
             condicion_iva=CondicionIVA.MONOTRIBUTO,

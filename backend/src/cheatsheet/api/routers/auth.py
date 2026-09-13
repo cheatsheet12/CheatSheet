@@ -428,6 +428,7 @@ def _rutas_autenticadas(recursos: Recursos) -> APIRouter:
             ).ejecutar(
                 empresa_id=empresa_id,
                 usuario_id=usuario_id,
+                rol=RolUsuario(request.state.rol),
                 razon_social=entrada.razon_social,
                 cuit=CUIT(entrada.cuit),
                 condicion_iva=entrada.condicion_iva,
