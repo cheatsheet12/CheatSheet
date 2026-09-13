@@ -156,3 +156,58 @@ export async function subirBinario<T>(
     clearTimeout(corte);
   }
 }
+
+/** What a binary download answers: the bytes, and how to name them. */
+export interface ArchivoDescargado {
+  readonly contenido: ArrayBuffer;
+  readonly tipo: string;
+  readonly disposicion: string;
+}
+
+/**
+ * Fetch bytes rather than JSON — the counterpart of `subirBinario`.
+ *
+ * It exists for exactly the reason that one does: `llamarApi` parses the response as JSON,
+ * and a PDF fails on its first byte. Everything else is shared with it deliberately — the
+ * bearer token, the timeout, and the error translation — because those are the three things
+ * a route that rolled its own `fetch` would get subtly wrong.
+ *
+ * **A failure is still JSON**, so it goes through `leerFalla` like every other call: on a
+ * 422 that carries the backend's own sentence, which is what the screen shows instead of an
+ * empty tab.
+ */
+export async function descargarBinario(
+  ruta: string,
+  opciones: { readonly timeoutMs?: number } = {},
+): Promise<ArchivoDescargado> {
+  const { timeoutMs = TIMEOUT_POR_DEFECTO_MS } = opciones;
+  const token = leerToken();
+  const control = new AbortController();
+  const corte = setTimeout(() => control.abort(), timeoutMs);
+
+  try {
+    const respuesta = await fetch(`${urlDelBackend()}${ruta}`, {
+      method: "GET",
+      signal: control.signal,
+      cache: "no-store",
+      headers: token !== undefined ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!respuesta.ok) {
+      const { codigo, detalle } = await leerFalla(respuesta);
+      throw new ErrorDeApi(respuesta.status, detalle, codigo);
+    }
+    return {
+      contenido: await respuesta.arrayBuffer(),
+      tipo: respuesta.headers.get("Content-Type") ?? "application/octet-stream",
+      disposicion: respuesta.headers.get("Content-Disposition") ?? "inline",
+    };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ErrorDeApi(504, `La descarga no termino en ${timeoutMs} ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(corte);
+  }
+}

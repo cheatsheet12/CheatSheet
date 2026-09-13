@@ -28,11 +28,6 @@ from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     PortRepositorioProcesamiento,
     PortRepositorioVinculo,
 )
-from cheatsheet.contexts.spreadsheet_sync.infrastructure.almacenamiento import (
-    AlmacenamientoEnMemoria,
-    AlmacenamientoR2,
-    ConfiguracionR2,
-)
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.escritura import (
     ConfiguracionDeEscritura,
     EscrituraEnGoogleSheets,
@@ -53,8 +48,8 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.repositories import (
     RepositorioProcesamientoPostgres,
     RepositorioVinculoPostgres,
 )
+from cheatsheet.platform.almacenamiento import almacenamiento as platform_almacenamiento
 from cheatsheet.platform.settings import (
-    AdaptadorDeAlmacenamiento,
     AdaptadorDeModelo,
     AdaptadorDePlanilla,
     Settings,
@@ -78,23 +73,14 @@ class Planillas:
         )
 
 
-@lru_cache(maxsize=1)
 def almacenamiento(settings: Settings) -> PortAlmacenamientoDeArchivos:
-    """The object store, built once per process.
+    """The object store, from `platform/`.
 
-    The in-memory one is cached too, and has to be: two instances would be two different
-    buckets, and a file uploaded through one would be missing from the other.
+    The factory moved there when `billing` became the second consumer: the cache has to be
+    shared, or the in-memory stand-in would be two different buckets. This wrapper stays so
+    the context keeps naming its own port, which is the type its use cases ask for.
     """
-    if settings.almacenamiento_adaptador is AdaptadorDeAlmacenamiento.R2:
-        return AlmacenamientoR2(
-            ConfiguracionR2(
-                endpoint=settings.r2_endpoint,
-                bucket=settings.r2_bucket,
-                access_key_id=settings.r2_access_key_id,
-                secret_access_key=settings.r2_secret_access_key,
-            )
-        )
-    return AlmacenamientoEnMemoria(settings.entorno)
+    return platform_almacenamiento(settings)
 
 
 @lru_cache(maxsize=1)

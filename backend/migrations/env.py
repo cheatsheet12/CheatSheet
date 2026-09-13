@@ -19,6 +19,12 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
+from cheatsheet.contexts.billing.infrastructure import (  # noqa: F401
+    models as _billing_models,
+)
+from cheatsheet.contexts.billing.infrastructure import (  # noqa: F401
+    models_comprobante as _billing_comprobante_models,
+)
 
 # Imported for their side effect: registering their tables on Base.metadata.
 from cheatsheet.contexts.identity.infrastructure import (
@@ -29,6 +35,9 @@ from cheatsheet.contexts.master_data.infrastructure import (
 )
 from cheatsheet.contexts.observability.infrastructure import (
     models as _observability_models,  # noqa: F401
+)
+from cheatsheet.contexts.reference_data.infrastructure import (  # noqa: F401
+    models as _reference_data_models,
 )
 from cheatsheet.platform.database import Base, argumentos_de_conexion
 from sqlalchemy.engine import Connection

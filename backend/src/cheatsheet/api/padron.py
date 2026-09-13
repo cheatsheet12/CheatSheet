@@ -14,7 +14,15 @@ from __future__ import annotations
 from datetime import timedelta
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
+from cheatsheet.contexts.billing.application.ports import (
+    PortDatosDelEmisor,
+    PortValidacionDeReceptor,
+)
+from cheatsheet.contexts.billing.infrastructure.emisor import EmisorViaIdentity
+from cheatsheet.contexts.billing.infrastructure.receptor import ReceptorViaPadron
+from cheatsheet.contexts.identity.application.empresa import ConsultarDatosFiscales
 from cheatsheet.contexts.identity.application.ports import PortPadron
+from cheatsheet.contexts.identity.infrastructure.ensamblado import Identidad
 from cheatsheet.contexts.identity.infrastructure.padron import PadronViaIntegraciones
 from cheatsheet.contexts.integrations.application.padron import ConsultarPadron
 from cheatsheet.contexts.integrations.application.tickets import ObtenerTicketDeAcceso
@@ -63,3 +71,25 @@ def armar_padron_de_clientes(unidad: UnidadDeTrabajo, settings: Settings) -> Por
     have and rule R3 would block.
     """
     return PadronDeClientesViaIntegraciones(_consultar_padron(unidad, settings))
+
+
+def armar_receptor(unidad: UnidadDeTrabajo, settings: Settings) -> PortValidacionDeReceptor:
+    """The same registry as `billing` sees it (HU-E5-03 RN-02).
+
+    The third anti-corruption layer over one operation, and the one with the most at stake:
+    a deregistered CUIT is a receptor ARCA will not accept, which the other two consumers
+    do not care about and this one has to block on.
+    """
+    return ReceptorViaPadron(_consultar_padron(unidad, settings))
+
+
+def armar_emisor(unidad: UnidadDeTrabajo, settings: Settings) -> PortDatosDelEmisor:
+    """Who is issuing, as `billing` sees it.
+
+    Not about the padrón at all, and it lives here anyway for the same structural reason:
+    it wires two contexts, `billing` and `identity`, and the composition root is the only
+    layer allowed to (R3). Splitting it into its own module would be a second file with the
+    same one-line justification.
+    """
+    piezas = Identidad.armar(unidad, settings)
+    return EmisorViaIdentity(ConsultarDatosFiscales(piezas.empresas))

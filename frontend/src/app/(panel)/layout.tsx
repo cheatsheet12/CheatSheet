@@ -60,6 +60,8 @@ export default async function PanelLayout({
           <Link href="/datos-maestros/clientes">Clientes</Link>
           <Link href="/datos-maestros/servicios">Servicios</Link>
           <Link href="/datos-maestros/categorias">Categorias</Link>
+          <Link href="/facturacion">Facturacion</Link>
+          <Link href="/facturacion/puntos-de-venta">Puntos de venta</Link>
           <Link href="/configuracion/empresa">Empresa</Link>
           <Link href="/configuracion/usuarios">Usuarios</Link>
           <Link href="/configuracion/integraciones">Integraciones</Link>

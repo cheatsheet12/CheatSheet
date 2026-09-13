@@ -1,4 +1,10 @@
-"""Where an uploaded workbook's bytes live — Cloudflare R2, and its stand-in.
+"""Cloudflare R2, and its stand-in. Where bytes live.
+
+Started in `spreadsheet_sync` for uploaded workbooks and promoted here when `billing` had
+to store a document's PDF: object storage is platform infrastructure (`docs/architecture.md`
+§2, row 12), and rule R3 forbids one context reaching into another's `infrastructure/`. It
+is the same move `soap.py` and `wsfe.py` already made in this epic, and for the same
+reason — the alternative was a second copy of one adapter.
 
 Two adapters, the same shape the epic 2 integrations already use: a real one and a
 simulated one that is **rejected in production**. The reason is the same too — a company
@@ -20,12 +26,55 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from functools import lru_cache
 
-from cheatsheet.contexts.spreadsheet_sync.application.ports import ArchivoGuardado
-from cheatsheet.platform.settings import Entorno
+from cheatsheet.platform.settings import AdaptadorDeAlmacenamiento, Entorno, Settings
 from cheatsheet.platform.telemetry import obtener_logger
 
 logger = obtener_logger(__name__)
+
+
+class AlmacenamientoNoDisponible(RuntimeError):
+    """The object store could not be reached, or refused. Distinct from "not there".
+
+    The distinction is the whole reason this exception exists: a missing key is a
+    `FileNotFoundError` and often an ordinary outcome, while this one means the store
+    itself is unhappy. Collapsing them would make an outage look like an empty bucket.
+    """
+
+
+#: The codes S3 and R2 use for a key that is not there. Two, because `get_object` answers
+#: `NoSuchKey` and a `head`-style probe answers `404`.
+_CODIGOS_DE_INEXISTENTE = frozenset({"NoSuchKey", "404", "NoSuchBucket"})
+
+
+def _es_inexistente(error: Exception) -> bool:
+    """Whether a `botocore` error means "that key is not there".
+
+    Read out of the response dict rather than by importing `botocore.exceptions`: this
+    module keeps `boto3` a lazy dependency, and an `except` clause naming a class from it
+    would drag the import back to module scope -- which is precisely what the constructor
+    below goes out of its way to avoid.
+    """
+    respuesta = getattr(error, "response", None)
+    if not isinstance(respuesta, dict):
+        return False
+    codigo = str(respuesta.get("Error", {}).get("Code", ""))
+    return codigo in _CODIGOS_DE_INEXISTENTE
+
+
+@dataclass(frozen=True, slots=True)
+class ArchivoGuardado:
+    """The result of putting bytes in the object store.
+
+    **The ports it satisfies live in the consuming contexts**, not here, which is what
+    hexagonal asks for: a port is the consumer's contract. `spreadsheet_sync` and `billing`
+    each declare one, they happen to have the same three operations, and this adapter
+    structurally satisfies both without either importing the other.
+    """
+
+    clave: str
+    tamano_bytes: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +122,13 @@ class AlmacenamientoR2:
             # R2 ignores the region but the S3 client insists on one being present.
             region_name="auto",
         )
+        # Captured at construction, where `boto3` is already imported, so `leer` can name
+        # the exception it catches without an `except Exception` -- which `CLAUDE.md` §5
+        # forbids -- and without dragging `botocore` up to module scope.
+        self._errores_del_cliente: tuple[type[Exception], ...] = (
+            self._cliente.exceptions.ClientError,
+            OSError,
+        )
 
     async def guardar(
         self, *, clave: str, contenido: bytes, tipo_de_contenido: str
@@ -89,10 +145,24 @@ class AlmacenamientoR2:
         return ArchivoGuardado(clave=clave, tamano_bytes=len(contenido))
 
     async def leer(self, clave: str) -> bytes:
-        respuesta = await asyncio.to_thread(
-            self._cliente.get_object, Bucket=self._bucket, Key=clave
-        )
-        cuerpo: bytes = await asyncio.to_thread(respuesta["Body"].read)
+        """Raises `FileNotFoundError` for a missing key, `AlmacenamientoNoDisponible` for
+        anything else.
+
+        Translated here rather than left to leak, and the reason is a caller: `billing`
+        caches a document's PDF in this store, and for it **both mean the same thing** --
+        we do not have the bytes, so render them again. Letting `botocore.ClientError`
+        through would force that caller into an `except Exception`, which `CLAUDE.md` §5
+        forbids and which would also swallow real bugs.
+        """
+        try:
+            respuesta = await asyncio.to_thread(
+                self._cliente.get_object, Bucket=self._bucket, Key=clave
+            )
+            cuerpo: bytes = await asyncio.to_thread(respuesta["Body"].read)
+        except self._errores_del_cliente as exc:
+            if _es_inexistente(exc):
+                raise FileNotFoundError(clave) from exc
+            raise AlmacenamientoNoDisponible(f"No se pudo leer {clave}: {exc}") from exc
         return cuerpo
 
     async def eliminar(self, clave: str) -> None:
@@ -129,3 +199,24 @@ class AlmacenamientoEnMemoria:
 
     async def eliminar(self, clave: str) -> None:
         self.archivos.pop(clave, None)
+
+
+@lru_cache(maxsize=1)
+def almacenamiento(settings: Settings) -> AlmacenamientoR2 | AlmacenamientoEnMemoria:
+    """The object store, built once per process.
+
+    The in-memory one is cached too, and **has to be**: two instances would be two different
+    buckets, and a file written through one would be missing from the other. That matters
+    more now than when this lived in `spreadsheet_sync`, because there are two consumers --
+    a workbook and a document's PDF share the store, and they must share the same one.
+    """
+    if settings.almacenamiento_adaptador is AdaptadorDeAlmacenamiento.R2:
+        return AlmacenamientoR2(
+            ConfiguracionR2(
+                endpoint=settings.r2_endpoint,
+                bucket=settings.r2_bucket,
+                access_key_id=settings.r2_access_key_id,
+                secret_access_key=settings.r2_secret_access_key,
+            )
+        )
+    return AlmacenamientoEnMemoria(settings.entorno)

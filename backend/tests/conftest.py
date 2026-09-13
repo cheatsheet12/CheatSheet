@@ -25,6 +25,7 @@ from cheatsheet.platform.settings import (
     MODELO_POR_DEFECTO,
     AdaptadorDeAlmacenamiento,
     AdaptadorDeArca,
+    AdaptadorDeCatalogos,
     AdaptadorDeEmail,
     AdaptadorDeMercadoPago,
     AdaptadorDeModelo,
@@ -150,6 +151,12 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         llm_timeout_segundos=1.0,
         llm_max_tokens=1024,
         sync_planillas_minutos=60,
+        # The simulator and hosts that do not resolve: a test that ever reached WSFEv1
+        # would fail loudly instead of quietly asking ARCA for a catalogue.
+        catalogos_fiscales_adaptador=AdaptadorDeCatalogos.SIMULADO,
+        arca_wsfe_url_homologacion="https://wsfehomo.invalid/wsfev1/service.asmx",
+        arca_wsfe_url_produccion="https://wsfe.invalid/wsfev1/service.asmx",
+        parametros_fiscales_horas=24,
         dlq_max_intentos=DLQ_MAX_INTENTOS_POR_DEFECTO,
     )
 

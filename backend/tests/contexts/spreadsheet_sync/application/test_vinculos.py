@@ -31,11 +31,11 @@ from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
     ProveedorPlanilla,
 )
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
-from cheatsheet.contexts.spreadsheet_sync.infrastructure.almacenamiento import (
-    AlmacenamientoEnMemoria,
-)
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.google_sheets import (
     ProveedorDePlanillaSimulado,
+)
+from cheatsheet.platform.almacenamiento import (
+    AlmacenamientoEnMemoria,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
