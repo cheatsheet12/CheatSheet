@@ -20,7 +20,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Conexión con los servicios externos | conexion-mercadopago | integrations | HU-E2-02 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-mercadopago | mergeada |
 | Catálogo de clientes y servicios | catalogo-de-clientes | master_data | HU-E4-01 | — | Cristian | feature/master_data-catalogo-de-clientes | mergeada |
 | Catálogo de clientes y servicios | catalogo-de-servicios | master_data | HU-E4-02 | catalogo-de-clientes | Cristian | feature/master_data-catalogo-de-servicios | mergeada |
-| Catálogo de clientes y servicios | categorias-y-clasificacion | master_data | HU-E4-03, HU-E4-04 | catalogo-de-clientes, catalogo-de-servicios | Cristian | feature/master_data-categorias-y-clasificacion | en revisión |
+| Catálogo de clientes y servicios | categorias-y-clasificacion | master_data | HU-E4-03, HU-E4-04 | catalogo-de-clientes, catalogo-de-servicios | Cristian | feature/master_data-categorias-y-clasificacion | mergeada |
 
 
 ---
@@ -401,7 +401,22 @@ cada unidad las encare en vez de tropezarlas:
 
 - `catalogo-de-clientes` — mergeada el 2026-09-01, [#23](https://github.com/cheatsheet12/CheatSheet/pull/23).
 - `catalogo-de-servicios` — mergeada el 2026-09-01, [#25](https://github.com/cheatsheet12/CheatSheet/pull/25).
-- `categorias-y-clasificacion` — en revisión.
+- `categorias-y-clasificacion` — mergeada el 2026-09-01, [#26](https://github.com/cheatsheet12/CheatSheet/pull/26).
+
+**Épico cerrado.** Las cuatro historias (HU-E4-01 … HU-E4-04) y las tres pantallas
+(PAN-DM-01, PAN-DM-02, PAN-DM-03) están en `develop`. El criterio de demo del roadmap §1 —«ABM
+completo de clientes (con CUIT validado contra ARCA) y de servicios (precio, IVA, agendable),
+clasificados por categorías propias de la empresa»— se cumple, con una salvedad heredada del épico
+2: el padrón de ARCA corre contra su adaptador simulado hasta que existan las credenciales de
+homologación ([`TODO.md`](TODO.md) §5).
+
+**La última fila de un épico necesita su propio PR, siempre.** El paso `en revisión` → `mergeada` no
+puede ocurrir dentro del PR de la unidad, porque el merge pasa después; y a diferencia de las dos
+anteriores, esta no tiene una unidad siguiente que se la lleve de paso. Pasó tres veces en este
+épico y las tres se resolvieron distinto: [#24](https://github.com/cheatsheet12/CheatSheet/pull/24)
+con un PR aparte —que chocó con #25—, la de servicios dentro del PR de la unidad que seguía, y esta
+con un PR de cierre. **Para el épico 4: llevar la fila de la unidad anterior en el PR de la
+siguiente, y cerrar la última con un PR propio.**
 
 **Las dos filas de estado se mueven en el PR de la unidad que sigue, y no en uno propio.** El
 épico ya pagó una vez el precio de hacerlo aparte: [#24](https://github.com/cheatsheet12/CheatSheet/pull/24)

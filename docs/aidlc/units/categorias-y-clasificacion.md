@@ -250,7 +250,7 @@ test de integración por ese camino exacto.
 |---|---|---|
 | 1 · Plan | 2026-09-01 | aprobado |
 | 2 · Verificación | 2026-09-01 | aprobada — 798 tests, 89.99 % de cobertura |
-| 3 · PR | 2026-09-01 | [#26](https://github.com/cheatsheet12/CheatSheet/pull/26) abierto a `develop` |
+| 3 · PR | 2026-09-01 | [#26](https://github.com/cheatsheet12/CheatSheet/pull/26) **mergeado** a `develop` — cierra el épico 3 |
 
 ## Verificación — Gate 2 (2026-09-01)
 
