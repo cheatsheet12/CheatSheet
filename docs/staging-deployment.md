@@ -109,7 +109,7 @@ Deploy will fail until `APP_BASE_URL` exists. That is expected; continue.
 | --- | --- |
 | `NODE_VERSION` | `22` — what `package.json` `engines` and CI both pin |
 | `APP_BASE_URL` | This service's own public URL, filled in at §5. The panel builds the Google OAuth redirect from it and silently falls back to `http://localhost:3000`, which sends the user to their own machine instead of failing |
-| `BACKEND_API_URL` | The API's **Internal Address**, copied from `cheatsheet-api` → Settings in the dashboard. It looks like `http://cheatsheet-api:10000` — **copy it, do not guess the port**: Render assigns `PORT` and the container binds to whatever it is given. Internal on purpose: the browser never talks to the API, only this app's own BFF route handlers do, so the traffic has no reason to leave Render. The public `https://…onrender.com` URL also works and is the fallback if the internal one is refused |
+| `BACKEND_API_URL` | The API's **public** URL, `https://cheatsheet-api-XXXX.onrender.com`, no trailing slash. The internal address was the first recommendation and **did not work on the free plan**: the panel could not reach the API through it (2026-09-14). The likely reason is that free instances do not receive private-network traffic; the public URL works regardless. Revisit the internal address only on a paid instance, and prove it with the check in §7 |
 
 ---
 
@@ -172,15 +172,38 @@ before any deploy hook is called, leaving the previous version serving.
 ## 7. Verify
 
 ```bash
+# 1. The API and its two dependencies.
 curl -i https://<api>.onrender.com/health      # 200, estado "ok", base y redis en true
+
+# 2. The panel reaches the API. /health says nothing about this.
+curl -s -o /dev/null -D - https://<panel>.onrender.com/api/auth/google | grep -i '^location'
+#    .../api/auth/google/callback?...&simulado=1   <- the round trip works
+#    https://<panel>.onrender.com/?error=ErrorInterno   <- the panel cannot reach the API
 ```
+
+Why this route and not another: most BFF routes answer on their own when there is no session.
+`/api/auth/empresa`, for instance, returns `401 NoAutenticado` **before** calling the API
+(`app/api/auth/empresa/route.ts`), so a 401 there proves only that Next.js is running — it looks
+exactly like success while the panel cannot reach the API at all. `/api/auth/google` needs no
+session and always calls the API (`/auth/google/url`), so its answer is the only unauthenticated
+one that proves the round trip. Two signals in its `Location` header:
+
+- **The host** comes from the panel's `APP_BASE_URL` (on error) or from the API's (on success). If it
+  names the API's domain, the two variables were swapped.
+- **`?error=ErrorInterno`** means the fetch itself failed — `BACKEND_API_URL` unset, wrong, or the API
+  asleep for longer than the BFF's 10-second timeout. An `?error=<Codigo>` with any other code means
+  the API was reached and refused.
+
+Run check 1 first and wait for its 200: both free services sleep after inactivity, the API took
+~38 s to wake on 2026-09-14, and the BFF gives up after 10 s. Check 2 against a sleeping API reports
+`ErrorInterno` for a reason that has nothing to do with configuration.
 
 Then, in a browser: open the panel, register a company, complete the onboarding, and open
 **Configuración → Integraciones**. The four cards should render and **Verificar** should work. That
 is the environment existing.
 
 To confirm the pipeline rather than the environment, push a trivial commit to `develop` and watch
-the **Deploy to staging** job of the CI run migrate, verify and release after the other eight jobs
+the **Deploy to staging** job of the CI run migrate, verify and release after the other seven push-time jobs
 go green.
 
 ---
@@ -216,7 +239,8 @@ go green.
 | The deploy workflow never runs | It waits for CI. A red CI means no deploy, by design. Check **Actions → CI** first |
 | The workflow runs but `/health` never returns 200 | The deploy hook only *requests* a deploy. Look at the service's log in Render: the failure is there, not in Actions |
 | `/health` returns 503 with `redis: false` | The Key Value instance is in another region, or the external connection string was used instead of the internal one. §2 |
-| The panel loads but every action fails | `BACKEND_API_URL` is wrong, or points at the public URL of a suspended service. §4 |
+| The panel loads but every action fails, or login redirects to `?error=ErrorInterno` | The BFF cannot reach the API: `BACKEND_API_URL` unset or wrong (use the public URL, §4), or the API was asleep past the BFF's 10 s timeout — wake it with `/health` and retry. §7 check 2 tells the two apart |
+| An error redirect lands on the API's domain instead of the panel's | The panel's `APP_BASE_URL` holds the API's URL: the two variables were swapped. §4 and §5 |
 | MercadoPago returns `invalid_grant` on the first connection attempt | `APP_BASE_URL` does not match the `redirect_uri` registered in the MercadoPago application, character for character. §5 |
 | The first request after a quiet period takes ~30 s | The free plan suspends idle services and Neon suspends idle compute. Both are waking. Not a fault |
 | A migration failed and the services still serve the old version | That is the design: the job aborts before the deploy hooks. Fix the migration and push again |

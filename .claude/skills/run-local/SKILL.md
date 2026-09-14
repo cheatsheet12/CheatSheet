@@ -140,14 +140,30 @@ curl -s localhost:8000/health
 curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/     # 200
 
 # 3. The panel reaches the API. This is the one people forget.
-curl -s -i localhost:3000/api/auth/empresa | head -1
-#    HTTP/1.1 401 Unauthorized   <- CORRECT with no session: the BFF got a real answer
-#    A 500 or a fetch error means BACKEND_API_URL is wrong.
+curl -s -o /dev/null -D - localhost:3000/api/auth/google | grep -i '^location'
+#    location: http://localhost:3000/api/auth/google/callback?state=...&simulado=1  <- reached
+#    location: http://localhost:3000/?error=ErrorInterno   <- the panel could NOT reach the API
 ```
 
 Check 3 matters because the browser never talks to the API — only the panel's BFF route
 handlers do, which is why the API ships no CORS middleware (`api/main.py` says so). A
 green `/health` says nothing about whether the panel can reach it.
+
+Why this route and not another: most BFF routes answer on their own when there is no session.
+`/api/auth/empresa`, for instance, returns `401 NoAutenticado` **before** calling the API
+(`app/api/auth/empresa/route.ts`), so a 401 there proves only that Next.js is running — it looks
+exactly like success while the panel cannot reach the API at all. `/api/auth/google` needs no
+session and always calls the API (`/auth/google/url`), so its answer is the only unauthenticated
+one that proves the round trip. Two signals in its `Location` header:
+
+- **The host** comes from the panel's `APP_BASE_URL` (on error) or from the API's (on success). If it
+  names the API's domain, the two variables were swapped.
+- **`?error=ErrorInterno`** means the fetch itself failed — `BACKEND_API_URL` unset, wrong, or the API
+  asleep for longer than the BFF's 10-second timeout. An `?error=<Codigo>` with any other code means
+  the API was reached and refused.
+
+An earlier version of this skill used `/api/auth/empresa` and read its 401 as proof. It was wrong,
+and it reported a healthy staging panel that could not log anyone in (2026-09-14).
 
 Before trusting a run against Neon, `python backend/scripts/verify_rls.py` answers in one
 command whether both URLs work, the migrations are applied and one company cannot read

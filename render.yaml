@@ -93,8 +93,9 @@ services:
       - key: NODE_VERSION
         value: "22" # package.json engines and CI both say 22
       # The BFF's address for the API. Deliberately not NEXT_PUBLIC_: the browser
-      # never talks to the API, only this app's own route handlers do. Point it at
-      # the API's INTERNAL Render URL so the traffic never leaves the platform.
+      # never talks to the API, only this app's own route handlers do. Use the API's
+      # PUBLIC URL: the internal address did not work on the free plan (2026-09-14).
+      # Prove it with check 2 of docs/staging-deployment.md §7, not with /health.
       - key: BACKEND_API_URL
         sync: false
       # This service's OWN public URL. `app/api/auth/google/route.ts` builds the
