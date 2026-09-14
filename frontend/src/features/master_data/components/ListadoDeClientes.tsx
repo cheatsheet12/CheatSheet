@@ -26,6 +26,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Badge, Button, Campo, Modal, Select, Tabla } from "@/shared";
@@ -60,6 +61,29 @@ export interface PropsDeListado {
 
 /** What the form is doing right now. `null` means it is closed. */
 type Edicion = { readonly cliente: Cliente | undefined } | null;
+
+/**
+ * Las tres pantallas que sólo se pueden abrir con un cliente ya elegido.
+ *
+ * `/facturacion/nueva`, `/cobros/nuevo` y `/agenda/nuevo` leen `?cliente=` y, si no está,
+ * responden «Elegí primero a quién…  Ir a Clientes». Hasta que estos enlaces existieron,
+ * Clientes no tenía forma de volver: la fila no llevaba ningún enlace y los únicos accesos a
+ * esas rutas eran los CTA de sus propios listados, que no pasan el parámetro. El resultado
+ * era que emitir, cobrar y agendar **no se podían hacer desde la interfaz** — había que
+ * escribir el id en la barra de direcciones. Encontrado en QA el 2026-09-13.
+ *
+ * Van sólo en las filas activas: un cliente dado de baja salió del catálogo, y ofrecerle
+ * «Facturar» sería ofrecer algo que el catálogo ya decidió que no está disponible.
+ *
+ * El rol se controla con el mismo `puedeEditar` que gobierna Editar y Desactivar, porque las
+ * tres pantallas destino exigen ADMINISTRADOR u OPERADOR y redirigen a cualquier otro: un
+ * enlace visible para quien va a rebotar es peor que no tenerlo.
+ */
+const DESTINOS = [
+  { etiqueta: "Facturar", ruta: "/facturacion/nueva" },
+  { etiqueta: "Cobrar", ruta: "/cobros/nuevo" },
+  { etiqueta: "Agendar", ruta: "/agenda/nuevo" },
+] as const;
 
 export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX.Element {
   const [listado, setListado] = useState<Listado>(inicial);
@@ -225,6 +249,16 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
       celda: (fila) =>
         puedeEditar ? (
           <span className="tabla__acciones">
+            {fila.activo &&
+              DESTINOS.map(({ etiqueta, ruta }) => (
+                <Link
+                  key={ruta}
+                  className="mae-accion"
+                  href={`${ruta}?cliente=${encodeURIComponent(fila.id)}`}
+                >
+                  {etiqueta}
+                </Link>
+              ))}
             <button type="button" className="mae-accion" onClick={() => void abrirEdicion(fila)}>
               Editar
             </button>

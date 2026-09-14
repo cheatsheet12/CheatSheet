@@ -124,6 +124,48 @@ describe("ListadoDeClientes", () => {
     expect(screen.queryByRole("button", { name: "Desactivar" })).toBeNull();
   });
 
+  it("cada fila activa lleva al cliente a facturar, cobrar y agendar", () => {
+    // Las tres pantallas destino no abren sin `?cliente=`: sin estos enlaces, emitir, cobrar
+    // y agendar no se podían hacer desde la interfaz. El assert es sobre el href porque el
+    // parámetro **es** el arreglo; un enlace a la ruta pelada dejaría el mismo callejón.
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    const esperados: ReadonlyArray<readonly [string, string]> = [
+      ["Facturar", "/facturacion/nueva"],
+      ["Cobrar", "/cobros/nuevo"],
+      ["Agendar", "/agenda/nuevo"],
+    ];
+    for (const [etiqueta, ruta] of esperados) {
+      const enlace = screen.getByRole("link", { name: etiqueta });
+      expect(enlace.getAttribute("href")).toBe(`${ruta}?cliente=${ROSA.id}`);
+    }
+  });
+
+  it("un cliente inactivo no se ofrece para facturar, cobrar ni agendar", () => {
+    // Salió del catálogo: ofrecerle esas tres acciones sería ofrecer algo que el propio
+    // catálogo ya decidió que no está disponible.
+    render(
+      <ListadoDeClientes
+        inicial={{ clientes: [{ ...ROSA, activo: false }], total: 1 }}
+        puedeEditar
+      />,
+    );
+
+    for (const etiqueta of ["Facturar", "Cobrar", "Agendar"]) {
+      expect(screen.queryByRole("link", { name: etiqueta })).toBeNull();
+    }
+  });
+
+  it("quien no puede escribir tampoco ve los enlaces de facturar, cobrar y agendar", () => {
+    // Las tres pantallas exigen ADMINISTRADOR u OPERADOR y redirigen al resto: un enlace
+    // visible para quien va a rebotar es peor que no tenerlo.
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar={false} />);
+
+    for (const etiqueta of ["Facturar", "Cobrar", "Agendar"]) {
+      expect(screen.queryByRole("link", { name: etiqueta })).toBeNull();
+    }
+  });
+
   it("un cliente inactivo se ofrece para reactivar, nunca para borrar", () => {
     const inactivo: Cliente = { ...ROSA, activo: false };
 

@@ -362,6 +362,9 @@
   font-size: 12.5px;
   font-weight: 600;
   color: var(--ink-600);
+  /* La clase la comparten `button` y `a`: sin esto los enlaces de fila salen subrayados y
+     dejan de parecerse a las acciones que tienen al lado. */
+  text-decoration: none;
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius);
