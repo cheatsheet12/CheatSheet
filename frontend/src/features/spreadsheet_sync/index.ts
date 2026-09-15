@@ -30,6 +30,7 @@ export {
   corregirMapeo,
   csvDeErrores,
   desvincularPlanilla,
+  identificadorDePlanilla,
   iniciarVinculacionConGoogle,
   listarCargas,
   listarPlanillas,

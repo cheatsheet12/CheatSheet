@@ -33,7 +33,26 @@ export async function reenviarAlBackend(
     });
     return NextResponse.json(datos ?? {});
   } catch (error) {
-    return respuestaDeError(error instanceof ErrorDeApi ? error : null);
+    if (!(error instanceof ErrorDeApi)) {
+      return respuestaDeError(null);
+    }
+    // **Un 409 de una operación de negocio sí lleva su mensaje al navegador**, y por eso
+    // no se delega en `respuestaDeError`, que sólo reenvía el detalle de un 422.
+    //
+    // Esa regla es correcta para las rutas de `auth`, que la usan directo: el detalle de
+    // un 409 de registro nombra el email, y reenviarlo convierte la pantalla de alta en un
+    // oráculo que dice qué cuentas existen. Acá no hay nada que enumerar — la sesión ya
+    // está verificada, y los 409 que llegan son estados del negocio escritos para quien
+    // los va a leer: «Este mapeo ya fue confirmado: para cambiarlo hay que revisarlo de
+    // nuevo», «Ese procesamiento todavia esta en curso».
+    //
+    // Sin esto la pantalla imprime el nombre de la clase de la excepción, que es la única
+    // audiencia para la que ese texto seguro no fue escrito. Cierra `TODO.md` §10 para las
+    // rutas de negocio; `ClienteDuplicado` recupera su mensaje sin dejar de ser un 409.
+    if (error.status === 409) {
+      return NextResponse.json({ error: error.codigo, detalle: error.detalle }, { status: 409 });
+    }
+    return respuestaDeError(error);
   }
 }
 

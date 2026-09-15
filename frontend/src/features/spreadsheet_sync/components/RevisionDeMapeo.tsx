@@ -22,6 +22,7 @@
 
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Alert, Button, Card, Select, Stepper, Tabla } from "@/shared";
@@ -34,12 +35,15 @@ import {
   MENSAJE_FALTAN_OBLIGATORIAS,
   confirmarMapeo,
   corregirMapeo,
+  procesarPlanilla,
 } from "../api/planilla";
 import type { EntradaDeMapeo, Mapeo, NivelDeConfianza } from "../api/planilla";
 import { Icono } from "./iconos";
 
 export interface PropsDeRevision {
   readonly inicial: Mapeo;
+  /** El vínculo que se está revisando. Hace falta para poder procesarlo desde acá. */
+  readonly vinculoId: string;
   readonly puedeEditar: boolean;
   readonly onConfirmado?: (mapeo: Mapeo) => void;
 }
@@ -86,9 +90,11 @@ function ordinal(indice: number): string {
 
 export function RevisionDeMapeo({
   inicial,
+  vinculoId,
   puedeEditar,
   onConfirmado,
 }: PropsDeRevision): JSX.Element {
+  const router = useRouter();
   const [mapeo, setMapeo] = useState<Mapeo>(inicial);
   const [error, setError] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
@@ -111,6 +117,30 @@ export function RevisionDeMapeo({
     }
   }
 
+  /**
+   * El paso 3 del propio stepper de esta pantalla.
+   *
+   * Sin esto, «El mapeo quedo confirmado. Ya podes procesar la planilla» era una
+   * instrucción sin destino: había que volver a Ingesta y buscar la fila. Una pantalla que
+   * dice qué sigue tiene que ofrecer qué sigue.
+   *
+   * Procesar contesta 202 y el trabajo lo hace un worker, así que lo honesto después de
+   * encolarlo es llevar a donde se ve el resultado — `Cargas recientes` — y no quedarse acá
+   * mirando un mapeo que ya no es la pregunta.
+   */
+  async function procesar(): Promise<void> {
+    setError(null);
+    setTrabajando(true);
+    try {
+      await procesarPlanilla(vinculoId);
+      router.push("/ingesta");
+      router.refresh();
+    } catch (problema) {
+      reportar(problema);
+      setTrabajando(false);
+    }
+  }
+
   async function confirmar(): Promise<void> {
     setError(null);
     setTrabajando(true);
@@ -124,6 +154,10 @@ export function RevisionDeMapeo({
       setTrabajando(false);
     }
   }
+
+  // Se calcula acá arriba y no junto a los contadores porque ahora decide también si la
+  // celda de destino es un control o un texto.
+  const validado = mapeo.estado === "VALIDADO";
 
   const columnas: readonly Columna<EntradaDeMapeo>[] = [
     {
@@ -146,7 +180,11 @@ export function RevisionDeMapeo({
           <span className="ing-map-flecha" aria-hidden="true">
             →
           </span>
-          {puedeEditar ? (
+          {/* Confirmado, el destino deja de ser un control. El dominio ya rechaza corregir
+              un mapeo validado —«para cambiarlo hay que revisarlo de nuevo»—, así que dejar
+              el `select` habilitado es ofrecer una acción que sólo puede terminar en un
+              error. Lo que se ve es lo que se puede hacer. */}
+          {puedeEditar && !validado ? (
             <Select
               id={`mapeo-${entrada.columna_origen}`}
               // La cabecera de la columna ya dice «Campo del sistema», pero un control cuyo
@@ -190,7 +228,6 @@ export function RevisionDeMapeo({
     },
   ];
 
-  const validado = mapeo.estado === "VALIDADO";
   const asignadas = mapeo.entradas.filter((entrada) => entrada.atributo_destino !== null).length;
   const sinAsignar = mapeo.entradas.length - asignadas;
 
@@ -220,9 +257,17 @@ export function RevisionDeMapeo({
         )}
       </div>
 
-      {!mapeo.propuesto_por_el_modelo && (
-        // «No pudimos proponerlo» y «ya lo teníamos» son cosas distintas para alguien
-        // mirando una tabla llena de «Sin asignar», y la diferencia se dice.
+      {/* «No pudimos proponerlo» y «ya lo teníamos» son cosas distintas para alguien
+          mirando una tabla llena de «Sin asignar», y la diferencia se dice. Hasta que
+          `reutilizado` existió, las dos mostraban el mismo cartel de error. */}
+      {mapeo.reutilizado === true && (
+        <Alert tono="neutral">
+          Ya habías mapeado una planilla con estas mismas columnas, así que reusamos ese mapeo en
+          vez de volver a analizarla. Podés cambiar lo que quieras antes de confirmar.
+        </Alert>
+      )}
+
+      {!mapeo.propuesto_por_el_modelo && mapeo.reutilizado !== true && (
         <Alert tono="advertencia">
           No pudimos proponerte un mapeo automatico esta vez. Asigná las columnas a mano; el sistema
           lo va a recordar para las proximas sincronizaciones.
@@ -238,6 +283,20 @@ export function RevisionDeMapeo({
 
       {validado && (
         <Alert tono="exito">El mapeo quedo confirmado. Ya podes procesar la planilla.</Alert>
+      )}
+
+      {validado && puedeEditar && (
+        <div className="ing-acciones">
+          <Button
+            cargando={trabajando}
+            disabled={trabajando}
+            onClick={() => {
+              void procesar();
+            }}
+          >
+            Procesar la planilla
+          </Button>
+        </div>
       )}
 
       <Card>

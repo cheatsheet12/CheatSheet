@@ -179,6 +179,13 @@ class RepositorioMapeoPostgres:
                 updated_at=mapeo.updated_at,
             )
         )
+        # **Dos flushes, y el orden importa.** `entrada_de_mapeo.mapeo_id` es una FK, pero
+        # las dos clases ORM no declaran un `relationship()` entre sí, así que la unidad de
+        # trabajo de SQLAlchemy no conoce la dependencia y ordena los INSERT por mapper.
+        # Con un solo flush las entradas salen primero y PostgreSQL rechaza el lote entero
+        # con `ForeignKeyViolationError`. Flushear el padre antes es la garantía; ordenar
+        # por casualidad no lo es.
+        await self._sesion.flush()
         self._agregar_entradas(mapeo)
         await self._sesion.flush()
 

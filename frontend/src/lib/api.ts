@@ -41,6 +41,13 @@ export interface OpcionesDeLlamada {
   readonly timeoutMs?: number;
   /** Off by default: a panel showing invoices must not serve a cached page. */
   readonly cache?: RequestCache;
+  /**
+   * Cabeceras extra para el backend. Existe por un solo caso y conviene que siga así: el
+   * `state` del ida y vuelta con Google viaja en una cookie que el backend vuelve a
+   * verificar, y el BFF es el único que la ve. Sin esto, ese guarda no se puede satisfacer
+   * desde el panel — que es el único camino, porque el navegador nunca habla con la API.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 function urlDelBackend(): string {
@@ -65,6 +72,7 @@ export async function llamarApi<T>(ruta: string, opciones: OpcionesDeLlamada = {
       headers: {
         "Content-Type": "application/json",
         ...(token !== undefined ? { Authorization: `Bearer ${token}` } : {}),
+        ...(opciones.headers ?? {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });

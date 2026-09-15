@@ -22,7 +22,7 @@
 
 import { useRef, useState } from "react";
 
-import { Alert, Badge, Button, Card, Tabla, formatearFechaHora } from "@/shared";
+import { Alert, Badge, Button, Campo, Card, Modal, Tabla, formatearFechaHora } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import Link from "next/link";
@@ -36,6 +36,7 @@ import {
   ErrorDePlanilla,
   LIMITE_TAMANO_MB,
   desvincularPlanilla,
+  identificadorDePlanilla,
   iniciarVinculacionConGoogle,
   listarCargas,
   listarPlanillas,
@@ -162,6 +163,9 @@ export function IngestaDePlanillas({
   const [aviso, setAviso] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
+  const [pidiendoEnlace, setPidiendoEnlace] = useState(false);
+  const [enlace, setEnlace] = useState("");
+  const [errorDelEnlace, setErrorDelEnlace] = useState<string | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
 
   async function refrescar(): Promise<void> {
@@ -213,10 +217,23 @@ export function IngestaDePlanillas({
     }
   }
 
+  /**
+   * Pedir la planilla antes de salir hacia Google.
+   *
+   * En el flujo real el archivo se elige en el selector de Google, y el identificador lo
+   * conoce el panel. Pedir el enlace acá es la misma decisión tomada por el mismo actor —
+   * y sin esto la pantalla vinculaba una planilla que nadie eligió.
+   */
   async function vincularConGoogle(): Promise<void> {
+    const identificador = identificadorDePlanilla(enlace);
+    if (identificador === null) {
+      setErrorDelEnlace("Escribí un enlace de Google Sheets o un nombre para la planilla.");
+      return;
+    }
+    setErrorDelEnlace(null);
     setError(null);
     try {
-      window.location.href = await iniciarVinculacionConGoogle();
+      window.location.href = await iniciarVinculacionConGoogle(identificador);
     } catch (problema) {
       reportar(problema);
     }
@@ -243,7 +260,9 @@ export function IngestaDePlanillas({
             <Icono nombre={vinculo.proveedor === "ARCHIVO" ? "documento" : "planilla"} />
           </span>
           <span>
-            <b className="ing-carga__nombre">{vinculo.nombre_archivo ?? vinculo.hoja_empresa}</b>
+            <b className="ing-carga__nombre">
+              {vinculo.nombre_archivo ?? vinculo.identificador_externo ?? vinculo.hoja_empresa}
+            </b>
             <span className="ing-carga__ref">{ETIQUETAS_DE_PROVEEDOR[vinculo.proveedor]}</span>
           </span>
         </span>
@@ -273,6 +292,19 @@ export function IngestaDePlanillas({
     alDerecha: true,
     celda: (vinculo) => (
       <>
+        {/* El estado «Falta mapear» tiene que llevar a algún lado: sin este enlace la fila
+            sólo ofrecía desvincular, que es lo contrario de lo que quiere alguien que acaba
+            de subir el archivo.
+
+            Se ofrece **siempre**, y no sólo cuando falta el mapeo, porque `tiene_mapeo` dice
+            que hay uno, no que esté confirmado. Un mapeo propuesto y sin confirmar no se
+            puede procesar —el caso de uso lo rechaza— y esconder el enlace justo ahí dejaría
+            la fila sin ninguna salida hacia adelante. */}
+        {vinculo.nombre_archivo !== null && (
+          <Link className="ing-accion" href={`/ingesta/mapeo/${vinculo.id}`}>
+            Revisar mapeo
+          </Link>
+        )}
         {vinculo.tiene_mapeo && (
           <Button
             variante="secundario"
@@ -350,7 +382,8 @@ export function IngestaDePlanillas({
                 variante="secundario"
                 disabled={subiendo}
                 onClick={() => {
-                  void vincularConGoogle();
+                  setErrorDelEnlace(null);
+                  setPidiendoEnlace(true);
                 }}
               >
                 Vincular Google Sheets
@@ -387,6 +420,48 @@ export function IngestaDePlanillas({
           </div>
         </>
       )}
+
+      <Modal
+        abierto={pidiendoEnlace}
+        titulo="Vincular una planilla de Google"
+        onCerrar={() => {
+          setPidiendoEnlace(false);
+        }}
+      >
+        <p className="ing-modal__texto">
+          Pegá el enlace de la planilla que querés traer. Te vamos a pedir permiso de lectura{" "}
+          <strong>sobre ésa</strong>, no sobre todo tu Drive.
+        </p>
+        <Campo
+          id="enlace-de-planilla"
+          etiqueta="Enlace o nombre de la planilla"
+          placeholder="https://docs.google.com/spreadsheets/d/…"
+          ayuda="Pegá el enlace de Google Sheets, o escribí un nombre para reconocerla en el listado."
+          value={enlace}
+          error={errorDelEnlace ?? undefined}
+          onChange={(evento) => {
+            setEnlace(evento.target.value);
+            setErrorDelEnlace(null);
+          }}
+        />
+        <div className="ing-modal__acciones">
+          <Button
+            variante="secundario"
+            onClick={() => {
+              setPidiendoEnlace(false);
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              void vincularConGoogle();
+            }}
+          >
+            Continuar
+          </Button>
+        </div>
+      </Modal>
 
       {/* Las dos tablas van en tarjeta y con encabezado visible: `Tabla` pone su título en un
           `<caption>` oculto, así que sin esto quien mira la pantalla ve dos rejillas seguidas y

@@ -81,11 +81,19 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+/** El cuerpo que la ruta de autorizacion espera: cual planilla se eligio. */
+function pedidoDeAutorizacion(documento = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"): Request {
+  return new Request("http://localhost/api/planillas/google/autorizacion", {
+    method: "POST",
+    body: JSON.stringify({ documento }),
+  });
+}
+
 describe("sin sesion", () => {
   it("ninguna ruta llega al backend", async () => {
     const respuestas = await Promise.all([
       getPlanillas(),
-      postAutorizacion(),
+      postAutorizacion(pedidoDeAutorizacion()),
       postGoogle(new Request("http://localhost/api/planillas/google", { method: "POST" })),
       postArchivo(pedidoDeSubida("clientes.xlsx")),
       postMapeo(new Request("http://localhost/x", { method: "POST", body: "{}" })),
@@ -167,10 +175,18 @@ describe("con sesion", () => {
     });
   });
 
-  it("no filtra el detalle de un 409", async () => {
+  it("un 409 de negocio llega con su mensaje", async () => {
+    // El nombre anterior era «no filtra el detalle de un 409», y su mensaje de ejemplo
+    // —«detalle interno para un log»— era la premisa que se rechazó: ningún 409 de este
+    // sistema está escrito para un log. Todos son frases en español sobre un estado del
+    // negocio, y la pantalla mostraba el nombre de la clase en su lugar.
     cookieDeSesion = "token";
     llamarApi.mockRejectedValue(
-      new ErrorDeApi(409, "detalle interno para un log", "InvarianteViolada"),
+      new ErrorDeApi(
+        409,
+        "Este mapeo ya fue confirmado: para cambiarlo hay que revisarlo de nuevo",
+        "InvarianteViolada",
+      ),
     );
 
     const respuesta = await postGoogle(
@@ -181,7 +197,10 @@ describe("con sesion", () => {
     );
 
     expect(respuesta.status).toBe(409);
-    expect(await respuesta.json()).toEqual({ error: "InvarianteViolada" });
+    expect(await respuesta.json()).toEqual({
+      error: "InvarianteViolada",
+      detalle: "Este mapeo ya fue confirmado: para cambiarlo hay que revisarlo de nuevo",
+    });
   });
 
   it("propone, corrige y confirma un mapeo", async () => {
@@ -227,11 +246,22 @@ describe("con sesion", () => {
     cookieDeSesion = "token";
     llamarApi.mockResolvedValue({ url: "https://accounts.google.com/o/oauth2/v2/auth?x=1" });
 
-    const respuesta = await postAutorizacion();
+    const respuesta = await postAutorizacion(pedidoDeAutorizacion());
 
     expect(llamarApi).toHaveBeenCalledWith("/planillas/google/autorizacion", { method: "POST" });
     expect(await respuesta.json()).toEqual({
       url: "https://accounts.google.com/o/oauth2/v2/auth?x=1",
     });
+  });
+
+  it("sin planilla elegida no sale hacia Google", async () => {
+    // El identificador del documento no vuelve en el callback: lo conoce el panel y hay
+    // que guardarlo antes de irse. Salir sin él vincularia una planilla que nadie eligio.
+    cookieDeSesion = "token";
+
+    const respuesta = await postAutorizacion(pedidoDeAutorizacion(""));
+
+    expect(respuesta.status).toBe(422);
+    expect(llamarApi).not.toHaveBeenCalled();
   });
 });

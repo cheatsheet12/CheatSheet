@@ -169,6 +169,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         # ever reached R2 would fail loudly instead of writing somebody's file.
         planilla_adaptador=AdaptadorDePlanilla.SIMULADO,
         almacenamiento_adaptador=AdaptadorDeAlmacenamiento.MEMORIA,
+        almacenamiento_directorio="",
         r2_endpoint="",
         r2_bucket="",
         r2_access_key_id="",

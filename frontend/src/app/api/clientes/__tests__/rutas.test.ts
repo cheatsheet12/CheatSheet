@@ -141,7 +141,11 @@ describe("con sesión", () => {
     expect(opciones.body).toEqual({ cuit: "30712345671" });
   });
 
-  it("un 409 del backend llega como 409 y con su código", async () => {
+  it("un 409 del backend llega como 409, con su código y con su mensaje", async () => {
+    // `TODO.md` §10: el mensaje de `ClienteDuplicado` se perdía en el BFF, así que la
+    // pantalla mostraba «No se pudo completar la operacion» en vez del texto de la
+    // historia. El proxy ahora reenvía el detalle de un 409 — la sesión ya está
+    // verificada y no hay nada que enumerar, a diferencia de las rutas de `auth`.
     cookieDeSesion = "un-access-token";
     llamarApi.mockRejectedValue(
       new ErrorDeApi(409, "Ya existe un cliente con ese CUIT.", "ClienteDuplicado"),
@@ -150,7 +154,10 @@ describe("con sesión", () => {
     const respuesta = await postCliente(pedido({ nombre: "Rosa", cuit: "30712345671" }));
 
     expect(respuesta.status).toBe(409);
-    expect(await respuesta.json()).toEqual({ error: "ClienteDuplicado" });
+    expect(await respuesta.json()).toEqual({
+      error: "ClienteDuplicado",
+      detalle: "Ya existe un cliente con ese CUIT.",
+    });
   });
 
   it("un cuerpo que no es JSON no rompe la ruta", async () => {
