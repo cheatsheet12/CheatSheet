@@ -21,6 +21,9 @@ from uuid import UUID, uuid4
 
 from cheatsheet.contexts.spreadsheet_sync.application.errors import VinculoInexistente
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
+    PlanillaLeida,
+    PortAlmacenamientoDeArchivos,
+    PortLectorDePlanilla,
     PortModeloDeLenguaje,
     PortRepositorioMapeo,
     PortRepositorioVinculo,
@@ -77,8 +80,13 @@ class VistaDeMapeo:
 
     mapeo: Mapeo
     faltantes: tuple[str, ...]
-    #: True when the model was not consulted -- it failed, or a stored mapping was reused.
+    #: True when the model answered. False covers two very different endings, which is why
+    #: `reutilizado` exists next to it: the model failed, or it was never asked.
     propuesto_por_el_modelo: bool
+    #: True when RN-02's fingerprint found a stored mapping and the model was not called.
+    #: «No pudimos proponerlo» y «ya lo teníamos» son cosas distintas para alguien mirando
+    #: una tabla llena de «Sin asignar», y un solo booleano las decía igual.
+    reutilizado: bool = False
 
     @property
     def puede_confirmarse(self) -> bool:
@@ -136,6 +144,7 @@ class ProponerMapeo:
                 mapeo=existente,
                 faltantes=existente.faltantes(obligatorios),
                 propuesto_por_el_modelo=False,
+                reutilizado=True,
             )
 
         # The model sees column names and the destination vocabulary. Nothing else: the
@@ -287,3 +296,72 @@ def _exigir_que_pueda_mapear(rol: RolUsuario) -> None:
     """
     if rol is RolUsuario.SOLO_LECTURA:
         raise EntradaInvalida("Un usuario de Solo Lectura no puede modificar el mapeo")
+
+
+@dataclass(frozen=True, slots=True)
+class ColumnaConEjemplo:
+    """Una columna de la planilla y un valor real de esa columna.
+
+    El ejemplo existe por el primer criterio de HU-E3-02: la pantalla de revisión muestra
+    un dato de muestra al lado de cada columna para que la persona pueda decidir si la
+    asignación tiene sentido. Viaja junto al nombre porque se leen del mismo archivo en la
+    misma pasada, y separarlos obligaría a leerlo dos veces.
+    """
+
+    nombre: str
+    ejemplo: str | None
+
+
+class LeerEncabezados:
+    """Los encabezados de una planilla vinculada, con un ejemplo de cada columna.
+
+    Es el paso que faltaba entre subir el archivo y proponer el mapeo: `ProponerMapeo`
+    recibe las columnas ya leídas —porque no le importa de dónde salieron, y así se lo
+    puede probar sin un archivo— y alguien tiene que leerlas.
+
+    **El ejemplo sale de la primera fila con contenido, no de la primera fila.** Una
+    planilla real suele traer una fila en blanco bajo el encabezado, y mostrar una columna
+    de ejemplos vacíos convierte la ayuda en ruido.
+
+    **Nada de esto llega al modelo.** `ProponerMapeo` recibe los ejemplos y los guarda en
+    la entrada del mapeo para la pantalla; al modelo le manda sólo los nombres. Es la
+    decisión D12, y el test que la protege vive en `test_mapeos.py`.
+    """
+
+    def __init__(
+        self,
+        *,
+        vinculos: PortRepositorioVinculo,
+        almacenamiento: PortAlmacenamientoDeArchivos,
+        lector: PortLectorDePlanilla,
+    ) -> None:
+        self._vinculos = vinculos
+        self._almacenamiento = almacenamiento
+        self._lector = lector
+
+    async def ejecutar(self, *, vinculo_id: UUID) -> tuple[ColumnaConEjemplo, ...]:
+        vinculo = await self._vinculos.buscar_por_id(vinculo_id)
+        if vinculo is None:
+            raise VinculoInexistente("La planilla vinculada no existe")
+        if vinculo.archivo is None:
+            # Google Sheets y Excel Online se leen por su propio adaptador, no de R2. Que
+            # esta ruta no los cubra es una limitación honesta y no un error del usuario.
+            raise EntradaInvalida(
+                "Sólo se pueden leer los encabezados de una planilla subida como archivo"
+            )
+
+        contenido = await self._almacenamiento.leer(vinculo.archivo.clave)
+        planilla = self._lector.leer(contenido=contenido, nombre=vinculo.archivo.nombre_original)
+        return tuple(
+            ColumnaConEjemplo(nombre=columna, ejemplo=_primer_ejemplo(planilla, columna))
+            for columna in planilla.columnas
+        )
+
+
+def _primer_ejemplo(planilla: PlanillaLeida, columna: str) -> str | None:
+    """El primer valor no vacío de la columna, o `None` si la columna está vacía entera."""
+    for fila in planilla.filas:
+        valor = fila.celdas.get(columna, "").strip()
+        if valor:
+            return valor
+    return None

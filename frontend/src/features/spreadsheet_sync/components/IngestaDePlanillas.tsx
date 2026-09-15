@@ -273,6 +273,19 @@ export function IngestaDePlanillas({
     alDerecha: true,
     celda: (vinculo) => (
       <>
+        {/* El estado «Falta mapear» tiene que llevar a algún lado: sin este enlace la fila
+            sólo ofrecía desvincular, que es lo contrario de lo que quiere alguien que acaba
+            de subir el archivo.
+
+            Se ofrece **siempre**, y no sólo cuando falta el mapeo, porque `tiene_mapeo` dice
+            que hay uno, no que esté confirmado. Un mapeo propuesto y sin confirmar no se
+            puede procesar —el caso de uso lo rechaza— y esconder el enlace justo ahí dejaría
+            la fila sin ninguna salida hacia adelante. */}
+        {vinculo.nombre_archivo !== null && (
+          <Link className="ing-accion" href={`/ingesta/mapeo/${vinculo.id}`}>
+            Revisar mapeo
+          </Link>
+        )}
         {vinculo.tiene_mapeo && (
           <Button
             variante="secundario"

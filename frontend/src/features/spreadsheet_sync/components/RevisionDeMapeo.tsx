@@ -220,9 +220,17 @@ export function RevisionDeMapeo({
         )}
       </div>
 
-      {!mapeo.propuesto_por_el_modelo && (
-        // «No pudimos proponerlo» y «ya lo teníamos» son cosas distintas para alguien
-        // mirando una tabla llena de «Sin asignar», y la diferencia se dice.
+      {/* «No pudimos proponerlo» y «ya lo teníamos» son cosas distintas para alguien
+          mirando una tabla llena de «Sin asignar», y la diferencia se dice. Hasta que
+          `reutilizado` existió, las dos mostraban el mismo cartel de error. */}
+      {mapeo.reutilizado === true && (
+        <Alert tono="neutral">
+          Ya habías mapeado una planilla con estas mismas columnas, así que reusamos ese mapeo en
+          vez de volver a analizarla. Podés cambiar lo que quieras antes de confirmar.
+        </Alert>
+      )}
+
+      {!mapeo.propuesto_por_el_modelo && mapeo.reutilizado !== true && (
         <Alert tono="advertencia">
           No pudimos proponerte un mapeo automatico esta vez. Asigná las columnas a mano; el sistema
           lo va a recordar para las proximas sincronizaciones.

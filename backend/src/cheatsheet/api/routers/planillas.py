@@ -35,6 +35,7 @@ from cheatsheet.contexts.spreadsheet_sync.application.errors import (
 from cheatsheet.contexts.spreadsheet_sync.application.mapeos import (
     ConfirmarMapeo,
     CorregirMapeo,
+    LeerEncabezados,
     ProponerMapeo,
     VistaDeMapeo,
 )
@@ -68,6 +69,7 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.ensamblado import (
     modelo_de_lenguaje,
     proveedor_de_planilla,
 )
+from cheatsheet.contexts.spreadsheet_sync.infrastructure.lector import LectorDePlanilla
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.roles import RolUsuario
@@ -174,6 +176,16 @@ class ColumnaEntrada(BaseModel):
     ejemplo: str | None = None
 
 
+class EncabezadosSalida(BaseModel):
+    """Lo que el panel necesita para pedir una propuesta de mapeo.
+
+    Reusa `ColumnaEntrada` en vez de declarar un gemelo: es exactamente la misma forma, y
+    el panel devuelve estas columnas tal cual al pedir la propuesta.
+    """
+
+    columnas: list[ColumnaEntrada]
+
+
 class PropuestaEntrada(BaseModel):
     vinculo_id: UUID
     columnas: list[ColumnaEntrada]
@@ -209,10 +221,12 @@ class MapeoSalida(BaseModel):
     #: RN-02: which required attributes still have no column. Empty means confirmable.
     faltantes: list[str]
     puede_confirmarse: bool
-    #: False when the model did not answer, or when a stored mapping was reused. The
-    #: screen says so: «lo propusimos nosotros» and «no pudimos proponerlo» are different
-    #: things to a user staring at a column marked Sin asignar.
+    #: True when the model answered. The screen shows «Analizado por IA» on it.
     propuesto_por_el_modelo: bool
+    #: True when RN-02 reused a stored mapping for this header structure. Separate from the
+    #: flag above because the screen has three things to say and not two: lo propusimos,
+    #: ya lo teníamos, y no pudimos proponerlo.
+    reutilizado: bool = False
 
 
 def _mapeo_a_salida(vista: VistaDeMapeo) -> MapeoSalida:
@@ -233,6 +247,7 @@ def _mapeo_a_salida(vista: VistaDeMapeo) -> MapeoSalida:
         faltantes=list(vista.faltantes),
         puede_confirmarse=vista.puede_confirmarse,
         propuesto_por_el_modelo=vista.propuesto_por_el_modelo,
+        reutilizado=vista.reutilizado,
     )
 
 
@@ -265,10 +280,44 @@ def crear_router(recursos: Recursos) -> APIRouter:
     router = APIRouter(tags=["spreadsheet_sync"])
     router.include_router(_rutas_de_google(recursos), prefix="/planillas")
     router.include_router(_rutas_de_vinculos(recursos), prefix="/planillas")
+    router.include_router(_rutas_de_encabezados(recursos), prefix="/planillas")
     router.include_router(_rutas_de_mapeo(recursos), prefix="/planillas/mapeos")
     router.include_router(_rutas_de_procesamiento(recursos), prefix="/planillas/cargas")
     router.include_router(_rutas_de_lectura_de_cargas(recursos), prefix="/planillas/cargas")
     router.include_router(_rutas_de_reproceso(recursos), prefix="/planillas/cargas")
+    return router
+
+
+def _rutas_de_encabezados(recursos: Recursos) -> APIRouter:
+    """El paso que conecta PAN-ING-01 con PAN-ING-02.
+
+    `ProponerMapeo` recibe las columnas ya leídas, a propósito: así se lo prueba sin un
+    archivo. Pero entre «subí el .xlsx» y «revisá el mapeo» alguien tiene que abrir el
+    archivo, y ese alguien no puede ser el navegador — habría que meterle un parser de
+    Excel al panel para leer algo que el backend ya sabe leer.
+    """
+
+    router = APIRouter()
+
+    @router.get("/{vinculo_id}/encabezados")
+    async def encabezados(request: Request, vinculo_id: UUID) -> EncabezadosSalida:
+        """Todos los roles leen: revisar un mapeo es mirar, confirmarlo es otra cosa."""
+        empresa_id, _, _ = _actor(request)
+        salida: EncabezadosSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            columnas = await LeerEncabezados(
+                vinculos=piezas.vinculos,
+                almacenamiento=almacenamiento(recursos.settings),
+                lector=LectorDePlanilla(),
+            ).ejecutar(vinculo_id=vinculo_id)
+            salida = EncabezadosSalida(
+                columnas=[ColumnaEntrada(nombre=c.nombre, ejemplo=c.ejemplo) for c in columnas]
+            )
+        if salida is None:  # pragma: no cover — la unidad de trabajo siempre rinde una vez
+            raise RuntimeError("La unidad de trabajo no produjo un resultado")
+        return salida
+
     return router
 
 

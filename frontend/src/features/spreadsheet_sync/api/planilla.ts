@@ -140,6 +140,8 @@ export interface Mapeo {
   readonly faltantes: readonly string[];
   readonly puede_confirmarse: boolean;
   readonly propuesto_por_el_modelo: boolean;
+  /** RN-02: se reusó el mapeo guardado para esta estructura y no se llamó al modelo. */
+  readonly reutilizado?: boolean;
 }
 
 /** Cómo se llama cada campo interno en pantalla. El backend nunca manda etiquetas. */
