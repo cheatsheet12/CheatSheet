@@ -17,6 +17,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const corregirMapeo = vi.fn();
 const confirmarMapeo = vi.fn();
+const procesarPlanilla = vi.fn();
+const push = vi.fn();
+
+// La pantalla navega a `Cargas recientes` después de encolar el procesamiento, y jsdom no
+// monta el router de la app. Mismo doble que usan las pruebas de página del panel.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push, refresh: vi.fn() }),
+}));
 
 vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
   const real = await vi.importActual<typeof import("@/features/spreadsheet_sync/api/planilla")>(
@@ -26,6 +34,7 @@ vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
     ...real,
     corregirMapeo: (...args: unknown[]) => corregirMapeo(...args),
     confirmarMapeo: (...args: unknown[]) => confirmarMapeo(...args),
+    procesarPlanilla: (...args: unknown[]) => procesarPlanilla(...args),
   };
 });
 
@@ -76,7 +85,7 @@ afterEach(() => {
 
 describe("RevisionDeMapeo", () => {
   it("muestra las cuatro cosas que pide el criterio de HU-E3-02", () => {
-    render(<RevisionDeMapeo inicial={INCOMPLETO} puedeEditar />);
+    render(<RevisionDeMapeo vinculoId="v-1" inicial={INCOMPLETO} puedeEditar />);
 
     expect(screen.getByText("Razon Soc.")).toBeTruthy();
     // El ejemplo: leido de la planilla, mostrado aca, nunca enviado al modelo (D12).
@@ -89,7 +98,7 @@ describe("RevisionDeMapeo", () => {
   });
 
   it("bloquea confirmar con el texto exacto de la historia", () => {
-    render(<RevisionDeMapeo inicial={INCOMPLETO} puedeEditar />);
+    render(<RevisionDeMapeo vinculoId="v-1" inicial={INCOMPLETO} puedeEditar />);
 
     expect(screen.getByText(new RegExp(MENSAJE_FALTAN_OBLIGATORIAS))).toBeTruthy();
     const boton = screen.getByText("Confirmar y procesar").closest("button");
@@ -97,7 +106,7 @@ describe("RevisionDeMapeo", () => {
   });
 
   it("habilita confirmar cuando ya no falta ninguna obligatoria", () => {
-    render(<RevisionDeMapeo inicial={COMPLETO} puedeEditar />);
+    render(<RevisionDeMapeo vinculoId="v-1" inicial={COMPLETO} puedeEditar />);
 
     const boton = screen.getByText("Confirmar y procesar").closest("button");
     expect(boton?.disabled).toBe(false);
@@ -105,7 +114,7 @@ describe("RevisionDeMapeo", () => {
 
   it("corregir una asignacion actualiza la vista", async () => {
     corregirMapeo.mockResolvedValue(COMPLETO);
-    render(<RevisionDeMapeo inicial={INCOMPLETO} puedeEditar />);
+    render(<RevisionDeMapeo vinculoId="v-1" inicial={INCOMPLETO} puedeEditar />);
 
     fireEvent.change(screen.getByLabelText("Campo del sistema para Razon Soc."), {
       target: { value: "nombre" },
@@ -119,7 +128,11 @@ describe("RevisionDeMapeo", () => {
 
   it("avisa cuando el modelo no pudo proponer nada", () => {
     render(
-      <RevisionDeMapeo inicial={{ ...INCOMPLETO, propuesto_por_el_modelo: false }} puedeEditar />,
+      <RevisionDeMapeo
+        vinculoId="v-1"
+        inicial={{ ...INCOMPLETO, propuesto_por_el_modelo: false }}
+        puedeEditar
+      />,
     );
 
     // «No pudimos proponerlo» y «ya lo teniamos» son cosas distintas para alguien mirando
@@ -128,7 +141,7 @@ describe("RevisionDeMapeo", () => {
   });
 
   it("un rol que no edita ve el mapeo sin controles ni boton", () => {
-    render(<RevisionDeMapeo inicial={COMPLETO} puedeEditar={false} />);
+    render(<RevisionDeMapeo vinculoId="v-1" inicial={COMPLETO} puedeEditar={false} />);
 
     expect(screen.queryByLabelText("Campo del sistema para CUIT")).toBeNull();
     expect(screen.queryByText("Confirmar y procesar")).toBeNull();
@@ -140,12 +153,37 @@ describe("RevisionDeMapeo", () => {
 
   it("confirmar avisa que ya se puede procesar", async () => {
     confirmarMapeo.mockResolvedValue({ ...COMPLETO, estado: "VALIDADO" });
-    render(<RevisionDeMapeo inicial={COMPLETO} puedeEditar />);
+    render(<RevisionDeMapeo vinculoId="v-1" inicial={COMPLETO} puedeEditar />);
 
     fireEvent.click(screen.getByText("Confirmar y procesar"));
 
     await waitFor(() => {
       expect(screen.getByText(/Ya podes procesar la planilla/)).toBeTruthy();
     });
+  });
+
+  it("y ofrece hacerlo, en vez de mandar a buscar el boton a otra pantalla", async () => {
+    // El aviso decía «ya podés procesar la planilla» y la pantalla no ofrecía ninguna
+    // forma de hacerlo: había que volver a Ingesta y encontrar la fila. Una pantalla que
+    // dice qué sigue tiene que ofrecer qué sigue.
+    procesarPlanilla.mockResolvedValue(undefined);
+    render(
+      <RevisionDeMapeo vinculoId="v-1" inicial={{ ...COMPLETO, estado: "VALIDADO" }} puedeEditar />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Procesar la planilla" }));
+
+    await waitFor(() => {
+      expect(procesarPlanilla).toHaveBeenCalledWith("v-1");
+    });
+    // Procesar contesta 202 y el trabajo lo hace un worker: el resultado se ve en
+    // `Cargas recientes`, no acá.
+    expect(push).toHaveBeenCalledWith("/ingesta");
+  });
+
+  it("un mapeo sin confirmar todavia no ofrece procesar", () => {
+    render(<RevisionDeMapeo vinculoId="v-1" inicial={COMPLETO} puedeEditar />);
+
+    expect(screen.queryByRole("button", { name: "Procesar la planilla" })).toBeNull();
   });
 });

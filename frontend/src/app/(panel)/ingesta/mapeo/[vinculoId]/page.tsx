@@ -67,7 +67,11 @@ export default async function PaginaDeMapeo({
           </p>
         </div>
       </div>
-      <RevisionDeMapeo inicial={mapeo} puedeEditar={claims.rol !== "SOLO_LECTURA"} />
+      <RevisionDeMapeo
+        inicial={mapeo}
+        vinculoId={params.vinculoId}
+        puedeEditar={claims.rol !== "SOLO_LECTURA"}
+      />
     </>
   );
 }

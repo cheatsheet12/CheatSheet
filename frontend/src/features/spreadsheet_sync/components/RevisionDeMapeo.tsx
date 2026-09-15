@@ -22,6 +22,7 @@
 
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Alert, Button, Card, Select, Stepper, Tabla } from "@/shared";
@@ -34,12 +35,15 @@ import {
   MENSAJE_FALTAN_OBLIGATORIAS,
   confirmarMapeo,
   corregirMapeo,
+  procesarPlanilla,
 } from "../api/planilla";
 import type { EntradaDeMapeo, Mapeo, NivelDeConfianza } from "../api/planilla";
 import { Icono } from "./iconos";
 
 export interface PropsDeRevision {
   readonly inicial: Mapeo;
+  /** El vínculo que se está revisando. Hace falta para poder procesarlo desde acá. */
+  readonly vinculoId: string;
   readonly puedeEditar: boolean;
   readonly onConfirmado?: (mapeo: Mapeo) => void;
 }
@@ -86,9 +90,11 @@ function ordinal(indice: number): string {
 
 export function RevisionDeMapeo({
   inicial,
+  vinculoId,
   puedeEditar,
   onConfirmado,
 }: PropsDeRevision): JSX.Element {
+  const router = useRouter();
   const [mapeo, setMapeo] = useState<Mapeo>(inicial);
   const [error, setError] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
@@ -107,6 +113,30 @@ export function RevisionDeMapeo({
     } catch (problema) {
       reportar(problema);
     } finally {
+      setTrabajando(false);
+    }
+  }
+
+  /**
+   * El paso 3 del propio stepper de esta pantalla.
+   *
+   * Sin esto, «El mapeo quedo confirmado. Ya podes procesar la planilla» era una
+   * instrucción sin destino: había que volver a Ingesta y buscar la fila. Una pantalla que
+   * dice qué sigue tiene que ofrecer qué sigue.
+   *
+   * Procesar contesta 202 y el trabajo lo hace un worker, así que lo honesto después de
+   * encolarlo es llevar a donde se ve el resultado — `Cargas recientes` — y no quedarse acá
+   * mirando un mapeo que ya no es la pregunta.
+   */
+  async function procesar(): Promise<void> {
+    setError(null);
+    setTrabajando(true);
+    try {
+      await procesarPlanilla(vinculoId);
+      router.push("/ingesta");
+      router.refresh();
+    } catch (problema) {
+      reportar(problema);
       setTrabajando(false);
     }
   }
@@ -253,6 +283,20 @@ export function RevisionDeMapeo({
 
       {validado && (
         <Alert tono="exito">El mapeo quedo confirmado. Ya podes procesar la planilla.</Alert>
+      )}
+
+      {validado && puedeEditar && (
+        <div className="ing-acciones">
+          <Button
+            cargando={trabajando}
+            disabled={trabajando}
+            onClick={() => {
+              void procesar();
+            }}
+          >
+            Procesar la planilla
+          </Button>
+        </div>
       )}
 
       <Card>
