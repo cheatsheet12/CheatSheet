@@ -27,6 +27,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
+from tempfile import gettempdir
 
 from cheatsheet.platform.settings import AdaptadorDeAlmacenamiento, Entorno, Settings
 from cheatsheet.platform.telemetry import obtener_logger
@@ -201,8 +203,57 @@ class AlmacenamientoEnMemoria:
         self.archivos.pop(clave, None)
 
 
+class AlmacenamientoEnDisco:
+    """Los mismos bytes, en un directorio que los dos procesos pueden leer.
+
+    `AlmacenamientoEnMemoria` alcanza para subir y mapear, y **no** alcanza para procesar:
+    RN-01 hace el procesamiento asíncrono, así que quien lee el archivo es un worker de
+    Celery, y un worker es otro proceso con otro `dict`. El flujo moría en
+    `planilla_sin_archivo_para_procesar` y el síntoma no nombraba la causa.
+
+    **Rechazado en producción**, como el de memoria y por lo mismo: el disco de un contenedor
+    se va con el contenedor, y una planilla subida el martes no estaría el miércoles.
+
+    La clave se aplana a un nombre de archivo. Las claves que escribe `SubirPlanilla` llevan
+    barras —`empresa/uuid.xlsx`—, y crear ese árbol acá sería inventar una jerarquía que
+    nadie lee: lo que importa es que dos claves distintas no colisionen.
+    """
+
+    def __init__(self, entorno: Entorno = Entorno.LOCAL, directorio: str = "") -> None:
+        if entorno is Entorno.PRODUCTION:
+            raise RuntimeError(
+                "El almacenamiento en disco no es valido en produccion: "
+                "las planillas subidas se perderian con el contenedor."
+            )
+        self.directorio = (
+            Path(directorio) if directorio else Path(gettempdir()) / "cheatsheet-archivos"
+        )
+        self.directorio.mkdir(parents=True, exist_ok=True)
+
+    def _ruta(self, clave: str) -> Path:
+        return self.directorio / clave.replace("/", "_").replace("\\", "_")
+
+    async def guardar(
+        self, *, clave: str, contenido: bytes, tipo_de_contenido: str
+    ) -> ArchivoGuardado:
+        del tipo_de_contenido  # Está en la firma porque el puerto lo declara.
+        self._ruta(clave).write_bytes(contenido)
+        return ArchivoGuardado(clave=clave, tamano_bytes=len(contenido))
+
+    async def leer(self, clave: str) -> bytes:
+        ruta = self._ruta(clave)
+        if not ruta.exists():
+            raise FileNotFoundError(clave)
+        return ruta.read_bytes()
+
+    async def eliminar(self, clave: str) -> None:
+        self._ruta(clave).unlink(missing_ok=True)
+
+
 @lru_cache(maxsize=1)
-def almacenamiento(settings: Settings) -> AlmacenamientoR2 | AlmacenamientoEnMemoria:
+def almacenamiento(
+    settings: Settings,
+) -> AlmacenamientoR2 | AlmacenamientoEnMemoria | AlmacenamientoEnDisco:
     """The object store, built once per process.
 
     The in-memory one is cached too, and **has to be**: two instances would be two different
@@ -219,4 +270,6 @@ def almacenamiento(settings: Settings) -> AlmacenamientoR2 | AlmacenamientoEnMem
                 secret_access_key=settings.r2_secret_access_key,
             )
         )
+    if settings.almacenamiento_adaptador is AdaptadorDeAlmacenamiento.DISCO:
+        return AlmacenamientoEnDisco(settings.entorno, settings.almacenamiento_directorio)
     return AlmacenamientoEnMemoria(settings.entorno)

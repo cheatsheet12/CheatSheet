@@ -111,13 +111,19 @@ class AdaptadorDePlanilla(StrEnum):
 class AdaptadorDeAlmacenamiento(StrEnum):
     """Where uploaded workbooks go.
 
-    `MEMORIA` keeps them in the process, which is enough to walk the ingestion flow on a
-    laptop with no bucket. **Rejected in production** for the obvious reason: the files
-    would vanish on the next restart, silently.
+    `MEMORIA` keeps them in the process. It is enough to upload a file and map it, and
+    **not** enough to process one: RN-01 makes processing asynchronous, so the bytes are
+    read by a Celery worker, and a worker is a different process with a different dict.
+    The flow dead-ends at `planilla_sin_archivo_para_procesar`.
+
+    `DISCO` is what makes the local promise true -- one directory both processes can read,
+    no bucket, no credentials. Both are **rejected in production** for the same reason:
+    the files would vanish on the next restart or deploy, silently.
     """
 
     R2 = "r2"
     MEMORIA = "memoria"
+    DISCO = "disco"
 
 
 class AdaptadorDeCatalogos(StrEnum):
@@ -266,11 +272,11 @@ def _adaptador_de_almacenamiento(entorno: Entorno) -> AdaptadorDeAlmacenamiento:
         adaptador = AdaptadorDeAlmacenamiento(crudo)
     except ValueError as exc:
         raise ConfiguracionFaltante(
-            f"ALMACENAMIENTO_ADAPTADOR debe ser 'r2' o 'memoria', no '{crudo}'"
+            f"ALMACENAMIENTO_ADAPTADOR debe ser 'r2', 'memoria' o 'disco', no '{crudo}'"
         ) from exc
-    if adaptador is AdaptadorDeAlmacenamiento.MEMORIA and entorno is Entorno.PRODUCTION:
+    if adaptador is not AdaptadorDeAlmacenamiento.R2 and entorno is Entorno.PRODUCTION:
         raise ConfiguracionFaltante(
-            "ALMACENAMIENTO_ADAPTADOR=memoria no es valido en produccion: "
+            f"ALMACENAMIENTO_ADAPTADOR={adaptador.value} no es valido en produccion: "
             "las planillas subidas se perderian al reiniciar el proceso."
         )
     return adaptador
@@ -421,6 +427,9 @@ class Settings:
     #: spreadsheet_sync (HU-E2-04). Cloudflare R2 holds the uploaded workbooks.
     planilla_adaptador: AdaptadorDePlanilla
     almacenamiento_adaptador: AdaptadorDeAlmacenamiento
+    #: Sólo para `DISCO`. Vacío usa un directorio bajo el temporal del sistema, para que
+    #: arrancar sin configurar nada siga funcionando.
+    almacenamiento_directorio: str
     r2_endpoint: str
     r2_bucket: str
     r2_access_key_id: str
@@ -541,6 +550,7 @@ class Settings:
             dlq_barrido_minutos=_entero("DLQ_BARRIDO_MINUTOS", 15),
             planilla_adaptador=_adaptador_de_planilla(entorno),
             almacenamiento_adaptador=_adaptador_de_almacenamiento(entorno),
+            almacenamiento_directorio=_opcional("ALMACENAMIENTO_DIRECTORIO", ""),
             r2_endpoint=_opcional("R2_ENDPOINT", ""),
             r2_bucket=_opcional("R2_BUCKET", ""),
             r2_access_key_id=_opcional("R2_ACCESS_KEY_ID", ""),
