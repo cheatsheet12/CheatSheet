@@ -51,7 +51,7 @@ export interface PropsDeDetalleDeComprobante {
 }
 
 const COLUMNAS: readonly Columna<ItemDeComprobante>[] = [
-  { clave: "descripcion", titulo: "Descripcion", celda: (fila) => fila.descripcion },
+  { clave: "descripcion", titulo: "Descripción", celda: (fila) => fila.descripcion },
   {
     clave: "cantidad",
     titulo: "Cantidad",

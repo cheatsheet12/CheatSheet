@@ -67,10 +67,15 @@ export default async function PaginaDeNuevaEmision({ searchParams }: Props): Pro
     );
   }
 
+  // El CUIT del cliente elegido, para no pedirlo de nuevo. Se busca en el listado y no
+  // por id porque el BFF no expone la lectura de uno solo, y son pocos.
+  const { clientes } = await llamarApi<ListadoDeClientesRespuesta>("/clientes?activo=true");
+  const cliente = clientes.find((uno) => uno.id === clienteId);
+
   return (
     <>
       <Encabezado bajada="Tres pasos: validamos el CUIT contra el padrón de ARCA, elegís con qué numeración se emite y cargás los ítems. De la respuesta de ARCA depende qué se puede emitir." />
-      <NuevaEmision puntos={activos} clienteId={clienteId} />
+      <NuevaEmision puntos={activos} clienteId={clienteId} cuitDelCliente={cliente?.cuit ?? null} />
     </>
   );
 }
