@@ -35,6 +35,7 @@ export {
   listarCargas,
   listarPlanillas,
   procesarPlanilla,
+  reabrirMapeo,
   proponerMapeo,
   reprocesarCarga,
   subirPlanilla,

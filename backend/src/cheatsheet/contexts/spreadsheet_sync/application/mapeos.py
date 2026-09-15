@@ -287,6 +287,64 @@ class ConfirmarMapeo:
         return mapeo
 
 
+class ReabrirMapeo:
+    """Volver a revisar un mapeo confirmado, sin perder lo ya asignado.
+
+    `Mapeo.corregir` se niega sobre un mapeo validado y dice qué hacer en su lugar —«para
+    cambiarlo hay que revisarlo de nuevo»—, pero hasta acá esa salida no existía para una
+    persona: `nueva_version` sólo la llamaba la sincronización automática al detectar que
+    la estructura cambió. La pantalla decía qué hacer y no ofrecía cómo.
+
+    **Las entradas se conservan.** Es lo mismo que decide `nueva_version`: la mayor parte
+    de una planilla que cambió sigue siendo la misma planilla, y rehacer cuarenta
+    asignaciones por una columna es cómo una revisión se convierte en un abandono.
+
+    **No toca lo ya procesado.** Las filas que entraron con la versión anterior están en el
+    catálogo y ahí se quedan; lo que cambia es con qué mapeo se va a leer la planilla la
+    próxima vez.
+    """
+
+    def __init__(self, *, mapeos: PortRepositorioMapeo, publicador: PublicadorDeEventos) -> None:
+        self._mapeos = mapeos
+        self._publicador = publicador
+
+    async def ejecutar(
+        self,
+        *,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
+        rol: RolUsuario,
+        mapeo_id: UUID,
+        ahora: datetime,
+    ) -> Mapeo:
+        _exigir_que_pueda_mapear(rol)
+
+        mapeo = await self._mapeos.buscar_por_id(mapeo_id)
+        if mapeo is None:
+            raise EntradaInvalida("El mapeo no existe")
+        if not mapeo.esta_confirmado:
+            # Reabrir un borrador no significa nada: ya se puede editar. Decirlo es mejor
+            # que subir la version en silencio y que el numero deje de contar revisiones.
+            raise EntradaInvalida("Este mapeo todavia no fue confirmado: ya se puede editar")
+
+        mapeo.nueva_version(ahora=ahora)
+        await self._mapeos.actualizar(mapeo)
+
+        await self._publicador.publicar(
+            EventoAuditable(
+                evento_id=uuid4(),
+                empresa_id=empresa_id,
+                ocurrido_en=ahora,
+                usuario_id=usuario_id,
+                modulo=Modulo.SPREADSHEET_SYNC,
+                accion="reabrir_mapeo",
+                entidad_afectada=f"Mapeo:{mapeo.id}",
+                resultado=Resultado.COMPLETADO,
+            )
+        )
+        return mapeo
+
+
 def _exigir_que_pueda_mapear(rol: RolUsuario) -> None:
     """HU-E3-01 and HU-E3-02: «Administrador u Operador». Solo Lectura looks.
 
