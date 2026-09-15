@@ -125,6 +125,10 @@ export function RevisionDeMapeo({
     }
   }
 
+  // Se calcula acá arriba y no junto a los contadores porque ahora decide también si la
+  // celda de destino es un control o un texto.
+  const validado = mapeo.estado === "VALIDADO";
+
   const columnas: readonly Columna<EntradaDeMapeo>[] = [
     {
       clave: "origen",
@@ -146,7 +150,11 @@ export function RevisionDeMapeo({
           <span className="ing-map-flecha" aria-hidden="true">
             →
           </span>
-          {puedeEditar ? (
+          {/* Confirmado, el destino deja de ser un control. El dominio ya rechaza corregir
+              un mapeo validado —«para cambiarlo hay que revisarlo de nuevo»—, así que dejar
+              el `select` habilitado es ofrecer una acción que sólo puede terminar en un
+              error. Lo que se ve es lo que se puede hacer. */}
+          {puedeEditar && !validado ? (
             <Select
               id={`mapeo-${entrada.columna_origen}`}
               // La cabecera de la columna ya dice «Campo del sistema», pero un control cuyo
@@ -190,7 +198,6 @@ export function RevisionDeMapeo({
     },
   ];
 
-  const validado = mapeo.estado === "VALIDADO";
   const asignadas = mapeo.entradas.filter((entrada) => entrada.atributo_destino !== null).length;
   const sinAsignar = mapeo.entradas.length - asignadas;
 

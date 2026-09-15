@@ -167,10 +167,18 @@ describe("con sesion", () => {
     });
   });
 
-  it("no filtra el detalle de un 409", async () => {
+  it("un 409 de negocio llega con su mensaje", async () => {
+    // El nombre anterior era «no filtra el detalle de un 409», y su mensaje de ejemplo
+    // —«detalle interno para un log»— era la premisa que se rechazó: ningún 409 de este
+    // sistema está escrito para un log. Todos son frases en español sobre un estado del
+    // negocio, y la pantalla mostraba el nombre de la clase en su lugar.
     cookieDeSesion = "token";
     llamarApi.mockRejectedValue(
-      new ErrorDeApi(409, "detalle interno para un log", "InvarianteViolada"),
+      new ErrorDeApi(
+        409,
+        "Este mapeo ya fue confirmado: para cambiarlo hay que revisarlo de nuevo",
+        "InvarianteViolada",
+      ),
     );
 
     const respuesta = await postGoogle(
@@ -181,7 +189,10 @@ describe("con sesion", () => {
     );
 
     expect(respuesta.status).toBe(409);
-    expect(await respuesta.json()).toEqual({ error: "InvarianteViolada" });
+    expect(await respuesta.json()).toEqual({
+      error: "InvarianteViolada",
+      detalle: "Este mapeo ya fue confirmado: para cambiarlo hay que revisarlo de nuevo",
+    });
   });
 
   it("propone, corrige y confirma un mapeo", async () => {
