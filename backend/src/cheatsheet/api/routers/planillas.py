@@ -101,6 +101,10 @@ class VinculoSalida(BaseModel):
     proveedor: ProveedorPlanilla
     direccion: DireccionSync
     hoja_empresa: str
+    #: Lo que identifica al documento para el proveedor, y lo único con lo que la persona
+    #: puede distinguir dos planillas de Google en el listado: la hoja se llama «Clientes»
+    #: en todas.
+    identificador_externo: str | None = None
     nombre_archivo: str | None = None
     tamano_bytes: int | None = None
     pausado: bool
@@ -257,6 +261,7 @@ def _a_salida(vinculo: VinculoDePlanilla) -> VinculoSalida:
         proveedor=vinculo.proveedor,
         direccion=vinculo.direccion,
         hoja_empresa=vinculo.hoja_empresa,
+        identificador_externo=vinculo.identificador_externo,
         nombre_archivo=vinculo.archivo.nombre_original if vinculo.archivo else None,
         tamano_bytes=vinculo.archivo.tamano_bytes if vinculo.archivo else None,
         pausado=vinculo.pausado,

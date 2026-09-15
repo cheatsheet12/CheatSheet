@@ -12,6 +12,8 @@ los dos y no diría nada.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from cheatsheet.platform.almacenamiento import (
     AlmacenamientoEnDisco,
@@ -35,7 +37,7 @@ async def test_lo_guardado_en_memoria_no_lo_ve_otra_instancia() -> None:
         await del_worker.leer(CLAVE)
 
 
-async def test_lo_guardado_en_disco_lo_lee_otra_instancia(tmp_path) -> None:  # type: ignore[no-untyped-def]
+async def test_lo_guardado_en_disco_lo_lee_otra_instancia(tmp_path: Path) -> None:
     """Y el arreglo: un directorio es un lugar, no un estado de proceso."""
     del_api = AlmacenamientoEnDisco(Entorno.LOCAL, str(tmp_path))
     await del_api.guardar(clave=CLAVE, contenido=CONTENIDO, tipo_de_contenido="application/xlsx")
@@ -44,7 +46,7 @@ async def test_lo_guardado_en_disco_lo_lee_otra_instancia(tmp_path) -> None:  # 
     assert await del_worker.leer(CLAVE) == CONTENIDO
 
 
-async def test_dos_claves_distintas_no_colisionan_al_aplanarse(tmp_path) -> None:  # type: ignore[no-untyped-def]
+async def test_dos_claves_distintas_no_colisionan_al_aplanarse(tmp_path: Path) -> None:
     """La clave se aplana a un nombre de archivo, así que vale comprobar que sigue siendo única."""
     disco = AlmacenamientoEnDisco(Entorno.LOCAL, str(tmp_path))
     await disco.guardar(clave="a/uno.xlsx", contenido=b"uno", tipo_de_contenido="x")
@@ -54,7 +56,7 @@ async def test_dos_claves_distintas_no_colisionan_al_aplanarse(tmp_path) -> None
     assert await disco.leer("b/uno.xlsx") == b"dos"
 
 
-async def test_un_archivo_eliminado_deja_de_leerse(tmp_path) -> None:  # type: ignore[no-untyped-def]
+async def test_un_archivo_eliminado_deja_de_leerse(tmp_path: Path) -> None:
     disco = AlmacenamientoEnDisco(Entorno.LOCAL, str(tmp_path))
     await disco.guardar(clave=CLAVE, contenido=CONTENIDO, tipo_de_contenido="x")
     await disco.eliminar(CLAVE)
@@ -65,7 +67,7 @@ async def test_un_archivo_eliminado_deja_de_leerse(tmp_path) -> None:  # type: i
     await disco.eliminar(CLAVE)
 
 
-async def test_ninguno_de_los_dos_se_construye_en_produccion(tmp_path) -> None:  # type: ignore[no-untyped-def]
+async def test_ninguno_de_los_dos_se_construye_en_produccion(tmp_path: Path) -> None:
     """La misma guarda que los adaptadores simulados de ARCA, WhatsApp y MercadoPago."""
     with pytest.raises(RuntimeError, match="produccion"):
         AlmacenamientoEnMemoria(Entorno.PRODUCTION)

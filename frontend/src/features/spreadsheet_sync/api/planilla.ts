@@ -17,6 +17,8 @@ export interface Vinculo {
   readonly proveedor: ProveedorPlanilla;
   readonly direccion: DireccionSync;
   readonly hoja_empresa: string;
+  /** Con lo que la persona identificó la planilla al vincularla. */
+  readonly identificador_externo?: string | null;
   readonly nombre_archivo: string | null;
   readonly tamano_bytes: number | null;
   readonly pausado: boolean;
@@ -100,8 +102,34 @@ export async function subirPlanilla(archivo: File): Promise<Vinculo> {
   return (await respuesta.json()) as Vinculo;
 }
 
-export async function iniciarVinculacionConGoogle(): Promise<string> {
-  const respuesta = await fetch("/api/planillas/google/autorizacion", { method: "POST" });
+/**
+ * El identificador de una planilla de Google, sacado de su enlace.
+ *
+ * Una URL de Google Sheets es `.../spreadsheets/d/<id>/edit#gid=0`. Se acepta también el
+ * id pelado, porque alguien que ya lo conoce no tiene por qué ir a buscar el enlace.
+ */
+export function identificadorDePlanilla(enlace: string): string | null {
+  const limpio = enlace.trim();
+  if (limpio === "") {
+    return null;
+  }
+  const enLaUrl = /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/.exec(limpio);
+  if (enLaUrl !== null) {
+    return enLaUrl[1] ?? null;
+  }
+  // Cualquier otra cosa se toma como el nombre con el que la persona la va a reconocer.
+  // Contra el proveedor real un nombre no resuelve a ningún documento y el backend lo
+  // dirá; contra el simulado alcanza, y es lo que permite recorrer el flujo sin tener una
+  // planilla de Google a mano.
+  return limpio;
+}
+
+export async function iniciarVinculacionConGoogle(documento: string): Promise<string> {
+  const respuesta = await fetch("/api/planillas/google/autorizacion", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ documento }),
+  });
   if (!respuesta.ok) {
     await fallar(respuesta);
   }

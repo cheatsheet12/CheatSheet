@@ -23,7 +23,7 @@ import { NextResponse } from "next/server";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
-import { COOKIE_ESTADO } from "@/app/api/planillas/google/autorizacion/route";
+import { COOKIE_DOCUMENTO, COOKIE_ESTADO } from "@/app/api/planillas/google/autorizacion/route";
 
 export const dynamic = "force-dynamic";
 
@@ -69,14 +69,17 @@ export async function GET(request: Request): Promise<NextResponse> {
       headers: { Cookie: `${COOKIE_ESTADO}=${guardado}` },
       body: {
         codigo,
-        identificador_documento: codigo.startsWith(PREFIJO_SIMULADO)
-          ? codigo.slice(PREFIJO_SIMULADO.length)
-          : (url.searchParams.get("documento") ?? codigo),
+        // La planilla que la persona eligió antes de irse. Si la cookie se perdió, el
+        // código simulado trae uno usable; el real no, y el backend lo dirá.
+        identificador_documento:
+          cookies().get(COOKIE_DOCUMENTO)?.value ??
+          (codigo.startsWith(PREFIJO_SIMULADO) ? codigo.slice(PREFIJO_SIMULADO.length) : codigo),
         estado,
       },
     });
     const hecho = aIngesta(url.origin);
     hecho.cookies.delete(COOKIE_ESTADO);
+    hecho.cookies.delete(COOKIE_DOCUMENTO);
     return hecho;
   } catch (error) {
     return aIngesta(

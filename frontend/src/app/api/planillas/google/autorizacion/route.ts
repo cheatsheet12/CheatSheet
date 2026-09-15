@@ -18,16 +18,32 @@ import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { respuestaDeError } from "@/app/api/auth/_sesion";
+import { cuerpoDe } from "@/app/api/usuarios/_proxy";
 
 export const dynamic = "force-dynamic";
 
 export const COOKIE_ESTADO = "planilla_oauth_state";
+/**
+ * La planilla que la persona eligió, guardada para que sobreviva el redirect.
+ *
+ * En el flujo real la elige en el selector de archivos de Google y el identificador lo
+ * conoce el panel, no el proveedor: no vuelve en el callback, así que hay que acordarse.
+ * Una cookie corta es exactamente eso, y muere con el `state`.
+ */
+export const COOKIE_DOCUMENTO = "planilla_oauth_documento";
 /** Lo suficiente para elegir un archivo, y poco para que una pestaña olvidada no sea una invitación. */
 const TTL_SEGUNDOS = 600;
 
-export async function POST(): Promise<NextResponse> {
+export async function POST(request: Request): Promise<NextResponse> {
   if (!haySesion()) {
     return NextResponse.json({ error: "NoAutenticado" }, { status: 401 });
+  }
+  const { documento } = (await cuerpoDe(request)) as { documento?: string };
+  if (typeof documento !== "string" || documento.trim() === "") {
+    return NextResponse.json(
+      { error: "EntradaInvalida", detalle: "Falta el enlace de la planilla." },
+      { status: 422 },
+    );
   }
   try {
     const datos = await llamarApi<{ url: string }>("/planillas/google/autorizacion", {
@@ -41,6 +57,12 @@ export async function POST(): Promise<NextResponse> {
     const estado = new URL(datos.url, "http://interno").searchParams.get("state");
     if (estado !== null) {
       respuesta.cookies.set(COOKIE_ESTADO, estado, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: TTL_SEGUNDOS,
+      });
+      respuesta.cookies.set(COOKIE_DOCUMENTO, documento.trim(), {
         httpOnly: true,
         sameSite: "lax",
         path: "/",

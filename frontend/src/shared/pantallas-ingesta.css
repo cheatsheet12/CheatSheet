@@ -1018,3 +1018,24 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/*
+ * El diálogo que pide el enlace de la planilla de Google.
+ *
+ * Es corto a propósito: una explicación, un campo y dos botones. Lo que decide acá la
+ * persona es la misma decisión que en producción toma en el selector de archivos de
+ * Google — cuál planilla —, así que la pantalla no tiene por qué pedir nada más.
+ */
+.ing-modal__texto {
+  margin: 0 0 var(--space-5);
+  color: var(--ink-600);
+  font-size: 14.5px;
+  max-width: 54ch;
+}
+
+.ing-modal__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
