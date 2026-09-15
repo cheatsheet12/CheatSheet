@@ -1,17 +1,54 @@
 /**
  * BFF — where the user goes to grant read access to one spreadsheet (HU-E2-04 RN-01).
  *
- * The backend sets the `state` cookie on its own response; this handler forwards the URL
- * and nothing else. The cookie rides back to the browser through the proxy's response
- * because it is set on the same origin the panel is served from.
+ * **El `state` lo guarda este handler, no el backend.** El backend lo pone en una cookie de
+ * su propia respuesta, y esa respuesta muere acá: `llamarApi` lee el JSON y descarta las
+ * cabeceras, así que la cookie nunca llegaba al navegador y el guarda anti-CSRF del
+ * callback no se podía satisfacer nunca. Poner la cookie en esta respuesta es lo que la
+ * deja en el origen del panel, que es el único que el navegador va a visitar.
+ *
+ * El backend sigue verificando lo suyo: el callback le reenvía esta misma cookie. Son dos
+ * chequeos del mismo valor en los dos lados de la frontera, y está bien que sean dos —
+ * quien recibe el redirect de Google es el panel, y quien crea el vínculo es la API.
  */
 
-import type { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-import { reenviarAlBackend } from "@/app/api/usuarios/_proxy";
+import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { haySesion } from "@/lib/session";
+
+import { respuestaDeError } from "@/app/api/auth/_sesion";
 
 export const dynamic = "force-dynamic";
 
+export const COOKIE_ESTADO = "planilla_oauth_state";
+/** Lo suficiente para elegir un archivo, y poco para que una pestaña olvidada no sea una invitación. */
+const TTL_SEGUNDOS = 600;
+
 export async function POST(): Promise<NextResponse> {
-  return reenviarAlBackend("/planillas/google/autorizacion", "POST");
+  if (!haySesion()) {
+    return NextResponse.json({ error: "NoAutenticado" }, { status: 401 });
+  }
+  try {
+    const datos = await llamarApi<{ url: string }>("/planillas/google/autorizacion", {
+      method: "POST",
+    });
+    const respuesta = NextResponse.json(datos);
+
+    // El `state` viaja dentro de la URL que el backend arma. Leerlo de ahí evita que el
+    // panel invente uno propio: el que se compara al volver tiene que ser el que el
+    // proveedor recibió.
+    const estado = new URL(datos.url, "http://interno").searchParams.get("state");
+    if (estado !== null) {
+      respuesta.cookies.set(COOKIE_ESTADO, estado, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: TTL_SEGUNDOS,
+      });
+    }
+    return respuesta;
+  } catch (error) {
+    return respuestaDeError(error instanceof ErrorDeApi ? error : null);
+  }
 }
