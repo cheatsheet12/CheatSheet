@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const corregirMapeo = vi.fn();
 const confirmarMapeo = vi.fn();
 const procesarPlanilla = vi.fn();
+const reabrirMapeo = vi.fn();
 const push = vi.fn();
 
 // La pantalla navega a `Cargas recientes` después de encolar el procesamiento, y jsdom no
@@ -35,6 +36,7 @@ vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
     corregirMapeo: (...args: unknown[]) => corregirMapeo(...args),
     confirmarMapeo: (...args: unknown[]) => confirmarMapeo(...args),
     procesarPlanilla: (...args: unknown[]) => procesarPlanilla(...args),
+    reabrirMapeo: (...args: unknown[]) => reabrirMapeo(...args),
   };
 });
 
@@ -179,6 +181,24 @@ describe("RevisionDeMapeo", () => {
     // Procesar contesta 202 y el trabajo lo hace un worker: el resultado se ve en
     // `Cargas recientes`, no acá.
     expect(push).toHaveBeenCalledWith("/ingesta");
+  });
+
+  it("un mapeo confirmado se puede volver a revisar", async () => {
+    // El dominio se niega a corregir un mapeo validado y dice «para cambiarlo hay que
+    // revisarlo de nuevo». Esa salida existia en el codigo y no en la pantalla, asi que
+    // una columna que quedaba «Sin asignar» era definitiva.
+    reabrirMapeo.mockResolvedValue({ ...COMPLETO, estado: "BORRADOR", version: 2 });
+    render(
+      <RevisionDeMapeo vinculoId="v-1" inicial={{ ...COMPLETO, estado: "VALIDADO" }} puedeEditar />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Revisar de nuevo" }));
+
+    await waitFor(() => {
+      expect(reabrirMapeo).toHaveBeenCalledWith("m1");
+    });
+    // Vuelto a borrador, los destinos son controles otra vez.
+    expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
   });
 
   it("un mapeo sin confirmar todavia no ofrece procesar", () => {

@@ -296,6 +296,20 @@ export async function verCarga(cargaId: string): Promise<DetalleDeCarga> {
   return (await respuesta.json()) as DetalleDeCarga;
 }
 
+/**
+ * Devuelve un mapeo confirmado al estado de revisión, conservando lo ya asignado.
+ *
+ * Es la salida que el propio mensaje del dominio nombra —«para cambiarlo hay que revisarlo
+ * de nuevo»— y que hasta ahora sólo usaba la sincronización automática.
+ */
+export async function reabrirMapeo(mapeoId: string): Promise<Mapeo> {
+  const respuesta = await fetch(`/api/planillas/mapeos/${mapeoId}/revision`, { method: "POST" });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as Mapeo;
+}
+
 export async function procesarPlanilla(vinculoId: string): Promise<void> {
   const respuesta = await fetch("/api/planillas/cargas", {
     method: "POST",

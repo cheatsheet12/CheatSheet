@@ -33,10 +33,12 @@ from cheatsheet.contexts.spreadsheet_sync.application.errors import (
     ProveedorDePlanillaNoDisponible,
 )
 from cheatsheet.contexts.spreadsheet_sync.application.mapeos import (
+    OBLIGATORIOS_DE_CLIENTE,
     ConfirmarMapeo,
     CorregirMapeo,
     LeerEncabezados,
     ProponerMapeo,
+    ReabrirMapeo,
     VistaDeMapeo,
 )
 from cheatsheet.contexts.spreadsheet_sync.application.procesamientos import (
@@ -393,6 +395,31 @@ def _rutas_de_mapeo(recursos: Recursos) -> APIRouter:
             )
             salida = _mapeo_a_salida(
                 VistaDeMapeo(mapeo=mapeo, faltantes=(), propuesto_por_el_modelo=False)
+            )
+        return _exigir_mapeo(salida)
+
+    @router.post("/{mapeo_id}/revision")
+    async def reabrir(request: Request, mapeo_id: UUID) -> MapeoSalida:
+        """La salida que `Mapeo.corregir` nombra al negarse sobre un mapeo confirmado."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: MapeoSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            mapeo = await ReabrirMapeo(mapeos=piezas.mapeos, publicador=unidad.publicador).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                mapeo_id=mapeo_id,
+                ahora=unidad.reloj.ahora(),
+            )
+            # Se recalcula lo que falta: reabrir devuelve la pantalla al estado de revisión,
+            # y ahí «qué obligatoria falta» vuelve a ser la pregunta.
+            salida = _mapeo_a_salida(
+                VistaDeMapeo(
+                    mapeo=mapeo,
+                    faltantes=mapeo.faltantes(OBLIGATORIOS_DE_CLIENTE),
+                    propuesto_por_el_modelo=False,
+                )
             )
         return _exigir_mapeo(salida)
 

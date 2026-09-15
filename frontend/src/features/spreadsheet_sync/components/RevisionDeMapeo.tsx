@@ -36,6 +36,7 @@ import {
   confirmarMapeo,
   corregirMapeo,
   procesarPlanilla,
+  reabrirMapeo,
 } from "../api/planilla";
 import type { EntradaDeMapeo, Mapeo, NivelDeConfianza } from "../api/planilla";
 import { Icono } from "./iconos";
@@ -137,6 +138,25 @@ export function RevisionDeMapeo({
       router.refresh();
     } catch (problema) {
       reportar(problema);
+      setTrabajando(false);
+    }
+  }
+
+  /**
+   * Volver a revisar lo ya confirmado.
+   *
+   * El dominio se niega a corregir un mapeo validado y dice qué hacer en su lugar; sin
+   * este botón, esa salida existía en el código y no en la pantalla, así que una columna
+   * que quedó «Sin asignar» era definitiva.
+   */
+  async function reabrir(): Promise<void> {
+    setError(null);
+    setTrabajando(true);
+    try {
+      setMapeo(await reabrirMapeo(mapeo.id));
+    } catch (problema) {
+      reportar(problema);
+    } finally {
       setTrabajando(false);
     }
   }
@@ -295,6 +315,15 @@ export function RevisionDeMapeo({
             }}
           >
             Procesar la planilla
+          </Button>
+          <Button
+            variante="secundario"
+            disabled={trabajando}
+            onClick={() => {
+              void reabrir();
+            }}
+          >
+            Revisar de nuevo
           </Button>
         </div>
       )}
