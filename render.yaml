@@ -75,6 +75,94 @@ services:
           property: connectionString
 
   # -------------------------------------------------------------------------
+  # The workers. Deferred by decision R1 (2026-08-24) and declared here now: half
+  # of what the product does is asynchronous, and a staging without them cannot
+  # finish an ingestion or obtain a CAE. A spreadsheet stays «En curso» forever and
+  # a document stays «Pendiente», which looks like a defect and is a deployment gap.
+  #
+  # **They are not free.** Render's free plan covers web services and Key Value, not
+  # background workers. Applying this blueprint asks for a paid instance — that is
+  # the decision R1 postponed, and it is the reason these two sit here rather than
+  # having shipped with the rest.
+  #
+  # Same image as the API on purpose: the tasks import the same application code,
+  # and a second Dockerfile is a second place for the versions to drift.
+  # -------------------------------------------------------------------------
+  - type: worker
+    name: cheatsheet-worker
+    runtime: docker
+    region: ohio
+    plan: starter
+    branch: develop
+    autoDeploy: false
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # The five queues in one worker. They exist to keep a burst of spreadsheet
+    # processing from delaying a payment webhook; on staging, where the load is one
+    # person clicking, splitting them into five instances would buy nothing and cost
+    # five times as much. In production they are five deployments.
+    startCommand: >-
+      celery -A cheatsheet.workers.main:app worker
+      -Q integrations_sync,spreadsheet_processing,incremental_sync,notifications,ai_nlp
+      -c 4
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_MIGRATIONS
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      # Must be the same value the API holds: integration credentials are encrypted
+      # with it, and a worker that cannot decrypt ARCA's certificate fails every
+      # authorisation with `CredencialIlegible` while the row looks fine.
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: cheatsheet-redis
+          type: redis
+          property: connectionString
+
+  # -------------------------------------------------------------------------
+  # Beat, the scheduler. **Exactly one instance, always.** Two schedulers are two
+  # WhatsApp polls and two emails to every Administrador; `workers/beat.py` warns
+  # about it and this is where that warning is enforced.
+  # -------------------------------------------------------------------------
+  - type: worker
+    name: cheatsheet-beat
+    runtime: docker
+    region: ohio
+    plan: starter
+    branch: develop
+    autoDeploy: false
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    numInstances: 1
+    startCommand: celery -A cheatsheet.workers.main:app beat
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_MIGRATIONS
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: cheatsheet-redis
+          type: redis
+          property: connectionString
+
+  # -------------------------------------------------------------------------
   # The panel. Node runtime rather than Docker: packaging Next.js in an image
   # requires `output: 'standalone'` in next.config, which means changing the
   # application to suit the platform. `npm ci && npm run build` asks for nothing.
