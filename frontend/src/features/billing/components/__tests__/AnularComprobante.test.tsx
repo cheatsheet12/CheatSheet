@@ -106,7 +106,7 @@ describe("lo que viene precargado", () => {
   it("los items del original, que es lo que una anulacion total anula", () => {
     render(<AnularComprobante original={ORIGINAL} anulacion={SIN_ANULAR} />);
 
-    expect((screen.getByLabelText("Descripcion 1") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText("Descripción 1") as HTMLInputElement).value).toBe(
       "Corte de pelo",
     );
     expect((screen.getByLabelText("Precio unitario") as HTMLInputElement).value).toBe("1000.00");

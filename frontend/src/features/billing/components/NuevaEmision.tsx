@@ -25,7 +25,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Alert, Button, Campo, Select } from "@/shared";
 
@@ -45,6 +45,14 @@ export interface PropsDeNuevaEmision {
   readonly puntos: readonly PuntoDeVenta[];
   /** The client the document is issued to, chosen before landing here. */
   readonly clienteId: string;
+  /**
+   * El CUIT que ese cliente ya tiene en el catálogo, si tiene.
+   *
+   * Se precarga y se valida solo: quien llegó acá eligió a quién facturarle, y volver a
+   * pedirle el dato que el sistema ya guardó es pedirle que lo transcriba — con la chance
+   * de equivocarse, sobre el campo del que depende qué comprobante se puede emitir.
+   */
+  readonly cuitDelCliente?: string | null;
 }
 
 interface Linea extends ItemNuevo {
@@ -73,9 +81,13 @@ function estadoDePaso(hecho: boolean, actual: boolean): string {
   return actual ? " fac-nuevo-paso--actual" : "";
 }
 
-export function NuevaEmision({ puntos, clienteId }: PropsDeNuevaEmision): JSX.Element {
+export function NuevaEmision({
+  puntos,
+  clienteId,
+  cuitDelCliente = null,
+}: PropsDeNuevaEmision): JSX.Element {
   const router = useRouter();
-  const [cuit, setCuit] = useState("");
+  const [cuit, setCuit] = useState((cuitDelCliente ?? "").replace(/-/g, ""));
   const [receptor, setReceptor] = useState<ReceptorValidado | null>(null);
   const [errorDeCuit, setErrorDeCuit] = useState<string | null>(null);
   const [validando, setValidando] = useState(false);
@@ -105,6 +117,20 @@ export function NuevaEmision({ puntos, clienteId }: PropsDeNuevaEmision): JSX.El
       setValidando(false);
     }
   }
+
+  /**
+   * Validar de entrada el CUIT que vino del catálogo.
+   *
+   * Sin esto la pantalla abre con el campo lleno y el paso 2 cerrado, esperando un clic
+   * que no decide nada. Se corre una sola vez: si la persona edita el CUIT, el efecto no
+   * vuelve a dispararse y valida ella.
+   */
+  useEffect(() => {
+    if (cuit !== "") {
+      void validar();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- al montar y nada más
+  }, []);
 
   function cambiarLinea(clave: string, campo: keyof ItemNuevo, valor: string): void {
     setLineas((previas) =>
@@ -277,7 +303,7 @@ export function NuevaEmision({ puntos, clienteId }: PropsDeNuevaEmision): JSX.El
               <div className="fac-nuevo-item" key={linea.clave}>
                 <Campo
                   id={`item-descripcion-${linea.clave}`}
-                  etiqueta={`Descripcion ${indice + 1}`}
+                  etiqueta={`Descripción ${indice + 1}`}
                   value={linea.descripcion}
                   onChange={(evento) =>
                     cambiarLinea(linea.clave, "descripcion", evento.target.value)

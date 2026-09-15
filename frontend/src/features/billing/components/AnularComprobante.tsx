@@ -171,7 +171,7 @@ export function AnularComprobante({ original, anulacion }: PropsDeAnularComproba
           <div className="fac-nuevo-item" key={linea.clave}>
             <Campo
               id={`anular-descripcion-${linea.clave}`}
-              etiqueta={`Descripcion ${indice + 1}`}
+              etiqueta={`Descripción ${indice + 1}`}
               value={linea.descripcion}
               onChange={(evento) => cambiar(linea.clave, "descripcion", evento.target.value)}
             />

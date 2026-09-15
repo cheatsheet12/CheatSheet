@@ -285,7 +285,7 @@ describe("la nueva emision", () => {
     fireEvent.change(screen.getByLabelText("Tipo de comprobante"), {
       target: { value: "FACTURA_A" },
     });
-    fireEvent.change(screen.getByLabelText("Descripcion 1"), {
+    fireEvent.change(screen.getByLabelText("Descripción 1"), {
       target: { value: "Corte de pelo" },
     });
     fireEvent.change(screen.getByLabelText("Precio unitario"), {

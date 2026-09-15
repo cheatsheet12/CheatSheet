@@ -202,18 +202,45 @@ describe("PaginaDeNuevaEmision (PAN-FAC-03)", () => {
     expect(html).toContain("/facturacion/puntos-de-venta");
   });
 
-  it("sin cliente elegido manda a elegirlo", async () => {
+  it("sin cliente elegido, deja elegirlo ahi mismo", async () => {
+    // Antes mandaba a Clientes y volvia: «Emitir comprobante» es la accion principal del
+    // listado, y terminaba en una tarjeta cuya unica salida era irse a otra pantalla.
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
-    llamarApi.mockResolvedValue({ puntos: [PUNTO] });
+    llamarApi.mockImplementation(async (ruta: string) =>
+      ruta.startsWith("/clientes")
+        ? {
+            clientes: [
+              { id: "cl1", nombre: "Ferreteria Nandu SRL", cuit: "30-71123456-6" },
+              { id: "cl2", nombre: "Kiosco El Sol", cuit: null },
+            ],
+            total: 2,
+          }
+        : { puntos: [PUNTO] },
+    );
 
     const html = renderToString(await PaginaDeNuevaEmision({ searchParams: {} }));
 
-    expect(html).toContain("/datos-maestros/clientes");
+    expect(html).toContain("Ferreteria Nandu SRL");
+    expect(html).toContain("/facturacion/nueva?cliente=cl1");
+    // El que no tiene CUIT aparece igual, con el motivo: esconderlo haria pensar que se
+    // borro, y quien lo busca tiene que entender por que no esta disponible.
+    expect(html).toContain("Kiosco El Sol");
+    expect(html).toContain("Sin CUIT");
   });
 
   it("con todo listo renderiza el formulario, que arranca pidiendo el CUIT", async () => {
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
-    llamarApi.mockResolvedValue({ puntos: [PUNTO] });
+    llamarApi.mockReset();
+    // La pantalla pide tambien el cliente elegido, para precargar su CUIT y no hacerlo
+    // transcribir el dato que el catalogo ya tiene.
+    llamarApi.mockImplementation(async (ruta: string) =>
+      ruta.startsWith("/clientes")
+        ? {
+            clientes: [{ id: "cl1", nombre: "Ferreteria Nandu SRL", cuit: "30-71123456-6" }],
+            total: 1,
+          }
+        : { puntos: [PUNTO] },
+    );
 
     const html = renderToString(await PaginaDeNuevaEmision({ searchParams: { cliente: "cl1" } }));
 

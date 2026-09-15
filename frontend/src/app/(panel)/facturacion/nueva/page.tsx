@@ -13,8 +13,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { NuevaEmision } from "@/features/billing";
+import { ElegirCliente, NuevaEmision } from "@/features/billing";
 import type { ListadoDePuntosDeVenta } from "@/features/billing";
+import type { ListadoDeClientesRespuesta } from "@/features/master_data";
 import { llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
 
@@ -55,24 +56,26 @@ export default async function PaginaDeNuevaEmision({ searchParams }: Props): Pro
 
   const clienteId = searchParams.cliente;
   if (clienteId === undefined) {
+    // Se elige acá y no en otra pantalla: «Emitir comprobante» es la acción principal del
+    // listado, y terminaba en una tarjeta cuya única salida era irse a Clientes.
+    const { clientes } = await llamarApi<ListadoDeClientesRespuesta>("/clientes?activo=true");
     return (
       <>
         <Encabezado bajada="El comprobante se emite a nombre de un cliente del catálogo." />
-        <section className="fac-nuevo-tarjeta">
-          <p className="fac-nuevo-rotulo">Falta un paso previo</p>
-          <p>
-            Elegí primero a quién le vas a facturar.{" "}
-            <Link href="/datos-maestros/clientes">Ir a Clientes</Link>.
-          </p>
-        </section>
+        <ElegirCliente clientes={clientes} />
       </>
     );
   }
 
+  // El CUIT del cliente elegido, para no pedirlo de nuevo. Se busca en el listado y no
+  // por id porque el BFF no expone la lectura de uno solo, y son pocos.
+  const { clientes } = await llamarApi<ListadoDeClientesRespuesta>("/clientes?activo=true");
+  const cliente = clientes.find((uno) => uno.id === clienteId);
+
   return (
     <>
       <Encabezado bajada="Tres pasos: validamos el CUIT contra el padrón de ARCA, elegís con qué numeración se emite y cargás los ítems. De la respuesta de ARCA depende qué se puede emitir." />
-      <NuevaEmision puntos={activos} clienteId={clienteId} />
+      <NuevaEmision puntos={activos} clienteId={clienteId} cuitDelCliente={cliente?.cuit ?? null} />
     </>
   );
 }
