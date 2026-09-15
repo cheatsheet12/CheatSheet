@@ -15,6 +15,8 @@
 
 export { AnularComprobante } from "./components/AnularComprobante";
 export type { PropsDeAnularComprobante } from "./components/AnularComprobante";
+export { ElegirCliente } from "./components/ElegirCliente";
+export type { PropsDeElegirCliente } from "./components/ElegirCliente";
 export { DetalleDeComprobante } from "./components/DetalleDeComprobante";
 export type { PropsDeDetalleDeComprobante } from "./components/DetalleDeComprobante";
 export { ListadoDeComprobantes } from "./components/ListadoDeComprobantes";

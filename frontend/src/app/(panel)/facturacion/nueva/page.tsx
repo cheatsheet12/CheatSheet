@@ -13,8 +13,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { NuevaEmision } from "@/features/billing";
+import { ElegirCliente, NuevaEmision } from "@/features/billing";
 import type { ListadoDePuntosDeVenta } from "@/features/billing";
+import type { ListadoDeClientesRespuesta } from "@/features/master_data";
 import { llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
 
@@ -55,16 +56,13 @@ export default async function PaginaDeNuevaEmision({ searchParams }: Props): Pro
 
   const clienteId = searchParams.cliente;
   if (clienteId === undefined) {
+    // Se elige acá y no en otra pantalla: «Emitir comprobante» es la acción principal del
+    // listado, y terminaba en una tarjeta cuya única salida era irse a Clientes.
+    const { clientes } = await llamarApi<ListadoDeClientesRespuesta>("/clientes?activo=true");
     return (
       <>
         <Encabezado bajada="El comprobante se emite a nombre de un cliente del catálogo." />
-        <section className="fac-nuevo-tarjeta">
-          <p className="fac-nuevo-rotulo">Falta un paso previo</p>
-          <p>
-            Elegí primero a quién le vas a facturar.{" "}
-            <Link href="/datos-maestros/clientes">Ir a Clientes</Link>.
-          </p>
-        </section>
+        <ElegirCliente clientes={clientes} />
       </>
     );
   }

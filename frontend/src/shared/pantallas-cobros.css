@@ -1569,3 +1569,103 @@
     transition: none;
   }
 }
+
+/*
+ * Elegir a quién facturar, dentro de la propia emisión.
+ *
+ * Es una lista y no una tabla: cada fila tiene un nombre, un CUIT y una acción, y no hay
+ * columnas que comparar entre filas. Un cliente sin CUIT se muestra igual, con el motivo
+ * por el que no se le puede emitir — esconderlo haría pensar que se borró.
+ */
+.fac-elegir {
+  list-style: none;
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.fac-elegir__fila {
+  background: var(--card);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.fac-elegir__nombre {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.fac-elegir__cuit {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+.fac-elegir__accion,
+.fac-elegir__completar {
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 7px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.fac-elegir__accion {
+  color: var(--accent-700);
+}
+
+.fac-elegir__accion:hover {
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+  text-decoration: none;
+}
+
+.fac-elegir__completar {
+  color: var(--ink-500);
+}
+
+.fac-elegir__completar:hover {
+  background: var(--line-2);
+  text-decoration: none;
+}
+
+.fac-elegir__accion:active,
+.fac-elegir__completar:active {
+  transform: translateY(1px);
+}
+
+.fac-elegir__vacio {
+  margin: var(--space-5) 0 0;
+  font-size: 14px;
+  color: var(--ink-500);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fac-elegir__accion,
+  .fac-elegir__completar {
+    transition: none;
+  }
+
+  .fac-elegir__accion:active,
+  .fac-elegir__completar:active {
+    transform: none;
+  }
+}
