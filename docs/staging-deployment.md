@@ -143,7 +143,7 @@ no egress charge) covers staging comfortably.
 | **Language / Runtime** | Docker |
 | **Dockerfile Path** | `./backend/Dockerfile` · **Context**: `./backend` |
 | **Auto-Deploy** | **No** — same reason as every other service |
-| **Start Command** | `celery -A cheatsheet.workers.main:app worker -B -Q integrations_sync,spreadsheet_processing,incremental_sync,notifications,ai_nlp -c 2` |
+| **Start Command** | `celery -A cheatsheet.workers.main:app worker -B -s /tmp/celerybeat-schedule -Q integrations_sync,spreadsheet_processing,incremental_sync,notifications,ai_nlp -c 2` |
 
 Environment variables: the same seven the API has — `APP_ENV`, `DATABASE_URL`,
 `DATABASE_URL_MIGRATIONS`, `JWT_SECRET`, `SECRETS_ENCRYPTION_KEY`, `APP_BASE_URL`, `REDIS_URL` —
@@ -160,6 +160,11 @@ API as well**, or it will keep writing reports into its own memory.
 fires ten tasks a day. It is safe because **there is exactly one instance**. Scale this service and
 you get two schedulers — two WhatsApp polls and two emails to every Administrador. If it ever needs
 a second instance, Beat moves out to its own `numInstances: 1` service *first*.
+
+**`-s /tmp/celerybeat-schedule` is required, not decoration.** With `-B`, Beat persists its
+schedule to a file whose default path is the working directory. The image copies everything as root
+and then drops to an unprivileged user, so `/app` is not writable and the worker dies on boot. The
+schedule is rebuilt from `workers/beat.py` at every start, so an ephemeral `/tmp` loses nothing.
 
 **`-c 2`, not 4.** The image measures ~82 MB per process, so a parent and two children fit a
 Starter's 512 MB with room. Four children do not, and the failure is an out-of-memory kill in the

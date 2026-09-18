@@ -125,8 +125,15 @@ services:
     # The five queues in one worker. They exist so a burst of spreadsheet processing
     # cannot delay a payment webhook; on staging, where the load is one person
     # clicking, five services would buy nothing and cost five times as much.
+    # `-s /tmp/...` is not cosmetic: with `-B`, Beat persists its schedule to a file,
+    # and its default path is `celerybeat-schedule` in the working directory. The image
+    # copies everything as root and then drops to an unprivileged user, so /app is not
+    # writable and the process would die on boot -- on the very first deploy. /tmp is
+    # writable and ephemeral, which is right: the schedule is rebuilt from
+    # `workers/beat.py` at every start, so there is nothing worth keeping across one.
     startCommand: >-
       celery -A cheatsheet.workers.main:app worker -B
+      -s /tmp/celerybeat-schedule
       -Q integrations_sync,spreadsheet_processing,incremental_sync,notifications,ai_nlp
       -c 2
     envVars:
