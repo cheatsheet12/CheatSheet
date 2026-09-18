@@ -481,6 +481,15 @@ jobs:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PANEL }}
         run: curl --fail --silent --show-error --output /dev/null "$HOOK"
 
+      - name: Release the worker
+        # Without this the worker keeps consuming tasks with the code of whatever
+        # release it last booted on, while the API and the panel move ahead. It fails
+        # silently -- the task is consumed and half-understood, not rejected -- which
+        # is the exact drift ADR-0006 built one shared image to avoid.
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_WORKER }}
+        run: curl --fail --silent --show-error --output /dev/null "$HOOK"
+
       - name: Wait for the API to report healthy
         # The deploy hook returns as soon as Render accepts the job, not when the
         # new version serves traffic. Without this the workflow would go green on

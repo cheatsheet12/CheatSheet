@@ -43,6 +43,11 @@ y un worker corriendo código viejo contra la base nueva es un modo de falla sil
 | `cheatsheet-panel` | Web Service (Node) | `next start` | 1 |
 | `cheatsheet-redis` | Key Value | — | 1 |
 
+> **Actualización 2026-09-18.** R1 se revirtió: el worker está desplegado, en un único servicio
+> Starter con Beat embebido (`-B`, `numInstances: 1`), más R2 en su plan gratuito porque
+> `GenerarPaqueteContable` corre en la API y en el worker. Es la **única línea paga** del entorno.
+> Lo que sigue describe la decisión original y por qué se tomó; ver `ADR-0006` §5 y el runbook §4 bis.
+
 **Sin workers, por decisión del 2026-08-24 (R1).** Los Background Workers de Render son pagos y el
 entorno se demuestra sin ellos. La imagen del backend se construye igual sirviendo para los tres
 comandos, así que sumarlos después es agregar dos servicios que apuntan a la imagen que ya existe
