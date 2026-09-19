@@ -113,6 +113,65 @@ Deploy will fail until `APP_BASE_URL` exists. That is expected; continue.
 
 ---
 
+## 4 bis. Create the worker, and give it somewhere to put files
+
+This is **the only service that costs money**: Render's free plan has no background workers. One
+Starter instance, ~USD 7/month, and nothing else in this environment leaves its free tier.
+
+### 4 bis.1 Object storage first (Cloudflare R2, free tier)
+
+Do this before the worker, because the worker needs the four values.
+
+`GenerarPaqueteContable` runs in the API **and** in the worker. With `ALMACENAMIENTO_ADAPTADOR`
+unset it defaults to the in-memory adapter, and the package one process builds is invisible to the
+other: the download returns a file nobody can find. R2's free tier (10 GB, 1 M writes, 10 M reads,
+no egress charge) covers staging comfortably.
+
+1. <https://dash.cloudflare.com> → **R2** → create a bucket, e.g. `cheatsheet-staging`.
+2. **Manage R2 API Tokens** → create a token with **Object Read & Write** limited to that bucket.
+3. Keep the four values: the S3 endpoint `https://<account_id>.r2.cloudflarestorage.com`, the bucket
+   name, the access key id and the secret access key.
+
+### 4 bis.2 The worker service
+
+**New → Background Worker** → the `CheatSheet` repository:
+
+| Field | Value |
+| --- | --- |
+| **Name** | `cheatsheet-worker` |
+| **Region** | Ohio · **Branch**: `develop` · **Instance Type**: Starter |
+| **Language / Runtime** | Docker |
+| **Dockerfile Path** | `./backend/Dockerfile` · **Context**: `./backend` |
+| **Auto-Deploy** | **No** — same reason as every other service |
+| **Start Command** | `celery -A cheatsheet.workers.main:app worker -B -s /tmp/celerybeat-schedule -Q integrations_sync,spreadsheet_processing,incremental_sync,notifications,ai_nlp -c 2` |
+
+Environment variables: the same seven the API has — `APP_ENV`, `DATABASE_URL`,
+`DATABASE_URL_MIGRATIONS`, `JWT_SECRET`, `SECRETS_ENCRYPTION_KEY`, `APP_BASE_URL`, `REDIS_URL` —
+plus `ALMACENAMIENTO_ADAPTADOR=r2` and the four `R2_*` values from §4 bis.1. **Add those five to the
+API as well**, or it will keep writing reports into its own memory.
+
+> **`SECRETS_ENCRYPTION_KEY` must be character-for-character the same as the API's.** Integration
+> credentials are encrypted with it. A worker with a different key fails every ARCA authorisation
+> with `CredencialIlegible` while the stored row looks perfectly healthy.
+
+### 4 bis.3 Two things that are part of the decision, not defaults
+
+**`-B` embeds Beat in this worker**, instead of paying for a second service to run a scheduler that
+fires ten tasks a day. It is safe because **there is exactly one instance**. Scale this service and
+you get two schedulers — two WhatsApp polls and two emails to every Administrador. If it ever needs
+a second instance, Beat moves out to its own `numInstances: 1` service *first*.
+
+**`-s /tmp/celerybeat-schedule` is required, not decoration.** With `-B`, Beat persists its
+schedule to a file whose default path is the working directory. The image copies everything as root
+and then drops to an unprivileged user, so `/app` is not writable and the worker dies on boot. The
+schedule is rebuilt from `workers/beat.py` at every start, so an ephemeral `/tmp` loses nothing.
+
+**`-c 2`, not 4.** The image measures ~82 MB per process, so a parent and two children fit a
+Starter's 512 MB with room. Four children do not, and the failure is an out-of-memory kill in the
+middle of a task.
+
+---
+
 ## 5. Cross-wire the two URLs
 
 The two services each need the other's address, which is why this is a step of its own.
@@ -134,7 +193,7 @@ registered in the MercadoPago application **character for character**, or the ex
 
 ### 6.1 Deploy hooks, from Render
 
-For **each** of the two web services: **Settings → Deploy Hook → copy URL**.
+For **each of the three services** — API, panel and worker: **Settings → Deploy Hook → copy URL**.
 
 A deploy hook is a secret URL: anyone holding it can trigger a deploy. Treat it as a credential —
 the workflow never echoes it, not even when curl fails.
@@ -149,6 +208,7 @@ Repository → **Settings → Secrets and variables → Actions → New reposito
 | `DATABASE_URL` | The `cheatsheet_app` URL. The verifier needs both roles to try crossing the barrier |
 | `RENDER_DEPLOY_HOOK_API` | From §6.1 |
 | `RENDER_DEPLOY_HOOK_PANEL` | From §6.1 |
+| `RENDER_DEPLOY_HOOK_WORKER` | From §6.1. Without it the worker keeps running the code of its last boot while the API moves ahead, and a task is half-understood rather than rejected |
 | `STAGING_API_URL` | The API's public URL, no trailing slash. Used to poll `/health` |
 
 ### 6.3 What the workflow does
@@ -187,19 +247,8 @@ go green.
 
 ## 8. What staging still does not have
 
-- **The Celery workers and Beat.** Deferred by decision R1 (2026-08-24): Render's background workers
-  are a paid plan. Consequences, so no demo discovers them mid-sentence:
-  - An invitation is created, shows as pending, and **the email never leaves**. The flow can still be
-    completed by copying the link out of the structured log — `EMAIL_ADAPTADOR=consola` writes it.
-  - A WhatsApp number stays `pendiente` forever, even after Meta verifies it: nothing polls.
-  - The daily MercadoPago renewal and the ARCA expiry warning never fire.
-
-  **To add them**, when the spend is approved: two Background Workers, same repository, same
-  `./backend/Dockerfile`, same environment group, differing only in command —
-  `celery -A cheatsheet.workers.main:app worker -Q integrations_sync,spreadsheet_processing,incremental_sync,notifications,ai_nlp -c 4`
-  and `celery -A cheatsheet.workers.main:app beat`. **Beat runs with exactly one instance.** Two
-  schedulers are two WhatsApp polls and two emails to every Administrador — `workers/beat.py` warns
-  about this and the warning now has teeth.
+- ~~**The Celery workers and Beat.**~~ Deployed on **2026-09-18** as one Starter worker with Beat
+  embedded — see §4 bis. This is the only paid instance of the environment.
 - **Real provider credentials.** ARCA, Meta and MercadoPago run simulated, on purpose: the simulated
   adapters refuse to be constructed in `production`, not in `staging`
   ([`aidlc/TODO.md`](aidlc/TODO.md) §5).

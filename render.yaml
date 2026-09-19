@@ -22,12 +22,14 @@
 # back on would silently restore the failure mode this unit was built to avoid.
 #
 # ---------------------------------------------------------------------------
-# What is NOT here
+# What this costs
 # ---------------------------------------------------------------------------
-# `cheatsheet-worker` and `cheatsheet-beat`. Deferred by decision R1 (2026-08-24):
-# Render background workers are a paid plan. The image already serves their
-# commands. When they arrive, Beat is `numInstances: 1` — two schedulers mean two
-# WhatsApp polls and two emails to every Administrador. See the runbook §7.
+# One Starter instance, for `cheatsheet-worker`. Everything else — the API, the
+# panel, Key Value, and the Neon database behind them — runs on a free plan, and
+# Cloudflare R2 stays inside its free tier. Decision R1 (2026-08-24) deferred the
+# workers precisely because they are the part that is not free; 2026-09-18 accepted
+# that cost at its minimum, with Beat embedded in the worker rather than running as
+# a second paid service.
 
 services:
   # -------------------------------------------------------------------------
@@ -68,6 +70,18 @@ services:
       # character or the exchange fails with `invalid_grant`.
       - key: APP_BASE_URL
         sync: false
+      # Same four values as the worker: both processes read and write the same
+      # objects, and two different buckets would be two halves of one flow.
+      - key: ALMACENAMIENTO_ADAPTADOR
+        value: r2
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
       - key: REDIS_URL
         fromService:
           name: cheatsheet-redis
@@ -75,18 +89,28 @@ services:
           property: connectionString
 
   # -------------------------------------------------------------------------
-  # The workers. Deferred by decision R1 (2026-08-24) and declared here now: half
-  # of what the product does is asynchronous, and a staging without them cannot
-  # finish an ingestion or obtain a CAE. A spreadsheet stays «En curso» forever and
-  # a document stays «Pendiente», which looks like a defect and is a deployment gap.
+  # The workers: ONE service, with Beat embedded. Half of what the product does is
+  # asynchronous — without it an ingestion never finishes and a document never gets
+  # its CAE, which looks like a defect and is a deployment gap.
   #
-  # **They are not free.** Render's free plan covers web services and Key Value, not
-  # background workers. Applying this blueprint asks for a paid instance — that is
-  # the decision R1 postponed, and it is the reason these two sit here rather than
-  # having shipped with the rest.
+  # **This is the only paid line of the environment.** Render's free plan covers web
+  # services and Key Value, not background workers, so this is the one instance that
+  # costs money (Starter). Splitting Beat into its own service is the textbook shape
+  # and doubles that bill for a staging environment where one person clicks at a
+  # time; `-B` runs the scheduler inside this same process instead.
   #
-  # Same image as the API on purpose: the tasks import the same application code,
-  # and a second Dockerfile is a second place for the versions to drift.
+  # `-B` is safe here for exactly one reason, and it stops being safe the moment the
+  # reason goes away: **there is one instance**. Two instances with `-B` are two
+  # schedulers — two WhatsApp polls and two emails to every Administrador, which is
+  # what `workers/beat.py` warns about. If this service is ever scaled, Beat moves
+  # out to its own `numInstances: 1` service first.
+  #
+  # `-c 2`, not 4: the image measures ~82 MB per process, so a parent and two
+  # children fit the 512 MB of a Starter instance with room to spare. Four children
+  # would not, and the failure is an out-of-memory kill in the middle of a task.
+  #
+  # Same image as the API on purpose: the tasks import the same application code, and
+  # a second Dockerfile is a second place for the versions to drift.
   # -------------------------------------------------------------------------
   - type: worker
     name: cheatsheet-worker
@@ -97,14 +121,21 @@ services:
     autoDeploy: false
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    # The five queues in one worker. They exist to keep a burst of spreadsheet
-    # processing from delaying a payment webhook; on staging, where the load is one
-    # person clicking, splitting them into five instances would buy nothing and cost
-    # five times as much. In production they are five deployments.
+    numInstances: 1 # not a default: `-B` below makes a second instance a duplicate scheduler
+    # The five queues in one worker. They exist so a burst of spreadsheet processing
+    # cannot delay a payment webhook; on staging, where the load is one person
+    # clicking, five services would buy nothing and cost five times as much.
+    # `-s /tmp/...` is not cosmetic: with `-B`, Beat persists its schedule to a file,
+    # and its default path is `celerybeat-schedule` in the working directory. The image
+    # copies everything as root and then drops to an unprivileged user, so /app is not
+    # writable and the process would die on boot -- on the very first deploy. /tmp is
+    # writable and ephemeral, which is right: the schedule is rebuilt from
+    # `workers/beat.py` at every start, so there is nothing worth keeping across one.
     startCommand: >-
-      celery -A cheatsheet.workers.main:app worker
+      celery -A cheatsheet.workers.main:app worker -B
+      -s /tmp/celerybeat-schedule
       -Q integrations_sync,spreadsheet_processing,incremental_sync,notifications,ai_nlp
-      -c 4
+      -c 2
     envVars:
       - key: APP_ENV
         value: staging
@@ -114,47 +145,26 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
-      # Must be the same value the API holds: integration credentials are encrypted
+      # Must be the SAME value the API holds: integration credentials are encrypted
       # with it, and a worker that cannot decrypt ARCA's certificate fails every
-      # authorisation with `CredencialIlegible` while the row looks fine.
+      # authorisation with `CredencialIlegible` while the row looks perfectly fine.
       - key: SECRETS_ENCRYPTION_KEY
         sync: false
       - key: APP_BASE_URL
         sync: false
-      - key: REDIS_URL
-        fromService:
-          name: cheatsheet-redis
-          type: redis
-          property: connectionString
-
-  # -------------------------------------------------------------------------
-  # Beat, the scheduler. **Exactly one instance, always.** Two schedulers are two
-  # WhatsApp polls and two emails to every Administrador; `workers/beat.py` warns
-  # about it and this is where that warning is enforced.
-  # -------------------------------------------------------------------------
-  - type: worker
-    name: cheatsheet-beat
-    runtime: docker
-    region: ohio
-    plan: starter
-    branch: develop
-    autoDeploy: false
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    numInstances: 1
-    startCommand: celery -A cheatsheet.workers.main:app beat
-    envVars:
-      - key: APP_ENV
-        value: staging
-      - key: DATABASE_URL
+      # Object storage, and it stops being optional the day this service exists.
+      # `GenerarPaqueteContable` runs BOTH here and in the API; with the in-memory
+      # adapter the package this process builds lives in this process, and the API
+      # serves a download for a file it cannot see.
+      - key: ALMACENAMIENTO_ADAPTADOR
+        value: r2
+      - key: R2_ENDPOINT
         sync: false
-      - key: DATABASE_URL_MIGRATIONS
+      - key: R2_BUCKET
         sync: false
-      - key: JWT_SECRET
+      - key: R2_ACCESS_KEY_ID
         sync: false
-      - key: SECRETS_ENCRYPTION_KEY
-        sync: false
-      - key: APP_BASE_URL
+      - key: R2_SECRET_ACCESS_KEY
         sync: false
       - key: REDIS_URL
         fromService:

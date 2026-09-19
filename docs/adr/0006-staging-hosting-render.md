@@ -87,6 +87,19 @@ in CI against the job's PostgreSQL; running it here too is what separates *the p
 when we provisioned the database* from *the policies are correct now*. A non-zero exit aborts the
 job before any deploy hook is called, so the services keep serving the previous version.
 
+### 5. Beat rides inside the worker, and object storage stops being optional
+
+`-B` runs the scheduler in the worker process. The textbook shape is a separate Beat service, and it
+is the right shape the day this scales; here it would double the only bill in the environment for a
+staging where one person clicks at a time. **It is safe for exactly one reason — there is one
+instance** — so `numInstances: 1` is not a default but part of the decision: two instances with `-B`
+are two schedulers, two WhatsApp polls and two emails to every Administrador.
+
+Adding the worker also forces `ALMACENAMIENTO_ADAPTADOR=r2`. `GenerarPaqueteContable` runs in the API
+*and* in the worker, so with the in-memory adapter the package one process builds is invisible to the
+other, and a download returns a file nobody can find. R2's free tier covers this at no cost, so the
+constraint is a setup step rather than a second line on the invoice.
+
 ## Alternatives considered
 
 | Option | Why not |
@@ -96,19 +109,21 @@ job before any deploy hook is called, so the services keep serving the previous 
 | **Vercel (panel) + Render (API)** | Next.js on its native platform, with per-PR previews. Rejected because it doubles the number of providers, secret stores and deploy steps for an internal environment, and the workflow would have to coordinate two unrelated release APIs. |
 | **Render's own PostgreSQL instead of Neon** | Would put the database next to the compute and remove the cross-region latency. Rejected because ADR-0005 is three days old and its provisioning is verified: the `cheatsheet_app` role, the RLS `FORCE` checks and the live tenant probe all exist against Neon. Re-provisioning to save latency in a demo environment would be throwing away verified work for a property nobody has complained about. |
 | **`on: push` for the deploy workflow** | Deploys red builds. See sub-decision 3. |
+| **A separate `cheatsheet-beat` service** | The shape the Celery docs recommend, and what this blueprint declared between 2026-09-15 and 2026-09-18. Rejected for staging because it doubles the only paid instance to run a scheduler that fires ten tasks a day. It returns the moment the worker needs a second instance. |
+| **Keeping `ALMACENAMIENTO_ADAPTADOR=memoria`** | Free, and broken as soon as the worker exists: the accounting package is built in one process and downloaded from another. |
 | **Migrating on container start** | Simpler to configure, and wrong the moment there is more than one instance: two processes would run `alembic upgrade head` concurrently, which Alembic is not built for. |
 
 ## Consequences
 
 ### Accepted
 
-- **The workers are not deployed.** Render's background workers are a paid plan, and the decision
-  (R1, 2026-08-24) was to defer them. Consequences, stated so no demo discovers them: an invitation
-  is created and **the email never leaves** — the flow can only be completed by copying the link out
-  of the structured log; the WhatsApp verification poll never runs, so a number stays `pendiente`
-  even after Meta verifies it; the daily MercadoPago credential renewal and the ARCA certificate
-  expiry warning never fire. None of this blocks the environment: the API boots, the panel is
-  navigable, and all three integration-connection flows can be walked end to end.
+- **One paid instance, and only one.** Decision R1 (2026-08-24) deferred the workers because they
+  are the only part of this environment that is not free. On **2026-09-18** that cost was accepted at
+  its minimum: a single Starter worker with **Beat embedded** (`-B`), rather than the textbook two
+  services. Everything else stays free — API, panel, Key Value, Neon, and R2 within its free tier.
+  What the deferral had cost, and what this restores: invitations whose email never left, a WhatsApp
+  number stuck at `pendiente` because nothing polled, a spreadsheet that never finished processing,
+  a document that never got its CAE, and the accounting package that was never assembled.
 - **Cross-region latency.** Neon is in `sa-east-1` (São Paulo) and Render has no São Paulo region;
   `ohio` is the nearest of the five. Every query crosses that distance and it is visible in the
   panel. The fix, if it ever matters, is moving the database next to the compute — not moving the
