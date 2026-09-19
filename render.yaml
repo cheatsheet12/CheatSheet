@@ -9,6 +9,24 @@
 # and because it describes both applications at once — which is exactly the test
 # CLAUDE.md §2.3 sets for what belongs at the root.
 #
+# ---------------------------------------------------------------------------
+# This file has never been applied, and that is worth knowing before you apply it
+# ---------------------------------------------------------------------------
+# The staging services were created by hand in the dashboard, following the runbook,
+# between 2026-08-24 and 2026-09-19. **The dashboard is the source of truth**; this
+# file is the reviewable description of what is there, which is why it lives in the
+# repository at all (the same reason `provision_app_role.py` exists instead of a
+# sequence of clicks).
+#
+# It is kept faithful by hand. Before trusting it, compare it against the console --
+# a service created by a Blueprint apply is a NEW service, so applying this today
+# would leave a second copy of each one running beside the originals, and the paid
+# worker would be paid twice. If this environment is ever rebuilt from scratch, apply
+# it into an empty workspace, not over the current one.
+#
+# Known and deliberate differences from a plain apply: nothing today. Verified
+# against the console on 2026-09-19.
+
 # Companion runbook: docs/staging-deployment.md
 # Decision and alternatives: docs/adr/0006-staging-hosting-render.md
 #
