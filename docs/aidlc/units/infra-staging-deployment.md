@@ -316,4 +316,18 @@ disparador fue la única pieza que no se podía ejercitar localmente, y fue la �
 |---|---|---|
 | 1 · Plan | 2026-08-24 | **aprobado**, con las tres preguntas contestadas (R1, R2, R3) |
 | 2 · Verificación | 2026-08-24 | **en verde**, con un fallo preexistente ajeno a la unidad. Detalle arriba |
-| 3 · PR | | |
+| 3 · PR | 2026-08-24 | [#16](https://github.com/cheatsheet12/CheatSheet/pull/16) → `develop`. Ver abajo lo que hizo falta después |
+
+**La unidad no terminó con su PR, y conviene que quede escrito.** El entorno quedó en pie recién
+después de cuatro correcciones, tres de ellas por errores del plan original:
+
+| PR | Fecha | Qué arregló |
+|---|---|---|
+| [#20](https://github.com/cheatsheet12/CheatSheet/pull/20) | 2026-08-25 | El job de deploy se salteaba en **todos** los push, con el workflow en verde (desvío D7) |
+| [#21](https://github.com/cheatsheet12/CheatSheet/pull/21) | 2026-08-25 | `APP_BASE_URL` no estaba declarada en el panel: el botón de Google mandaba al localhost del usuario |
+| [#41](https://github.com/cheatsheet12/CheatSheet/pull/41) | 2026-09-15 | Declaró los workers en el blueprint, revirtiendo R1 |
+| [#42](https://github.com/cheatsheet12/CheatSheet/pull/42) | 2026-09-19 | Un worker con Beat embebido en lugar de dos servicios; el `-s` que evitaba que muriera al arrancar; el release del worker en el pipeline |
+
+El entorno se verificó funcionando de punta a punta el **2026-09-19**: una planilla subida desde el
+panel viajó a R2, el worker la tomó de la cola, la procesó —3 de 3 filas, 0 errores— y los tres
+clientes aparecieron en el catálogo con origen `PLANILLA`.

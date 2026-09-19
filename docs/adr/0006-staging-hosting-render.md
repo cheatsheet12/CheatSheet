@@ -1,6 +1,7 @@
 # ADR-0006 — Render hosts the staging environment, and GitHub Actions drives the deploy
 
-- **Status**: Proposed — becomes `Accepted` when this unit's PR merges, as ADR-0003 did with PR #6
+- **Status**: Accepted — with the merge of [PR #16](https://github.com/cheatsheet12/CheatSheet/pull/16)
+  on 2026-08-24, as ADR-0003 was with PR #6
 - **Date**: 2026-08-24
 - **Supersedes**: nothing
 - **Related**: [ADR-0005](0005-staging-database-neon.md) (the staging database),
@@ -112,6 +113,14 @@ constraint is a setup step rather than a second line on the invoice.
 | **A separate `cheatsheet-beat` service** | The shape the Celery docs recommend, and what this blueprint declared between 2026-09-15 and 2026-09-18. Rejected for staging because it doubles the only paid instance to run a scheduler that fires ten tasks a day. It returns the moment the worker needs a second instance. |
 | **Keeping `ALMACENAMIENTO_ADAPTADOR=memoria`** | Free, and broken as soon as the worker exists: the accounting package is built in one process and downloaded from another. |
 | **Migrating on container start** | Simpler to configure, and wrong the moment there is more than one instance: two processes would run `alembic upgrade head` concurrently, which Alembic is not built for. |
+
+## Amendments
+
+**2026-09-18 — decision R1 reverted, at its minimum cost.** The workers, deferred on 2026-08-24 for
+being the only paid part of this environment, are deployed: one Starter worker with Beat embedded
+(sub-decision 5). Everything else still runs free. The consequence section below already describes
+the environment as it stands; this note exists so the reversal has a date and a reason rather than
+being inferred from a diff.
 
 ## Consequences
 
