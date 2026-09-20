@@ -44,6 +44,7 @@ import {
   ErrorDeCobro,
   MENSAJE_LINK_COPIADO,
   MENSAJE_MONTO_NO_POSITIVO,
+  MENSAJE_PAGO_HUERFANO,
   MENSAJE_SIN_RESULTADOS,
 } from "@/features/payments";
 import type { Cobro, DetalleDeCobroRespuesta, ListadoDeCobrosRespuesta } from "@/features/payments";
@@ -66,6 +67,7 @@ const PENDIENTE: Cobro = {
   vence_el: "2026-09-20",
   pagado_en: null,
   reembolso_en_proceso: false,
+  tiene_pago_huerfano: false,
   motivo_de_cancelacion: null,
   created_at: "2026-09-07T12:00:00Z",
 };
@@ -248,6 +250,62 @@ describe("PAN-COB-02 — detalle del cobro", () => {
         "MercadoPago rechazó el reembolso. El cobro sigue figurando como pagado.",
       ),
     ).toBeTruthy();
+  });
+
+  it("avisa cuando MercadoPago no pudo invalidar el link al cancelar", async () => {
+    // HU-E6-04 RN-03: si el link puede seguir cobrando, la cancelacion no ocurre, y la
+    // pantalla lo dice con el texto del backend y no con uno inventado aca.
+    cancelarCobro.mockRejectedValue(
+      new ErrorDeCobro("MercadoPago no invalido el link de pago: no respondio"),
+    );
+    render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar cobro" }));
+    fireEvent.change(screen.getByLabelText("Motivo"), {
+      target: { value: "El cliente ya pago por transferencia" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelación" }));
+
+    expect(
+      await screen.findByText("MercadoPago no invalido el link de pago: no respondio"),
+    ).toBeTruthy();
+  });
+
+  it("muestra el pago que entro por un link ya cancelado", () => {
+    // El aviso de severidad alta manda al administrador a esta pantalla; sin esto, no veria
+    // nada distinto de una cancelacion normal.
+    render(
+      <DetalleDeCobro
+        inicial={{
+          ...DETALLE,
+          estado: "CANCELADO",
+          tiene_link_activo: false,
+          motivo_de_cancelacion: "El cliente ya pago por transferencia",
+          tiene_pago_huerfano: true,
+        }}
+        puedeGestionar
+        puedeReembolsar={false}
+      />,
+    );
+
+    expect(screen.getByText(MENSAJE_PAGO_HUERFANO)).toBeTruthy();
+  });
+
+  it("no dice nada raro en una cancelacion normal", () => {
+    render(
+      <DetalleDeCobro
+        inicial={{
+          ...DETALLE,
+          estado: "CANCELADO",
+          tiene_link_activo: false,
+          motivo_de_cancelacion: "Se cargo por duplicado",
+        }}
+        puedeGestionar
+        puedeReembolsar={false}
+      />,
+    );
+
+    expect(screen.queryByText(MENSAJE_PAGO_HUERFANO)).toBeNull();
   });
 
   it("dice que el reembolso esta en curso sin mentir sobre el estado (D27)", () => {

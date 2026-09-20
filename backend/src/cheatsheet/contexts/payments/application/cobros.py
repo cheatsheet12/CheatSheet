@@ -274,10 +274,25 @@ class CancelarCobro:
     El motivo es obligatorio y de diez caracteres (RN-02), y eso lo impone el agregado. Los
     recordatorios se detienen solos: HS-T3 no le manda a un `CANCELADO`, así que la cadena se
     corta por el estado y no por una llamada que alguien pueda olvidar.
+
+    **El link se invalida en MercadoPago, no sólo acá** (RN-03). Que el agregado deje de
+    considerarlo usable no impide que el cliente pague: la preferencia se creó con
+    `expiration_date_to = vence_el`, una fecha futura, y el link ya está en su WhatsApp. Si
+    MercadoPago no confirma que murió, **la cancelación no ocurre**: el cobro queda como
+    estaba y el mensaje llega a la pantalla. Mismo criterio que HU-E6-03 con el alta —una
+    operación sobre plata no se hace a medias— y misma consecuencia asumida: con MercadoPago
+    caído no se puede cancelar.
     """
 
-    def __init__(self, *, cobros: PortRepositorioCobro, publicador: PublicadorDeEventos) -> None:
+    def __init__(
+        self,
+        *,
+        cobros: PortRepositorioCobro,
+        pasarela: PortPasarelaDePago,
+        publicador: PublicadorDeEventos,
+    ) -> None:
         self._cobros = cobros
+        self._pasarela = pasarela
         self._publicador = publicador
 
     async def ejecutar(
@@ -296,12 +311,18 @@ class CancelarCobro:
         if cobro is None:
             raise CobroInexistente("El cobro no existe")
 
+        # **Primero el agregado, después la red.** Un motivo de nueve caracteres o un cobro ya
+        # pagado se rechazan sin gastar una llamada a MercadoPago. Y como el repositorio
+        # reconstituye un objeto de dominio aparte de la fila del ORM, mutarlo acá no escribe
+        # nada: si la invalidación falla y esto levanta, el cobro queda como estaba.
         try:
             cobro.cancelar(motivo=motivo, ahora=ahora)
         except InvarianteViolada as exc:
             # Angostado para que el router conteste 409 con el texto de la historia, que
             # además dice qué hacer en su lugar.
             raise CobroNoCancelable(str(exc)) from exc
+
+        await self._invalidar_link_si_hace_falta(empresa_id=empresa_id, cobro=cobro, ahora=ahora)
 
         await self._cobros.guardar(cobro)
         await self._publicador.publicar(
@@ -319,6 +340,23 @@ class CancelarCobro:
             )
         )
         return cobro
+
+    async def _invalidar_link_si_hace_falta(
+        self, *, empresa_id: EmpresaId, cobro: Cobro, ahora: datetime
+    ) -> None:
+        """La llamada a MercadoPago, y las dos veces que no hace falta darla.
+
+        Sin link nunca hubo preferencia. Y si el cobro ya venció, la preferencia también: se
+        creó con `expiration_date_to = cobro.vence_el`, así que `esta_vencido_a(ahora)` y «el
+        proveedor ya no lo acepta» son el mismo hecho. Es una equivalencia exacta y no una
+        heurística — si un día el adaptador dejara de mandar ese campo, este atajo habría que
+        sacarlo con él.
+        """
+        if cobro.link is None or cobro.esta_vencido_a(ahora):
+            return
+        await self._pasarela.invalidar_link(
+            empresa_id=empresa_id, preference_id=cobro.link.preference_id, ahora=ahora
+        )
 
 
 class ReembolsarCobro:

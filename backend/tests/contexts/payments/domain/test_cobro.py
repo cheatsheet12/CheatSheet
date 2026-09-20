@@ -294,3 +294,58 @@ def test_estar_vencido_de_hecho_es_distinto_de_estarlo_de_derecho() -> None:
     assert cobro.esta_vencido_a(despues)
     assert _estado(cobro) is EstadoCobro.PENDIENTE
     assert cobro.esta_abierto
+
+
+# --------------------------------------------------------------- el pago huerfano
+
+
+def test_un_pago_sobre_un_cobro_cancelado_se_anota_sin_mover_el_estado() -> None:
+    """HU-E6-04. Misma forma que `solicitar_reembolso` (D27): un hecho sin transicion.
+
+    El cobro no resucita. Alguien lo dio de baja con un motivo escrito, y `CANCELADO ->
+    APROBADO` no esta en la tabla de transiciones justamente por eso.
+    """
+    cobro = _cobro()
+    cobro.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+
+    cobro.registrar_pago_huerfano(payment_id="pago-1", ahora=AHORA)
+
+    assert _estado(cobro) is EstadoCobro.CANCELADO
+    assert cobro.mp_payment_id == "pago-1"
+    assert cobro.tiene_pago_huerfano
+
+
+def test_un_cobro_abierto_no_puede_tener_un_pago_huerfano() -> None:
+    """Un pendiente que recibe plata se aprueba; para eso esta `aprobar`."""
+    cobro = _cobro()
+
+    with pytest.raises(InvarianteViolada):
+        cobro.registrar_pago_huerfano(payment_id="pago-1", ahora=AHORA)
+
+
+def test_un_segundo_pago_huerfano_no_pisa_al_primero() -> None:
+    """El `mp_payment_id` es la clave de idempotencia: perderlo seria perder el rastro."""
+    cobro = _cobro()
+    cobro.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+    cobro.registrar_pago_huerfano(payment_id="pago-1", ahora=AHORA)
+
+    with pytest.raises(InvarianteViolada):
+        cobro.registrar_pago_huerfano(payment_id="pago-2", ahora=AHORA)
+
+    assert cobro.mp_payment_id == "pago-1"
+
+
+def test_un_cancelado_sin_pago_no_es_un_pago_huerfano() -> None:
+    """Lo normal: se cancela y no entra nada. La pantalla no tiene que decir nada."""
+    cobro = _cobro()
+    cobro.cancelar(motivo="Se cargo por duplicado", ahora=AHORA)
+
+    assert not cobro.tiene_pago_huerfano
+
+
+def test_un_cobro_aprobado_no_es_un_pago_huerfano() -> None:
+    """Tiene `mp_payment_id`, pero esta imputado a su deuda: es lo contrario del caso."""
+    cobro = _cobro()
+    cobro.aprobar(payment_id="pago-1", ahora=AHORA)
+
+    assert not cobro.tiene_pago_huerfano

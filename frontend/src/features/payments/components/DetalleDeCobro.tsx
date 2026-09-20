@@ -39,6 +39,7 @@ import {
   LARGO_MINIMO_DE_MOTIVO,
   MENSAJE_LINK_COPIADO,
   MENSAJE_MOTIVO_CORTO,
+  MENSAJE_PAGO_HUERFANO,
   cancelarCobro,
   copiarLink,
   reembolsarCobro,
@@ -201,6 +202,12 @@ export function DetalleDeCobro({
                 <div className="cob-kv__par">
                   <dt>Motivo de cancelación</dt>
                   <dd className="cob-kv__alerta">{cobro.motivo_de_cancelacion}</dd>
+                </div>
+              )}
+              {cobro.tiene_pago_huerfano && (
+                <div className="cob-kv__par">
+                  <dt>Pago sobre cobro cancelado</dt>
+                  <dd className="cob-kv__alerta">{MENSAJE_PAGO_HUERFANO}</dd>
                 </div>
               )}
             </dl>

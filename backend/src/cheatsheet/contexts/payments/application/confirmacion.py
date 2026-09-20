@@ -31,7 +31,7 @@ from cheatsheet.contexts.payments.application.ports import (
     PortRepositorioCobro,
     PortSaldoDeComprobante,
 )
-from cheatsheet.contexts.payments.domain.cobro import Cobro
+from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId
@@ -54,6 +54,10 @@ class ResultadoDeConfirmacion:
     #: `None` cuando la notificación no correspondía a ningún cobro nuestro. Pasa: MercadoPago
     #: manda eventos de la cuenta entera, y una empresa puede cobrar por fuera del sistema.
     cobro: Cobro | None = None
+    #: Entró plata por el link de un cobro **cancelado**. Ni `aprobado` ni `ya_procesado`: es
+    #: un tercer desenlace, y tiene su propia bandera por lo mismo que `ya_procesado` tiene la
+    #: suya — sin ella la bitácora no podría distinguir el caso que hay que mirar hoy.
+    huerfano: bool = False
 
 
 class ConfirmarPago:
@@ -113,6 +117,14 @@ class ConfirmarPago:
     async def _aprobar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, pago: PagoRecibido, ahora: datetime
     ) -> ResultadoDeConfirmacion:
+        if cobro.estado is EstadoCobro.CANCELADO:
+            # Plata que entró por un link que debería estar muerto. **No es idempotencia**, y
+            # tratarla como tal --que es lo que este código hacía-- dejaba el pago sin dueño,
+            # sin bitácora y sin aviso, para que apareciera conciliando el extracto.
+            return await self._registrar_huerfano(
+                empresa_id=empresa_id, cobro=cobro, pago=pago, ahora=ahora
+            )
+
         if not cobro.esta_abierto:
             # **Segunda línea de la idempotencia.** Un cobro ya aprobado por otra notificación
             # que llegó con otro `payment_id` -- raro, pero MercadoPago reintenta con ids
@@ -148,6 +160,50 @@ class ConfirmarPago:
         )
         logger.info("pago_confirmado", cobro_id=str(cobro.id), payment_id=pago.payment_id)
         return ResultadoDeConfirmacion(aprobado=True, cobro=cobro)
+
+    async def _registrar_huerfano(
+        self, *, empresa_id: EmpresaId, cobro: Cobro, pago: PagoRecibido, ahora: datetime
+    ) -> ResultadoDeConfirmacion:
+        """Un pago entró por el link de un cobro cancelado (HU-E6-04 RN-03).
+
+        Tres cosas pasan, y las tres importan:
+
+        - **El cobro no cambia de estado.** Alguien lo dio de baja con un motivo escrito;
+          resucitarlo con un webhook contradiría esa decisión, y `CANCELADO → APROBADO` no
+          está en la tabla de transiciones justamente por eso.
+        - **El `payment_id` queda atado a esta fila.** Es lo que vuelve idempotente la
+          notificación repetida —`buscar_por_payment_id` la corta antes de llegar acá— y lo
+          que le da al administrador por dónde empezar a buscar la plata.
+        - **El saldo del comprobante no se toca.** Esa plata no está imputada a nada, y bajarle
+          el saldo a un comprobante por un pago que nadie aceptó sería mentir en el balance del
+          épico 9 (D26).
+
+        El evento va con `Resultado.ERROR` a propósito: `NotificarPorEventos` lo convierte en
+        una notificación de severidad alta, que es la única forma de que alguien se entere hoy
+        y no cuando concilie el extracto.
+        """
+        cobro.registrar_pago_huerfano(payment_id=pago.payment_id, ahora=ahora)
+        await self._cobros.guardar(cobro)
+
+        await self._publicador.publicar(
+            EventoAuditable(
+                evento_id=uuid4(),
+                empresa_id=empresa_id,
+                ocurrido_en=ahora,
+                # Iniciador Sistema, como el resto de lo que hace el webhook (RN-05).
+                usuario_id=None,
+                modulo=Modulo.PAYMENTS,
+                accion="pago_sobre_cobro_cancelado",
+                entidad_afectada=f"Cobro:{cobro.id}",
+                resultado=Resultado.ERROR,
+            )
+        )
+        logger.warning(
+            "pago_sobre_cobro_cancelado",
+            cobro_id=str(cobro.id),
+            payment_id=pago.payment_id,
+        )
+        return ResultadoDeConfirmacion(aprobado=False, huerfano=True, cobro=cobro)
 
 
 class RegistrarWebhookRechazado:

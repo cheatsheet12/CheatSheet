@@ -33,6 +33,7 @@ from cheatsheet.contexts.payments.application.ports import (
     PagoRecibido,
 )
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDePago
+from cheatsheet.shared.auditoria import EventoAuditable, Resultado
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import EventoDeDominio
 
@@ -44,14 +45,24 @@ UN_LINK = LinkDePago(preference_id="pref-1", url="https://mp.com/checkout/pref-1
 
 
 class CobrosFalsos:
+    """El repositorio en memoria.
+
+    **Guarda la referencia, no una copia**, que es donde se aparta del real: el de verdad
+    reconstituye un objeto de dominio aparte de la fila del ORM, así que mutar el agregado no
+    escribe nada hasta `guardar`. Por eso lo que se afirma acá cuando algo tiene que *no*
+    persistirse es `escrituras`, y no el estado del objeto — que este doble ya mutó.
+    """
+
     def __init__(self) -> None:
         self.guardados: dict[UUID, Cobro] = {}
+        self.escrituras: list[UUID] = []
 
     async def agregar(self, cobro: Cobro) -> None:
         self.guardados[cobro.id] = cobro
 
     async def guardar(self, cobro: Cobro) -> None:
         self.guardados[cobro.id] = cobro
+        self.escrituras.append(cobro.id)
 
     async def buscar_por_id(self, cobro_id: UUID) -> Cobro | None:
         return self.guardados.get(cobro_id)
@@ -100,6 +111,9 @@ class PasarelaFalsa:
         self.estado = estado
         self.preferencia = preferencia
         self.consultas = 0
+        #: Con qué preferencias se llamó a `invalidar_link`. Lo que hace afirmable RN-03 de
+        #: HU-E6-04: que la cancelación no se quedó en una anotación nuestra.
+        self.invalidados: list[str] = []
 
     async def crear_link(
         self, *, empresa_id: EmpresaId, cobro: Cobro, url_de_retorno: str
@@ -113,6 +127,12 @@ class PasarelaFalsa:
         return PagoRecibido(
             payment_id=payment_id, preference_id=self.preferencia, estado=self.estado
         )
+
+    async def invalidar_link(
+        self, *, empresa_id: EmpresaId, preference_id: str, ahora: datetime
+    ) -> None:
+        del empresa_id, ahora
+        self.invalidados.append(preference_id)
 
     async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:
         del empresa_id, payment_id, monto
@@ -310,6 +330,95 @@ async def test_un_cobro_sin_comprobante_no_toca_ningun_saldo() -> None:
 
 
 # ------------------------------------------------------------------ firma inválida · D22
+
+
+# ------------------------------------------------------------------ el pago huerfano
+
+
+async def test_un_pago_sobre_un_cobro_cancelado_no_se_traga_en_silencio() -> None:
+    """HU-E6-04. **El agujero que esta unidad cierra.**
+
+    Antes esto caía en la rama de idempotencia: 200, un `logger.info` y nada más. La plata
+    quedaba en MercadoPago sin fila que la explicara y sin nadie enterado.
+    """
+    cobros, publicador = CobrosFalsos(), PublicadorFalso()
+    cobro = _cobro()
+    cobro.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+    await cobros.agregar(cobro)
+
+    resultado = await _confirmar(cobros, PasarelaFalsa(), SaldosFalsos(), publicador).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA
+    )
+
+    assert resultado.huerfano
+    assert not resultado.aprobado
+    assert not resultado.ya_procesado
+    # El cobro no resucita: alguien lo dio de baja con un motivo escrito.
+    assert cobro.estado is EstadoCobro.CANCELADO
+    assert cobro.mp_payment_id == "pago-1"
+    assert cobro.tiene_pago_huerfano
+
+    evento = publicador.eventos[-1]
+    assert isinstance(evento, EventoAuditable)
+    assert evento.accion == "pago_sobre_cobro_cancelado"
+    # `Resultado.ERROR` es lo que `NotificarPorEventos` convierte en aviso de severidad alta.
+    assert evento.resultado is Resultado.ERROR
+    assert evento.usuario_id is None
+
+
+async def test_el_pago_huerfano_no_avisa_dos_veces() -> None:
+    """MercadoPago reintenta por diseño. El `payment_id` guardado corta el segundo (D20)."""
+    cobros, publicador = CobrosFalsos(), PublicadorFalso()
+    cobro = _cobro()
+    cobro.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+    await cobros.agregar(cobro)
+    caso = _confirmar(cobros, PasarelaFalsa(), SaldosFalsos(), publicador)
+
+    primero = await caso.ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
+    segundo = await caso.ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
+
+    assert primero.huerfano
+    assert segundo.ya_procesado
+    assert not segundo.huerfano
+    errores = [
+        uno
+        for uno in publicador.eventos
+        if isinstance(uno, EventoAuditable) and uno.resultado is Resultado.ERROR
+    ]
+    assert len(errores) == 1
+
+
+async def test_el_pago_huerfano_no_le_baja_el_saldo_al_comprobante() -> None:
+    """D26: esa plata no está imputada a nada, y el balance del épico 9 no debe creerlo."""
+    cobros, saldos = CobrosFalsos(), SaldosFalsos()
+    cobro = _cobro(comprobante_id=uuid4())
+    cobro.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+    await cobros.agregar(cobro)
+
+    await _confirmar(cobros, PasarelaFalsa(), saldos, PublicadorFalso()).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA
+    )
+
+    assert saldos.descuentos == []
+    assert saldos.saldo == Decimal("5000.00")
+
+
+async def test_un_pago_sobre_un_cobro_reembolsado_sigue_siendo_idempotencia() -> None:
+    """La rama vieja no se tocó: sólo `CANCELADO` se desvía, y sin alerta acá."""
+    cobros, publicador = CobrosFalsos(), PublicadorFalso()
+    cobro = _cobro()
+    cobro.aprobar(payment_id="pago-viejo", ahora=AHORA)
+    cobro.solicitar_reembolso(monto=cobro.monto, ahora=AHORA)
+    cobro.confirmar_reembolso(monto=cobro.monto, ahora=AHORA)
+    await cobros.agregar(cobro)
+
+    resultado = await _confirmar(cobros, PasarelaFalsa(), SaldosFalsos(), publicador).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-nuevo", ahora=AHORA
+    )
+
+    assert resultado.ya_procesado
+    assert not resultado.huerfano
+    assert publicador.eventos == []
 
 
 async def test_un_webhook_rechazado_queda_registrado() -> None:

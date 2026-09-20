@@ -1,13 +1,18 @@
 """`PortPasarelaDePago` contra MercadoPago, y su doble.
 
-Tres operaciones: crear la preferencia, consultar un pago y reembolsar. El OAuth, el refresco
-del token y la validación de la conexión son de `integrations` y ya existen desde el épico 2 —
-acá sólo se pide el token y se usa.
+Cuatro operaciones: crear la preferencia, invalidarla, consultar un pago y reembolsar. El
+OAuth, el refresco del token y la validación de la conexión son de `integrations` y ya existen
+desde el épico 2 — acá sólo se pide el token y se usa.
 
 **Un rechazo no es una caída.** `reembolsar` devuelve un booleano y no levanta cuando
 MercadoPago dice que no (HU-E6-05 RN-03): eso es una respuesta, y el cobro mantiene su estado.
 Lo que sí levanta es no poder preguntar, y esa distinción es la misma que `billing` mantiene
 con ARCA.
+
+**`invalidar_link` está del otro lado de esa línea, y a propósito.** Ahí un rechazo no deja el
+mundo en un estado conocido: deja un link que el cliente todavía puede pagar (HU-E6-04 RN-03).
+Por eso levanta ante cualquier cosa que no sea la confirmación de que la preferencia murió, y
+la cancelación entera no ocurre.
 
 **El simulado se niega a construirse en producción**, como los cinco anteriores, y acá con más
 en juego que en ninguno: una empresa cobrando contra este doble estaría entregando links que
@@ -16,6 +21,7 @@ nadie puede pagar y dando por saldadas deudas que nadie pagó.
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -111,6 +117,35 @@ class PasarelaMercadoPago:
             estado=str(datos.get("status") or ""),
             monto=_monto_de(datos),
         )
+
+    async def invalidar_link(
+        self, *, empresa_id: EmpresaId, preference_id: str, ahora: datetime
+    ) -> None:
+        """Adelanta el vencimiento de la preferencia al instante actual (HU-E6-04 RN-03).
+
+        **MercadoPago no tiene un DELETE de preferencias**, y ésta es la operación que sí
+        existe: la preferencia se creó con `expires: true`, así que mover `expiration_date_to`
+        al ahora deja de aceptar pagos por ese link. Se manda `expires` de nuevo porque el PUT
+        reemplaza los campos que toca y la preferencia sin él dejaría de vencer nunca.
+
+        Un rechazo **no** se traga como respuesta, al revés que en `reembolsar`: si
+        MercadoPago dijo que no, el link puede seguir cobrando, y la cancelación entera tiene
+        que fallar. La única excepción es el 404 — una preferencia que MercadoPago no conoce
+        no le puede cobrar a nadie.
+        """
+        try:
+            await self._pedir(
+                empresa_id,
+                "PUT",
+                f"/checkout/preferences/{preference_id}",
+                {"expires": True, "expiration_date_to": ahora.isoformat()},
+                operacion="invalidar_link",
+            )
+        except _RechazoDeMercadoPago as exc:
+            if exc.estado == httpx.codes.NOT_FOUND:
+                logger.info("preferencia_inexistente_al_invalidar", preference_id=preference_id)
+                return
+            raise PasarelaNoDisponible(f"MercadoPago no invalido el link de pago: {exc}") from exc
 
     async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:
         """`True` si MercadoPago aceptó, `False` si lo rechazó (RN-03).
@@ -232,8 +267,8 @@ class PasarelaSimulada:
     dando por saldadas deudas que nadie pagó.
 
     No es siempre-que-sí a propósito. Un cobro cuya descripción contenga «rechazar» hace que
-    el reembolso vuelva rechazado, para que la rama de RN-03 se pueda caminar en una laptop
-    sin editar código.
+    el reembolso vuelva rechazado **y que la invalidación del link falle**, para que las dos
+    ramas de error se puedan caminar en una laptop sin editar código.
     """
 
     #: La palabra que dispara el rechazo. Documentada acá porque un doble cuyo comportamiento
@@ -248,6 +283,7 @@ class PasarelaSimulada:
             )
         self.links: dict[str, str] = {}
         self.reembolsos: list[tuple[str, Decimal]] = []
+        self.invalidados: list[str] = []
         self._rechazan: set[str] = set()
 
     async def crear_link(
@@ -264,6 +300,17 @@ class PasarelaSimulada:
             # rompe el día que ve una URL de verdad.
             url=f"https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id={preferencia}",
         )
+
+    async def invalidar_link(
+        self, *, empresa_id: EmpresaId, preference_id: str, ahora: datetime
+    ) -> None:
+        del empresa_id, ahora
+        if preference_id in self._rechazan:
+            raise PasarelaNoDisponible("MercadoPago no invalido el link de pago (simulado)")
+        # Se saca de `links` porque eso es lo que la invalidación significa acá: el doble deja
+        # de reconocer la preferencia, igual que MercadoPago deja de cobrarla.
+        self.links.pop(preference_id, None)
+        self.invalidados.append(preference_id)
 
     async def consultar_pago(self, *, empresa_id: EmpresaId, payment_id: str) -> PagoRecibido:
         del empresa_id

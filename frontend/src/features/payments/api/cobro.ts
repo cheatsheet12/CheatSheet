@@ -36,6 +36,13 @@ export interface Cobro {
   readonly pagado_en: string | null;
   /** HU-E6-05: la pantalla muestra «Reembolso en proceso» a partir de esto (D27). */
   readonly reembolso_en_proceso: boolean;
+  /**
+   * HU-E6-04: entró plata por el link de un cobro cancelado.
+   *
+   * El backend ya avisó al administrador con una notificación de severidad alta; esto es
+   * lo que hace que la pantalla a la que ese aviso lo manda muestre algo.
+   */
+  readonly tiene_pago_huerfano: boolean;
   readonly motivo_de_cancelacion: string | null;
   readonly created_at: string;
 }
@@ -76,6 +83,16 @@ export const MENSAJE_MONTO_NO_POSITIVO = "El monto debe ser mayor a cero.";
 export const MENSAJE_MOTIVO_CORTO = "El motivo debe tener al menos 10 caracteres.";
 export const MENSAJE_LINK_COPIADO = "Link copiado al portapapeles.";
 export const MENSAJE_MP_CAIDO = "No se pudo generar el link de pago. Intente nuevamente.";
+
+/**
+ * HU-E6-04. Lo que PAN-COB-02 dice cuando entró plata por un link ya cancelado.
+ *
+ * No lo escribe una historia —la historia no contempla el caso— y por eso dice qué hacer y
+ * no sólo qué pasó: el administrador llega acá desde una notificación y necesita el paso
+ * siguiente, que está en MercadoPago y no en esta pantalla.
+ */
+export const MENSAJE_PAGO_HUERFANO =
+  "Entró un pago por el link de este cobro después de cancelarlo. El dinero está en la cuenta de MercadoPago y no fue imputado a ninguna deuda. Revisalo y, si corresponde, devolvelo desde MercadoPago.";
 
 /** HU-E6-04 RN-02. Lo valida el backend; acá sólo decide si el botón está gris. */
 export const LARGO_MINIMO_DE_MOTIVO = 10;
