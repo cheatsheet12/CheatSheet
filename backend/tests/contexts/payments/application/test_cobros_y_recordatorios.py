@@ -77,6 +77,16 @@ class PasarelaCaida(PasarelaFalsa):
         raise PasarelaNoDisponible("MercadoPago no respondio")
 
 
+class PasarelaQueNoInvalida(PasarelaFalsa):
+    """MercadoPago no confirma que el link murió. HU-E6-04 RN-03: no se cancela nada."""
+
+    async def invalidar_link(
+        self, *, empresa_id: EmpresaId, preference_id: str, ahora: datetime
+    ) -> None:
+        del empresa_id, preference_id, ahora
+        raise PasarelaNoDisponible("MercadoPago no invalido el link de pago")
+
+
 class PasarelaQueRechazaElReembolso(PasarelaFalsa):
     async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:
         del empresa_id, payment_id, monto
@@ -318,8 +328,9 @@ async def test_cancelar_un_pagado_usa_el_texto_de_la_historia() -> None:
     cobro.aprobar(payment_id="pago-1", ahora=AHORA)
     await cobros.agregar(cobro)
 
+    pasarela = PasarelaFalsa()
     with pytest.raises(CobroNoCancelable) as exc:
-        await CancelarCobro(cobros=cobros, publicador=PublicadorFalso()).ejecutar(
+        await _cancelar(cobros, pasarela).ejecutar(
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
             rol=RolUsuario.OPERADOR,
@@ -329,6 +340,136 @@ async def test_cancelar_un_pagado_usa_el_texto_de_la_historia() -> None:
         )
 
     assert "reembolso" in str(exc.value).lower()
+    # RN-01 se resuelve sin gastar una llamada de red: el agregado corta antes.
+    assert pasarela.invalidados == []
+
+
+def _cancelar(cobros: CobrosFalsos, pasarela: PasarelaFalsa) -> CancelarCobro:
+    return CancelarCobro(cobros=cobros, pasarela=pasarela, publicador=PublicadorFalso())
+
+
+async def test_cancelar_invalida_el_link_en_mercadopago() -> None:
+    """HU-E6-04 RN-03. **El caso que faltaba**: sin esto el link seguía cobrando."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pasarela = PasarelaFalsa()
+
+    resultado = await _cancelar(cobros, pasarela).ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=RolUsuario.OPERADOR,
+        cobro_id=cobro.id,
+        motivo="El cliente ya pago por transferencia",
+        ahora=AHORA,
+    )
+
+    assert resultado.estado is EstadoCobro.CANCELADO
+    assert pasarela.invalidados == [UN_LINK.preference_id]
+
+
+async def test_si_mercadopago_no_invalida_el_cobro_no_se_cancela() -> None:
+    """La decisión de esta unidad: una operación sobre plata no se hace a medias.
+
+    Lo que se afirma no es sólo que levante, sino que **no quede nada escrito**: ni el estado
+    ni el motivo ni el evento de bitácora. Un cobro cancelado a medias, con el link todavía
+    cobrando, es peor que uno que no se pudo cancelar.
+    """
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    publicador = PublicadorFalso()
+
+    caso = CancelarCobro(cobros=cobros, pasarela=PasarelaQueNoInvalida(), publicador=publicador)
+    with pytest.raises(PasarelaNoDisponible):
+        await caso.ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            cobro_id=cobro.id,
+            motivo="El cliente ya pago por transferencia",
+            ahora=AHORA,
+        )
+
+    # No se escribió nada ni se publicó nada. Se afirma sobre `escrituras` y no sobre el
+    # estado del objeto porque este doble guarda la referencia que el caso de uso ya mutó; el
+    # repositorio real reconstituye, y eso lo prueba el test de integración contra PostgreSQL.
+    assert cobros.escrituras == []
+    assert publicador.eventos == []
+
+
+async def test_cancelar_sin_link_no_llama_a_mercadopago() -> None:
+    """Nunca hubo preferencia: no hay nada que invalidar."""
+    cobros = CobrosFalsos()
+    cobro = Cobro(
+        id=uuid4(),
+        empresa_id=EMPRESA,
+        cliente_id=uuid4(),
+        monto=Decimal("1210.00"),
+        descripcion="Consulta de septiembre",
+        vence_el=AHORA + timedelta(days=30),
+        created_at=AHORA,
+    )
+    await cobros.agregar(cobro)
+    pasarela = PasarelaFalsa()
+
+    resultado = await _cancelar(cobros, pasarela).ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=RolUsuario.OPERADOR,
+        cobro_id=cobro.id,
+        motivo="Se cargo por duplicado",
+        ahora=AHORA,
+    )
+
+    assert resultado.estado is EstadoCobro.CANCELADO
+    assert pasarela.invalidados == []
+
+
+async def test_cancelar_un_vencido_no_llama_a_mercadopago() -> None:
+    """La preferencia se creó con `expiration_date_to = vence_el`: ya expiró sola.
+
+    El atajo es una equivalencia exacta, no una heurística, y este test es lo que la ata: si
+    el adaptador dejara de mandar ese campo, esta afirmación habría que sacarla con él.
+    """
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    despues = cobro.vence_el + timedelta(days=1)
+    cobro.vencer(despues)
+    await cobros.agregar(cobro)
+    pasarela = PasarelaFalsa()
+
+    resultado = await _cancelar(cobros, pasarela).ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=RolUsuario.OPERADOR,
+        cobro_id=cobro.id,
+        motivo="Incobrable, se da de baja",
+        ahora=despues,
+    )
+
+    assert resultado.estado is EstadoCobro.CANCELADO
+    assert pasarela.invalidados == []
+
+
+async def test_un_motivo_corto_no_gasta_una_llamada_a_mercadopago() -> None:
+    """RN-02 se valida en el agregado, y el agregado corre primero."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pasarela = PasarelaFalsa()
+
+    with pytest.raises(EntradaInvalida):
+        await _cancelar(cobros, pasarela).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            cobro_id=cobro.id,
+            motivo="corto",
+            ahora=AHORA,
+        )
+
+    assert pasarela.invalidados == []
 
 
 # ------------------------------------------------------------------ reembolsar · D27

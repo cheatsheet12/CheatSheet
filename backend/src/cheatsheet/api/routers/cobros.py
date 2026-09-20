@@ -81,6 +81,9 @@ class CobroSalida(BaseModel):
     pagado_en: datetime | None
     #: HU-E6-05: la pantalla muestra «Reembolso en proceso» a partir de esto (decisión D27).
     reembolso_en_proceso: bool
+    #: HU-E6-04: entró plata por el link de un cobro cancelado. PAN-COB-02 lo muestra
+    #: porque el aviso de severidad alta que lo acompaña manda al administrador acá.
+    tiene_pago_huerfano: bool
     motivo_de_cancelacion: str | None
     created_at: datetime
 
@@ -118,6 +121,7 @@ def _a_salida(cobro: Cobro) -> CobroSalida:
         vence_el=cobro.vence_el,
         pagado_en=cobro.pagado_en,
         reembolso_en_proceso=cobro.reembolso_en_proceso,
+        tiene_pago_huerfano=cobro.tiene_pago_huerfano,
         motivo_de_cancelacion=cobro.motivo_de_cancelacion,
         created_at=cobro.created_at,
     )
@@ -289,13 +293,20 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
     async def cancelar(
         request: Request, cobro_id: UUID, entrada: CancelacionEntrada
     ) -> CobroSalida:
-        """HU-E6-04. El motivo es obligatorio y lo valida el agregado."""
+        """HU-E6-04. El motivo es obligatorio y lo valida el agregado.
+
+        Lleva pasarela porque RN-03 pide invalidar el link, y eso pasa en MercadoPago: si no
+        se puede confirmar que murió, esto contesta 422 con el motivo y el cobro queda como
+        estaba.
+        """
         empresa_id, usuario_id, rol = _actor(request)
         salida: CobroSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Cobros.armar(unidad)
             cobro = await CancelarCobro(
-                cobros=piezas.cobros, publicador=unidad.publicador
+                cobros=piezas.cobros,
+                pasarela=armar_pasarela(unidad, recursos.settings),
+                publicador=unidad.publicador,
             ).ejecutar(
                 empresa_id=empresa_id,
                 usuario_id=usuario_id,

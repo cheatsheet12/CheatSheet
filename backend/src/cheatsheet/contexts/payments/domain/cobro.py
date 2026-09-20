@@ -168,8 +168,10 @@ class Cobro:
     def tiene_link_activo(self) -> bool:
         """Si el link se puede usar **ahora**. RN-03 y RN-04, resueltas por el estado.
 
-        **No hay un `invalidar_link` que borre la preferencia**, y esa ausencia es
-        deliberada: invalidar un link significa dejar de ofrecerlo, no olvidar cuál era. El
+        **Nada acá borra la preferencia**, y esa ausencia es deliberada: invalidar un link
+        significa dejar de ofrecerlo, no olvidar cuál era. Invalidarlo de verdad es un hecho
+        del lado de MercadoPago y lo pide el caso de uso al cancelar (`PortPasarelaDePago.
+        invalidar_link`); este agregado sólo deja de considerarlo usable. El
         `mp_preference_id` es lo que ata una notificación de MercadoPago a una fila nuestra
         (D20), así que borrarlo al aprobar dejaría al webhook siguiente sin poder decir a qué
         cobro correspondía — y el log diría «no es de esta empresa» sobre un cobro que sí lo
@@ -205,10 +207,16 @@ class Cobro:
         self.updated_at = ahora
 
     def cancelar(self, *, motivo: str, ahora: datetime) -> None:
-        """HU-E6-04. Requiere un motivo, invalida el link y detiene los recordatorios.
+        """HU-E6-04. Requiere un motivo, desactiva el link y detiene los recordatorios.
 
         Detener los recordatorios no es una llamada más: es consecuencia del estado. HS-T3
         RN-03 no le manda recordatorios a un `CANCELADO`, así que la cadena se corta sola.
+
+        **Lo que este método no puede hacer es matar el link en MercadoPago**: eso es una
+        llamada a un tercero y vive en el caso de uso. Acá el cobro deja de considerarlo
+        usable; allá deja de poder cobrarse. Las dos cosas tienen que pasar, y el orden —
+        primero esta validación, después la red— es lo que hace que un motivo de nueve
+        caracteres no gaste una llamada.
         """
         if self.estado is EstadoCobro.APROBADO:
             # El texto de la historia, que además dice qué hacer en su lugar.
@@ -221,6 +229,35 @@ class Cobro:
         # El link no se borra: el estado ya lo desactiva (`tiene_link_activo`), y la
         # preferencia es lo que ata una notificación tardía a esta fila.
         self.updated_at = ahora
+
+    def registrar_pago_huerfano(self, *, payment_id: str, ahora: datetime) -> None:
+        """Entró plata por el link de un cobro cancelado. **No hay transición** (HU-E6-04).
+
+        Misma forma que `solicitar_reembolso` (D27): un hecho que se anota sin mover el estado.
+        El cobro sigue `CANCELADO` porque alguien lo dio de baja con un motivo escrito, y
+        resucitarlo sería contradecir esa decisión con un webhook. Lo que cambia es que el pago
+        deja de ser invisible: queda atado a esta fila, y el caso de uso lo publica con
+        `Resultado.ERROR` para que alguien lo mire hoy y no cuando concilie el extracto.
+
+        Guardar el `payment_id` es además lo que hace idempotente la notificación repetida:
+        `buscar_por_payment_id` lo encuentra y el webhook siguiente corta antes de alertar dos
+        veces.
+        """
+        if self.estado is not EstadoCobro.CANCELADO:
+            raise InvarianteViolada("Solo un cobro cancelado puede tener un pago huerfano")
+        if self.mp_payment_id is not None:
+            raise InvarianteViolada("Este cobro ya tiene un pago registrado")
+        self.mp_payment_id = payment_id
+        self.updated_at = ahora
+
+    @property
+    def tiene_pago_huerfano(self) -> bool:
+        """Cancelado y con plata asociada. Lo que PAN-COB-02 muestra en rojo.
+
+        Sin esto, el aviso de severidad alta manda al administrador a una pantalla donde no se
+        ve nada raro.
+        """
+        return self.estado is EstadoCobro.CANCELADO and self.mp_payment_id is not None
 
     def solicitar_reembolso(self, *, monto: Decimal, ahora: datetime) -> Decimal:
         """HU-E6-05 — pide el reembolso a MercadoPago. **No cambia el estado** (D27).

@@ -6,9 +6,11 @@ Donde cada uno se niega es donde están las garantías.
 reembolsa. Tiene `buscar_por_payment_id`, que es lo que hace posible la idempotencia del
 webhook (decisión **D20**) sin depender de Redis.
 
-`PortPasarelaDePago` es el ACL contra MercadoPago. Sus tres operaciones son las tres que este
-épico necesita, y el `verificar_firma` que las precede: **una notificación cuya firma no
-valida no llega a este puerto**, se descarta antes (HS-T1 RN-01).
+`PortPasarelaDePago` es el ACL contra MercadoPago, y el `verificar_firma` que lo precede:
+**una notificación cuya firma no valida no llega a este puerto**, se descarta antes (HS-T1
+RN-01). Sus cuatro operaciones se dividen en dos clases por cómo tratan un «no» del
+proveedor: `reembolsar` lo devuelve como booleano porque un rechazo deja el mundo en un
+estado conocido; `invalidar_link` levanta, porque un rechazo deja un link cobrable.
 """
 
 from __future__ import annotations
@@ -183,6 +185,22 @@ class PortPasarelaDePago(Protocol):
 
         HU-E6-03 lo pide explícito: si no responde, **el cobro no se crea**. Un cobro sin link
         es una deuda que nadie puede pagar y que igual manda recordatorios.
+        """
+        ...
+
+    async def invalidar_link(
+        self, *, empresa_id: EmpresaId, preference_id: str, ahora: datetime
+    ) -> None:
+        """Deja la preferencia sin poder cobrar (HU-E6-04 RN-03).
+
+        **No devuelve nada, y un rechazo no es una respuesta aceptable.** Es la diferencia con
+        `reembolsar`: allá un «no» del proveedor deja el mundo en un estado conocido y el cobro
+        mantiene el suyo; acá un «no» deja un link que el cliente todavía puede pagar. Por eso
+        cualquier cosa que no sea la confirmación de que murió levanta `PasarelaNoDisponible`,
+        y la cancelación entera no ocurre.
+
+        La única excepción es que MercadoPago no conozca la preferencia: no hay nada que
+        pagar, así que cuenta como invalidada.
         """
         ...
 

@@ -518,3 +518,80 @@ async def test_no_se_puede_borrar_una_regla(
             await sesion.execute(
                 text("DELETE FROM regla_de_negocio WHERE id = :id"), {"id": regla.id}
             )
+
+
+# ------------------------------------------------------- la cancelacion y el pago huerfano
+
+
+async def test_una_cancelacion_que_falla_no_deja_rastro_en_la_base(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """HU-E6-04 RN-03, contra el motor.
+
+    En memoria esto no se puede afirmar: los dobles guardan la referencia que el caso de uso
+    ya muto. Lo que hace verdadera la promesa —«si MercadoPago no invalida, el cobro queda
+    como estaba»— es que el repositorio **reconstituye** un objeto aparte de la fila, asi que
+    mutar el agregado no escribe nada hasta `guardar`. Eso es lo que se prueba aca.
+    """
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    cobro = _cobro(empresa_id, cliente_id)
+    await _guardar(sesiones, empresa_id, cobro)
+
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        repo = RepositorioCobroPostgres(sesion)
+        leido = await repo.buscar_por_id(cobro.id)
+        assert leido is not None
+        # Lo que hace `CancelarCobro` antes de hablar con MercadoPago. Si la invalidacion
+        # levanta, `guardar` nunca llega a correr.
+        leido.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        despues = await RepositorioCobroPostgres(sesion).buscar_por_id(cobro.id)
+
+    assert despues is not None
+    assert despues.estado is EstadoCobro.PENDIENTE
+    assert despues.motivo_de_cancelacion is None
+    assert despues.tiene_link_activo
+
+
+async def test_un_pago_huerfano_sobrevive_a_la_ida_y_vuelta(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """El cobro sigue CANCELADO y la plata queda atada a su fila."""
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    cobro = _cobro(empresa_id, cliente_id)
+    cobro.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+    cobro.registrar_pago_huerfano(payment_id="pago-huerfano", ahora=AHORA)
+    await _guardar(sesiones, empresa_id, cobro)
+
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        leido = await RepositorioCobroPostgres(sesion).buscar_por_id(cobro.id)
+
+    assert leido is not None
+    assert leido.estado is EstadoCobro.CANCELADO
+    assert leido.mp_payment_id == "pago-huerfano"
+    assert leido.tiene_pago_huerfano
+    # La preferencia se conserva: es el rastro que alguien sigue para encontrar la plata.
+    assert leido.link is not None
+
+
+async def test_el_pago_huerfano_usa_el_mismo_indice_unico_que_la_aprobacion(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """D20 cubre tambien este caso, y sin agregar nada: es la misma columna.
+
+    Un `payment_id` no puede estar en dos cobros, sea porque uno lo aprobo o porque el otro
+    lo recibio sobre un link cancelado.
+    """
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    aprobado = _cobro(empresa_id, cliente_id, preferencia="pref-a")
+    aprobado.aprobar(payment_id="pago-compartido", ahora=AHORA)
+    cancelado = _cobro(empresa_id, cliente_id, preferencia="pref-b")
+    cancelado.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+    cancelado.registrar_pago_huerfano(payment_id="pago-compartido", ahora=AHORA)
+
+    with pytest.raises(IntegrityError):
+        await _guardar(sesiones, empresa_id, aprobado, cancelado)

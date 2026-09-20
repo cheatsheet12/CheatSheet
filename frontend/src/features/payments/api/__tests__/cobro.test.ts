@@ -41,6 +41,7 @@ const COBRO: Cobro = {
   vence_el: "2026-09-20",
   pagado_en: null,
   reembolso_en_proceso: false,
+  tiene_pago_huerfano: false,
   motivo_de_cancelacion: null,
   created_at: "2026-09-07T12:00:00Z",
 };
