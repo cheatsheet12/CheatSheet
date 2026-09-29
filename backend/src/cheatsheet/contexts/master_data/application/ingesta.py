@@ -153,6 +153,8 @@ class IngerirServicioDesdePlanilla:
             alicuota_iva=_alicuota(fila.alicuota_iva),
             origen=OrigenDato.PLANILLA,
             momento=ahora,
+            agendable=_agendable(fila.agendable),
+            duracion_estandar_min=_duracion(fila.duracion_estandar_min),
         )
         servicio.presente_en_planilla = True
         await self._servicios.agregar(servicio)
@@ -214,6 +216,45 @@ def _alicuota(crudo: str | None) -> AlicuotaIVA:
         if Decimal(alicuota.value) == valor:
             return alicuota
     raise ErrorDeDominio(f"La alicuota '{crudo}' no es 0%, 10,5% ni 21%")
+
+
+_AFIRMATIVOS = frozenset({"si", "sí", "true", "1", "x"})
+_NEGATIVOS = frozenset({"no", "false", "0"})
+
+
+def _agendable(crudo: str | None) -> bool:
+    """A yes/no cell, written the way people write it in a spreadsheet.
+
+    Empty means «no»: most catalogues have no agenda column at all, and failing every row
+    of them would reject a catalogue over a column the company never had. Text that is
+    neither a clear yes nor a clear no fails the row instead of being guessed -- a service
+    silently made non-bookable (or bookable) is a booking that cannot happen (or a slot
+    nobody can honour).
+    """
+    if not crudo or not crudo.strip():
+        return False
+    limpio = crudo.strip().lower()
+    if limpio in _AFIRMATIVOS:
+        return True
+    if limpio in _NEGATIVOS:
+        return False
+    raise ErrorDeDominio(f"El valor '{crudo}' de agendable no es si ni no")
+
+
+def _duracion(crudo: str | None) -> int | None:
+    """Whole minutes. The range is the aggregate's rule, not this parser's.
+
+    Empty stays `None` so a bookable row without a duration gets the aggregate's own
+    «obligatoria» message; text that is not a whole number fails the row here, as an
+    `ErrorDeDominio` -- a bare `ValueError` would escape the per-row isolation and abort
+    the whole sync.
+    """
+    if not crudo or not crudo.strip():
+        return None
+    try:
+        return int(crudo.strip())
+    except ValueError as exc:
+        raise ErrorDeDominio(f"La duracion '{crudo}' no es un numero entero de minutos") from exc
 
 
 @dataclass(frozen=True, slots=True)

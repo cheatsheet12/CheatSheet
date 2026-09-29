@@ -25,7 +25,7 @@ from cheatsheet.contexts.master_data.infrastructure.repositories import (
 from cheatsheet.platform.database import sesion_de_empresa
 from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from tests.integracion.conftest import requiere_base
@@ -33,6 +33,15 @@ from tests.integracion.conftest import requiere_base
 pytestmark = [requiere_base, pytest.mark.integration]
 
 CREAR_EMPRESA = text("INSERT INTO empresa (id, activa) VALUES (:id, true)")
+
+#: Straight into the table, bypassing the aggregate: what the constraint is for is the write
+#: that does not go through `Servicio` (a script, a future context, a hand-run UPDATE).
+INSERTAR_SERVICIO_CRUDO = text(
+    "INSERT INTO servicio (id, empresa_id, nombre, precio, alicuota_iva, agendable, "
+    "duracion_estandar_min, origen, presente_en_planilla, activo, created_at, updated_at) "
+    "VALUES (:id, :empresa_id, 'Crudo', 100, 0.21, :agendable, :duracion, 'PANEL', "
+    "false, true, now(), now())"
+)
 
 
 async def _empresa(engine_dueno: AsyncEngine) -> EmpresaId:
@@ -242,3 +251,50 @@ async def test_dos_servicios_con_el_mismo_nombre_conviven(
             empresa_id=empresa_id, filtros=FiltrosDeServicio(), pagina=Pagina()
         )
     assert total == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("agendable", "duracion"),
+    [(True, 4), (True, 481), (True, 0), (True, None), (False, 30)],
+)
+async def test_la_base_rechaza_una_duracion_fuera_de_la_regla(
+    engine_dueno: AsyncEngine, agendable: bool, duracion: int | None
+) -> None:
+    """HU-E4-02: la restriccion protege toda escritura nueva, venga o no del agregado.
+
+    Cubre los dos lados: agendable fuera de 5 a 480 (o sin duracion), y no agendable que
+    conserva una duracion.
+    """
+    empresa_id = await _empresa(engine_dueno)
+
+    with pytest.raises(IntegrityError):
+        async with engine_dueno.begin() as conexion:
+            await conexion.execute(
+                INSERTAR_SERVICIO_CRUDO,
+                {
+                    "id": uuid.uuid4(),
+                    "empresa_id": empresa_id,
+                    "agendable": agendable,
+                    "duracion": duracion,
+                },
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("agendable", "duracion"), [(True, 5), (True, 480), (False, None)])
+async def test_la_base_acepta_lo_que_la_regla_permite(
+    engine_dueno: AsyncEngine, agendable: bool, duracion: int | None
+) -> None:
+    empresa_id = await _empresa(engine_dueno)
+
+    async with engine_dueno.begin() as conexion:
+        await conexion.execute(
+            INSERTAR_SERVICIO_CRUDO,
+            {
+                "id": uuid.uuid4(),
+                "empresa_id": empresa_id,
+                "agendable": agendable,
+                "duracion": duracion,
+            },
+        )
