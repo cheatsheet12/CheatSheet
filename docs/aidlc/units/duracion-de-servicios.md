@@ -113,20 +113,21 @@ Ninguno nuevo. scheduling ya lee `duracion_estandar_min` por su ACL y no cambia.
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/master_data/domain/servicio.py`
-- [ ] `backend/src/cheatsheet/contexts/master_data/application/servicios.py` (docstring)
-- [ ] `backend/src/cheatsheet/contexts/master_data/application/ingesta.py`
-- [ ] `backend/src/cheatsheet/contexts/master_data/infrastructure/models.py`
-- [ ] `backend/migrations/versions/0025_servicio_duracion_en_rango.py`
-- [ ] `backend/tests/contexts/master_data/domain/test_servicio.py`
-- [ ] `backend/tests/contexts/master_data/application/test_servicios.py`
-- [ ] `backend/tests/contexts/master_data/application/test_ingesta.py`
-- [ ] `backend/tests/integracion/test_api_servicios.py`
-- [ ] `backend/tests/integracion/test_servicios_postgres.py`
+- [x] `backend/src/cheatsheet/contexts/master_data/domain/servicio.py`
+- [x] `backend/src/cheatsheet/contexts/master_data/application/servicios.py` (docstring)
+- [x] `backend/src/cheatsheet/contexts/master_data/application/ingesta.py`
+- [x] `backend/src/cheatsheet/contexts/master_data/infrastructure/models.py`
+- [x] `backend/migrations/versions/0025_servicio_duracion_en_rango.py`
+- [x] `backend/tests/contexts/master_data/domain/test_servicio.py`
+- [x] `backend/tests/contexts/master_data/application/test_servicios.py`
+- [x] `backend/tests/contexts/master_data/application/test_ingesta.py`
+- [x] `backend/tests/integracion/test_api_servicios.py`
+- [x] `backend/tests/integracion/test_servicios_postgres.py`
 
 ### Frontend
-- [ ] `frontend/src/features/master_data/components/FormularioDeServicio.tsx`
-- [ ] `frontend/src/features/master_data/components/__tests__/FormularioDeServicio.test.tsx`
+- [x] `frontend/src/features/master_data/components/FormularioDeServicio.tsx`
+- [x] `frontend/src/features/master_data/api/servicio.ts` (tipo de `duracion_estandar_min`: `number | string | null`)
+- [x] `frontend/src/features/master_data/components/__tests__/FormularioDeServicio.test.tsx`
 
 ### Docs
 - [ ] `docs/aidlc/units.md` (estado de la fila)
@@ -137,19 +138,19 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | RED: registrar un agendable con 4, 481 y 99999 → mensaje de rango | unit | pendiente |
-| 2 | RED: 0 y -30 → mensaje de rango, no "obligatoria" | unit | pendiente |
-| 3 | RED: `volver_agendable(600)` rechaza y el servicio no queda a medias | unit | pendiente |
-| 4 | RED: un booleano como duración se rechaza | unit | pendiente |
-| 5 | 5 y 480 se aceptan; vacío en agendable sigue dando "obligatoria" | unit | pendiente |
-| 6 | RED: `RegistrarServicio` y `EditarServicio` fuera de rango no guardan ni auditan | unit | pendiente |
-| 7 | RED: una fila de planilla agendable con 30 crea un servicio agendable de 30 minutos | unit | pendiente |
-| 8 | RED: fila con duración 481 o "abc", o agendable con texto desconocido → `ErrorDeDominio` | unit | pendiente |
-| 9 | Tres filas con la del medio inválida: esa fila queda con error y las otras dos se ingieren (HU-E3-03) | unit | pendiente |
-| 10 | RED: POST con 4 y con 99999, y PUT con 481 → 422 con el `detalle` de rango; 5 y 480 → éxito | integración (API) | pendiente |
-| 11 | INSERT directo fuera de rango, o no agendable con duración → viola la restricción | integración (PostgreSQL) | pendiente |
-| 12 | RED: el formulario no convierte "12.7" en 12 ni "99999abc" en 99999 | unit (frontend) | pendiente |
-| 13 | El formulario muestra el error del backend y la ayuda menciona 5 y 480 | unit (frontend) | pendiente |
+| 1 | RED: registrar un agendable con 4, 481 y 99999 → mensaje de rango | unit | RED observado, GREEN |
+| 2 | RED: 0 y -30 → mensaje de rango, no "obligatoria" | unit | RED observado, GREEN |
+| 3 | RED: `volver_agendable(600)` rechaza y el servicio no queda a medias | unit | RED observado, GREEN (además cerró un hueco: `volver_agendable` dejaba `agendable=True` al rechazar) |
+| 4 | RED: un booleano como duración se rechaza | unit | RED observado, GREEN |
+| 5 | 5 y 480 se aceptan; vacío en agendable sigue dando "obligatoria" | unit | GREEN |
+| 6 | RED: `RegistrarServicio` y `EditarServicio` fuera de rango no guardan ni auditan | unit | RED observado, GREEN |
+| 7 | RED: una fila de planilla agendable con 30 crea un servicio agendable de 30 minutos | unit | RED observado, GREEN |
+| 8 | RED: fila con duración 481 o "abc", o agendable con texto desconocido → `ErrorDeDominio` | unit | RED observado, GREEN |
+| 9 | Tres filas con la del medio inválida: esa fila queda con error y las otras dos se ingieren (HU-E3-03) | unit | GREEN |
+| 10 | RED: POST con 4 y con 99999, y PUT con 481 → 422 con el `detalle` de rango; 5 y 480 → éxito | integración (API) | escrito; se omite localmente (sin Docker), corre en CI |
+| 11 | INSERT directo fuera de rango, o no agendable con duración → viola la restricción | integración (PostgreSQL) | escrito; se omite localmente (sin Docker), corre en CI |
+| 12 | RED: el formulario no convierte "12.7" en 12 ni "99999abc" en 99999 | unit (frontend) | RED observado, GREEN |
+| 13 | El formulario muestra el error del backend y la ayuda menciona 5 y 480 | unit (frontend) | GREEN |
 
 ## Registro
 
