@@ -157,7 +157,7 @@ acciones normales (`reservar_turno`, `reprogramar_turno`) no cambian.
 ## Infraestructura
 
 ### Migraciones
-- `00NN_turno_completado_ocupa_la_franja.py`: amplía `excl_turno_recurso_franja` a COMPLETADO.
+- `0024_turno_completado_ocupa_la_franja.py`: amplía `excl_turno_recurso_franja` a COMPLETADO.
   Antes de recrear la restricción, consulta los solapamientos existentes entre turnos que quedarían
   cubiertos y aborta listándolos si los hay. `downgrade` restaura la condición original. Reversible.
   Sin backfill.
@@ -176,32 +176,32 @@ acciones normales (`reservar_turno`, `reprogramar_turno`) no cambian.
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/scheduling/domain/turno.py`
-- [ ] `backend/src/cheatsheet/contexts/scheduling/application/errors.py`
-- [ ] `backend/src/cheatsheet/contexts/scheduling/application/turnos.py`
-- [ ] `backend/src/cheatsheet/contexts/scheduling/infrastructure/repositories.py`
-- [ ] `backend/src/cheatsheet/contexts/conversational/infrastructure/acl.py`
-- [ ] `backend/src/cheatsheet/api/conversacional.py`
-- [ ] `backend/src/cheatsheet/api/routers/agenda.py`
-- [ ] `backend/migrations/versions/00NN_turno_completado_ocupa_la_franja.py`
-- [ ] `backend/tests/contexts/scheduling/domain/test_turno.py`
-- [ ] `backend/tests/contexts/scheduling/application/test_agenda.py` (y `dobles.py` si hace falta)
-- [ ] `backend/tests/integracion/test_api_agenda.py`
-- [ ] `backend/tests/integracion/test_agenda_postgres.py`
-- [ ] Test nuevo de `AgendaViaScheduling` con reloj fijo
+- [x] `backend/src/cheatsheet/contexts/scheduling/domain/turno.py`
+- [x] `backend/src/cheatsheet/contexts/scheduling/application/errors.py`
+- [x] `backend/src/cheatsheet/contexts/scheduling/application/turnos.py`
+- [x] `backend/src/cheatsheet/contexts/scheduling/infrastructure/repositories.py`
+- [x] `backend/src/cheatsheet/contexts/conversational/infrastructure/acl.py`
+- [x] `backend/src/cheatsheet/api/conversacional.py`
+- [x] `backend/src/cheatsheet/api/routers/agenda.py`
+- [x] `backend/migrations/versions/0024_turno_completado_ocupa_la_franja.py`
+- [x] `backend/tests/contexts/scheduling/domain/test_turno.py`
+- [x] `backend/tests/contexts/scheduling/application/test_agenda.py` (y `dobles.py` si hace falta)
+- [x] `backend/tests/integracion/test_api_agenda.py`
+- [x] `backend/tests/integracion/test_agenda_postgres.py`
+- [x] Test nuevo de `AgendaViaScheduling` con reloj fijo
 
 ### Frontend
-- [ ] `frontend/src/features/scheduling/api/turno.ts`
-- [ ] `frontend/src/features/scheduling/components/NuevoTurno.tsx`
-- [ ] `frontend/src/features/scheduling/components/DetalleDeTurno.tsx`
-- [ ] `frontend/src/app/(panel)/agenda/nuevo/page.tsx`
-- [ ] `frontend/src/app/(panel)/agenda/[turnoId]/page.tsx`
-- [ ] `frontend/src/features/scheduling/api/__tests__/turno.test.ts`
-- [ ] `frontend/src/features/scheduling/components/__tests__/pantallas.test.tsx`
+- [x] `frontend/src/features/scheduling/api/turno.ts`
+- [x] `frontend/src/features/scheduling/components/NuevoTurno.tsx`
+- [x] `frontend/src/features/scheduling/components/DetalleDeTurno.tsx`
+- [x] `frontend/src/app/(panel)/agenda/nuevo/page.tsx`
+- [x] `frontend/src/app/(panel)/agenda/[turnoId]/page.tsx`
+- [x] `frontend/src/features/scheduling/api/__tests__/turno.test.ts`
+- [x] `frontend/src/features/scheduling/components/__tests__/pantallas.test.tsx`
 
 ### Docs
 - [ ] `docs/aidlc/units.md` (estado de la fila)
-- [ ] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (el diálogo de "ese horario ya pasó")
+- [x] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (el diálogo de "ese horario ya pasó")
 
 ## Casos de prueba
 
@@ -210,31 +210,31 @@ Modo: **test primero**. Los casos 1 a 4 reproducen el bug y tienen que fallar an
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Reservar hoy a una hora anterior a la actual → `TurnoEnElPasado` con el mensaje de la historia | unit | pendiente |
-| 2 | Reservar hoy a una hora posterior a la actual → se crea | unit | pendiente |
-| 3 | Reprogramar a una hora ya transcurrida (Operador y Administrador sin indicador) → rechazado, el turno conserva su franja | unit | pendiente |
-| 4 | Reservar un turno en curso (`inicio < ahora < fin`) → rechazado, con y sin indicador | unit | pendiente |
-| 5 | `inicio == ahora` → se acepta | unit | pendiente |
-| 6 | Administrador con `a_posteriori` y franja terminada → turno COMPLETADO, canal PANEL, sin aviso, acción `cargar_turno_a_posteriori` | unit | pendiente |
-| 7 | Operador con `a_posteriori` → 422 con el motivo de solo Administrador | unit | pendiente |
-| 8 | Carga a posteriori fuera de la disponibilidad base → se acepta | unit | pendiente |
-| 9 | Corrección a posteriori del Administrador → el turno se mueve, conserva el estado, sin aviso, acción `corregir_turno_a_posteriori` | unit | pendiente |
-| 10 | `Turno.registrar_a_posteriori` con franja no terminada → rechazado | unit | pendiente |
-| 11 | Carga a posteriori solapada con un turno COMPLETADO → rechazada por la base | integración (PostgreSQL) | pendiente |
-| 12 | Turno nuevo sobre uno COMPLETADO → rechazado por la base; sobre uno NO_SHOW → aceptado | integración (PostgreSQL) | pendiente |
-| 13 | La migración aborta y lista los conflictos si hay COMPLETADO solapados | integración (PostgreSQL) | pendiente |
-| 14 | `GET /turnos/disponibilidad` de hoy no ofrece horarios pasados | integración (API) | pendiente |
-| 15 | `POST /turnos` en el pasado → 422 con el mensaje de la historia | integración (API) | pendiente |
-| 16 | `AgendaViaScheduling.horarios_ofrecibles` con reloj fijo no ofrece pasados; `reservar` usa el reloj inyectado | unit | pendiente |
-| 17 | Frontend: el Operador no ve la opción a posteriori; el Administrador sí | unit (frontend) | pendiente |
-| 18 | Frontend: el mensaje del backend se muestra tal cual en el `Alert` | unit (frontend) | pendiente |
+| 1 | Reservar hoy a una hora anterior a la actual → `TurnoEnElPasado` con el mensaje de la historia | unit | pasa |
+| 2 | Reservar hoy a una hora posterior a la actual → se crea | unit | pasa |
+| 3 | Reprogramar a una hora ya transcurrida (Operador y Administrador sin indicador) → rechazado, el turno conserva su franja | unit | pasa |
+| 4 | Reservar un turno en curso (`inicio < ahora < fin`) → rechazado, con y sin indicador | unit | pasa |
+| 5 | `inicio == ahora` → se acepta | unit | pasa |
+| 6 | Administrador con `a_posteriori` y franja terminada → turno COMPLETADO, canal PANEL, sin aviso, acción `cargar_turno_a_posteriori` | unit | pasa |
+| 7 | Operador con `a_posteriori` → 422 con el motivo de solo Administrador | unit | pasa |
+| 8 | Carga a posteriori fuera de la disponibilidad base → se acepta | unit | pasa |
+| 9 | Corrección a posteriori del Administrador → el turno se mueve, conserva el estado, sin aviso, acción `corregir_turno_a_posteriori` | unit | pasa |
+| 10 | `Turno.registrar_a_posteriori` con franja no terminada → rechazado | unit | pasa |
+| 11 | Carga a posteriori solapada con un turno COMPLETADO → rechazada por la base | integración (PostgreSQL) | no corre localmente: requiere PostgreSQL |
+| 12 | Turno nuevo sobre uno COMPLETADO → rechazado por la base; sobre uno NO_SHOW → aceptado | integración (PostgreSQL) | no corre localmente: requiere PostgreSQL |
+| 13 | La migración aborta y lista los conflictos si hay COMPLETADO solapados | integración (PostgreSQL) | no corre localmente: requiere PostgreSQL |
+| 14 | `GET /turnos/disponibilidad` de hoy no ofrece horarios pasados | integración (API) | no corre localmente: requiere PostgreSQL |
+| 15 | `POST /turnos` en el pasado → 422 con el mensaje de la historia | integración (API) | no corre localmente: requiere PostgreSQL |
+| 16 | `AgendaViaScheduling.horarios_ofrecibles` con reloj fijo no ofrece pasados; `reservar` usa el reloj inyectado | unit | pasa |
+| 17 | Frontend: el Operador no ve la opción a posteriori; el Administrador sí | unit (frontend) | pasa |
+| 18 | Frontend: el mensaje del backend se muestra tal cual en el `Alert` | unit (frontend) | pasa |
 
 ## Registro
 
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-09-29 | aprobado sin cambios |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-09-29 | aprobado. ruff, mypy y pytest en verde (1331 pasan; 328 omitidos por requerir PostgreSQL o Redis). Frontend: lint, typecheck y test:coverage en verde (84,14 %). `format:check` falla solo por el checkout CRLF de Windows y pasa con `--end-of-line auto`. Los casos 11 a 15 los corre la CI |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
