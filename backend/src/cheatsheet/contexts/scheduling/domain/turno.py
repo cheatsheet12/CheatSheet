@@ -30,6 +30,9 @@ from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 MENSAJE_SIN_TURNOS = "No hay turnos para el período seleccionado."
 MENSAJE_HORARIO_OCUPADO = "El horario seleccionado no está disponible."
 MENSAJE_TURNO_NO_TRANSCURRIO = "El turno aún no transcurrió."
+#: HU-E7-06 RN-06 y HU-E7-02 RN-06 (decisión D95). Dos frases porque las historias dicen dos.
+MENSAJE_TURNO_EN_EL_PASADO = "No se puede agendar un turno en un horario que ya pasó."
+MENSAJE_REPROGRAMAR_AL_PASADO = "No se puede reprogramar un turno a un horario que ya pasó."
 
 #: Un turno de más de un día no es un turno. El techo evita que un `franja_duracion_min`
 #: escrito con un cero de más bloquee la agenda de un recurso durante una semana.
@@ -92,6 +95,13 @@ TRANSICIONES_LEGALES: dict[EstadoTurno, frozenset[EstadoTurno]] = {
 #: Reservado o Confirmado».
 ESTADOS_ABIERTOS = frozenset({EstadoTurno.RESERVADO, EstadoTurno.CONFIRMADO})
 
+#: Los estados cuya franja está ocupada (D95). Los abiertos, y **también el completado**: la
+#: carga a posteriori nace completada y tiene que quedar protegida del solapamiento, y ya hoy un
+#: turno no debería poder crearse encima de una atención realizada. `NO_SHOW` queda afuera a
+#: propósito: si el cliente no vino, el recurso quedó libre de hecho. Es la misma condición que
+#: la restricción de exclusión de la base (migración 0024).
+ESTADOS_QUE_OCUPAN_LA_FRANJA = ESTADOS_ABIERTOS | {EstadoTurno.COMPLETADO}
+
 
 @dataclass(frozen=True, slots=True)
 class Franja:
@@ -119,6 +129,19 @@ class Franja:
     @property
     def fin(self) -> datetime:
         return self.inicio + timedelta(minutes=self.duracion_min)
+
+    def empieza_antes_de(self, ahora: datetime) -> bool:
+        """El inicio ya pasó. Un inicio exactamente igual a `ahora` **no** cuenta como pasado.
+
+        Se compara el instante y nunca `.date()`: un turno de hoy a una hora que ya transcurrió
+        es un turno en el pasado aunque el día sea el mismo (D95). `ahora` siempre llega de
+        afuera: el dominio no lee el reloj.
+        """
+        return self.inicio < ahora
+
+    def ya_termino(self, ahora: datetime) -> bool:
+        """La franja completa transcurrió. Es el «ya transcurrió» de D35: contra el **fin**."""
+        return ahora >= self.fin
 
     def se_solapa_con(self, otra: Franja) -> bool:
         """Dos franjas se solapan si una empieza antes de que la otra termine.
@@ -149,6 +172,39 @@ class Turno:
     cobro_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    @classmethod
+    def registrar_a_posteriori(
+        cls,
+        *,
+        id: UUID,
+        empresa_id: EmpresaId,
+        cliente_id: UUID,
+        servicio_id: UUID,
+        recurso_id: UUID,
+        franja: Franja,
+        ahora: datetime,
+    ) -> Turno:
+        """HU-E7-06 RN-07: una atención que ya ocurrió **nace** `COMPLETADO`, canal `PANEL`.
+
+        No se crea `RESERVADO` para transicionar después: ese primer estado sería un turno
+        abierto en una franja pasada, que es justo lo que D95 prohíbe, y obligaría a dos
+        escrituras. La franja tiene que haber terminado, no sólo empezado.
+        """
+        if not franja.ya_termino(ahora):
+            raise EntradaInvalida(MENSAJE_TURNO_NO_TRANSCURRIO)
+        return cls(
+            id=id,
+            empresa_id=empresa_id,
+            cliente_id=cliente_id,
+            servicio_id=servicio_id,
+            recurso_id=recurso_id,
+            franja=franja,
+            estado=EstadoTurno.COMPLETADO,
+            canal_reserva=CanalDeReserva.PANEL,
+            created_at=ahora,
+            updated_at=ahora,
+        )
 
     # -- transiciones -----------------------------------------------------------------
 
@@ -206,7 +262,7 @@ class Turno:
         Marcar «no se presentó» a los cinco minutos de empezado un turno de una hora sería
         marcarlo mientras el cliente todavía puede llegar.
         """
-        return ahora >= self.franja.fin
+        return self.franja.ya_termino(ahora)
 
     def asignar_cobro(self, cobro_id: UUID) -> None:
         """Asocia la seña (HU-E6-07).

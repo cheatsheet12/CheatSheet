@@ -34,7 +34,7 @@ from cheatsheet.contexts.scheduling.domain.recurso import (
     TipoRecurso,
 )
 from cheatsheet.contexts.scheduling.domain.turno import (
-    ESTADOS_ABIERTOS,
+    ESTADOS_QUE_OCUPAN_LA_FRANJA,
     MENSAJE_HORARIO_OCUPADO,
     EstadoTurno,
     Franja,
@@ -253,11 +253,11 @@ class RepositorioTurnoPostgres:
         return [_a_dominio(fila) for fila in filas]
 
     async def ocupados_en(self, recurso_id: UUID, dia: date) -> list[Turno]:
-        """Los turnos abiertos de ese recurso ese día, en hora local de la agenda.
+        """Los turnos que ocupan la franja de ese recurso ese día, en hora local de la agenda.
 
-        Los cancelados y los no-show **no cuentan**: su franja quedó libre, y la restricción de
-        exclusión tampoco los considera. Si acá contaran, la pantalla tacharía horarios que en
-        realidad se pueden reservar.
+        Cuentan los abiertos y los **completados** (D95). Los cancelados y los no-show **no**:
+        su franja quedó libre, y la restricción de exclusión tampoco los considera. Si acá
+        contaran, la pantalla tacharía horarios que en realidad se pueden reservar.
         """
         inicio = datetime.combine(dia, time.min, tzinfo=ZONA_DE_LA_AGENDA)
         sentencia = (
@@ -265,7 +265,7 @@ class RepositorioTurnoPostgres:
             .where(TurnoORM.recurso_id == recurso_id)
             .where(TurnoORM.franja_inicio >= inicio)
             .where(TurnoORM.franja_inicio < inicio + timedelta(days=1))
-            .where(TurnoORM.estado.in_([estado.value for estado in ESTADOS_ABIERTOS]))
+            .where(TurnoORM.estado.in_([estado.value for estado in ESTADOS_QUE_OCUPAN_LA_FRANJA]))
             .order_by(TurnoORM.franja_inicio)
         )
         filas = (await self._sesion.execute(sentencia)).scalars().all()

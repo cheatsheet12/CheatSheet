@@ -89,6 +89,51 @@ class TestFranja:
         with pytest.raises(EntradaInvalida):
             Franja(inicio=INICIO, duracion_min=24 * 60 + 1)
 
+    def test_un_inicio_igual_a_ahora_no_empezo_antes(self) -> None:
+        franja = Franja(inicio=INICIO, duracion_min=60)
+
+        assert not franja.empieza_antes_de(INICIO)
+        assert franja.empieza_antes_de(INICIO + timedelta(seconds=1))
+
+    def test_termino_recien_cuando_llega_el_fin(self) -> None:
+        franja = Franja(inicio=INICIO, duracion_min=60)
+
+        assert not franja.ya_termino(INICIO + timedelta(minutes=59))
+        assert franja.ya_termino(INICIO + timedelta(minutes=60))
+
+
+class TestRegistrarAPosteriori:
+    """HU-E7-06 RN-07: una atención que ya ocurrió nace como ocurrida."""
+
+    def registrar(self, ahora: datetime) -> Turno:
+        return Turno.registrar_a_posteriori(
+            id=uuid4(),
+            empresa_id=EmpresaId(uuid4()),
+            cliente_id=uuid4(),
+            servicio_id=uuid4(),
+            recurso_id=uuid4(),
+            franja=Franja(inicio=INICIO, duracion_min=60),
+            ahora=ahora,
+        )
+
+    def test_nace_completado_por_panel_y_habilita_facturar(self) -> None:
+        uno = self.registrar(INICIO + timedelta(hours=2))
+
+        assert _estado(uno) is EstadoTurno.COMPLETADO
+        assert uno.canal_reserva == CanalDeReserva.PANEL
+        assert uno.habilita_facturacion
+
+    def test_rechaza_una_franja_que_todavia_no_termino(self) -> None:
+        with pytest.raises(EntradaInvalida) as fallo:
+            self.registrar(INICIO + timedelta(minutes=30))
+
+        assert str(fallo.value) == MENSAJE_TURNO_NO_TRANSCURRIO
+
+    def test_acepta_una_franja_que_termina_exactamente_ahora(self) -> None:
+        uno = self.registrar(INICIO + timedelta(minutes=60))
+
+        assert _estado(uno) is EstadoTurno.COMPLETADO
+
 
 class TestTransiciones:
     def test_reprogramar_conserva_el_estado(self) -> None:

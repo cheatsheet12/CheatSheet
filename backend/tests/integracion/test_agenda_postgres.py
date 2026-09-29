@@ -21,6 +21,8 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from cheatsheet.contexts.scheduling.application.errors import FranjaOcupada
 from cheatsheet.contexts.scheduling.domain.recurso import (
     RecursoReservable,
@@ -36,7 +38,7 @@ from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from tests.integracion.conftest import requiere_base
+from tests.integracion.conftest import RAIZ_BACKEND, requiere_base
 
 pytestmark = [requiere_base, pytest.mark.integration, pytest.mark.asyncio]
 
@@ -60,7 +62,7 @@ PONER_EXCLUSION = text(
     "ALTER TABLE turno ADD CONSTRAINT excl_turno_recurso_franja "
     "EXCLUDE USING gist (recurso_id WITH =, "
     "franja_de_turno(franja_inicio, franja_duracion_min) WITH &&) "
-    "WHERE (estado IN ('RESERVADO', 'CONFIRMADO'))"
+    "WHERE (estado IN ('RESERVADO', 'CONFIRMADO', 'COMPLETADO'))"
 )
 
 
@@ -229,7 +231,7 @@ async def test_la_misma_franja_en_otro_recurso_entra(
 async def test_un_turno_cancelado_libera_la_franja(
     sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
 ) -> None:
-    """La restricción es **parcial**: sólo `RESERVADO` y `CONFIRMADO` ocupan.
+    """La restricción es **parcial**: sólo `RESERVADO`, `CONFIRMADO` y `COMPLETADO` ocupan.
 
     Sin la cláusula `WHERE`, cancelar un turno no liberaría su horario — y el negocio se
     quedaría sin poder revender una franja que quedó libre.
@@ -397,3 +399,82 @@ async def test_el_estado_del_turno_sobrevive_al_viaje(
     assert final is not None
     assert final.estado is EstadoTurno.CONFIRMADO
     assert final.franja.duracion_min == 60
+
+
+async def test_una_carga_a_posteriori_solapada_con_un_completado_la_rechaza_la_base(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """D95: la carga a posteriori nace `COMPLETADO` y la exclusión tiene que cubrirlo.
+
+    Sin `COMPLETADO` en la condición de la restricción, esta segunda atención entraría encima
+    de la primera y la historia (HU-E7-06 RN-07) exige rechazar ese solapamiento.
+    """
+    escenario = await _escenario(engine_dueno, sesiones)
+    await _reservar(sesiones, escenario, escenario.turno(estado=EstadoTurno.COMPLETADO))
+
+    with pytest.raises(FranjaOcupada):
+        await _reservar(sesiones, escenario, escenario.turno(estado=EstadoTurno.COMPLETADO))
+
+
+async def test_un_turno_nuevo_sobre_un_completado_se_rechaza_y_sobre_un_no_show_entra(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """`COMPLETADO` ocupa la franja; `NO_SHOW` no: el cliente no vino y el recurso quedó libre."""
+    completado = await _escenario(engine_dueno, sesiones)
+    await _reservar(sesiones, completado, completado.turno(estado=EstadoTurno.COMPLETADO))
+    no_show = await _escenario(engine_dueno, sesiones)
+    await _reservar(sesiones, no_show, no_show.turno(estado=EstadoTurno.NO_SHOW))
+
+    with pytest.raises(FranjaOcupada):
+        await _reservar(sesiones, completado, completado.turno())
+    await _reservar(sesiones, no_show, no_show.turno())
+
+    async with sesion_de_empresa(sesiones, no_show.empresa_id) as sesion:
+        ocupan = await RepositorioTurnoPostgres(sesion).ocupados_en(
+            no_show.recurso_id, INICIO.date()
+        )
+    # `ocupados_en` coincide con la restricción: el no-show no cuenta, el nuevo sí.
+    assert len(ocupan) == 1
+
+
+async def test_ocupados_en_cuenta_los_completados(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    escenario = await _escenario(engine_dueno, sesiones)
+    await _reservar(sesiones, escenario, escenario.turno(estado=EstadoTurno.COMPLETADO))
+
+    async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+        ocupan = await RepositorioTurnoPostgres(sesion).ocupados_en(
+            escenario.recurso_id, INICIO.date()
+        )
+
+    assert [uno.estado for uno in ocupan] == [EstadoTurno.COMPLETADO]
+
+
+async def test_la_migracion_aborta_y_lista_los_completados_solapados(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """La migración 0024 no falla con un error críptico: lista los turnos que se pisan.
+
+    Se baja a 0023, se cargan dos completados solapados (que la restricción vieja permitía) y
+    se intenta subir. Al final se limpian y se vuelve a `head`, pase lo que pase: dejar el
+    esquema a medias rompería todos los tests siguientes de la sesión.
+
+    Alembic corre `asyncio.run` en su `env.py`, así que se llama desde otro hilo.
+    """
+    config = Config(str(RAIZ_BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(RAIZ_BACKEND / "migrations"))
+    await asyncio.to_thread(command.downgrade, config, "0023")
+    try:
+        escenario = await _escenario(engine_dueno, sesiones)
+        uno = escenario.turno(estado=EstadoTurno.COMPLETADO)
+        otro = escenario.turno(estado=EstadoTurno.COMPLETADO, inicio=INICIO + timedelta(minutes=30))
+        await _reservar(sesiones, escenario, uno)
+        await _reservar(sesiones, escenario, otro)
+
+        with pytest.raises(RuntimeError, match=str(min(uno.id, otro.id))):
+            await asyncio.to_thread(command.upgrade, config, "0024")
+    finally:
+        async with engine_dueno.begin() as conexion:
+            await conexion.execute(text("DELETE FROM turno"))
+        await asyncio.to_thread(command.upgrade, config, "head")

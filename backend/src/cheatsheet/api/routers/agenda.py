@@ -105,11 +105,16 @@ class TurnoEntrada(BaseModel):
     inicio: datetime
     #: Opcional: por defecto la del servicio. Ver `ReservarTurno`.
     duracion_min: int | None = None
+    #: La carga a posteriori (HU-E7-06 RN-07): sólo el Administrador, y siempre explícita. Un
+    #: inicio pasado sin este indicador se rechaza igual que para cualquier rol.
+    a_posteriori: bool = False
 
 
 class ReprogramacionEntrada(BaseModel):
     inicio: datetime
     duracion_min: int | None = None
+    #: La corrección a posteriori (HU-E7-02 RN-07). Ver `TurnoEntrada.a_posteriori`.
+    a_posteriori: bool = False
 
 
 class AsistenciaEntrada(BaseModel):
@@ -523,11 +528,15 @@ def _rutas_de_turnos(recursos: Recursos) -> APIRouter:
             tomados = {
                 uno.franja.inicio for uno in await piezas.turnos.ocupados_en(recurso_id, fecha)
             }
+            ahora = unidad.reloj.ahora()
             salida = DisponibilidadSalida(
                 fecha=fecha,
+                # Los que ya pasaron no se ofrecen (D95). La carga a posteriori no usa esta
+                # grilla: el Administrador escribe la fecha y la hora.
                 horarios=[
                     HorarioSalida(inicio=momento, ocupado=momento in tomados)
                     for momento in recurso.horarios_del_dia(fecha)
+                    if momento >= ahora
                 ],
             )
         return _exigir(salida)
@@ -570,6 +579,7 @@ def _rutas_de_turnos(recursos: Recursos) -> APIRouter:
                 inicio=entrada.inicio,
                 duracion_min=entrada.duracion_min,
                 ahora=unidad.reloj.ahora(),
+                a_posteriori=entrada.a_posteriori,
             )
             salida = _a_turno(turno, unidad.reloj.ahora())
         return _exigir(salida)
@@ -631,6 +641,7 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
                 inicio=entrada.inicio,
                 duracion_min=entrada.duracion_min,
                 ahora=unidad.reloj.ahora(),
+                a_posteriori=entrada.a_posteriori,
             )
             salida = _a_turno(turno, unidad.reloj.ahora())
         return _exigir(salida)

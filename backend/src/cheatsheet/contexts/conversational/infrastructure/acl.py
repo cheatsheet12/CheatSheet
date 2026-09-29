@@ -16,7 +16,7 @@ lo que devuelven se lee por atributo, igual que `SaldoViaBilling` del épico 6.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from uuid import UUID
 
 from cheatsheet.contexts.conversational.application.ports import (
@@ -66,6 +66,7 @@ class AgendaViaScheduling:
         servicios: PortCatalogoDeServicios,
         avisador: Avisador,
         publicador: PublicadorDeEventos,
+        reloj: Reloj,
         empresa_id: EmpresaId,
         usuario_id: UsuarioId | None,
     ) -> None:
@@ -74,6 +75,7 @@ class AgendaViaScheduling:
         self._servicios = servicios
         self._avisador = avisador
         self._publicador = publicador
+        self._reloj = reloj
         self._empresa_id = empresa_id
         self._usuario_id = usuario_id
 
@@ -81,8 +83,10 @@ class AgendaViaScheduling:
         """HU-E8-01 RN-02: **sólo horarios efectivamente disponibles.**
 
         Se cruzan los que el recurso ofrece ese día —patrón semanal más excepciones— contra los
-        que ya están tomados. Lo que sale de acá es lo único que el agente puede nombrar.
+        que ya están tomados, y se descartan los que ya pasaron (HU-E8-01 RN-06, D95). Lo que
+        sale de acá es lo único que el agente puede nombrar.
         """
+        ahora = self._reloj.ahora()
         ofrecibles: list[HorarioOfrecible] = []
         for recurso in await ListarRecursos(self._recursos).ejecutar(solo_activos=True):
             if not recurso.servicios:
@@ -90,7 +94,7 @@ class AgendaViaScheduling:
             servicio_id = sorted(recurso.servicios)[0]
             tomados = {uno.franja.inicio for uno in await self._turnos.ocupados_en(recurso.id, dia)}
             for momento in recurso.horarios_del_dia(dia):
-                if momento in tomados:
+                if momento in tomados or momento < ahora:
                     continue
                 ofrecibles.append(
                     HorarioOfrecible(recurso_id=recurso.id, servicio_id=servicio_id, inicio=momento)
@@ -120,7 +124,7 @@ class AgendaViaScheduling:
             servicio_id=horario.servicio_id,
             recurso_id=horario.recurso_id,
             inicio=horario.inicio,
-            ahora=datetime.now(tz=horario.inicio.tzinfo),
+            ahora=self._reloj.ahora(),
             canal="AGENTE",
         )
         return turno.id
@@ -131,7 +135,7 @@ class AgendaViaScheduling:
         Sólo los **futuros y abiertos**: cancelar un turno de la semana pasada no libera nada, y
         ofrecérselo al cliente es ofrecerle una acción sin efecto.
         """
-        desde = datetime.now(tz=None).astimezone()
+        desde = self._reloj.ahora()
         turnos = await VerAgenda(self._turnos).ejecutar(FiltrosDeAgenda(desde=desde))
         nombres = {uno.id: uno.nombre for uno in await self._servicios.listar_agendables()}
         return [
@@ -160,7 +164,7 @@ class AgendaViaScheduling:
             usuario_id=self._usuario_id,
             rol=ROL_DEL_AGENTE,
             turno_id=turno_id,
-            ahora=datetime.now(tz=None).astimezone(),
+            ahora=self._reloj.ahora(),
         )
 
 

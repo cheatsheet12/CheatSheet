@@ -25,7 +25,12 @@ import pytest
 import pytest_asyncio
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
-from cheatsheet.contexts.scheduling.domain.turno import MENSAJE_HORARIO_OCUPADO
+from cheatsheet.contexts.scheduling.domain.recurso import ZONA_DE_LA_AGENDA
+from cheatsheet.contexts.scheduling.domain.turno import (
+    MENSAJE_HORARIO_OCUPADO,
+    MENSAJE_REPROGRAMAR_AL_PASADO,
+    MENSAJE_TURNO_EN_EL_PASADO,
+)
 from cheatsheet.platform.settings import Settings
 
 from tests.conftest import settings_de_prueba
@@ -38,6 +43,8 @@ CONTRASENA = "una-contrasena-larga"
 #: Un martes futuro, a las 15 de la zona de la agenda (18 UTC). Futuro para que marcar
 #: asistencia esté prohibido salvo cuando el test lo quiera.
 MARTES_15 = datetime(2027, 9, 7, 18, 0, tzinfo=UTC)
+#: Un martes de 2020, a las 15 de la agenda: ya transcurrió, hoy y siempre.
+MARTES_PASADO_15 = datetime(2020, 9, 8, 18, 0, tzinfo=UTC)
 
 
 def _settings() -> Settings:
@@ -577,3 +584,103 @@ async def test_solo_activos_filtra_el_listado_de_recursos(
 
     assert len(todos.json()["recursos"]) == 1
     assert activos.json()["recursos"] == []
+
+
+@pytest.mark.asyncio
+async def test_reservar_en_el_pasado_es_un_422_con_la_frase_de_la_historia(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    """D95, HU-E7-06 RN-06: el rechazo real lo hace el backend, no el `min` de la pantalla."""
+    escena = await _escena(cliente_http, "agenda-pasado@test.local")
+
+    respuesta = await cliente_http.post(
+        "/turnos", headers=_auth(escena.token), json=escena.turno(MARTES_PASADO_15)
+    )
+
+    assert respuesta.status_code == 422, respuesta.text
+    assert respuesta.json()["detalle"] == MENSAJE_TURNO_EN_EL_PASADO
+
+
+@pytest.mark.asyncio
+async def test_reprogramar_al_pasado_es_un_422_y_el_turno_queda_donde_estaba(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    escena = await _escena(cliente_http, "agenda-reprogramar-pasado@test.local")
+    creado = await cliente_http.post("/turnos", headers=_auth(escena.token), json=escena.turno())
+    turno_id = creado.json()["id"]
+
+    respuesta = await cliente_http.post(
+        f"/turnos/{turno_id}/reprogramacion",
+        headers=_auth(escena.token),
+        json={"inicio": MARTES_PASADO_15.isoformat()},
+    )
+
+    assert respuesta.status_code == 422, respuesta.text
+    assert respuesta.json()["detalle"] == MENSAJE_REPROGRAMAR_AL_PASADO
+    turno = await cliente_http.get(f"/turnos/{turno_id}", headers=_auth(escena.token))
+    assert turno.json()["inicio"].startswith("2027-09-07T18:00")
+
+
+@pytest.mark.asyncio
+async def test_el_administrador_registra_una_atencion_ya_realizada(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    """HU-E7-06 RN-07: nace COMPLETADO, por PANEL, y el solapamiento lo rechaza la base."""
+    escena = await _escena(cliente_http, "agenda-a-posteriori@test.local")
+    cuerpo = {**escena.turno(MARTES_PASADO_15), "a_posteriori": True}
+
+    creado = await cliente_http.post("/turnos", headers=_auth(escena.token), json=cuerpo)
+    repetido = await cliente_http.post("/turnos", headers=_auth(escena.token), json=cuerpo)
+
+    assert creado.status_code == 201, creado.text
+    assert creado.json()["estado"] == "COMPLETADO"
+    assert creado.json()["canal_reserva"] == "PANEL"
+    assert repetido.status_code == 422, repetido.text
+    assert repetido.json()["detalle"] == MENSAJE_HORARIO_OCUPADO
+
+
+@pytest.mark.asyncio
+async def test_la_disponibilidad_no_ofrece_horarios_que_ya_pasaron(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    """Un recurso que atiende todos los días: hoy no se ofrece nada anterior a este instante."""
+    escena = await _escena(cliente_http, "agenda-disponibilidad-hoy@test.local")
+    todos_los_dias = await cliente_http.post(
+        "/recursos",
+        headers=_auth(escena.token),
+        json={
+            "nombre": "Consultorio 7 dias",
+            "tipo": "ESPACIO",
+            "patrones": [
+                {
+                    "dia_semana": dia,
+                    "hora_inicio": "00:00:00",
+                    "hora_fin": "23:00:00",
+                    "duracion_slot_min": 60,
+                }
+                for dia in range(7)
+            ],
+            "servicios": [escena.servicio_id],
+        },
+    )
+    assert todos_los_dias.status_code == 201, todos_los_dias.text
+    recurso_id = todos_los_dias.json()["id"]
+    ahora = datetime.now(UTC)
+
+    hoy = await cliente_http.get(
+        "/turnos/disponibilidad",
+        headers=_auth(escena.token),
+        params={
+            "recurso_id": recurso_id,
+            "fecha": ahora.astimezone(ZONA_DE_LA_AGENDA).date().isoformat(),
+        },
+    )
+    ayer = await cliente_http.get(
+        "/turnos/disponibilidad",
+        headers=_auth(escena.token),
+        params={"recurso_id": recurso_id, "fecha": "2020-09-08"},
+    )
+
+    assert hoy.status_code == 200, hoy.text
+    assert all(datetime.fromisoformat(uno["inicio"]) >= ahora for uno in hoy.json()["horarios"])
+    assert ayer.json()["horarios"] == []
