@@ -65,6 +65,7 @@ export default async function PaginaDeTurno({ params }: Props): Promise<JSX.Elem
         puedeGestionar={claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR"}
         recurso={recursos.recursos.find((uno) => uno.id === turno.recurso_id)?.nombre ?? "—"}
         servicio={servicios.find((uno) => uno.id === turno.servicio_id)?.nombre ?? "—"}
+        puedeRegistrarAPosteriori={claims.rol === "ADMINISTRADOR"}
       />
     </div>
   );

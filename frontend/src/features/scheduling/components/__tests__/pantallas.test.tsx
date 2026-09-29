@@ -44,7 +44,13 @@ vi.mock("@/features/scheduling/api/turno", async () => {
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
-import { ETIQUETAS_DE_ESTADO, ErrorDeTurno, MENSAJE_NO_TRANSCURRIO } from "@/features/scheduling";
+import {
+  ETIQUETAS_DE_ESTADO,
+  ErrorDeTurno,
+  MENSAJE_NO_TRANSCURRIO,
+  MENSAJE_REPROGRAMAR_AL_PASADO,
+  MENSAJE_TURNO_EN_EL_PASADO,
+} from "@/features/scheduling";
 import type { ListadoDeTurnos, Recurso, ServicioAgendable, Turno } from "@/features/scheduling";
 
 const { AgendaDelDia } = await import("@/features/scheduling/components/AgendaDelDia");
@@ -335,5 +341,156 @@ describe("PAN-AGE-02 — nuevo turno", () => {
     ).map((una) => una.textContent);
     expect(opciones.some((una) => una?.startsWith("Corte"))).toBe(true);
     expect(opciones.some((una) => una?.startsWith("Color"))).toBe(false);
+  });
+});
+
+describe("D95 — los turnos no se agendan en el pasado", () => {
+  it("nuevo turno: el Operador no ve la opcion a posteriori y el Administrador si", () => {
+    const { rerender } = render(
+      <NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />,
+    );
+    expect(screen.queryByLabelText("Registrar una atención ya realizada")).toBeNull();
+
+    rerender(
+      <NuevoTurno
+        clienteId="cl1"
+        recursos={[RECURSO]}
+        servicios={[CORTE]}
+        puedeRegistrarAPosteriori
+      />,
+    );
+    expect(screen.getByLabelText("Registrar una atención ya realizada")).toBeTruthy();
+  });
+
+  it("nuevo turno: el campo de fecha no deja elegir un dia anterior a hoy", async () => {
+    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Fecha") as HTMLInputElement).min).toMatch(
+        /^\d{4}-\d{2}-\d{2}$/,
+      );
+    });
+  });
+
+  it("nuevo turno: a posteriori reemplaza la grilla por fecha y hora, y manda el indicador", async () => {
+    reservarTurno.mockResolvedValue({ ...PASADO, id: "t9" });
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        recursos={[RECURSO]}
+        servicios={[CORTE]}
+        puedeRegistrarAPosteriori
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
+    fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
+    fireEvent.click(screen.getByLabelText("Registrar una atención ya realizada"));
+
+    expect(screen.queryByLabelText("Fecha")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Fecha y hora de la atención"), {
+      target: { value: "2020-09-08T15:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Registrar atención" }));
+
+    await waitFor(() => {
+      expect(reservarTurno).toHaveBeenCalledWith(
+        expect.objectContaining({ a_posteriori: true, recurso_id: RECURSO.id }),
+      );
+    });
+    expect(push).toHaveBeenCalledWith("/agenda/t9");
+  });
+
+  it("nuevo turno: el mensaje del backend se muestra tal cual en el Alert", async () => {
+    verDisponibilidad.mockResolvedValue({
+      fecha: "2027-09-07",
+      horarios: [{ inicio: "2027-09-07T19:00:00+00:00", ocupado: false }],
+    });
+    reservarTurno.mockRejectedValue(new ErrorDeTurno(MENSAJE_TURNO_EN_EL_PASADO));
+    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
+
+    fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
+    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
+    fireEvent.change(await screen.findByLabelText("Horario"), {
+      target: { value: "2027-09-07T19:00:00+00:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Reservar turno" }));
+
+    expect(await screen.findByText(MENSAJE_TURNO_EN_EL_PASADO)).toBeTruthy();
+  });
+
+  it("detalle: el Operador no ve la correccion a posteriori y el Administrador si", () => {
+    const { rerender } = render(
+      <DetalleDeTurno
+        inicial={RESERVADO}
+        puedeGestionar
+        recurso="Consultorio 1"
+        servicio="Corte"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reprogramar" }));
+    expect(screen.queryByLabelText(/Corrección a posteriori/)).toBeNull();
+
+    rerender(
+      <DetalleDeTurno
+        inicial={RESERVADO}
+        puedeGestionar
+        puedeRegistrarAPosteriori
+        recurso="Consultorio 1"
+        servicio="Corte"
+      />,
+    );
+    expect(screen.getByLabelText(/Corrección a posteriori/)).toBeTruthy();
+  });
+
+  it("detalle: la correccion a posteriori quita el minimo y manda el indicador", async () => {
+    reprogramarTurno.mockResolvedValue({ ...RESERVADO, inicio: "2020-09-08T18:00:00+00:00" });
+    render(
+      <DetalleDeTurno
+        inicial={RESERVADO}
+        puedeGestionar
+        puedeRegistrarAPosteriori
+        recurso="Consultorio 1"
+        servicio="Corte"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reprogramar" }));
+    const campo = screen.getByLabelText("Nuevo horario") as HTMLInputElement;
+    await waitFor(() => {
+      expect(campo.min).not.toBe("");
+    });
+    fireEvent.click(screen.getByLabelText(/Corrección a posteriori/));
+    expect(campo.min).toBe("");
+    fireEvent.change(campo, { target: { value: "2020-09-08T15:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    await waitFor(() => {
+      expect(reprogramarTurno).toHaveBeenCalledWith("t1", expect.any(String), true);
+    });
+  });
+
+  it("detalle: el rechazo del backend se muestra tal cual y sin correccion manda false", async () => {
+    reprogramarTurno.mockRejectedValue(new ErrorDeTurno(MENSAJE_REPROGRAMAR_AL_PASADO));
+    render(
+      <DetalleDeTurno
+        inicial={RESERVADO}
+        puedeGestionar
+        recurso="Consultorio 1"
+        servicio="Corte"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reprogramar" }));
+    // Un horario futuro: el `min` del campo es una cortesía que el navegador hace cumplir al
+    // enviar el formulario, y lo que se prueba acá es que el rechazo del backend se muestra.
+    fireEvent.change(screen.getByLabelText("Nuevo horario"), {
+      target: { value: "2099-09-08T15:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    expect(await screen.findByText(MENSAJE_REPROGRAMAR_AL_PASADO)).toBeTruthy();
+    expect(reprogramarTurno).toHaveBeenCalledWith("t1", expect.any(String), false);
   });
 });

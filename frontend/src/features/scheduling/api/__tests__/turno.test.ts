@@ -16,8 +16,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ErrorDeTurno,
   MENSAJE_HORARIO_OCUPADO,
+  MENSAJE_TURNO_EN_EL_PASADO,
   cancelarTurno,
+  fechaDeHoy,
   horaDe,
+  instanteDeAhora,
   listarTurnos,
   registrarAsistencia,
   reprogramarTurno,
@@ -186,6 +189,56 @@ describe("reprogramarTurno", () => {
     const [ruta, opciones] = espia.mock.calls[0] as [string, RequestInit];
     expect(ruta).toBe("/api/turnos/t1/reprogramacion");
     expect(opciones.body).toBe(JSON.stringify({ inicio: "2027-09-07T19:00:00.000Z" }));
+  });
+});
+
+describe("a posteriori (D95)", () => {
+  it("reservar manda el indicador solo cuando el Administrador lo pide", async () => {
+    const espia = espiarFetch(respuesta(TURNO));
+
+    await reservarTurno({
+      cliente_id: "cl1",
+      servicio_id: "s1",
+      recurso_id: "r1",
+      inicio: "2026-09-07T18:00:00.000Z",
+      a_posteriori: true,
+    });
+
+    const [, opciones] = espia.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(opciones.body as string)).toMatchObject({ a_posteriori: true });
+  });
+
+  it("reprogramar manda el indicador solo en la correccion a posteriori", async () => {
+    const espia = espiarFetch(respuesta(TURNO));
+
+    await reprogramarTurno("t1", "2026-09-07T19:00:00.000Z", true);
+
+    const [, opciones] = espia.mock.calls[0] as [string, RequestInit];
+    expect(opciones.body).toBe(
+      JSON.stringify({ inicio: "2026-09-07T19:00:00.000Z", a_posteriori: true }),
+    );
+  });
+
+  it("muestra el rechazo del backend con la frase de la historia", async () => {
+    espiarFetch(
+      respuesta({ error: "TurnoEnElPasado", detalle: MENSAJE_TURNO_EN_EL_PASADO }, false, 422),
+    );
+
+    await expect(
+      reservarTurno({
+        cliente_id: "cl1",
+        servicio_id: "s1",
+        recurso_id: "r1",
+        inicio: "2020-09-08T18:00:00.000Z",
+      }),
+    ).rejects.toThrow(MENSAJE_TURNO_EN_EL_PASADO);
+  });
+
+  it("fechaDeHoy e instanteDeAhora tienen el formato de los campos de fecha", () => {
+    const ahora = new Date(2027, 8, 7, 9, 5);
+
+    expect(fechaDeHoy(ahora)).toBe("2027-09-07");
+    expect(instanteDeAhora(ahora)).toBe("2027-09-07T09:05");
   });
 });
 

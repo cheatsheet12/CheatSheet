@@ -18,16 +18,29 @@
  * formulario —el que tiene etiqueta visible, el que se llega tabulando y el que el teléfono
  * abre como rueda—, y refleja lo que la grilla marca. Apretar un slot es un atajo sobre ese
  * campo, no un control paralelo: por eso los slots son botones y no radios.
+ *
+ * **Los turnos no se agendan en el pasado** (D95). El campo de fecha lleva `min` = hoy, pero es
+ * una cortesía: el backend compara el instante y es quien rechaza. La única excepción es del
+ * Administrador —«Registrar una atención ya realizada»—, que reemplaza la grilla por un campo
+ * de fecha y hora con `max` = ahora, porque una atención pasada no se elige de los horarios
+ * que el recurso ofrece.
  */
 
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { Alert, Button, Campo, Select } from "@/shared";
+import { Alert, Button, Campo, Casilla, Select } from "@/shared";
 
-import { ErrorDeTurno, horaDe, reservarTurno, verDisponibilidad } from "../api/turno";
+import {
+  ErrorDeTurno,
+  fechaDeHoy,
+  horaDe,
+  instanteDeAhora,
+  reservarTurno,
+  verDisponibilidad,
+} from "../api/turno";
 import type { Horario } from "../api/turno";
 import type { Recurso, ServicioAgendable } from "../api/recurso";
 import { IconoDeReloj } from "./iconos";
@@ -37,9 +50,16 @@ export interface PropsDeNuevoTurno {
   readonly clienteId: string;
   readonly recursos: readonly Recurso[];
   readonly servicios: readonly ServicioAgendable[];
+  /** Sólo el Administrador puede cargar una atención ya realizada (HU-E7-06 RN-07). */
+  readonly puedeRegistrarAPosteriori?: boolean;
 }
 
-export function NuevoTurno({ clienteId, recursos, servicios }: PropsDeNuevoTurno): JSX.Element {
+export function NuevoTurno({
+  clienteId,
+  recursos,
+  servicios,
+  puedeRegistrarAPosteriori = false,
+}: PropsDeNuevoTurno): JSX.Element {
   const router = useRouter();
   const [recursoId, setRecursoId] = useState("");
   const [servicioId, setServicioId] = useState("");
@@ -49,12 +69,24 @@ export function NuevoTurno({ clienteId, recursos, servicios }: PropsDeNuevoTurno
   const [error, setError] = useState<string | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [reservando, setReservando] = useState(false);
+  const [aPosteriori, setAPosteriori] = useState(false);
+  const [inicioPasado, setInicioPasado] = useState("");
+  // Después de montar y no en el render: el servidor puede estar en otra zona horaria.
+  const [limites, setLimites] = useState<{ hoy: string; ahora: string } | undefined>(undefined);
+  useEffect(() => {
+    setLimites({ hoy: fechaDeHoy(), ahora: instanteDeAhora() });
+  }, []);
 
   const recurso = recursos.find((uno) => uno.id === recursoId);
   // RN-03: sólo los servicios asociados al recurso elegido.
   const disponibles = servicios.filter((uno) => recurso?.servicios.includes(uno.id) ?? false);
   const libres = horarios.filter((uno) => !uno.ocupado);
-  const consultado = recursoId !== "" && fecha !== "";
+  const consultado = !aPosteriori && recursoId !== "" && fecha !== "";
+  const inicioElegido = aPosteriori
+    ? inicioPasado === ""
+      ? ""
+      : new Date(inicioPasado).toISOString()
+    : elegido;
 
   async function buscar(idRecurso: string, dia: string): Promise<void> {
     setElegido("");
@@ -81,7 +113,8 @@ export function NuevoTurno({ clienteId, recursos, servicios }: PropsDeNuevoTurno
         cliente_id: clienteId,
         servicio_id: servicioId,
         recurso_id: recursoId,
-        inicio: elegido,
+        inicio: inicioElegido,
+        ...(aPosteriori ? { a_posteriori: true } : {}),
       });
       router.push(`/agenda/${turno.id}`);
     } catch (fallo) {
@@ -89,7 +122,9 @@ export function NuevoTurno({ clienteId, recursos, servicios }: PropsDeNuevoTurno
       // adelantó. La lista se vuelve a pedir para que el próximo intento sirva — y el mensaje
       // se pone **después**, porque `buscar` limpia el error para no dejar uno viejo colgado
       // cuando alguien cambia de recurso.
-      await buscar(recursoId, fecha);
+      if (!aPosteriori) {
+        await buscar(recursoId, fecha);
+      }
       setError(fallo instanceof ErrorDeTurno ? fallo.message : "No se pudo crear el turno.");
     } finally {
       setReservando(false);
@@ -155,17 +190,46 @@ export function NuevoTurno({ clienteId, recursos, servicios }: PropsDeNuevoTurno
           onChange={(evento) => setServicioId(evento.target.value)}
         />
 
-        <Campo
-          id="turno-fecha"
-          etiqueta="Fecha"
-          type="date"
-          value={fecha}
-          onChange={(evento) => {
-            setFecha(evento.target.value);
-            void buscar(recursoId, evento.target.value);
-          }}
-        />
+        {aPosteriori ? (
+          <Campo
+            id="turno-inicio-realizado"
+            etiqueta="Fecha y hora de la atención"
+            ayuda="Tiene que haber terminado. No se le avisa nada al cliente."
+            type="datetime-local"
+            max={limites?.ahora}
+            value={inicioPasado}
+            onChange={(evento) => setInicioPasado(evento.target.value)}
+          />
+        ) : (
+          <Campo
+            id="turno-fecha"
+            etiqueta="Fecha"
+            type="date"
+            min={limites?.hoy}
+            value={fecha}
+            onChange={(evento) => {
+              setFecha(evento.target.value);
+              void buscar(recursoId, evento.target.value);
+            }}
+          />
+        )}
       </div>
+
+      {puedeRegistrarAPosteriori && (
+        <Casilla
+          id="turno-a-posteriori"
+          checked={aPosteriori}
+          onChange={(evento) => {
+            setAPosteriori(evento.target.checked);
+            setElegido("");
+            setHorarios([]);
+            setInicioPasado("");
+            setError(null);
+          }}
+        >
+          Registrar una atención ya realizada
+        </Casilla>
+      )}
 
       {consultado && (
         <section className="age-slots" aria-labelledby="turno-slots-titulo">
@@ -219,7 +283,7 @@ export function NuevoTurno({ clienteId, recursos, servicios }: PropsDeNuevoTurno
         </section>
       )}
 
-      {libres.length > 0 && (
+      {!aPosteriori && libres.length > 0 && (
         <Select
           id="turno-horario"
           etiqueta="Horario"
@@ -237,8 +301,12 @@ export function NuevoTurno({ clienteId, recursos, servicios }: PropsDeNuevoTurno
         <Button variante="secundario" onClick={() => router.push("/agenda")}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={servicioId === "" || elegido === ""} cargando={reservando}>
-          Reservar turno
+        <Button
+          type="submit"
+          disabled={servicioId === "" || inicioElegido === ""}
+          cargando={reservando}
+        >
+          {aPosteriori ? "Registrar atención" : "Reservar turno"}
         </Button>
       </div>
     </form>

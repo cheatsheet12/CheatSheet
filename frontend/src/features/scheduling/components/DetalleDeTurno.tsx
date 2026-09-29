@@ -11,13 +11,17 @@
  *
  * Esconder es una cortesía: el caso de uso rechaza igual. Pero un botón que no está y no dice
  * por qué manda a alguien a recargar la página buscándolo.
+ *
+ * **Reprogramar no va al pasado** (D95): el campo lleva `min` = ahora, que es una cortesía — el
+ * backend compara el instante y es quien rechaza. El Administrador tiene la excepción
+ * «Corrección a posteriori», que quita el `min` y le pide al backend la franja ya terminada.
  */
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { Alert, Badge, Button, Campo, Card, Modal, formatearFecha } from "@/shared";
+import { Alert, Badge, Button, Campo, Card, Casilla, Modal, formatearFecha } from "@/shared";
 
 import {
   ETIQUETAS_DE_ESTADO,
@@ -25,6 +29,7 @@ import {
   MENSAJE_NO_TRANSCURRIO,
   cancelarTurno,
   horaDe,
+  instanteDeAhora,
   registrarAsistencia,
   reprogramarTurno,
   tonoDeEstado,
@@ -39,6 +44,8 @@ export interface PropsDeDetalleDeTurno {
   readonly recurso: string;
   /** El nombre del servicio, ídem. */
   readonly servicio: string;
+  /** Sólo el Administrador puede corregir a posteriori (HU-E7-02 RN-07). */
+  readonly puedeRegistrarAPosteriori?: boolean;
 }
 
 export function DetalleDeTurno({
@@ -46,12 +53,19 @@ export function DetalleDeTurno({
   puedeGestionar,
   recurso,
   servicio,
+  puedeRegistrarAPosteriori = false,
 }: PropsDeDetalleDeTurno): JSX.Element {
   const [turno, setTurno] = useState<Turno>(inicial);
   const [error, setError] = useState<string | null>(null);
   const [reprogramando, setReprogramando] = useState(false);
   const [nuevoInicio, setNuevoInicio] = useState("");
   const [trabajando, setTrabajando] = useState(false);
+  const [correccion, setCorreccion] = useState(false);
+  // Después de montar y no en el render: el servidor puede estar en otra zona horaria.
+  const [ahora, setAhora] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    setAhora(instanteDeAhora());
+  }, []);
 
   const abierto = turno.estado === "RESERVADO" || turno.estado === "CONFIRMADO";
 
@@ -65,6 +79,7 @@ export function DetalleDeTurno({
     try {
       setTurno(await accion());
       setReprogramando(false);
+      setCorreccion(false);
     } catch (fallo) {
       setError(mensajeDe(fallo, porDefecto));
     } finally {
@@ -192,7 +207,7 @@ export function DetalleDeTurno({
           onSubmit={(evento) => {
             evento.preventDefault();
             void correr(
-              () => reprogramarTurno(turno.id, new Date(nuevoInicio).toISOString()),
+              () => reprogramarTurno(turno.id, new Date(nuevoInicio).toISOString(), correccion),
               "No se pudo reprogramar el turno.",
             );
           }}
@@ -205,9 +220,20 @@ export function DetalleDeTurno({
             id="turno-nuevo-inicio"
             etiqueta="Nuevo horario"
             type="datetime-local"
+            min={correccion ? undefined : ahora}
             value={nuevoInicio}
             onChange={(evento) => setNuevoInicio(evento.target.value)}
           />
+          {puedeRegistrarAPosteriori && (
+            <Casilla
+              id="turno-correccion-a-posteriori"
+              checked={correccion}
+              onChange={(evento) => setCorreccion(evento.target.checked)}
+            >
+              Corrección a posteriori: mover el turno a una franja que ya terminó, sin avisarle al
+              cliente
+            </Casilla>
+          )}
           <div className="dm-formulario__acciones">
             <Button variante="secundario" onClick={() => setReprogramando(false)}>
               Volver
