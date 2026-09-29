@@ -312,3 +312,25 @@ a propósito: un paquete de prueba armado por otro camino probaría otra cosa qu
 **Lo que cuesta:** se puede rearmar el paquete de un mes ya cerrado con los datos de hoy. Los
 comprobantes autorizados no cambian, así que el contenido no debería moverse; si se movió, es
 porque algo se emitió tarde, y eso es información y no un error.
+
+---
+
+## D98 — Inicio y Reportes muestran la misma cobranza, medida de la misma manera
+
+*Enmienda de la revisión de 2026-09 · ADR-0009 · unidad `indicadores-de-cobranza` · HU-E10-01*
+
+La pantalla Inicio no pertenece a ninguna historia; solo se la nombra como destino del ingreso. Lo
+más cercano es HU-E10-01, con su selector de período y su «total cobrado», y su precondición
+(«existe al menos un comprobante emitido en el período») contradecía su propio criterio de período
+sin actividad y dejaba afuera períodos con solo cobros.
+
+**HU-E10-01 cubre Inicio; no hay una historia nueva.** Inicio muestra el resumen de cobros con el
+mismo selector de período que Reportes (mes en curso por defecto) y la misma definición de métricas.
+Reportes suma «cobrado por semana» y «cobros por estado». «Cobrado» se mide por fecha de pago y los
+reembolsos restan en el período de la devolución (D91, D93); la tasa de cobro se calcula solo sobre
+lo creado en el período; y «cobros por estado» agrupa lo creado en el período por su estado actual, y
+el subtítulo del gráfico lo dice. Se eliminó la precondición del comprobante.
+
+**Para el Gate 1 de `indicadores-de-cobranza`:** este contexto solo lee (D51), así que necesita
+`fecha_pago` y la fecha de cada reembolso a través de la capa de `application` de `payments` o de
+eventos, sin join; y hay que asignar el código de pantalla de Inicio.
