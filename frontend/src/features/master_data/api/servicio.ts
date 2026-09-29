@@ -39,7 +39,11 @@ export interface DatosDeServicio {
   readonly precio: string;
   readonly alicuota_iva: AlicuotaIVA;
   readonly agendable: boolean;
-  readonly duracion_estandar_min?: number | null;
+  /**
+   * A number when the field held only digits. Any other text travels as typed, so the
+   * backend rejects it instead of the client truncating it in silence.
+   */
+  readonly duracion_estandar_min?: number | string | null;
 }
 
 /** How each rate is written for a person. The backend never sends a label. */

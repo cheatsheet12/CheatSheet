@@ -56,13 +56,21 @@ function inicial(servicio: Servicio | undefined): Campos {
   };
 }
 
-/** `""` and a non-numeric string both mean "nothing usable", and the backend decides. */
-function duracionDe(campos: Campos): number | null {
+/**
+ * Strict on purpose: only digits become a number. `parseInt` would turn "12.7" into 12 and
+ * "99999abc" into 99999 without telling anyone. Anything else is sent **as typed** so the
+ * backend refuses it, and the 5-to-480 rule stays in one place (the domain), not here.
+ * An empty field is `null`: «obligatoria» is the backend's message to give.
+ */
+function duracionDe(campos: Campos): number | string | null {
   if (!campos.agendable) {
     return null;
   }
-  const numero = Number.parseInt(campos.duracion, 10);
-  return Number.isNaN(numero) ? null : numero;
+  const escrito = campos.duracion.trim();
+  if (escrito === "") {
+    return null;
+  }
+  return /^\d+$/.test(escrito) ? Number.parseInt(escrito, 10) : escrito;
 }
 
 export function FormularioDeServicio({
@@ -156,7 +164,7 @@ export function FormularioDeServicio({
           inputMode="numeric"
           value={campos.duracion}
           onChange={(evento) => cambiar("duracion", evento.target.value)}
-          ayuda="Obligatoria para los servicios agendables."
+          ayuda="Entre 5 y 480 minutos."
         />
       )}
 
