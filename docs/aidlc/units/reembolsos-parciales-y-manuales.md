@@ -394,48 +394,57 @@ Riesgos que no son tests, dichos con todas las letras:
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/payments/domain/cobro.py` (estado, transiciones, métodos de reembolso, mensaje)
-- [ ] `backend/src/cheatsheet/contexts/payments/domain/reembolso.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/ports.py` (`PortRepositorioReembolso`, `RespuestaDeReembolso`, `buscar_para_actualizar`, `consultar_reembolso`, `registrar_reembolso`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/reembolsos.py` (nuevo: los cinco casos de uso)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (sale `ReembolsarCobro`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/errors.py` (`ReembolsoEnProceso`, `ReembolsoNoCorregible`)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/models.py` (`ReembolsoORM`, columnas y `CHECK`)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/repositories.py` (mapeos, `FOR UPDATE`, `metricas`, repositorio de reembolsos)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/pasarela.py` (respuesta tipada, clave, `consultar_reembolso`, sin `float`, simulada)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/saldo.py` (`registrar_reembolso`)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/ensamblado.py` (repositorio de reembolsos)
-- [ ] `backend/migrations/versions/0027_reembolsos.py` (nuevo)
-- [ ] `backend/src/cheatsheet/api/routers/reembolsos.py` (nuevo) y su registro en la app
-- [ ] `backend/src/cheatsheet/api/routers/cobros.py` (`DetalleSalida`, sale la ruta de reembolso)
-- [ ] `backend/tests/contexts/payments/domain/test_cobro.py` y `test_reembolso.py` (nuevo)
-- [ ] `backend/tests/contexts/payments/application/test_reembolsos.py` (nuevo; los tests de reembolso de `test_cobros_y_recordatorios.py` se mudan acá)
-- [ ] `backend/tests/contexts/payments/application/test_confirmacion.py` (`CobrosFalsos`, `PasarelaFalsa`, webhook de un pago reembolsado)
-- [ ] `backend/tests/contexts/payments/infrastructure/test_pasarela_contrato.py`
-- [ ] `backend/tests/contexts/payments/infrastructure/test_saldo_via_billing.py`
-- [ ] `backend/tests/integracion/test_cobros_postgres.py` (métricas; el caso 12 de `fecha-de-pago` cambia a propósito)
-- [ ] `backend/tests/integracion/test_reembolsos_postgres.py` (nuevo: RLS, grants, concurrencia, suma)
-- [ ] `backend/tests/integracion/test_migracion_0027.py` (nuevo)
-- [ ] `backend/tests/integracion/test_api_reembolsos.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/payments/domain/cobro.py` (estado, transiciones, métodos de reembolso, mensaje)
+- [x] `backend/src/cheatsheet/contexts/payments/domain/reembolso.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/payments/application/ports.py` (`PortRepositorioReembolso`, `RespuestaDeReembolso`, `buscar_para_actualizar`, `consultar_reembolso`, `registrar_reembolso`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/reembolsos.py` (nuevo: los cinco casos de uso)
+- [x] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (sale `ReembolsarCobro`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/errors.py` (`ReembolsoEnProceso`, `ReembolsoNoCorregible`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/models.py` (`ReembolsoORM`, columnas y `CHECK`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/repositories.py` (mapeos, `FOR UPDATE`, `metricas`, repositorio de reembolsos)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/pasarela.py` (respuesta tipada, clave, `consultar_reembolso`, sin `float`, simulada)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/saldo.py` (`registrar_reembolso`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/ensamblado.py` (repositorio de reembolsos)
+- [x] `backend/migrations/versions/0027_reembolsos.py` (nuevo)
+- [x] `backend/src/cheatsheet/api/routers/reembolsos.py` (nuevo) y su registro en la app
+- [x] `backend/src/cheatsheet/api/routers/cobros.py` (`DetalleSalida`, sale la ruta de reembolso)
+- [x] `backend/tests/contexts/payments/domain/test_cobro.py` y `test_reembolso.py` (nuevo)
+- [x] `backend/tests/contexts/payments/application/test_reembolsos.py` (nuevo; los tests de reembolso de `test_cobros_y_recordatorios.py` se mudan acá)
+- [x] `backend/tests/contexts/payments/application/test_confirmacion.py` (`CobrosFalsos`, `PasarelaFalsa`, webhook de un pago reembolsado)
+- [x] `backend/tests/contexts/payments/infrastructure/test_pasarela_contrato.py`
+- [x] `backend/tests/contexts/payments/infrastructure/test_saldo_via_billing.py`
+- [x] `backend/tests/integracion/test_cobros_postgres.py` (métricas; el caso 12 de `fecha-de-pago` cambia a propósito)
+- [x] `backend/tests/integracion/test_reembolsos_postgres.py` (nuevo: RLS, grants, concurrencia, suma)
+- [x] `backend/tests/integracion/test_migracion_0027.py` (nuevo)
+- [x] `backend/tests/integracion/test_api_reembolsos.py` (nuevo)
 
 ### Frontend
-- [ ] `frontend/src/features/payments/api/cobro.ts`
-- [ ] `frontend/src/features/payments/components/DetalleDeCobro.tsx`
-- [ ] `frontend/src/features/payments/components/ReembolsosDeCobro.tsx` (nuevo)
-- [ ] `frontend/src/features/payments/components/ListadoDeCobros.tsx` (opción de filtro)
-- [ ] (el tono del estado nuevo vive en `api/cobro.ts`, `tonoDeEstado`)
-- [ ] `frontend/src/app/api/cobros/[cobroId]/reembolso/actualizacion/route.ts` (nuevo)
-- [ ] `frontend/src/app/api/cobros/[cobroId]/reembolsos/route.ts` (nuevo)
-- [ ] `frontend/src/app/api/cobros/[cobroId]/reembolsos/[reembolsoId]/correccion/route.ts` (nuevo)
-- [ ] `frontend/src/features/payments/api/__tests__/cobro.test.ts`
-- [ ] `frontend/src/features/payments/components/__tests__/pantallas.test.tsx` (y `reembolsos.test.tsx` si conviene separarlo)
-- [ ] `frontend/src/app/api/cobros/__tests__/rutas.test.ts`
-- [ ] `frontend/src/app/(panel)/cobros/__tests__/pagina.test.tsx`
+- [x] `frontend/src/features/payments/api/cobro.ts`
+- [x] `frontend/src/features/payments/components/DetalleDeCobro.tsx`
+- [x] `frontend/src/features/payments/components/ReembolsosDeCobro.tsx` (nuevo)
+- [x] `frontend/src/features/payments/components/ListadoDeCobros.tsx` (opción de filtro)
+- [x] (el tono del estado nuevo vive en `api/cobro.ts`, `tonoDeEstado`)
+- [x] `frontend/src/app/api/cobros/[cobroId]/reembolso/actualizacion/route.ts` (nuevo)
+- [x] `frontend/src/app/api/cobros/[cobroId]/reembolsos/route.ts` (nuevo)
+- [x] `frontend/src/app/api/cobros/[cobroId]/reembolsos/[reembolsoId]/correccion/route.ts` (nuevo)
+- [x] `frontend/src/features/payments/api/__tests__/cobro.test.ts`
+- [x] `frontend/src/features/payments/components/__tests__/pantallas.test.tsx` (y `reembolsos.test.tsx` si conviene separarlo)
+- [x] `frontend/src/app/api/cobros/__tests__/rutas.test.ts`
+- [x] `frontend/src/app/(panel)/cobros/__tests__/pagina.test.tsx`
+
+### Archivos que el plan no listaba (los pidió una regla de `CLAUDE.md` o la implementación)
+- [x] `backend/src/cheatsheet/contexts/payments/domain/dinero.py` (`redondear` y `CENTAVOS`: `Cobro` y `Reembolso` se necesitan y el redondeo no puede ser un import circular)
+- [x] `backend/src/cheatsheet/contexts/payments/domain/estado_de_cobro.py` y `reembolsos_de_cobro.py` (`cobro.py` ya pasaba de 400 líneas: tipos y constantes a un archivo, los reembolsos como mixin de `Cobro` en otro; `cobro.py` los reexporta)
+- [x] `backend/src/cheatsheet/contexts/payments/application/reembolsos_comunes.py` y `reembolsos_manuales.py` (`reembolsos.py` pasaba de 400 líneas: la API (T1, T2) queda en `reembolsos.py`; el registro manual, la corrección y el historial en `reembolsos_manuales.py`; el guarda, la carga con bloqueo y `aplicar` en `reembolsos_comunes.py`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/pasarela_simulada.py` (`pasarela.py` pasaba de 400 líneas; se reexporta) y `repositorio_reembolso.py` (el plan lo preveía si `repositories.py` pasaba de 400)
+- [x] `backend/src/cheatsheet/api/mercadopago.py` (el doble simulado pasa a ser de proceso) y `backend/src/cheatsheet/api/main.py` (registro del router)
+- [x] `backend/tests/api/test_reembolso_confirma_el_estado.py` y `test_pasarela_simulada_compartida.py` (nuevos: contrato de commit y doble de proceso); `backend/tests/integracion/conftest.py` (`DELETE FROM reembolso` antes de `cobro`)
+- [x] `frontend/src/shared/pantallas-cobros.css` (el historial de reembolsos)
 
 ### Docs
-- [ ] `docs/aidlc/units.md` (fila de la unidad; si se aprueba la pregunta 2, fila nueva `reembolsos-en-vuelo` y `reembolso-rechazado-persistido` absorbida)
-- [ ] `docs/aidlc/TODO.md` §20 (ítems de la sección de sandbox)
-- [ ] `docs/aidlc/epicas/06-cobros-y-recordatorios/pendientes.md` ítem 7 (cerrado por esta unidad)
+- [x] `docs/aidlc/units.md` (fila de la unidad; si se aprueba la pregunta 2, fila nueva `reembolsos-en-vuelo` y `reembolso-rechazado-persistido` absorbida): ya hecho en el Gate 1
+- [x] `docs/aidlc/TODO.md` §20 (ítems de la sección de sandbox)
+- [x] `docs/aidlc/epicas/06-cobros-y-recordatorios/pendientes.md` ítem 7 (cerrado por esta unidad)
 - Sin ADR nuevo: el modelo es el de ADR-0010, y las decisiones de este Gate caben dentro de sus límites.
 
 ## Casos de prueba
@@ -446,43 +455,43 @@ honestamente cuál se observó.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | RED: reembolso parcial confirmado → `REEMBOLSADO_PARCIAL`, acumulado = monto confirmado | unit (dominio) | pendiente |
-| 2 | RED: segundo reembolso que completa el monto → `REEMBOLSADO`; uno que lo supera → rechazado con el mensaje de la historia | unit (dominio) | pendiente |
-| 3 | RED: `solicitar_reembolso` sobre `REEMBOLSADO_PARCIAL` se admite; sobre `PENDIENTE`, `CANCELADO` y `REEMBOLSADO` → «Solo pueden reembolsarse cobros pagados.» | unit (dominio) | pendiente |
-| 4 | RED: con un reembolso en vuelo, otra solicitud se rechaza | unit (dominio) | pendiente |
-| 5 | RED: por API solo cobros `LINK_MERCADOPAGO`; manual solo `TRANSFERENCIA` | unit (dominio) | pendiente |
-| 6 | RED: el rechazo deja estado y acumulado intactos (`APROBADO` y también `REEMBOLSADO_PARCIAL`) | unit (dominio) | pendiente |
-| 7 | RED: corrección de una fila manual → fila negativa; baja `REEMBOLSADO → REEMBOLSADO_PARCIAL → APROBADO`; corregir dos veces, corregir una corrección o una fila de API → rechazado | unit (dominio) | pendiente |
-| 8 | RED: `Reembolso` exige monto distinto de cero, negativo ⇔ `corrige_a`, motivo en manuales; redondea `ROUND_HALF_UP`; `0.10 + 0.20` acumula `0.30` | unit (dominio) | pendiente |
-| 9 | RED: fecha manual del futuro o anterior al pago → rechazada; un día se guarda como 12:00 de Argentina | unit (dominio) | pendiente |
-| 10 | RED: `SolicitarReembolso` persiste solicitud, monto y clave **antes** de llamar a la pasarela (la pasarela falsa ve el cobro ya marcado) | unit (aplicación) | pendiente |
-| 11 | RED (H1): MercadoPago rechaza → el rechazo y el evento `ERROR` con el motivo **quedan escritos** aunque el borde devuelva 422 | unit (aplicación) + integración (API) | pendiente |
-| 12 | RED (H1): MercadoPago no responde → la solicitud queda en vuelo y hay un evento que avisa; no se pierde nada | unit (aplicación) + integración (API) | pendiente |
-| 13 | RED: aceptado → una fila `API_MERCADOPAGO` con `mp_refund_id` y fecha de MercadoPago; `en_proceso` → sin fila, en vuelo con el id | unit (aplicación) | pendiente |
-| 14 | RED: «Actualizar estado» con id consulta; sin id reenvía **con la misma clave**; dos veces seguidas → una sola fila | unit (aplicación) | pendiente |
-| 15 | RED: MercadoPago confirma un monto mayor al pendiente → no se registra, queda en vuelo, evento `ERROR` | unit (aplicación) | pendiente |
-| 16 | RED: el saldo del comprobante sube con el reembolso (tope en el total) y baja con la corrección (piso en cero); sin comprobante no se llama | unit (aplicación + ACL) | pendiente |
-| 17 | RED: solo el Administrador solicita, actualiza, registra y corrige; Operador y Solo Lectura → rechazados | unit (aplicación) | pendiente |
-| 18 | Un cobro reembolsado (parcial o total) no vuelve a recibir recordatorios ni entra al barrido (RN-12) | unit (aplicación) | pendiente |
-| 19 | El webhook `payment` de un pago ya reembolsado sigue siendo `ya_procesado` y no toca acumulado ni solicitud | unit (aplicación) | pendiente |
-| 20 | RED: el adaptador manda `amount` como número JSON exacto sin `float`, con `X-Idempotency-Key` igual a la clave dada (y la misma en los reintentos) | unit (contrato, `MockTransport`) | pendiente |
-| 21 | RED: `status` `approved` → aceptado; `rejected`/`cancelled` → rechazado; otro o ausente → en proceso; 4xx → rechazado con el `message`; 5xx y timeout → `PasarelaNoDisponible` | unit (contrato) | pendiente |
-| 22 | RED: `PasarelaSimulada`: «rechazar» rechaza, «demorar» queda en proceso hasta la primera consulta | unit | pendiente |
-| 23 | RED: métricas — pago en febrero, reembolso en marzo: febrero suma el bruto, marzo resta el reembolso; parcial y total; una corrección suma de vuelta; «cobrado» puede ser negativo | integración (PostgreSQL) | pendiente |
-| 24 | RED: la tasa cuenta los estados reembolsados por su bruto y no pasa de 100 % | unit + integración | pendiente |
-| 25 | RED: `reembolso` rechaza `UPDATE` y `DELETE` para `cheatsheet_app`; RLS aísla empresas; `mp_refund_id` único por empresa, repetible en otra | integración (PostgreSQL) | pendiente |
-| 26 | RED: `CHECK` de la base: acumulado fuera de `[0, monto]`, estado que no concuerda con el acumulado, monto cero en `reembolso`, corrección positiva → rechazados | integración (PostgreSQL) | pendiente |
-| 27 | RED: **dos registros manuales concurrentes** (dos sesiones) cuyo total supera el cobro → uno entra y el otro se rechaza; `Σ reembolso.monto = cobro.monto_reembolsado` | integración (PostgreSQL) | pendiente |
-| 28 | Después de cada camino (API, manual, corrección), `Σ reembolso.monto = cobro.monto_reembolsado` | integración (PostgreSQL) | pendiente |
-| 29 | RED: migración sobre datos viejos: cada `REEMBOLSADO` gana su fila; un parcial viejo pasa a `REEMBOLSADO_PARCIAL`; un `REEMBOLSADO` sin monto se informa por `NOTICE` | integración (migración) | pendiente |
-| 30 | La migración sube, baja y vuelve a subir; al bajar `REEMBOLSADO_PARCIAL` vuelve a `REEMBOLSADO` | integración (migración) | pendiente |
-| 31 | `GET /cobros/{id}` trae `reembolsos`, `monto_reembolsado` numérico y `reembolso_en_proceso_monto`; las rutas nuevas responden 200/409/422 según el caso | integración (API) | pendiente |
-| 32 | RED: detalle — «Reembolsar» en `APROBADO`/`REEMBOLSADO_PARCIAL` por link con el pendiente precargado; «Registrar reembolso» solo en transferencia; nada para Operador | unit (frontend) | pendiente |
-| 33 | RED: «Reembolso en proceso» con monto y «Actualizar estado»; historial con corrección visible; «Corregir» solo en filas manuales no corregidas | unit (frontend) | pendiente |
-| 34 | RED: aviso de nota de crédito con enlace a `/facturacion/{id}/anular` cuando hay comprobante y acumulado > 0; sin comprobante no aparece | unit (frontend) | pendiente |
-| 35 | RED: etiqueta «Reembolsado parcialmente» y la opción en el filtro del listado | unit (frontend) | pendiente |
-| 36 | En el navegador (`run-local`, pasarela simulada): reembolso parcial, completarlo, uno «rechazar», uno «demorar» y «Actualizar estado»; ver el encabezado del período | manual | pendiente, para quien revise |
-| 37 | En sandbox de MercadoPago: los ítems de la sección siguiente | manual (sandbox) | pendiente; anotado en `TODO.md` §20 |
+| 1 | RED: reembolso parcial confirmado → `REEMBOLSADO_PARCIAL`, acumulado = monto confirmado | unit (dominio) | GREEN (RED: fallaba la colección, `ImportError`); `test_cobro.py` |
+| 2 | RED: segundo reembolso que completa el monto → `REEMBOLSADO`; uno que lo supera → rechazado con el mensaje de la historia | unit (dominio) | GREEN (RED: ídem) |
+| 3 | RED: `solicitar_reembolso` sobre `REEMBOLSADO_PARCIAL` se admite; sobre `PENDIENTE`, `CANCELADO` y `REEMBOLSADO` → «Solo pueden reembolsarse cobros pagados.» | unit (dominio) | GREEN (RED: ídem) |
+| 4 | RED: con un reembolso en vuelo, otra solicitud se rechaza | unit (dominio) | GREEN (RED: ídem) |
+| 5 | RED: por API solo cobros `LINK_MERCADOPAGO`; manual solo `TRANSFERENCIA` | unit (dominio) | GREEN (RED: ídem) |
+| 6 | RED: el rechazo deja estado y acumulado intactos (`APROBADO` y también `REEMBOLSADO_PARCIAL`) | unit (dominio) | GREEN (RED: ídem), con `APROBADO` y con `REEMBOLSADO_PARCIAL` |
+| 7 | RED: corrección de una fila manual → fila negativa; baja `REEMBOLSADO → REEMBOLSADO_PARCIAL → APROBADO`; corregir dos veces, corregir una corrección o una fila de API → rechazado | unit (dominio) | GREEN (RED: ídem); también la red de seguridad si se saltea `ya_corregido` |
+| 8 | RED: `Reembolso` exige monto distinto de cero, negativo ⇔ `corrige_a`, motivo en manuales; redondea `ROUND_HALF_UP`; `0.10 + 0.20` acumula `0.30` | unit (dominio) | GREEN (RED: `test_reembolso.py` no importaba); `0.10 + 0.20 = 0.30` |
+| 9 | RED: fecha manual del futuro o anterior al pago → rechazada; un día se guarda como 12:00 de Argentina | unit (dominio) | GREEN (RED: ídem); el «hoy» se mide en Argentina, no en UTC |
+| 10 | RED: `SolicitarReembolso` persiste solicitud, monto y clave **antes** de llamar a la pasarela (la pasarela falsa ve el cobro ya marcado) | unit (aplicación) | GREEN (RED: `ImportError`), `test_reembolsos.py`; la pasarela ve el cobro ya marcado |
+| 11 | RED (H1): MercadoPago rechaza → el rechazo y el evento `ERROR` con el motivo **quedan escritos** aunque el borde devuelva 422 | unit (aplicación) + integración (API) | GREEN unit y **contrato de commit** con doble (`tests/api/test_reembolso_confirma_el_estado.py`, RED: el router no existía; un mutante que levanta adentro del ciclo lo hace fallar); PostgreSQL: escrito, **no corrido** (sin Docker local): corre en CI |
+| 12 | RED (H1): MercadoPago no responde → la solicitud queda en vuelo y hay un evento que avisa; no se pierde nada | unit (aplicación) + integración (API) | GREEN unit y contrato de commit (la marca y la clave sobreviven); PostgreSQL: escrito, **no corrido** (sin Docker local): corre en CI |
+| 13 | RED: aceptado → una fila `API_MERCADOPAGO` con `mp_refund_id` y fecha de MercadoPago; `en_proceso` → sin fila, en vuelo con el id | unit (aplicación) | GREEN (RED: `ImportError`) |
+| 14 | RED: «Actualizar estado» con id consulta; sin id reenvía **con la misma clave**; dos veces seguidas → una sola fila | unit (aplicación) | GREEN (RED: ídem); sin id reenvía con la misma clave, dos veces = una fila |
+| 15 | RED: MercadoPago confirma un monto mayor al pendiente → no se registra, queda en vuelo, evento `ERROR` | unit (aplicación) | GREEN (RED: ídem) |
+| 16 | RED: el saldo del comprobante sube con el reembolso (tope en el total) y baja con la corrección (piso en cero); sin comprobante no se llama | unit (aplicación + ACL) | GREEN aplicación y ACL (`test_saldo_via_billing.py`, RED: 4 fallaban): tope en el total, piso en cero |
+| 17 | RED: solo el Administrador solicita, actualiza, registra y corrige; Operador y Solo Lectura → rechazados | unit (aplicación) | GREEN (RED: ídem), Operador y Solo Lectura en los cinco casos de uso; y 422 en el router |
+| 18 | Un cobro reembolsado (parcial o total) no vuelve a recibir recordatorios ni entra al barrido (RN-12) | unit (aplicación) | GREEN (dominio y aplicación, por construcción: no están abiertos) |
+| 19 | El webhook `payment` de un pago ya reembolsado sigue siendo `ya_procesado` y no toca acumulado ni solicitud | unit (aplicación) | GREEN (`test_confirmacion.py`): `ya_procesado`, sin llamar a MercadoPago ni tocar el reembolso |
+| 20 | RED: el adaptador manda `amount` como número JSON exacto sin `float`, con `X-Idempotency-Key` igual a la clave dada (y la misma en los reintentos) | unit (contrato, `MockTransport`) | GREEN (RED: 23 fallaban), `MockTransport`: cuerpo `{"amount": 1234.56}` exacto y la misma clave en los tres reintentos |
+| 21 | RED: `status` `approved` → aceptado; `rejected`/`cancelled` → rechazado; otro o ausente → en proceso; 4xx → rechazado con el `message`; 5xx y timeout → `PasarelaNoDisponible` | unit (contrato) | GREEN (RED: ídem), incluidos `status` ausente/numérico → en proceso y 4xx de consulta → `PasarelaNoDisponible` |
+| 22 | RED: `PasarelaSimulada`: «rechazar» rechaza, «demorar» queda en proceso hasta la primera consulta | unit | GREEN (RED: ídem); «rechazar», «demorar» y la misma clave devuelven lo mismo. El doble pasó a ser de proceso (ver «Desvíos» del reporte) |
+| 23 | RED: métricas — pago en febrero, reembolso en marzo: febrero suma el bruto, marzo resta el reembolso; parcial y total; una corrección suma de vuelta; «cobrado» puede ser negativo | integración (PostgreSQL) | escrito, **no corrido** (sin Docker local): corre en CI |
+| 24 | RED: la tasa cuenta los estados reembolsados por su bruto y no pasa de 100 % | unit + integración | unit GREEN (`test_metricas.py`, cobrado negativo); integración: escrito, **no corrido** (sin Docker local): corre en CI |
+| 25 | RED: `reembolso` rechaza `UPDATE` y `DELETE` para `cheatsheet_app`; RLS aísla empresas; `mp_refund_id` único por empresa, repetible en otra | integración (PostgreSQL) | escrito, **no corrido** (sin Docker local): corre en CI |
+| 26 | RED: `CHECK` de la base: acumulado fuera de `[0, monto]`, estado que no concuerda con el acumulado, monto cero en `reembolso`, corrección positiva → rechazados | integración (PostgreSQL) | escrito, **no corrido** (sin Docker local): corre en CI |
+| 27 | RED: **dos registros manuales concurrentes** (dos sesiones) cuyo total supera el cobro → uno entra y el otro se rechaza; `Σ reembolso.monto = cobro.monto_reembolsado` | integración (PostgreSQL) | escrito, **no corrido** (sin Docker local): corre en CI (fuerza el solapamiento con un `sleep` tras tomar el bloqueo) |
+| 28 | Después de cada camino (API, manual, corrección), `Σ reembolso.monto = cobro.monto_reembolsado` | integración (PostgreSQL) | escrito, **no corrido** (sin Docker local): corre en CI; además cada camino por API en `test_api_reembolsos.py` |
+| 29 | RED: migración sobre datos viejos: cada `REEMBOLSADO` gana su fila; un parcial viejo pasa a `REEMBOLSADO_PARCIAL`; un `REEMBOLSADO` sin monto se informa por `NOTICE` | integración (migración) | escrito, **no corrido** (sin Docker local): corre en CI |
+| 30 | La migración sube, baja y vuelve a subir; al bajar `REEMBOLSADO_PARCIAL` vuelve a `REEMBOLSADO` | integración (migración) | escrito, **no corrido** (sin Docker local): corre en CI (el `downgrade` a 0025 de `test_migracion_0026.py` también lo recorre) |
+| 31 | `GET /cobros/{id}` trae `reembolsos`, `monto_reembolsado` numérico y `reembolso_en_proceso_monto`; las rutas nuevas responden 200/409/422 según el caso | integración (API) | escrito, **no corrido** (sin Docker local): corre en CI (`test_api_reembolsos.py`) |
+| 32 | RED: detalle — «Reembolsar» en `APROBADO`/`REEMBOLSADO_PARCIAL` por link con el pendiente precargado; «Registrar reembolso» solo en transferencia; nada para Operador | unit (frontend) | GREEN (RED: 24 fallaban), Vitest |
+| 33 | RED: «Reembolso en proceso» con monto y «Actualizar estado»; historial con corrección visible; «Corregir» solo en filas manuales no corregidas | unit (frontend) | GREEN (RED: ídem) |
+| 34 | RED: aviso de nota de crédito con enlace a `/facturacion/{id}/anular` cuando hay comprobante y acumulado > 0; sin comprobante no aparece | unit (frontend) | GREEN (RED: ídem) |
+| 35 | RED: etiqueta «Reembolsado parcialmente» y la opción en el filtro del listado | unit (frontend) | GREEN (RED: ídem) |
+| 36 | En el navegador (`run-local`, pasarela simulada): reembolso parcial, completarlo, uno «rechazar», uno «demorar» y «Actualizar estado»; ver el encabezado del período | manual | pendiente, para quien revise (`run-local`, pasarela simulada; «rechazar» y «demorar» en la descripción del cobro) |
+| 37 | En sandbox de MercadoPago: los ítems de la sección siguiente | manual (sandbox) | pendiente; anotado en `TODO.md` §20 (20.5, 20.9 a 20.16) |
 
 ## Verificaciones contra el sandbox
 

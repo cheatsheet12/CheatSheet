@@ -63,7 +63,10 @@ Igual que el listado de comprobantes del épico 5. Las métricas **sí** están 
 suman en la base y sobre el período entero, no sobre la página, así que agregar paginación no
 va a hacer que el encabezado empiece a mentir. **Épico 9**, junto con la del resto del panel.
 
-### 7. Un reembolso parcial no deja el cobro «parcialmente reembolsado»
+### 7. Un reembolso parcial no deja el cobro «parcialmente reembolsado» · **cerrado**
+
+> **Cerrado por la unidad `reembolsos-parciales-y-manuales`** ([ADR-0010](../../../adr/0010-payment-date-method-and-refunds.md),
+> puntos 4 y 5). Lo que sigue es lo que decía este épico; se conserva por el porqué.
 
 `monto_reembolsado` guarda cuánto se devolvió, pero el estado va a `REEMBOLSADO` sea total o
 parcial. El enum del DER no tiene un estado intermedio y **no se le agregó uno** por lo mismo
@@ -71,6 +74,13 @@ que decidió D27: los estados que representan un matiz de otro estado se pagan e
 transición del resto del sistema.
 
 Quien necesite la distinción la tiene en el monto, que es un dato y no un estado.
+
+**Cómo quedó:** `REEMBOLSADO_PARCIAL` existe, y el estado después de un reembolso o de una
+corrección es una función pura del acumulado (`0 < acumulado < monto` es parcial, `acumulado =
+monto` es total, `0` vuelve a `APROBADO`). Cada reembolso es una fila inmutable de la tabla
+`reembolso`; la migración 0027 dio a cada `REEMBOLSADO` viejo su fila (fecha aproximada, marcada
+en el motivo) y re-derivó los parciales. Lo que D27 protege sigue igual: un reembolso **en vuelo**
+no es un estado.
 
 ---
 
@@ -114,6 +124,13 @@ HU-E11-02 está asignada al **épico 8**, con el resto de lo conversacional. La 
 Es un truco para poder caminar la rama de HU-E6-05 RN-03 en una laptop sin editar código, y
 está documentado en la clase. **No es una API**: si alguna vez hace falta más de una condición
 simulada, la respuesta es un doble configurable y no una segunda palabra mágica.
+
+`reembolsos-parciales-y-manuales` agregó **una segunda palabra**, «demorar» (deja el reembolso en
+proceso hasta la primera consulta de «Actualizar estado»), porque es la única forma de caminar en
+una laptop la rama «en proceso» de HU-E6-05 con un solo doble. Y el doble pasó a ser **de
+proceso** (`armar_pasarela` devuelve el mismo por entorno): con uno nuevo por request, ni «rechazar»
+—que se decide al crear el link— ni la clave de idempotencia entre las dos transacciones del
+reembolso podían sobrevivir hasta el request siguiente.
 
 ### 13. El token de MercadoPago se lee y no se refresca en el momento
 
