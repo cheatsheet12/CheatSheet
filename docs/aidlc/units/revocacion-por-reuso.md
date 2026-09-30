@@ -198,7 +198,7 @@ ruff format --check . && ruff check . && mypy . && pytest
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-09-30 | aprobado; las seis preguntas según la recomendación |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-09-30 | aprobado. Local: ruff, mypy y pytest en verde (1310 pasan; 326 omitidos por requerir PostgreSQL o Redis); el test del router falló contra el código previo y pasa con el arreglo. CI del #47: 1636 pasan, cobertura 85,20 %, 326 de integración pasan (casos 1 a 7). La primera corrida falló por una precondición del caso 2 (R0 queda usado, no revocado: hay 2 vivos antes del reuso), corregida en el test. Verificador independiente: aprobado con notas, sin defectos |
 | 3 · PR | 2026-09-30 | PR draft [#47](https://github.com/cheatsheet12/CheatSheet/pull/47) contra `develop`; draft para que la CI corra los casos 1 a 7 contra PostgreSQL |
 
 Fila propuesta para `units.md` (épico existente «Cimientos, identidad y bitácora»; solo esa línea, como
