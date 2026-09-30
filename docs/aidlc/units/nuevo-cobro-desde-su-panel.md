@@ -256,7 +256,7 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 |---|---|---|
 | 1 · Plan | 2026-09-30 | aprobado; las cinco preguntas según la recomendación, con un tope de cobro propio en lugar del de la columna (ver «Decisiones») |
 | 2 · Verificación | 2026-09-30 | aprobado. ruff, mypy y pytest en verde (1399 pasan; 349 omitidos por requerir PostgreSQL o Redis); cobertura local 74 %, sin bajar. Arquitectura: 649 archivos, fronteras intactas. Frontend: lint, typecheck y test:coverage en verde (836 tests, 84,43 %; `payments` y `master_data` al 100 %). Verificador independiente: aprobado con notas; sus huecos de test se cerraron antes del Gate. Pendientes: casos de API y PostgreSQL (los corre la CI cuando la cadena llegue a `develop`), el caso manual del navegador (24) y el tope de MercadoPago |
-| 3 · PR | | |
+| 3 · PR | 2026-09-30 | PR draft [#49](https://github.com/cheatsheet12/CheatSheet/pull/49) apilado sobre el #48; la CI corre cuando la cadena llegue a `develop` |
 
 ## Decisiones tomadas durante la unidad
 - P1: se agrega `GET /clientes/{id}` (`VerCliente`, ruta, handler del BFF y `verCliente`) dentro de la unidad.
