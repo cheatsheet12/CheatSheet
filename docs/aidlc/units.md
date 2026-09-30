@@ -43,7 +43,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Facturación electrónica | tipos-de-comprobante-por-receptor | billing | HU-E5-03, HU-E5-02, HU-E5-04 | — | — | — | pendiente |
 | Facturación electrónica | arca-homologacion-completa | billing | HU-E5-03 | tipos-de-comprobante-por-receptor | — | — | pendiente |
 | Cobros y recordatorios | nuevo-cobro-desde-su-panel | payments | HU-E6-03 | — | Luciano | feature/payments-nuevo-cobro-desde-su-panel | en revisión |
-| Cobros y recordatorios | fecha-de-pago | payments | HU-E6-01, HU-E6-02 | — | — | — | pendiente |
+| Cobros y recordatorios | fecha-de-pago | payments | HU-E6-01, HU-E6-02 | — | Luciano | feature/payments-fecha-de-pago | en curso |
 | Cobros y recordatorios | reembolsos-parciales-y-manuales | payments | HU-E6-05 | fecha-de-pago | — | — | pendiente |
 | Cobros y recordatorios | cobro-por-transferencia | payments | HU-E6-08 | reembolsos-parciales-y-manuales | — | — | pendiente |
 | Agenda y recursos | turnos-no-en-el-pasado | scheduling | HU-E7-06, HU-E7-02, HU-E8-01 | — | Luciano | feature/scheduling-turnos-no-en-el-pasado | en revisión |
