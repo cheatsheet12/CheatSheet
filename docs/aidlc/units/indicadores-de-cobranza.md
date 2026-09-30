@@ -306,9 +306,16 @@ Van a `docs/aidlc/TODO.md` §22 (no dependen de MercadoPago ni de ARCA; no hay �
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-09-30 | Aprobado por Luciano: P1 a P5 según la recomendación |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
-- (se completan al cerrar el Gate 1: P1 a P5)
+- **P1**: Inicio es **PAN-DSH-01** (`prototipos.md:52`). Se anota en la nota de D98.
+- **P2**: el período de Inicio vive en la URL y toda la pantalla lo sigue; el bloque «Cobros del
+  período» (cobrado con variación, pendiente, en mora, tasa) reemplaza la tarjeta «Cobros pendientes».
+- **P3**: «Cobros por estado» se dibuja por monto, con la cantidad en el rótulo.
+- **P4**: la tasa de cobro va como cuarta cifra del resumen de Inicio y en el subtítulo de «Cobros por
+  estado» en Reportes.
+- **P5**: el período por defecto se calcula en `ZONA_DEL_REPORTE` en los cuatro lugares
+  (`reporteria.py:309`, `:330`, `:388` y `contador.py:118`), con un solo helper y test de reloj fijo.
