@@ -86,8 +86,8 @@ Sin cambios. **No se agrega `Field(ge=5, le=480)`** al schema: daría un 422 de 
 formato y otro texto. La regla vive en el dominio y llega como `detalle`.
 
 ### Frontend — `features/master_data`
-- `FormularioDeServicio.tsx`: el parseo pasa a ser estricto (solo dígitos). "12.7" o "99999abc" se
-  mandan tal cual para que el backend los rechace, en lugar de truncarse. La ayuda dice «Entre 5 y 480
+- `FormularioDeServicio.tsx`: el parseo pasa a ser estricto (solo dígitos). "12.7" o "99999abc" no
+  se mandan: el formulario muestra «La duracion debe ser un numero entero de minutos.» en lugar de truncar. La ayuda dice «Entre 5 y 480
   minutos.». No se duplica la regla en el cliente.
 
 ### Otros contextos
@@ -126,7 +126,7 @@ Ninguno nuevo. scheduling ya lee `duracion_estandar_min` por su ACL y no cambia.
 
 ### Frontend
 - [x] `frontend/src/features/master_data/components/FormularioDeServicio.tsx`
-- [x] `frontend/src/features/master_data/api/servicio.ts` (tipo de `duracion_estandar_min`: `number | string | null`)
+- [x] `frontend/src/features/master_data/api/servicio.ts` (sin cambio neto: `duracion_estandar_min` sigue siendo `number | null`)
 - [x] `frontend/src/features/master_data/components/__tests__/FormularioDeServicio.test.tsx`
 
 ### Docs
@@ -151,6 +151,7 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 | 11 | INSERT directo fuera de rango, o no agendable con duración → viola la restricción | integración (PostgreSQL) | escrito; se omite localmente (sin Docker), corre en CI |
 | 12 | RED: el formulario no convierte "12.7" en 12 ni "99999abc" en 99999 | unit (frontend) | RED observado, GREEN |
 | 13 | El formulario muestra el error del backend y la ayuda menciona 5 y 480 | unit (frontend) | GREEN |
+| 14 | RED: "12.7", "99999abc" y "12,5" muestran «La duracion debe ser un numero entero de minutos.» y no llaman a guardar; corregir el valor limpia el mensaje; 9999 no se valida en el cliente | unit (frontend) | RED observado (4 fallos), GREEN (17 tests del archivo) |
 
 ## Registro
 
@@ -165,3 +166,4 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 - 0 y negativos dan el mensaje de rango (§2).
 - La ingesta pasa a leer `agendable` y la duración (§3).
 - Restricción `NOT VALID` con informe y corrección manual, sin recortes automáticos (§4).
+- El formulario valida solo el formato (entero) con mensaje propio; el rango lo decide el backend. Corrige el 422 genérico de Pydantic que mostraba "Unprocessable Entity" (Gate 2, 2026-09-30).

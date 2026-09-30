@@ -125,13 +125,9 @@ describe("FormularioDeServicio", () => {
     expect(datos.duracion_estandar_min).toBeNull();
   });
 
-  it.each([
-    ["12.7", "12.7"],
-    ["99999abc", "99999abc"],
-    ["12,5", "12,5"],
-  ])(
-    "no trunca en silencio la duracion %s: la manda tal cual para que el backend la rechace",
-    async (escrito, enviado) => {
+  it.each(["12.7", "99999abc", "12,5"])(
+    "una duracion %s no es un entero: muestra el mensaje de formato y no guarda",
+    async (escrito) => {
       const onGuardar = vi.fn().mockResolvedValue(undefined);
       montar(onGuardar);
 
@@ -141,12 +137,48 @@ describe("FormularioDeServicio", () => {
       fireEvent.change(screen.getByLabelText(/Duración estándar/), { target: { value: escrito } });
       fireEvent.click(screen.getByRole("button", { name: "Crear servicio" }));
 
-      await waitFor(() => {
-        expect(onGuardar).toHaveBeenCalled();
-      });
-      expect(datosDe(onGuardar).duracion_estandar_min).toBe(enviado);
+      expect(
+        await screen.findByText("La duracion debe ser un numero entero de minutos."),
+      ).toBeDefined();
+      expect(onGuardar).not.toHaveBeenCalled();
     },
   );
+
+  it("corregir la duracion limpia el mensaje de formato", async () => {
+    const onGuardar = vi.fn().mockResolvedValue(undefined);
+    montar(onGuardar);
+
+    fireEvent.change(screen.getByLabelText(/^Nombre/), { target: { value: "Corte" } });
+    fireEvent.change(screen.getByLabelText(/Precio sin IVA/), { target: { value: "5000" } });
+    fireEvent.click(screen.getByLabelText(/Se puede reservar por agenda/));
+    fireEvent.change(screen.getByLabelText(/Duración estándar/), { target: { value: "12.7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear servicio" }));
+    await screen.findByText("La duracion debe ser un numero entero de minutos.");
+
+    fireEvent.change(screen.getByLabelText(/Duración estándar/), { target: { value: "30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear servicio" }));
+
+    await waitFor(() => {
+      expect(onGuardar).toHaveBeenCalled();
+    });
+    expect(screen.queryByText("La duracion debe ser un numero entero de minutos.")).toBeNull();
+  });
+
+  it("no valida el rango en el cliente: 9999 llega al backend", async () => {
+    const onGuardar = vi.fn().mockResolvedValue(undefined);
+    montar(onGuardar);
+
+    fireEvent.change(screen.getByLabelText(/^Nombre/), { target: { value: "Corte" } });
+    fireEvent.change(screen.getByLabelText(/Precio sin IVA/), { target: { value: "5000" } });
+    fireEvent.click(screen.getByLabelText(/Se puede reservar por agenda/));
+    fireEvent.change(screen.getByLabelText(/Duración estándar/), { target: { value: "9999" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear servicio" }));
+
+    await waitFor(() => {
+      expect(onGuardar).toHaveBeenCalled();
+    });
+    expect(datosDe(onGuardar).duracion_estandar_min).toBe(9999);
+  });
 
   it("una duracion escrita solo con digitos viaja como numero", async () => {
     const onGuardar = vi.fn().mockResolvedValue(undefined);
