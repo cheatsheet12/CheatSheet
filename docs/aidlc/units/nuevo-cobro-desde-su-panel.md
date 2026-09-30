@@ -178,37 +178,39 @@ idempotencia: un doble envío crea dos cobros y dos links. Hoy lo mitiga el bot�
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (`GenerarCobro`, `monto_desde`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/errors.py`
-- [ ] `backend/src/cheatsheet/contexts/payments/application/ports.py`
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/clientes.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/saldo.py`
-- [ ] `backend/src/cheatsheet/api/mercadopago.py` (`armar_clientes`)
-- [ ] `backend/src/cheatsheet/api/routers/cobros.py`
-- [ ] `backend/src/cheatsheet/contexts/master_data/application/clientes.py` (`VerCliente`)
-- [ ] `backend/src/cheatsheet/api/routers/clientes.py` (`GET /clientes/{cliente_id}`)
-- [ ] `backend/src/cheatsheet/contexts/master_data/infrastructure/repositories.py` (`_filtrar`, pregunta 4)
-- [ ] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py`
-- [ ] `backend/tests/contexts/payments/application/test_confirmacion.py` (`SaldosFalsos.cliente_de`)
-- [ ] `backend/tests/contexts/payments/application/test_montos.py`
-- [ ] `backend/tests/contexts/payments/infrastructure/test_clientes_via_master_data.py` (nuevo)
-- [ ] `backend/tests/contexts/master_data/application/test_clientes.py`
-- [ ] `backend/tests/integracion/test_api_mercadopago.py`
-- [ ] `backend/tests/integracion/test_api_clientes.py`
-- [ ] `backend/tests/integracion/test_clientes_postgres.py`
+- [x] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (`GenerarCobro`, `monto_desde`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/errors.py`
+- [x] `backend/src/cheatsheet/contexts/payments/application/ports.py`
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/clientes.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/saldo.py`
+- [x] `backend/src/cheatsheet/api/mercadopago.py` (`armar_clientes`)
+- [x] `backend/src/cheatsheet/api/routers/cobros.py`
+- [x] `backend/src/cheatsheet/contexts/master_data/application/clientes.py` (`VerCliente`)
+- [x] `backend/src/cheatsheet/api/routers/clientes.py` (`GET /clientes/{cliente_id}`)
+- [x] `backend/src/cheatsheet/contexts/master_data/infrastructure/repositories.py` (`_filtrar`, pregunta 4)
+- [x] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py`
+- [x] `backend/tests/contexts/payments/application/test_confirmacion.py` (`SaldosFalsos.cliente_de`)
+- [x] `backend/tests/contexts/payments/application/test_montos.py`
+- [x] `backend/tests/contexts/payments/infrastructure/test_clientes_via_master_data.py` (nuevo)
+- [x] `backend/tests/contexts/master_data/application/test_clientes.py`
+- [x] `backend/tests/integracion/test_api_mercadopago.py`
+- [x] `backend/tests/integracion/test_api_clientes.py`
+- [x] `backend/tests/integracion/test_clientes_postgres.py`
+- [x] `backend/tests/contexts/master_data/infrastructure/test_filtro_de_cuit.py` (nuevo: el patron de CUIT, parte pura de H3)
 
 ### Frontend
-- [ ] `frontend/src/features/master_data/components/SelectorDeClientes.tsx` (nuevo)
-- [ ] `frontend/src/features/master_data/components/__tests__/SelectorDeClientes.test.tsx` (nuevo)
-- [ ] `frontend/src/features/master_data/api/cliente.ts` (`verCliente`)
-- [ ] `frontend/src/features/master_data/index.ts`
-- [ ] `frontend/src/shared/pantallas-maestros.css` (estilos del selector, si hacen falta)
-- [ ] `frontend/src/app/api/clientes/[clienteId]/route.ts` (`GET`)
-- [ ] `frontend/src/app/api/clientes/__tests__/rutas.test.ts`
-- [ ] `frontend/src/features/payments/components/NuevoCobro.tsx`
-- [ ] `frontend/src/features/payments/components/__tests__/pantallas.test.tsx`
-- [ ] `frontend/src/app/(panel)/cobros/nuevo/page.tsx`
-- [ ] `frontend/src/app/(panel)/cobros/__tests__/pagina.test.tsx`
+- [x] `frontend/src/features/master_data/components/SelectorDeClientes.tsx` (nuevo)
+- [x] `frontend/src/features/master_data/components/__tests__/SelectorDeClientes.test.tsx` (nuevo)
+- [x] `frontend/src/features/master_data/api/cliente.ts` (`verCliente`)
+- [x] `frontend/src/features/master_data/index.ts`
+- [x] `frontend/src/shared/pantallas-maestros.css` (estilos del selector, si hacen falta)
+- [x] `frontend/src/app/api/clientes/[clienteId]/route.ts` (`GET`)
+- [x] `frontend/src/app/api/clientes/__tests__/rutas.test.ts`
+- [x] `frontend/src/features/payments/components/NuevoCobro.tsx`
+- [x] `frontend/src/features/payments/components/__tests__/pantallas.test.tsx`
+- [x] `frontend/src/app/(panel)/cobros/nuevo/page.tsx`
+- [x] `frontend/src/app/(panel)/cobros/__tests__/pagina.test.tsx`
+- [x] `frontend/src/features/master_data/api/__tests__/cliente.test.ts` (nuevo: `verCliente`)
 
 ### Docs
 - [ ] `docs/aidlc/units.md` (fila de la unidad: `Responsable`, `Rama`, estado)
@@ -219,30 +221,30 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | RED: `GenerarCobro` con un cliente inexistente → `ClienteInexistente`, no llama a la pasarela y no persiste ni audita | unit | pendiente |
-| 2 | RED: cliente inactivo → mismo rechazo | unit | pendiente |
-| 3 | Cliente activo → el cobro se genera como hasta ahora (los tests existentes pasan con el fake nuevo) | unit | pendiente |
-| 4 | Solo Lectura sigue rechazado **antes** de consultar al cliente (no filtra si el id existe) | unit | pendiente |
-| 5 | RED: comprobante de otro cliente → `ComprobanteDeOtroCliente`; con el del mismo cliente se genera | unit | pendiente |
-| 6 | RED: `monto_desde("NaN")`, `"Infinity"` y un monto sobre el tope → `EntradaInvalida` (no `InvalidOperation`) | unit | pendiente |
-| 7 | El monto `"1210.005"` se redondea `ROUND_HALF_UP` a `1210.01` y nunca pasa por `float` | unit | pendiente |
-| 8 | `ClienteViaMasterData.esta_activo`: activo → `True`; inactivo e inexistente → `False` | unit (contrato del adaptador) | pendiente |
-| 9 | RED: `VerCliente` devuelve el cliente para los cuatro roles (Solo Lectura incluido) y falla si no existe | unit | pendiente |
-| 10 | RED: `POST /cobros` con un cliente que no existe → 422 con el texto de la pregunta 2, sin llamar a MercadoPago | integración (API) | pendiente |
-| 11 | `POST /cobros` con cliente válido → 201; con `Solo Lectura` → 403 | integración (API) | pendiente |
-| 12 | RED: `GET /clientes/{id}` → 200 con el cliente; de otra empresa → 404/422 igual que inexistente | integración (API) | pendiente |
-| 13 | RED: un cliente de **otra empresa** no es válido para el cobro (RLS) | integración (PostgreSQL) | pendiente |
-| 14 | RED: buscar `30-71234567-1` (formateado) encuentra al cliente cuyo CUIT se guardó como `30712345671`; buscar por nombre sigue funcionando | integración (PostgreSQL) | pendiente |
-| 15 | RED: `SelectorDeClientes` pide solo activos, busca por el texto y lista nombre y CUIT | unit (frontend) | pendiente |
-| 16 | RED: sin resultados muestra el aviso y el enlace a `/datos-maestros/clientes` | unit (frontend) | pendiente |
-| 17 | Elegir un cliente navega a `/cobros/nuevo?cliente=<id>` (`router.replace`) | unit (frontend) | pendiente |
-| 18 | RED: `NuevoCobro` con `clienteId = null` → botón deshabilitado, «Debe seleccionar un cliente.» y no llama a `generarCobro` | unit (frontend) | pendiente |
-| 19 | RED: la página sin `?cliente=` renderiza selector y formulario (ya no «Falta elegir el cliente») | unit (frontend) | pendiente |
-| 20 | La página con `?cliente=` muestra a ese cliente preseleccionado y editable; con un id que no existe lo trata como sin cliente y avisa | unit (frontend) | pendiente |
-| 21 | RED: la página ofrece solo los comprobantes con saldo **del cliente elegido** | unit (frontend) | pendiente |
-| 22 | Solo Lectura sigue redirigido antes de llamar a la API | unit (frontend) | pendiente |
-| 23 | El BFF reenvía `GET /api/clientes/{id}` | unit (frontend) | pendiente |
-| 24 | En el navegador (`run-local`): entrar desde el menú, buscar, elegir, generar, y desde la fila de Clientes con «Cobrar»; verificar que lo escrito en concepto y monto no se pierde al elegir cliente | manual | pendiente |
+| 1 | RED: `GenerarCobro` con un cliente inexistente → `ClienteInexistente`, no llama a la pasarela y no persiste ni audita | unit | RED observado (ImportError al colectar) → verde |
+| 2 | RED: cliente inactivo → mismo rechazo | unit | RED observado (ImportError al colectar) → verde |
+| 3 | Cliente activo → el cobro se genera como hasta ahora (los tests existentes pasan con el fake nuevo) | unit | verde (los tests existentes pasan con el fake nuevo; no era RED) |
+| 4 | Solo Lectura sigue rechazado **antes** de consultar al cliente (no filtra si el id existe) | unit | verde (no era RED; asserta que el fake de clientes no recibe consultas) |
+| 5 | RED: comprobante de otro cliente → `ComprobanteDeOtroCliente`; con el del mismo cliente se genera | unit | RED observado (ImportError al colectar) → verde |
+| 6 | RED: `monto_desde("NaN")`, `"Infinity"` y un monto sobre el tope → `EntradaInvalida` (no `InvalidOperation`) | unit | RED observado: `monto_desde` aceptaba `NaN`, `Infinity` y `1e30` (comprobado a mano) y el test no colectaba → verde |
+| 7 | El monto `"1210.005"` se redondea `ROUND_HALF_UP` a `1210.01` y nunca pasa por `float` | unit | verde (no era RED: el redondeo ya existia en el dominio; el test pasa por `Cobro`) |
+| 8 | `ClienteViaMasterData.esta_activo`: activo → `True`; inactivo e inexistente → `False` | unit (contrato del adaptador) | RED observado (ImportError al colectar, con el adaptador movido aparte) → verde |
+| 9 | RED: `VerCliente` devuelve el cliente para los cuatro roles (Solo Lectura incluido) y falla si no existe | unit | RED observado (ImportError al colectar) → verde. Solo hay tres roles y los tres leen: no existe un cuarto (Contador no es un `RolUsuario`) |
+| 10 | RED: `POST /cobros` con un cliente que no existe → 422 con el texto de la pregunta 2, sin llamar a MercadoPago | integración (API) | escrito, **sin ejecutar**: se saltea sin PostgreSQL/Redis; sin RED observado. Pendiente de CI |
+| 11 | `POST /cobros` con cliente válido → 201; con `Solo Lectura` → 403 | integración (API) | escrito, **sin ejecutar** (201 con cliente valido). El 403 de Solo Lectura no aplica: el caso de uso lo rechaza con `EntradaInvalida` (422) y eso lo cubre el caso 4 (unit) |
+| 12 | RED: `GET /clientes/{id}` → 200 con el cliente; de otra empresa → 404/422 igual que inexistente | integración (API) | escrito, **sin ejecutar**; sin RED observado. Responde 422 (no 404) para los dos, igual que un id inexistente. Pendiente de CI |
+| 13 | RED: un cliente de **otra empresa** no es válido para el cobro (RLS) | integración (PostgreSQL) | escrito, **sin ejecutar**; sin RED observado. Pendiente de CI |
+| 14 | RED: buscar `30-71234567-1` (formateado) encuentra al cliente cuyo CUIT se guardó como `30712345671`; buscar por nombre sigue funcionando | integración (PostgreSQL) | escrito, **sin ejecutar** contra la base; la parte pura (`_patron_de_cuit`) tiene RED observado → verde. Pendiente de CI |
+| 15 | RED: `SelectorDeClientes` pide solo activos, busca por el texto y lista nombre y CUIT | unit (frontend) | RED observado (el modulo no existia) → verde |
+| 16 | RED: sin resultados muestra el aviso y el enlace a `/datos-maestros/clientes` | unit (frontend) | RED observado → verde |
+| 17 | Elegir un cliente navega a `/cobros/nuevo?cliente=<id>` (`router.replace`) | unit (frontend) | verde (no era RED) |
+| 18 | RED: `NuevoCobro` con `clienteId = null` → botón deshabilitado, «Debe seleccionar un cliente.» y no llama a `generarCobro` | unit (frontend) | RED observado → verde |
+| 19 | RED: la página sin `?cliente=` renderiza selector y formulario (ya no «Falta elegir el cliente») | unit (frontend) | RED observado → verde |
+| 20 | La página con `?cliente=` muestra a ese cliente preseleccionado y editable; con un id que no existe lo trata como sin cliente y avisa | unit (frontend) | verde (no era RED); los dos casos de «no existe» y el de inactivo, mas que un 500 no se disfraza |
+| 21 | RED: la página ofrece solo los comprobantes con saldo **del cliente elegido** | unit (frontend) | RED observado → verde |
+| 22 | Solo Lectura sigue redirigido antes de llamar a la API | unit (frontend) | verde (el test existente sigue pasando) |
+| 23 | El BFF reenvía `GET /api/clientes/{id}` | unit (frontend) | RED observado (`getCliente is not a function`) → verde |
+| 24 | En el navegador (`run-local`): entrar desde el menú, buscar, elegir, generar, y desde la fila de Clientes con «Cobrar»; verificar que lo escrito en concepto y monto no se pierde al elegir cliente | manual | **pendiente**: manual, para quien revise (`run-local`) |
 
 ## Registro
 
@@ -258,4 +260,8 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 - P3 (H2): se incluye; el formulario ofrece solo comprobantes del cliente elegido y `GenerarCobro` rechaza con «El comprobante no corresponde al cliente elegido.».
 - P4 (H3): la búsqueda por CUIT se corrige en el backend de `master_data` (`_filtrar`).
 - P5 (H4): el tope **no** es la capacidad de la columna sino un tope de negocio: `MONTO_MAXIMO_DE_COBRO = 100.000.000,00` (decisión de Luciano: el tope de la columna es exageradamente grande). Por encima: «El monto es demasiado grande.». NaN e Infinity: «El monto debe ser mayor a cero.». Al implementar se confirma en la documentación de MercadoPago que el link admite ese monto; si su límite es menor, manda el de MercadoPago y se anota acá.
+- P5, verificacion pendiente: no se encontro en el repositorio la documentacion del limite de monto de MercadoPago para una preferencia de checkout (no se navego la web). `MONTO_MAXIMO_DE_COBRO` queda en 100.000.000,00 y su comentario marca «PENDIENTE DE VERIFICAR»; si el limite de MercadoPago fuera menor, manda el de MercadoPago.
+- Implementacion H3: `_patron_de_cuit` reduce el texto a digitos **solo si** son digitos y separadores de CUIT (`-`, `.`, espacio); un texto con letras («Panaderia 2», «3M») se compara como se escribio, para no traer clientes por un digito suelto.
+- Implementacion H2: si `cliente_de` devuelve `None` (comprobante inexistente) `GenerarCobro` no lanza `ComprobanteDeOtroCliente` sino que deja que la comprobacion del saldo lance `CobroInexistente` con su mensaje.
+- Implementacion P1: `VerCliente` exige lectura (Administrador, Operador, Solo Lectura) y devuelve tambien al inactivo; la lectura por id se separo en `_rutas_de_lectura` para no pasar el techo de complejidad de `_rutas_de_catalogo`.
 - Hallazgo fuera de alcance, anotado: `payments/infrastructure/pasarela.py` envía `float(cobro.monto)` a MercadoPago.
