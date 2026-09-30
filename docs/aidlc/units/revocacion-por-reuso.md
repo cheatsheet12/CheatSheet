@@ -135,10 +135,10 @@ su propia unidad `fix/payments-…`. Ver P2.
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/api/routers/auth.py` (ruta `/refresh`)
-- [ ] `backend/src/cheatsheet/api/dependencies.py` (solo docstring de `unidad_de_trabajo`)
-- [ ] `backend/tests/integracion/test_api_sesiones.py` (nuevo)
-- [ ] `backend/tests/api/test_refresh_confirma_la_revocacion.py` (nuevo, unitario local)
+- [x] `backend/src/cheatsheet/api/routers/auth.py` (ruta `/refresh`)
+- [x] `backend/src/cheatsheet/api/dependencies.py` (solo docstring de `unidad_de_trabajo`)
+- [x] `backend/tests/integracion/test_api_sesiones.py` (nuevo)
+- [x] `backend/tests/api/test_refresh_confirma_la_revocacion.py` (nuevo, unitario local)
 
 ### Docs
 - [ ] `docs/aidlc/units.md` (fila nueva de la unidad, ver Registro)
@@ -156,16 +156,16 @@ tablas, sin RLS) sirve para **mirar la base** sin pasar por el código bajo prue
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED**: `R0` → refresh OK (`R1`); reusar `R0` → error de reuso; **`R1` ya no refresca** (rechazado, no 200) | integración (PostgreSQL) | pendiente. Se omite localmente (sin Docker), corre en CI |
-| 2 | **RED**: tras el reuso, en la base **todas** las filas de `refresh_token` de esa familia tienen `revocado = true` (consulta directa con `engine_dueno`) | integración (PostgreSQL) | pendiente |
-| 3 | El reuso responde el mismo código y `error = "ReusoDeRefreshDetectado"` que hoy (el contrato no cambia) | integración (API) | pendiente (verde antes y después; fija el contrato) |
-| 4 | Otra sesión del mismo usuario (segundo `login`, otra familia) **sigue viva** tras el reuso de la primera | integración (PostgreSQL) | pendiente — protege contra revocar de más |
-| 5 | Reusar un token de la empresa A no revoca nada de la empresa B (RLS) | integración (PostgreSQL) | pendiente |
-| 6 | Reusar un token ya revocado por reuso otra vez → sigue rechazado, idempotente, sin 500 | integración (PostgreSQL) | pendiente |
-| 7 | Un refresh desconocido / vencido sigue descartando la transacción y responde su error de siempre (no se atrapó de más) | integración + unit | pendiente |
-| 8 | **RED**: a nivel router, con `unidad_de_trabajo` reemplazada por un doble que replica el contrato de `sesion_de_empresa` (confirma **solo si el cuerpo termina sin excepción**) y `RefrescarSesion` reemplazada por un doble que levanta `ReusoDeRefreshDetectado`: el doble **confirmó** y la respuesta es el error de reuso | unit (corre local, sin Docker) | pendiente |
-| 9 | Guardia del doble del caso 8: con un cuerpo que levanta, el doble **no** confirma (demuestra que el doble modela el bug y que el RED es real) | unit (local) | pendiente |
-| 10 | El test unitario existente `test_reusar_un_refresh_revoca_toda_la_familia` sigue en verde sin cambios | unit | GREEN esperado |
+| 1 | **RED**: `R0` → refresh OK (`R1`); reusar `R0` → error de reuso; **`R1` ya no refresca** (rechazado, no 200) | integración (PostgreSQL) | escrito, sin correr (sin Docker); corre en CI. RED contra PostgreSQL pendiente del CI sobre el commit del test solo |
+| 2 | **RED**: tras el reuso, en la base **todas** las filas de `refresh_token` de esa familia tienen `revocado = true` (consulta directa con `engine_dueno`) | integración (PostgreSQL) | escrito, sin correr (sin Docker); corre en CI |
+| 3 | El reuso responde el mismo código y `error = "ReusoDeRefreshDetectado"` que hoy (el contrato no cambia) | integración (API) | escrito, sin correr (sin Docker); va dentro del caso 1 (409 + `ReusoDeRefreshDetectado`) |
+| 4 | Otra sesión del mismo usuario (segundo `login`, otra familia) **sigue viva** tras el reuso de la primera | integración (PostgreSQL) | escrito, sin correr (sin Docker); corre en CI |
+| 5 | Reusar un token de la empresa A no revoca nada de la empresa B (RLS) | integración (PostgreSQL) | escrito, sin correr (sin Docker); corre en CI |
+| 6 | Reusar un token ya revocado por reuso otra vez → sigue rechazado, idempotente, sin 500 | integración (PostgreSQL) | escrito, sin correr (sin Docker); corre en CI |
+| 7 | Un refresh desconocido / vencido sigue descartando la transacción y responde su error de siempre (no se atrapó de más) | integración + unit | integración escrita, sin correr (sin Docker). Unit: verde (rechazo `SesionInvalida` no confirma) |
+| 8 | **RED**: a nivel router, con `unidad_de_trabajo` reemplazada por un doble que replica el contrato de `sesion_de_empresa` (confirma **solo si el cuerpo termina sin excepción**) y `RefrescarSesion` reemplazada por un doble que levanta `ReusoDeRefreshDetectado`: el doble **confirmó** y la respuesta es el error de reuso | unit (corre local, sin Docker) | **RED observado** (`confirmo=False`, 1 failed) antes del fix; **GREEN observado** después (3 passed) |
+| 9 | Guardia del doble del caso 8: con un cuerpo que levanta, el doble **no** confirma (demuestra que el doble modela el bug y que el RED es real) | unit (local) | verde (pasa antes y después del fix; el doble no confirma si el cuerpo levanta) |
+| 10 | El test unitario existente `test_reusar_un_refresh_revoca_toda_la_familia` sigue en verde sin cambios | unit | verde en la suite completa (sin cambios) |
 
 **Sobre el test local (8-9).** No hay Docker acá, así que 1-7 se validan recién en CI. El 8 lo cubre en
 parte: no prueba PostgreSQL, prueba que **el router deja terminar el generador** cuando hay reuso. Su
