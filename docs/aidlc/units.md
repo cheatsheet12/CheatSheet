@@ -13,6 +13,8 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cimientos, identidad y bitácora | cimientos-y-bitacora | observability | HS-T5 | — | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
 | Cimientos, identidad y bitácora | identidad-y-onboarding | identity | HU-E1-01, HU-E1-02, HU-E1-03 | cimientos-y-bitacora | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
 | Cimientos, identidad y bitácora | usuarios-y-preferencias | identity | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07 | identidad-y-onboarding | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
+| Cimientos, identidad y bitácora | revocacion-por-reuso | identity | HU-E1-01 | — | Luciano | fix/identity-revocacion-por-reuso | en curso |
+| Cimientos, identidad y bitácora | refresh-concurrente | identity | HU-E1-01 | revocacion-por-reuso | — | — | pendiente |
 | Conexión con los servicios externos | mecanismo-de-integraciones | integrations | HU-E2-05 | — | Cristian | feature/integrations-mecanismo-de-integraciones | mergeada |
 | Conexión con los servicios externos | conexion-whatsapp | integrations | HU-E2-03 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-whatsapp | mergeada |
 | Conexión con los servicios externos | conexion-arca | integrations | HU-E2-01 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-arca | mergeada |
@@ -34,8 +36,10 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agenda y recursos | agenda-y-recursos | scheduling | HU-E7-01 … HU-E7-06, HU-E6-07 | cobros-y-recordatorios | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
 | Agente de WhatsApp y atención humana | agente-y-atencion-humana | conversational | HU-E8-01 … HU-E8-05, HU-E9-01, HU-E9-02, HU-E9-04, HU-E11-02, HS-T2, HS-T7 | agenda-y-recursos | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
 | Reportería y paquete contable | reporteria-y-paquete-contable | reporting | HU-E10-01 … HU-E10-06 | agente-y-atencion-humana | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
+| Reportería y paquete contable | reporte-fallido-persistido | reporting | HU-E10-03 | — | — | — | pendiente |
 | Panel de auditoría y notificaciones | panel-de-auditoria-y-notificaciones | observability | HU-E12-01, HU-E12-02, HU-E11-03, HU-E9-03 | reporteria-y-paquete-contable | vichen12 | feature/observability-panel-de-auditoria | mergeada |
 | Cobros y recordatorios | cancelacion-invalida-el-link | payments | HU-E6-04, HS-T1 | cobros-y-recordatorios | Cristian | fix/payments-cancelacion-invalida-el-link | en revisión |
+| Cobros y recordatorios | reembolso-rechazado-persistido | payments | HU-E6-05 | — | — | — | pendiente |
 
 
 ---
