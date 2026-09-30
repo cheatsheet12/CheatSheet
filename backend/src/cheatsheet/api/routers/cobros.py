@@ -20,7 +20,7 @@ from typing import Annotated, TypeVar
 from uuid import UUID
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
-from cheatsheet.api.mercadopago import armar_pasarela, armar_saldos
+from cheatsheet.api.mercadopago import armar_clientes, armar_pasarela, armar_saldos
 from cheatsheet.contexts.payments.application.cobros import (
     CancelarCobro,
     GenerarCobro,
@@ -240,6 +240,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
                 cobros=piezas.cobros,
                 pasarela=armar_pasarela(unidad, recursos.settings),
                 saldos=armar_saldos(unidad),
+                clientes=armar_clientes(unidad),
                 publicador=unidad.publicador,
                 url_de_retorno=recursos.settings.mercadopago_url_de_retorno,
             ).ejecutar(

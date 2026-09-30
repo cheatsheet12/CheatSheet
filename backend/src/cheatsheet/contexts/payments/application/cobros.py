@@ -21,15 +21,18 @@ from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 
 from cheatsheet.contexts.payments.application.errors import (
+    ClienteInexistente,
     CobroInexistente,
     CobroNoCancelable,
     CobroNoReembolsable,
+    ComprobanteDeOtroCliente,
     MontoExcedeSaldo,
     ReembolsoRechazado,
 )
 from cheatsheet.contexts.payments.application.ports import (
     FiltrosDeCobro,
     MetricasDeCobros,
+    PortClienteDeCobro,
     PortPasarelaDePago,
     PortRepositorioCobro,
     PortSaldoDeComprobante,
@@ -50,6 +53,14 @@ MOTIVO_SOLO_ADMIN_REEMBOLSA = "Solo un Administrador puede reembolsar un cobro"
 #: HU-E6-06 RN-02, con el saldo disponible adentro: el criterio pide que el mensaje **indique
 #: el saldo**, no sólo que hubo exceso.
 MENSAJE_EXCEDE_SALDO = "El monto no puede superar el saldo pendiente del comprobante."
+MENSAJE_CLIENTE_INEXISTENTE = "El cliente seleccionado no existe o esta inactivo."
+MENSAJE_COMPROBANTE_DE_OTRO_CLIENTE = "El comprobante no corresponde al cliente elegido."
+MENSAJE_MONTO_DEMASIADO_GRANDE = "El monto es demasiado grande."
+#: Tope de **negocio**, no la capacidad de la columna (`Numeric(14,2)`): un cobro de mas de cien
+#: millones de pesos por un link de pago es un error de tipeo mas probable que una venta.
+#: PENDIENTE DE VERIFICAR contra la documentacion de MercadoPago (unidad
+#: `nuevo-cobro-desde-su-panel`, P5): si su limite fuera menor, manda el de MercadoPago.
+MONTO_MAXIMO_DE_COBRO = Decimal("100000000.00")
 
 
 def _exigir_gestor(rol: RolUsuario) -> None:
@@ -64,9 +75,16 @@ def monto_desde(texto: str) -> Decimal:
     `CLAUDE.md` §3.5 lo prohíbe en todo el sistema.
     """
     try:
-        return Decimal(texto)
+        monto = Decimal(texto)
     except InvalidOperation as exc:
         raise EntradaInvalida(MENSAJE_MONTO_NO_POSITIVO) from exc
+    # `NaN` explota en la primera comparacion (`InvalidOperation`) y `Infinity` pasa el `> 0` y
+    # falla al redondear: los dos serian un 500 en un flujo que toca plata.
+    if not monto.is_finite():
+        raise EntradaInvalida(MENSAJE_MONTO_NO_POSITIVO)
+    if monto > MONTO_MAXIMO_DE_COBRO:
+        raise EntradaInvalida(MENSAJE_MONTO_DEMASIADO_GRANDE)
+    return monto
 
 
 class ListarCobros:
@@ -134,12 +152,14 @@ class GenerarCobro:
         cobros: PortRepositorioCobro,
         pasarela: PortPasarelaDePago,
         saldos: PortSaldoDeComprobante,
+        clientes: PortClienteDeCobro,
         publicador: PublicadorDeEventos,
         url_de_retorno: str,
     ) -> None:
         self._cobros = cobros
         self._pasarela = pasarela
         self._saldos = saldos
+        self._clientes = clientes
         self._publicador = publicador
         self._url_de_retorno = url_de_retorno
 
@@ -159,7 +179,14 @@ class GenerarCobro:
     ) -> Cobro:
         _exigir_gestor(rol)
 
+        # El cliente va antes que el comprobante y que la pasarela: un cliente invalido no
+        # tiene que gastar una preferencia en MercadoPago, y el rol va antes que todo para que
+        # la respuesta no deje ver si el id existe.
+        if not await self._clientes.esta_activo(cliente_id):
+            raise ClienteInexistente(MENSAJE_CLIENTE_INEXISTENTE)
+
         if comprobante_id is not None:
+            await self._exigir_comprobante_del_cliente(comprobante_id, cliente_id)
             await self._exigir_saldo_suficiente(comprobante_id, monto)
 
         cobro = Cobro(
@@ -196,6 +223,14 @@ class GenerarCobro:
             )
         )
         return cobro
+
+    async def _exigir_comprobante_del_cliente(self, comprobante_id: UUID, cliente_id: UUID) -> None:
+        """Con el selector editable, cambiar de cliente con un comprobante elegido es un caso
+        cotidiano, y cobrarle a Ana la factura de Bruno es cobrar una deuda ajena."""
+        dueno = await self._saldos.cliente_de(comprobante_id)
+        # `None` es «no existe»: eso lo dice la comprobacion del saldo, con su propio mensaje.
+        if dueno is not None and dueno != cliente_id:
+            raise ComprobanteDeOtroCliente(MENSAJE_COMPROBANTE_DE_OTRO_CLIENTE)
 
     async def _exigir_saldo_suficiente(self, comprobante_id: UUID, monto: Decimal) -> None:
         """HU-E6-06 RN-02, contra el saldo **actual** del comprobante.
@@ -461,7 +496,11 @@ class ReembolsarCobro:
 
 
 __all__ = [
+    "MENSAJE_CLIENTE_INEXISTENTE",
+    "MENSAJE_COMPROBANTE_DE_OTRO_CLIENTE",
     "MENSAJE_EXCEDE_SALDO",
+    "MENSAJE_MONTO_DEMASIADO_GRANDE",
+    "MONTO_MAXIMO_DE_COBRO",
     "MOTIVO_SIN_PERMISO",
     "MOTIVO_SOLO_ADMIN_REEMBOLSA",
     "CancelarCobro",

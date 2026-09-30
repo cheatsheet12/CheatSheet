@@ -30,9 +30,11 @@ from cheatsheet.contexts.payments.application.cobros import (
     VerCobro,
 )
 from cheatsheet.contexts.payments.application.errors import (
+    ClienteInexistente,
     CobroInexistente,
     CobroNoCancelable,
     CobroNoReembolsable,
+    ComprobanteDeOtroCliente,
     MontoExcedeSaldo,
     PasarelaNoDisponible,
     RecordatorioDuplicado,
@@ -54,7 +56,9 @@ from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.payments.application.test_confirmacion import (
+    CLIENTE,
     UN_LINK,
+    ClientesFalsos,
     CobrosFalsos,
     PasarelaFalsa,
     PublicadorFalso,
@@ -159,11 +163,17 @@ def _cobro(*, comprobante_id: UUID | None = None, vence_en_dias: int = 30) -> Co
     return cobro
 
 
-def _generar(cobros: CobrosFalsos, pasarela: PasarelaFalsa, saldos: SaldosFalsos) -> GenerarCobro:
+def _generar(
+    cobros: CobrosFalsos,
+    pasarela: PasarelaFalsa,
+    saldos: SaldosFalsos,
+    clientes: ClientesFalsos | None = None,
+) -> GenerarCobro:
     return GenerarCobro(
         cobros=cobros,
         pasarela=pasarela,
         saldos=saldos,
+        clientes=clientes or ClientesFalsos(CLIENTE),
         publicador=PublicadorFalso(),
         url_de_retorno=URL_RETORNO,
     )
@@ -179,7 +189,7 @@ async def test_generar_deja_el_cobro_con_link_activo() -> None:
         empresa_id=EMPRESA,
         usuario_id=USUARIO,
         rol=RolUsuario.OPERADOR,
-        cliente_id=uuid4(),
+        cliente_id=CLIENTE,
         monto=Decimal("1210.00"),
         descripcion="Consulta de septiembre",
         ahora=AHORA,
@@ -202,7 +212,7 @@ async def test_si_mercadopago_no_responde_el_cobro_no_se_crea() -> None:
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
             rol=RolUsuario.OPERADOR,
-            cliente_id=uuid4(),
+            cliente_id=CLIENTE,
             monto=Decimal("1210.00"),
             descripcion="Consulta",
             ahora=AHORA,
@@ -218,13 +228,115 @@ async def test_solo_lectura_no_genera_cobros() -> None:
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
             rol=RolUsuario.SOLO_LECTURA,
-            cliente_id=uuid4(),
+            cliente_id=CLIENTE,
             monto=Decimal("100.00"),
             descripcion="Consulta",
             ahora=AHORA,
         )
 
     assert str(exc.value) == MOTIVO_SIN_PERMISO
+
+
+# ------------------------------------------------------------------ el cliente · D92
+
+
+async def _generar_para(
+    cliente_id: UUID,
+    *,
+    clientes: ClientesFalsos,
+    cobros: CobrosFalsos | None = None,
+    pasarela: PasarelaFalsa | None = None,
+    publicador: PublicadorFalso | None = None,
+    rol: RolUsuario = RolUsuario.OPERADOR,
+    saldos: SaldosFalsos | None = None,
+    comprobante_id: UUID | None = None,
+) -> Cobro:
+    return await GenerarCobro(
+        cobros=cobros or CobrosFalsos(),
+        pasarela=pasarela or PasarelaFalsa(),
+        saldos=saldos or SaldosFalsos(),
+        clientes=clientes,
+        publicador=publicador or PublicadorFalso(),
+        url_de_retorno=URL_RETORNO,
+    ).ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=rol,
+        cliente_id=cliente_id,
+        monto=Decimal("100.00"),
+        descripcion="Consulta",
+        ahora=AHORA,
+        comprobante_id=comprobante_id,
+    )
+
+
+async def test_un_cliente_que_no_existe_no_deja_generar_ni_gasta_una_llamada() -> None:
+    """Ni pasarela, ni cobro guardado, ni bitacora: se rechaza antes de todo eso."""
+    cobros, pasarela, publicador = CobrosFalsos(), PasarelaFalsa(), PublicadorFalso()
+
+    with pytest.raises(ClienteInexistente) as exc:
+        await _generar_para(
+            uuid4(),
+            clientes=ClientesFalsos(),
+            cobros=cobros,
+            pasarela=pasarela,
+            publicador=publicador,
+        )
+
+    assert str(exc.value) == "El cliente seleccionado no existe o esta inactivo."
+    assert pasarela.creados == 0
+    assert cobros.guardados == {}
+    assert publicador.eventos == []
+
+
+async def test_un_cliente_inactivo_recibe_el_mismo_rechazo() -> None:
+    """El puerto colapsa «no existe», «es de otra empresa» e «inactivo» en un solo `False`."""
+    with pytest.raises(ClienteInexistente):
+        await _generar_para(CLIENTE, clientes=ClientesFalsos())
+
+
+async def test_un_cliente_activo_genera_el_cobro() -> None:
+    cobro = await _generar_para(CLIENTE, clientes=ClientesFalsos(CLIENTE))
+
+    assert cobro.cliente_id == CLIENTE
+    assert cobro.tiene_link_activo
+
+
+async def test_solo_lectura_se_rechaza_antes_de_preguntar_por_el_cliente() -> None:
+    """Si el guarda de rol viniera despues, la respuesta dejaria ver si el id existe."""
+    clientes = ClientesFalsos()
+
+    with pytest.raises(EntradaInvalida) as exc:
+        await _generar_para(uuid4(), clientes=clientes, rol=RolUsuario.SOLO_LECTURA)
+
+    assert str(exc.value) == MOTIVO_SIN_PERMISO
+    assert clientes.consultas == []
+
+
+async def test_un_comprobante_de_otro_cliente_no_deja_generar() -> None:
+    """Sin esto, con el selector editable se le cobraria a Ana la factura de Bruno."""
+    de_bruno = SaldosFalsos(cliente=uuid4())
+
+    with pytest.raises(ComprobanteDeOtroCliente) as exc:
+        await _generar_para(
+            CLIENTE,
+            clientes=ClientesFalsos(CLIENTE),
+            saldos=de_bruno,
+            comprobante_id=uuid4(),
+        )
+
+    assert str(exc.value) == "El comprobante no corresponde al cliente elegido."
+
+
+async def test_un_comprobante_del_mismo_cliente_genera_el_cobro() -> None:
+    cobro = await _generar_para(
+        CLIENTE,
+        clientes=ClientesFalsos(CLIENTE),
+        saldos=SaldosFalsos(cliente=CLIENTE),
+        comprobante_id=uuid4(),
+    )
+
+    assert cobro.comprobante_id is not None
 
 
 # ------------------------------------------------------------------ el comprobante · D26
@@ -242,7 +354,7 @@ async def test_generar_un_cobro_asociado_no_descuenta_el_saldo_todavia() -> None
         empresa_id=EMPRESA,
         usuario_id=USUARIO,
         rol=RolUsuario.OPERADOR,
-        cliente_id=uuid4(),
+        cliente_id=CLIENTE,
         monto=Decimal("1210.00"),
         descripcion="Pago parcial",
         ahora=AHORA,
@@ -260,7 +372,7 @@ async def test_un_monto_mayor_al_saldo_se_rechaza_y_dice_cuanto_queda() -> None:
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
             rol=RolUsuario.OPERADOR,
-            cliente_id=uuid4(),
+            cliente_id=CLIENTE,
             monto=Decimal("1210.00"),
             descripcion="Pago parcial",
             ahora=AHORA,
@@ -281,7 +393,7 @@ async def test_un_comprobante_inexistente_no_deja_generar() -> None:
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
             rol=RolUsuario.OPERADOR,
-            cliente_id=uuid4(),
+            cliente_id=CLIENTE,
             monto=Decimal("100.00"),
             descripcion="Pago",
             ahora=AHORA,
