@@ -600,6 +600,7 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 | 20.5 | La API de reembolsos acepta reembolsos **parciales** y con qué respuesta | `reembolsos-parciales-y-manuales` | Cambia HU-E6-05 |
 | 20.6 | Montos con centavos llegan exactos: `pasarela.py` todavía envía `float(cobro.monto)` (líneas 85 y 162) | hallazgo sin unidad | Un centavo de diferencia entre el cobro y el pago |
 | 20.7 | Dos notificaciones simultáneas del mismo pago: la segunda hoy puede devolver 500 | hallazgo sin unidad | MercadoPago reintenta; confirmar que no queda un pago sin imputar |
+| 20.8 | Que el `date_approved` de un pago real cae dentro de la tolerancia de reloj de 5 minutos respecto de nuestra hora de confirmación y nunca es anterior a la creación del cobro | `fecha-de-pago` | Si un pago legítimo se descarta como implausible, queda marcado aproximado sin necesidad; ajustar `TOLERANCIA_DE_RELOJ` |
 
 ## 21. ARCA (homologación)
 

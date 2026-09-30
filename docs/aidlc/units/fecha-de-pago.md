@@ -266,36 +266,38 @@ Riesgos que no son tests, dichos con todas las letras:
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/payments/domain/cobro.py` (`MedioDePago`, `fecha_pago`, `aprobar`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/ports.py` (`PagoRecibido`, `MetricasDeCobros`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/confirmacion.py`
-- [ ] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (solo el docstring de `MetricasDelPeriodo`)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/pasarela.py` (`date_approved`, simulada)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/models.py`
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/repositories.py` (`metricas`, mapeos)
-- [ ] `backend/migrations/versions/0026_fecha_medio_y_operacion_de_pago.py` (nuevo)
-- [ ] `backend/src/cheatsheet/api/routers/cobros.py` (`CobroSalida`)
-- [ ] `backend/src/cheatsheet/contexts/reporting/infrastructure/acl.py` (`filas`: `fecha_pago`)
-- [ ] `backend/tests/contexts/payments/domain/test_cobro.py`
-- [ ] `backend/tests/contexts/payments/application/test_confirmacion.py` (`CobrosFalsos.metricas`, `PasarelaFalsa`)
-- [ ] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py`
-- [ ] `backend/tests/contexts/payments/application/test_metricas.py` (nuevo: `tasa_de_cobro` y `cobrado_de_lo_creado`)
-- [ ] `backend/tests/contexts/payments/infrastructure/test_pasarela_contrato.py`
-- [ ] `backend/tests/integracion/test_cobros_postgres.py`
-- [ ] `backend/tests/integracion/test_migraciones.py` o `test_migracion_0026.py` (nuevo: backfill y sube/baja/sube)
+- [x] `backend/src/cheatsheet/contexts/payments/domain/cobro.py` (`MedioDePago`, `fecha_pago`, `aprobar`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/ports.py` (`PagoRecibido`, `MetricasDeCobros`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/confirmacion.py`
+- [x] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (solo el docstring de `MetricasDelPeriodo`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/pasarela.py` (`date_approved`, simulada)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/models.py`
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/repositories.py` (`metricas`, mapeos)
+- [x] `backend/migrations/versions/0026_fecha_medio_y_operacion_de_pago.py` (nuevo)
+- [x] `backend/src/cheatsheet/api/routers/cobros.py` (`CobroSalida`)
+- [x] `backend/src/cheatsheet/contexts/reporting/infrastructure/acl.py` (`filas`: `fecha_pago`)
+- [x] `backend/tests/contexts/payments/domain/test_cobro.py`
+- [x] `backend/tests/contexts/payments/application/test_confirmacion.py` (`CobrosFalsos.metricas`, `PasarelaFalsa`)
+- [ ] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py` (sin cambios: usa `CobrosFalsos` de `test_confirmacion.py`)
+- [x] `backend/tests/contexts/payments/application/test_metricas.py` (nuevo: `tasa_de_cobro` y `cobrado_de_lo_creado`)
+- [x] `backend/tests/contexts/payments/infrastructure/test_pasarela_contrato.py`
+- [x] `backend/tests/integracion/test_cobros_postgres.py`
+- [x] `backend/tests/integracion/test_migracion_0026.py` (nuevo: backfill, sube/baja/sube y NOTICE)
+- [x] `backend/tests/integracion/test_api_cobros_fecha_de_pago.py` (nuevo, caso 20)
+- [x] `backend/tests/contexts/reporting/infrastructure/test_cobranzas_via_payments.py` (nuevo, caso 22)
 
 ### Frontend
-- [ ] `frontend/src/features/payments/api/cobro.ts`
-- [ ] `frontend/src/features/payments/components/DetalleDeCobro.tsx`
-- [ ] `frontend/src/features/payments/components/ListadoDeCobros.tsx`
-- [ ] `frontend/src/features/payments/api/__tests__/cobro.test.ts`
-- [ ] `frontend/src/features/payments/components/__tests__/pantallas.test.tsx`
-- [ ] `frontend/src/app/(panel)/cobros/__tests__/pagina.test.tsx`
+- [x] `frontend/src/features/payments/api/cobro.ts`
+- [x] `frontend/src/features/payments/components/DetalleDeCobro.tsx`
+- [x] `frontend/src/features/payments/components/ListadoDeCobros.tsx`
+- [x] `frontend/src/features/payments/api/__tests__/cobro.test.ts`
+- [x] `frontend/src/features/payments/components/__tests__/pantallas.test.tsx`
+- [x] `frontend/src/app/(panel)/cobros/__tests__/pagina.test.tsx`
 
 ### Docs
-- [ ] `docs/adr/0010-payment-date-method-and-refunds.md` (el borrador adjunto, en `Proposed`; pasa a `Accepted` al aprobarse el PR)
-- [ ] `docs/adr/README.md` (una fila en el índice)
-- [ ] `docs/aidlc/units.md` (fila de la unidad: `Responsable`, `Rama`, estado)
+- [x] `docs/adr/0010-payment-date-method-and-refunds.md` (el borrador adjunto, en `Proposed`; pasa a `Accepted` al aprobarse el PR)
+- [x] `docs/adr/README.md` (una fila en el índice)
+- [ ] `docs/aidlc/units.md` (fila de la unidad: `Responsable`, `Rama`, estado) — no se toca en esta pasada
 
 ## Casos de prueba
 
@@ -305,36 +307,36 @@ honestamente cuál se observó.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | RED: `aprobar` con la fecha de MercadoPago → `fecha_pago` es esa fecha, `fecha_pago_aproximada` es `False`, `medio_de_pago` es `LINK_MERCADOPAGO` | unit (dominio) | pendiente |
-| 2 | RED: `aprobar` sin fecha → `fecha_pago = ahora` y `fecha_pago_aproximada = True` | unit (dominio) | pendiente |
-| 3 | RED: fecha sin zona horaria, en el futuro (más de 5 min) o anterior a `created_at` → se ignora, `fecha_pago = ahora`, aproximada | unit (dominio) | pendiente |
-| 4 | RED: aprobar dos veces sigue rechazado y la segunda no toca `fecha_pago` | unit (dominio) | pendiente |
-| 5 | RED: `registrar_pago_huerfano` no escribe `fecha_pago` (y el cobro sigue `CANCELADO`) | unit (dominio) | pendiente |
-| 6 | RED: `consultar_pago` traduce `date_approved` con offset (`-04:00`) y con `Z` a la misma hora UTC correcta; `null`, ausente o basura → `None` | unit (contrato del adaptador, `MockTransport`) | pendiente |
-| 7 | RED: `ConfirmarPago` con un pago que trae fecha → el cobro guarda esa fecha | unit (aplicación) | pendiente |
-| 8 | Webhook duplicado (mismo `payment_id`) → un solo efecto, `fecha_pago` intacta; otro `payment_id` sobre un cobro ya aprobado → `ya_procesado` y `fecha_pago` intacta | unit (aplicación) | pendiente (los tests de idempotencia existentes se amplían) |
-| 9 | Un `date_approved` ilegible no rompe el webhook: se aprueba con fecha aproximada | unit (aplicación) | pendiente |
-| 10 | RED: `tasa_de_cobro` se calcula con `cobrado_de_lo_creado`, no con `cobrado`; con `cobrado` (por fecha de pago) mayor que lo creado en el período la tasa no pasa de 100 %; período vacío → `0.00` | unit | pendiente |
-| 11 | RED: cobro creado en febrero y pagado en marzo → mirando marzo suma en «cobrado» y mirando febrero no; su tasa de febrero lo incluye | integración (PostgreSQL) | pendiente |
-| 12 | Limitación fijada: un cobro `REEMBOLSADO` no suma en «cobrado» de ningún período (lo cambia la unidad de reembolsos) | integración (PostgreSQL) | pendiente |
-| 13 | «Pendiente» y «en mora» siguen midiéndose por `created_at`; el filtro de estado del listado no altera las métricas | integración (PostgreSQL) | pendiente (los existentes se adaptan) |
-| 14 | Los importes de las métricas son `Decimal` de punta a punta: `0.10 + 0.20` da `0.30`, nunca un `float` | unit + integración | pendiente |
-| 15 | RED: el mismo número como `numero_de_operacion` de un cobro y `mp_payment_id` de otro **de la misma empresa** → el índice único rechaza; en **otra empresa** convive | integración (PostgreSQL) | pendiente |
-| 16 | RED: `medio_de_pago` fuera de los dos valores, y un `APROBADO` nuevo sin `fecha_pago`, son rechazados por la base | integración (PostgreSQL) | pendiente |
-| 17 | RED: migración sobre datos viejos: `APROBADO`/`REEMBOLSADO` conservan la fecha y quedan aproximados; `PENDIENTE`/`CANCELADO` sin fecha y sin marca; todos `LINK_MERCADOPAGO`; `numero_de_operacion` en `NULL` | integración (PostgreSQL, migración) | pendiente |
-| 18 | La migración sube, baja y vuelve a subir; al bajar `fecha_pago` vuelve a llamarse `pagado_en` con sus valores | integración (migración) | pendiente |
-| 19 | Un `APROBADO` viejo sin fecha se informa por `NOTICE` y la migración no falla ni lo completa | integración (migración) | pendiente |
-| 20 | `GET /cobros/{id}` de un cobro pagado devuelve `fecha_pago`, `fecha_pago_aproximada`, `medio_de_pago` y `numero_de_operacion = null`; los tres roles leen | integración (API) | pendiente |
-| 21 | «Cobrado» de una empresa no suma pagos de otra (RLS) | integración (PostgreSQL) | pendiente |
-| 22 | Reporting: `CobranzasViaPayments.totales` refleja el nuevo «cobrado» y `filas` usa `fecha_pago` | unit (aplicación/ACL) | pendiente |
-| 23 | RED: `DetalleDeCobro` de un cobro pagado por link muestra «Link de MercadoPago» y la fecha, sin «N.º de operación» | unit (frontend) | pendiente |
-| 24 | RED: con `fecha_pago_aproximada` muestra «(aproximada)»; un cobro sin pagar muestra «—» | unit (frontend) | pendiente |
-| 25 | RED: con `medio_de_pago = TRANSFERENCIA` y número de operación, el detalle muestra ese número | unit (frontend) | pendiente |
-| 26 | La etiqueta que antes decía «Operación» dice «Referencia» | unit (frontend) | pendiente |
-| 27 | El mosaico «Cobrado» lleva la leyenda «por fecha de pago» | unit (frontend) | pendiente |
-| 28 | `PasarelaSimulada.consultar_pago` devuelve una fecha real (no aproximada) | unit | pendiente |
+| 1 | RED: `aprobar` con la fecha de MercadoPago → `fecha_pago` es esa fecha, `fecha_pago_aproximada` es `False`, `medio_de_pago` es `LINK_MERCADOPAGO` | unit (dominio) | RED observado (ImportError de `MedioDePago` al recolectar) → verde |
+| 2 | RED: `aprobar` sin fecha → `fecha_pago = ahora` y `fecha_pago_aproximada = True` | unit (dominio) | RED observado (ídem) → verde |
+| 3 | RED: fecha sin zona horaria, en el futuro (más de 5 min) o anterior a `created_at` → se ignora, `fecha_pago = ahora`, aproximada | unit (dominio) | RED observado (ídem; tres variantes parametrizadas, más la tolerancia de 5 min inclusiva) → verde |
+| 4 | RED: aprobar dos veces sigue rechazado y la segunda no toca `fecha_pago` | unit (dominio) | RED observado (ídem) → verde |
+| 5 | RED: `registrar_pago_huerfano` no escribe `fecha_pago` (y el cobro sigue `CANCELADO`) | unit (dominio) | RED observado (ídem) → verde |
+| 6 | RED: `consultar_pago` traduce `date_approved` con offset (`-04:00`) y con `Z` a la misma hora UTC correcta; `null`, ausente o basura → `None` | unit (contrato del adaptador, `MockTransport`) | RED observado (falló la conversión a UTC y el doble) → verde |
+| 7 | RED: `ConfirmarPago` con un pago que trae fecha → el cobro guarda esa fecha | unit (aplicación) | RED observado (`fecha_pago` no se propagaba) → verde |
+| 8 | Webhook duplicado (mismo `payment_id`) → un solo efecto, `fecha_pago` intacta; otro `payment_id` sobre un cobro ya aprobado → `ya_procesado` y `fecha_pago` intacta | unit (aplicación) | verde (los dos caminos de idempotencia, con la fecha intacta); no era RED: el dominio ya no reescribe la fecha |
+| 9 | Un `date_approved` ilegible no rompe el webhook: se aprueba con fecha aproximada | unit (aplicación) | verde (`None` de un `date_approved` ilegible y fecha futura); no era RED: el comportamiento por defecto ya aproximaba |
+| 10 | RED: `tasa_de_cobro` se calcula con `cobrado_de_lo_creado`, no con `cobrado`; con `cobrado` (por fecha de pago) mayor que lo creado en el período la tasa no pasa de 100 %; período vacío → `0.00` | unit | RED observado (`MetricasDeCobros` sin `cobrado_de_lo_creado`; 6 tests) → verde |
+| 11 | RED: cobro creado en febrero y pagado en marzo → mirando marzo suma en «cobrado» y mirando febrero no; su tasa de febrero lo incluye | integración (PostgreSQL) | escrito, **no corrido** (sin PostgreSQL local); corre en CI |
+| 12 | Limitación fijada: un cobro `REEMBOLSADO` no suma en «cobrado» de ningún período (lo cambia la unidad de reembolsos) | integración (PostgreSQL) | escrito, **no corrido** (sin PostgreSQL local); corre en CI |
+| 13 | «Pendiente» y «en mora» siguen midiéndose por `created_at`; el filtro de estado del listado no altera las métricas | integración (PostgreSQL) | escrito, **no corrido** (sin PostgreSQL local); corre en CI |
+| 14 | Los importes de las métricas son `Decimal` de punta a punta: `0.10 + 0.20` da `0.30`, nunca un `float` | unit + integración | unit verde; integración escrita, **no corrida** (sin PostgreSQL local) |
+| 15 | RED: el mismo número como `numero_de_operacion` de un cobro y `mp_payment_id` de otro **de la misma empresa** → el índice único rechaza; en **otra empresa** convive | integración (PostgreSQL) | escrito, **no corrido** (sin PostgreSQL local); corre en CI |
+| 16 | RED: `medio_de_pago` fuera de los dos valores, y un `APROBADO` nuevo sin `fecha_pago`, son rechazados por la base | integración (PostgreSQL) | escrito, **no corrido** (sin PostgreSQL local); corre en CI |
+| 17 | RED: migración sobre datos viejos: `APROBADO`/`REEMBOLSADO` conservan la fecha y quedan aproximados; `PENDIENTE`/`CANCELADO` sin fecha y sin marca; todos `LINK_MERCADOPAGO`; `numero_de_operacion` en `NULL` | integración (PostgreSQL, migración) | escrito, **no corrido** (sin PostgreSQL local); corre en CI |
+| 18 | La migración sube, baja y vuelve a subir; al bajar `fecha_pago` vuelve a llamarse `pagado_en` con sus valores | integración (migración) | escrito, **no corrido** (sin PostgreSQL local); corre en CI. SQL de subida y bajada revisado con `alembic ... --sql` |
+| 19 | Un `APROBADO` viejo sin fecha se informa por `NOTICE` y la migración no falla ni lo completa | integración (migración) | escrito, **no corrido** (sin PostgreSQL local); corre en CI |
+| 20 | `GET /cobros/{id}` de un cobro pagado devuelve `fecha_pago`, `fecha_pago_aproximada`, `medio_de_pago` y `numero_de_operacion = null`; los tres roles leen | integración (API) | escrito, **no corrido** (sin PostgreSQL local); corre en CI. Solo Administrador por HTTP: la ruta de lectura no consulta el rol |
+| 21 | «Cobrado» de una empresa no suma pagos de otra (RLS) | integración (PostgreSQL) | escrito, **no corrido** (sin PostgreSQL local); corre en CI |
+| 22 | Reporting: `CobranzasViaPayments.totales` refleja el nuevo «cobrado» y `filas` usa `fecha_pago` | unit (aplicación/ACL) | verde; no fue RED (se escribió después del cambio de `acl.py`) |
+| 23 | RED: `DetalleDeCobro` de un cobro pagado por link muestra «Link de MercadoPago» y la fecha, sin «N.º de operación» | unit (frontend) | RED observado (16 fallas del bloque) → verde |
+| 24 | RED: con `fecha_pago_aproximada` muestra «(aproximada)»; un cobro sin pagar muestra «—» | unit (frontend) | RED observado → verde |
+| 25 | RED: con `medio_de_pago = TRANSFERENCIA` y número de operación, el detalle muestra ese número | unit (frontend) | RED observado → verde |
+| 26 | La etiqueta que antes decía «Operación» dice «Referencia» | unit (frontend) | RED observado → verde |
+| 27 | El mosaico «Cobrado» lleva la leyenda «por fecha de pago» | unit (frontend) | RED observado → verde |
+| 28 | `PasarelaSimulada.consultar_pago` devuelve una fecha real (no aproximada) | unit | RED observado (`fecha_aprobacion` era `None`) → verde |
 | 29 | En el navegador (`run-local`, con la pasarela simulada): generar un cobro, simular el webhook, ver medio y fecha en el detalle y el encabezado del período | manual | pendiente, para quien revise |
-| 30 | En sandbox de MercadoPago: un pago `approved` real trae `date_approved` con zona horaria y coincide con el detalle | manual (sandbox) | pendiente; si no se puede, queda anotado como no verificado |
+| 30 | En sandbox de MercadoPago: un pago `approved` real trae `date_approved` con zona horaria y coincide con el detalle | manual (sandbox) | pendiente; anotado como no verificado en `TODO.md` §20.2 y §20.8 |
 
 ## Registro
 
