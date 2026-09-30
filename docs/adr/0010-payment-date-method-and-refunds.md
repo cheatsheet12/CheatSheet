@@ -1,6 +1,6 @@
 # ADR-0010 — Record how and when a payment was made, and model refunds as dated, append-only records
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-09-30, at Gate 1 of the unit `fecha-de-pago`)
 - **Date:** 2026-09-30
 - **Decided by:** Product owners and the development team (pending approval)
 - **Modules affected:** payments, reporting, conversational, frontend

@@ -340,9 +340,18 @@ honestamente cuál se observó.
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-09-30 | aprobado junto con ADR-0010; las nueve preguntas según la recomendación |
 | 2 · Verificación | | Incluye un **verificador independiente** (agente distinto del que implementó, con conocimiento de `payments`): revisa el diff contra este plan y las historias, corre las verificaciones y reporta huecos de prueba, sobre todo en dinero, webhook y migración |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
-- (se completa en el Gate 1 con la respuesta a cada pregunta; una línea por decisión que cambia el resultado)
+- P1: `pagado_en` se renombra a `fecha_pago` (una sola fuente de verdad; migración y código en el mismo release).
+- P2: los cobros ya pagados conservan la fecha de `pagado_en`, marcada `fecha_pago_aproximada = true`; la migración no consulta a MercadoPago.
+- P3: la migración 0026 lleva solo lo que usa esta unidad; la tabla `reembolso` y `REEMBOLSADO_PARCIAL` van en `reembolsos-parciales-y-manuales`.
+- P4: «Cobrado» se mide por `fecha_pago` en el período; pendiente y en mora siguen por fecha de creación; la tasa de cobranza es la fórmula de cohorte, sin superar el 100 %.
+- P5: el listado sigue filtrando por fecha de creación, con la aclaración «por fecha de pago» en la tarjeta de Cobrado.
+- P6: `medio_de_pago` es un conjunto cerrado de dos valores: `LINK_MERCADOPAGO` y `TRANSFERENCIA`.
+- P7: el índice único por empresa cubre el número de operación de link y de transferencia juntos.
+- P8: una corrección puede bajar el estado de reembolso (estado derivado del acumulado; ADR-0010).
+- P9: la etiqueta «Operación» pasa a «Referencia».
+- Lo que no se pudo verificar contra MercadoPago quedó en `docs/aidlc/TODO.md` §20 (20.2 a 20.4), para recorrerlo cuando esté el sandbox.
