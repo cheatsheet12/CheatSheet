@@ -273,11 +273,13 @@ def _fecha_de_aprobacion(datos: dict[str, Any]) -> datetime | None:
         return None
     try:
         fecha = datetime.fromisoformat(valor.strip())
-    except ValueError:
+        if fecha.utcoffset() is None:
+            return None
+        return fecha.astimezone(UTC)
+    except (ValueError, OverflowError):
+        # `OverflowError`: a valid ISO date at the edge of `datetime`'s range that leaves it
+        # once shifted to UTC (e.g. year 9999 at -03:00).
         return None
-    if fecha.utcoffset() is None:
-        return None
-    return fecha.astimezone(UTC)
 
 
 class PasarelaSimulada:

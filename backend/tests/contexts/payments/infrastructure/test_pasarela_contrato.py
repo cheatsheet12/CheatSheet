@@ -228,6 +228,10 @@ async def test_date_approved_con_offset_y_con_z_dan_la_misma_hora_utc() -> None:
         pytest.param({"date_approved": "no es una fecha"}, id="basura"),
         pytest.param({"date_approved": 20260919}, id="numero"),
         pytest.param({"date_approved": "2026-09-19T08:00:00"}, id="sin-zona-horaria"),
+        # Valid ISO dates whose conversion to UTC leaves `datetime`'s range: `astimezone`
+        # raises `OverflowError`, not `ValueError`.
+        pytest.param({"date_approved": "9999-12-31T23:59:59-03:00"}, id="desborda-arriba"),
+        pytest.param({"date_approved": "0001-01-01T00:00:00+03:00"}, id="desborda-abajo"),
     ],
 )
 async def test_date_approved_ilegible_se_traduce_a_none_y_no_rompe(campos: dict[str, Any]) -> None:
