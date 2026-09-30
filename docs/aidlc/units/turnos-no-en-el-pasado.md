@@ -235,7 +235,7 @@ Modo: **test primero**. Los casos 1 a 4 reproducen el bug y tienen que fallar an
 |---|---|---|
 | 1 · Plan | 2026-09-29 | aprobado sin cambios |
 | 2 · Verificación | 2026-09-29 | aprobado. ruff, mypy y pytest en verde (1331 pasan; 328 omitidos por requerir PostgreSQL o Redis). Frontend: lint, typecheck y test:coverage en verde (84,14 %). `format:check` falla solo por el checkout CRLF de Windows y pasa con `--end-of-line auto`. Los casos 11 a 15 los corre la CI |
-| 3 · PR | | |
+| 3 · PR | 2026-09-30 | PR draft [#46](https://github.com/cheatsheet12/CheatSheet/pull/46) contra `feature/infra-ajustes-de-la-revision` (#45); draft para que la CI corra los casos contra PostgreSQL |
 
 ## Decisiones tomadas durante la unidad
 - Carga a posteriori: nace COMPLETADO con un constructor de dominio, no se transiciona (§2).
