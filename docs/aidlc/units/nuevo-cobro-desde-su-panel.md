@@ -248,9 +248,14 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-09-30 | aprobado; las cinco preguntas según la recomendación, con un tope de cobro propio en lugar del de la columna (ver «Decisiones») |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
-- Pendiente de los cinco puntos de «Las preguntas que el mapa dejó para este Gate».
+- P1: se agrega `GET /clientes/{id}` (`VerCliente`, ruta, handler del BFF y `verCliente`) dentro de la unidad.
+- P2: se rechaza el cliente inexistente, de otra empresa o inactivo con un solo mensaje: «El cliente seleccionado no existe o esta inactivo.» (422).
+- P3 (H2): se incluye; el formulario ofrece solo comprobantes del cliente elegido y `GenerarCobro` rechaza con «El comprobante no corresponde al cliente elegido.».
+- P4 (H3): la búsqueda por CUIT se corrige en el backend de `master_data` (`_filtrar`).
+- P5 (H4): el tope **no** es la capacidad de la columna sino un tope de negocio: `MONTO_MAXIMO_DE_COBRO = 100.000.000,00` (decisión de Luciano: el tope de la columna es exageradamente grande). Por encima: «El monto es demasiado grande.». NaN e Infinity: «El monto debe ser mayor a cero.». Al implementar se confirma en la documentación de MercadoPago que el link admite ese monto; si su límite es menor, manda el de MercadoPago y se anota acá.
+- Hallazgo fuera de alcance, anotado: `payments/infrastructure/pasarela.py` envía `float(cobro.monto)` a MercadoPago.
