@@ -363,6 +363,25 @@ async def test_un_4xx_es_un_rechazo_con_el_mensaje_de_mercadopago_sin_traducir()
     assert len(grabadora.pedidos) == 1
 
 
+@pytest.mark.parametrize("estado", [401, 403, 408, 409, 425, 429])
+async def test_un_4xx_ambiguo_al_reembolsar_no_es_un_rechazo_y_levanta(estado: int) -> None:
+    """Un 409/429/... tras un timeout puede significar que MercadoPago ya lo procesó: tomarlo
+    como rechazo borraría la clave y un reintento con clave nueva reembolsaría dos veces."""
+    grabadora = Grabadora(httpx.Response(estado, json={"message": "key in use"}))
+
+    with pytest.raises(PasarelaNoDisponible):
+        await _reembolsar(grabadora)
+
+
+@pytest.mark.parametrize("estado", [400, 404, 422])
+async def test_un_4xx_de_negocio_al_reembolsar_sigue_siendo_un_rechazo(estado: int) -> None:
+    grabadora = Grabadora(httpx.Response(estado, json={"message": "no"}))
+
+    respuesta = await _reembolsar(grabadora)
+
+    assert respuesta.estado is EstadoDeReembolso.RECHAZADO
+
+
 async def test_un_5xx_o_un_timeout_al_reembolsar_levantan_despues_de_los_intentos() -> None:
     for falla in (httpx.Response(503, json={}), httpx.ConnectTimeout("sin respuesta")):
         grabadora = Grabadora(falla)

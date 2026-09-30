@@ -49,6 +49,13 @@ URL_API = "https://api.mercadopago.com"
 TIMEOUT_SEGUNDOS = 15.0
 MAX_INTENTOS = 3
 
+#: 4xx que **no** son un rechazo de negocio al pedir un reembolso: no dicen que MercadoPago no
+#: lo hizo. 401/403 son credenciales (no llegó a evaluarse); 408/425/429 son "no ahora"; y 409
+#: es "clave en uso / ya procesado", que tras un timeout puede significar que el reembolso YA
+#: existe. Tomarlos como rechazo borraría la clave y un reintento con clave nueva reembolsaría
+#: dos veces, así que se tratan como "no se pudo saber": el reembolso queda en vuelo.
+ESTADOS_AMBIGUOS_AL_REEMBOLSAR = frozenset({401, 403, 408, 409, 425, 429})
+
 
 class PortTokenDeMercadoPago:
     """Cómo se consigue el token de una empresa. Lo resuelve el composition root.
@@ -161,8 +168,9 @@ class PasarelaMercadoPago:
     ) -> RespuestaDeReembolso:
         """Pide el reembolso **de `monto`** (nunca sin `amount`: sería total) con la `clave` dada.
 
-        Un rechazo (4xx) **es una respuesta** y vuelve como `RECHAZADO` con el mensaje de
-        MercadoPago; no poder preguntar (5xx, timeout) sí levanta. El `amount` viaja como número
+        Un rechazo de negocio (4xx salvo `ESTADOS_AMBIGUOS_AL_REEMBOLSAR`) **es una respuesta** y
+        vuelve como `RECHAZADO` con el mensaje de MercadoPago; no poder preguntar (5xx, timeout,
+        o un 4xx ambiguo) sí levanta. El `amount` viaja como número
         JSON armado desde el `Decimal`, sin `float`.
         """
         try:
@@ -175,6 +183,9 @@ class PasarelaMercadoPago:
                 clave=clave,
             )
         except _RechazoDeMercadoPago as exc:
+            if exc.estado in ESTADOS_AMBIGUOS_AL_REEMBOLSAR:
+                logger.warning("reembolso_incierto", payment_id=payment_id, estado=exc.estado)
+                raise PasarelaNoDisponible(f"MercadoPago no confirmo el reembolso: {exc}") from exc
             logger.warning("reembolso_rechazado", payment_id=payment_id, estado=exc.estado)
             return RespuestaDeReembolso(estado=EstadoDeReembolso.RECHAZADO, motivo=exc.detalle)
         return _respuesta_de_reembolso(datos)
