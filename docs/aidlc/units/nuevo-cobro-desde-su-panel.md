@@ -245,6 +245,10 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 | 22 | Solo Lectura sigue redirigido antes de llamar a la API | unit (frontend) | verde (el test existente sigue pasando) |
 | 23 | El BFF reenvía `GET /api/clientes/{id}` | unit (frontend) | RED observado (`getCliente is not a function`) → verde |
 | 24 | En el navegador (`run-local`): entrar desde el menú, buscar, elegir, generar, y desde la fila de Clientes con «Cobrar»; verificar que lo escrito en concepto y monto no se pierde al elegir cliente | manual | **pendiente**: manual, para quien revise (`run-local`) |
+| 25 | `SaldoViaBilling.cliente_de`: devuelve el `cliente_id` del comprobante; `None` si el comprobante no existe | unit (contrato del adaptador) | verde (no era RED: el adaptador ya estaba escrito, el hueco era de test; 2 tests nuevos, y mypy sobre el fake completo del puerto) |
+| 26 | Comprobante inexistente (`cliente_de` → `None`) → `CobroInexistente` «El comprobante no existe», no `ComprobanteDeOtroCliente`; sin pasarela, sin cobro guardado y sin evento | unit | verde; mutado a mano (`dueno != cliente_id` sin el `is not None`) el test falla, y se restauró |
+| 27 | El caso 5 (comprobante de otro cliente) ahora afirma también que no hay llamada a la pasarela, ni cobro guardado, ni evento | unit | verde (ampliado, no era RED) |
+| 28 | RED: al cambiar de cliente se deja de mostrar el error del cliente anterior («El comprobante no corresponde al cliente elegido.») | unit (frontend) | RED observado (el error seguía en pantalla tras el `rerender`) → verde |
 
 ## Registro
 
@@ -265,3 +269,4 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 - Implementacion H2: si `cliente_de` devuelve `None` (comprobante inexistente) `GenerarCobro` no lanza `ComprobanteDeOtroCliente` sino que deja que la comprobacion del saldo lance `CobroInexistente` con su mensaje.
 - Implementacion P1: `VerCliente` exige lectura (Administrador, Operador, Solo Lectura) y devuelve tambien al inactivo; la lectura por id se separo en `_rutas_de_lectura` para no pasar el techo de complejidad de `_rutas_de_catalogo`.
 - Hallazgo fuera de alcance, anotado: `payments/infrastructure/pasarela.py` envía `float(cobro.monto)` a MercadoPago.
+- Verificador independiente (Gate 2): aprobado con notas; se cerraron los huecos de test de `cliente_de` y el error que quedaba al cambiar de cliente. Fuera de alcance, anotados: un monto de 0,004 pasa `monto_desde` y redondea a 0,00 (preexistente, dominio `Cobro`), y los comodines `%`/`_` del LIKE no se escapan (preexistente).
