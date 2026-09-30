@@ -102,7 +102,8 @@ async def test_reusar_un_refresh_revoca_toda_la_familia_en_la_base(
     cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
 ):
     sesion, r0, _ = await _reusar(cliente, "ana@empresa.com")
-    assert await _vivos(engine_dueno, sesion["empresa_id"]) == 1  # only R1 is alive
+    # R0 is used, not revoked: rotation marks it `usado_en`, so R0 and R1 both count here.
+    assert await _vivos(engine_dueno, sesion["empresa_id"]) == 2
 
     await _refrescar(cliente, r0)
 
