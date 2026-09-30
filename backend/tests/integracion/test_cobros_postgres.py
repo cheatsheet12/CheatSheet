@@ -15,7 +15,7 @@ duplicado**, no confiando en que el código no lo intente.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -43,8 +43,11 @@ from cheatsheet.contexts.payments.infrastructure.repositories import (
     RepositorioRecordatoriosPostgres,
     empresas_con_cobros_abiertos,
 )
+from cheatsheet.contexts.payments.infrastructure.repositorio_reembolso import (
+    RepositorioReembolsoPostgres,
+)
 from cheatsheet.platform.database import sesion_de_empresa, sesion_sin_empresa
-from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -500,19 +503,168 @@ async def test_la_tasa_no_pasa_de_cien_aunque_se_cobre_mas_de_lo_creado(
     assert metricas.tasa_de_cobro == Decimal("100.00")
 
 
-async def test_un_reembolsado_no_suma_en_cobrado_de_ningun_periodo(
-    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+async def _reembolsar_por_api(
+    sesiones: async_sessionmaker[AsyncSession], cobro: Cobro, monto: str, cuando: datetime
 ) -> None:
-    """Limitación conocida, fijada acá: la unidad de reembolsos lo resta por fecha de devolución."""
+    """Un reembolso confirmado por MercadoPago: la fila y el acumulado, juntos."""
+    cobro.solicitar_reembolso(monto=Decimal(monto), clave=uuid.uuid4(), ahora=cuando)
+    fila = cobro.confirmar_reembolso(
+        reembolso_id=uuid.uuid4(),
+        monto=Decimal(monto),
+        mp_refund_id=f"ref-{uuid.uuid4()}",
+        fecha=cuando,
+        ahora=cuando,
+    )
+    async with sesion_de_empresa(sesiones, cobro.empresa_id) as sesion:
+        await RepositorioCobroPostgres(sesion).guardar(cobro)
+        await RepositorioReembolsoPostgres(sesion).agregar(fila)
+
+
+async def _pagado_en_febrero(
+    sesiones: async_sessionmaker[AsyncSession],
+    engine_dueno: AsyncEngine,
+    *,
+    monto: str = "1000.00",
+    transferencia: bool = False,
+) -> Cobro:
     empresa_id = await _empresa(engine_dueno)
     cliente_id = await _cliente(engine_dueno, empresa_id)
-    cobro = _cobro(empresa_id, cliente_id, monto="1000.00", creado_el=FEBRERO)
+    cobro = _cobro(empresa_id, cliente_id, monto=monto, creado_el=FEBRERO)
+    if transferencia:
+        cobro.medio_de_pago = MedioDePago.TRANSFERENCIA
     cobro.aprobar(payment_id="pago-1", ahora=FEBRERO + timedelta(days=1))
-    cobro.confirmar_reembolso(monto=Decimal("1000.00"), ahora=MARZO)
     await _guardar(sesiones, empresa_id, cobro)
+    return cobro
 
-    assert (await _en(sesiones, empresa_id, TODO_FEBRERO)).cobrado == Decimal("0.00")
-    assert (await _en(sesiones, empresa_id, TODO_MARZO)).cobrado == Decimal("0.00")
+
+async def test_un_reembolso_resta_en_el_periodo_de_la_devolucion_y_no_en_el_del_pago(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """**Caso 23 (RN-11).** Pago en febrero, reembolso parcial en marzo: febrero suma el bruto,
+    marzo resta lo devuelto, y `cobrado` puede dar **negativo**: es lo que pasó con la caja."""
+    cobro = await _pagado_en_febrero(sesiones, engine_dueno)
+    await _reembolsar_por_api(sesiones, cobro, "300.00", MARZO)
+
+    en_febrero = await _en(sesiones, cobro.empresa_id, TODO_FEBRERO)
+    en_marzo = await _en(sesiones, cobro.empresa_id, TODO_MARZO)
+
+    assert en_febrero.cobrado == Decimal("1000.00")
+    assert en_marzo.cobrado == Decimal("-300.00")
+    assert cobro.estado is EstadoCobro.REEMBOLSADO_PARCIAL
+
+
+async def test_un_reembolso_total_tambien_resta_en_marzo_y_el_pago_sigue_en_febrero(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    cobro = await _pagado_en_febrero(sesiones, engine_dueno)
+    await _reembolsar_por_api(sesiones, cobro, "1000.00", MARZO)
+
+    en_febrero = await _en(sesiones, cobro.empresa_id, TODO_FEBRERO)
+    en_marzo = await _en(sesiones, cobro.empresa_id, TODO_MARZO)
+
+    assert cobro.estado is EstadoCobro.REEMBOLSADO
+    assert en_febrero.cobrado == Decimal("1000.00")
+    assert en_marzo.cobrado == Decimal("-1000.00")
+
+
+async def test_una_correccion_suma_de_vuelta_lo_que_resto_el_reembolso(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """La fila negativa de una corrección suma de vuelta en el período en que se registró."""
+    cobro = await _pagado_en_febrero(sesiones, engine_dueno, transferencia=True)
+    manual = cobro.registrar_reembolso_manual(
+        reembolso_id=uuid.uuid4(),
+        monto=Decimal("300.00"),
+        dia=date(2026, 3, 5),
+        referencia=None,
+        motivo="Devolucion por transferencia",
+        usuario_id=UsuarioId(uuid.uuid4()),
+        ahora=MARZO,
+    )
+    async with sesion_de_empresa(sesiones, cobro.empresa_id) as sesion:
+        await RepositorioCobroPostgres(sesion).guardar(cobro)
+        await RepositorioReembolsoPostgres(sesion).agregar(manual)
+    assert (await _en(sesiones, cobro.empresa_id, TODO_MARZO)).cobrado == Decimal("-300.00")
+
+    correccion = cobro.corregir_reembolso(
+        manual,
+        reembolso_id=uuid.uuid4(),
+        ya_corregido=False,
+        motivo="Se cargo por error",
+        usuario_id=UsuarioId(uuid.uuid4()),
+        ahora=MARZO,
+    )
+    async with sesion_de_empresa(sesiones, cobro.empresa_id) as sesion:
+        await RepositorioCobroPostgres(sesion).guardar(cobro)
+        await RepositorioReembolsoPostgres(sesion).agregar(correccion)
+
+    assert (await _en(sesiones, cobro.empresa_id, TODO_MARZO)).cobrado == Decimal("0.00")
+    assert cobro.estado is EstadoCobro.APROBADO
+
+
+async def test_los_reembolsos_se_suman_en_decimal_sin_error_binario(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """`0.10 + 0.20` da `0.30` en NUMERIC: el «cobrado» neto se calcula en la base."""
+    cobro = await _pagado_en_febrero(sesiones, engine_dueno, monto="1.00")
+    await _reembolsar_por_api(sesiones, cobro, "0.10", MARZO)
+    await _reembolsar_por_api(sesiones, cobro, "0.20", MARZO + timedelta(hours=1))
+
+    en_marzo = await _en(sesiones, cobro.empresa_id, TODO_MARZO)
+
+    assert en_marzo.cobrado == Decimal("-0.30")
+    assert isinstance(en_marzo.cobrado, Decimal)
+
+
+async def test_el_reembolso_de_una_empresa_no_resta_del_cobrado_de_otra(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """RLS acota también la agregación de `reembolso` (y no hay join contra `cobro`)."""
+    con_reembolso = await _pagado_en_febrero(sesiones, engine_dueno)
+    await _reembolsar_por_api(sesiones, con_reembolso, "1000.00", MARZO)
+    otra = await _empresa(engine_dueno)
+    cliente = await _cliente(engine_dueno, otra)
+    de_otra = _cobro(otra, cliente, monto="70.00", creado_el=MARZO)
+    de_otra.aprobar(payment_id="pago-otra", ahora=MARZO)
+    await _guardar(sesiones, otra, de_otra)
+
+    assert (await _en(sesiones, otra, TODO_MARZO)).cobrado == Decimal("70.00")
+    assert (await _en(sesiones, con_reembolso.empresa_id, TODO_MARZO)).cobrado == Decimal(
+        "-1000.00"
+    )
+
+
+async def test_la_tasa_cuenta_los_reembolsados_por_su_bruto_y_no_pasa_de_cien(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """**Caso 24.** Un cobro que se pagó y después se devolvió *se cobró*: el reembolso no es una
+    falla de cobranza, y el cobro no desaparece del numerador ni del denominador."""
+    devuelto = await _pagado_en_febrero(sesiones, engine_dueno)
+    parcial = _cobro(
+        devuelto.empresa_id,
+        devuelto.cliente_id,
+        monto="1000.00",
+        creado_el=FEBRERO,
+        preferencia="p",
+    )
+    parcial.aprobar(payment_id="pago-2", ahora=FEBRERO + timedelta(days=1))
+    pendiente = _cobro(
+        devuelto.empresa_id,
+        devuelto.cliente_id,
+        monto="2000.00",
+        creado_el=FEBRERO,
+        preferencia="q",
+    )
+    await _guardar(sesiones, devuelto.empresa_id, parcial, pendiente)
+    await _reembolsar_por_api(sesiones, devuelto, "1000.00", MARZO)
+    await _reembolsar_por_api(sesiones, parcial, "250.00", MARZO)
+
+    solo_pagados = await _en(sesiones, devuelto.empresa_id, TODO_FEBRERO)
+
+    assert solo_pagados.cobrado_de_lo_creado == Decimal("2000.00")
+    # 2000 cobrados de 4000 creados: los dos reembolsados cuentan por su bruto.
+    assert solo_pagados.tasa_de_cobro == Decimal("50.00")
+    assert solo_pagados.pendiente == Decimal("2000.00")
 
 
 async def test_pendiente_y_en_mora_siguen_por_creacion_y_el_estado_no_altera_las_metricas(

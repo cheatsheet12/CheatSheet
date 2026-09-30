@@ -66,3 +66,14 @@ def test_los_importes_son_decimal_de_punta_a_punta() -> None:
     assert isinstance(metricas.tasa_de_cobro, Decimal)
     # 0.10 sobre 0.30 = 33.33...
     assert metricas.tasa_de_cobro == Decimal("33.33")
+
+
+def test_un_cobrado_negativo_no_altera_la_tasa() -> None:
+    """RN-11: un período que devolvió más de lo que cobró da `cobrado` negativo (es lo que pasó
+    con la caja); la tasa sale de lo creado y **no** de ese número."""
+    metricas = _metricas(
+        cobrado="-300.00", pendiente="500.00", en_mora="0.00", de_lo_creado="500.00"
+    )
+
+    assert metricas.cobrado == Decimal("-300.00")
+    assert metricas.tasa_de_cobro == Decimal("50.00")

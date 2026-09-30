@@ -1,13 +1,17 @@
 """`PortPasarelaDePago` contra MercadoPago, y su doble.
 
-Cuatro operaciones: crear la preferencia, invalidarla, consultar un pago y reembolsar. El
-OAuth, el refresco del token y la validación de la conexión son de `integrations` y ya existen
-desde el épico 2 — acá sólo se pide el token y se usa.
+Cinco operaciones: crear la preferencia, invalidarla, consultar un pago, reembolsar y consultar
+un reembolso. El OAuth, el refresco del token y la validación de la conexión son de
+`integrations` y ya existen desde el épico 2 — acá sólo se pide el token y se usa.
 
-**Un rechazo no es una caída.** `reembolsar` devuelve un booleano y no levanta cuando
+**Un rechazo no es una caída.** `reembolsar` devuelve `RECHAZADO` y no levanta cuando
 MercadoPago dice que no (HU-E6-05 RN-03): eso es una respuesta, y el cobro mantiene su estado.
 Lo que sí levanta es no poder preguntar, y esa distinción es la misma que `billing` mantiene
 con ARCA.
+
+**La clave de idempotencia del reembolso viene de afuera.** Se genera una vez por solicitud, se
+guarda, y se reusa en cada reintento (incluso entre requests): una clave nueva por llamada le
+permitiría a MercadoPago ejecutar un segundo reembolso.
 
 **`invalidar_link` está del otro lado de esa línea, y a propósito.** Ahí un rechazo no deja el
 mundo en un estado conocido: deja un link que el cliente todavía puede pagar (HU-E6-04 RN-03).
@@ -24,14 +28,18 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 
 from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
-from cheatsheet.contexts.payments.application.ports import PagoRecibido
+from cheatsheet.contexts.payments.application.ports import (
+    EstadoDeReembolso,
+    PagoRecibido,
+    RespuestaDeReembolso,
+)
 from cheatsheet.contexts.payments.domain.cobro import Cobro, LinkDePago
-from cheatsheet.platform.settings import Entorno
+from cheatsheet.contexts.payments.infrastructure.pasarela_simulada import PasarelaSimulada
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.empresa import EmpresaId
 
@@ -148,49 +156,72 @@ class PasarelaMercadoPago:
                 return
             raise PasarelaNoDisponible(f"MercadoPago no invalido el link de pago: {exc}") from exc
 
-    async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:
-        """`True` si MercadoPago aceptó, `False` si lo rechazó (RN-03).
+    async def reembolsar(
+        self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal, clave: UUID
+    ) -> RespuestaDeReembolso:
+        """Pide el reembolso **de `monto`** (nunca sin `amount`: sería total) con la `clave` dada.
 
-        Un booleano y no una excepción, porque un rechazo **es una respuesta**: el cobro
-        mantiene su estado y se avisa al administrador. No poder preguntar es otra cosa y sí
-        levanta.
+        Un rechazo (4xx) **es una respuesta** y vuelve como `RECHAZADO` con el mensaje de
+        MercadoPago; no poder preguntar (5xx, timeout) sí levanta. El `amount` viaja como número
+        JSON armado desde el `Decimal`, sin `float`.
         """
         try:
-            await self._pedir(
+            datos = await self._pedir(
                 empresa_id,
                 "POST",
                 f"/v1/payments/{payment_id}/refunds",
-                {"amount": float(monto)},
+                f'{{"amount": {_numero_json(monto)}}}',
                 operacion="reembolsar",
+                clave=clave,
             )
         except _RechazoDeMercadoPago as exc:
             logger.warning("reembolso_rechazado", payment_id=payment_id, estado=exc.estado)
-            return False
-        return True
+            return RespuestaDeReembolso(estado=EstadoDeReembolso.RECHAZADO, motivo=exc.detalle)
+        return _respuesta_de_reembolso(datos)
+
+    async def consultar_reembolso(
+        self, *, empresa_id: EmpresaId, payment_id: str, refund_id: str
+    ) -> RespuestaDeReembolso:
+        """El estado de un reembolso ya pedido. Un 4xx no dice nada de él: levanta."""
+        try:
+            datos = await self._pedir(
+                empresa_id,
+                "GET",
+                f"/v1/payments/{payment_id}/refunds/{refund_id}",
+                None,
+                operacion="consultar_reembolso",
+            )
+        except _RechazoDeMercadoPago as exc:
+            raise PasarelaNoDisponible(f"MercadoPago no informo el reembolso: {exc}") from exc
+        return _respuesta_de_reembolso(datos, id_conocido=refund_id)
 
     async def _pedir(
         self,
         empresa_id: EmpresaId,
         metodo: str,
         ruta: str,
-        cuerpo: dict[str, Any] | None,
+        cuerpo: dict[str, Any] | str | None,
         *,
         operacion: str,
+        clave: UUID | None = None,
     ) -> dict[str, Any]:
-        token = await self._tokens.para(empresa_id)
-        cabeceras = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            # MercadoPago usa esta cabecera para deduplicar del lado suyo. No reemplaza a
-            # nuestra idempotencia (D20) -- protege el envío, no el procesamiento.
-            "X-Idempotency-Key": str(uuid4()),
-        }
+        """`cuerpo` es un dict (se serializa) o **texto ya armado**: un número JSON exacto desde
+        un `Decimal` no se puede pedir a `json=`, que no serializa `Decimal` y obligaría a `float`.
+        """
+        cabeceras = await self._cabeceras(empresa_id, clave)
+        # Texto ya armado (`content`) o estructura a serializar (`json`): uno solo de los dos.
+        contenido = cuerpo.encode() if isinstance(cuerpo, str) else None
+        estructura = None if isinstance(cuerpo, str) else cuerpo
         ultimo: Exception | None = None
         for intento in range(1, MAX_INTENTOS + 1):
             try:
                 async with self._cliente() as cliente:
                     respuesta = await cliente.request(
-                        metodo, f"{self._url_base}{ruta}", json=cuerpo, headers=cabeceras
+                        metodo,
+                        f"{self._url_base}{ruta}",
+                        content=contenido,
+                        json=estructura,
+                        headers=cabeceras,
                     )
             except (httpx.TimeoutException, httpx.TransportError) as exc:
                 ultimo = exc
@@ -213,6 +244,17 @@ class PasarelaMercadoPago:
             f"MercadoPago no respondio a {operacion} tras {MAX_INTENTOS} intentos: {ultimo}"
         )
 
+    async def _cabeceras(self, empresa_id: EmpresaId, clave: UUID | None) -> dict[str, str]:
+        token = await self._tokens.para(empresa_id)
+        return {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            # MercadoPago usa esta cabecera para deduplicar del lado suyo. No reemplaza a
+            # nuestra idempotencia (D20) -- protege el envío, no el procesamiento. La misma
+            # clave en los tres intentos; en un reembolso, además, la misma entre requests.
+            "X-Idempotency-Key": str(clave or uuid4()),
+        }
+
     def _cliente(self) -> httpx.AsyncClient:
         if self._transporte is not None:
             return httpx.AsyncClient(timeout=TIMEOUT_SEGUNDOS, transport=self._transporte)
@@ -225,11 +267,14 @@ class _RechazoDeMercadoPago(Exception):
     def __init__(self, estado: int, detalle: str) -> None:
         super().__init__(f"MercadoPago rechazo el pedido ({estado}): {detalle}")
         self.estado = estado
+        #: El mensaje de MercadoPago tal cual, para mostrarlo sin traducir.
+        self.detalle = detalle
 
 
 def _cuerpo(respuesta: httpx.Response) -> dict[str, Any]:
     try:
-        datos = respuesta.json()
+        # `parse_float=Decimal`: un monto se lee desde su texto, sin el error binario del `float`.
+        datos = respuesta.json(parse_float=Decimal)
     except ValueError as exc:  # pragma: no cover - MercadoPago siempre manda JSON
         raise PasarelaNoDisponible("MercadoPago respondio algo que no es JSON") from exc
     return datos if isinstance(datos, dict) else {}
@@ -268,7 +313,11 @@ def _fecha_de_aprobacion(datos: dict[str, Any]) -> datetime | None:
     hacer con `None` (usa el momento de la confirmación y marca la fecha como aproximada). Sin
     zona horaria tampoco se adivina: una hora local tomada por UTC corre tres horas un pago.
     """
-    valor = datos.get("date_approved")
+    return _fecha_iso(datos.get("date_approved"))
+
+
+def _fecha_iso(valor: object) -> datetime | None:
+    """Una fecha ISO 8601 con zona horaria, en UTC; `None` en cualquier otro caso."""
     if not isinstance(valor, str) or not valor.strip():
         return None
     try:
@@ -282,79 +331,42 @@ def _fecha_de_aprobacion(datos: dict[str, Any]) -> datetime | None:
         return None
 
 
-class PasarelaSimulada:
-    """El doble: links y pagos sin socket.
+def _numero_json(monto: Decimal) -> str:
+    """El `Decimal` como literal numérico JSON exacto (`1234.56`), sin pasar por `float`.
 
-    **Rechazado en producción**, y acá con más en juego que en ningún otro simulado del
-    sistema: una empresa cobrando contra esto estaría entregando links que nadie puede pagar y
-    dando por saldadas deudas que nadie pagó.
-
-    No es siempre-que-sí a propósito. Un cobro cuya descripción contenga «rechazar» hace que
-    el reembolso vuelva rechazado **y que la invalidación del link falle**, para que las dos
-    ramas de error se puedan caminar en una laptop sin editar código.
+    Lo reusa quien arregle el `float` de `crear_link` (`TODO.md` §20.6).
     """
+    if not monto.is_finite():
+        raise ValueError("Un monto no finito no es un numero JSON")
+    return format(monto, "f")
 
-    #: La palabra que dispara el rechazo. Documentada acá porque un doble cuyo comportamiento
-    #: hay que adivinar leyendo el código no sirve para lo que existe.
-    PALABRA_DE_RECHAZO = "rechazar"
 
-    def __init__(self, entorno: Entorno = Entorno.LOCAL) -> None:
-        if entorno is Entorno.PRODUCTION:
-            raise RuntimeError(
-                "La pasarela simulada no puede usarse en produccion: entregaria links que "
-                "nadie puede pagar y daria por saldadas deudas que nadie pago"
-            )
-        self.links: dict[str, str] = {}
-        self.reembolsos: list[tuple[str, Decimal]] = []
-        self.invalidados: list[str] = []
-        self._rechazan: set[str] = set()
+def _estado_de_reembolso(status: object) -> EstadoDeReembolso:
+    """`approved` acepta; `rejected` y `cancelled` rechazan; **cualquier otra cosa es «en
+    proceso»**. Nunca se acepta por defecto: la referencia solo muestra `approved` y no enumera
+    el resto, y dar por devuelta una plata que no lo está es el error caro."""
+    if not isinstance(status, str):
+        return EstadoDeReembolso.EN_PROCESO
+    normal = status.strip().lower()
+    if normal == "approved":
+        return EstadoDeReembolso.ACEPTADO
+    if normal in ("rejected", "cancelled"):
+        return EstadoDeReembolso.RECHAZADO
+    return EstadoDeReembolso.EN_PROCESO
 
-    async def crear_link(
-        self, *, empresa_id: EmpresaId, cobro: Cobro, url_de_retorno: str
-    ) -> LinkDePago:
-        del empresa_id, url_de_retorno
-        preferencia = f"pref-{cobro.id}"
-        self.links[preferencia] = str(cobro.id)
-        if self.PALABRA_DE_RECHAZO in cobro.descripcion.lower():
-            self._rechazan.add(preferencia)
-        return LinkDePago(
-            preference_id=preferencia,
-            # Con la forma de una real: un código que sólo vio `http://x` es un código que se
-            # rompe el día que ve una URL de verdad.
-            url=f"https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id={preferencia}",
-        )
 
-    async def invalidar_link(
-        self, *, empresa_id: EmpresaId, preference_id: str, ahora: datetime
-    ) -> None:
-        del empresa_id, ahora
-        if preference_id in self._rechazan:
-            raise PasarelaNoDisponible("MercadoPago no invalido el link de pago (simulado)")
-        # Se saca de `links` porque eso es lo que la invalidación significa acá: el doble deja
-        # de reconocer la preferencia, igual que MercadoPago deja de cobrarla.
-        self.links.pop(preference_id, None)
-        self.invalidados.append(preference_id)
-
-    async def consultar_pago(self, *, empresa_id: EmpresaId, payment_id: str) -> PagoRecibido:
-        del empresa_id
-        return PagoRecibido(
-            payment_id=payment_id,
-            preference_id=self._preferencia_de(payment_id),
-            estado="approved",
-            # La hora actual en UTC, para que una demo local no muestre «aproximada».
-            fecha_aprobacion=datetime.now(UTC),
-        )
-
-    async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:
-        del empresa_id
-        if self._preferencia_de(payment_id) in self._rechazan:
-            return False
-        self.reembolsos.append((payment_id, monto))
-        return True
-
-    def _preferencia_de(self, payment_id: str) -> str:
-        """El doble ata el pago a la preferencia por convención: `pago-<preferencia>`."""
-        return payment_id.removeprefix("pago-")
+def _respuesta_de_reembolso(
+    datos: dict[str, Any], *, id_conocido: str | None = None
+) -> RespuestaDeReembolso:
+    identificador = datos.get("id")
+    monto = datos.get("amount")
+    return RespuestaDeReembolso(
+        estado=_estado_de_reembolso(datos.get("status")),
+        mp_refund_id=str(identificador) if identificador is not None else id_conocido,
+        monto=Decimal(str(monto)) if isinstance(monto, int | Decimal | float) else None,
+        fecha=_fecha_iso(datos.get("date_created")),
+        motivo=str(datos["message"]) if datos.get("message") else None,
+    )
 
 
 __all__ = [

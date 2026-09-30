@@ -12,6 +12,8 @@ Dos decisiones del épico se ven acá con todas las letras:
   es un comprobante que miente en el balance del épico 9.
 - **D27** — el reembolso pedido no cambia el estado. El cobro sigue `APROBADO` y lo que la
   pantalla muestra sale de `reembolso_solicitado_en`.
+
+Los reembolsos viven en `application/reembolsos.py`: este archivo ya pasaba de 400 líneas.
 """
 
 from __future__ import annotations
@@ -24,10 +26,8 @@ from cheatsheet.contexts.payments.application.errors import (
     ClienteInexistente,
     CobroInexistente,
     CobroNoCancelable,
-    CobroNoReembolsable,
     ComprobanteDeOtroCliente,
     MontoExcedeSaldo,
-    ReembolsoRechazado,
 )
 from cheatsheet.contexts.payments.application.ports import (
     FiltrosDeCobro,
@@ -397,107 +397,6 @@ class CancelarCobro:
         )
 
 
-class ReembolsarCobro:
-    """HU-E6-05 — devuelve plata al cliente. **Sólo el Administrador** (RN-05).
-
-    Asíncrono en el sentido de RN-04: se pide, y el estado cambia cuando MercadoPago confirma.
-    Lo que no hace es agregar un estado al enum (decisión **D27**): un reembolso rechazado
-    tiene que dejar el cobro en `APROBADO`, y volver a un estado anterior es la forma que la
-    máquina de estados del épico 5 evita.
-    """
-
-    def __init__(
-        self,
-        *,
-        cobros: PortRepositorioCobro,
-        pasarela: PortPasarelaDePago,
-        publicador: PublicadorDeEventos,
-    ) -> None:
-        self._cobros = cobros
-        self._pasarela = pasarela
-        self._publicador = publicador
-
-    async def ejecutar(
-        self,
-        *,
-        empresa_id: EmpresaId,
-        usuario_id: UsuarioId,
-        rol: RolUsuario,
-        cobro_id: UUID,
-        monto: Decimal,
-        ahora: datetime,
-    ) -> Cobro:
-        if rol is not RolUsuario.ADMINISTRADOR:
-            raise EntradaInvalida(MOTIVO_SOLO_ADMIN_REEMBOLSA)
-
-        cobro = await self._cobros.buscar_por_id(cobro_id)
-        if cobro is None:
-            raise CobroInexistente("El cobro no existe")
-        if cobro.mp_payment_id is None:  # pragma: no cover - un APROBADO siempre lo tiene
-            raise CobroNoReembolsable("El cobro no tiene un pago de MercadoPago asociado")
-
-        try:
-            pedido = cobro.solicitar_reembolso(monto=monto, ahora=ahora)
-        except InvarianteViolada as exc:
-            raise CobroNoReembolsable(str(exc)) from exc
-
-        # Persistido **antes** de pedirlo: si el proceso se cae en el medio, la pantalla dice
-        # «Reembolso en proceso» y alguien puede averiguar. Pedirlo primero y registrar
-        # después dejaría plata devuelta sin rastro, que es la falla que no se recupera.
-        await self._cobros.guardar(cobro)
-
-        aceptado = await self._pasarela.reembolsar(
-            empresa_id=empresa_id, payment_id=cobro.mp_payment_id, monto=pedido
-        )
-        if not aceptado:
-            # RN-03: el cobro mantiene su estado y se notifica al administrador.
-            cobro.rechazar_reembolso(ahora)
-            await self._cobros.guardar(cobro)
-            await self._publicar(
-                cobro,
-                empresa_id=empresa_id,
-                usuario_id=usuario_id,
-                ahora=ahora,
-                resultado=Resultado.ERROR,
-            )
-            raise ReembolsoRechazado(
-                "MercadoPago rechazó el reembolso. El cobro sigue figurando como pagado."
-            )
-
-        cobro.confirmar_reembolso(monto=pedido, ahora=ahora)
-        await self._cobros.guardar(cobro)
-        await self._publicar(
-            cobro,
-            empresa_id=empresa_id,
-            usuario_id=usuario_id,
-            ahora=ahora,
-            resultado=Resultado.COMPLETADO,
-        )
-        return cobro
-
-    async def _publicar(
-        self,
-        cobro: Cobro,
-        *,
-        empresa_id: EmpresaId,
-        usuario_id: UsuarioId,
-        ahora: datetime,
-        resultado: Resultado,
-    ) -> None:
-        await self._publicador.publicar(
-            EventoAuditable(
-                evento_id=uuid4(),
-                empresa_id=empresa_id,
-                ocurrido_en=ahora,
-                usuario_id=usuario_id,
-                modulo=Modulo.PAYMENTS,
-                accion="reembolsar_cobro",
-                entidad_afectada=f"Cobro:{cobro.id}",
-                resultado=resultado,
-            )
-        )
-
-
 __all__ = [
     "MENSAJE_CLIENTE_INEXISTENTE",
     "MENSAJE_COMPROBANTE_DE_OTRO_CLIENTE",
@@ -510,7 +409,6 @@ __all__ = [
     "GenerarCobro",
     "ListarCobros",
     "MetricasDelPeriodo",
-    "ReembolsarCobro",
     "RegenerarLink",
     "VerCobro",
     "monto_desde",

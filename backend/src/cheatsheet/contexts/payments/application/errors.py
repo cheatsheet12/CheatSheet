@@ -41,6 +41,15 @@ class CobroNoReembolsable(InvarianteViolada):
     """HU-E6-05 RN-01: solo se reembolsa lo que está aprobado."""
 
 
+class ReembolsoEnProceso(InvarianteViolada):
+    """HU-E6-05: ya hay un reembolso en vuelo. Solo uno a la vez por cobro (es el mutex)."""
+
+
+class ReembolsoNoCorregible(InvarianteViolada):
+    """HU-E6-05 RN-08: solo se corrige un reembolso manual que no sea una corrección ni esté
+    ya corregido. Las filas de la API las manda MercadoPago, que es la fuente de verdad."""
+
+
 class MontoExcedeSaldo(EntradaInvalida):
     """HU-E6-06 RN-02: el cobro no puede superar el saldo pendiente del comprobante."""
 
@@ -83,6 +92,8 @@ __all__ = [
     "MontoExcedeSaldo",
     "PasarelaNoDisponible",
     "RecordatorioDuplicado",
+    "ReembolsoEnProceso",
+    "ReembolsoNoCorregible",
     "ReembolsoRechazado",
     "WebhookNoAutentico",
 ]

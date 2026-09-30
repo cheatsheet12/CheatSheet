@@ -5,7 +5,7 @@ ejercita el cliente entero —método, URL, cuerpo, traducción de errores— co
 grabadas. Es el mismo criterio que los tests de contrato del épico 2.
 
 Lo que se juega acá es la asimetría entre las dos operaciones que reciben un «no» del
-proveedor: `reembolsar` lo devuelve como `False`, porque un rechazo deja el mundo en un
+proveedor: `reembolsar` lo devuelve como `RECHAZADO`, porque un rechazo deja el mundo en un
 estado conocido; `invalidar_link` levanta, porque un rechazo deja un link que el cliente
 todavía puede pagar (HU-E6-04 RN-03).
 
@@ -20,11 +20,15 @@ import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
+from cheatsheet.contexts.payments.application.ports import (
+    EstadoDeReembolso,
+    RespuestaDeReembolso,
+)
 from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.infrastructure.pasarela import (
     PasarelaMercadoPago,
@@ -259,3 +263,205 @@ async def test_el_simulado_informa_una_fecha_de_aprobacion_real() -> None:
     assert pago.fecha_aprobacion is not None
     assert pago.fecha_aprobacion.utcoffset() == timedelta(0)
     assert antes <= pago.fecha_aprobacion <= despues
+
+
+# ------------------------------------------------------------------ reembolsar · P3, P2
+
+
+CLAVE = UUID("33333333-3333-4333-8333-333333333333")
+REEMBOLSO_OK = {
+    "id": 987654,
+    "payment_id": 1,
+    "amount": 1234.56,
+    "status": "approved",
+    "date_created": "2026-09-19T09:00:00.000-03:00",
+}
+
+
+async def _reembolsar(grabadora: Grabadora, monto: str = "1234.56") -> RespuestaDeReembolso:
+    return await _pasarela(grabadora).reembolsar(
+        empresa_id=EMPRESA, payment_id="1", monto=Decimal(monto), clave=CLAVE
+    )
+
+
+@pytest.mark.parametrize("monto", ["1234.56", "0.10", "100.00", "0.01", "99999999.99"])
+async def test_el_reembolso_manda_el_monto_como_numero_json_exacto_sin_float(monto: str) -> None:
+    """Caso 20. `amount` es un número JSON armado desde el `Decimal`: la cadena que viaja es la
+    que el agregado redondeó, sin pasar por `float` (que agregaría error binario)."""
+    grabadora = Grabadora(httpx.Response(200, json=REEMBOLSO_OK))
+
+    await _reembolsar(grabadora, monto)
+
+    pedido = grabadora.pedidos[0]
+    assert pedido.method == "POST"
+    assert str(pedido.url) == f"{URL_BASE}/v1/payments/1/refunds"
+    assert pedido.content.decode() == '{"amount": ' + monto + "}"
+    leido = json.loads(pedido.content.decode(), parse_float=Decimal)
+    assert leido["amount"] == Decimal(monto)
+    assert pedido.headers["Content-Type"] == "application/json"
+
+
+async def test_el_reembolso_reusa_la_clave_recibida_en_los_reintentos() -> None:
+    """Caso 20. La clave viene de afuera (se guardó en T1): una nueva por llamada permitiría un
+    segundo reembolso."""
+    grabadora = Grabadora(
+        httpx.Response(500, json={"message": "boom"}),
+        httpx.ConnectTimeout("sin respuesta"),
+        httpx.Response(200, json=REEMBOLSO_OK),
+    )
+
+    await _reembolsar(grabadora)
+
+    claves = [p.headers["X-Idempotency-Key"] for p in grabadora.pedidos]
+    assert claves == [str(CLAVE)] * 3
+
+
+async def test_un_reembolso_aprobado_se_traduce_con_su_id_su_monto_y_su_fecha_en_utc() -> None:
+    grabadora = Grabadora(httpx.Response(200, json=REEMBOLSO_OK))
+
+    respuesta = await _reembolsar(grabadora)
+
+    assert respuesta.estado is EstadoDeReembolso.ACEPTADO
+    assert respuesta.mp_refund_id == "987654"
+    assert respuesta.monto == Decimal("1234.56")
+    assert respuesta.fecha == datetime(2026, 9, 19, 12, 0, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("cuerpo", "esperado"),
+    [
+        pytest.param({"status": "approved"}, EstadoDeReembolso.ACEPTADO, id="approved"),
+        pytest.param({"status": "APPROVED"}, EstadoDeReembolso.ACEPTADO, id="mayusculas"),
+        pytest.param({"status": "rejected"}, EstadoDeReembolso.RECHAZADO, id="rejected"),
+        pytest.param({"status": "cancelled"}, EstadoDeReembolso.RECHAZADO, id="cancelled"),
+        pytest.param({"status": "in_process"}, EstadoDeReembolso.EN_PROCESO, id="in_process"),
+        pytest.param({"status": "pending"}, EstadoDeReembolso.EN_PROCESO, id="desconocido"),
+        pytest.param({"status": None}, EstadoDeReembolso.EN_PROCESO, id="null"),
+        pytest.param({}, EstadoDeReembolso.EN_PROCESO, id="ausente"),
+        pytest.param({"status": 7}, EstadoDeReembolso.EN_PROCESO, id="numero"),
+    ],
+)
+async def test_el_status_de_mercadopago_se_traduce_y_nunca_es_aceptado_por_defecto(
+    cuerpo: dict[str, Any], esperado: EstadoDeReembolso
+) -> None:
+    """Caso 21. Solo `approved` acepta: un valor que no conocemos jamás da por devuelta la plata."""
+    respuesta = await _reembolsar(Grabadora(httpx.Response(200, json=cuerpo)))
+
+    assert respuesta.estado is esperado
+
+
+async def test_un_4xx_es_un_rechazo_con_el_mensaje_de_mercadopago_sin_traducir() -> None:
+    """Caso 21: es una respuesta, no una caída; el texto es el de MercadoPago."""
+    grabadora = Grabadora(
+        httpx.Response(400, json={"message": "Partial refunds not supported", "error": "4295"})
+    )
+
+    respuesta = await _reembolsar(grabadora)
+
+    assert respuesta.estado is EstadoDeReembolso.RECHAZADO
+    assert respuesta.motivo == "Partial refunds not supported"
+    assert len(grabadora.pedidos) == 1
+
+
+async def test_un_5xx_o_un_timeout_al_reembolsar_levantan_despues_de_los_intentos() -> None:
+    for falla in (httpx.Response(503, json={}), httpx.ConnectTimeout("sin respuesta")):
+        grabadora = Grabadora(falla)
+
+        with pytest.raises(PasarelaNoDisponible):
+            await _reembolsar(grabadora)
+
+        assert len(grabadora.pedidos) == 3
+
+
+async def test_consultar_un_reembolso_es_un_get_y_se_traduce_igual() -> None:
+    grabadora = Grabadora(httpx.Response(200, json={**REEMBOLSO_OK, "status": "in_process"}))
+
+    respuesta = await _pasarela(grabadora).consultar_reembolso(
+        empresa_id=EMPRESA, payment_id="1", refund_id="987654"
+    )
+
+    pedido = grabadora.pedidos[0]
+    assert pedido.method == "GET"
+    assert str(pedido.url) == f"{URL_BASE}/v1/payments/1/refunds/987654"
+    assert respuesta.estado is EstadoDeReembolso.EN_PROCESO
+    assert respuesta.mp_refund_id == "987654"
+
+
+async def test_un_4xx_al_consultar_no_dice_nada_del_reembolso_y_levanta() -> None:
+    """Un 404 no significa que el reembolso fue rechazado: no se puede afirmar nada."""
+    grabadora = Grabadora(httpx.Response(404, json={"message": "Refund not found"}))
+
+    with pytest.raises(PasarelaNoDisponible):
+        await _pasarela(grabadora).consultar_reembolso(
+            empresa_id=EMPRESA, payment_id="1", refund_id="987654"
+        )
+
+
+# ------------------------------------------------------------------ el doble · caso 22
+
+
+def _cobro_con(descripcion: str) -> Cobro:
+    return Cobro(
+        id=uuid4(),
+        empresa_id=EMPRESA,
+        cliente_id=uuid4(),
+        monto=Decimal("1210.00"),
+        descripcion=descripcion,
+        vence_el=AHORA,
+        created_at=AHORA,
+    )
+
+
+async def _simulada_con(descripcion: str) -> tuple[PasarelaSimulada, str]:
+    pasarela = PasarelaSimulada(Entorno.LOCAL)
+    link = await pasarela.crear_link(
+        empresa_id=EMPRESA, cobro=_cobro_con(descripcion), url_de_retorno="https://x"
+    )
+    return pasarela, f"pago-{link.preference_id}"
+
+
+async def test_el_simulado_acepta_y_es_idempotente_con_la_misma_clave() -> None:
+    pasarela, pago = await _simulada_con("Consulta")
+
+    primera = await pasarela.reembolsar(
+        empresa_id=EMPRESA, payment_id=pago, monto=Decimal("100.00"), clave=CLAVE
+    )
+    segunda = await pasarela.reembolsar(
+        empresa_id=EMPRESA, payment_id=pago, monto=Decimal("100.00"), clave=CLAVE
+    )
+
+    assert primera.estado is EstadoDeReembolso.ACEPTADO
+    assert segunda == primera
+    assert pasarela.reembolsos == [(pago, Decimal("100.00"))]
+
+
+async def test_el_simulado_rechaza_cuando_la_descripcion_dice_rechazar() -> None:
+    pasarela, pago = await _simulada_con("Consulta que MercadoPago va a rechazar")
+
+    respuesta = await pasarela.reembolsar(
+        empresa_id=EMPRESA, payment_id=pago, monto=Decimal("100.00"), clave=CLAVE
+    )
+
+    assert respuesta.estado is EstadoDeReembolso.RECHAZADO
+    assert respuesta.motivo
+    assert pasarela.reembolsos == []
+
+
+async def test_el_simulado_demora_hasta_la_primera_consulta() -> None:
+    """Para caminar «Reembolso en proceso» y «Actualizar estado» en una laptop."""
+    pasarela, pago = await _simulada_con("Consulta que va a demorar")
+
+    pedido = await pasarela.reembolsar(
+        empresa_id=EMPRESA, payment_id=pago, monto=Decimal("100.00"), clave=CLAVE
+    )
+    assert pedido.estado is EstadoDeReembolso.EN_PROCESO
+    assert pedido.mp_refund_id is not None
+    assert pasarela.reembolsos == []
+
+    consulta = await pasarela.consultar_reembolso(
+        empresa_id=EMPRESA, payment_id=pago, refund_id=pedido.mp_refund_id
+    )
+
+    assert consulta.estado is EstadoDeReembolso.ACEPTADO
+    assert consulta.monto == Decimal("100.00")
+    assert pasarela.reembolsos == [(pago, Decimal("100.00"))]

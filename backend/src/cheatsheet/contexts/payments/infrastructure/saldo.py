@@ -1,6 +1,6 @@
 """ACL sobre `billing`: el saldo de un comprobante, en el vocabulario de `payments`.
 
-Tres operaciones y ninguna mas: cuanto falta, de quien es, y descontá esto. `payments` no ve el comprobante,
+Cuatro operaciones y ninguna mas: cuanto falta, de quien es, descontá esto y devolvé esto. `payments` no ve el comprobante,
 ni sus items, ni su CAE — pregunta lo unico que necesita para HU-E6-06.
 
 **Lo que esta capa decide es que significa `None`.** `billing` puede no encontrar el
@@ -49,6 +49,20 @@ class SaldoViaBilling:
         comprobante = await VerComprobante(self._comprobantes).ejecutar(comprobante_id)
         restante = comprobante.saldo_pendiente - monto
         comprobante.saldo_pendiente = max(restante, Decimal("0.00"))
+        await self._comprobantes.guardar(comprobante)
+
+    async def registrar_reembolso(self, comprobante_id: UUID, monto: Decimal) -> None:
+        """Devuelve saldo por un reembolso (`monto` > 0) o lo baja por su correccion (< 0).
+
+        **Tope en el total del comprobante y piso en cero.** `registrar_cobro` recorta en cero,
+        asi que el saldo puede haber quedado por debajo de lo que un cobro le resto: sumar sin
+        tope podria dejarlo por encima de lo facturado, que es un saldo que miente. Con el tope no
+        siempre vuelve exactamente a lo que era si antes se recorto (H11); se anota, no se
+        corrige. No se emite ninguna nota de credito: solo se ajusta el saldo (RN-09, D89).
+        """
+        comprobante = await VerComprobante(self._comprobantes).ejecutar(comprobante_id)
+        ajustado = comprobante.saldo_pendiente + monto
+        comprobante.saldo_pendiente = min(max(ajustado, Decimal("0.00")), comprobante.total)
         await self._comprobantes.guardar(comprobante)
 
 
