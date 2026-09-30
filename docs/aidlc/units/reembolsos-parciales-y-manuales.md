@@ -502,9 +502,19 @@ Van a `docs/aidlc/TODO.md` §20. El 20.5 ya existe y esta unidad lo detalla; los
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-09-30 | aprobado; las diez preguntas según la recomendación. `units.md` actualizado antes del código (P1 y P2) |
 | 2 · Verificación | | Incluye verificador independiente (payments): mutantes sobre el tope del acumulado, la derivación del estado, el bloqueo `FOR UPDATE`, el commit antes de la llamada y la idempotencia de la confirmación |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
-- (vacío hasta el Gate 1)
+- P1: la unidad absorbe `reembolso-rechazado-persistido` (reescribe el mismo caso de uso); la fila queda marcada «absorbida» en `units.md`.
+- P2: el reembolso se pide en dos transacciones (en vuelo y clave de idempotencia confirmados antes de llamar a MercadoPago) con la acción «Actualizar estado»; el barrido automático de RN-04 va a la unidad nueva `reembolsos-en-vuelo` (S), registrada en `units.md`.
+- P3: se corrige el `float` de `pasarela.py` en `reembolsar` (el `Decimal` viaja como número JSON); el de `crear_link` sigue en `TODO.md` §20.6.
+- P4: columnas según la propuesta del plan (`corrige_a` único y `mp_refund_id` único por empresa en `reembolso`; el pedido en vuelo en `cobro`), con los CHECK que atan estado y acumulado.
+- P5: una corrección anula la fila entera, con motivo obligatorio; solo se corrigen filas `MANUAL`.
+- P6: cada `REEMBOLSADO` existente recibe una fila con fecha `updated_at`, marcada aproximada en el motivo; los parciales viejos se re-derivan a `REEMBOLSADO_PARCIAL`; las anomalías se informan por `NOTICE` y el CHECK entra `NOT VALID`.
+- P7: «Cobrado» es neto (pagos por `fecha_pago` menos devoluciones por su fecha) y puede ser negativo; la tasa cuenta los tres estados pagados por su monto bruto.
+- P8: la fecha de un reembolso manual se carga como día y se guarda a las 12:00 de Argentina; no puede ser futura ni anterior al pago.
+- P9: el registro manual queda solo para `TRANSFERENCIA`.
+- P10: sin evento `PagoReembolsado`; el saldo del comprobante se ajusta por llamada directa al puerto, como `registrar_cobro`.
+- Lo que solo el sandbox puede confirmar quedó en `docs/aidlc/TODO.md` §20.5 y §20.9 a §20.14 (el 20.10, idempotencia, es crítico).

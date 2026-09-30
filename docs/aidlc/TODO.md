@@ -597,10 +597,16 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 | 20.2 | Un pago aprobado trae siempre `date_approved`, en ISO 8601 y con zona horaria | `fecha-de-pago` | Si falta o viene sin zona, `fecha_pago` queda marcada aproximada; revisar la regla |
 | 20.3 | Los valores reales de `payment_type_id` / `payment_method_id` | `fecha-de-pago` (ADR-0010) | El medio de pago es un conjunto cerrado; confirmar que nada se clasifica mal |
 | 20.4 | Qué trae una **transferencia entrante**: identidad del pagador (DNI/CUIT), fecha y número de operación, y si se consulta con las credenciales del vendedor | `fecha-de-pago`, `cobro-por-transferencia` | Cualquier «no» cambia HU-E6-08 (ADR-0009) |
-| 20.5 | La API de reembolsos acepta reembolsos **parciales** y con qué respuesta | `reembolsos-parciales-y-manuales` | Cambia HU-E6-05 |
+| 20.5 | La API acepta reembolsos **parciales** en un pago por link de Checkout Pro, varios sobre el mismo pago, y con qué respuesta (la referencia lista el error `4295` «parcial no soportado» para algunas transacciones) | `reembolsos-parciales-y-manuales` | Si un medio no admite parcial, se muestra el rechazo con el motivo; si ninguno, cambia HU-E6-05 |
 | 20.6 | Montos con centavos llegan exactos: `pasarela.py` todavía envía `float(cobro.monto)` (líneas 85 y 162) | hallazgo sin unidad | Un centavo de diferencia entre el cobro y el pago |
 | 20.7 | Dos notificaciones simultáneas del mismo pago: la segunda hoy puede devolver 500 | hallazgo sin unidad | MercadoPago reintenta; confirmar que no queda un pago sin imputar |
 | 20.8 | Que el `date_approved` de un pago real cae dentro de la tolerancia de reloj de 5 minutos respecto de nuestra hora de confirmación y nunca es anterior a la creación del cobro | `fecha-de-pago` | Si un pago legítimo se descarta como implausible, queda marcado aproximado sin necesidad; ajustar `TOLERANCIA_DE_RELOJ` |
+| 20.9 | Qué valores de `status` devuelve el `POST` de reembolso (la referencia solo muestra `approved`) y si un reembolso de tarjeta vuelve aprobado en el acto | `reembolsos-parciales-y-manuales` | Si nunca hay `in_process`, la rama «en proceso» queda solo para la falta de respuesta |
+| 20.10 | **Crítico.** Reenviar el mismo `POST` con la misma `X-Idempotency-Key` devuelve el mismo reembolso y no crea otro; cuánto tiempo vale la clave | `reembolsos-parciales-y-manuales` | Si no deduplica, «Actualizar estado» sin id puede duplicar un reembolso: habría que consultar la lista de reembolsos del pago en vez de reenviar |
+| 20.11 | `GET /v1/payments/{id}/refunds/{refund_id}` devuelve `status`, `amount` y `date_created` con zona horaria | `reembolsos-parciales-y-manuales` | Si la fecha falta, la devolución toma el momento de la confirmación |
+| 20.12 | Si un reembolso dispara un webhook `payment.updated` o solo el tópico `topic_claims_integration_wh` | `reembolsos-parciales-y-manuales`, `reembolsos-en-vuelo` | Define si se puede confirmar por notificación además de por barrido, y detectar reembolsos hechos desde el panel de MercadoPago |
+| 20.13 | `amount` con centavos (`0.10`, `1234.56`) se reembolsa exacto; mínimo por reembolso y máximo de parciales por pago | `reembolsos-parciales-y-manuales` | Un centavo de diferencia entre la fila y lo devuelto |
+| 20.14 | El rechazo trae `message` legible (códigos `2063`, `2024`/`15016`, `4293`, `4295`) y rige el plazo de 180 días | `reembolsos-parciales-y-manuales` | Si no hay mensaje, la pantalla muestra solo el código |
 
 ## 21. ARCA (homologación)
 
