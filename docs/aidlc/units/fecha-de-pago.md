@@ -343,7 +343,7 @@ honestamente cuál se observó.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-09-30 | aprobado junto con ADR-0010; las nueve preguntas según la recomendación |
-| 2 · Verificación | | Incluye un **verificador independiente** (agente distinto del que implementó, con conocimiento de `payments`): revisa el diff contra este plan y las historias, corre las verificaciones y reporta huecos de prueba, sobre todo en dinero, webhook y migración |
+| 2 · Verificación | 2026-09-30 | aprobado. ruff, mypy y pytest en verde (1431 pasan; 365 omitidos por requerir PostgreSQL o Redis); cobertura local 74 %, sin bajar. Migración 0026 renderizada en SQL offline en ambos sentidos. Arquitectura: fronteras intactas. Frontend: lint, typecheck y test:coverage en verde (842 tests; `payments` al 100 %). Verificador independiente: aprobado con notas (6 de 6 mutantes detectados); su defecto (`OverflowError` en fechas extremas) se corrigió con test primero antes del Gate. Pendientes: casos contra PostgreSQL (los corre la CI cuando la cadena llegue a `develop`) y los del sandbox de MercadoPago (`TODO.md` §20) |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
