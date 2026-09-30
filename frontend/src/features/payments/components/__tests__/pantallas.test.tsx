@@ -339,6 +339,41 @@ describe("PAN-COB-03 — nuevo cobro", () => {
     expect(generar.hasAttribute("disabled")).toBe(false);
   });
 
+  it("sin cliente no deja generar, lo dice y no llama a generarCobro", () => {
+    render(<NuevoCobro clienteId={null} comprobantes={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "1000" } });
+
+    const generar = screen.getByRole("button", { name: "Generar link de pago" });
+    expect(generar.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByText("Debe seleccionar un cliente.")).toBeTruthy();
+    fireEvent.click(generar);
+    expect(generarCobro).not.toHaveBeenCalled();
+  });
+
+  it("al cambiar de cliente descarta el comprobante que ya no se ofrece", async () => {
+    generarCobro.mockResolvedValue(PENDIENTE);
+    const deAna = [{ id: "c1", etiqueta: "Factura B 123 — saldo $ 2.420,00" }];
+    const { rerender } = render(<NuevoCobro clienteId="cl1" comprobantes={deAna} />);
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByLabelText("Comprobante asociado"), { target: { value: "c1" } });
+
+    // Lo escrito se conserva y el comprobante de Ana no viaja con el cobro de Bruno.
+    rerender(<NuevoCobro clienteId="cl2" comprobantes={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+
+    await waitFor(() => {
+      expect(generarCobro).toHaveBeenCalledWith({
+        cliente_id: "cl2",
+        monto: "1000",
+        descripcion: "Consulta",
+        comprobante_id: null,
+      });
+    });
+  });
+
   it("manda el monto como texto, tal como se escribio", async () => {
     generarCobro.mockResolvedValue(PENDIENTE);
     render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
