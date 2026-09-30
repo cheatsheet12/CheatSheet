@@ -515,7 +515,7 @@ Van a `docs/aidlc/TODO.md` §20. El 20.5 ya existe y esta unidad lo detalla; los
 |---|---|---|
 | 1 · Plan | 2026-09-30 | aprobado; las diez preguntas según la recomendación. `units.md` actualizado antes del código (P1 y P2) |
 | 2 · Verificación | 2026-09-30 | aprobado, incluido el cambio de regla de los 4xx ambiguos. ruff y mypy (sin caché) en verde; pytest 1544 pasan, 404 omitidos por requerir PostgreSQL o Redis; cobertura local 75,43 % contra 74 % antes (el 80 % se mide en la CI). Migración 0027 renderizada en SQL offline en ambos sentidos. Arquitectura: fronteras intactas. Frontend: 872 tests en verde. Verificador independiente: aprobado con notas (16 de 19 mutantes detectados en local; los 3 restantes los cubren los casos de PostgreSQL); su riesgo D1 se corrigió con test primero antes del Gate. Pendientes: casos contra PostgreSQL (CI) y sandbox (`TODO.md` §20.5, §20.9 a §20.16; el 20.10 es crítico) |
-| 3 · PR | | |
+| 3 · PR | 2026-09-30 | PR draft [#51](https://github.com/cheatsheet12/CheatSheet/pull/51) apilado sobre el #50; la CI corre cuando la cadena llegue a `develop` |
 
 ## Decisiones tomadas durante la unidad
 - P1: la unidad absorbe `reembolso-rechazado-persistido` (reescribe el mismo caso de uso); la fila queda marcada «absorbida» en `units.md`.
