@@ -14,14 +14,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ETIQUETAS_DE_ESTADO,
   ErrorDeCobro,
   MENSAJE_MP_CAIDO,
+  actualizarReembolso,
   cancelarCobro,
   copiarLink,
+  corregirReembolso,
   generarCobro,
   listarCobros,
+  pendienteDeReembolso,
   reembolsarCobro,
   regenerarLink,
+  registrarReembolso,
+  tieneReembolsos,
   tonoDeEstado,
   verCobro,
 } from "@/features/payments";
@@ -33,7 +39,7 @@ const COBRO: Cobro = {
   comprobante_id: null,
   turno_id: null,
   monto: "12500.10",
-  monto_reembolsado: null,
+  monto_reembolsado: "0.00",
   descripcion: "Consulta",
   estado: "PENDIENTE",
   url_de_pago: "https://mp.test/checkout/co1",
@@ -44,6 +50,7 @@ const COBRO: Cobro = {
   medio_de_pago: "LINK_MERCADOPAGO",
   numero_de_operacion: null,
   reembolso_en_proceso: false,
+  reembolso_en_proceso_monto: null,
   tiene_pago_huerfano: false,
   motivo_de_cancelacion: null,
   created_at: "2026-09-07T12:00:00Z",
@@ -232,5 +239,113 @@ describe("tonoDeEstado", () => {
     expect(tonoDeEstado("PENDIENTE")).toBe("atencion");
     expect(tonoDeEstado("CANCELADO")).toBe("pendiente");
     expect(tonoDeEstado("REEMBOLSADO")).toBe("pendiente");
+    // Un parcial todavía se puede seguir devolviendo: pide un vistazo.
+    expect(tonoDeEstado("REEMBOLSADO_PARCIAL")).toBe("atencion");
+  });
+});
+
+describe("los reembolsos parciales y manuales (HU-E6-05)", () => {
+  it("«Actualizar estado» es un POST a la ruta de actualización, sin cuerpo", async () => {
+    const espia = espiarFetch(respuesta({ ...COBRO, estado: "REEMBOLSADO_PARCIAL" }));
+
+    await actualizarReembolso("co1");
+
+    const [ruta, opciones] = espia.mock.calls[0] as [string, RequestInit];
+    expect(ruta).toBe("/api/cobros/co1/reembolso/actualizacion");
+    expect(opciones.method).toBe("POST");
+    expect(opciones.body).toBeUndefined();
+  });
+
+  it("registrar un reembolso manda el monto y la fecha como texto", async () => {
+    const espia = espiarFetch(respuesta(COBRO));
+
+    await registrarReembolso("co1", {
+      monto: "300.10",
+      fecha: "2026-09-20",
+      referencia: "OP-77",
+      motivo: "Devolución por transferencia",
+    });
+
+    const [ruta, opciones] = espia.mock.calls[0] as [string, RequestInit];
+    expect(ruta).toBe("/api/cobros/co1/reembolsos");
+    // Carácter por carácter: un `Number()` puesto para «normalizar» se cae acá.
+    expect(opciones.body).toBe(
+      JSON.stringify({
+        monto: "300.10",
+        fecha: "2026-09-20",
+        referencia: "OP-77",
+        motivo: "Devolución por transferencia",
+      }),
+    );
+  });
+
+  it("omite la referencia cuando quedó vacía", async () => {
+    const espia = espiarFetch(respuesta(COBRO));
+
+    await registrarReembolso("co1", {
+      monto: "300.10",
+      fecha: "2026-09-20",
+      referencia: "   ",
+      motivo: "Devolución",
+    });
+
+    const [, opciones] = espia.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(opciones.body))).toEqual({
+      monto: "300.10",
+      fecha: "2026-09-20",
+      motivo: "Devolución",
+    });
+  });
+
+  it("corregir manda solo el motivo, a la ruta de esa fila", async () => {
+    const espia = espiarFetch(respuesta(COBRO));
+
+    await corregirReembolso("co1", "rb1", "Se cargó por error");
+
+    const [ruta, opciones] = espia.mock.calls[0] as [string, RequestInit];
+    expect(ruta).toBe("/api/cobros/co1/reembolsos/rb1/correccion");
+    expect(opciones.body).toBe(JSON.stringify({ motivo: "Se cargó por error" }));
+  });
+
+  it("un conflicto llega con las palabras del backend", async () => {
+    const frase = "Este cobro ya tiene un reembolso en proceso.";
+    const conflicto = { error: "ReembolsoEnProceso", detalle: frase };
+    espiarFetch(respuesta(conflicto, false, 409), respuesta(conflicto, false, 409));
+
+    await expect(actualizarReembolso("co1")).rejects.toThrow(frase);
+    await expect(actualizarReembolso("co1")).rejects.toBeInstanceOf(ErrorDeCobro);
+  });
+});
+
+describe("pendienteDeReembolso", () => {
+  it("resta en centavos y no en punto flotante", () => {
+    // `1000.00 - 0.10` con floats no da 999.90 exacto; con centavos enteros sí.
+    expect(pendienteDeReembolso({ monto: "1000.00", monto_reembolsado: "0.10" })).toBe("999.90");
+    expect(pendienteDeReembolso({ monto: "12500.10", monto_reembolsado: "0.20" })).toBe("12499.90");
+    expect(pendienteDeReembolso({ monto: "0.30", monto_reembolsado: "0.10" })).toBe("0.20");
+  });
+
+  it("sin reembolsos falta todo, y con todo reembolsado no falta nada", () => {
+    expect(pendienteDeReembolso({ monto: "12500.10", monto_reembolsado: "0.00" })).toBe("12500.10");
+    expect(pendienteDeReembolso({ monto: "1000.00", monto_reembolsado: "1000.00" })).toBe("0.00");
+  });
+
+  it("completa los decimales que faltan", () => {
+    expect(pendienteDeReembolso({ monto: "100", monto_reembolsado: "0.5" })).toBe("99.50");
+  });
+});
+
+describe("tieneReembolsos", () => {
+  it("es verdadero solo con un acumulado mayor que cero", () => {
+    expect(tieneReembolsos({ monto_reembolsado: "0.00" })).toBe(false);
+    expect(tieneReembolsos({ monto_reembolsado: "0.01" })).toBe(true);
+    expect(tieneReembolsos({ monto_reembolsado: "250.00" })).toBe(true);
+  });
+});
+
+describe("las etiquetas de estado", () => {
+  it("el parcial se lee «Reembolsado parcialmente»", () => {
+    expect(ETIQUETAS_DE_ESTADO.REEMBOLSADO_PARCIAL).toBe("Reembolsado parcialmente");
+    expect(ETIQUETAS_DE_ESTADO.REEMBOLSADO).toBe("Reembolsado");
   });
 });

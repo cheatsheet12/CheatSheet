@@ -78,7 +78,7 @@ const COBRO = {
   comprobante_id: null,
   turno_id: null,
   monto: "12500.00",
-  monto_reembolsado: null,
+  monto_reembolsado: "0.00",
   descripcion: "Consulta de septiembre",
   estado: "APROBADO",
   url_de_pago: null,
@@ -89,9 +89,11 @@ const COBRO = {
   medio_de_pago: "LINK_MERCADOPAGO",
   numero_de_operacion: null,
   reembolso_en_proceso: false,
+  reembolso_en_proceso_monto: null,
   motivo_de_cancelacion: null,
   created_at: "2026-09-07T12:00:00Z",
   recordatorios: [],
+  reembolsos: [],
 };
 
 afterEach(() => {

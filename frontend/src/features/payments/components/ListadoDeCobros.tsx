@@ -61,7 +61,7 @@ export interface PropsDeListadoDeCobros {
 }
 
 /**
- * Los cinco estados del enum, con la etiqueta de interfaz de cada uno.
+ * Los seis estados del enum, con la etiqueta de interfaz de cada uno.
  *
  * El valor que viaja es el del dominio y la etiqueta es lo que se lee: mandar «En mora» al
  * backend obligaría a traducir del otro lado, que es el seam donde una traducción mal hecha
@@ -73,6 +73,7 @@ const ESTADOS: readonly { valor: string; etiqueta: string }[] = [
   { valor: "PENDIENTE", etiqueta: "Pendiente" },
   { valor: "VENCIDO", etiqueta: "En mora" },
   { valor: "CANCELADO", etiqueta: "Cancelado" },
+  { valor: "REEMBOLSADO_PARCIAL", etiqueta: "Reembolsado parcialmente" },
   { valor: "REEMBOLSADO", etiqueta: "Reembolsado" },
 ];
 
