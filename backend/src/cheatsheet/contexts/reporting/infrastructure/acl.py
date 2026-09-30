@@ -195,7 +195,7 @@ class CobranzasViaPayments:
                     "monto": str(uno.monto),
                     "estado": uno.estado.value,
                     "vence": f"{uno.vence_el:%d/%m/%Y}",
-                    "pagado": f"{uno.pagado_en:%d/%m/%Y}" if uno.pagado_en else "",
+                    "pagado": f"{uno.fecha_pago:%d/%m/%Y}" if uno.fecha_pago else "",
                 }
             )
             for uno in cobros[:TOPE_DE_FILAS]

@@ -100,6 +100,9 @@ class ListarCobros:
 class MetricasDelPeriodo:
     """El encabezado de PAN-COB-01 (RN-01): cobrado, pendiente, en mora y la tasa.
 
+    «Cobrado» se mide por **fecha de pago** y el resto por fecha de creación (D91, ADR-0010);
+    `MetricasDeCobros` explica la base de cada número.
+
     El período por defecto es el mes en curso, y eso lo decide **este caso de uso** y no la
     pantalla: es una regla de negocio de la historia, y dejarla en el frontend haría que el
     reporte del épico 9 tuviera que redecidirla.

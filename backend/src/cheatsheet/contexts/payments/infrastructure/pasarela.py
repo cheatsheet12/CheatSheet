@@ -21,7 +21,7 @@ nadie puede pagar y dando por saldadas deudas que nadie pagó.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -116,6 +116,7 @@ class PasarelaMercadoPago:
             preference_id=_preferencia_de(datos),
             estado=str(datos.get("status") or ""),
             monto=_monto_de(datos),
+            fecha_aprobacion=_fecha_de_aprobacion(datos),
         )
 
     async def invalidar_link(
@@ -259,6 +260,26 @@ def _monto_de(datos: dict[str, Any]) -> Decimal | None:
     return Decimal(str(valor)) if valor is not None else None
 
 
+def _fecha_de_aprobacion(datos: dict[str, Any]) -> datetime | None:
+    """`date_approved` en UTC, o `None` si falta, no se entiende o no trae zona horaria.
+
+    Es ISO 8601 y puede ser `null` (referencia oficial de MercadoPago, ADR-0010). **Nunca
+    levanta**: un formato que no entendemos no puede tumbar el webhook, y el dominio ya sabe qué
+    hacer con `None` (usa el momento de la confirmación y marca la fecha como aproximada). Sin
+    zona horaria tampoco se adivina: una hora local tomada por UTC corre tres horas un pago.
+    """
+    valor = datos.get("date_approved")
+    if not isinstance(valor, str) or not valor.strip():
+        return None
+    try:
+        fecha = datetime.fromisoformat(valor.strip())
+    except ValueError:
+        return None
+    if fecha.utcoffset() is None:
+        return None
+    return fecha.astimezone(UTC)
+
+
 class PasarelaSimulada:
     """El doble: links y pagos sin socket.
 
@@ -318,6 +339,8 @@ class PasarelaSimulada:
             payment_id=payment_id,
             preference_id=self._preferencia_de(payment_id),
             estado="approved",
+            # La hora actual en UTC, para que una demo local no muestre «aproximada».
+            fecha_aprobacion=datetime.now(UTC),
         )
 
     async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:

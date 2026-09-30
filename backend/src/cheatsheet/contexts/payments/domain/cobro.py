@@ -24,7 +24,7 @@ eso.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from uuid import UUID
@@ -38,6 +38,10 @@ CENTAVOS = Decimal("0.01")
 #: MercadoPago deja abierta una preferencia sin tocarla, y ponerlo más largo sería un link que
 #: el proveedor invalida antes que nosotros — un cobro «pendiente» que ya no se puede pagar.
 VIGENCIA_POR_DEFECTO = timedelta(days=30)
+
+#: Cuánto se le perdona al reloj de MercadoPago frente al nuestro: una fecha de aprobación hasta
+#: cinco minutos «en el futuro» es desfase de relojes, no un dato inventado. Más allá, no se toma.
+TOLERANCIA_DE_RELOJ = timedelta(minutes=5)
 
 #: HU-E6-03, HU-E6-04 y HU-E6-05, palabra por palabra. Constantes porque las historias las
 #: escriben y los tests las afirman.
@@ -73,6 +77,18 @@ class EstadoCobro(StrEnum):
     VENCIDO = "VENCIDO"
     CANCELADO = "CANCELADO"
     REEMBOLSADO = "REEMBOLSADO"
+
+
+class MedioDePago(StrEnum):
+    """Por dónde entró la plata de un cobro (ADR-0010, punto 1).
+
+    Vocabulario **propio y cerrado**: el de MercadoPago (`payment_type_id`, `payment_method_id`)
+    se queda en el ACL de `infrastructure/pasarela.py`. Un cobro nace como link y pasa a
+    `TRANSFERENCIA` recién cuando una transferencia lo confirma (unidad `cobro-por-transferencia`).
+    """
+
+    LINK_MERCADOPAGO = "LINK_MERCADOPAGO"
+    TRANSFERENCIA = "TRANSFERENCIA"
 
 
 #: Qué transiciones existen. Escritas como tabla por lo que dice `TareaAsincrona`: una máquina
@@ -138,7 +154,16 @@ class Cobro:
     #: Referenciado por id y sin FK (hallazgo H4 del DER): `turno` es de otro contexto. Lo
     #: escribe el épico 7.
     turno_id: UUID | None = None
-    pagado_en: datetime | None = None
+    #: **Cuándo pagó el cliente**, en UTC (D91, ADR-0010). Se escribe una sola vez, en la
+    #: transición a `APROBADO`. No es «cuándo lo procesamos», salvo que `fecha_pago_aproximada`
+    #: diga que sí.
+    fecha_pago: datetime | None = None
+    #: `True` cuando `fecha_pago` es una estimación (el momento en que se confirmó, o el valor
+    #: que el cobro ya tenía antes de existir esta columna) y no la fecha que informó el medio.
+    fecha_pago_aproximada: bool = False
+    medio_de_pago: MedioDePago = MedioDePago.LINK_MERCADOPAGO
+    #: Solo lo escribe una transferencia verificada. Nunca el pagador (HU-E6-08 RN-07).
+    numero_de_operacion: str | None = None
     monto_reembolsado: Decimal | None = None
     reembolso_solicitado_en: datetime | None = None
     motivo_de_cancelacion: str | None = None
@@ -184,17 +209,34 @@ class Cobro:
 
     # ------------------------------------------------------------------ los estados
 
-    def aprobar(self, *, payment_id: str, ahora: datetime) -> None:
+    def aprobar(
+        self, *, payment_id: str, ahora: datetime, fecha_pago: datetime | None = None
+    ) -> None:
         """MercadoPago confirmó el pago (HS-T1 RN-02).
 
         **Se niega a aprobar dos veces**, y esa negativa es la primera línea de defensa de la
         idempotencia del webhook: la tabla de transiciones no tiene `APROBADO → APROBADO`. El
-        índice único sobre `mp_payment_id` es la segunda.
+        índice único sobre `mp_payment_id` es la segunda. Como la fecha se escribe solo acá, un
+        webhook repetido tampoco puede moverla.
+
+        `fecha_pago` es la fecha de aprobación que informó MercadoPago. **Una fecha equivocada
+        mueve plata de un período a otro**, así que solo se toma si es plausible; si falta o no
+        lo es, se usa `ahora` y el cobro queda marcado como de fecha aproximada.
         """
         self._transicionar(EstadoCobro.APROBADO)
         self.mp_payment_id = payment_id
-        self.pagado_en = ahora
+        informada = self._fecha_plausible(fecha_pago, ahora)
+        self.fecha_pago = informada if informada is not None else ahora
+        self.fecha_pago_aproximada = informada is None
         self.updated_at = ahora
+
+    def _fecha_plausible(self, fecha: datetime | None, ahora: datetime) -> datetime | None:
+        """La fecha en UTC si tiene zona horaria, no es del futuro y no precede al cobro."""
+        if fecha is None or fecha.utcoffset() is None:
+            return None
+        if fecha > ahora + TOLERANCIA_DE_RELOJ or fecha < self.created_at:
+            return None
+        return fecha.astimezone(UTC)
 
     def vencer(self, ahora: datetime) -> None:
         """RN-03 de HU-E6-01, ejecutada por el barrido de la decisión D23.
@@ -340,10 +382,12 @@ __all__ = [
     "MENSAJE_REEMBOLSO_EXCEDIDO",
     "MENSAJE_SIN_CONCEPTO",
     "MENSAJE_SOLO_PAGADOS_SE_REEMBOLSAN",
+    "TOLERANCIA_DE_RELOJ",
     "TRANSICIONES_LEGALES",
     "VIGENCIA_POR_DEFECTO",
     "Cobro",
     "EstadoCobro",
     "LinkDePago",
+    "MedioDePago",
     "redondear",
 ]

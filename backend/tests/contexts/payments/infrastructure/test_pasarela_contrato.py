@@ -17,7 +17,7 @@ credenciales que `TODO.md` §5.3 todavía espera.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -191,3 +191,67 @@ async def test_el_simulado_deja_caminar_la_rama_de_error_sin_editar_codigo() -> 
         await pasarela.invalidar_link(
             empresa_id=EMPRESA, preference_id=link.preference_id, ahora=AHORA
         )
+
+
+# ------------------------------------------------------------- consultar el pago · D91
+
+
+def _pago(**campos: Any) -> httpx.Response:
+    return httpx.Response(200, json={"id": 1, "status": "approved", **campos})
+
+
+async def _fecha_aprobada(**campos: Any) -> datetime | None:
+    pago = await _pasarela(Grabadora(_pago(**campos))).consultar_pago(
+        empresa_id=EMPRESA, payment_id="1"
+    )
+    return pago.fecha_aprobacion
+
+
+async def test_date_approved_con_offset_y_con_z_dan_la_misma_hora_utc() -> None:
+    """`08:00-04:00` y `12:00Z` son el mismo instante: 12:00 UTC."""
+    con_offset = await _fecha_aprobada(date_approved="2026-09-19T08:00:00.000-04:00")
+    con_z = await _fecha_aprobada(date_approved="2026-09-19T12:00:00.000Z")
+
+    esperada = datetime(2026, 9, 19, 12, 0, tzinfo=UTC)
+    assert con_offset == esperada
+    assert con_z == esperada
+    assert con_offset is not None
+    assert con_offset.utcoffset() == timedelta(0)
+
+
+@pytest.mark.parametrize(
+    "campos",
+    [
+        pytest.param({"date_approved": None}, id="null"),
+        pytest.param({}, id="ausente"),
+        pytest.param({"date_approved": ""}, id="vacio"),
+        pytest.param({"date_approved": "no es una fecha"}, id="basura"),
+        pytest.param({"date_approved": 20260919}, id="numero"),
+        pytest.param({"date_approved": "2026-09-19T08:00:00"}, id="sin-zona-horaria"),
+    ],
+)
+async def test_date_approved_ilegible_se_traduce_a_none_y_no_rompe(campos: dict[str, Any]) -> None:
+    """Un formato que no entendemos no puede tumbar el webhook: la fecha queda aproximada."""
+    assert await _fecha_aprobada(**campos) is None
+
+
+async def test_el_monto_del_pago_sigue_leyendose_como_decimal() -> None:
+    pago = await _pasarela(Grabadora(_pago(transaction_amount=1210.5))).consultar_pago(
+        empresa_id=EMPRESA, payment_id="1"
+    )
+
+    assert pago.monto == Decimal("1210.5")
+    assert pago.esta_aprobado
+
+
+async def test_el_simulado_informa_una_fecha_de_aprobacion_real() -> None:
+    """Una demo local no debe mostrar «aproximada»: el doble devuelve la hora actual en UTC."""
+    antes = datetime.now(UTC)
+    pago = await PasarelaSimulada(Entorno.LOCAL).consultar_pago(
+        empresa_id=EMPRESA, payment_id="pago-pref-1"
+    )
+    despues = datetime.now(UTC)
+
+    assert pago.fecha_aprobacion is not None
+    assert pago.fecha_aprobacion.utcoffset() == timedelta(0)
+    assert antes <= pago.fecha_aprobacion <= despues

@@ -87,7 +87,10 @@ class CobrosFalsos:
     async def metricas(self, filtros: FiltrosDeCobro) -> MetricasDeCobros:
         del filtros
         return MetricasDeCobros(
-            cobrado=Decimal("0.00"), pendiente=Decimal("0.00"), en_mora=Decimal("0.00")
+            cobrado=Decimal("0.00"),
+            pendiente=Decimal("0.00"),
+            en_mora=Decimal("0.00"),
+            cobrado_de_lo_creado=Decimal("0.00"),
         )
 
     async def de_comprobante(self, comprobante_id: UUID) -> list[Cobro]:
@@ -107,9 +110,17 @@ class CobrosFalsos:
 class PasarelaFalsa:
     """Cuenta las consultas: es lo que hace afirmable la propiedad central de D20."""
 
-    def __init__(self, *, estado: str = "approved", preferencia: str | None = "pref-1") -> None:
+    def __init__(
+        self,
+        *,
+        estado: str = "approved",
+        preferencia: str | None = "pref-1",
+        fecha_aprobacion: datetime | None = None,
+    ) -> None:
         self.estado = estado
         self.preferencia = preferencia
+        #: Lo que MercadoPago diría en `date_approved`. `None` es «no lo informó o no se leyó».
+        self.fecha_aprobacion = fecha_aprobacion
         self.consultas = 0
         #: Cuantas veces se pidio un link: un cliente invalido no debe gastar ninguna.
         self.creados = 0
@@ -128,7 +139,10 @@ class PasarelaFalsa:
         del empresa_id
         self.consultas += 1
         return PagoRecibido(
-            payment_id=payment_id, preference_id=self.preferencia, estado=self.estado
+            payment_id=payment_id,
+            preference_id=self.preferencia,
+            estado=self.estado,
+            fecha_aprobacion=self.fecha_aprobacion,
         )
 
     async def invalidar_link(
@@ -289,6 +303,102 @@ async def test_dos_ids_distintos_sobre_el_mismo_cobro_tampoco_cobran_dos_veces()
     assert segunda.ya_procesado
     assert cobro.mp_payment_id == "pago-1"
     assert len(saldos.descuentos) == 1
+
+
+# ------------------------------------------------------------------ la fecha de pago · D91
+
+
+async def test_el_cobro_guarda_la_fecha_de_aprobacion_que_informo_mercadopago() -> None:
+    """Un webhook procesado tarde no mueve el pago de período: vale cuándo pagó el cliente."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pagado_el = AHORA + timedelta(hours=1)
+    procesado_el = AHORA + timedelta(days=3)
+
+    await _confirmar(
+        cobros, PasarelaFalsa(fecha_aprobacion=pagado_el), SaldosFalsos(), PublicadorFalso()
+    ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=procesado_el)
+
+    assert cobro.fecha_pago == pagado_el
+    assert cobro.fecha_pago_aproximada is False
+
+
+async def test_sin_fecha_de_aprobacion_el_pago_se_aprueba_con_fecha_aproximada() -> None:
+    """`date_approved` ausente, `null` o ilegible llega como `None`: no rompe el webhook."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+
+    resultado = await _confirmar(
+        cobros, PasarelaFalsa(fecha_aprobacion=None), SaldosFalsos(), PublicadorFalso()
+    ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
+
+    assert resultado.aprobado
+    assert cobro.estado is EstadoCobro.APROBADO
+    assert cobro.fecha_pago == AHORA
+    assert cobro.fecha_pago_aproximada is True
+
+
+async def test_una_fecha_de_aprobacion_del_futuro_no_se_toma_por_cierta() -> None:
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+
+    resultado = await _confirmar(
+        cobros,
+        PasarelaFalsa(fecha_aprobacion=AHORA + timedelta(days=40)),
+        SaldosFalsos(),
+        PublicadorFalso(),
+    ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
+
+    assert resultado.aprobado
+    assert cobro.fecha_pago == AHORA
+    assert cobro.fecha_pago_aproximada is True
+
+
+async def test_un_webhook_repetido_no_toca_la_fecha_de_pago() -> None:
+    """Primera línea de D20: el mismo `payment_id` corta antes de tocar nada."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pagado_el = AHORA + timedelta(hours=1)
+    confirmar = _confirmar(
+        cobros, PasarelaFalsa(fecha_aprobacion=pagado_el), SaldosFalsos(), PublicadorFalso()
+    )
+
+    await confirmar.ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA + timedelta(hours=2)
+    )
+    escrituras = len(cobros.escrituras)
+    await confirmar.ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA + timedelta(days=2)
+    )
+
+    assert cobro.fecha_pago == pagado_el
+    assert len(cobros.escrituras) == escrituras
+
+
+async def test_otro_payment_id_sobre_un_cobro_cerrado_no_toca_la_fecha_de_pago() -> None:
+    """Segunda línea de D20: `ya_procesado` y la fecha intacta."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pagado_el = AHORA + timedelta(hours=1)
+    confirmar = _confirmar(
+        cobros, PasarelaFalsa(fecha_aprobacion=pagado_el), SaldosFalsos(), PublicadorFalso()
+    )
+
+    await confirmar.ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA + timedelta(hours=2)
+    )
+    segunda = await confirmar.ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-2", ahora=AHORA + timedelta(days=2)
+    )
+
+    assert segunda.ya_procesado
+    assert cobro.fecha_pago == pagado_el
+    assert cobro.fecha_pago_aproximada is False
 
 
 # ------------------------------------------------------------------ lo que no es un pago
