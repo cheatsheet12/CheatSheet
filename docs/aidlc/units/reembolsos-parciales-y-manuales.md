@@ -475,7 +475,7 @@ honestamente cuál se observó.
 | 18 | Un cobro reembolsado (parcial o total) no vuelve a recibir recordatorios ni entra al barrido (RN-12) | unit (aplicación) | GREEN (dominio y aplicación, por construcción: no están abiertos) |
 | 19 | El webhook `payment` de un pago ya reembolsado sigue siendo `ya_procesado` y no toca acumulado ni solicitud | unit (aplicación) | GREEN (`test_confirmacion.py`): `ya_procesado`, sin llamar a MercadoPago ni tocar el reembolso |
 | 20 | RED: el adaptador manda `amount` como número JSON exacto sin `float`, con `X-Idempotency-Key` igual a la clave dada (y la misma en los reintentos) | unit (contrato, `MockTransport`) | GREEN (RED: 23 fallaban), `MockTransport`: cuerpo `{"amount": 1234.56}` exacto y la misma clave en los tres reintentos |
-| 21 | RED: `status` `approved` → aceptado; `rejected`/`cancelled` → rechazado; otro o ausente → en proceso; 4xx → rechazado con el `message`; 5xx y timeout → `PasarelaNoDisponible` | unit (contrato) | GREEN (RED: ídem), incluidos `status` ausente/numérico → en proceso y 4xx de consulta → `PasarelaNoDisponible` |
+| 21 | RED: `status` `approved` → aceptado; `rejected`/`cancelled` → rechazado; otro o ausente → en proceso; 4xx → rechazado con el `message`; 5xx y timeout → `PasarelaNoDisponible` | unit (contrato) | GREEN (RED: ídem), incluidos `status` ausente/numérico → en proceso y 4xx de consulta → `PasarelaNoDisponible`; tras el verificador, el 4xx de negocio (400, 404, 422) es rechazo y los ambiguos (401, 403, 408, 409, 425, 429) levantan `PasarelaNoDisponible` (ver caso 38) |
 | 22 | RED: `PasarelaSimulada`: «rechazar» rechaza, «demorar» queda en proceso hasta la primera consulta | unit | GREEN (RED: ídem); «rechazar», «demorar» y la misma clave devuelven lo mismo. El doble pasó a ser de proceso (ver «Desvíos» del reporte) |
 | 23 | RED: métricas — pago en febrero, reembolso en marzo: febrero suma el bruto, marzo resta el reembolso; parcial y total; una corrección suma de vuelta; «cobrado» puede ser negativo | integración (PostgreSQL) | escrito, **no corrido** (sin Docker local): corre en CI |
 | 24 | RED: la tasa cuenta los estados reembolsados por su bruto y no pasa de 100 % | unit + integración | unit GREEN (`test_metricas.py`, cobrado negativo); integración: escrito, **no corrido** (sin Docker local): corre en CI |
@@ -492,6 +492,8 @@ honestamente cuál se observó.
 | 35 | RED: etiqueta «Reembolsado parcialmente» y la opción en el filtro del listado | unit (frontend) | GREEN (RED: ídem) |
 | 36 | En el navegador (`run-local`, pasarela simulada): reembolso parcial, completarlo, uno «rechazar», uno «demorar» y «Actualizar estado»; ver el encabezado del período | manual | pendiente, para quien revise (`run-local`, pasarela simulada; «rechazar» y «demorar» en la descripción del cobro) |
 | 37 | En sandbox de MercadoPago: los ítems de la sección siguiente | manual (sandbox) | pendiente; anotado en `TODO.md` §20 (20.5, 20.9 a 20.16) |
+| 38 | RED (verificador, D1): un 401, 403, 408, 409, 425 o 429 al reembolsar **no** es un rechazo: levanta `PasarelaNoDisponible` y el reembolso queda en vuelo con su clave; 400, 404 y 422 siguen siendo rechazo | unit (contrato, `MockTransport`) | GREEN (RED: los 6 estados ambiguos fallaban, se tomaban como `RECHAZADO`) |
+| 39 | RED (verificador, M7): la clave de idempotencia y los campos del reembolso en vuelo sobreviven al mapeo `Cobro` <-> `CobroORM` (`_a_fila` / `_a_dominio`, puros, sin base) | unit (infraestructura) | GREEN; mutante que quita la asignación de la clave en `_a_fila` → falla (RED observado), restaurado. La persistencia real sigue en `tests/integracion/` (no corrida local) |
 
 ## Verificaciones contra el sandbox
 
@@ -527,3 +529,6 @@ Van a `docs/aidlc/TODO.md` §20. El 20.5 ya existe y esta unidad lo detalla; los
 - P9: el registro manual queda solo para `TRANSFERENCIA`.
 - P10: sin evento `PagoReembolsado`; el saldo del comprobante se ajusta por llamada directa al puerto, como `registrar_cobro`.
 - Lo que solo el sandbox puede confirmar quedó en `docs/aidlc/TODO.md` §20.5 y §20.9 a §20.14 (el 20.10, idempotencia, es crítico).
+- Verificador independiente (Gate 2): aprobado con notas. Corregido antes del Gate: los 4xx ambiguos del reembolso (401, 403, 408, 409, 425, 429) ya no se toman como rechazo; el reembolso queda en vuelo con su clave, porque un 409 o un 429 tras un timeout puede significar que MercadoPago ya lo procesó, y borrar la clave reabría el doble reembolso.
+- Una corrección registra `fecha_devolucion` en el momento de corregir, no en la fecha de la fila original: impacta en el período en que se corrige y no reescribe períodos cerrados.
+- Limitación conocida (D3): la segunda transacción (T2) mantiene el bloqueo `FOR UPDATE` sobre el cobro y una conexión durante la llamada a MercadoPago (hasta ~45 s con los tres intentos). Se acepta por ahora; lo resuelve `reembolsos-en-vuelo`.
