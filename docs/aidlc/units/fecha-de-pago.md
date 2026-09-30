@@ -357,3 +357,7 @@ honestamente cuál se observó.
 - P8: una corrección puede bajar el estado de reembolso (estado derivado del acumulado; ADR-0010).
 - P9: la etiqueta «Operación» pasa a «Referencia».
 - Lo que no se pudo verificar contra MercadoPago quedó en `docs/aidlc/TODO.md` §20 (20.2 a 20.4), para recorrerlo cuando esté el sandbox.
+- Verificador independiente (Gate 2): aprobado con notas; 6 de 6 mutantes detectados. Su único defecto (una `date_approved` válida en el borde del rango de `datetime` levantaba `OverflowError` y el webhook respondía 500) se corrigió con test primero: ahora se trata como fecha ilegible.
+- Cambio de comportamiento a propósito (caso 13): las métricas del encabezado ignoran el filtro de estado del listado. Antes, filtrar por un estado ponía en cero las otras tarjetas.
+- Nota para `cobro-por-transferencia`: el índice único usa `COALESCE(numero_de_operacion, mp_payment_id)`; si una fila llega a tener los dos, queda indexada solo por el número de operación. La unidad que escriba `numero_de_operacion` tiene que revisar esa colisión.
+- Nota operativa: un `APROBADO` viejo sin fecha (lo informa el `NOTICE` de la 0026) no se puede actualizar hasta corregirlo a mano, porque PostgreSQL aplica el `CHECK ... NOT VALID` a toda escritura nueva sobre la fila.
