@@ -158,7 +158,7 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-09-29 | aprobado sin cambios |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-09-30 | aprobado. ruff, mypy y pytest en verde (1361 pasan; 341 omitidos por requerir PostgreSQL o Redis); cobertura local 74,14 % contra 74,10 % antes de la unidad (el 80 % se mide en la CI, donde corren los de integración). Frontend: lint, typecheck y test:coverage en verde (819 tests, 84,16 %; `master_data` al 100 %). `format:check` falla solo por el checkout CRLF de Windows y pasa con `--end-of-line auto`. En la primera presentación se detectó el 422 genérico de Pydantic para «12.7» y se corrigió antes de aprobar. Los casos 10 y 11 (API y PostgreSQL) los corre la CI cuando la cadena llegue a `develop` |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
