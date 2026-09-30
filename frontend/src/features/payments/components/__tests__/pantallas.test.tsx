@@ -422,4 +422,21 @@ describe("PAN-COB-03 — nuevo cobro", () => {
     ).toBeTruthy();
     expect(push).not.toHaveBeenCalled();
   });
+
+  it("al cambiar de cliente deja de mostrar el error del cliente anterior", async () => {
+    generarCobro.mockRejectedValue(
+      new ErrorDeCobro("El comprobante no corresponde al cliente elegido."),
+    );
+    const { rerender } = render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "1000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    expect(
+      await screen.findByText("El comprobante no corresponde al cliente elegido."),
+    ).toBeTruthy();
+
+    rerender(<NuevoCobro clienteId="cl2" comprobantes={[]} />);
+
+    expect(screen.queryByText("El comprobante no corresponde al cliente elegido.")).toBeNull();
+  });
 });

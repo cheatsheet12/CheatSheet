@@ -316,16 +316,50 @@ async def test_solo_lectura_se_rechaza_antes_de_preguntar_por_el_cliente() -> No
 async def test_un_comprobante_de_otro_cliente_no_deja_generar() -> None:
     """Sin esto, con el selector editable se le cobraria a Ana la factura de Bruno."""
     de_bruno = SaldosFalsos(cliente=uuid4())
+    cobros, pasarela, publicador = CobrosFalsos(), PasarelaFalsa(), PublicadorFalso()
 
     with pytest.raises(ComprobanteDeOtroCliente) as exc:
         await _generar_para(
             CLIENTE,
             clientes=ClientesFalsos(CLIENTE),
+            cobros=cobros,
+            pasarela=pasarela,
+            publicador=publicador,
             saldos=de_bruno,
             comprobante_id=uuid4(),
         )
 
     assert str(exc.value) == "El comprobante no corresponde al cliente elegido."
+    assert pasarela.creados == 0
+    assert cobros.guardados == {}
+    assert publicador.eventos == []
+
+
+async def test_un_comprobante_que_no_existe_dice_que_no_existe_y_no_deja_rastro() -> None:
+    """`cliente_de` devuelve `None`: no es "de otro cliente", es que no hay comprobante."""
+
+    class SinComprobante(SaldosFalsos):
+        async def saldo_pendiente(self, comprobante_id: UUID) -> Decimal | None:
+            del comprobante_id
+            return None
+
+    cobros, pasarela, publicador = CobrosFalsos(), PasarelaFalsa(), PublicadorFalso()
+
+    with pytest.raises(CobroInexistente) as exc:
+        await _generar_para(
+            CLIENTE,
+            clientes=ClientesFalsos(CLIENTE),
+            cobros=cobros,
+            pasarela=pasarela,
+            publicador=publicador,
+            saldos=SinComprobante(cliente=None),
+            comprobante_id=uuid4(),
+        )
+
+    assert str(exc.value) == "El comprobante no existe"
+    assert pasarela.creados == 0
+    assert cobros.guardados == {}
+    assert publicador.eventos == []
 
 
 async def test_un_comprobante_del_mismo_cliente_genera_el_cobro() -> None:

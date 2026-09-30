@@ -159,9 +159,11 @@ class ClientesFalsos:
 
 
 class SaldosFalsos:
-    def __init__(self, saldo: Decimal = Decimal("5000.00"), *, cliente: UUID = CLIENTE) -> None:
+    def __init__(
+        self, saldo: Decimal = Decimal("5000.00"), *, cliente: UUID | None = CLIENTE
+    ) -> None:
         self.saldo = saldo
-        #: El dueno del comprobante.
+        #: El dueno del comprobante; `None` es un comprobante que no existe.
         self.cliente = cliente
         self.descuentos: list[tuple[UUID, Decimal]] = []
 

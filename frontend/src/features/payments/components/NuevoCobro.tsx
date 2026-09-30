@@ -43,9 +43,12 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
   const [descripcion, setDescripcion] = useState("");
   const [monto, setMonto] = useState("");
   const [comprobanteId, setComprobanteId] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // El error recuerda de que cliente era: un rechazo del backend («el comprobante no
+  // corresponde al cliente elegido») no debe quedar colgado cuando se elige otro cliente.
+  const [fallido, setFallido] = useState<{ mensaje: string; clienteId: string } | null>(null);
   const [generando, setGenerando] = useState(false);
 
+  const error = fallido !== null && fallido.clienteId === clienteId ? fallido.mensaje : null;
   const sinCliente = clienteId === null;
   const sinConcepto = descripcion.trim() === "";
   // Al cambiar de cliente los comprobantes ofrecidos cambian, y el elegido puede ya no estar:
@@ -61,7 +64,7 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
     if (clienteId === null) {
       return;
     }
-    setError(null);
+    setFallido(null);
     setGenerando(true);
     try {
       const cobro = await generarCobro({
@@ -75,7 +78,10 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
     } catch (fallo) {
       // «No se pudo generar el link de pago. Intente nuevamente.» y «El monto no puede superar
       // el saldo pendiente del comprobante.» llegan por acá, con el texto del backend.
-      setError(fallo instanceof ErrorDeCobro ? fallo.message : "No se pudo generar el cobro.");
+      setFallido({
+        mensaje: fallo instanceof ErrorDeCobro ? fallo.message : "No se pudo generar el cobro.",
+        clienteId,
+      });
     } finally {
       setGenerando(false);
     }
