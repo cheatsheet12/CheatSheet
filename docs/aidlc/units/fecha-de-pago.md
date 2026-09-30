@@ -344,7 +344,7 @@ honestamente cuál se observó.
 |---|---|---|
 | 1 · Plan | 2026-09-30 | aprobado junto con ADR-0010; las nueve preguntas según la recomendación |
 | 2 · Verificación | 2026-09-30 | aprobado. ruff, mypy y pytest en verde (1431 pasan; 365 omitidos por requerir PostgreSQL o Redis); cobertura local 74 %, sin bajar. Migración 0026 renderizada en SQL offline en ambos sentidos. Arquitectura: fronteras intactas. Frontend: lint, typecheck y test:coverage en verde (842 tests; `payments` al 100 %). Verificador independiente: aprobado con notas (6 de 6 mutantes detectados); su defecto (`OverflowError` en fechas extremas) se corrigió con test primero antes del Gate. Pendientes: casos contra PostgreSQL (los corre la CI cuando la cadena llegue a `develop`) y los del sandbox de MercadoPago (`TODO.md` §20) |
-| 3 · PR | | |
+| 3 · PR | 2026-09-30 | PR draft [#50](https://github.com/cheatsheet12/CheatSheet/pull/50) apilado sobre el #49; la CI corre cuando la cadena llegue a `develop` |
 
 ## Decisiones tomadas durante la unidad
 - P1: `pagado_en` se renombra a `fecha_pago` (una sola fuente de verdad; migración y código en el mismo release).
