@@ -35,6 +35,7 @@ import {
 
 import {
   ETIQUETAS_DE_ESTADO,
+  ETIQUETAS_DE_MEDIO,
   ErrorDeCobro,
   LARGO_MINIMO_DE_MOTIVO,
   MENSAJE_LINK_COPIADO,
@@ -184,14 +185,29 @@ export function DetalleDeCobro({
                 <dt>Concepto</dt>
                 <dd>{cobro.descripcion}</dd>
               </div>
+              {/* «Referencia» es el código derivado del id del cobro. «Operación» quedó para el
+                  número de la transferencia: dos cosas distintas no se llaman igual. */}
               <div className="cob-kv__par">
-                <dt>Operación</dt>
+                <dt>Referencia</dt>
                 <dd className="cob-mono">{referenciaDeCobro(cobro.id)}</dd>
               </div>
               <div className="cob-kv__par">
-                <dt>Pagado</dt>
-                <dd>{formatearFechaHora(cobro.pagado_en)}</dd>
+                <dt>Medio de pago</dt>
+                <dd>{ETIQUETAS_DE_MEDIO[cobro.medio_de_pago]}</dd>
               </div>
+              <div className="cob-kv__par">
+                <dt>Fecha de pago</dt>
+                <dd>
+                  {formatearFechaHora(cobro.fecha_pago)}
+                  {cobro.fecha_pago !== null && cobro.fecha_pago_aproximada && " (aproximada)"}
+                </dd>
+              </div>
+              {cobro.medio_de_pago === "TRANSFERENCIA" && cobro.numero_de_operacion !== null && (
+                <div className="cob-kv__par">
+                  <dt>N.º de operación</dt>
+                  <dd className="cob-mono">{cobro.numero_de_operacion}</dd>
+                </div>
+              )}
               {cobro.monto_reembolsado !== null && (
                 <div className="cob-kv__par">
                   <dt>Reembolsado</dt>
