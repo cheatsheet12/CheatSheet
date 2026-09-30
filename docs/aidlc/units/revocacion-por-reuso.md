@@ -199,7 +199,7 @@ ruff format --check . && ruff check . && mypy . && pytest
 |---|---|---|
 | 1 · Plan | 2026-09-30 | aprobado; las seis preguntas según la recomendación |
 | 2 · Verificación | | |
-| 3 · PR | | |
+| 3 · PR | 2026-09-30 | PR draft [#47](https://github.com/cheatsheet12/CheatSheet/pull/47) contra `develop`; draft para que la CI corra los casos 1 a 7 contra PostgreSQL |
 
 Fila propuesta para `units.md` (épico existente «Cimientos, identidad y bitácora»; solo esa línea, como
 `cancelacion-invalida-el-link`):
