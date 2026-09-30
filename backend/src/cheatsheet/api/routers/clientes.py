@@ -25,6 +25,7 @@ from cheatsheet.contexts.master_data.application.clientes import (
     EditarCliente,
     ListarClientes,
     RegistrarCliente,
+    VerCliente,
     VistaDeCliente,
 )
 from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
@@ -175,12 +176,17 @@ def crear_router(recursos: Recursos) -> APIRouter:
     # own, and FastAPI rejects an empty path on a router included without a prefix.
     router = APIRouter(tags=["master_data"])
     router.include_router(_rutas_de_padron(recursos), prefix="/clientes")
+    router.include_router(_rutas_de_lectura(recursos), prefix="/clientes")
     router.include_router(_rutas_de_catalogo(recursos), prefix="/clientes")
     return router
 
 
-def _rutas_de_catalogo(recursos: Recursos) -> APIRouter:
-    """The four operations of HU-E4-01. Reading, creating, editing, taking out of use."""
+def _rutas_de_lectura(recursos: Recursos) -> APIRouter:
+    """Reading the catalogue: the listing and one client by id.
+
+    Apart from the writes because a route handler is one branch each and the module-level
+    function that declares them shares the complexity ceiling of `CLAUDE.md` section 5.
+    """
     router = APIRouter()
 
     @router.get("")
@@ -216,6 +222,29 @@ def _rutas_de_catalogo(recursos: Recursos) -> APIRouter:
         if salida is None:  # pragma: no cover — the unit of work always yields once
             raise RuntimeError("La unidad de trabajo no produjo un resultado")
         return salida
+
+    @router.get("/{cliente_id}")
+    async def ver(cliente_id: UUID, request: Request) -> ClienteSalida:
+        """One client by id, for the screens that preselect one (PAN-COB-03).
+
+        A missing client and another company's answer the same, on purpose: see `VerCliente`.
+        """
+        empresa_id, _, rol = _actor(request)
+        salida: ClienteSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = DatosMaestros.armar(unidad)
+            cliente = await VerCliente(clientes=piezas.clientes).ejecutar(
+                rol=rol, cliente_id=cliente_id
+            )
+            salida = _a_salida(VistaDeCliente(cliente))
+        return _exigir(salida)
+
+    return router
+
+
+def _rutas_de_catalogo(recursos: Recursos) -> APIRouter:
+    """The writes of HU-E4-01: creating, editing, taking out of use."""
+    router = APIRouter()
 
     @router.post("", status_code=status.HTTP_201_CREATED)
     async def registrar(entrada: ClienteEntrada, request: Request) -> ClienteSalida:
