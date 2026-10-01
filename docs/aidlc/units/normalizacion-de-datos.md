@@ -485,3 +485,39 @@ Van a `docs/aidlc/TODO.md` §22 (no dependen de MercadoPago ni de ARCA; no hay �
 - **P5**: los textos libres de otros contextos quedan fuera; se anota como hallazgo sin unidad.
 - **P6**: el criterio «sin cambios» se prueba con CUIT; los clientes de planilla sin CUIT quedan como
   hallazgo para la lectura incremental.
+
+## Verificación (Gate 2) — evidencia, 2026-10-01
+
+Commits: `8e074e9` (backend), `98974ac` (hallazgos en `TODO.md`), `2686db1` (tests de la condición de IVA
+fuera del módulo asíncrono), `be21feb` (corrección del verificador).
+
+| Comando | Resultado |
+|---|---|
+| `ruff format --check .` | 556 files already formatted |
+| `ruff check .` | All checks passed |
+| `mypy . --no-incremental` | Success: no issues found in 551 source files |
+| `guard_architecture.py --scan .` | 646 files checked, architecture boundaries intact |
+| `pytest --cov=backend/src` | 1454 passed, 346 skipped (PostgreSQL/Redis, sin Docker); cobertura local 74,24 % (el 80 % lo mide la CI) |
+
+**Verificador independiente** (Sonnet, solo lectura, mutantes en el scratchpad): sin defectos altos.
+Mató 23 de 24 mutantes. El que sobrevivió es equivalente: cambiar `limpiar_texto` por `strip()` en la
+ingesta da lo mismo, porque el agregado normaliza igual. Confirmó que leer un registro existente **no**
+lo reescribe: la hidratación usa los constructores sin normalizar. En la corrección acotada (`be21feb`,
+con test que falló primero) se arreglaron dos cosas:
+- `str.title()` expandía letras («ß» → «Ss», «ŉ» no era idempotente). Ahora una letra que se expande
+  queda como vino.
+- Un CUIT de test que parecía de un organismo real se reemplazó por uno ficticio.
+
+**Visto una vez y no reproducido:** una corrida de `master_data` + `conversational` dio «329 passed, 1
+error» antes de `2686db1`. No se repitió en 4 corridas propias ni en 22 del verificador, incluidas
+corridas en orden inverso y mezclado.
+
+**Lo que no se verificó:** los tests de PostgreSQL (índice único de categoría, `lower()` según la
+intercalación de la base) se saltean sin Docker.
+
+**Hallazgos menores que no se corrigen:** en un nombre de persona, «3M» queda «3m», porque se capitaliza
+solo el primer carácter y es un dígito. En razón social y en catálogo se conserva.
+
+**Decisión para el Gate 2:** editar un cliente (por ejemplo, su teléfono) vuelve a guardar su nombre
+normalizado, aunque sea un nombre viejo («JUAN PEREZ» → «Juan Perez»).
+
