@@ -40,7 +40,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cimientos, identidad y bitácora | terminos-y-privacidad | identity | HU-E1-03, HU-E1-08 | — | — | — | pendiente |
 | Catálogo de clientes y servicios | duracion-de-servicios | master_data | HU-E4-02 | — | Luciano | feature/master_data-duracion-de-servicios | en revisión |
 | Catálogo de clientes y servicios | normalizacion-de-datos | master_data | HU-E4-05, HU-E4-01, HU-E3-03, HU-E3-04, HU-E3-07 | — | Luciano | feature/master_data-normalizacion-de-datos | en revisión |
-| Catálogo de clientes y servicios | correccion-de-datos-existentes | master_data | HU-E4-05 (RN-09) | normalizacion-de-datos | Luciano | feature/master_data-correccion-de-datos-existentes | en curso |
+| Catálogo de clientes y servicios | correccion-de-datos-existentes | master_data | HU-E4-05 (RN-09) | normalizacion-de-datos | Luciano | feature/master_data-correccion-de-datos-existentes | en revisión |
 | Facturación electrónica | tipos-de-comprobante-por-receptor | billing | HU-E5-03, HU-E5-02, HU-E5-04 | — | — | — | pendiente |
 | Facturación electrónica | arca-homologacion-completa | billing | HU-E5-03 | tipos-de-comprobante-por-receptor | — | — | pendiente |
 | Cobros y recordatorios | nuevo-cobro-desde-su-panel | payments | HU-E6-03 | — | — | — | pendiente |

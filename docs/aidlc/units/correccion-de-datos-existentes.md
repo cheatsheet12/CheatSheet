@@ -326,7 +326,7 @@ Riesgos que no son tests:
 - [x] `frontend/src/app/(panel)/datos-maestros/clientes/page.tsx`
 
 ### Docs
-- [ ] `docs/aidlc/units.md`: fila de esta unidad (estado); la nota de D85 ya reserva la `0030`
+- [x] `docs/aidlc/units.md`: fila de esta unidad (estado); la nota de D85 ya reserva la `0030`
 - [x] `docs/aidlc/inputs/der.md`: hueco nuevo en BC2 por `respaldo_de_normalizacion` (hallazgo 8)
 - [x] `docs/aidlc/TODO.md` §23 (§20 ya era de la unidad anterior): retención del respaldo; la expansión de `lower()` del normalizador (hallazgo 5); verificaciones manuales
 - Sin ADR.
@@ -376,7 +376,7 @@ Modo: **test primero**. Los de PostgreSQL se saltean sin Docker y corren en la C
 |---|---|---|
 | 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P7 según la recomendación |
 | 2 · Verificación | 2026-10-01 | Aprobado por Luciano con la evidencia de «Verificación (Gate 2)» |
-| 3 · PR | | |
+| 3 · PR | 2026-10-01 | [#55](https://github.com/cheatsheet12/CheatSheet/pull/55), draft, apilado sobre #54 |
 
 ## Decisiones tomadas durante la unidad
 - **P1**: solo el Administrador dispara informe, aplicación y restauración, desde una sección nueva de
