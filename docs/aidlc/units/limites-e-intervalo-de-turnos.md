@@ -335,7 +335,7 @@ Van a `docs/aidlc/TODO.md` §22 (no hay ítems para §20 ni §21):
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P4 según la recomendación |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-01 | Aprobado por Luciano con la evidencia de «Verificación (Gate 2)» |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
