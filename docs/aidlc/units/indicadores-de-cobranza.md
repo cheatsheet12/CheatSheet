@@ -271,25 +271,25 @@ estado dice honestamente cuál se observó.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | RED: `DetalleDeCobranzaDelPeriodo` pasa los filtros **sin** estados y la zona al puerto, y devuelve `por_estado` en el orden de `EstadoCobro` | unit (aplicación payments) | pendiente |
-| 2 | RED: `CobranzasViaPayments.totales` trae `tasa_de_cobro` de `MetricasDeCobros` sin recalcularla | unit (ACL) | pendiente |
-| 3 | RED: `detalle` agrupa días en semanas ISO con la etiqueta de la facturación: domingo y lunes en semanas distintas, 31/12 → `W53`/`W01` según corresponda, días negativos restan, suma `Decimal` exacta | unit (ACL) | pendiente |
-| 4 | RED: `detalle` usa `_limites(periodo)` y `ZONA_DEL_REPORTE`, y lee los estados por `.value` | unit (ACL) | pendiente |
-| 5 | RED: `VerTablero` expone `cobrado_por_semana`, `cobros_por_estado` y `tasa_de_cobro`, y pide `detalle` una sola vez (período actual) | unit (aplicación reporting) | pendiente |
-| 6 | RED: un período con solo cobros creados (sin comprobantes, turnos ni operaciones) **no** es `sin_actividad`; tampoco uno con un pago y un reembolso que netean cero; uno totalmente vacío sí lo es | unit (aplicación reporting) | pendiente |
-| 7 | RED (P5): con reloj fijo el 31/3 a las 23:30 hora argentina, el período por defecto es marzo (tablero, previsualización, generar reporte y contador) | unit/API | pendiente |
-| 8 | RED: `cobrado_por_dia`: un pago del 31/3 a las 23:30 hora argentina cae el 31/3; un reembolso resta el día de la devolución; una corrección suma; el día puede quedar negativo; `0.10 + 0.20 = 0.30` | integración (PostgreSQL) | pendiente (se saltea sin Docker; CI) |
-| 9 | RED: identidades con los mismos filtros: `Σ cobrado_por_dia = metricas.cobrado`; `por_estado[PENDIENTE].monto = pendiente`; `VENCIDO = en_mora`; `Σ` de los tres pagados `= cobrado_de_lo_creado` | integración (PostgreSQL) | pendiente (CI) |
-| 10 | RED: `por_estado` agrupa lo **creado** en el período por estado actual, con cantidad y monto: un cobro creado en febrero y pagado en marzo cuenta como «Pagado» en febrero y no aparece en marzo; `CANCELADO` incluido | integración (PostgreSQL) | pendiente (CI) |
-| 11 | RLS: el cobrado por día y los cobros por estado de una empresa no incluyen los de otra | integración (PostgreSQL) | pendiente (CI) |
-| 12 | `GET /reporteria/tablero` trae `tasa_de_cobro`, `cobrado_por_semana` y `cobros_por_estado`; un cobro pagado en marzo y creado en febrero suma en «cobrado» y en la semana de marzo; período con solo cobros → `sin_actividad` falso; Solo Lectura lee; la ruta del contador sigue respondiendo | integración (API) | pendiente (CI) |
-| 13 | RED: Reportes muestra «Cobrado por semana» y «Cobros por estado» con las etiquetas de payments, el subtítulo «por su estado actual» y la tasa | unit (frontend) | pendiente |
-| 14 | RED: cambiar el período actualiza los dos gráficos de cobranza | unit (frontend) | pendiente |
-| 15 | RED: una semana negativa lleva la clase negativa y el monto con signo; la nota del dato único habla de cobros, no de facturación | unit (frontend) | pendiente |
-| 16 | RED: Inicio muestra el resumen (cobrado con variación, pendiente, en mora, tasa) del mes en curso y el selector; con `?desde&hasta` pide `/reporteria/tablero` con ese período; ya no muestra la tarjeta «Cobros pendientes» | unit (frontend) | pendiente |
-| 17 | RED: el selector de Inicio escribe `desde/hasta` en la URL | unit (frontend) | pendiente |
-| 18 | `SelectorDePeriodo` extraído: el comportamiento de Reportes no cambia (los tests existentes siguen verdes) | unit (frontend) | pendiente |
-| 19 | En el navegador (`run-local`): Inicio y Reportes con el mismo período muestran las mismas cifras de cobranza; una semana negativa se lee bien | manual | pendiente → `TODO.md` §22 |
+| 1 | RED: `DetalleDeCobranzaDelPeriodo` pasa los filtros **sin** estados y la zona al puerto, y devuelve `por_estado` en el orden de `EstadoCobro` | unit (aplicación payments) | RED observado → verde |
+| 2 | RED: `CobranzasViaPayments.totales` trae `tasa_de_cobro` de `MetricasDeCobros` sin recalcularla | unit (ACL) | RED observado → verde |
+| 3 | RED: `detalle` agrupa días en semanas ISO con la etiqueta de la facturación: domingo y lunes en semanas distintas, 31/12 → `W53`/`W01` según corresponda, días negativos restan, suma `Decimal` exacta | unit (ACL) | RED observado → verde |
+| 4 | RED: `detalle` usa `_limites(periodo)` y `ZONA_DEL_REPORTE`, y lee los estados por `.value` | unit (ACL) | RED observado → verde |
+| 5 | RED: `VerTablero` expone `cobrado_por_semana`, `cobros_por_estado` y `tasa_de_cobro`, y pide `detalle` una sola vez (período actual) | unit (aplicación reporting) | RED observado → verde |
+| 6 | RED: un período con solo cobros creados (sin comprobantes, turnos ni operaciones) **no** es `sin_actividad`; tampoco uno con un pago y un reembolso que netean cero; uno totalmente vacío sí lo es | unit (aplicación reporting) | RED observado → verde |
+| 7 | RED (P5): con reloj fijo el 31/3 a las 23:30 hora argentina, el período por defecto es marzo (tablero, previsualización, generar reporte y contador) | unit/API | RED observado → verde |
+| 8 | RED: `cobrado_por_dia`: un pago del 31/3 a las 23:30 hora argentina cae el 31/3; un reembolso resta el día de la devolución; una corrección suma; el día puede quedar negativo; `0.10 + 0.20 = 0.30` | integración (PostgreSQL) | escrito; se saltea sin Docker (CI) |
+| 9 | RED: identidades con los mismos filtros: `Σ cobrado_por_dia = metricas.cobrado`; `por_estado[PENDIENTE].monto = pendiente`; `VENCIDO = en_mora`; `Σ` de los tres pagados `= cobrado_de_lo_creado` | integración (PostgreSQL) | escrito; se saltea sin Docker (CI) |
+| 10 | RED: `por_estado` agrupa lo **creado** en el período por estado actual, con cantidad y monto: un cobro creado en febrero y pagado en marzo cuenta como «Pagado» en febrero y no aparece en marzo; `CANCELADO` incluido | integración (PostgreSQL) | escrito; se saltea sin Docker (CI) |
+| 11 | RLS: el cobrado por día y los cobros por estado de una empresa no incluyen los de otra | integración (PostgreSQL) | escrito; se saltea sin Docker (CI) |
+| 12 | `GET /reporteria/tablero` trae `tasa_de_cobro`, `cobrado_por_semana` y `cobros_por_estado`; un cobro pagado en marzo y creado en febrero suma en «cobrado» y en la semana de marzo; período con solo cobros → `sin_actividad` falso; Solo Lectura lee; la ruta del contador sigue respondiendo | integración (API) | escrito; se saltea sin Docker (CI) |
+| 13 | RED: Reportes muestra «Cobrado por semana» y «Cobros por estado» con las etiquetas de payments, el subtítulo «por su estado actual» y la tasa | unit (frontend) | RED observado → verde |
+| 14 | RED: cambiar el período actualiza los dos gráficos de cobranza | unit (frontend) | RED observado → verde |
+| 15 | RED: una semana negativa lleva la clase negativa y el monto con signo; la nota del dato único habla de cobros, no de facturación | unit (frontend) | RED observado → verde |
+| 16 | RED: Inicio muestra el resumen (cobrado con variación, pendiente, en mora, tasa) del mes en curso y el selector; con `?desde&hasta` pide `/reporteria/tablero` con ese período; ya no muestra la tarjeta «Cobros pendientes» | unit (frontend) | RED observado → verde |
+| 17 | RED: el selector de Inicio escribe `desde/hasta` en la URL | unit (frontend) | RED observado → verde |
+| 18 | `SelectorDePeriodo` extraído: el comportamiento de Reportes no cambia (los tests existentes siguen verdes) | unit (frontend) | verde (los tests de Reportes siguen pasando) |
+| 19 | En el navegador (`run-local`): Inicio y Reportes con el mismo período muestran las mismas cifras de cobranza; una semana negativa se lee bien | manual | pendiente → `TODO.md` §22.2-22.4 y 22.7 |
 
 ## Verificaciones que no se pueden hacer acá
 
@@ -319,3 +319,42 @@ Van a `docs/aidlc/TODO.md` §22 (no dependen de MercadoPago ni de ARCA; no hay �
   estado» en Reportes.
 - **P5**: el período por defecto se calcula en `ZONA_DEL_REPORTE` en los cuatro lugares
   (`reporteria.py:309`, `:330`, `:388` y `contador.py:118`), con un solo helper y test de reloj fijo.
+
+## Verificación (Gate 2) — evidencia, 2026-09-30
+
+Commits: `48e0ab5` (backend), `f1ca5ba` (docs), `3a285e5` (corrección del verificador), `5886042`
+(frontend), `3574d69` (docs).
+
+| Comando | Resultado |
+|---|---|
+| `ruff format --check .` | 584 files already formatted |
+| `ruff check .` | All checks passed |
+| `mypy . --no-incremental` | Success: no issues found in 579 source files |
+| `guard_architecture.py --scan .` | 670 files checked, architecture boundaries intact |
+| `pytest --cov=backend/src` | 1562 passed, 412 skipped (PostgreSQL/Redis, sin Docker); cobertura local 75,27 % (el 80 % lo mide la CI con PostgreSQL, igual que en las unidades anteriores) |
+| `npm run lint` · `npm run typecheck` | sin errores |
+| `vitest run --coverage` | 73 archivos, 883 tests en verde; 87,36 % de líneas |
+| `prettier --check --end-of-line auto .` | All matched files use Prettier code style |
+| `next build` | compila; `/panel` dinámico |
+| `test_guards.sh` | no corre en esta máquina (falta `jq`); mismo resultado sin los cambios |
+
+**Verificador independiente** (Sonnet, solo lectura, mutantes en el scratchpad): sin defectos altos ni
+medios. 12 de 14 mutantes muertos por tests que corren en local. Los que sobrevivieron eran dos huecos de
+test, y se cerraron en `3a285e5`:
+- el orden de las semanas de cobrado (M11): ahora lo mata
+  `test_las_semanas_salen_en_orden_aunque_los_dias_lleguen_desordenados`;
+- la serialización de la tasa (M13), que la prueba de API no distinguía porque su caso sembrado da
+  `0.00`: ahora está fijada por `tests/api/test_tablero_salida.py`, que no necesita base.
+
+Hallazgos que no son de esta unidad, anotados en `TODO.md`: `periodo_cerrado` del paquete contable
+también corta el mes en UTC (22.6); el período por defecto de PAN-COB-01, igual (22.5). Además, el
+orden de la **facturación** por semana no lo fija ningún test (es anterior a esta unidad).
+
+**Lo que no se verificó:** las consultas SQL nuevas no corrieron contra un PostgreSQL real (casos 8-12,
+en la CI cuando la cadena llegue a `develop`); según el verificador, esos tests tampoco atraparían que
+la devolución se corte en UTC, porque las devoluciones sembradas están a mediodía. Lo visual de Inicio y
+Reportes queda en `TODO.md` §22.2-22.4 y 22.7.
+
+**Desvíos menores del escritor de frontend:** la barra de una semana negativa se dibuja hacia arriba en
+color de error con el monto con signo (el eje muestra magnitud); Inicio pasa a tres tarjetas
+(`dsh-stats--tres`).
