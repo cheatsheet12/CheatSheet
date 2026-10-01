@@ -307,7 +307,7 @@ Van a `docs/aidlc/TODO.md` §22 (no dependen de MercadoPago ni de ARCA; no hay �
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-09-30 | Aprobado por Luciano: P1 a P5 según la recomendación |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-09-30 | Aprobado por Luciano con la evidencia de «Verificación (Gate 2)» |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
