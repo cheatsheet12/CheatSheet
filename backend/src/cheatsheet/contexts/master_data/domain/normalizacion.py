@@ -108,7 +108,7 @@ def normalizar_nombre_de_catalogo(texto: str) -> str:
     primera = True
     for caracter in limpio:
         if primera and _tiene_caja(caracter):
-            resultado.append(caracter.title())
+            resultado.append(_mayuscula(caracter))
             primera = False
         else:
             resultado.append(caracter.lower())
@@ -131,12 +131,18 @@ def _clase(palabra: str) -> str:
     return "mixta"
 
 
+def _mayuscula(caracter: str) -> str:
+    """The title-case form of one letter, unless it expands (`"ß".title()` is `"Ss"`)."""
+    titulo = caracter.title()
+    return titulo if len(titulo) == 1 else caracter
+
+
 def _capitalizar(palabra: str) -> str:
     """Upper-case the first letter and the one after a hyphen or apostrophe (P4)."""
     resultado: list[str] = []
     anterior_es_de_palabra = False
     for caracter in palabra:
-        resultado.append(caracter.lower() if anterior_es_de_palabra else caracter.title())
+        resultado.append(caracter.lower() if anterior_es_de_palabra else _mayuscula(caracter))
         anterior_es_de_palabra = unicodedata.category(caracter)[0] in {"L", "N", "M"}
     return "".join(resultado)
 

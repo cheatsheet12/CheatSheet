@@ -112,7 +112,7 @@ def test_razon_social_rn_03(entrada: str, esperado: str) -> None:
     ("cuit", "es_razon_social"),
     [
         ("30712345671", True),
-        ("33693450239", True),
+        ("33123456705", True),
         ("34999032089", True),
         ("20123456786", False),
         ("27123456780", False),
@@ -157,3 +157,12 @@ def test_idempotencia_sobre_todo_el_corpus_rn_07() -> None:
         for texto in corpus:
             una_vez = funcion(texto)
             assert funcion(una_vez) == una_vez, (texto, una_vez)
+
+
+@pytest.mark.parametrize("texto", ["ßa", "ŉa", "ﬁdel"])
+def test_capitalizar_nunca_agrega_letras(texto: str) -> None:
+    # `str.title()` expande algunas letras («ß» → «Ss»): eso no es capitalizar, es reescribir.
+    for normalizar in (normalizar_nombre_de_persona, normalizar_nombre_de_catalogo):
+        una_vez = normalizar(texto)
+        assert len(una_vez) == len(texto)
+        assert normalizar(una_vez) == una_vez
