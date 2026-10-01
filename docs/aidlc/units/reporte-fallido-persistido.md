@@ -234,7 +234,7 @@ confirma la primera corrida de CI sobre el commit del test solo.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P3 según la recomendación |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-01 | Aprobado por Luciano con la evidencia local; los casos 4 a 6 se confirman en la CI del PR |
 | 3 · PR | | |
 
 Fila de `units.md` en esta rama (épico existente «Reportería y paquete contable», inmediatamente
