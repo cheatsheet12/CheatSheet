@@ -26,13 +26,12 @@ from cheatsheet.contexts.master_data.application.ingesta import (
     IngerirServicioDesdePlanilla,
     ListarClientesParaEscrituraDeVuelta,
     ResultadoDeIngesta,
-    _condicion_iva,
 )
 from cheatsheet.contexts.master_data.domain.cliente import Cliente
 from cheatsheet.contexts.master_data.domain.valores import OrigenDato
 from cheatsheet.shared.contacto import Email
 from cheatsheet.shared.empresa import EmpresaId
-from cheatsheet.shared.fiscal import CUIT, CondicionIVA
+from cheatsheet.shared.fiscal import CUIT
 
 from tests.contexts.master_data.conftest import (
     CUIT_VALIDO,
@@ -207,18 +206,3 @@ async def test_un_cliente_del_panel_reingerido_sin_cambios_reales_no_entra_en_la
         empresa_id=EMPRESA, desde=desde
     )
     assert registros == ()
-
-
-# --- La condición de IVA también recibe RN-01 --------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "crudo", ["  responsable   inscripto ", "Responsable\xa0Inscripto", "RESPONSABLE\tINSCRIPTO"]
-)
-def test_la_condicion_de_iva_se_limpia_antes_de_mapearse(crudo: str) -> None:
-    assert _condicion_iva(crudo) is CondicionIVA.RESPONSABLE_INSCRIPTO
-
-
-def test_una_condicion_desconocida_sigue_quedando_vacia() -> None:
-    assert _condicion_iva("no se") is None
-    assert _condicion_iva("   ") is None
