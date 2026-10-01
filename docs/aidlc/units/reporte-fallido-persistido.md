@@ -233,7 +233,7 @@ confirma la primera corrida de CI sobre el commit del test solo.
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P3 según la recomendación |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
@@ -244,4 +244,8 @@ resuelve conservando la versión de esta rama (responsable, rama y estado más a
 la fila.
 
 ## Decisiones tomadas durante la unidad
--
+- **P1**: opción B. El router atrapa solo `GeneracionFallida` dentro del cuerpo, deja confirmar y la
+  relanza después del bucle; el caso de uso y el contrato HTTP (422) no cambian.
+- **P2**: el paquete contable no se toca acá. Se registra la unidad pendiente
+  `paquete-fallido-visible` (reporting, HU-E10-04) en `units.md`.
+- **P3**: el panel recarga el historial también cuando la generación falla.

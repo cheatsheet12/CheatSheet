@@ -35,6 +35,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | agente-y-atencion-humana | conversational | HU-E8-01 … HU-E8-05, HU-E9-01, HU-E9-02, HU-E9-04, HU-E11-02, HS-T2, HS-T7 | agenda-y-recursos | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
 | Reportería y paquete contable | reporteria-y-paquete-contable | reporting | HU-E10-01 … HU-E10-06 | agente-y-atencion-humana | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
 | Reportería y paquete contable | reporte-fallido-persistido | reporting | HU-E10-03 | — | Luciano | fix/reporting-reporte-fallido-persistido | en curso |
+| Reportería y paquete contable | paquete-fallido-visible | reporting | HU-E10-04 | reporte-fallido-persistido | — | — | pendiente |
 | Panel de auditoría y notificaciones | panel-de-auditoria-y-notificaciones | observability | HU-E12-01, HU-E12-02, HU-E11-03, HU-E9-03 | reporteria-y-paquete-contable | vichen12 | feature/observability-panel-de-auditoria | mergeada |
 | Cobros y recordatorios | cancelacion-invalida-el-link | payments | HU-E6-04, HS-T1 | cobros-y-recordatorios | Cristian | fix/payments-cancelacion-invalida-el-link | en revisión |
 
