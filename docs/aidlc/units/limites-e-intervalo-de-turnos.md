@@ -334,9 +334,17 @@ Van a `docs/aidlc/TODO.md` §22 (no hay ítems para §20 ni §21):
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P4 según la recomendación |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
-- (pendientes de Gate 1: P1 a P4)
+- **P1**: columna `turno.intervalo_posterior_min` (NULL en la carga y la corrección a posteriori) y
+  dos restricciones de exclusión: `excl_turno_recurso_franja` sin cambios y
+  `excl_turno_recurso_intervalo` nueva. Migración `0028` (número reservado; `down_revision` se
+  re-apunta al rebasar y se verifica `alembic heads` antes del PR).
+- **P2**: el rango 5–480 del turno se valida en el dominio al crear y al reprogramar; `Franja` y
+  `ck_turno_duracion` quedan en 1440 como tope estructural.
+- **P3**: los textos propuestos en la pregunta 3.
+- **P4**: no se parten `turnos.py`, `agenda.py` ni `RecursosReservables.tsx`; la lógica nueva va en
+  archivos nuevos y el hallazgo se anota.
