@@ -1,6 +1,6 @@
 """Who may do what with the master data of a company.
 
-Two guards, and they read `RolUsuario` from the Shared Kernel rather than from
+Three guards, and they read `RolUsuario` from the Shared Kernel rather than from
 `identity/domain/` — rule R3 forbids the import, and the role already travels on the
 request. It is the same arrangement `integrations` uses, for the same reason.
 
@@ -29,3 +29,9 @@ def exigir_lectura(rol: RolUsuario) -> None:
 def exigir_escritura(rol: RolUsuario) -> None:
     if rol not in ROLES_QUE_PUEDEN_ESCRIBIR:
         raise PermisoDenegado("Se requiere rol Administrador u Operador para gestionar el catalogo")
+
+
+def exigir_administrador(rol: RolUsuario) -> None:
+    """The mass correction of existing data (HU-E4-05 RN-09) is for the Administrador only."""
+    if rol is not RolUsuario.ADMINISTRADOR:
+        raise PermisoDenegado("Se requiere rol Administrador para corregir datos existentes")
