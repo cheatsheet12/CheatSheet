@@ -603,3 +603,11 @@ no se partieron (decisión P4, para no ampliar el alcance): `application/turnos.
 `tests/contexts/scheduling/application/test_agenda.py` (~1180). No hay un chequeo automático que
 lo exija (ni en `pyproject.toml` ni en `.claude/hooks/`). Una unidad aparte puede extraer
 `Avisador` a `application/avisador.py` y partir el router en uno de recursos y uno de turnos.
+- **Hallazgo sin unidad (verificador de `limites-e-intervalo-de-turnos`):** `ocupados_en`
+  (`scheduling/infrastructure/repositories.py:267-273`) trae solo los turnos que **empiezan** ese día.
+  Un turno de la noche anterior cuya franja más su intervalo pasa la medianoche no aparece en la grilla,
+  y la grilla puede ofrecer un horario que la base después rechaza con 409. No hay doble reserva, porque
+  la restricción lo frena; solo se rompe que «la grilla nunca ofrece lo que la base rechaza». Con
+  intervalos de hasta 480 minutos es más probable. Se arregla trayendo también los turnos del día
+  anterior.
+

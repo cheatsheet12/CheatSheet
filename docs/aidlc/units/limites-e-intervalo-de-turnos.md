@@ -348,3 +348,46 @@ Van a `docs/aidlc/TODO.md` §22 (no hay ítems para §20 ni §21):
 - **P3**: los textos propuestos en la pregunta 3.
 - **P4**: no se parten `turnos.py`, `agenda.py` ni `RecursosReservables.tsx`; la lógica nueva va en
   archivos nuevos y el hallazgo se anota.
+
+## Verificación (Gate 2) — evidencia, 2026-10-01
+
+Commits: `b7020f4` (backend y migración `0028`), `0307642` (frontend), `4292f87` (docs).
+
+| Comando | Resultado |
+|---|---|
+| `ruff format --check .` | 552 files already formatted |
+| `ruff check .` | All checks passed |
+| `mypy . --no-incremental` | Success: no issues found in 547 source files |
+| `guard_architecture.py --scan .` | 647 files checked, architecture boundaries intact |
+| `pytest --cov=backend/src` | 1386 passed, 341 skipped (PostgreSQL/Redis, sin Docker); cobertura local 74,04 % (el 80 % lo mide la CI) |
+| `npm run lint` · `npm run typecheck` | sin errores |
+| `vitest run --coverage` | 70 archivos, 817 tests en verde; 84,21 % de líneas |
+| `prettier --check --end-of-line auto .` | All matched files use Prettier code style |
+| `next build` | compila |
+
+**Verificador independiente** (Sonnet, solo lectura, mutantes en el scratchpad): sin defectos altos ni
+medios. Mató 17 mutantes y sobrevivió uno equivalente. Confirmó en el código:
+- `Turno.bloquea` reproduce exactamente las dos restricciones de la base.
+- El repositorio traduce las dos violaciones a `FranjaOcupada`, sin 500.
+- La columna `intervalo_posterior_min` no tiene `DEFAULT`, así que el `NULL` de la carga a posteriori se
+  conserva.
+- `duracion_min` ya no entra por ningún camino: API, aplicación, agente ni frontend.
+- La migración aborta antes de cualquier cambio si hay patrones fuera de rango, y su `downgrade` revierte
+  todo en orden.
+
+Los mensajes de los tres textos de P3 coinciden literalmente.
+
+Notas que no se corrigen (bajas):
+- **Turnos viejos con intervalo 0:** cambiar el intervalo de un recurso de 0 a 10 no afecta a los turnos
+  existentes, que se reservaron con 0. Un turno nuevo puede quedar pegado a uno viejo. Es lo que pide
+  RN-08 («no mueve turnos existentes»), no un defecto.
+- **Turno de la noche anterior:** la grilla no lo ve si su intervalo pasa la medianoche; la base sí lo
+  frena. Queda anotado en `TODO.md` §20.
+- **Orden de los mensajes:** al reprogramar un turno cancelado de más de 480 minutos, sale el mensaje de
+  duración antes que el de estado. Es cosmético.
+
+**Lo que no se verificó:** todo lo que necesita PostgreSQL (casos 13 a 19): el comportamiento real de
+las restricciones, la ida y vuelta de la `0028` y la traducción a 409. La migración tiene
+`down_revision = "0024"`: al juntar las cadenas hay que re-apuntarlo y comprobar que `alembic heads`
+dé una sola cabeza.
+
