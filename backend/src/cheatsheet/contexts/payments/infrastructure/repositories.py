@@ -56,6 +56,23 @@ ESTADOS_PAGADOS = (
 _Sentencia = TypeVar("_Sentencia", bound=Select[Any])
 
 
+def en_periodo(
+    sentencia: _Sentencia,
+    columna: InstrumentedAttribute[datetime] | InstrumentedAttribute[datetime | None],
+    filtros: FiltrosDeCobro,
+) -> _Sentencia:
+    """Acota una sentencia al período de los filtros, sobre la columna de fecha que se diga.
+
+    Es de módulo y no del repositorio porque `ConsultasDeCobranzaPostgres` recorta igual que
+    `metricas`: si cada uno tuviera su copia, el gráfico y el encabezado podrían dejar de cuadrar.
+    """
+    if filtros.desde is not None:
+        sentencia = sentencia.where(columna >= filtros.desde)
+    if filtros.hasta is not None:
+        sentencia = sentencia.where(columna <= filtros.hasta)
+    return sentencia
+
+
 def _a_dominio(fila: CobroORM) -> Cobro:
     link = (
         LinkDePago(preference_id=fila.mp_preference_id, url=fila.mp_url_pago)
@@ -193,21 +210,21 @@ class RepositorioCobroPostgres:
         se pagó y después se devolvió *se cobró*, y el reembolso no es una falla de cobranza. Así
         la tasa no pasa de 100 %. `filtros.estados` no interviene: el estado es del listado.
         """
-        creados = self._en_periodo(
+        creados = en_periodo(
             select(CobroORM.estado, func.coalesce(func.sum(CobroORM.monto), CERO)),
             CobroORM.created_at,
             filtros,
         ).group_by(CobroORM.estado)
         totales = {estado: monto for estado, monto in (await self._sesion.execute(creados)).all()}
 
-        pagados = self._en_periodo(
+        pagados = en_periodo(
             select(func.coalesce(func.sum(CobroORM.monto), CERO)).where(
                 CobroORM.estado.in_(ESTADOS_PAGADOS)
             ),
             CobroORM.fecha_pago,
             filtros,
         )
-        devuelto = self._en_periodo(
+        devuelto = en_periodo(
             select(func.coalesce(func.sum(ReembolsoORM.monto), CERO)),
             ReembolsoORM.fecha_devolucion,
             filtros,
@@ -250,20 +267,8 @@ class RepositorioCobroPostgres:
         return [_a_dominio(fila) for fila in filas]
 
     @staticmethod
-    def _en_periodo(
-        sentencia: _Sentencia,
-        columna: InstrumentedAttribute[datetime] | InstrumentedAttribute[datetime | None],
-        filtros: FiltrosDeCobro,
-    ) -> _Sentencia:
-        if filtros.desde is not None:
-            sentencia = sentencia.where(columna >= filtros.desde)
-        if filtros.hasta is not None:
-            sentencia = sentencia.where(columna <= filtros.hasta)
-        return sentencia
-
-    @staticmethod
     def _con_filtros(sentencia: _Sentencia, filtros: FiltrosDeCobro) -> _Sentencia:
-        sentencia = RepositorioCobroPostgres._en_periodo(sentencia, CobroORM.created_at, filtros)
+        sentencia = en_periodo(sentencia, CobroORM.created_at, filtros)
         if filtros.estados:
             sentencia = sentencia.where(
                 CobroORM.estado.in_([estado.value for estado in filtros.estados])
@@ -357,7 +362,9 @@ async def empresas_con_cobros_abiertos(sesion: AsyncSession) -> list[EmpresaId]:
 
 
 __all__ = [
+    "ESTADOS_PAGADOS",
     "RepositorioCobroPostgres",
     "RepositorioRecordatoriosPostgres",
     "empresas_con_cobros_abiertos",
+    "en_periodo",
 ]

@@ -31,7 +31,9 @@ from cheatsheet.api.reporteria import (
     armar_cobranzas,
     armar_facturacion,
     armar_nombre_de_empresa,
+    hoy_en_la_zona_del_reporte,
 )
+from cheatsheet.api.routers.tablero_salida import TableroSalida, tablero_salida
 from cheatsheet.contexts.reporting.application.generacion import (
     DescargarReporte,
     GenerarReporte,
@@ -48,9 +50,7 @@ from cheatsheet.contexts.reporting.application.paquete import (
     periodo_cerrado,
 )
 from cheatsheet.contexts.reporting.application.tablero import (
-    Metrica,
     PrevisualizarReporte,
-    Tablero,
     VerTablero,
     periodo_por_defecto,
 )
@@ -109,34 +109,6 @@ class ContadorEntrada(BaseModel):
 # -- salidas --------------------------------------------------------------------------
 
 
-class MetricaSalida(BaseModel):
-    """Un número del encabezado. Los importes viajan como **texto**, nunca como número JSON.
-
-    Es la misma regla del épico 5 y del 6: un `float` en JSON redondea en el cuarto decimal,
-    que es donde vive un centavo, y el frontend formatea a partir de la cadena exacta.
-    """
-
-    valor: str
-    anterior: str
-    #: `None` cuando el período anterior fue cero: «creció 0%» y «no hay con qué comparar» son
-    #: cosas distintas, y la pantalla dibuja un guion.
-    variacion: str | None
-
-
-class TableroSalida(BaseModel):
-    desde: date
-    hasta: date
-    facturado: MetricaSalida
-    cobrado: MetricaSalida
-    turnos: MetricaSalida
-    operaciones: MetricaSalida
-    por_tipo: dict[str, str]
-    por_semana: dict[str, str]
-    pendiente: str
-    en_mora: str
-    sin_actividad: bool
-
-
 class PrevisualizacionSalida(BaseModel):
     tipo: str
     desde: date
@@ -188,30 +160,6 @@ class ConfiguracionSalida(BaseModel):
     email_contador: str | None
     proximo_envio: str | None
     contador: ContadorSalida
-
-
-def _a_metrica(metrica: Metrica) -> MetricaSalida:
-    return MetricaSalida(
-        valor=str(metrica.valor),
-        anterior=str(metrica.anterior),
-        variacion=str(metrica.variacion) if metrica.variacion is not None else None,
-    )
-
-
-def tablero_salida(tablero: Tablero) -> TableroSalida:
-    return TableroSalida(
-        desde=tablero.periodo.desde,
-        hasta=tablero.periodo.hasta,
-        facturado=_a_metrica(tablero.facturado),
-        cobrado=_a_metrica(tablero.cobrado),
-        turnos=_a_metrica(tablero.turnos),
-        operaciones=_a_metrica(tablero.operaciones),
-        por_tipo={clave: str(valor) for clave, valor in tablero.por_tipo.items()},
-        por_semana={clave: str(valor) for clave, valor in tablero.por_semana.items()},
-        pendiente=str(tablero.pendiente),
-        en_mora=str(tablero.en_mora),
-        sin_actividad=tablero.sin_actividad,
-    )
 
 
 def _a_reporte(reporte: Reporte) -> ReporteSalida:
@@ -306,7 +254,7 @@ def _rutas_del_tablero(recursos: Recursos) -> APIRouter:
         empresa_id, _, _ = _actor(request)
         salida: TableroSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            periodo = _periodo(desde, hasta, unidad.reloj.ahora().date())
+            periodo = _periodo(desde, hasta, hoy_en_la_zona_del_reporte(unidad.reloj.ahora()))
             resultado = await VerTablero(
                 facturacion=armar_facturacion(unidad),
                 cobranzas=armar_cobranzas(unidad),
@@ -327,7 +275,7 @@ def _rutas_del_tablero(recursos: Recursos) -> APIRouter:
         empresa_id, _, _ = _actor(request)
         salida: PrevisualizacionSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            periodo = _periodo(desde, hasta, unidad.reloj.ahora().date())
+            periodo = _periodo(desde, hasta, hoy_en_la_zona_del_reporte(unidad.reloj.ahora()))
             estimacion = await PrevisualizarReporte(
                 facturacion=armar_facturacion(unidad),
                 cobranzas=armar_cobranzas(unidad),
@@ -385,7 +333,7 @@ def _rutas_de_reportes(recursos: Recursos) -> APIRouter:
                 rol=rol,
                 tipo=_tipo(entrada.tipo),
                 formato=_formato(entrada.formato),
-                periodo=_periodo(desde, hasta, ahora.date()),
+                periodo=_periodo(desde, hasta, hoy_en_la_zona_del_reporte(ahora)),
                 ahora=ahora,
             )
             salida = _a_reporte(reporte)
@@ -576,15 +524,14 @@ def _rutas_de_configuracion(recursos: Recursos) -> APIRouter:
     return router
 
 
-#: Lo público de este módulo incluye los tres convertidores, y no por comodidad: la ruta del
-#: contador (`contador.py`) devuelve exactamente las mismas formas, y dos conversiones paralelas
-#: del mismo objeto son dos lugares donde un campo se agrega en uno solo.
+#: Lo público de este módulo incluye los convertidores, y no por comodidad: la ruta del contador
+#: (`contador.py`) devuelve exactamente las mismas formas, y dos conversiones paralelas del mismo
+#: objeto son dos lugares donde un campo se agrega en uno solo. El tablero vive en
+#: `tablero_salida.py` por el mismo motivo y porque este archivo ya es largo.
 __all__ = [
     "RUTA_DEL_CONTADOR",
     "ListadoDePaquetes",
-    "TableroSalida",
     "crear_router",
     "descarga",
     "paquete_salida",
-    "tablero_salida",
 ]

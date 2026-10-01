@@ -13,6 +13,7 @@ Cada uno pide exactamente lo que una métrica o un listado necesita:
   es el único número contra el que alguien lo va a comparar.
 - `CobranzasViaPayments` reusa `MetricasDelPeriodo`, que es el mismo cálculo que ve PAN-COB-01.
   Recalcularlo acá haría que dos pantallas del sistema dieran cifras distintas del mismo mes.
+  Su `detalle` (cobrado por semana y cobros por estado) sale de la misma definición.
 - `AgendaViaSchedulingLeida` cuenta **turnos gestionados**: los que existieron en el período,
   en cualquier estado. Un turno cancelado también fue trabajo.
 - `BitacoraViaObservability` cuenta operaciones con `contar`, que no las trae. Un mes de una
@@ -22,7 +23,7 @@ Cada uno pide exactamente lo que una métrica o un listado necesita:
 
 from __future__ import annotations
 
-from datetime import datetime, time
+from datetime import date, datetime, time
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -40,9 +41,15 @@ from cheatsheet.contexts.observability.application.ports import (
     FiltrosDeBitacora,
     PortRegistroDeAuditoria,
 )
+from cheatsheet.contexts.payments.application.cobranza_del_periodo import (
+    DetalleDeCobranzaDelPeriodo,
+    PortConsultasDeCobranza,
+)
 from cheatsheet.contexts.payments.application.cobros import ListarCobros, MetricasDelPeriodo
 from cheatsheet.contexts.payments.application.ports import FiltrosDeCobro, PortRepositorioCobro
 from cheatsheet.contexts.reporting.application.ports import (
+    CobrosPorEstado,
+    DetalleDeCobranzas,
     FilaDeReporte,
     TotalesDeAgenda,
     TotalesDeCobranzas,
@@ -100,6 +107,12 @@ def _autorizados(periodo: Periodo) -> FiltrosDeComprobante:
 def _semana_de(momento: datetime) -> str:
     """La etiqueta de la semana ISO, `2026-W09`. Lo que agrupa el gráfico de RN-03."""
     anio, semana, _ = momento.astimezone(ZONA_DEL_REPORTE).isocalendar()
+    return f"{anio}-W{semana:02d}"
+
+
+def _semana_del_dia(dia: date) -> str:
+    """La misma etiqueta que `_semana_de`, para un día que ya es local (el de la fecha de pago)."""
+    anio, semana, _ = dia.isocalendar()
     return f"{anio}-W{semana:02d}"
 
 
@@ -172,8 +185,9 @@ class FacturacionViaBilling:
 class CobranzasViaPayments:
     """`PortCobranzas`. **Sólo lectura.** Reusa las métricas que ve PAN-COB-01."""
 
-    def __init__(self, cobros: PortRepositorioCobro) -> None:
+    def __init__(self, cobros: PortRepositorioCobro, consultas: PortConsultasDeCobranza) -> None:
         self._cobros = cobros
+        self._consultas = consultas
 
     async def totales(self, periodo: Periodo) -> TotalesDeCobranzas:
         desde, hasta = _limites(periodo)
@@ -181,7 +195,31 @@ class CobranzasViaPayments:
             ahora=hasta, filtros=FiltrosDeCobro(desde=desde, hasta=hasta)
         )
         return TotalesDeCobranzas(
-            cobrado=metricas.cobrado, pendiente=metricas.pendiente, en_mora=metricas.en_mora
+            cobrado=metricas.cobrado,
+            pendiente=metricas.pendiente,
+            en_mora=metricas.en_mora,
+            # La tasa es de `payments`: la calcula sobre lo creado en el período para que no
+            # pase de 100 %, y recalcularla acá con el `cobrado` rompería esa garantía.
+            tasa_de_cobro=metricas.tasa_de_cobro,
+        )
+
+    async def detalle(self, periodo: Periodo) -> DetalleDeCobranzas:
+        """Cobrado por semana y cobros por estado, con la definición de `totales`."""
+        desde, hasta = _limites(periodo)
+        detalle = await DetalleDeCobranzaDelPeriodo(self._consultas).ejecutar(
+            filtros=FiltrosDeCobro(desde=desde, hasta=hasta), zona=ZONA_DEL_REPORTE
+        )
+        por_semana: dict[str, Decimal] = {}
+        for dia, monto in detalle.cobrado_por_dia.items():
+            semana = _semana_del_dia(dia)
+            por_semana[semana] = por_semana.get(semana, CERO) + monto
+        return DetalleDeCobranzas(
+            por_semana=dict(sorted(por_semana.items())),
+            # Por atributo (`.value`, `.cantidad`, `.monto`): el tipo de `payments` no se nombra.
+            por_estado={
+                estado.value: CobrosPorEstado(cantidad=uno.cantidad, monto=uno.monto)
+                for estado, uno in detalle.por_estado.items()
+            },
         )
 
     async def filas(self, periodo: Periodo) -> list[FilaDeReporte]:

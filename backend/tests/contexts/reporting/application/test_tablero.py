@@ -18,6 +18,8 @@ from decimal import Decimal
 
 import pytest
 from cheatsheet.contexts.reporting.application.ports import (
+    CobrosPorEstado,
+    DetalleDeCobranzas,
     FilaDeReporte,
     TotalesDeCobranzas,
     TotalesDeFacturacion,
@@ -103,6 +105,81 @@ class TestVerTablero:
             bitacora=BitacoraFalsa(),
         ).ejecutar(MARZO)
         assert not tablero.sin_actividad
+
+
+class TestCobranzaDelTablero:
+    """RN-07 y RN-08 de HU-E10-01: los dos graficos de cobranza y la tasa de cobro."""
+
+    @pytest.mark.asyncio
+    async def test_expone_los_graficos_y_la_tasa_y_pide_el_detalle_una_sola_vez(self) -> None:
+        cobranzas = CobranzasFalsas(
+            totales=TotalesDeCobranzas(
+                cobrado=Decimal("80000.00"),
+                pendiente=Decimal("15000.00"),
+                en_mora=Decimal("5000.00"),
+                tasa_de_cobro=Decimal("72.50"),
+            ),
+            detalle=DetalleDeCobranzas(
+                por_semana={"2026-W10": Decimal("80000.00")},
+                por_estado={"APROBADO": CobrosPorEstado(cantidad=8, monto=Decimal("80000.00"))},
+            ),
+        )
+
+        tablero = await VerTablero(
+            facturacion=FacturacionFalsa(),
+            cobranzas=cobranzas,
+            agenda=AgendaFalsa(),
+            bitacora=BitacoraFalsa(),
+        ).ejecutar(MARZO)
+
+        assert tablero.tasa_de_cobro == Decimal("72.50")
+        assert tablero.cobrado_por_semana == {"2026-W10": Decimal("80000.00")}
+        assert tablero.cobros_por_estado == {
+            "APROBADO": CobrosPorEstado(cantidad=8, monto=Decimal("80000.00"))
+        }
+        # El detalle es del periodo actual: la variacion es de las cifras, no de los graficos.
+        assert cobranzas.periodos_de_detalle == [MARZO]
+
+    @pytest.mark.asyncio
+    async def test_un_periodo_con_solo_cobros_creados_no_es_sin_actividad(self) -> None:
+        tablero = await VerTablero(
+            facturacion=FacturacionFalsa(),
+            cobranzas=CobranzasFalsas(
+                detalle=DetalleDeCobranzas(
+                    por_semana={},
+                    por_estado={"PENDIENTE": CobrosPorEstado(2, Decimal("500.00"))},
+                )
+            ),
+            agenda=AgendaFalsa(),
+            bitacora=BitacoraFalsa(),
+        ).ejecutar(MARZO)
+
+        assert not tablero.sin_actividad
+
+    @pytest.mark.asyncio
+    async def test_un_pago_y_un_reembolso_que_netean_cero_no_es_sin_actividad(self) -> None:
+        tablero = await VerTablero(
+            facturacion=FacturacionFalsa(),
+            cobranzas=CobranzasFalsas(
+                detalle=DetalleDeCobranzas(por_semana={"2026-W10": Decimal("0.00")}, por_estado={})
+            ),
+            agenda=AgendaFalsa(),
+            bitacora=BitacoraFalsa(),
+        ).ejecutar(MARZO)
+
+        assert tablero.cobrado.valor == 0
+        assert not tablero.sin_actividad
+
+    @pytest.mark.asyncio
+    async def test_un_periodo_totalmente_vacio_sigue_siendo_sin_actividad(self) -> None:
+        tablero = await VerTablero(
+            facturacion=FacturacionFalsa(),
+            cobranzas=CobranzasFalsas(),
+            agenda=AgendaFalsa(),
+            bitacora=BitacoraFalsa(),
+        ).ejecutar(MARZO)
+
+        assert tablero.sin_actividad
 
 
 class TestPrevisualizar:

@@ -26,6 +26,7 @@ import zipfile
 from collections.abc import AsyncIterator
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from io import BytesIO
 from uuid import UUID, uuid4
 
@@ -34,6 +35,8 @@ import pytest
 import pytest_asyncio
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
+from cheatsheet.contexts.payments.domain.cobro import Cobro, LinkDePago
+from cheatsheet.contexts.payments.infrastructure.repositories import RepositorioCobroPostgres
 from cheatsheet.contexts.reporting.domain.paquete import (
     MENSAJE_ACCESO_NO_DISPONIBLE,
     MENSAJE_SIN_EMAIL,
@@ -48,10 +51,12 @@ from cheatsheet.contexts.reporting.infrastructure.repositories import (
 from cheatsheet.platform.database import crear_sessionmaker, sesion_de_empresa
 from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.empresa import EmpresaId
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.test_api_bitacora import _sesion_de_solo_lectura
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -359,6 +364,95 @@ async def test_un_email_invalido_no_invita(cliente_http: httpx.AsyncClient) -> N
     assert respuesta.status_code == 422
 
 
+async def _sembrar_cobros_de_marzo(empresa_id: EmpresaId) -> None:
+    """Un cobro creado el 10/2 y pagado el 5/3, y otro pendiente creado el 6/3."""
+    creado = datetime(2026, 2, 10, 12, 0, tzinfo=UTC)
+    pagado_el = datetime(2026, 3, 5, 12, 0, tzinfo=UTC)
+    cliente_id = uuid4()
+    engine = create_async_engine(os.environ["DATABASE_URL"])
+    sesiones = crear_sessionmaker(engine)
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        await sesion.execute(
+            text(
+                "INSERT INTO cliente (id, empresa_id, nombre, origen, activo, created_at, "
+                "updated_at) VALUES (:id, :empresa_id, 'Acme SA', 'PANEL', true, :ahora, :ahora)"
+            ),
+            {"id": cliente_id, "empresa_id": empresa_id, "ahora": creado},
+        )
+        repo = RepositorioCobroPostgres(sesion)
+        for monto, fecha, preferencia in (
+            ("1000.00", creado, "pref-api-1"),
+            ("500.00", datetime(2026, 3, 6, 12, 0, tzinfo=UTC), "pref-api-2"),
+        ):
+            cobro = Cobro(
+                id=uuid4(),
+                empresa_id=empresa_id,
+                cliente_id=cliente_id,
+                monto=Decimal(monto),
+                descripcion="Consulta",
+                vence_el=fecha + timedelta(days=30),
+                created_at=fecha,
+                updated_at=fecha,
+            )
+            cobro.asignar_link(
+                LinkDePago(preference_id=preferencia, url=f"https://mp.com/{preferencia}"), fecha
+            )
+            if monto == "1000.00":
+                cobro.aprobar(payment_id=f"pago-{cobro.id}", ahora=pagado_el, fecha_pago=pagado_el)
+            await repo.agregar(cobro)
+    await engine.dispose()
+
+
+def _verificar_la_cobranza_de_marzo(cuerpo: dict[str, object]) -> None:
+    # Pagado en marzo y creado en febrero: suma en «cobrado» y en la semana del 5/3 (W10).
+    cobrado = cuerpo["cobrado"]
+    assert isinstance(cobrado, dict)
+    assert cobrado["valor"] == "1000.00"
+    assert cuerpo["cobrado_por_semana"] == {"2026-W10": "1000.00"}
+    # Marzo solo creo el cobro pendiente: el de febrero no entra en «cobros por estado».
+    assert cuerpo["cobros_por_estado"] == {"PENDIENTE": {"cantidad": 1, "monto": "500.00"}}
+    assert cuerpo["pendiente"] == "500.00"
+    # Nada pagado de lo creado en marzo: la tasa es de la cohorte de marzo.
+    assert cuerpo["tasa_de_cobro"] == "0.00"
+    # Sin comprobantes ni turnos, pero con cobros: no es un periodo sin actividad.
+    assert cuerpo["sin_actividad"] is False
+
+
+@pytest.mark.asyncio
+async def test_el_tablero_trae_la_cobranza_y_un_periodo_solo_con_cobros_tiene_actividad(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    """HU-E10-01 RN-06 a RN-08: tasa de cobro, cobrado por semana y cobros por estado."""
+    token, empresa_id = await _sesion_admin(cliente_http)
+    await _sembrar_cobros_de_marzo(empresa_id)
+
+    respuesta = await cliente_http.get(
+        "/reporteria/tablero",
+        headers=_auth(token),
+        params={"desde": "2026-03-01", "hasta": "2026-03-31"},
+    )
+
+    assert respuesta.status_code == 200, respuesta.text
+    _verificar_la_cobranza_de_marzo(respuesta.json())
+
+
+@pytest.mark.asyncio
+async def test_solo_lectura_ve_la_cobranza_del_tablero(cliente_http: httpx.AsyncClient) -> None:
+    """RN-04 de HU-E10-01: son totales, y todos los roles los leen."""
+    _, empresa_id = await _sesion_admin(cliente_http)
+    await _sembrar_cobros_de_marzo(empresa_id)
+    solo_lectura = await _sesion_de_solo_lectura(cliente_http, str(empresa_id))
+
+    respuesta = await cliente_http.get(
+        "/reporteria/tablero",
+        headers=_auth(solo_lectura),
+        params={"desde": "2026-03-01", "hasta": "2026-03-31"},
+    )
+
+    assert respuesta.status_code == 200, respuesta.text
+    _verificar_la_cobranza_de_marzo(respuesta.json())
+
+
 # ------------------------------------------------------------------ el contador externo
 
 
@@ -380,6 +474,8 @@ async def test_el_contador_entra_sin_sesion_y_descarga(cliente_http: httpx.Async
     assert [uno["id"] for uno in cuerpo["paquetes"]["paquetes"]] == [paquete_id]
     # Ve el tablero, y nada más: ni clientes, ni comprobantes, ni cobros.
     assert set(cuerpo) == {"vence", "tablero", "paquetes"}
+    # El tablero del contador lleva la misma forma, con la cobranza incluida (solo totales).
+    assert {"tasa_de_cobro", "cobrado_por_semana", "cobros_por_estado"} <= set(cuerpo["tablero"])
 
     archivo = await cliente_http.get(f"/contador/{ENLACE}/paquetes/{paquete_id}")
     assert archivo.status_code == 200
