@@ -206,13 +206,13 @@ que convierte el siguiente request de la víctima en la alarma.
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/identity/application/ports.py` (método nuevo del puerto)
-- [ ] `backend/src/cheatsheet/contexts/identity/application/sesiones.py` (`RefrescarSesion`, `CerrarSesion`, docstring del módulo)
-- [ ] `backend/src/cheatsheet/contexts/identity/infrastructure/repositories.py` (o `infrastructure/refresh_tokens.py` si se pasa de 400 líneas)
-- [ ] `backend/tests/contexts/identity/conftest.py` (fake)
-- [ ] `backend/tests/integracion/test_refresh_concurrente.py` (nuevo)
-- [ ] `backend/tests/contexts/identity/infrastructure/test_candado_de_familia.py` (nuevo, local; crear `__init__.py` si la carpeta no existe)
-- [ ] `backend/tests/contexts/identity/application/test_registro_y_sesiones.py` (casos con el fake)
+- [x] `backend/src/cheatsheet/contexts/identity/application/ports.py` (método nuevo del puerto)
+- [x] `backend/src/cheatsheet/contexts/identity/application/sesiones.py` (`RefrescarSesion`, `CerrarSesion`, docstring del módulo)
+- [x] `backend/src/cheatsheet/contexts/identity/infrastructure/repositories.py` (o `infrastructure/refresh_tokens.py` si se pasa de 400 líneas)
+- [x] `backend/tests/contexts/identity/conftest.py` (fake)
+- [x] `backend/tests/integracion/test_refresh_concurrente.py` (nuevo)
+- [x] `backend/tests/contexts/identity/infrastructure/test_candado_de_familia.py` (nuevo, local; crear `__init__.py` si la carpeta no existe)
+- [x] `backend/tests/contexts/identity/application/test_registro_y_sesiones.py` (casos con el fake)
 
 ### Docs
 - [x] `docs/aidlc/units.md` (fila de la unidad: Luciano, rama, en curso)
@@ -240,16 +240,16 @@ sin revocar, no un error de armado.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED**: A rota R0 (abierta); B refresca R0 por HTTP → B responde 409 `ReusoDeRefreshDetectado`; en la base, **todas** las filas de la familia quedan `revocado = true`, incluido el hijo de A; el hijo de A ya no refresca | integración (PostgreSQL) | pendiente |
-| 2 | **RED**: A rota R1 (abierta); B reusa R0 por HTTP → 409; R2 (el hijo de A) queda revocado en la base y no refresca | integración (PostgreSQL) | pendiente |
-| 3 | **RED**: A rota R1 (abierta); B hace logout con R1 por HTTP → 204; R2 queda revocado y no refresca | integración (PostgreSQL) | pendiente |
-| 4 | Ráfaga: 5 refresh simultáneos de R0 (`asyncio.gather`) → a lo sumo un 200, ninguno 5xx (sin deadlock); si hubo más de una respuesta, la familia queda toda revocada | integración (PostgreSQL) | pendiente (no es el RED: depende del orden real) |
-| 5 | Dos familias (mismo usuario con dos logins, y dos empresas) rotan a la vez y las dos responden 200: el lock es por familia | integración (PostgreSQL) | pendiente |
-| 6 | Un refresh rechazado (`SesionInvalida`: vencido) suelta el lock: un refresh posterior de la misma familia termina sin esperar | integración (PostgreSQL) | pendiente |
-| 7 | Los casos 1 a 7 de #47 (`test_api_sesiones.py`) siguen en verde sin cambios | integración | pendiente (CI) |
-| 8 | El repositorio ejecuta, en orden, la búsqueda de `familia_id` (columna, no entidad), `pg_advisory_xact_lock` y recién después la carga ORM del token; con un hash desconocido no toma ningún lock. Se verifica con un doble de `AsyncSession` que registra las sentencias compiladas con el dialecto de PostgreSQL | unit (local) | pendiente. Es un test de especificación, no reproduce la carrera |
-| 9 | `RefrescarSesion` y `CerrarSesion` usan `tomar_con_familia_bloqueada` (fake espía); los tests existentes de sesiones (`test_reusar_un_refresh_revoca_toda_la_familia` y demás) siguen en verde con el fake actualizado | unit (local) | pendiente |
-| 10 | `tests/api/test_refresh_confirma_la_revocacion.py` (#47) sigue en verde | unit (local) | pendiente |
+| 1 | **RED**: A rota R0 (abierta); B refresca R0 por HTTP → B responde 409 `ReusoDeRefreshDetectado`; en la base, **todas** las filas de la familia quedan `revocado = true`, incluido el hijo de A; el hijo de A ya no refresca | integración (PostgreSQL) | corre en CI |
+| 2 | **RED**: A rota R1 (abierta); B reusa R0 por HTTP → 409; R2 (el hijo de A) queda revocado en la base y no refresca | integración (PostgreSQL) | corre en CI |
+| 3 | **RED**: A rota R1 (abierta); B hace logout con R1 por HTTP → 204; R2 queda revocado y no refresca | integración (PostgreSQL) | corre en CI |
+| 4 | Ráfaga: 5 refresh simultáneos de R0 (`asyncio.gather`) → a lo sumo un 200, ninguno 5xx (sin deadlock); si hubo más de una respuesta, la familia queda toda revocada | integración (PostgreSQL) | corre en CI (no es el RED: depende del orden real) |
+| 5 | Dos familias (mismo usuario con dos logins, y dos empresas) rotan a la vez y las dos responden 200: el lock es por familia | integración (PostgreSQL) | corre en CI |
+| 6 | Un refresh rechazado (`SesionInvalida`: vencido) suelta el lock: un refresh posterior de la misma familia termina sin esperar | integración (PostgreSQL) | corre en CI |
+| 7 | Los casos 1 a 7 de #47 (`test_api_sesiones.py`) siguen en verde sin cambios | integración | corre en CI |
+| 8 | El repositorio ejecuta, en orden, la búsqueda de `familia_id` (columna, no entidad), `pg_advisory_xact_lock` y recién después la carga ORM del token; con un hash desconocido no toma ningún lock. Se verifica con un doble de `AsyncSession` que registra las sentencias compiladas con el dialecto de PostgreSQL | unit (local) | hecho (RED observado: método ausente; luego verde). Es un test de especificación, no reproduce la carrera |
+| 9 | `RefrescarSesion` y `CerrarSesion` usan `tomar_con_familia_bloqueada` (fake espía); los tests existentes de sesiones (`test_reusar_un_refresh_revoca_toda_la_familia` y demás) siguen en verde con el fake actualizado | unit (local) | hecho (verde en local) |
+| 10 | `tests/api/test_refresh_confirma_la_revocacion.py` (#47) sigue en verde | unit (local) | hecho (verde en local) |
 
 **Límite de la evidencia local.** No hay Docker acá, así que los RED (1 a 3) se observan recién en CI, sobre
 el commit que agrega solo los tests (ver P4). Los casos 8 y 9 corren en local, pero prueban la forma del
