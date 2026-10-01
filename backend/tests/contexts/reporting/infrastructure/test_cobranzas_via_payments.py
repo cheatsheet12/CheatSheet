@@ -139,6 +139,20 @@ class TestDetalle:
             "2026-W10": Decimal("75.00"),
         }
 
+    async def test_las_semanas_salen_en_orden_aunque_los_dias_lleguen_desordenados(self) -> None:
+        consultas = ConsultasFalsas(
+            {
+                date(2026, 3, 16): Decimal("30.00"),  # semana 12
+                date(2026, 3, 2): Decimal("10.00"),  # semana 10
+                date(2026, 3, 9): Decimal("20.00"),  # semana 11
+            }
+        )
+
+        detalle = await _acl(CobrosFalsos(), consultas).detalle(Periodo.del_mes(2026, 3))
+
+        # El gráfico dibuja las barras en el orden del diccionario.
+        assert list(detalle.por_semana) == ["2026-W10", "2026-W11", "2026-W12"]
+
     async def test_el_cambio_de_anio_usa_el_anio_iso(self) -> None:
         consultas = ConsultasFalsas(
             {
