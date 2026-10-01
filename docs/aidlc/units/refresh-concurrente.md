@@ -282,9 +282,16 @@ mecanismo, no la carrera: el cierre del hallazgo son los casos 1 a 3 contra la b
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P5 según la recomendación |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
--
+- **P1**: opción C, lock por familia (`pg_advisory_xact_lock`) tomado por refresh y logout antes de leer
+  el token.
+- **P2**: entran las formas 2 (reuso durante una rotación) y 3 (logout durante una rotación).
+- **P3**: sin ventana de gracia; ADR-011 estricto. Requisito anotado para la renovación automática: un
+  solo refresh a la vez entre pestañas.
+- **P4**: PR draft contra `develop` («revisar desde `0a53e23`»), con el commit de solo tests empujado
+  primero para ver el RED en la CI; queda en draft hasta que se mergee #47.
+- **P5**: sin `lock_timeout`.
