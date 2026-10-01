@@ -162,14 +162,14 @@ almacenamiento.
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/api/routers/reporteria.py` (ruta `generar` → `_generar_reporte`)
-- [ ] `backend/src/cheatsheet/contexts/reporting/application/generacion.py` (solo el docstring de `GenerarReporte`)
-- [ ] `backend/tests/api/test_reporte_fallido_se_confirma.py` (nuevo, unitario local)
-- [ ] `backend/tests/integracion/test_api_reporteria.py` (casos de integración nuevos)
+- [x] `backend/src/cheatsheet/api/routers/reporteria.py` (ruta `generar` → `_generar_reporte`)
+- [x] `backend/src/cheatsheet/contexts/reporting/application/generacion.py` (solo el docstring de `GenerarReporte`)
+- [x] `backend/tests/api/test_reporte_fallido_se_confirma.py` (nuevo, unitario local)
+- [x] `backend/tests/integracion/test_api_reporteria.py` (casos de integración nuevos)
 
 ### Frontend (solo si P3 = sí)
-- [ ] `frontend/src/features/reporting/components/GeneradorDeReportes.tsx`
-- [ ] `frontend/src/features/reporting/components/__tests__/pantallas.test.tsx`
+- [x] `frontend/src/features/reporting/components/GeneradorDeReportes.tsx`
+- [x] `frontend/src/features/reporting/components/__tests__/pantallas.test.tsx`
 
 ### Docs
 - [ ] `docs/aidlc/units.md` (fila de la unidad, ver Registro)
@@ -207,14 +207,14 @@ del fix.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED**: con el almacenamiento fallando, `POST /reporteria/reportes` → el doble de la unidad de trabajo **confirmó**, la respuesta es 422 con `error = "GeneracionFallida"` y el repositorio en memoria tiene una fila `FALLIDO`. **Hoy falla en `assert estado.confirmo is True`** (queda `False`: la excepción escapa del cuerpo y el generador nunca llega a la línea de confirmación) | unit (local, sin Docker) | pendiente |
-| 2 | Guardia del doble: un cuerpo que levanta **no** confirma (demuestra que el doble modela el bug y que el RED del 1 es real) | unit (local) | pendiente |
-| 3 | No se atrapa de más: con `FacturacionFalsa` sin filas → 422 con `MENSAJE_SIN_DATOS` y **sin** confirmar; con rol `SOLO_LECTURA` → 422 y **sin** confirmar | unit (local) | pendiente |
-| 4 | **RED**: con el almacenamiento fallando, `POST /reporteria/reportes` → 422 `GeneracionFallida`; `GET /reporteria/reportes` devuelve **una** fila con `estado = "FALLIDO"` y `descargable = false`. **Hoy falla porque el historial vuelve vacío** (`[]`): la fila se descartó en el rollback | integración (PostgreSQL) | pendiente; corre en CI |
-| 5 | D65 de punta a punta: después del 4, con el almacenamiento restaurado, volver a pedir → 201; el historial tiene **dos** filas, una `FALLIDO` y una `LISTO` | integración (PostgreSQL) | pendiente; corre en CI |
-| 6 | El camino feliz no cambia: `test_generar_y_descargar_un_reporte_de_operaciones` y `test_un_periodo_sin_datos_da_la_frase_de_la_historia` siguen verdes sin cambios | integración (existente) | pendiente; corre en CI |
-| 7 | Los unitarios existentes de `test_generacion.py` siguen verdes sin cambios | unit (existente) | pendiente |
-| 8 | (Solo si P3 = sí) un fallo al generar muestra el error **y** recarga el historial (`listarReportes` llamado tras el rechazo de `generarReporte`) | unit frontend (Vitest) | pendiente |
+| 1 | **RED**: con el almacenamiento fallando, `POST /reporteria/reportes` → el doble de la unidad de trabajo **confirmó**, la respuesta es 422 con `error = "GeneracionFallida"` y el repositorio en memoria tiene una fila `FALLIDO`. **Hoy falla en `assert estado.confirmo is True`** (queda `False`: la excepción escapa del cuerpo y el generador nunca llega a la línea de confirmación) | unit (local, sin Docker) | verde (RED observado antes del fix: `assert estado.confirmo is True` falló) |
+| 2 | Guardia del doble: un cuerpo que levanta **no** confirma (demuestra que el doble modela el bug y que el RED del 1 es real) | unit (local) | verde |
+| 3 | No se atrapa de más: con `FacturacionFalsa` sin filas → 422 con `MENSAJE_SIN_DATOS` y **sin** confirmar; con rol `SOLO_LECTURA` → 422 y **sin** confirmar | unit (local) | verde |
+| 4 | **RED**: con el almacenamiento fallando, `POST /reporteria/reportes` → 422 `GeneracionFallida`; `GET /reporteria/reportes` devuelve **una** fila con `estado = "FALLIDO"` y `descargable = false`. **Hoy falla porque el historial vuelve vacío** (`[]`): la fila se descartó en el rollback | integración (PostgreSQL) | escrito; se saltea sin Docker, corre en CI |
+| 5 | D65 de punta a punta: después del 4, con el almacenamiento restaurado, volver a pedir → 201; el historial tiene **dos** filas, una `FALLIDO` y una `LISTO` | integración (PostgreSQL) | escrito; se saltea sin Docker, corre en CI |
+| 6 | El camino feliz no cambia: `test_generar_y_descargar_un_reporte_de_operaciones` y `test_un_periodo_sin_datos_da_la_frase_de_la_historia` siguen verdes sin cambios | integración (existente) | sin cambios; se saltea sin Docker, corre en CI |
+| 7 | Los unitarios existentes de `test_generacion.py` siguen verdes sin cambios | unit (existente) | verde |
+| 8 | (Solo si P3 = sí) un fallo al generar muestra el error **y** recarga el historial (`listarReportes` llamado tras el rechazo de `generarReporte`) | unit frontend (Vitest) | verde (RED observado: `listarReportes` no se llamaba tras el rechazo) |
 
 El 1 es la evidencia local del RED, y su límite es que el doble reproduce a mano el contrato de
 `sesion_de_empresa` (por eso el 2). El 4, contra la base real, es el que cierra el hallazgo; su RED lo
