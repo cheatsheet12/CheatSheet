@@ -336,7 +336,7 @@ Van a `docs/aidlc/TODO.md` §22 (no hay ítems para §20 ni §21):
 |---|---|---|
 | 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P4 según la recomendación |
 | 2 · Verificación | 2026-10-01 | Aprobado por Luciano con la evidencia de «Verificación (Gate 2)» |
-| 3 · PR | | |
+| 3 · PR | 2026-10-01 | [#53](https://github.com/cheatsheet12/CheatSheet/pull/53), draft, apilado sobre #46 |
 
 ## Decisiones tomadas durante la unidad
 - **P1**: columna `turno.intervalo_posterior_min` (NULL en la carga y la corrección a posteriori) y
