@@ -469,7 +469,7 @@ Van a `docs/aidlc/TODO.md` §22 (no dependen de MercadoPago ni de ARCA; no hay �
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P6 según la recomendación |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-01 | Aprobado por Luciano con la evidencia de «Verificación (Gate 2)» |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
@@ -520,4 +520,5 @@ solo el primer carácter y es un dígito. En razón social y en catálogo se con
 
 **Decisión para el Gate 2:** editar un cliente (por ejemplo, su teléfono) vuelve a guardar su nombre
 normalizado, aunque sea un nombre viejo («JUAN PEREZ» → «Juan Perez»).
-
+Luciano lo aceptó en el Gate 2 (2026-10-01): la normalización se aplica cada vez que el cliente se
+guarda, y quien edita ve el resultado en el momento.
