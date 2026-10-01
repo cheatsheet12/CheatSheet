@@ -470,7 +470,7 @@ Van a `docs/aidlc/TODO.md` §22 (no dependen de MercadoPago ni de ARCA; no hay �
 |---|---|---|
 | 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P6 según la recomendación |
 | 2 · Verificación | 2026-10-01 | Aprobado por Luciano con la evidencia de «Verificación (Gate 2)» |
-| 3 · PR | | |
+| 3 · PR | 2026-10-01 | [#54](https://github.com/cheatsheet12/CheatSheet/pull/54), draft, apilado sobre #48 |
 
 ## Decisiones tomadas durante la unidad
 - **P1**: se parte. La corrección de datos existentes (HU-E4-05 RN-09) pasa a la unidad nueva
