@@ -267,3 +267,6 @@ la fila.
   el Gate 2 queda sujeto a esa salida.
 - Desvío: si la recarga del historial falla después de generar, el panel ya no muestra «No se pudo
   generar el reporte.» (el reporte sí se generó); conserva el historial anterior.
+- **CI del PR #56** (run 36885929641): las 9 compuertas en verde. `pytest` 1633 passed, 0 skipped,
+  cobertura 85,14 %; el paso «Verify the integration tests actually ran» dio 322 passed sin
+  salteados, así que los casos 4 a 6 corrieron contra PostgreSQL.
