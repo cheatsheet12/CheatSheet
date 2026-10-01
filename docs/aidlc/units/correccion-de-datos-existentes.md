@@ -403,3 +403,37 @@ Modo: **test primero**. Los de PostgreSQL se saltean sin Docker y corren en la C
     sin ellas el navegador no llega a los endpoints.
   - Se sacó un test que fijaba `down_revision = "0025"`: iba a fallar al re-apuntar en el rebase.
     Queda el de una sola cabeza (`tests/platform/test_migraciones_cabeza.py`).
+
+## Verificación (Gate 2) — evidencia, 2026-10-01
+
+Backend (desde la raíz del repositorio):
+
+| Compuerta | Resultado observado |
+|---|---|
+| `ruff format --check .` | 566 files already formatted |
+| `ruff check .` | All checks passed! |
+| `mypy . --no-incremental` | Success: no issues found in 561 source files |
+| `guard_architecture.py --scan .` | 658 file(s) checked, architecture boundaries intact |
+| `pytest --cov` | 1475 passed, 364 skipped, 0 failed; cobertura total 73,46 % (no llega al 80 %) |
+
+- La cobertura local no llega al 80 % porque los 364 tests de PostgreSQL y Redis se saltean sin
+  Docker; es el mismo motivo de las unidades anteriores. El 80 % lo mide la CI.
+- Dominio y aplicación de la corrección: 100 %. Adaptador `infrastructure/correccion.py`: 28 %, y
+  router: 53 %, porque sus tests (casos 12 a 22) son de PostgreSQL y se saltean en local.
+- TDD: RED observado en dominio y aplicación (`ModuleNotFoundError` antes de implementar), después
+  verde.
+
+Frontend (desde `frontend/`):
+
+| Compuerta | Resultado observado |
+|---|---|
+| `npm run lint` | No ESLint warnings or errors |
+| `npm run typecheck` | `tsc --noEmit` sin errores |
+| `npx --no-install prettier --check --end-of-line auto .` | All matched files use Prettier code style! |
+| `npm run test:coverage` | 72 archivos, 833 tests pasan; 84,23 % de líneas |
+
+- TDD: RED observado (módulos inexistentes y «un Administrador ve la sección» en rojo), después
+  verde.
+
+**No verificado acá**: los casos 12 a 22 (CI), el caso 26 en el navegador y lo de `staging`; está
+anotado en `TODO.md` §23.
