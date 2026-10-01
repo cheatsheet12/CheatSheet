@@ -40,6 +40,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cimientos, identidad y bitácora | terminos-y-privacidad | identity | HU-E1-03, HU-E1-08 | — | — | — | pendiente |
 | Catálogo de clientes y servicios | duracion-de-servicios | master_data | HU-E4-02 | — | Luciano | feature/master_data-duracion-de-servicios | en revisión |
 | Catálogo de clientes y servicios | normalizacion-de-datos | master_data | HU-E4-05, HU-E4-01, HU-E3-03, HU-E3-04, HU-E3-07 | — | Luciano | feature/master_data-normalizacion-de-datos | en curso |
+| Catálogo de clientes y servicios | correccion-de-datos-existentes | master_data | HU-E4-05 (RN-09) | normalizacion-de-datos | — | — | pendiente |
 | Facturación electrónica | tipos-de-comprobante-por-receptor | billing | HU-E5-03, HU-E5-02, HU-E5-04 | — | — | — | pendiente |
 | Facturación electrónica | arca-homologacion-completa | billing | HU-E5-03 | tipos-de-comprobante-por-receptor | — | — | pendiente |
 | Cobros y recordatorios | nuevo-cobro-desde-su-panel | payments | HU-E6-03 | — | — | — | pendiente |
@@ -466,6 +467,15 @@ empieza con 30, 33 o 34.
 
 **Lo que se paga:** falsos positivos de siglas («SUR» queda en mayúsculas) y que las tildes no se
 agreguen ni se quiten nunca, así que «Maria» no se corrige a «María».
+
+**Cómo se resolvió en el Gate 1 de `normalizacion-de-datos` (2026-10-01):** la corrección única de
+datos existentes (RN-09) se partió en la unidad `correccion-de-datos-existentes`; el normalizador vive
+en `master_data/domain/normalizacion.py` y el índice `lower(nombre)` de categoría no cambia.
+
+**Números de migración reservados** (las cadenas de ramas parten de cabezas distintas): `0028`
+`limites-e-intervalo-de-turnos`, `0029` `tipos-de-comprobante-por-receptor` (renumera su `0026`),
+`0030` `correccion-de-datos-existentes`. Al rebasar sobre `develop` se re-apunta el `down_revision`, y
+antes de cada PR `alembic heads` tiene que dar una sola cabeza.
 
 ### Decisión D86 — un servicio agendable dura entre 5 y 480 minutos · ADR-0009
 

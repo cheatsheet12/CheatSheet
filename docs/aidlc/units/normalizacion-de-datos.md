@@ -468,9 +468,20 @@ Van a `docs/aidlc/TODO.md` §22 (no dependen de MercadoPago ni de ARCA; no hay �
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P6 según la recomendación |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
-- (pendiente de Gate 1: P1 a P6)
+- **P1**: se parte. La corrección de datos existentes (HU-E4-05 RN-09) pasa a la unidad nueva
+  `correccion-de-datos-existentes`, registrada en `units.md`; lleva la migración `0030` (reservada).
+  Esta unidad queda sin migración y sin frontend.
+- **P2**: en razón social las partículas van en minúscula (salvo al inicio); la regla de hasta 4
+  letras en mayúsculas se aplica al resto.
+- **P3**: lista cerrada de siglas societarias de la pregunta 3; «SE» y «SC» solo con puntos. La lista
+  queda a validar por el equipo contra la fuente primaria.
+- **P4**: mayúscula después de guion y apóstrofo, NFC, espacios Unicode como espacio, se descartan los
+  caracteres de control y de formato.
+- **P5**: los textos libres de otros contextos quedan fuera; se anota como hallazgo sin unidad.
+- **P6**: el criterio «sin cambios» se prueba con CUIT; los clientes de planilla sin CUIT quedan como
+  hallazgo para la lectura incremental.
