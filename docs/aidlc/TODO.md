@@ -579,3 +579,27 @@ comentario. Corregirlo es una línea, en el PR que toque ese archivo por otra ra
 `catalogos_fiscales()`. Es la misma pieza pendiente —resolver el ticket de cada empresa
 desde `integrations`— y se arma una sola vez en `emision-de-comprobantes`, que la necesita
 sí o sí.
+
+## 20. Verificaciones manuales de `limites-e-intervalo-de-turnos`
+
+Lo que no se pudo ver sin navegador ni Docker. Esta rama llega hasta §19; las otras cadenas ya
+usan §20 a §22, así que **al juntar las cadenas estas filas pasan a §22** (mismo contenido).
+
+- [ ] **Intervalo en el navegador (`run-local`).** Configurar un intervalo de 10 en un recurso,
+  reservar 09:00 y ver que la grilla de PAN-AGE-02 marca 09:30 como no disponible y ofrece 09:40.
+- [ ] **Formulario de recursos.** El campo «Intervalo entre turnos (min)» y el rótulo «Duración
+  del slot (min)» con su ayuda se ven bien en escritorio y en celular (la fila de la franja ahora
+  lleva una línea de ayuda más).
+- [ ] **Nuevo turno.** Cambiar de servicio recalcula la grilla sin dejar elegido un horario viejo,
+  y sin servicio pide «Elegí el servicio para ver los horarios».
+- [ ] **PostgreSQL.** Los tests de `test_agenda_postgres.py` y `test_api_agenda.py` de esta unidad
+  (incluida la migración 0028) se saltean en local sin Docker: observarlos en la CI.
+- [ ] **Migración 0028 al rebasar.** Re-apuntar `down_revision` a la cabeza vigente (hoy `"0027"`
+  en la otra cadena) y verificar con `alembic heads` que queda una sola cabeza.
+
+**Archivos de más de 400 líneas (CLAUDE.md §5).** Ya superaban el límite antes de esta unidad y
+no se partieron (decisión P4, para no ampliar el alcance): `application/turnos.py` (~520),
+`api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y el test
+`tests/contexts/scheduling/application/test_agenda.py` (~1180). No hay un chequeo automático que
+lo exija (ni en `pyproject.toml` ni en `.claude/hooks/`). Una unidad aparte puede extraer
+`Avisador` a `application/avisador.py` y partir el router en uno de recursos y uno de turnos.
