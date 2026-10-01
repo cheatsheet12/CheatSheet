@@ -6,6 +6,10 @@ comes back, that is not a retry — the only way it happens is that two parties 
 same token, which means one of them stole it. The reaction is to revoke the entire
 family, so the legitimate user is forced to sign in again and the thief loses access
 too. Revoking only the presented token would let both keep rotating forever.
+
+Refresh and sign-out are serialized per family: both take the family lock before reading
+the token, so a concurrent rotation, reuse or logout on the same family cannot interleave
+with the check-then-write below.
 """
 
 from __future__ import annotations
@@ -139,7 +143,7 @@ class RefrescarSesion:
         self._emisor = emisor
 
     async def ejecutar(self, *, refresh_token: str, ahora: datetime) -> Sesion:
-        guardado = await self._refrescos.buscar_por_hash(
+        guardado = await self._refrescos.tomar_con_familia_bloqueada(
             self._tokens.hashear_refresh(refresh_token)
         )
         if guardado is None:
@@ -181,7 +185,7 @@ class CerrarSesion:
         self._tokens = tokens
 
     async def ejecutar(self, *, refresh_token: str) -> None:
-        guardado = await self._refrescos.buscar_por_hash(
+        guardado = await self._refrescos.tomar_con_familia_bloqueada(
             self._tokens.hashear_refresh(refresh_token)
         )
         if guardado is not None:
