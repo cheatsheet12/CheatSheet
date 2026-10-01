@@ -375,7 +375,7 @@ Modo: **test primero**. Los de PostgreSQL se saltean sin Docker y corren en la C
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P7 según la recomendación |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-01 | Aprobado por Luciano con la evidencia de «Verificación (Gate 2)» |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
