@@ -295,3 +295,27 @@ mecanismo, no la carrera: el cierre del hallazgo son los casos 1 a 3 contra la b
 - **P4**: PR draft contra `develop` («revisar desde `0a53e23`»), con el commit de solo tests empujado
   primero para ver el RED en la CI; queda en draft hasta que se mergee #47.
 - **P5**: sin `lock_timeout`.
+
+## Verificación (Gate 2) — evidencia, 2026-10-01
+
+| Evidencia | Resultado observado |
+|---|---|
+| RED en CI sobre `0888151` (solo los tests) | `test_refresh_concurrente.py FFF....`: caso 1 `assert 200 == 409` («B rotated the same token as A»), caso 2 «R2 was not revoked» (`1 == 0`), caso 3 «R2 survived the logout» (`1 == 0`); 1640 passed |
+| CI sobre `f57b412` (primer fix) | **rojo**: `DataError: invalid input for query argument $2 … (expected str, got UUID)` en cada refresh y logout con un token existente |
+| Corrección acotada `d85957a` | test nuevo del caso 8 (la clave del lock llega como `str(familia_id)`): RED local `assert [UUID(...)] == ['...']`, después verde; fix `hashtext(cast(str(familia_id), String))` |
+| CI sobre `d85957a` (run 36892896854) | las 9 compuertas en verde; `test_refresh_concurrente.py .......`; `pytest` 1647 passed, cobertura 85,25 %; integración 333 passed sin salteados |
+| Local | `ruff format --check`, `ruff check`, `mypy --no-incremental` limpios; `tests/contexts/identity` + `tests/api`: 191 passed |
+
+**Verificador independiente** (subagente que no escribió el fix, solo lectura):
+- Preguntas 1 a 5 del plan: OK. El lock se toma antes de leer en refresh y logout; la lectura bajo lock
+  es la primera carga ORM del token; ningún camino toma dos locks; el contrato HTTP no cambió (sin
+  cambios bajo `api/`); no hay otro escritor de `refresh_token` sin lock fuera de `revocar_de_usuario`.
+- Defecto **alto** encontrado: el `UUID` enlazado como `VARCHAR` (ver la CI de `f57b412`). Corregido en
+  `d85957a`, la única corrección de la unidad.
+- Mutantes sobre los tests locales: 8 de 9 muertos; el sobreviviente (clave del lock = hash del token)
+  quedó muerto por el test nuevo de `d85957a`.
+- Fuera de alcance, preexistente y de severidad baja: `DesactivarUsuario` toma `FOR UPDATE` sobre la
+  empresa y un refresh concurrente toma `KEY SHARE` por la FK al insertar el hijo; PostgreSQL resolvería
+  un deadlock abortando una de las dos. No lo introduce esta unidad.
+- El caso 6 cuenta locks en `pg_locks` de forma global: podría ser inestable si algún día los tests
+  corren en paralelo sobre la misma base.
