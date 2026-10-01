@@ -625,3 +625,7 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 | # | Qué verificar | Unidad |
 |---|---|---|
 | 22.1 | En `/cobros/nuevo`, el concepto y el monto escritos no se pierden al elegir cliente (`router.replace`) | `nuevo-cobro-desde-su-panel` |
+| 22.2 | En el navegador, Inicio (PAN-DSH-01) y Reportes con el mismo período muestran las mismas cifras de cobranza, y el selector de Inicio conserva el período al recargar | `indicadores-de-cobranza` |
+| 22.3 | Una semana con cobrado negativo y un período con un solo estado de cobro se leen bien en Reportes (color, signo, nota del dato único) | `indicadores-de-cobranza` |
+| 22.4 | Después de las 21:00 del último día del mes (hora argentina), Inicio y Reportes abren en el mes que termina, no en el siguiente | `indicadores-de-cobranza` |
+| 22.5 | **Hallazgo sin unidad.** El período por defecto de PAN-COB-01 sale de `ahora.replace(day=1)` en UTC (`payments/application/cobros.py:118-123`): entre las 21:00 y las 24:00 del último día del mes ya muestra el mes siguiente. Reportes e Inicio ya lo calculan en hora argentina (`indicadores-de-cobranza`, P5) | hallazgo sin unidad |
