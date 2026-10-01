@@ -156,9 +156,22 @@ export async function verTurno(turnoId: string): Promise<Turno> {
   return (await respuesta.json()) as Turno;
 }
 
-export async function verDisponibilidad(recursoId: string, fecha: string): Promise<Disponibilidad> {
+/**
+ * Los inicios que el recurso ofrece ese día **para ese servicio** (D96).
+ *
+ * El servicio es obligatorio: la duración del turno es la suya, y sin duración no hay grilla.
+ */
+export async function verDisponibilidad(
+  recursoId: string,
+  fecha: string,
+  servicioId: string,
+): Promise<Disponibilidad> {
   const respuesta = await fetch(
-    `/api/turnos/disponibilidad${consultaDe({ recurso_id: recursoId, fecha })}`,
+    `/api/turnos/disponibilidad${consultaDe({
+      recurso_id: recursoId,
+      fecha,
+      servicio_id: servicioId,
+    })}`,
     { cache: "no-store" },
   );
   if (!respuesta.ok) {
