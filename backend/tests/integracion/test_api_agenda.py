@@ -25,7 +25,11 @@ import pytest
 import pytest_asyncio
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
-from cheatsheet.contexts.scheduling.domain.recurso import ZONA_DE_LA_AGENDA
+from cheatsheet.contexts.scheduling.domain.recurso import (
+    MENSAJE_DURACION_SLOT,
+    MENSAJE_INTERVALO,
+    ZONA_DE_LA_AGENDA,
+)
 from cheatsheet.contexts.scheduling.domain.turno import (
     MENSAJE_HORARIO_OCUPADO,
     MENSAJE_REPROGRAMAR_AL_PASADO,
@@ -287,7 +291,11 @@ async def test_la_disponibilidad_marca_lo_que_ya_esta_tomado(
     horarios = await cliente_http.get(
         "/turnos/disponibilidad",
         headers=_auth(escena.token),
-        params={"recurso_id": escena.recurso_id, "fecha": "2027-09-07"},
+        params={
+            "recurso_id": escena.recurso_id,
+            "fecha": "2027-09-07",
+            "servicio_id": escena.servicio_id,
+        },
     )
 
     assert horarios.status_code == 200, horarios.text
@@ -385,7 +393,11 @@ async def test_un_dia_bloqueado_no_ofrece_horarios_ni_acepta_turnos(
     horarios = await cliente_http.get(
         "/turnos/disponibilidad",
         headers=_auth(escena.token),
-        params={"recurso_id": escena.recurso_id, "fecha": "2027-09-07"},
+        params={
+            "recurso_id": escena.recurso_id,
+            "fecha": "2027-09-07",
+            "servicio_id": escena.servicio_id,
+        },
     )
     assert horarios.json()["horarios"] == []
 
@@ -494,7 +506,11 @@ async def test_configurar_el_horario_lo_reemplaza_entero(
     horarios = await cliente_http.get(
         "/turnos/disponibilidad",
         headers=_auth(escena.token),
-        params={"recurso_id": escena.recurso_id, "fecha": "2027-09-07"},
+        params={
+            "recurso_id": escena.recurso_id,
+            "fecha": "2027-09-07",
+            "servicio_id": escena.servicio_id,
+        },
     )
     assert horarios.json()["horarios"] == []
 
@@ -560,7 +576,11 @@ async def test_una_apertura_especial_reemplaza_el_horario_habitual(
     horarios = await cliente_http.get(
         "/turnos/disponibilidad",
         headers=_auth(escena.token),
-        params={"recurso_id": escena.recurso_id, "fecha": "2027-09-05"},
+        params={
+            "recurso_id": escena.recurso_id,
+            "fecha": "2027-09-05",
+            "servicio_id": escena.servicio_id,
+        },
     )
 
     assert [uno["inicio"][11:16] for uno in horarios.json()["horarios"]] == ["10:00", "11:00"]
@@ -673,14 +693,125 @@ async def test_la_disponibilidad_no_ofrece_horarios_que_ya_pasaron(
         params={
             "recurso_id": recurso_id,
             "fecha": ahora.astimezone(ZONA_DE_LA_AGENDA).date().isoformat(),
+            "servicio_id": escena.servicio_id,
         },
     )
     ayer = await cliente_http.get(
         "/turnos/disponibilidad",
         headers=_auth(escena.token),
-        params={"recurso_id": recurso_id, "fecha": "2020-09-08"},
+        params={
+            "recurso_id": recurso_id,
+            "fecha": "2020-09-08",
+            "servicio_id": escena.servicio_id,
+        },
     )
 
     assert hoy.status_code == 200, hoy.text
     assert all(datetime.fromisoformat(uno["inicio"]) >= ahora for uno in hoy.json()["horarios"])
     assert ayer.json()["horarios"] == []
+
+
+#: El horario del recurso de estos tests, para volver a mandarlo en un `PUT`.
+PATRON_DE_LA_ESCENA = {
+    "dia_semana": 1,
+    "hora_inicio": "09:00:00",
+    "hora_fin": "18:00:00",
+    "duracion_slot_min": 60,
+}
+
+
+@pytest.mark.asyncio
+async def test_un_slot_fuera_de_5_a_480_es_un_422_con_la_frase_de_la_historia(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    """HU-E7-04 RN-05, criterio nuevo: 4 y 481 minutos se rechazan y no se guardan."""
+    escena = await _escena(cliente_http, "agenda-slot-fuera@test.local")
+
+    for minutos in (4, 481):
+        rechazado = await cliente_http.put(
+            f"/recursos/{escena.recurso_id}/disponibilidad",
+            headers=_auth(escena.token),
+            json={"patrones": [{**PATRON_DE_LA_ESCENA, "duracion_slot_min": minutos}]},
+        )
+
+        assert rechazado.status_code == 422, rechazado.text
+        assert rechazado.json()["detalle"] == MENSAJE_DURACION_SLOT
+
+
+@pytest.mark.asyncio
+async def test_un_intervalo_negativo_es_un_422_y_no_se_guarda(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    escena = await _escena(cliente_http, "agenda-intervalo-negativo@test.local")
+
+    rechazado = await cliente_http.put(
+        f"/recursos/{escena.recurso_id}/disponibilidad",
+        headers=_auth(escena.token),
+        json={"patrones": [PATRON_DE_LA_ESCENA], "intervalo_entre_turnos_min": -1},
+    )
+
+    assert rechazado.status_code == 422, rechazado.text
+    assert rechazado.json()["detalle"] == MENSAJE_INTERVALO
+    listado = await cliente_http.get("/recursos", headers=_auth(escena.token))
+    assert [uno["intervalo_entre_turnos_min"] for uno in listado.json()["recursos"]] == [0]
+
+
+@pytest.mark.asyncio
+async def test_la_disponibilidad_exige_el_servicio(cliente_http: httpx.AsyncClient) -> None:
+    """Sin servicio no hay duración, y sin duración no hay grilla (D96)."""
+    escena = await _escena(cliente_http, "agenda-sin-servicio@test.local")
+
+    sin_servicio = await cliente_http.get(
+        "/turnos/disponibilidad",
+        headers=_auth(escena.token),
+        params={"recurso_id": escena.recurso_id, "fecha": "2027-09-07"},
+    )
+
+    assert sin_servicio.status_code == 422, sin_servicio.text
+
+
+@pytest.mark.asyncio
+async def test_la_duracion_del_turno_es_la_del_servicio_aunque_el_cuerpo_traiga_otra(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    """HU-E7-06 RN-08: un cliente viejo que manda `duracion_min` no cambia la duración."""
+    escena = await _escena(cliente_http, "agenda-duracion-ignorada@test.local")
+
+    creado = await cliente_http.post(
+        "/turnos", headers=_auth(escena.token), json={**escena.turno(), "duracion_min": 15}
+    )
+
+    assert creado.status_code == 201, creado.text
+    assert creado.json()["duracion_min"] == 60
+
+
+@pytest.mark.asyncio
+async def test_con_intervalo_se_rechaza_dentro_del_margen_y_se_acepta_despues(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    """HU-E7-04 RN-07, de punta a punta: turno de 15:00 a 16:00 con intervalo de 10."""
+    escena = await _escena(cliente_http, "agenda-intervalo@test.local")
+    configurado = await cliente_http.put(
+        f"/recursos/{escena.recurso_id}/disponibilidad",
+        headers=_auth(escena.token),
+        json={"patrones": [PATRON_DE_LA_ESCENA], "intervalo_entre_turnos_min": 10},
+    )
+    assert configurado.status_code == 200, configurado.text
+    assert configurado.json()["intervalo_entre_turnos_min"] == 10
+    primero = await cliente_http.post("/turnos", headers=_auth(escena.token), json=escena.turno())
+    assert primero.status_code == 201, primero.text
+
+    dentro_del_margen = await cliente_http.post(
+        "/turnos",
+        headers=_auth(escena.token),
+        json=escena.turno(MARTES_15 + timedelta(minutes=69)),
+    )
+    despues = await cliente_http.post(
+        "/turnos",
+        headers=_auth(escena.token),
+        json=escena.turno(MARTES_15 + timedelta(minutes=70)),
+    )
+
+    assert dentro_del_margen.status_code == 422, dentro_del_margen.text
+    assert dentro_del_margen.json()["detalle"] == MENSAJE_HORARIO_OCUPADO
+    assert despues.status_code == 201, despues.text

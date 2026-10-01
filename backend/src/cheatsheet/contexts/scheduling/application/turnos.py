@@ -51,6 +51,7 @@ from cheatsheet.contexts.scheduling.domain.turno import (
     CanalDeReserva,
     Franja,
     Turno,
+    validar_duracion_de_turno,
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
@@ -236,14 +237,14 @@ class ReservarTurno:
         recurso_id: UUID,
         inicio: datetime,
         ahora: datetime,
-        duracion_min: int | None = None,
         canal: str = CanalDeReserva.PANEL,
         a_posteriori: bool = False,
     ) -> Turno:
         _exigir_gestor(rol)
         recurso, servicio = await self._resolver(recurso_id, servicio_id)
 
-        franja = Franja(inicio=inicio, duracion_min=duracion_min or servicio.duracion_estandar_min)
+        validar_duracion_de_turno(servicio.duracion_estandar_min)
+        franja = Franja(inicio=inicio, duracion_min=servicio.duracion_estandar_min)
         _validar_momento(
             franja, ahora, rol=rol, a_posteriori=a_posteriori, mensaje=MENSAJE_TURNO_EN_EL_PASADO
         )
@@ -274,6 +275,7 @@ class ReservarTurno:
                 canal_reserva=canal,
                 created_at=ahora,
                 updated_at=ahora,
+                intervalo_posterior_min=recurso.intervalo_entre_turnos_min,
             )
         # Puede levantar `FranjaOcupada`: es la restricción de exclusión hablando, y es la
         # única afirmación confiable de que el horario estaba libre.
@@ -371,7 +373,6 @@ class ReprogramarTurno:
         turno_id: UUID,
         inicio: datetime,
         ahora: datetime,
-        duracion_min: int | None = None,
         a_posteriori: bool = False,
     ) -> Turno:
         _exigir_gestor(rol)
@@ -379,7 +380,10 @@ class ReprogramarTurno:
         anterior = turno.franja.inicio
         recurso = await VerRecurso(self._recursos).ejecutar(turno.recurso_id)
 
-        franja = Franja(inicio=inicio, duracion_min=duracion_min or turno.franja.duracion_min)
+        # La reprogramación conserva la duración, que tiene que seguir entre 5 y 480 (HU-E7-02
+        # RN-08): un turno viejo fuera de rango se rechaza acá y no al leerlo.
+        validar_duracion_de_turno(turno.franja.duracion_min)
+        franja = Franja(inicio=inicio, duracion_min=turno.franja.duracion_min)
         _validar_momento(
             franja,
             ahora,
@@ -394,7 +398,9 @@ class ReprogramarTurno:
             raise FueraDeHorario(MENSAJE_HORARIO_OCUPADO)
 
         try:
-            turno.reprogramar(franja)
+            # Cada turno guarda el intervalo que se aplicó (RN-08); la corrección a posteriori
+            # no lo respeta ni lo impone.
+            turno.reprogramar(franja, None if a_posteriori else recurso.intervalo_entre_turnos_min)
         except InvarianteViolada as exc:
             raise TurnoNoModificable(str(exc)) from exc
         turno.updated_at = ahora
