@@ -107,7 +107,7 @@ async def test_alta_y_listado(cliente_http: httpx.AsyncClient) -> None:
     assert creada["aplica_a"] == "CLIENTE"
 
     listado = await cliente_http.get("/categorias", headers=_auth(token))
-    assert [c["nombre"] for c in listado.json()["categorias"]] == ["VIP"]
+    assert [c["nombre"] for c in listado.json()["categorias"]] == ["Vip"]
 
 
 @pytest.mark.asyncio
@@ -160,7 +160,7 @@ async def test_clasificar_y_desclasificar_un_cliente(cliente_http: httpx.AsyncCl
     asignado = await cliente_http.put(
         ruta, json={"categoria_id": categoria["id"], "asignar": True}, headers=_auth(token)
     )
-    assert [c["nombre"] for c in asignado.json()["categorias"]] == ["VIP"]
+    assert [c["nombre"] for c in asignado.json()["categorias"]] == ["Vip"]
 
     leido = await cliente_http.get(ruta, headers=_auth(token))
     assert len(leido.json()["categorias"]) == 1
@@ -300,3 +300,21 @@ async def test_no_se_clasifica_con_una_categoria_de_otra_empresa(
     )
 
     assert respuesta.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_vip_choca_con_vip_en_otra_escritura(cliente_http: httpx.AsyncClient) -> None:
+    """HU-E4-05 RN-04: «VIP» con «Vip» existente, y «VIP   GOLD» con «Vip gold» (422, ver arriba)."""
+    token = await _token(cliente_http)
+    await _categoria(cliente_http, token, nombre="Vip", aplica_a="CLIENTE")
+    await _categoria(cliente_http, token, nombre="Vip gold", aplica_a="CLIENTE")
+
+    for nombre in ("VIP", "VIP   GOLD"):
+        respuesta = await cliente_http.post(
+            "/categorias", json={"nombre": nombre, "aplica_a": "CLIENTE"}, headers=_auth(token)
+        )
+
+        assert respuesta.status_code == 422, respuesta.text
+        assert (
+            respuesta.json()["detalle"] == "Ya existe una categoria con ese nombre en este ambito."
+        )

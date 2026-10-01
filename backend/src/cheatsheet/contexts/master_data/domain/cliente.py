@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
+from cheatsheet.contexts.master_data.domain.normalizacion import normalizar_nombre_de_cliente
 from cheatsheet.contexts.master_data.domain.valores import OrigenDato
 from cheatsheet.shared.contacto import Email, Telefono
 from cheatsheet.shared.empresa import EmpresaId
@@ -67,7 +68,7 @@ class Cliente:
         return cls(
             id=id,
             empresa_id=empresa_id,
-            nombre=_nombre_valido(nombre),
+            nombre=_nombre_valido(nombre, cuit),
             origen=origen,
             creado_en=momento,
             actualizado_en=momento,
@@ -78,7 +79,7 @@ class Cliente:
         )
 
     def renombrar(self, nombre: str, momento: datetime) -> None:
-        self.nombre = _nombre_valido(nombre)
+        self.nombre = _nombre_valido(nombre, self.cuit)
         self.actualizado_en = momento
 
     def actualizar_contacto(
@@ -135,8 +136,13 @@ class Cliente:
         return self.cuit is not None and self.condicion_iva is not None
 
 
-def _nombre_valido(nombre: str) -> str:
-    limpio = nombre.strip()
+def _nombre_valido(nombre: str, cuit: CUIT | None) -> str:
+    """HU-E4-05: normalized first, validated after, so the length is the stored length.
+
+    The CUIT decides whether the name is a person's or a company's (RN-03), which is why
+    it must be set before a rename that comes with a new CUIT.
+    """
+    limpio = normalizar_nombre_de_cliente(nombre, cuit)
     if not limpio:
         raise EntradaInvalida("El nombre del cliente es obligatorio")
     if len(limpio) > LARGO_MAXIMO_NOMBRE:

@@ -164,3 +164,35 @@ def test_la_pagina_rechaza_limites_absurdos(limite: int) -> None:
 def test_la_pagina_rechaza_un_desplazamiento_negativo() -> None:
     with pytest.raises(EntradaInvalida):
         Pagina(desplazamiento=-1)
+
+
+# --- Normalización del nombre (HU-E4-05) ---------------------------------------------
+
+
+def test_registrar_guarda_el_nombre_normalizado() -> None:
+    assert _cliente(nombre="  JUAN  CARLOS DE LA CRUZ ").nombre == "Juan Carlos de la Cruz"
+
+
+def test_un_cuit_de_empresa_hace_que_el_nombre_sea_razon_social() -> None:
+    cliente = _cliente(nombre="ferreteria lopez s.r.l.", cuit=CUIT(CUIT_VALIDO))
+
+    assert cliente.nombre == "Ferreteria Lopez S.R.L."
+
+
+def test_renombrar_usa_el_cuit_del_cliente() -> None:
+    cliente = _cliente(nombre="Ferreteria Lopez", cuit=CUIT(CUIT_VALIDO))
+
+    cliente.renombrar("IBM ARGENTINA SA", INSTANTE_FIJO + timedelta(hours=1))
+
+    assert cliente.nombre == "IBM Argentina SA"
+
+
+def test_un_nombre_hecho_solo_de_invisibles_es_obligatorio() -> None:
+    with pytest.raises(EntradaInvalida, match="obligatorio"):
+        _cliente(nombre="\u200b \ufeff\t")
+
+
+def test_el_largo_maximo_se_mide_despues_de_normalizar() -> None:
+    con_espacios = "a" * 150 + " " * 100 + "b" * 40
+
+    assert len(_cliente(nombre=con_espacios).nombre) == 191

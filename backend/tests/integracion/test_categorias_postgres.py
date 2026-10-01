@@ -322,7 +322,7 @@ async def test_un_servicio_tambien_se_clasifica_y_se_filtra(
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
         del_servicio = await ClasificacionesPostgres(sesion).categorias_de_servicio(servicio.id)
 
-    assert [c.nombre for c in del_servicio] == ["VIP"]
+    assert [c.nombre for c in del_servicio] == ["Vip"]
 
 
 @pytest.mark.asyncio

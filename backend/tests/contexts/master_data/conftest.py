@@ -23,10 +23,7 @@ from cheatsheet.contexts.master_data.application.ports import (
     DatosFiscalesDePadron,
     PadronNoDisponible,
 )
-from cheatsheet.contexts.master_data.domain.categoria import (
-    CategoriaEmpresa,
-    clave_de_unicidad,
-)
+from cheatsheet.contexts.master_data.domain.categoria import CategoriaEmpresa
 from cheatsheet.contexts.master_data.domain.cliente import Cliente, FiltrosDeCliente, Pagina
 from cheatsheet.contexts.master_data.domain.servicio import FiltrosDeServicio, Servicio
 from cheatsheet.contexts.master_data.domain.valores import AmbitoDeCategoria
@@ -235,12 +232,15 @@ class RepositorioCategoriaEnMemoria:
     async def buscar_por_nombre_y_ambito(
         self, *, nombre: str, aplica_a: AmbitoDeCategoria
     ) -> CategoriaEmpresa | None:
-        clave = clave_de_unicidad(nombre)
+        # Exactly what the real adapter does with the argument: `strip().lower()`, no more.
+        # The normalization is the application's job, so a fake that did it too would hide
+        # an application that forgets to.
+        clave = nombre.strip().lower()
         return next(
             (
                 c
                 for c in self.categorias.values()
-                if clave_de_unicidad(c.nombre) == clave and c.aplica_a is aplica_a
+                if c.nombre.strip().lower() == clave and c.aplica_a is aplica_a
             ),
             None,
         )

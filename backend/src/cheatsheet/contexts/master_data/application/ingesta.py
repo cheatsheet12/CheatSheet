@@ -34,6 +34,10 @@ from cheatsheet.contexts.master_data.application.ports import (
     PortRepositorioServicio,
 )
 from cheatsheet.contexts.master_data.domain.cliente import Cliente, FiltrosDeCliente, Pagina
+from cheatsheet.contexts.master_data.domain.normalizacion import (
+    limpiar_texto,
+    normalizar_nombre_de_cliente,
+)
 from cheatsheet.contexts.master_data.domain.servicio import Servicio
 from cheatsheet.contexts.master_data.domain.valores import AlicuotaIVA, OrigenDato
 from cheatsheet.shared.contacto import Email, Telefono
@@ -64,13 +68,24 @@ class FilaDeCatalogo:
 
 @dataclass(frozen=True, slots=True)
 class ResultadoDeIngesta:
-    """What happened to one row. `creado` False means an existing record was updated."""
+    """What happened to one row. `creado` False means an existing record was matched.
+
+    `modificado` False means the row, once normalized, said nothing new (HU-E3-04 RN-04):
+    the record was neither rewritten nor had its `actualizado_en` moved.
+    """
 
     creado: bool
+    modificado: bool = True
 
 
 class IngerirClienteDesdePlanilla:
-    """Create or update one `Cliente` from a spreadsheet row (HU-E3-03)."""
+    """Create or update one `Cliente` from a spreadsheet row (HU-E3-03).
+
+    **A difference that disappears on normalizing is not a change** (HU-E3-04 RN-04,
+    HU-E4-05 RN-08). Both sides are normalized before comparing, because what is stored may
+    predate the normalization. The spreadsheet itself is never written: this unit has no
+    port for that, and the normalized value only lives in the catalogue.
+    """
 
     def __init__(self, clientes: PortRepositorioCliente) -> None:
         self._clientes = clientes
@@ -78,7 +93,7 @@ class IngerirClienteDesdePlanilla:
     async def ejecutar(
         self, *, empresa_id: EmpresaId, fila: FilaDeCatalogo, ahora: datetime
     ) -> ResultadoDeIngesta:
-        nombre = (fila.nombre or "").strip()
+        nombre = limpiar_texto(fila.nombre or "")
         if not nombre:
             # The one field with no sensible default. A catalogue of customers with no
             # names is worse than a row that failed and says why.
@@ -91,16 +106,7 @@ class IngerirClienteDesdePlanilla:
 
         existente = await self._clientes.buscar_por_cuit(str(cuit)) if cuit else None
         if existente is not None:
-            # The spreadsheet wins for master data (ADR-006), so the sheet's values
-            # overwrite ours -- except `origen`, which records where the record was born
-            # and never changes.
-            existente.renombrar(nombre, ahora)
-            existente.actualizar_contacto(
-                contacto_whatsapp=whatsapp, contacto_email=email, momento=ahora
-            )
-            existente.presente_en_planilla = True
-            await self._clientes.guardar(existente)
-            return ResultadoDeIngesta(creado=False)
+            return await self._actualizar(existente, nombre, whatsapp, email, ahora)
 
         cliente = Cliente.registrar(
             id=uuid4(),
@@ -116,6 +122,35 @@ class IngerirClienteDesdePlanilla:
         cliente.presente_en_planilla = True
         await self._clientes.agregar(cliente)
         return ResultadoDeIngesta(creado=True)
+
+    async def _actualizar(
+        self,
+        existente: Cliente,
+        nombre: str,
+        whatsapp: Telefono | None,
+        email: Email | None,
+        ahora: datetime,
+    ) -> ResultadoDeIngesta:
+        # The spreadsheet wins for master data (ADR-006), so the sheet's values overwrite
+        # ours -- except `origen`, which records where the record was born and never changes.
+        igual = (
+            normalizar_nombre_de_cliente(nombre, existente.cuit)
+            == normalizar_nombre_de_cliente(existente.nombre, existente.cuit)
+            and existente.contacto_whatsapp == whatsapp
+            and existente.contacto_email == email
+        )
+        if igual:
+            if not existente.presente_en_planilla:
+                existente.presente_en_planilla = True
+                await self._clientes.guardar(existente)
+            return ResultadoDeIngesta(creado=False, modificado=False)
+        existente.renombrar(nombre, ahora)
+        existente.actualizar_contacto(
+            contacto_whatsapp=whatsapp, contacto_email=email, momento=ahora
+        )
+        existente.presente_en_planilla = True
+        await self._clientes.guardar(existente)
+        return ResultadoDeIngesta(creado=False)
 
 
 class IngerirServicioDesdePlanilla:
@@ -164,11 +199,15 @@ class IngerirServicioDesdePlanilla:
 def _condicion_iva(crudo: str | None) -> CondicionIVA | None:
     """A spreadsheet writes «Monotributo», «MONOTRIBUTO» and «monotributo ». All three
     are the same thing, and none of them is a reason to fail a row: the field is optional
-    and an unrecognised value is better left empty than guessed."""
-    if not crudo or not crudo.strip():
+    and an unrecognised value is better left empty than guessed.
+
+    The text gets HU-E4-05 RN-01 first, so «Responsable  Inscripto» (two spaces, or a
+    non-breaking one pasted from a web page) is recognised too."""
+    limpio = limpiar_texto(crudo or "")
+    if not limpio:
         return None
     try:
-        return CondicionIVA(crudo.strip().upper().replace(" ", "_"))
+        return CondicionIVA(limpio.upper().replace(" ", "_"))
     except ValueError:
         return None
 

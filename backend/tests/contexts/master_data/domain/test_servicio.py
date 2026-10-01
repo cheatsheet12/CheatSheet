@@ -304,3 +304,24 @@ def test_el_nombre_vacio_no_construye_un_servicio() -> None:
 def test_los_filtros_normalizan_el_texto_vacio() -> None:
     assert FiltrosDeServicio(texto="   ").texto is None
     assert FiltrosDeServicio(texto=" corte ").texto == "corte"
+
+
+# --- Normalización del nombre (HU-E4-05 RN-04) ---------------------------------------
+
+
+def test_el_nombre_del_servicio_se_guarda_normalizado() -> None:
+    servicio = _servicio(nombre="  CORTE   DE PELO ")
+
+    assert servicio.nombre == "Corte de pelo"
+
+    servicio.renombrar("TINTURA", INSTANTE_FIJO + timedelta(hours=1))
+    assert servicio.nombre == "Tintura"
+
+
+def test_un_servicio_con_nombre_de_invisibles_es_obligatorio() -> None:
+    with pytest.raises(EntradaInvalida, match="obligatorio"):
+        _servicio(nombre="\u200b\xa0")
+
+
+def test_el_largo_del_servicio_se_mide_despues_de_normalizar() -> None:
+    assert len(_servicio(nombre="a" * 150 + " " * 100 + "b" * 40).nombre) == 191
