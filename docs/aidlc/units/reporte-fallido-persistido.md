@@ -172,8 +172,8 @@ almacenamiento.
 - [x] `frontend/src/features/reporting/components/__tests__/pantallas.test.tsx`
 
 ### Docs
-- [ ] `docs/aidlc/units.md` (fila de la unidad, ver Registro)
-- [ ] `docs/aidlc/units/reporte-fallido-persistido.md` (este plan)
+- [x] `docs/aidlc/units.md` (fila de la unidad, ver Registro)
+- [x] `docs/aidlc/units/reporte-fallido-persistido.md` (este plan)
 
 ## Casos de prueba
 
@@ -235,7 +235,7 @@ confirma la primera corrida de CI sobre el commit del test solo.
 |---|---|---|
 | 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P3 según la recomendación |
 | 2 · Verificación | 2026-10-01 | Aprobado por Luciano con la evidencia local; los casos 4 a 6 se confirman en la CI del PR |
-| 3 · PR | | |
+| 3 · PR | 2026-10-01 | [#56](https://github.com/cheatsheet12/CheatSheet/pull/56), draft, contra `develop` |
 
 Fila de `units.md` en esta rama (épico existente «Reportería y paquete contable», inmediatamente
 después de `reporteria-y-paquete-contable`). #47 agrega en la misma posición la misma unidad con
