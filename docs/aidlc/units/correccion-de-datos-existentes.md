@@ -374,9 +374,17 @@ Modo: **test primero**. Los de PostgreSQL se saltean sin Docker y corren en la C
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-01 | Aprobado por Luciano: P1 a P7 según la recomendación |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
--
+- **P1**: solo el Administrador dispara informe, aplicación y restauración, desde una sección nueva de
+  PAN-DM-01, con componente y router nuevos.
+- **P2**: la corrección no mueve `updated_at`; solo cambia `nombre`.
+- **P3**: la restauración tiene pantalla mínima (lista de corridas con «Restaurar» y confirmación).
+- **P4**: sincrónica, en la petición, lotes de 500 y lock consultivo por empresa (409 si está tomado).
+- **P5**: no se bloquea una segunda corrida; la operación es idempotente.
+- **P6**: una sola unidad y un PR, en cuatro commits (dominio y aplicación; migración e
+  infraestructura; API; frontend).
+- **P7**: los servicios con duración fuera de regla se omiten y se informan.
