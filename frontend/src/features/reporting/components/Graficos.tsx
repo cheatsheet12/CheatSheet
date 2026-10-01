@@ -90,6 +90,18 @@ export interface PropsDeSerie {
   readonly nombrar: (clave: string) => string;
   /** La versión larga del nombre, para cuando hay una sola categoría y sobra el lugar. */
   readonly detallar?: (clave: string) => string;
+  /** Lo que se dice cuando hay una sola categoría. Depende de qué se esté midiendo. */
+  readonly notaUnica: string;
+}
+
+export interface PropsDeDistribucion extends PropsDeSerie {
+  /** Un rótulo secundario por categoría (la cantidad), junto al nombre. */
+  readonly secundario?: (clave: string) => string;
+}
+
+/** El signo viaja en el texto del backend: no hace falta convertirlo para saberlo. */
+function esNegativo(valor: string): boolean {
+  return valor.startsWith("-");
 }
 
 /**
@@ -117,7 +129,13 @@ function DatoUnico({
   );
 }
 
-export function BarrasPorSemana({ datos, vacio, nombrar, detallar }: PropsDeSerie): JSX.Element {
+export function BarrasPorSemana({
+  datos,
+  vacio,
+  nombrar,
+  detallar,
+  notaUnica,
+}: PropsDeSerie): JSX.Element {
   const entradas = Object.entries(datos);
   const primera = entradas[0];
   if (primera === undefined) {
@@ -125,16 +143,13 @@ export function BarrasPorSemana({ datos, vacio, nombrar, detallar }: PropsDeSeri
   }
   if (entradas.length < MINIMO_PARA_COMPARAR) {
     return (
-      <DatoUnico
-        rotulo={(detallar ?? nombrar)(primera[0])}
-        monto={primera[1]}
-        nota="Es la única semana con facturación del período: no hay otra contra la cual medirla."
-      />
+      <DatoUnico rotulo={(detallar ?? nombrar)(primera[0])} monto={primera[1]} nota={notaUnica} />
     );
   }
 
   const { tope, indiceMayor } = escalaDe(entradas.map(([, valor]) => valor));
-  const cima = entradas[indiceMayor]?.[1] ?? "0";
+  // El eje mide magnitud: una semana negativa se dibuja hacia arriba, con otro color.
+  const cima = (entradas[indiceMayor]?.[1] ?? "0").replace(/^-/, "");
   const densa = entradas.length > COLUMNAS_HOLGADAS;
 
   return (
@@ -145,8 +160,12 @@ export function BarrasPorSemana({ datos, vacio, nombrar, detallar }: PropsDeSeri
       </li>
       {entradas.map(([clave, valor], indice) => {
         const alto = proporcion(valor, tope);
-        const clases =
-          alto === 0 ? "rep-barras__barra rep-barras__barra--vacia" : "rep-barras__barra";
+        let clases = "rep-barras__barra";
+        if (alto === 0) {
+          clases += " rep-barras__barra--vacia";
+        } else if (esNegativo(valor)) {
+          clases += " rep-barras__barra--negativa";
+        }
         return (
           <li key={clave} className="rep-barras__col" title={(detallar ?? nombrar)(clave)}>
             <span className="rep-barras__monto">$ {formatearNumero(valor)}</span>
@@ -159,7 +178,14 @@ export function BarrasPorSemana({ datos, vacio, nombrar, detallar }: PropsDeSeri
   );
 }
 
-export function Distribucion({ datos, vacio, nombrar, detallar }: PropsDeSerie): JSX.Element {
+export function Distribucion({
+  datos,
+  vacio,
+  nombrar,
+  detallar,
+  notaUnica,
+  secundario,
+}: PropsDeDistribucion): JSX.Element {
   const entradas = Object.entries(datos);
   const primera = entradas[0];
   if (primera === undefined) {
@@ -168,9 +194,13 @@ export function Distribucion({ datos, vacio, nombrar, detallar }: PropsDeSerie):
   if (entradas.length < MINIMO_PARA_COMPARAR) {
     return (
       <DatoUnico
-        rotulo={(detallar ?? nombrar)(primera[0])}
+        rotulo={
+          secundario === undefined
+            ? (detallar ?? nombrar)(primera[0])
+            : `${(detallar ?? nombrar)(primera[0])} · ${secundario(primera[0])}`
+        }
         monto={primera[1]}
-        nota="Es el único tipo que se emitió: el 100 % de lo facturado en el período."
+        nota={notaUnica}
       />
     );
   }
@@ -186,6 +216,9 @@ export function Distribucion({ datos, vacio, nombrar, detallar }: PropsDeSerie):
             <span className="rep-dist__sw" aria-hidden="true" />
             <span>
               <span className="rep-dist__nombre">{nombrar(clave)}</span>
+              {secundario !== undefined && (
+                <span className="rep-dist__secundario">{secundario(clave)}</span>
+              )}
               <span className="rep-dist__pista">
                 <span
                   className="rep-dist__barra"
