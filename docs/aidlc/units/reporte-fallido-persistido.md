@@ -249,3 +249,21 @@ la fila.
 - **P2**: el paquete contable no se toca acá. Se registra la unidad pendiente
   `paquete-fallido-visible` (reporting, HU-E10-04) en `units.md`.
 - **P3**: el panel recarga el historial también cuando la generación falla.
+
+## Verificación (Gate 2) — evidencia, 2026-10-01
+
+| Compuerta | Resultado observado |
+|---|---|
+| RED (código del commit `45b15d2`, solo el test) | `test_reporte_fallido_se_confirma.py`: 1 failed, 3 passed; falla `assert escenario.transaccion.confirmo is True` |
+| GREEN (con el fix) | `test_reporte_fallido_se_confirma.py` + `tests/contexts/reporting`: 96 passed |
+| `ruff format --check .` / `ruff check .` | 547 files already formatted / All checks passed! |
+| `mypy . --no-incremental` | Success: no issues found in 542 source files |
+| `pytest -q` | 1311 passed, 322 skipped (PostgreSQL y Redis) |
+| `guard_architecture.py --scan .` | 645 file(s) checked, architecture boundaries intact |
+| Frontend `lint` / `typecheck` / `prettier --check` | sin errores |
+| Frontend `test:coverage` | 70 archivos, 801 tests; 84,04 % de líneas. Caso 8: RED observado (`listarReportes` no se llamaba), después verde |
+
+- Los casos 4 a 6 (PostgreSQL) se saltean en local. Este PR va a `develop`, así que la CI los corre:
+  el Gate 2 queda sujeto a esa salida.
+- Desvío: si la recarga del historial falla después de generar, el panel ya no muestra «No se pudo
+  generar el reporte.» (el reporte sí se generó); conserva el historial anterior.
