@@ -303,32 +303,32 @@ Riesgos que no son tests:
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/master_data/domain/correccion.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/master_data/application/correccion.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/master_data/application/ports.py` (`PortCorreccionDeNombres`)
-- [ ] `backend/src/cheatsheet/contexts/master_data/application/autorizacion.py` (`exigir_administrador`)
-- [ ] `backend/src/cheatsheet/contexts/master_data/application/errors.py` (`CorreccionEnCurso`, `CorridaNoEncontrada`)
-- [ ] `backend/src/cheatsheet/contexts/master_data/infrastructure/correccion.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/master_data/infrastructure/models.py` (`RespaldoDeNormalizacionORM`)
-- [ ] `backend/src/cheatsheet/contexts/master_data/infrastructure/ensamblado.py`
-- [ ] `backend/migrations/versions/0030_respaldo_de_normalizacion.py` (nuevo)
-- [ ] `backend/src/cheatsheet/api/routers/correccion.py` (nuevo) y `backend/src/cheatsheet/api/main.py`
-- [ ] `backend/tests/contexts/master_data/domain/test_correccion.py` (nuevo)
-- [ ] `backend/tests/contexts/master_data/application/test_correccion.py` (nuevo)
-- [ ] `backend/tests/integracion/test_correccion_postgres.py` (nuevo)
-- [ ] `backend/tests/integracion/test_api_correccion.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/master_data/domain/correccion.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/master_data/application/correccion.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/master_data/application/ports.py` (`PortCorreccionDeNombres`)
+- [x] `backend/src/cheatsheet/contexts/master_data/application/autorizacion.py` (`exigir_administrador`)
+- [x] `backend/src/cheatsheet/contexts/master_data/application/errors.py` (`CorreccionEnCurso`, `CorridaNoEncontrada`)
+- [x] `backend/src/cheatsheet/contexts/master_data/infrastructure/correccion.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/master_data/infrastructure/models.py` (`RespaldoDeNormalizacionORM`)
+- [x] `backend/src/cheatsheet/contexts/master_data/infrastructure/ensamblado.py`
+- [x] `backend/migrations/versions/0030_respaldo_de_normalizacion.py` (nuevo)
+- [x] `backend/src/cheatsheet/api/routers/correccion.py` (nuevo) y `backend/src/cheatsheet/api/main.py`
+- [x] `backend/tests/contexts/master_data/domain/test_correccion.py` (nuevo)
+- [x] `backend/tests/contexts/master_data/application/test_correccion.py` (nuevo)
+- [x] `backend/tests/integracion/test_correccion_postgres.py` (nuevo)
+- [x] `backend/tests/integracion/test_api_correccion.py` (nuevo)
 
 ### Frontend
-- [ ] `frontend/src/features/master_data/api/correccion.ts` (nuevo)
-- [ ] `frontend/src/features/master_data/components/CorreccionDeDatos.tsx` (nuevo)
-- [ ] `frontend/src/features/master_data/components/__tests__/CorreccionDeDatos.test.tsx` (nuevo)
-- [ ] `frontend/src/features/master_data/index.ts`
-- [ ] `frontend/src/app/(panel)/datos-maestros/clientes/page.tsx`
+- [x] `frontend/src/features/master_data/api/correccion.ts` (nuevo)
+- [x] `frontend/src/features/master_data/components/CorreccionDeDatos.tsx` (nuevo)
+- [x] `frontend/src/features/master_data/components/__tests__/CorreccionDeDatos.test.tsx` (nuevo)
+- [x] `frontend/src/features/master_data/index.ts`
+- [x] `frontend/src/app/(panel)/datos-maestros/clientes/page.tsx`
 
 ### Docs
-- [ ] `docs/aidlc/units.md`: fila de esta unidad (estado) y la nota de D85 («`0030` usada»)
-- [ ] `docs/aidlc/inputs/der.md`: hueco nuevo en BC2 por `respaldo_de_normalizacion` (hallazgo 8)
-- [ ] `docs/aidlc/TODO.md` §20: retención del respaldo; la expansión de `lower()` del normalizador (hallazgo 5); verificaciones manuales
+- [ ] `docs/aidlc/units.md`: fila de esta unidad (estado); la nota de D85 ya reserva la `0030`
+- [x] `docs/aidlc/inputs/der.md`: hueco nuevo en BC2 por `respaldo_de_normalizacion` (hallazgo 8)
+- [x] `docs/aidlc/TODO.md` §23 (§20 ya era de la unidad anterior): retención del respaldo; la expansión de `lower()` del normalizador (hallazgo 5); verificaciones manuales
 - Sin ADR.
 
 ## Casos de prueba
@@ -337,30 +337,30 @@ Modo: **test primero**. Los de PostgreSQL se saltean sin Docker y corren en la C
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | RED: cliente «JUAN PEREZ» → cambio a «Juan Perez»; con CUIT 30-… «ferreteria lopez s.r.l.» → «Ferreteria Lopez S.R.L.»; servicio «CORTE DE PELO» → «Corte de pelo» | unit (dominio) | pendiente |
-| 2 | RED: un nombre ya normalizado no genera cambio; planificar sobre el resultado aplicado da 0 cambios (idempotencia) | unit (dominio) | pendiente |
-| 3 | RED: categorías «Vip  Gold» y «Vip gold» con el mismo ámbito → la primera se omite como `COLISION_DE_CATEGORIA`; con ámbitos distintos → se corrige | unit (dominio) | pendiente |
-| 4 | RED: dos categorías viejas que normalizan a la misma clave → las dos se omiten | unit (dominio) | pendiente |
-| 5 | RED: nombre solo de U+200B → `NOMBRE_INVALIDO`; categoría que pasa 60 al normalizar («İ») → `NOMBRE_INVALIDO` | unit (dominio) | pendiente |
-| 6 | RED: servicio con `duracion_valida = False` → `DURACION_FUERA_DE_REGLA` | unit (dominio) | pendiente |
-| 7 | RED: `InformarCorreccion` devuelve conteos y como máximo 5 ejemplos por entidad, y no escribe nada | unit (aplicación) | pendiente |
-| 8 | RED: Operador, Solo Lectura y Contador → `PermisoDenegado` en los tres casos de uso | unit (aplicación) | pendiente |
-| 9 | RED: `AplicarCorreccion` publica un evento con conteos en `detalle` y **ningún nombre** (se recorre el `detalle` buscando los nombres de prueba) | unit (aplicación) | pendiente |
-| 10 | RED: sin turno (`tomar_turno` = False) → `CorreccionEnCurso` y nada escrito | unit (aplicación) | pendiente |
-| 11 | RED: corrida inexistente → `CorridaNoEncontrada` | unit (aplicación) | pendiente |
-| 12 | RED: aplicar escribe el nombre y el respaldo en la misma transacción; un fallo forzado después del respaldo deja todo sin cambios | integración (PostgreSQL) | pendiente |
-| 13 | RED: aplicar dos veces → la segunda da 0 cambios y no agrega filas de respaldo | integración (PostgreSQL) | pendiente |
-| 14 | RED: `updated_at` de cliente y servicio no cambia; ninguna fila de `comprobante` cambia | integración (PostgreSQL) | pendiente |
-| 15 | RED: servicio viejo con duración 9999 → omitido; la transacción no aborta | integración (PostgreSQL) | pendiente |
-| 16 | RED: restaurar devuelve el original; un registro editado después de la corrección se conserva; restaurar dos veces da 0 la segunda | integración (PostgreSQL) | pendiente |
-| 17 | RED: aislamiento — la corrida de la empresa A no lee ni cambia nombres de B; B no ve el respaldo de A; restaurar con el `corrida_id` de A desde B da «no encontrada» | integración (PostgreSQL, RLS) | pendiente |
-| 18 | RED: dos aplicaciones simultáneas de la misma empresa → una responde 409 | integración (PostgreSQL) | pendiente |
-| 19 | RED: colisión que solo detecta el índice (savepoint) → omitida; el resto se aplica | integración (PostgreSQL) | pendiente |
-| 20 | C: el CUIT guardado nunca cambia y no existe un motivo «colisión de CUIT» (hallazgo 1) | integración (PostgreSQL) | pendiente |
-| 21 | RED: API — Administrador 200/201; Operador 403; la bitácora tiene la fila `correccion_de_datos_aplicada` | integración (API) | pendiente |
-| 22 | RED: la migración `0030` sube y baja; `alembic heads` da una sola cabeza | integración (migraciones) | pendiente |
-| 23 | RED: `CorreccionDeDatos` muestra el informe, pide confirmación, muestra el resultado, restaura y muestra «No hay datos para corregir» con 0 | unit (frontend) | pendiente |
-| 24 | RED: la sección no se renderiza para un rol que no es Administrador | unit (frontend) | pendiente |
+| 1 | RED: cliente «JUAN PEREZ» → cambio a «Juan Perez»; con CUIT 30-… «ferreteria lopez s.r.l.» → «Ferreteria Lopez S.R.L.»; servicio «CORTE DE PELO» → «Corte de pelo» | unit (dominio) | verde |
+| 2 | RED: un nombre ya normalizado no genera cambio; planificar sobre el resultado aplicado da 0 cambios (idempotencia) | unit (dominio) | verde |
+| 3 | RED: categorías «Vip  Gold» y «Vip gold» con el mismo ámbito → la primera se omite como `COLISION_DE_CATEGORIA`; con ámbitos distintos → se corrige | unit (dominio) | verde |
+| 4 | RED: dos categorías viejas que normalizan a la misma clave → las dos se omiten | unit (dominio) | verde |
+| 5 | RED: nombre solo de U+200B → `NOMBRE_INVALIDO`; categoría que pasa 60 al normalizar («İ») → `NOMBRE_INVALIDO` | unit (dominio) | verde |
+| 6 | RED: servicio con `duracion_valida = False` → `DURACION_FUERA_DE_REGLA` | unit (dominio) | verde |
+| 7 | RED: `InformarCorreccion` devuelve conteos y como máximo 5 ejemplos por entidad, y no escribe nada | unit (aplicación) | verde |
+| 8 | RED: Operador, Solo Lectura y Contador → `PermisoDenegado` en los tres casos de uso | unit (aplicación) | verde |
+| 9 | RED: `AplicarCorreccion` publica un evento con conteos en `detalle` y **ningún nombre** (se recorre el `detalle` buscando los nombres de prueba) | unit (aplicación) | verde |
+| 10 | RED: sin turno (`tomar_turno` = False) → `CorreccionEnCurso` y nada escrito | unit (aplicación) | verde |
+| 11 | RED: corrida inexistente → `CorridaNoEncontrada` | unit (aplicación) | verde |
+| 12 | RED: aplicar escribe el nombre y el respaldo en la misma transacción; un fallo forzado después del respaldo deja todo sin cambios | integración (PostgreSQL) | escrito; se saltea sin Docker |
+| 13 | RED: aplicar dos veces → la segunda da 0 cambios y no agrega filas de respaldo | integración (PostgreSQL) | escrito; se saltea sin Docker |
+| 14 | RED: `updated_at` de cliente y servicio no cambia; ninguna fila de `comprobante` cambia | integración (PostgreSQL) | escrito; se saltea sin Docker |
+| 15 | RED: servicio viejo con duración 9999 → omitido; la transacción no aborta | integración (PostgreSQL) | escrito; se saltea sin Docker |
+| 16 | RED: restaurar devuelve el original; un registro editado después de la corrección se conserva; restaurar dos veces da 0 la segunda | integración (PostgreSQL) | escrito; se saltea sin Docker |
+| 17 | RED: aislamiento — la corrida de la empresa A no lee ni cambia nombres de B; B no ve el respaldo de A; restaurar con el `corrida_id` de A desde B da «no encontrada» | integración (PostgreSQL, RLS) | escrito; se saltea sin Docker |
+| 18 | RED: dos aplicaciones simultáneas de la misma empresa → una responde 409 | integración (PostgreSQL) | escrito; se saltea sin Docker |
+| 19 | RED: colisión que solo detecta el índice (savepoint) → omitida; el resto se aplica | integración (PostgreSQL) | escrito; se saltea sin Docker |
+| 20 | C: el CUIT guardado nunca cambia y no existe un motivo «colisión de CUIT» (hallazgo 1) | integración (PostgreSQL) | escrito; se saltea sin Docker |
+| 21 | RED: API — Administrador 200/201; Operador 403; la bitácora tiene la fila `correccion_de_datos_aplicada` | integración (API) | escrito; se saltea sin Docker |
+| 22 | RED: la migración `0030` sube y baja; `alembic heads` da una sola cabeza | integración (migraciones) | escrito; se saltea sin Docker (cabeza única de alembic: verde) |
+| 23 | RED: `CorreccionDeDatos` muestra el informe, pide confirmación, muestra el resultado, restaura y muestra «No hay datos para corregir» con 0 | unit (frontend) | verde |
+| 24 | RED: la sección no se renderiza para un rol que no es Administrador | unit (frontend) | verde |
 | 25 | Compuertas: `ruff format --check`, `ruff check`, `mypy`, `pytest` (cobertura ≥ 80 %), `guard_architecture`; `npm run format:check`, `lint`, `typecheck`, `test:coverage` | compuertas | pendiente |
 | 26 | En el navegador: PAN-DM-01 como Administrador → informe, aplicar, ver la bitácora, restaurar | manual | pendiente → `TODO.md` |
 
@@ -388,3 +388,18 @@ Modo: **test primero**. Los de PostgreSQL se saltean sin Docker y corren en la C
 - **P6**: una sola unidad y un PR, en cuatro commits (dominio y aplicación; migración e
   infraestructura; API; frontend).
 - **P7**: los servicios con duración fuera de regla se omiten y se informan.
+- **Desvíos de implementación** (sin cambio de alcance):
+  - `CorreccionEnCurso` es `InvarianteViolada` (409): `OperacionNoPermitida` se mapea a 403 en
+    `api/errors.py`.
+  - `CorridaNoEncontrada` es `EntradaInvalida` (422), como `CategoriaNoEncontrada`; ningún error
+    de `master_data` responde 404.
+  - El resultado y el `detalle` de la bitácora suman el conteo `no_aplicados` (filas editadas entre
+    la lectura y la escritura, o rechazadas por el índice). Siguen sin nombres.
+  - `respaldo_de_normalizacion.usuario_id` queda en NULL: el usuario va en el evento de la
+    bitácora.
+  - El lote usa `unnest` de tres arreglos en lugar de `VALUES`; es la misma sentencia literal.
+  - El caso 8 prueba Operador y Solo Lectura: `RolUsuario` no tiene Contador en el backend.
+  - El frontend suma cuatro rutas BFF en `app/api/datos-maestros/correccion/` con su test, porque
+    sin ellas el navegador no llega a los endpoints.
+  - Se sacó un test que fijaba `down_revision = "0025"`: iba a fallar al re-apuntar en el rebase.
+    Queda el de una sola cabeza (`tests/platform/test_migraciones_cabeza.py`).
