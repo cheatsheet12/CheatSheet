@@ -308,7 +308,7 @@ Van a `docs/aidlc/TODO.md` §22 (no dependen de MercadoPago ni de ARCA; no hay �
 |---|---|---|
 | 1 · Plan | 2026-09-30 | Aprobado por Luciano: P1 a P5 según la recomendación |
 | 2 · Verificación | 2026-09-30 | Aprobado por Luciano con la evidencia de «Verificación (Gate 2)» |
-| 3 · PR | | |
+| 3 · PR | 2026-09-30 | [#52](https://github.com/cheatsheet12/CheatSheet/pull/52), draft, apilado sobre #51 |
 
 ## Decisiones tomadas durante la unidad
 - **P1**: Inicio es **PAN-DSH-01** (`prototipos.md:52`). Se anota en la nota de D98.
