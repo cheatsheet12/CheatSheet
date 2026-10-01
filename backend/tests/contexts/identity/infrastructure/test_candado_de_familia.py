@@ -19,6 +19,7 @@ from cheatsheet.contexts.identity.infrastructure.repositories import (
     RepositorioRefreshTokenPostgres,
 )
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import asyncpg
 from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.asyncio
@@ -38,12 +39,28 @@ class _SesionGrabadora:
 
     respuestas: list[Any]
     sentencias: list[str] = field(default_factory=list)
+    parametros: list[list[Any]] = field(default_factory=list)
 
     async def execute(self, sentencia: Any) -> _Resultado:
         self.sentencias.append(
             " ".join(str(sentencia.compile(dialect=postgresql.dialect())).split())
         )
+        self.parametros.append(_parametros_para_asyncpg(sentencia))
         return _Resultado(self.respuestas.pop(0))
+
+
+def _parametros_para_asyncpg(sentencia: Any) -> list[Any]:
+    """The bound values as asyncpg would receive them, after SQLAlchemy's bind processors.
+
+    asyncpg encodes a `VARCHAR` parameter only from a `str`; a `UUID` there is rejected at
+    execution time, which no compile-only assertion would notice.
+    """
+    compilada = sentencia.compile(dialect=asyncpg.dialect())
+    procesadores = compilada._bind_processors
+    return [
+        procesadores[clave](valor) if clave in procesadores else valor
+        for clave, valor in compilada.construct_params().items()
+    ]
 
 
 def _fila(familia_id: Any) -> RefreshTokenORM:
@@ -74,6 +91,22 @@ async def test_toma_el_candado_entre_la_columna_y_la_carga_del_token() -> None:
     assert "pg_advisory_xact_lock" in segunda
     assert "hashtext" in segunda
     assert tercera.startswith("SELECT refresh_token.id")
+
+
+async def test_el_candado_se_toma_sobre_la_familia_como_texto() -> None:
+    """The lock key is the family id, bound as a `str` that asyncpg can encode.
+
+    A key derived from the token hash would not serialize a token with its own child, which
+    has a different hash; a `UUID` bound to `VARCHAR` fails on every refresh.
+    """
+    familia_id = uuid4()
+    sesion = _SesionGrabadora(respuestas=[familia_id, None, _fila(familia_id)])
+
+    repositorio = RepositorioRefreshTokenPostgres(cast(AsyncSession, sesion))
+    await repositorio.tomar_con_familia_bloqueada("h" * 64)
+
+    textos = [valor for valor in sesion.parametros[1] if not isinstance(valor, int)]
+    assert textos == [str(familia_id)]
 
 
 async def test_con_un_hash_desconocido_no_toma_ningun_candado() -> None:

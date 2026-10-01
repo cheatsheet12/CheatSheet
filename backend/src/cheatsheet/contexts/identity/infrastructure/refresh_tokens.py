@@ -71,7 +71,7 @@ class RepositorioRefreshTokenPostgres:
         await self._sesion.execute(
             select(
                 func.pg_advisory_xact_lock(
-                    ESPACIO_FAMILIA_REFRESH, func.hashtext(cast(familia_id, String))
+                    ESPACIO_FAMILIA_REFRESH, func.hashtext(cast(str(familia_id), String))
                 )
             )
         )
