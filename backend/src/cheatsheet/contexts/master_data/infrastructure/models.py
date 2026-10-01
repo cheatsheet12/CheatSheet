@@ -1,9 +1,11 @@
 """Persistence models of the master data context (DER, BC2).
 
-Five tables: the three of the DER — `cliente`, `servicio`, `categoria_empresa` — plus the
+Six tables: the three of the DER — `cliente`, `servicio`, `categoria_empresa` — plus the
 two link tables that decision D8 of the epic 3 map put in place of the `categoria_id` the
 DER draws on the first two. HU-E4-04 RN-02 lets one element carry several categories, and
 a single foreign key cannot; the column was never created, so nothing had to be migrated.
+The sixth, `respaldo_de_normalizacion`, is the backup of the correction of existing names
+(HU-E4-05 RN-09) and is not in the DER.
 """
 
 from __future__ import annotations
@@ -187,3 +189,38 @@ class ServicioCategoriaORM(Base):
     empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
 
     __table_args__ = (Index("ix_servicio_categoria_categoria", "categoria_id"),)
+
+
+TABLA_RESPALDO = "respaldo_de_normalizacion"
+
+
+class RespaldoDeNormalizacionORM(Base):
+    """The original name of every row a correction run changed (HU-E4-05 RN-09).
+
+    **Immutable**: the application role has `SELECT` and `INSERT` only, because a
+    restoration reads this table and never edits it. The company's RLS policy covers it
+    like any other table of the context.
+    """
+
+    __tablename__ = TABLA_RESPALDO
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("empresa.id", ondelete="CASCADE"), nullable=False
+    )
+    corrida_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    entidad: Mapped[str] = mapped_column(String(20), nullable=False)
+    entidad_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    campo: Mapped[str] = mapped_column(String(30), nullable=False, default="nombre")
+    valor_original: Mapped[str] = mapped_column(String(200), nullable=False)
+    valor_normalizado: Mapped[str] = mapped_column(String(200), nullable=False)
+    usuario_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("ix_respaldo_de_normalizacion_corrida", "empresa_id", "corrida_id"),
+        CheckConstraint(
+            "entidad IN ('CLIENTE', 'SERVICIO', 'CATEGORIA')",
+            name="ck_respaldo_de_normalizacion_entidad",
+        ),
+    )

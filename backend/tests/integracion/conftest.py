@@ -132,6 +132,7 @@ BORRADOS = (
     "DELETE FROM registro_de_auditoria",
     "DELETE FROM ticket_de_acceso",
     "DELETE FROM configuracion_de_integracion",
+    "DELETE FROM respaldo_de_normalizacion",
     "DELETE FROM cliente_categoria",
     "DELETE FROM servicio_categoria",
     "DELETE FROM categoria_empresa",
