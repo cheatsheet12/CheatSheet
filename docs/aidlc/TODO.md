@@ -579,3 +579,25 @@ comentario. Corregirlo es una línea, en el PR que toque ese archivo por otra ra
 `catalogos_fiscales()`. Es la misma pieza pendiente —resolver el ticket de cada empresa
 desde `integrations`— y se arma una sola vez en `emision-de-comprobantes`, que la necesita
 sí o sí.
+
+---
+
+## 20. Hallazgos de `normalizacion-de-datos`
+
+Todos quedan **sin unidad**: se vieron al implementar y no se arreglaron, porque ninguno es de
+HU-E4-05.
+
+- **Textos libres de otros contextos (P5).** RN-06 dice que FAQ, descripciones de cobro o de
+  ítem y mensajes «solo reciben RN-01». Limpiarlos toca `conversational`, `payments` y
+  `billing` y altera lo que el usuario escribió; `master_data` no tiene textos libres.
+- **Un cliente de planilla sin CUIT se duplica en cada reproceso (P6).** La ingesta solo
+  identifica por CUIT (`ingesta.py`), así que sin CUIT siempre crea. La identidad por
+  `referencia_fila_planilla` (columna que nadie escribe) se decide junto con la lectura
+  incremental de §15.1.
+- **`categoria_empresa` no traduce su `IntegrityError`.** Con la búsqueda normalizada ya no
+  se escapa por espacios o mayúsculas, pero la carrera de dos pestañas que crean el mismo nombre
+  a la vez sigue llegando al índice y responde 500.
+- **`ListarClientesParaEscrituraDeVuelta` no funciona.** Su `LIMITE` es 500 y `Pagina` solo
+  admite hasta 200, así que cada llamada levanta `EntradaInvalida`. Ningún test del repo lo
+  ejercitaba; los de esta unidad fijan el límite en 200 con `monkeypatch`. El arreglo es de una
+  línea, pero es de la unidad del write-back.
