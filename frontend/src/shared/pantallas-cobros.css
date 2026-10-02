@@ -1669,3 +1669,36 @@
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Reembolsos de un cobro (HU-E6-05): el historial, con la corrección visible.
+   --------------------------------------------------------------------------------------------- */
+
+.cob-reembolsos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cob-reembolso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  margin-bottom: 9px;
+}
+.cob-reembolso__monto {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.cob-reembolso__detalle {
+  color: var(--ink-500);
+  font-size: var(--text-caption);
+}
+.cob-reembolso__motivo {
+  flex-basis: 100%;
+  color: var(--ink-500);
+  font-size: var(--text-caption);
+}

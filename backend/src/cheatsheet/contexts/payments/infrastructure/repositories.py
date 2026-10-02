@@ -33,10 +33,21 @@ from cheatsheet.contexts.payments.domain.cobro import (
     MedioDePago,
 )
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
-from cheatsheet.contexts.payments.infrastructure.models import CobroORM, RecordatorioORM
+from cheatsheet.contexts.payments.infrastructure.models import (
+    CobroORM,
+    RecordatorioORM,
+    ReembolsoORM,
+)
 from cheatsheet.shared.empresa import EmpresaId
 
 CERO = Decimal("0.00")
+
+#: Los tres estados de un cobro que se pagó, por bruto: un reembolso no deshace que se cobró.
+ESTADOS_PAGADOS = (
+    EstadoCobro.APROBADO.value,
+    EstadoCobro.REEMBOLSADO_PARCIAL.value,
+    EstadoCobro.REEMBOLSADO.value,
+)
 
 #: El listado y las métricas comparten los mismos filtros y devuelven formas distintas —una
 #: entidad y una agregación—, así que `_con_filtros` es genérico sobre el `Select`. Sin esto
@@ -70,6 +81,9 @@ def _a_dominio(fila: CobroORM) -> Cobro:
         numero_de_operacion=fila.numero_de_operacion,
         monto_reembolsado=fila.monto_reembolsado,
         reembolso_solicitado_en=fila.reembolso_solicitado_en,
+        reembolso_solicitado_monto=fila.reembolso_solicitado_monto,
+        reembolso_clave_idempotencia=fila.reembolso_clave_idempotencia,
+        reembolso_mp_refund_id=fila.reembolso_mp_refund_id,
         motivo_de_cancelacion=fila.motivo_de_cancelacion,
         updated_at=fila.updated_at,
     )
@@ -94,6 +108,9 @@ def _a_fila(cobro: Cobro, fila: CobroORM) -> CobroORM:
     fila.medio_de_pago = cobro.medio_de_pago.value
     fila.numero_de_operacion = cobro.numero_de_operacion
     fila.reembolso_solicitado_en = cobro.reembolso_solicitado_en
+    fila.reembolso_solicitado_monto = cobro.reembolso_solicitado_monto
+    fila.reembolso_clave_idempotencia = cobro.reembolso_clave_idempotencia
+    fila.reembolso_mp_refund_id = cobro.reembolso_mp_refund_id
     fila.motivo_de_cancelacion = cobro.motivo_de_cancelacion
     fila.created_at = cobro.created_at
     fila.updated_at = cobro.updated_at or cobro.created_at
@@ -121,6 +138,22 @@ class RepositorioCobroPostgres:
         fila = await self._sesion.get(CobroORM, cobro_id)
         return _a_dominio(fila) if fila is not None else None
 
+    async def buscar_para_actualizar(self, cobro_id: UUID) -> Cobro | None:
+        """`SELECT ... FOR UPDATE`: el segundo que llega espera y ve el acumulado nuevo.
+
+        `populate_existing` porque la sesion puede tener ya el cobro en su mapa de identidad
+        (con un acumulado leido antes del bloqueo): sin refrescarlo, el bloqueo no serviria de
+        nada. Todo camino que suma plata carga el cobro por aca.
+        """
+        sentencia = (
+            select(CobroORM)
+            .where(CobroORM.id == cobro_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        fila = (await self._sesion.execute(sentencia)).scalar_one_or_none()
+        return _a_dominio(fila) if fila is not None else None
+
     async def buscar_por_payment_id(self, payment_id: str) -> Cobro | None:
         """La primera linea de la idempotencia del webhook (D20).
 
@@ -145,15 +178,20 @@ class RepositorioCobroPostgres:
         return [_a_dominio(fila) for fila in filas]
 
     async def metricas(self, filtros: FiltrosDeCobro) -> MetricasDeCobros:
-        """Las dos bases del encabezado, sumadas **en la base** y en `Decimal` (D91).
+        """Las dos bases del encabezado, sumadas **en la base** y en `Decimal` (D91, ADR-0010).
 
         - Por **fecha de creación**: `pendiente`, `en_mora` y `cobrado_de_lo_creado`.
-        - Por **fecha de pago**: `cobrado`.
+        - Por **fecha de pago** menos **fecha de devolución**: `cobrado` (HU-E6-05 RN-11).
 
-        Son dos agregaciones porque son dos poblaciones: un cobro creado en febrero y pagado en
-        marzo está en la primera al mirar febrero y en la segunda al mirar marzo. Los `REEMBOLSADO`
-        siguen fuera de `cobrado` hasta que la unidad de reembolsos los reste por fecha de
-        devolución. `filtros.estados` no interviene: el estado es del listado, no del período.
+        Son tres agregaciones porque son tres poblaciones: un cobro creado en febrero y pagado en
+        marzo está en la primera al mirar febrero y en la segunda al mirar marzo, y un reembolso
+        de abril resta en abril aunque el pago fuera de febrero. `reembolso` se suma sin join
+        contra `cobro`: lleva su propia `empresa_id` y su propia fecha. **Puede dar negativo** en
+        un período que devolvió más de lo que cobró, y es lo que pasó con la caja.
+
+        `cobrado_de_lo_creado` cuenta los tres estados pagados **por su monto bruto**: un cobro que
+        se pagó y después se devolvió *se cobró*, y el reembolso no es una falla de cobranza. Así
+        la tasa no pasa de 100 %. `filtros.estados` no interviene: el estado es del listado.
         """
         creados = self._en_periodo(
             select(CobroORM.estado, func.coalesce(func.sum(CobroORM.monto), CERO)),
@@ -164,17 +202,23 @@ class RepositorioCobroPostgres:
 
         pagados = self._en_periodo(
             select(func.coalesce(func.sum(CobroORM.monto), CERO)).where(
-                CobroORM.estado == EstadoCobro.APROBADO.value
+                CobroORM.estado.in_(ESTADOS_PAGADOS)
             ),
             CobroORM.fecha_pago,
             filtros,
         )
+        devuelto = self._en_periodo(
+            select(func.coalesce(func.sum(ReembolsoORM.monto), CERO)),
+            ReembolsoORM.fecha_devolucion,
+            filtros,
+        )
         cobrado = (await self._sesion.execute(pagados)).scalar_one()
+        restado = (await self._sesion.execute(devuelto)).scalar_one()
         return MetricasDeCobros(
-            cobrado=cobrado,
+            cobrado=cobrado - restado,
             pendiente=totales.get(EstadoCobro.PENDIENTE.value, CERO),
             en_mora=totales.get(EstadoCobro.VENCIDO.value, CERO),
-            cobrado_de_lo_creado=totales.get(EstadoCobro.APROBADO.value, CERO),
+            cobrado_de_lo_creado=sum((totales.get(e, CERO) for e in ESTADOS_PAGADOS), CERO),
         )
 
     async def de_comprobante(self, comprobante_id: UUID) -> list[Cobro]:

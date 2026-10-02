@@ -34,6 +34,7 @@ from cheatsheet.api.routers import (
     integraciones,
     planillas,
     puntos_de_venta,
+    reembolsos,
     reglas,
     reporteria,
     servicios,
@@ -98,6 +99,7 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(puntos_de_venta.crear_router(recursos))
     app.include_router(comprobantes.crear_router(recursos))
     app.include_router(cobros.crear_router(recursos))
+    app.include_router(reembolsos.crear_router(recursos))
     app.include_router(agenda.crear_router(recursos))
     app.include_router(reglas.crear_router(recursos))
     app.include_router(conversaciones.crear_router(recursos))

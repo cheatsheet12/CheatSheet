@@ -6,7 +6,8 @@ Tres cosas se prueban acá y las tres son decisiones del épico:
   lo fija es el que mira el saldo después de generar el link y antes de que nadie pague.
 - **D25** — la cadena se ancla en el paso, no en la fecha. El test que lo prueba es el del
   planificador atrasado: con tres pasos vencidos manda **uno**, no tres.
-- **D27** — un reembolso rechazado deja el cobro en `APROBADO`.
+- **D27** — un reembolso rechazado deja el cobro en `APROBADO` (los reembolsos se prueban en
+  `test_reembolsos.py`).
 
 Los dobles se reusan del archivo del webhook: son los mismos puertos, y dos juegos de dobles
 para los mismos protocolos serían dos cosas que pueden discrepar.
@@ -25,7 +26,6 @@ from cheatsheet.contexts.payments.application.cobros import (
     GenerarCobro,
     ListarCobros,
     MetricasDelPeriodo,
-    ReembolsarCobro,
     RegenerarLink,
     VerCobro,
 )
@@ -33,12 +33,10 @@ from cheatsheet.contexts.payments.application.errors import (
     ClienteInexistente,
     CobroInexistente,
     CobroNoCancelable,
-    CobroNoReembolsable,
     ComprobanteDeOtroCliente,
     MontoExcedeSaldo,
     PasarelaNoDisponible,
     RecordatorioDuplicado,
-    ReembolsoRechazado,
 )
 from cheatsheet.contexts.payments.application.ports import (
     FiltrosDeCobro,
@@ -89,12 +87,6 @@ class PasarelaQueNoInvalida(PasarelaFalsa):
     ) -> None:
         del empresa_id, preference_id, ahora
         raise PasarelaNoDisponible("MercadoPago no invalido el link de pago")
-
-
-class PasarelaQueRechazaElReembolso(PasarelaFalsa):
-    async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:
-        del empresa_id, payment_id, monto
-        return False
 
 
 class RecordatoriosFalsos:
@@ -616,98 +608,6 @@ async def test_un_motivo_corto_no_gasta_una_llamada_a_mercadopago() -> None:
         )
 
     assert pasarela.invalidados == []
-
-
-# ------------------------------------------------------------------ reembolsar · D27
-
-
-async def test_solo_el_administrador_reembolsa() -> None:
-    """HU-E6-05 RN-05: el Operador ve el detalle pero no inicia el reembolso."""
-    cobros = CobrosFalsos()
-    cobro = _cobro()
-    cobro.aprobar(payment_id="pago-1", ahora=AHORA)
-    await cobros.agregar(cobro)
-
-    with pytest.raises(EntradaInvalida):
-        await ReembolsarCobro(
-            cobros=cobros, pasarela=PasarelaFalsa(), publicador=PublicadorFalso()
-        ).ejecutar(
-            empresa_id=EMPRESA,
-            usuario_id=USUARIO,
-            rol=RolUsuario.OPERADOR,
-            cobro_id=cobro.id,
-            monto=Decimal("100.00"),
-            ahora=AHORA,
-        )
-
-
-async def test_un_reembolso_aceptado_cierra_el_cobro() -> None:
-    cobros = CobrosFalsos()
-    cobro = _cobro()
-    cobro.aprobar(payment_id="pago-1", ahora=AHORA)
-    await cobros.agregar(cobro)
-
-    resultado = await ReembolsarCobro(
-        cobros=cobros, pasarela=PasarelaFalsa(), publicador=PublicadorFalso()
-    ).ejecutar(
-        empresa_id=EMPRESA,
-        usuario_id=USUARIO,
-        rol=RolUsuario.ADMINISTRADOR,
-        cobro_id=cobro.id,
-        monto=Decimal("1210.00"),
-        ahora=AHORA,
-    )
-
-    assert resultado.estado is EstadoCobro.REEMBOLSADO
-    assert resultado.monto_reembolsado == Decimal("1210.00")
-
-
-async def test_un_reembolso_rechazado_deja_el_cobro_pagado() -> None:
-    """**Decisión D27.** RN-03: mantiene su estado y se notifica al administrador.
-
-    No hay vuelta atrás que hacer porque el estado nunca se fue: eso es exactamente lo que
-    se gana no agregando `REEMBOLSO_EN_PROCESO` al enum.
-    """
-    cobros = CobrosFalsos()
-    cobro = _cobro()
-    cobro.aprobar(payment_id="pago-1", ahora=AHORA)
-    await cobros.agregar(cobro)
-
-    with pytest.raises(ReembolsoRechazado):
-        await ReembolsarCobro(
-            cobros=cobros,
-            pasarela=PasarelaQueRechazaElReembolso(),
-            publicador=PublicadorFalso(),
-        ).ejecutar(
-            empresa_id=EMPRESA,
-            usuario_id=USUARIO,
-            rol=RolUsuario.ADMINISTRADOR,
-            cobro_id=cobro.id,
-            monto=Decimal("1210.00"),
-            ahora=AHORA,
-        )
-
-    assert cobro.estado is EstadoCobro.APROBADO
-    assert not cobro.reembolso_en_proceso
-    assert cobro.monto_reembolsado is None
-
-
-async def test_no_se_reembolsa_lo_que_no_esta_pagado() -> None:
-    cobros = CobrosFalsos()
-    cobro = _cobro()
-    await cobros.agregar(cobro)
-
-    with pytest.raises(CobroNoReembolsable):
-        await ReembolsarCobro(
-            cobros=cobros, pasarela=PasarelaFalsa(), publicador=PublicadorFalso()
-        ).ejecutar(
-            empresa_id=EMPRESA,
-            usuario_id=USUARIO,
-            rol=RolUsuario.ADMINISTRADOR,
-            cobro_id=cobro.id,
-            monto=Decimal("100.00"),
-            ahora=AHORA,
-        )
 
 
 # ------------------------------------------------------------------ consultas

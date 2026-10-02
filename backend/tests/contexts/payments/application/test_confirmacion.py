@@ -27,10 +27,13 @@ from cheatsheet.contexts.payments.application.confirmacion import (
     ConfirmarPago,
     RegistrarWebhookRechazado,
 )
+from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
 from cheatsheet.contexts.payments.application.ports import (
+    EstadoDeReembolso,
     FiltrosDeCobro,
     MetricasDeCobros,
     PagoRecibido,
+    RespuestaDeReembolso,
 )
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDePago
 from cheatsheet.shared.auditoria import EventoAuditable, Resultado
@@ -56,6 +59,9 @@ class CobrosFalsos:
     def __init__(self) -> None:
         self.guardados: dict[UUID, Cobro] = {}
         self.escrituras: list[UUID] = []
+        #: Los cobros que se cargaron con bloqueo de fila: todo camino que suma plata tiene que
+        #: estar acá, o dos reembolsos simultáneos se pisan el acumulado.
+        self.bloqueados: list[UUID] = []
 
     async def agregar(self, cobro: Cobro) -> None:
         self.guardados[cobro.id] = cobro
@@ -65,6 +71,11 @@ class CobrosFalsos:
         self.escrituras.append(cobro.id)
 
     async def buscar_por_id(self, cobro_id: UUID) -> Cobro | None:
+        return self.guardados.get(cobro_id)
+
+    async def buscar_para_actualizar(self, cobro_id: UUID) -> Cobro | None:
+        """`SELECT ... FOR UPDATE` en la base; acá solo anota que se pidió con bloqueo."""
+        self.bloqueados.append(cobro_id)
         return self.guardados.get(cobro_id)
 
     async def buscar_por_payment_id(self, payment_id: str) -> Cobro | None:
@@ -127,6 +138,17 @@ class PasarelaFalsa:
         #: Con qué preferencias se llamó a `invalidar_link`. Lo que hace afirmable RN-03 de
         #: HU-E6-04: que la cancelación no se quedó en una anotación nuestra.
         self.invalidados: list[str] = []
+        #: Lo que MercadoPago contesta a un reembolso y a su consulta. Una excepción se levanta:
+        #: es «MercadoPago no respondió».
+        self.respuesta_de_reembolso: RespuestaDeReembolso | PasarelaNoDisponible = (
+            RespuestaDeReembolso(estado=EstadoDeReembolso.ACEPTADO, mp_refund_id="ref-1")
+        )
+        self.respuesta_de_consulta: RespuestaDeReembolso | PasarelaNoDisponible = (
+            RespuestaDeReembolso(estado=EstadoDeReembolso.ACEPTADO, mp_refund_id="ref-1")
+        )
+        #: `(payment_id, monto, clave)` de cada POST, y el id de cada consulta.
+        self.reembolsos_pedidos: list[tuple[str, Decimal, UUID]] = []
+        self.reembolsos_consultados: list[str] = []
 
     async def crear_link(
         self, *, empresa_id: EmpresaId, cobro: Cobro, url_de_retorno: str
@@ -151,9 +173,23 @@ class PasarelaFalsa:
         del empresa_id, ahora
         self.invalidados.append(preference_id)
 
-    async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:
-        del empresa_id, payment_id, monto
-        return True
+    async def reembolsar(
+        self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal, clave: UUID
+    ) -> RespuestaDeReembolso:
+        del empresa_id
+        self.reembolsos_pedidos.append((payment_id, monto, clave))
+        if isinstance(self.respuesta_de_reembolso, PasarelaNoDisponible):
+            raise self.respuesta_de_reembolso
+        return self.respuesta_de_reembolso
+
+    async def consultar_reembolso(
+        self, *, empresa_id: EmpresaId, payment_id: str, refund_id: str
+    ) -> RespuestaDeReembolso:
+        del empresa_id, payment_id
+        self.reembolsos_consultados.append(refund_id)
+        if isinstance(self.respuesta_de_consulta, PasarelaNoDisponible):
+            raise self.respuesta_de_consulta
+        return self.respuesta_de_consulta
 
 
 #: El cliente con el que los tests de cobros generan, salvo que digan otra cosa.
@@ -180,6 +216,8 @@ class SaldosFalsos:
         #: El dueno del comprobante; `None` es un comprobante que no existe.
         self.cliente = cliente
         self.descuentos: list[tuple[UUID, Decimal]] = []
+        #: Lo que un reembolso (positivo) o su corrección (negativo) devolvió al saldo.
+        self.devoluciones: list[tuple[UUID, Decimal]] = []
 
     async def saldo_pendiente(self, comprobante_id: UUID) -> Decimal | None:
         del comprobante_id
@@ -192,6 +230,10 @@ class SaldosFalsos:
     async def registrar_cobro(self, comprobante_id: UUID, monto: Decimal) -> None:
         self.descuentos.append((comprobante_id, monto))
         self.saldo -= monto
+
+    async def registrar_reembolso(self, comprobante_id: UUID, monto: Decimal) -> None:
+        self.devoluciones.append((comprobante_id, monto))
+        self.saldo += monto
 
 
 class PublicadorFalso:
@@ -545,8 +587,10 @@ async def test_un_pago_sobre_un_cobro_reembolsado_sigue_siendo_idempotencia() ->
     cobros, publicador = CobrosFalsos(), PublicadorFalso()
     cobro = _cobro()
     cobro.aprobar(payment_id="pago-viejo", ahora=AHORA)
-    cobro.solicitar_reembolso(monto=cobro.monto, ahora=AHORA)
-    cobro.confirmar_reembolso(monto=cobro.monto, ahora=AHORA)
+    cobro.solicitar_reembolso(monto=cobro.monto, clave=uuid4(), ahora=AHORA)
+    cobro.confirmar_reembolso(
+        reembolso_id=uuid4(), monto=cobro.monto, mp_refund_id="ref-1", fecha=None, ahora=AHORA
+    )
     await cobros.agregar(cobro)
 
     resultado = await _confirmar(cobros, PasarelaFalsa(), SaldosFalsos(), publicador).ejecutar(
@@ -555,6 +599,32 @@ async def test_un_pago_sobre_un_cobro_reembolsado_sigue_siendo_idempotencia() ->
 
     assert resultado.ya_procesado
     assert not resultado.huerfano
+    assert publicador.eventos == []
+
+
+async def test_el_webhook_de_un_pago_ya_reembolsado_no_toca_el_reembolso() -> None:
+    """Caso 19. El mismo `payment_id` es `ya_procesado` **antes** de preguntarle a MercadoPago, y
+    ni el acumulado ni el reembolso en vuelo se mueven."""
+    cobros, pasarela, publicador = CobrosFalsos(), PasarelaFalsa(), PublicadorFalso()
+    clave = uuid4()
+    cobro = _cobro()
+    cobro.aprobar(payment_id="pago-viejo", ahora=AHORA)
+    cobro.solicitar_reembolso(monto=Decimal("200.00"), clave=uuid4(), ahora=AHORA)
+    cobro.confirmar_reembolso(
+        reembolso_id=uuid4(), monto=Decimal("200.00"), mp_refund_id="ref-1", fecha=None, ahora=AHORA
+    )
+    cobro.solicitar_reembolso(monto=Decimal("100.00"), clave=clave, ahora=AHORA)
+    await cobros.agregar(cobro)
+
+    resultado = await _confirmar(cobros, pasarela, SaldosFalsos(), publicador).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-viejo", ahora=AHORA
+    )
+
+    assert resultado.ya_procesado
+    assert pasarela.consultas == 0
+    assert cobro.monto_reembolsado == Decimal("200.00")
+    assert cobro.reembolso_clave_idempotencia == clave
+    assert cobros.escrituras == []
     assert publicador.eventos == []
 
 

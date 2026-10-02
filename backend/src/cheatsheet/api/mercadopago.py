@@ -53,7 +53,7 @@ from cheatsheet.contexts.payments.infrastructure.pasarela import (
     PortTokenDeMercadoPago,
 )
 from cheatsheet.contexts.payments.infrastructure.saldo import SaldoViaBilling
-from cheatsheet.platform.settings import AdaptadorDeMercadoPago, Settings
+from cheatsheet.platform.settings import AdaptadorDeMercadoPago, Entorno, Settings
 from cheatsheet.shared.empresa import EmpresaId
 
 
@@ -103,6 +103,13 @@ def _desempaquetar(credencial: bytes) -> tuple[str, str]:
     return desempaquetar(credencial)
 
 
+#: **El doble es de proceso, no de request.** «rechazar» se decide al crear el link, «demorar» se
+#: resuelve en «Actualizar estado» (otro request) y la clave de idempotencia de un reembolso viaja
+#: de una transacción a la otra: con un doble nuevo por llamada, ninguna de las tres ramas se
+#: podría caminar en una laptop. Solo para desarrollo: en producción no se construye.
+_SIMULADAS: dict[Entorno, PasarelaSimulada] = {}
+
+
 def armar_pasarela(unidad: UnidadDeTrabajo, settings: Settings) -> PortPasarelaDePago:
     """MercadoPago, real o simulado según `MERCADOPAGO_ADAPTADOR`."""
     if settings.mercadopago_adaptador is AdaptadorDeMercadoPago.MERCADOPAGO:
@@ -111,7 +118,10 @@ def armar_pasarela(unidad: UnidadDeTrabajo, settings: Settings) -> PortPasarelaD
                 integraciones=Integraciones.armar(unidad.sesion, settings)
             )
         )
-    return PasarelaSimulada(settings.entorno)
+    if settings.entorno not in _SIMULADAS:
+        # Se construye antes de guardarse: en producción levanta y no queda nada cacheado.
+        _SIMULADAS[settings.entorno] = PasarelaSimulada(settings.entorno)
+    return _SIMULADAS[settings.entorno]
 
 
 def armar_saldos(unidad: UnidadDeTrabajo) -> PortSaldoDeComprobante:
