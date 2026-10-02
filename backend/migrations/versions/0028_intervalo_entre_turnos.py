@@ -20,17 +20,15 @@ la garantía contra el doble booking siga siendo suya (D28) también con interva
    la franja (HU-E7-04 RN-05). **Antes** busca los patrones que no cumplen y aborta listando
    los ids, como 0024: recortar un slot es una decisión del negocio y no de una migración.
 
-**Número reservado.** Esta rama termina en 0024, pero la otra cadena de unidades ya usa 0025,
-0026 y 0027 (todas hijas de 0024). Usar 0028 evita el choque de nombre, no el de cadena: al
-rebasar sobre `develop` con esa cadena ya integrada hay que **re-apuntar `down_revision` a la
-cabeza vigente** (hoy "0027") y verificar con `alembic heads` que queda una sola. Si otra unidad
-toma 0028 antes, se renumera.
+**Número reservado.** Esta unidad nació sobre 0024 mientras otra cadena de unidades sumaba 0025,
+0026 y 0027. Al integrarla en `develop`, `down_revision` se re-apuntó a 0027 para que quede una
+sola cabeza.
 
 Es reversible: `downgrade` borra la exclusión, los checks y las dos columnas, y restaura
 `duracion_slot_min > 0`.
 
 Revision ID: 0028
-Revises: 0024
+Revises: 0027
 """
 
 from __future__ import annotations
@@ -41,7 +39,7 @@ from alembic import op
 
 revision: str = "0028"
 # Re-apuntar al rebasar sobre `develop`: ver «Número reservado» en el docstring.
-down_revision: str | None = "0024"
+down_revision: str | None = "0027"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
