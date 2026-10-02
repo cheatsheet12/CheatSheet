@@ -24,7 +24,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { MENSAJE_SIN_ACTIVIDAD } from "@/features/reporting";
+import { MENSAJE_SIN_ACTIVIDAD, ResumenDeCobros, textoDePeriodo } from "@/features/reporting";
 import type { Metrica, TableroRespuesta } from "@/features/reporting";
 import { ETIQUETAS_DE_MODULO, ETIQUETAS_DE_RESULTADO } from "@/features/observability";
 import type { ListadoDeOperaciones, Operacion } from "@/features/observability";
@@ -43,6 +43,7 @@ import type { Columna } from "@/shared";
 
 import { Icono } from "./iconos";
 import type { NombreDeIcono } from "./iconos";
+import { SelectorDePeriodoEnUrl } from "./SelectorDePeriodoEnUrl";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,27 @@ interface Actividad {
   readonly motivo?: string;
 }
 
-export default async function PanelHome(): Promise<JSX.Element> {
+export interface PropsDeInicio {
+  /** El período vive en la URL (`/panel?desde=…&hasta=…`); sin él, el backend usa el mes en curso. */
+  readonly searchParams?: Readonly<Record<string, string | string[] | undefined>>;
+}
+
+/** La ruta del tablero con el período de la URL, la misma que usa Reportes. */
+function rutaDelTablero(searchParams: PropsDeInicio["searchParams"]): string {
+  const consulta = new URLSearchParams();
+  for (const clave of ["desde", "hasta"]) {
+    const valor = searchParams?.[clave];
+    if (typeof valor === "string" && valor !== "") {
+      consulta.set(clave, valor);
+    }
+  }
+  const texto = consulta.toString();
+  return texto === "" ? "/reporteria/tablero" : `/reporteria/tablero?${texto}`;
+}
+
+export default async function PanelHome({
+  searchParams,
+}: PropsDeInicio = {}): Promise<JSX.Element> {
   if (leerClaims() === null) {
     redirect("/");
   }
@@ -66,7 +87,7 @@ export default async function PanelHome(): Promise<JSX.Element> {
   // su primer pintado. `leerActividad` atrapa su propio rechazo, así que un 422 de bitácora no
   // arrastra al tablero.
   const [tablero, actividad] = await Promise.all([
-    llamarApi<TableroRespuesta>("/reporteria/tablero"),
+    llamarApi<TableroRespuesta>(rutaDelTablero(searchParams)),
     leerActividad(),
   ]);
 
@@ -94,13 +115,19 @@ export default async function PanelHome(): Promise<JSX.Element> {
         </div>
       </div>
 
+      <SelectorDePeriodoEnUrl
+        desde={tablero.desde}
+        hasta={tablero.hasta}
+        resumen={textoDePeriodo(tablero.desde, tablero.hasta)}
+      />
+
       {tablero.sin_actividad && (
         <Alert tono="neutral" titulo="Sin actividad">
           {MENSAJE_SIN_ACTIVIDAD}
         </Alert>
       )}
 
-      <div className="dsh-stats">
+      <div className="dsh-stats dsh-stats--tres">
         <TarjetaDeMetrica
           icono="documento"
           tono="menta"
@@ -108,16 +135,6 @@ export default async function PanelHome(): Promise<JSX.Element> {
           valor={`$ ${formatearNumero(tablero.facturado.valor)}`}
           variacion={tablero.facturado.variacion}
           pie={`Período anterior · $ ${formatearNumero(tablero.facturado.anterior)}`}
-        />
-        <TarjetaDeMetrica
-          icono="tarjeta"
-          tono="ambar"
-          etiqueta="Cobros pendientes"
-          valor={`$ ${formatearNumero(tablero.pendiente)}`}
-          // Lo pendiente no llega como `Metrica`, así que no hay período anterior con el que
-          // comparar: el hueco de la variación queda vacío en vez de mentir con un 0%.
-          variacion={null}
-          pie={`$ ${formatearNumero(tablero.en_mora)} en mora`}
         />
         <TarjetaDeMetrica
           icono="calendario"
@@ -136,6 +153,13 @@ export default async function PanelHome(): Promise<JSX.Element> {
           pie={`Período anterior · ${formatearNumero(tablero.operaciones.anterior, undefined, 0)}`}
         />
       </div>
+
+      <ResumenDeCobros
+        cobrado={tablero.cobrado}
+        pendiente={tablero.pendiente}
+        enMora={tablero.en_mora}
+        tasaDeCobro={tablero.tasa_de_cobro}
+      />
 
       <div className="dsh-grid">
         <Card>

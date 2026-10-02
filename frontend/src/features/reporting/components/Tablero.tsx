@@ -1,8 +1,9 @@
 /**
  * PAN-REP-01 — Reportería · Tablero (HU-E10-01).
  *
- * Las seis cifras del período, la distribución por tipo de comprobante y el facturado por
- * semana, todo del rango que el selector elige.
+ * Las seis cifras del período, la distribución por tipo de comprobante, el facturado por
+ * semana y las dos visualizaciones de cobranza (cobrado por semana y cobros por estado), todo
+ * del rango que el selector elige.
  *
  * **Nada acá calcula nada.** Ni la variación, ni el neto, ni el total por semana: llegan
  * calculados del backend, donde son reglas de negocio (RN-02 y RN-03). Recalcularlos en el
@@ -26,7 +27,8 @@
 
 import { useState } from "react";
 
-import { Alert, Campo, formatearNumero } from "@/shared";
+import { ETIQUETAS_DE_ESTADO } from "@/features/payments";
+import { Alert, formatearNumero } from "@/shared";
 
 import {
   ErrorDeReporte,
@@ -40,6 +42,7 @@ import {
 import type { Metrica, RangoDePeriodo, Tablero as TableroDatos } from "../api/reporte";
 import { Cifra } from "./Cifras";
 import { BarrasPorSemana, Distribucion } from "./Graficos";
+import { SelectorDePeriodo } from "./SelectorDePeriodo";
 import {
   IconoAlerta,
   IconoCalendario,
@@ -71,6 +74,17 @@ function pieDeCantidad(metrica: Metrica): string {
   return `Período anterior · ${cantidad(metrica.anterior)}`;
 }
 
+/** «Pagado» y «En mora» son de payments; un estado que todavía no conoce se muestra tal cual. */
+function nombreDeEstado(estado: string): string {
+  const etiquetas: Readonly<Record<string, string>> = ETIQUETAS_DE_ESTADO;
+  return etiquetas[estado] ?? estado;
+}
+
+function cantidadDeCobros(cuantos: number | undefined): string {
+  const n = cuantos ?? 0;
+  return n === 1 ? "1 cobro" : `${formatearNumero(String(n), undefined, 0)} cobros`;
+}
+
 export function Tablero({ inicial }: PropsDeTablero): JSX.Element {
   const [tablero, setTablero] = useState<TableroDatos>(inicial);
   const [rango, setRango] = useState<RangoDePeriodo>({
@@ -95,6 +109,11 @@ export function Tablero({ inicial }: PropsDeTablero): JSX.Element {
     }
   }
 
+  // Sólo se reacomoda: el monto de cada estado llega del backend, no se suma ni se recalcula.
+  const montosPorEstado = Object.fromEntries(
+    Object.entries(tablero.cobros_por_estado).map(([estado, cobros]) => [estado, cobros.monto]),
+  );
+
   return (
     <>
       {error !== null && (
@@ -103,29 +122,11 @@ export function Tablero({ inicial }: PropsDeTablero): JSX.Element {
         </Alert>
       )}
 
-      <div className="rep-periodo">
-        <p className="rep-periodo__titulo">Período</p>
-        <div className="rep-filtros">
-          <Campo
-            id="rep-desde"
-            etiqueta="Desde"
-            type="date"
-            value={rango.desde ?? ""}
-            onChange={(evento) => void aplicar({ desde: evento.target.value })}
-          />
-          <Campo
-            id="rep-hasta"
-            etiqueta="Hasta"
-            type="date"
-            value={rango.hasta ?? ""}
-            onChange={(evento) => void aplicar({ hasta: evento.target.value })}
-          />
-        </div>
-        {/* El rango que efectivamente contestó el backend, en el formato del resto del panel.
-            Los dos campos de arriba muestran lo que el usuario pidió; esto, lo que se está
-            viendo — y no son lo mismo mientras una consulta está en el aire. */}
-        <p className="rep-periodo__resumen">{textoDePeriodo(tablero.desde, tablero.hasta)}</p>
-      </div>
+      <SelectorDePeriodo
+        rango={rango}
+        resumen={textoDePeriodo(tablero.desde, tablero.hasta)}
+        alCambiar={(cambios) => void aplicar(cambios)}
+      />
 
       {tablero.sin_actividad ? (
         <Alert tono="neutral" titulo="Sin actividad">
@@ -195,6 +196,7 @@ export function Tablero({ inicial }: PropsDeTablero): JSX.Element {
             vacio="No hubo facturación en este período."
             nombrar={etiquetaDeSemana}
             detallar={nombreDeSemana}
+            notaUnica="Es la única semana con facturación del período: no hay otra contra la cual medirla."
           />
         </section>
 
@@ -209,6 +211,44 @@ export function Tablero({ inicial }: PropsDeTablero): JSX.Element {
             datos={tablero.por_tipo}
             vacio="No se emitieron comprobantes en este período."
             nombrar={nombreDeTipoDeComprobante}
+            notaUnica="Es el único tipo que se emitió: el 100 % de lo facturado en el período."
+          />
+        </section>
+
+        <section className="rep-panel">
+          <div className="rep-panel__head">
+            <div>
+              <h2 className="rep-panel__titulo">Cobrado por semana</h2>
+              <p className="rep-panel__sub">
+                Lo cobrado en cada semana, por fecha de pago, menos lo devuelto
+              </p>
+            </div>
+          </div>
+          <BarrasPorSemana
+            datos={tablero.cobrado_por_semana}
+            vacio="No hubo cobros en este período."
+            nombrar={etiquetaDeSemana}
+            detallar={nombreDeSemana}
+            notaUnica="Es la única semana con cobros del período: no hay otra contra la cual medirla."
+          />
+        </section>
+
+        <section className="rep-panel">
+          <div className="rep-panel__head">
+            <div>
+              <h2 className="rep-panel__titulo">Cobros por estado</h2>
+              <p className="rep-panel__sub">
+                Cobros creados en el período, por su estado actual · tasa de cobro{" "}
+                {formatearNumero(tablero.tasa_de_cobro)} %
+              </p>
+            </div>
+          </div>
+          <Distribucion
+            datos={montosPorEstado}
+            vacio="No se crearon cobros en este período."
+            nombrar={nombreDeEstado}
+            secundario={(estado) => cantidadDeCobros(tablero.cobros_por_estado[estado]?.cantidad)}
+            notaUnica="Es el único estado de los cobros creados en el período: el 100 % de lo creado."
           />
         </section>
       </div>

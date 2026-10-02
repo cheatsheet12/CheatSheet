@@ -82,6 +82,13 @@ const TABLERO: TableroRespuesta = {
   por_semana: { "2026-W10": "12500.55" },
   pendiente: "1500.00",
   en_mora: "500.00",
+  tasa_de_cobro: "72.50",
+  cobrado_por_semana: { "2026-W10": "8000.00", "2026-W11": "-1500.00" },
+  cobros_por_estado: {
+    PENDIENTE: { cantidad: 3, monto: "1500.00" },
+    APROBADO: { cantidad: 8, monto: "8000.00" },
+    VENCIDO: { cantidad: 1, monto: "500.00" },
+  },
   sin_actividad: false,
 };
 
@@ -205,6 +212,77 @@ describe("PAN-REP-01 · el tablero", () => {
     await waitFor(() => {
       expect(screen.getByText("La API no respondió")).toBeTruthy();
     });
+  });
+});
+
+describe("PAN-REP-01 · las visualizaciones de cobranza", () => {
+  it("muestra «Cobrado por semana» y «Cobros por estado» con la tasa en el subtítulo", () => {
+    render(<Tablero inicial={TABLERO} />);
+
+    const semanal = tarjeta("Cobrado por semana");
+    expect(within(semanal).getByText("$ 8.000,00")).toBeTruthy();
+
+    const porEstado = tarjeta("Cobros por estado");
+    expect(
+      within(porEstado).getByText(
+        "Cobros creados en el período, por su estado actual · tasa de cobro 72,50 %",
+      ),
+    ).toBeTruthy();
+    // Las etiquetas son las de payments (APROBADO se ve «Pagado»), con la cantidad al lado.
+    expect(within(porEstado).getByText("Pagado")).toBeTruthy();
+    expect(within(porEstado).getByText("En mora")).toBeTruthy();
+    expect(within(porEstado).getByText("8 cobros")).toBeTruthy();
+    expect(within(porEstado).getByText("1 cobro")).toBeTruthy();
+    expect(within(porEstado).getByText("$ 8.000,00")).toBeTruthy();
+  });
+
+  it("cambiar el período actualiza los dos gráficos de cobranza", async () => {
+    verTablero.mockResolvedValue({
+      ...TABLERO,
+      tasa_de_cobro: "10.00",
+      cobrado_por_semana: { "2026-W06": "111.00", "2026-W07": "222.00" },
+      cobros_por_estado: {
+        APROBADO: { cantidad: 2, monto: "333.00" },
+        CANCELADO: { cantidad: 5, monto: "44.00" },
+      },
+    });
+    render(<Tablero inicial={TABLERO} />);
+
+    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-02-01" } });
+
+    await waitFor(() => {
+      expect(within(tarjeta("Cobrado por semana")).getByText("$ 222,00")).toBeTruthy();
+    });
+    const porEstado = tarjeta("Cobros por estado");
+    expect(within(porEstado).getByText("Cancelado")).toBeTruthy();
+    expect(within(porEstado).getByText(/tasa de cobro 10,00 %/)).toBeTruthy();
+  });
+
+  it("una semana negativa lleva la clase negativa y el monto con signo", () => {
+    const { container } = render(<Tablero inicial={TABLERO} />);
+
+    const semanal = tarjeta("Cobrado por semana");
+    expect(within(semanal).getByText("$ -1.500,00")).toBeTruthy();
+    const negativas = container.querySelectorAll(".rep-barras__barra--negativa");
+    expect(negativas).toHaveLength(1);
+    expect(negativas[0]?.closest("li")?.textContent).toContain("-1.500,00");
+  });
+
+  it("con una sola semana, la nota habla de cobros y no de facturación", () => {
+    render(<Tablero inicial={{ ...TABLERO, cobrado_por_semana: { "2026-W10": "8000.00" } }} />);
+
+    const semanal = tarjeta("Cobrado por semana");
+    expect(within(semanal).getByText(/única semana con cobros/)).toBeTruthy();
+    expect(within(semanal).queryByText(/facturación/)).toBeNull();
+    // La facturación conserva su nota.
+    expect(within(tarjeta("Facturación por semana")).getByText(/con facturación/)).toBeTruthy();
+  });
+
+  it("sin cobros dice que no los hubo", () => {
+    render(<Tablero inicial={{ ...TABLERO, cobrado_por_semana: {}, cobros_por_estado: {} }} />);
+
+    expect(within(tarjeta("Cobrado por semana")).getByText(/No hubo cobros/)).toBeTruthy();
+    expect(within(tarjeta("Cobros por estado")).getByText(/No se crearon cobros/)).toBeTruthy();
   });
 });
 

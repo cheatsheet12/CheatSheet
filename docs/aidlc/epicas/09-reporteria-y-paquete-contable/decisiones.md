@@ -334,3 +334,10 @@ el subtítulo del gráfico lo dice. Se eliminó la precondición del comprobante
 **Para el Gate 1 de `indicadores-de-cobranza`:** este contexto solo lee (D51), así que necesita
 `fecha_pago` y la fecha de cada reembolso a través de la capa de `application` de `payments` o de
 eventos, sin join; y hay que asignar el código de pantalla de Inicio.
+
+**Cómo se leyó en el Gate 1 (2026-09-30):** Inicio es **PAN-DSH-01**, el código que ya le asigna
+`prototipos.md` al dashboard. `reporting` lee el detalle de la cobranza por un caso de uso de solo
+lectura de `payments/application` (`DetalleDeCobranzaDelPeriodo`), con la misma definición de
+«cobrado» que las métricas. El período de Inicio vive en la URL y toda la pantalla lo sigue; «cobros
+por estado» se dibuja por monto con la cantidad en el rótulo, y la tasa de cobro acompaña ese gráfico.
+Detalle en [`units/indicadores-de-cobranza.md`](../../units/indicadores-de-cobranza.md).
