@@ -135,6 +135,10 @@ class RepositorioRefreshEnMemoria:
     async def buscar_por_hash(self, hash_del_token: str) -> RefreshToken | None:
         return next((t for t in self.tokens.values() if t.hash_del_token == hash_del_token), None)
 
+    async def tomar_con_familia_bloqueada(self, hash_del_token: str) -> RefreshToken | None:
+        # Same lookup as `buscar_por_hash`, inlined so a spy on one never sees the other.
+        return next((t for t in self.tokens.values() if t.hash_del_token == hash_del_token), None)
+
     async def revocar_familia(self, familia_id: UUID) -> int:
         afectados = [t for t in self.tokens.values() if t.familia_id == familia_id]
         for token in afectados:

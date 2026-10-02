@@ -14,7 +14,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cimientos, identidad y bitácora | identidad-y-onboarding | identity | HU-E1-01, HU-E1-02, HU-E1-03 | cimientos-y-bitacora | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
 | Cimientos, identidad y bitácora | usuarios-y-preferencias | identity | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07 | identidad-y-onboarding | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
 | Cimientos, identidad y bitácora | revocacion-por-reuso | identity | HU-E1-01 | — | Luciano | fix/identity-revocacion-por-reuso | en revisión |
-| Cimientos, identidad y bitácora | refresh-concurrente | identity | HU-E1-01 | revocacion-por-reuso | — | — | pendiente |
+| Cimientos, identidad y bitácora | refresh-concurrente | identity | HU-E1-01 | revocacion-por-reuso | Luciano | fix/identity-refresh-concurrente | en curso |
 | Conexión con los servicios externos | mecanismo-de-integraciones | integrations | HU-E2-05 | — | Cristian | feature/integrations-mecanismo-de-integraciones | mergeada |
 | Conexión con los servicios externos | conexion-whatsapp | integrations | HU-E2-03 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-whatsapp | mergeada |
 | Conexión con los servicios externos | conexion-arca | integrations | HU-E2-01 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-arca | mergeada |
