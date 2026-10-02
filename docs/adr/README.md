@@ -47,6 +47,7 @@ No ADR needed for: naming a function, adding a test, fixing a bug.
 | [0004](0004-arca-wsaa-access-tickets.md) | Sign WSAA login tickets in `integrations`, and publish the access ticket | Accepted | 2026-08-19 |
 | [0005](0005-staging-database-neon.md) | Run the staging database on Neon, and prove the tenant barrier survives it | Proposed | 2026-08-21 |
 | [0006](0006-staging-hosting-render.md) | Host staging on Render, and let CI — not the push — release it | Proposed | 2026-08-24 |
+| [0009](0009-review-adjustments-scope-change.md) | Amend the story catalogue after the 2026-09 review, and register its units in the existing epics | Proposed | 2026-09-29 |
 
 > The architecture itself (modular monolith, hexagonal, multi-tenancy, sync model,
 > ACLs, processing guarantees, security) was decided during Etapa 5 and is recorded as
