@@ -520,7 +520,7 @@ async def test_la_migracion_0030_sube_y_baja(
     assert privilegios == {"SELECT", "INSERT"}
     assert tuple(flags) == (True, True)
 
-    command.downgrade(config, "0025")
+    command.downgrade(config, "0028")
     async with engine_dueno.connect() as conexion:
         assert (await conexion.execute(existe)).scalar_one() is False
     command.upgrade(config, "head")

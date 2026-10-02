@@ -13,14 +13,13 @@ la restauración solo toca las filas cuyo nombre sigue siendo el que la corrida 
 literal (la misma razón de la migración 0002: SQL interpolado se lee como la inyección que no
 es). La tabla lleva su propio `empresa_id`.
 
-**Revisión.** En esta rama la cabeza es `0025` y no hay `0026` a `0029`: al rebasar sobre
-`develop` hay que volver a apuntar `down_revision` a la cabeza que corresponda y comprobar que
-`alembic heads` da una sola.
+**Revisión.** Esta unidad nació sobre `0025` mientras otras unidades sumaban `0026` a `0028`. Al
+integrarla en `develop`, `down_revision` se re-apuntó a `0028` para que quede una sola cabeza.
 
 Es reversible y no hace backfill: `downgrade` borra la tabla.
 
 Revision ID: 0030
-Revises: 0025
+Revises: 0028
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0030"
-down_revision: str | None = "0025"
+down_revision: str | None = "0028"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
