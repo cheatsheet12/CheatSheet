@@ -36,6 +36,13 @@ const TABLERO: TableroRespuesta = {
   por_semana: { "2026-W10": "12500.55" },
   pendiente: "1500.00",
   en_mora: "500.00",
+  tasa_de_cobro: "72.50",
+  cobrado_por_semana: { "2026-W10": "8000.00", "2026-W11": "-1500.00" },
+  cobros_por_estado: {
+    PENDIENTE: { cantidad: 3, monto: "1500.00" },
+    APROBADO: { cantidad: 8, monto: "8000.00" },
+    VENCIDO: { cantidad: 1, monto: "500.00" },
+  },
   sin_actividad: false,
 };
 
@@ -64,6 +71,17 @@ describe("verTablero", () => {
 
     expect(tablero.facturado.valor).toBe("12500.55");
     expect(typeof tablero.facturado.valor).toBe("string");
+  });
+
+  it("devuelve la tasa, el cobrado por semana y los cobros por estado como texto", async () => {
+    espiarFetch(respuesta(TABLERO));
+
+    const tablero = await verTablero();
+
+    expect(tablero.tasa_de_cobro).toBe("72.50");
+    // Una semana puede ser negativa (más devuelto que cobrado): el signo viaja en el texto.
+    expect(tablero.cobrado_por_semana["2026-W11"]).toBe("-1500.00");
+    expect(tablero.cobros_por_estado["APROBADO"]).toEqual({ cantidad: 8, monto: "8000.00" });
   });
 
   it("mantiene el null de la variación", async () => {

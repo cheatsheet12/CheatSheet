@@ -20,21 +20,22 @@ from typing import Annotated, TypeVar
 from uuid import UUID
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
-from cheatsheet.api.mercadopago import armar_pasarela, armar_saldos
+from cheatsheet.api.mercadopago import armar_clientes, armar_pasarela, armar_saldos
 from cheatsheet.contexts.payments.application.cobros import (
     CancelarCobro,
     GenerarCobro,
     ListarCobros,
     MetricasDelPeriodo,
-    ReembolsarCobro,
     RegenerarLink,
     VerCobro,
     monto_desde,
 )
 from cheatsheet.contexts.payments.application.ports import FiltrosDeCobro
 from cheatsheet.contexts.payments.application.recordatorios import VerRecordatorios
+from cheatsheet.contexts.payments.application.reembolsos_manuales import VerReembolsos
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro
 from cheatsheet.contexts.payments.domain.recordatorio import Recordatorio
+from cheatsheet.contexts.payments.domain.reembolso import Reembolso
 from cheatsheet.contexts.payments.infrastructure.ensamblado import Cobros
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.roles import RolUsuario
@@ -54,10 +55,6 @@ class CancelacionEntrada(BaseModel):
     motivo: str
 
 
-class ReembolsoEntrada(BaseModel):
-    monto: str
-
-
 class RecordatorioSalida(BaseModel):
     id: UUID
     paso: int
@@ -66,21 +63,44 @@ class RecordatorioSalida(BaseModel):
     estado_entrega: str | None
 
 
+class ReembolsoSalida(BaseModel):
+    """Una fila del historial (HU-E6-05 RN-08): un reembolso o la corrección de uno."""
+
+    id: UUID
+    monto: Decimal
+    fecha_devolucion: datetime
+    origen: str
+    referencia: str | None
+    motivo: str | None
+    #: La fila que esta anula; `null` si no es una corrección.
+    corrige_a: UUID | None
+    #: `true` si otra fila ya la anuló: la pantalla no ofrece corregirla de nuevo.
+    corregido: bool
+
+
 class CobroSalida(BaseModel):
     id: UUID
     cliente_id: UUID
     comprobante_id: UUID | None
     turno_id: UUID | None
     monto: Decimal
-    monto_reembolsado: Decimal | None
+    #: El acumulado de reembolsos (ADR-0010): `0.00` mientras no hubo ninguno.
+    monto_reembolsado: Decimal
     descripcion: str
     estado: str
     url_de_pago: str | None
     tiene_link_activo: bool
     vence_el: datetime
-    pagado_en: datetime | None
+    #: Cuándo pagó el cliente (D91). `fecha_pago_aproximada` avisa cuándo es una estimación.
+    fecha_pago: datetime | None
+    fecha_pago_aproximada: bool
+    medio_de_pago: str
+    #: Solo las transferencias lo tienen (HU-E6-02 RN-05); los links lo dejan en `null`.
+    numero_de_operacion: str | None
     #: HU-E6-05: la pantalla muestra «Reembolso en proceso» a partir de esto (decisión D27).
     reembolso_en_proceso: bool
+    #: Cuánto se pidió, mientras el reembolso está en vuelo; `null` si no hay ninguno.
+    reembolso_en_proceso_monto: Decimal | None
     #: HU-E6-04: entró plata por el link de un cobro cancelado. PAN-COB-02 lo muestra
     #: porque el aviso de severidad alta que lo acompaña manda al administrador acá.
     tiene_pago_huerfano: bool
@@ -89,9 +109,11 @@ class CobroSalida(BaseModel):
 
 
 class DetalleSalida(CobroSalida):
-    """PAN-COB-02: el cobro más su historial de recordatorios (HU-E6-02 RN-01)."""
+    """PAN-COB-02: el cobro más sus recordatorios (HU-E6-02 RN-01) y sus reembolsos."""
 
     recordatorios: list[RecordatorioSalida]
+    #: Del más viejo al más nuevo. Las correcciones son filas negativas visibles (RN-08).
+    reembolsos: list[ReembolsoSalida]
 
 
 class MetricasSalida(BaseModel):
@@ -106,7 +128,7 @@ class ListadoSalida(BaseModel):
     metricas: MetricasSalida
 
 
-def _a_salida(cobro: Cobro) -> CobroSalida:
+def a_salida(cobro: Cobro) -> CobroSalida:
     return CobroSalida(
         id=cobro.id,
         cliente_id=cobro.cliente_id,
@@ -119,12 +141,33 @@ def _a_salida(cobro: Cobro) -> CobroSalida:
         url_de_pago=cobro.link.url if cobro.link else None,
         tiene_link_activo=cobro.tiene_link_activo,
         vence_el=cobro.vence_el,
-        pagado_en=cobro.pagado_en,
+        fecha_pago=cobro.fecha_pago,
+        fecha_pago_aproximada=cobro.fecha_pago_aproximada,
+        medio_de_pago=cobro.medio_de_pago.value,
+        numero_de_operacion=cobro.numero_de_operacion,
         reembolso_en_proceso=cobro.reembolso_en_proceso,
+        reembolso_en_proceso_monto=cobro.reembolso_solicitado_monto,
         tiene_pago_huerfano=cobro.tiene_pago_huerfano,
         motivo_de_cancelacion=cobro.motivo_de_cancelacion,
         created_at=cobro.created_at,
     )
+
+
+def _a_reembolsos(filas: list[Reembolso]) -> list[ReembolsoSalida]:
+    corregidos = {fila.corrige_a for fila in filas if fila.corrige_a is not None}
+    return [
+        ReembolsoSalida(
+            id=fila.id,
+            monto=fila.monto,
+            fecha_devolucion=fila.fecha_devolucion,
+            origen=fila.origen.value,
+            referencia=fila.referencia,
+            motivo=fila.motivo,
+            corrige_a=fila.corrige_a,
+            corregido=fila.id in corregidos,
+        )
+        for fila in filas
+    ]
 
 
 def _a_recordatorio(uno: Recordatorio) -> RecordatorioSalida:
@@ -137,7 +180,7 @@ def _a_recordatorio(uno: Recordatorio) -> RecordatorioSalida:
     )
 
 
-def _actor(request: Request) -> tuple[EmpresaId, UsuarioId, RolUsuario]:
+def actor(request: Request) -> tuple[EmpresaId, UsuarioId, RolUsuario]:
     return (request.state.empresa_id, request.state.usuario_id, RolUsuario(request.state.rol))
 
 
@@ -177,7 +220,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
         primer render, y separarlas haría que el encabezado y la tabla pudieran mostrar dos
         instantes distintos del mismo período.
         """
-        empresa_id, _, _ = _actor(request)
+        empresa_id, _, _ = actor(request)
         filtros = _filtros(desde, hasta, estado)
         salida = ListadoSalida(
             cobros=[],
@@ -199,7 +242,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
                 filtros=FiltrosDeCobro(desde=filtros.desde, hasta=filtros.hasta),
             )
             salida = ListadoSalida(
-                cobros=[_a_salida(uno) for uno in cobros],
+                cobros=[a_salida(uno) for uno in cobros],
                 metricas=MetricasSalida(
                     cobrado=metricas.cobrado,
                     pendiente=metricas.pendiente,
@@ -212,17 +255,19 @@ def _rutas(recursos: Recursos) -> APIRouter:
     @router.get("/{cobro_id}")
     async def ver(request: Request, cobro_id: UUID) -> DetalleSalida:
         """PAN-COB-02. Todos los roles leen (RN-04)."""
-        empresa_id, _, _ = _actor(request)
+        empresa_id, _, _ = actor(request)
         salida: DetalleSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Cobros.armar(unidad)
             cobro = await VerCobro(piezas.cobros).ejecutar(cobro_id)
             recordatorios = await VerRecordatorios(piezas.recordatorios).ejecutar(cobro_id)
+            reembolsos = await VerReembolsos(piezas.reembolsos).ejecutar(cobro_id)
             salida = DetalleSalida(
-                **_a_salida(cobro).model_dump(),
+                **a_salida(cobro).model_dump(),
                 recordatorios=[_a_recordatorio(uno) for uno in recordatorios],
+                reembolsos=_a_reembolsos(reembolsos),
             )
-        return _exigir(salida)
+        return exigir(salida)
 
     @router.post("", status_code=status.HTTP_201_CREATED)
     async def generar(request: Request, entrada: CobroEntrada) -> CobroSalida:
@@ -232,7 +277,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
         Acá MercadoPago ya devolvió la preferencia — si no lo hubiera hecho, el cobro no se
         habría creado.
         """
-        empresa_id, usuario_id, rol = _actor(request)
+        empresa_id, usuario_id, rol = actor(request)
         salida: CobroSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Cobros.armar(unidad)
@@ -240,6 +285,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
                 cobros=piezas.cobros,
                 pasarela=armar_pasarela(unidad, recursos.settings),
                 saldos=armar_saldos(unidad),
+                clientes=armar_clientes(unidad),
                 publicador=unidad.publicador,
                 url_de_retorno=recursos.settings.mercadopago_url_de_retorno,
             ).ejecutar(
@@ -252,14 +298,14 @@ def _rutas(recursos: Recursos) -> APIRouter:
                 ahora=unidad.reloj.ahora(),
                 comprobante_id=entrada.comprobante_id,
             )
-            salida = _a_salida(cobro)
-        return _exigir(salida)
+            salida = a_salida(cobro)
+        return exigir(salida)
 
     return router
 
 
 def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
-    """Las tres que cambian el estado de un cobro.
+    """Las dos que cambian el estado de un cobro (los reembolsos viven en `reembolsos.py`).
 
     En su propio router por el techo de complejidad de `CLAUDE.md` §5, y porque es una
     división honesta: éstas son las que Solo Lectura no puede tocar y las que la bitácora
@@ -270,7 +316,7 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
     @router.post("/{cobro_id}/link")
     async def regenerar(request: Request, cobro_id: UUID) -> CobroSalida:
         """El último criterio de HU-E6-03: invalida el anterior y activa el nuevo."""
-        empresa_id, usuario_id, rol = _actor(request)
+        empresa_id, usuario_id, rol = actor(request)
         salida: CobroSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Cobros.armar(unidad)
@@ -286,8 +332,8 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
                 cobro_id=cobro_id,
                 ahora=unidad.reloj.ahora(),
             )
-            salida = _a_salida(cobro)
-        return _exigir(salida)
+            salida = a_salida(cobro)
+        return exigir(salida)
 
     @router.post("/{cobro_id}/cancelacion")
     async def cancelar(
@@ -299,7 +345,7 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
         se puede confirmar que murió, esto contesta 422 con el motivo y el cobro queda como
         estaba.
         """
-        empresa_id, usuario_id, rol = _actor(request)
+        empresa_id, usuario_id, rol = actor(request)
         salida: CobroSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Cobros.armar(unidad)
@@ -315,32 +361,8 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
                 motivo=entrada.motivo,
                 ahora=unidad.reloj.ahora(),
             )
-            salida = _a_salida(cobro)
-        return _exigir(salida)
-
-    @router.post("/{cobro_id}/reembolso")
-    async def reembolsar(
-        request: Request, cobro_id: UUID, entrada: ReembolsoEntrada
-    ) -> CobroSalida:
-        """HU-E6-05. **Sólo el Administrador** (RN-05), y el guarda vive en el caso de uso."""
-        empresa_id, usuario_id, rol = _actor(request)
-        salida: CobroSalida | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = Cobros.armar(unidad)
-            cobro = await ReembolsarCobro(
-                cobros=piezas.cobros,
-                pasarela=armar_pasarela(unidad, recursos.settings),
-                publicador=unidad.publicador,
-            ).ejecutar(
-                empresa_id=empresa_id,
-                usuario_id=usuario_id,
-                rol=rol,
-                cobro_id=cobro_id,
-                monto=monto_desde(entrada.monto),
-                ahora=unidad.reloj.ahora(),
-            )
-            salida = _a_salida(cobro)
-        return _exigir(salida)
+            salida = a_salida(cobro)
+        return exigir(salida)
 
     return router
 
@@ -348,7 +370,7 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
 _Salida = TypeVar("_Salida", CobroSalida, DetalleSalida)
 
 
-def _exigir(salida: _Salida | None) -> _Salida:
+def exigir(salida: _Salida | None) -> _Salida:
     if salida is None:  # pragma: no cover — la unidad de trabajo siempre rinde una vez
         raise RuntimeError("La unidad de trabajo no produjo un resultado")
     return salida

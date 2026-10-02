@@ -22,6 +22,7 @@ from datetime import date, datetime, time
 from uuid import UUID, uuid4
 
 import pytest
+from cheatsheet.contexts.scheduling.application.disponibilidad import VerHorariosDisponibles
 from cheatsheet.contexts.scheduling.application.errors import (
     FranjaOcupada,
     FueraDeHorario,
@@ -65,6 +66,7 @@ from cheatsheet.contexts.scheduling.domain.recurso import (
     TipoRecurso,
 )
 from cheatsheet.contexts.scheduling.domain.turno import (
+    MENSAJE_DURACION_DE_TURNO,
     MENSAJE_HORARIO_OCUPADO,
     MENSAJE_REPROGRAMAR_AL_PASADO,
     MENSAJE_TURNO_EN_EL_PASADO,
@@ -934,3 +936,246 @@ class TestCorreccionAPosteriori:
 
         with pytest.raises(TurnoEnElPasado):
             await _reprogramar_el_martes(escena, turno, inicio=local(11, 45), a_posteriori=True)
+
+
+#: Un servicio de 45 minutos: más largo que el slot de 30 del recurso de estos tests.
+DE_45 = ServicioAgendable(id=uuid4(), nombre="Limpieza", duracion_estandar_min=45)
+
+
+def _con_servicio_de_45(escena: Escena) -> Escena:
+    escena.catalogo.servicios[DE_45.id] = DE_45
+    escena.recurso.asociar_servicios(frozenset({DE_45.id}))
+    return escena
+
+
+class TestDuracionEIntervaloAlReservar:
+    """HU-E7-06 RN-08 y HU-E7-04 RN-06/RN-08 (decisión D96)."""
+
+    async def test_el_turno_dura_lo_que_dura_el_servicio_y_guarda_el_intervalo_actual(
+        self,
+    ) -> None:
+        recurso = un_recurso()
+        recurso.definir_intervalo(10)
+        escena = _con_servicio_de_45(Escena(recurso))
+
+        turno = await escena.reservar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            cliente_id=uuid4(),
+            servicio_id=DE_45.id,
+            recurso_id=recurso.id,
+            inicio=local(15),
+            ahora=AHORA,
+        )
+
+        assert turno.franja.duracion_min == 45
+        assert turno.intervalo_posterior_min == 10
+
+    async def test_no_acepta_una_duracion_externa(self) -> None:
+        """La duración nunca se ingresa a mano: el parámetro ya no existe."""
+        escena = _con_servicio_de_45(Escena(un_recurso()))
+
+        with pytest.raises(TypeError):
+            await escena.reservar().ejecutar(  # type: ignore[call-arg]
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                cliente_id=uuid4(),
+                servicio_id=DE_45.id,
+                recurso_id=escena.recurso.id,
+                inicio=local(15),
+                ahora=AHORA,
+                duracion_min=20,
+            )
+
+    async def test_rechaza_un_servicio_cuya_duracion_esta_fuera_de_5_a_480(self) -> None:
+        recurso = un_recurso()
+        escena = Escena(recurso)
+        largo = ServicioAgendable(id=uuid4(), nombre="Largo", duracion_estandar_min=600)
+        escena.catalogo.servicios[largo.id] = largo
+        recurso.asociar_servicios(frozenset({largo.id}))
+
+        with pytest.raises(EntradaInvalida) as fallo:
+            await escena.reservar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.OPERADOR,
+                cliente_id=uuid4(),
+                servicio_id=largo.id,
+                recurso_id=recurso.id,
+                inicio=local(10),
+                ahora=AHORA,
+            )
+
+        assert str(fallo.value) == MENSAJE_DURACION_DE_TURNO
+        assert escena.turnos.turnos == {}
+
+    async def test_la_carga_a_posteriori_no_lleva_intervalo(self) -> None:
+        recurso = un_recurso()
+        recurso.definir_intervalo(10)
+        escena = Escena(recurso)
+
+        turno = await _reservar_el_martes(
+            escena, inicio=local(10), rol=RolUsuario.ADMINISTRADOR, a_posteriori=True
+        )
+
+        assert turno.intervalo_posterior_min is None
+
+    async def test_la_correccion_a_posteriori_deja_el_intervalo_en_none(self) -> None:
+        recurso = un_recurso()
+        recurso.definir_intervalo(10)
+        turno = un_turno(recurso, franja=Franja(inicio=local(16), duracion_min=30))
+        escena = Escena(recurso, turno)
+
+        movido = await _reprogramar_el_martes(escena, turno, inicio=local(10), a_posteriori=True)
+
+        assert movido.intervalo_posterior_min is None
+
+
+class TestReprogramarConDuracionEIntervalo:
+    async def test_reprogramar_copia_el_intervalo_actual_del_recurso(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso, intervalo_posterior_min=0)
+        escena = Escena(recurso, turno)
+        recurso.definir_intervalo(15)
+
+        movido = await _reprogramar_el_martes(
+            escena, turno, inicio=local(16), rol=RolUsuario.OPERADOR
+        )
+
+        assert movido.intervalo_posterior_min == 15
+        assert movido.franja.duracion_min == 30
+
+    async def test_rechaza_reprogramar_un_turno_viejo_de_mas_de_480_minutos(self) -> None:
+        recurso = un_recurso()
+        viejo = un_turno(recurso, franja=Franja(inicio=local(15), duracion_min=600))
+        escena = Escena(recurso, viejo)
+
+        for a_posteriori in (False, True):
+            with pytest.raises(EntradaInvalida) as fallo:
+                await _reprogramar_el_martes(
+                    escena, viejo, inicio=local(16), a_posteriori=a_posteriori
+                )
+
+            assert str(fallo.value) == MENSAJE_DURACION_DE_TURNO
+        assert escena.turnos.turnos[viejo.id].franja.inicio == local(15)
+
+
+class TestVerHorariosDisponibles:
+    def ver(self, escena: Escena) -> VerHorariosDisponibles:
+        return VerHorariosDisponibles(
+            turnos=escena.turnos, recursos=escena.recursos, servicios=escena.catalogo
+        )
+
+    async def test_ofrece_por_la_duracion_del_servicio_y_marca_el_intervalo(self) -> None:
+        recurso = un_recurso()
+        recurso.definir_intervalo(10)
+        existente = un_turno(
+            recurso, franja=Franja(inicio=local(9), duracion_min=30), intervalo_posterior_min=10
+        )
+        escena = _con_servicio_de_45(Escena(recurso, existente))
+
+        grilla = await self.ver(escena).ejecutar(
+            recurso_id=recurso.id, servicio_id=DE_45.id, fecha=MARTES, ahora=AHORA
+        )
+
+        por_inicio = {uno.inicio: uno.ocupado for uno in grilla}
+        # Slot de 30: 09:00 y 09:30 pisan al turno o a su margen; 10:00 queda libre; el último
+        # inicio es el que deja entrar un turno de 45 antes de las 18.
+        assert por_inicio[local(9)]
+        assert por_inicio[local(9, 30)]
+        assert not por_inicio[local(10)]
+        assert max(por_inicio) == local(17)
+
+    async def test_un_servicio_que_no_se_presta_en_el_recurso_se_rechaza(self) -> None:
+        escena = Escena(un_recurso())
+
+        with pytest.raises(ServicioNoAdmitido):
+            await self.ver(escena).ejecutar(
+                recurso_id=escena.recurso.id, servicio_id=COLOR.id, fecha=MARTES, ahora=AHORA
+            )
+
+    async def test_un_recurso_inexistente_se_rechaza(self) -> None:
+        escena = Escena(un_recurso())
+
+        with pytest.raises(RecursoInexistente):
+            await self.ver(escena).ejecutar(
+                recurso_id=uuid4(), servicio_id=CORTE.id, fecha=MARTES, ahora=AHORA
+            )
+
+
+class TestIntervaloDelRecurso:
+    async def test_configurar_el_intervalo_lo_guarda_y_registra_la_misma_accion(self) -> None:
+        recurso = un_recurso()
+        repositorio = RepositorioRecursoEnMemoria(recurso)
+        publicador = PublicadorEnMemoria()
+
+        actualizado = await ConfigurarDisponibilidad(repositorio, publicador).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            recurso_id=recurso.id,
+            patrones=recurso.patrones,
+            intervalo_entre_turnos_min=10,
+            ahora=AHORA,
+        )
+
+        assert actualizado.intervalo_entre_turnos_min == 10
+        assert publicador.acciones == ["configurar_disponibilidad"]
+
+    async def test_sin_intervalo_en_el_pedido_conserva_el_actual(self) -> None:
+        recurso = un_recurso()
+        recurso.definir_intervalo(20)
+        repositorio = RepositorioRecursoEnMemoria(recurso)
+
+        actualizado = await ConfigurarDisponibilidad(repositorio, PublicadorEnMemoria()).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            recurso_id=recurso.id,
+            patrones=recurso.patrones,
+            ahora=AHORA,
+        )
+
+        assert actualizado.intervalo_entre_turnos_min == 20
+
+    async def test_un_intervalo_negativo_se_rechaza_y_no_se_guarda(self) -> None:
+        recurso = un_recurso()
+        repositorio = RepositorioRecursoEnMemoria(recurso)
+
+        with pytest.raises(EntradaInvalida):
+            await ConfigurarDisponibilidad(repositorio, PublicadorEnMemoria()).ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=RolUsuario.ADMINISTRADOR,
+                recurso_id=recurso.id,
+                patrones=recurso.patrones,
+                intervalo_entre_turnos_min=-1,
+                ahora=AHORA,
+            )
+
+        assert recurso.intervalo_entre_turnos_min == 0
+
+    async def test_registrar_un_recurso_acepta_el_intervalo_y_por_defecto_es_cero(self) -> None:
+        repositorio = RepositorioRecursoEnMemoria()
+
+        con = await RegistrarRecurso(repositorio, PublicadorEnMemoria()).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            nombre="Sala 3",
+            tipo=TipoRecurso.ESPACIO,
+            intervalo_entre_turnos_min=15,
+            ahora=AHORA,
+        )
+        sin = await RegistrarRecurso(repositorio, PublicadorEnMemoria()).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            nombre="Sala 4",
+            tipo=TipoRecurso.ESPACIO,
+            ahora=AHORA,
+        )
+
+        assert (con.intervalo_entre_turnos_min, sin.intervalo_entre_turnos_min) == (15, 0)

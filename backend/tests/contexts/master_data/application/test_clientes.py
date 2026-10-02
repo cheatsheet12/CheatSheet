@@ -21,6 +21,7 @@ from cheatsheet.contexts.master_data.application.clientes import (
     EditarCliente,
     ListarClientes,
     RegistrarCliente,
+    VerCliente,
     VistaDeCliente,
 )
 from cheatsheet.contexts.master_data.application.errors import (
@@ -422,6 +423,45 @@ async def test_el_operador_puede_escribir(
     await _alta(clientes, padron, publicador, DatosDeCliente(nombre="Rosa"))
 
     assert len(clientes.clientes) == 1
+
+
+# --- Ver uno por id (PAN-COB-03 muestra el cliente preseleccionado) ------------------
+
+
+@pytest.mark.parametrize(
+    "rol", [RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR, RolUsuario.SOLO_LECTURA]
+)
+async def test_ver_un_cliente_lo_devuelve_para_todos_los_roles_que_leen(
+    clientes: RepositorioClienteEnMemoria,
+    padron: PadronFalso,
+    publicador: PublicadorFalso,
+    rol: RolUsuario,
+) -> None:
+    creado = await _alta(clientes, padron, publicador, DatosDeCliente(nombre="Rosa"))
+
+    visto = await VerCliente(clientes=clientes).ejecutar(rol=rol, cliente_id=creado.cliente.id)
+
+    assert visto.id == creado.cliente.id
+    assert visto.nombre == "Rosa"
+
+
+async def test_ver_un_cliente_inactivo_lo_devuelve_igual(
+    clientes: RepositorioClienteEnMemoria, padron: PadronFalso, publicador: PublicadorFalso
+) -> None:
+    """Decidir que un inactivo no sirve para cobrar es de quien llama, no de la lectura."""
+    creado = await _alta(clientes, padron, publicador, DatosDeCliente(nombre="Rosa"))
+    await _estado(clientes, publicador, creado.cliente.id, activo=False)
+
+    visto = await VerCliente(clientes=clientes).ejecutar(
+        rol=RolUsuario.OPERADOR, cliente_id=creado.cliente.id
+    )
+
+    assert visto.activo is False
+
+
+async def test_ver_un_cliente_que_no_existe(clientes: RepositorioClienteEnMemoria) -> None:
+    with pytest.raises(ClienteNoEncontrado):
+        await VerCliente(clientes=clientes).ejecutar(rol=RolUsuario.OPERADOR, cliente_id=uuid4())
 
 
 # --- Bitácora ------------------------------------------------------------------------

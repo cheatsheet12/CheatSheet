@@ -180,7 +180,7 @@ async def test_volver_a_aparecer_en_la_planilla_se_marca_sin_mover_actualizado_e
 
 @pytest.fixture(autouse=True)
 def _limite_de_pagina_valido(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Hallazgo fuera de alcance (`TODO.md` §20): `LIMITE` vale 500 y `Pagina` acepta hasta
+    """Hallazgo fuera de alcance (`TODO.md` §24): `LIMITE` vale 500 y `Pagina` acepta hasta
     200, así que el caso de uso real levanta `EntradaInvalida`. Acá se fija el límite que
     `Pagina` admite para poder probar el criterio; el arreglo es de otra unidad."""
     monkeypatch.setattr(ListarClientesParaEscrituraDeVuelta, "LIMITE", 200)

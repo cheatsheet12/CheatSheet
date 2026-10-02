@@ -27,7 +27,7 @@ from cheatsheet.contexts.scheduling.domain.recurso import (
     RecursoReservable,
     TipoRecurso,
 )
-from cheatsheet.contexts.scheduling.domain.turno import EstadoTurno
+from cheatsheet.contexts.scheduling.domain.turno import EstadoTurno, Franja, Turno
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
 
@@ -55,7 +55,10 @@ def local(hora: int, minuto: int = 0) -> datetime:
 class Escena:
     """La agenda del agente cableada con dobles y un reloj detenido a las 12 del martes."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self, servicio: ServicioAgendable = CORTE, *, slot: int = 60, intervalo: int = 0
+    ) -> None:
+        self.servicio = servicio
         self.recurso = RecursoReservable(
             id=uuid4(),
             empresa_id=EMPRESA,
@@ -63,14 +66,15 @@ class Escena:
             tipo=TipoRecurso.ESPACIO,
             patrones=(
                 PatronDeDisponibilidad(
-                    dia_semana=1, hora_inicio=time(9), hora_fin=time(18), duracion_slot_min=60
+                    dia_semana=1, hora_inicio=time(9), hora_fin=time(18), duracion_slot_min=slot
                 ),
             ),
-            servicios=frozenset({CORTE.id}),
+            servicios=frozenset({servicio.id}),
             created_at=local(8),
+            intervalo_entre_turnos_min=intervalo,
         )
         self.turnos = RepositorioTurnoEnMemoria()
-        catalogo = CatalogoEnMemoria(CORTE)
+        catalogo = CatalogoEnMemoria(servicio)
         self.agenda = AgendaViaScheduling(
             turnos=self.turnos,
             recursos=RepositorioRecursoEnMemoria(self.recurso),
@@ -118,3 +122,40 @@ async def test_reservar_usa_el_reloj_inyectado() -> None:
     assert turno.estado is EstadoTurno.RESERVADO
     assert turno.canal_reserva == "AGENTE"
     assert turno.created_at == local(12)
+
+
+async def test_horarios_ofrecibles_respeta_la_duracion_del_servicio() -> None:
+    """Slot de 60 y servicio de 90: 17:00 no se ofrece, el turno terminaría 18:30."""
+    largo = ServicioAgendable(id=uuid4(), nombre="Color", duracion_estandar_min=90)
+    escena = Escena(largo)
+
+    ofrecidos = await escena.agenda.horarios_ofrecibles(dia=MARTES, limite=20)
+
+    assert [uno.inicio for uno in ofrecidos] == [local(hora) for hora in range(12, 17)]
+    assert {uno.servicio_id for uno in ofrecidos} == {largo.id}
+
+
+async def test_horarios_ofrecibles_respeta_el_intervalo_entre_turnos() -> None:
+    """Intervalo 10 y un turno de 13:00 a 13:30: ni 12:30 ni 13:30 se ofrecen."""
+    escena = Escena(slot=30, intervalo=10)
+    existente = Turno(
+        id=uuid4(),
+        empresa_id=EMPRESA,
+        cliente_id=uuid4(),
+        servicio_id=CORTE.id,
+        recurso_id=escena.recurso.id,
+        franja=Franja(inicio=local(13), duracion_min=30),
+        intervalo_posterior_min=10,
+    )
+    escena.turnos.turnos[existente.id] = existente
+
+    ofrecidos = await escena.agenda.horarios_ofrecibles(dia=MARTES, limite=4)
+
+    # 12:00 termina 12:30 y su margen 12:40 no toca las 13:00. 12:30 llegaría a 13:10 y pisa
+    # el inicio del turno; 13:30 cae dentro del margen del turno. 14:00 ya es libre.
+    assert [uno.inicio for uno in ofrecidos] == [
+        local(12),
+        local(14),
+        local(14, 30),
+        local(15),
+    ]

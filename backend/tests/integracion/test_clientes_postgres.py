@@ -23,6 +23,7 @@ from cheatsheet.contexts.master_data.domain.valores import OrigenDato
 from cheatsheet.contexts.master_data.infrastructure.repositories import (
     RepositorioClientePostgres,
 )
+from cheatsheet.contexts.payments.infrastructure.clientes import ClienteViaMasterData
 from cheatsheet.platform.database import sesion_de_empresa
 from cheatsheet.shared.contacto import Email, Telefono
 from cheatsheet.shared.empresa import EmpresaId
@@ -258,3 +259,51 @@ async def test_desactivar_persiste_y_no_borra(
     assert leido is not None
     assert leido.activo is False
     assert activos == 0
+
+
+@pytest.mark.asyncio
+async def test_un_cliente_de_otra_empresa_no_es_valido_para_un_cobro(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """D92 con RLS de verdad: el ACL de `payments` ve `False`, no el id de un cliente ajeno."""
+    empresa_a = await _empresa(engine_dueno)
+    empresa_b = await _empresa(engine_dueno)
+    propio = _cliente(empresa_a, nombre="De la A")
+    ajeno = _cliente(empresa_b, nombre="De la B")
+    await _guardar(sesiones, empresa_a, propio)
+    await _guardar(sesiones, empresa_b, ajeno)
+
+    async with sesion_de_empresa(sesiones, empresa_a) as sesion:
+        acl = ClienteViaMasterData(RepositorioClientePostgres(sesion))
+        propio_activo = await acl.esta_activo(propio.id)
+        ajeno_activo = await acl.esta_activo(ajeno.id)
+
+    assert propio_activo is True
+    assert ajeno_activo is False
+
+
+@pytest.mark.asyncio
+async def test_el_cuit_formateado_de_la_pantalla_encuentra_al_cliente(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """H3: la columna guarda `30712345671` y la API muestra `30-71234567-1`. Quien copia el
+    CUIT de la pantalla y lo pega en el buscador tiene que encontrarlo."""
+    empresa = await _empresa(engine_dueno)
+    await _guardar(sesiones, empresa, _cliente(empresa, nombre="Panaderia", cuit=CUIT_VALIDO))
+    await _guardar(sesiones, empresa, _cliente(empresa, nombre="Ferreteria", cuit=OTRO_CUIT))
+
+    async with sesion_de_empresa(sesiones, empresa) as sesion:
+        repositorio = RepositorioClientePostgres(sesion)
+        formateado, _ = await repositorio.listar(
+            empresa_id=empresa, filtros=FiltrosDeCliente(texto="30-71234567-1"), pagina=Pagina()
+        )
+        parcial, _ = await repositorio.listar(
+            empresa_id=empresa, filtros=FiltrosDeCliente(texto="30-7123"), pagina=Pagina()
+        )
+        por_nombre, _ = await repositorio.listar(
+            empresa_id=empresa, filtros=FiltrosDeCliente(texto="ferre"), pagina=Pagina()
+        )
+
+    assert [c.nombre for c in formateado] == ["Panaderia"]
+    assert [c.nombre for c in parcial] == ["Panaderia"]
+    assert [c.nombre for c in por_nombre] == ["Ferreteria"]

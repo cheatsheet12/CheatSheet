@@ -123,6 +123,14 @@ export async function listarClientes(filtros: FiltrosDeListado = {}): Promise<Li
   return pedir<ListadoDeClientes>(`/api/clientes${consulta(filtros)}`, "GET");
 }
 
+/**
+ * One client by id. The backend answers an inactive client too and leaves the decision to the
+ * caller; a missing one, or another company's, is the same `ErrorDeCatalogo`.
+ */
+export async function verCliente(id: string): Promise<Cliente> {
+  return pedir<Cliente>(`/api/clientes/${id}`, "GET");
+}
+
 export async function crearCliente(datos: DatosDeCliente): Promise<Cliente> {
   return pedir<Cliente>("/api/clientes", "POST", datos);
 }

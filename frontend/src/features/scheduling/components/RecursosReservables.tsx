@@ -162,6 +162,8 @@ export function RecursosReservables({
   const [editando, setEditando] = useState<Recurso | null>(null);
   const [patrones, setPatrones] = useState<readonly FilaDePatron[]>([]);
   const [asociados, setAsociados] = useState<readonly string[]>([]);
+  // Texto y no número: así se puede escribir un valor inválido y ver el rechazo del backend.
+  const [intervalo, setIntervalo] = useState("0");
 
   const [fechaDeExcepcion, setFechaDeExcepcion] = useState("");
 
@@ -189,6 +191,7 @@ export function RecursosReservables({
     setEditando(recurso);
     setPatrones(filasDe(recurso));
     setAsociados(recurso.servicios);
+    setIntervalo(String(recurso.intervalo_entre_turnos_min));
     setFechaDeExcepcion("");
   }
 
@@ -452,7 +455,8 @@ export function RecursosReservables({
                   />
                   <Campo
                     id={`patron-slot-${uno.clave}`}
-                    etiqueta="Minutos por turno"
+                    etiqueta="Duración del slot (min)"
+                    ayuda="Paso de la grilla de horarios. La duración del turno es la del servicio"
                     mono
                     value={String(uno.duracion_slot_min)}
                     onChange={(evento) =>
@@ -477,6 +481,18 @@ export function RecursosReservables({
                 </Alert>
               )}
 
+              <Campo
+                id="recurso-intervalo"
+                etiqueta="Intervalo entre turnos (min)"
+                ayuda="Se agrega después de cada turno. Aplica a las reservas nuevas."
+                type="number"
+                mono
+                min={0}
+                max={480}
+                value={intervalo}
+                onChange={(evento) => setIntervalo(evento.target.value)}
+              />
+
               <div className="dm-formulario__acciones">
                 <Button
                   variante="secundario"
@@ -493,6 +509,7 @@ export function RecursosReservables({
                         configurarDisponibilidad(
                           editando.id,
                           patrones.map(({ clave: _clave, ...resto }) => resto),
+                          Number.parseInt(intervalo, 10) || 0,
                         ),
                       "No se pudo guardar el horario.",
                     )

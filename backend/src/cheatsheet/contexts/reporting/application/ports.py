@@ -58,6 +58,27 @@ class TotalesDeCobranzas:
     cobrado: Decimal
     pendiente: Decimal
     en_mora: Decimal
+    #: La que calcula `payments` (RN-08): sólo sobre lo creado en el período, así que no pasa
+    #: de 100 %. Se toma tal cual y nunca se recalcula acá.
+    tasa_de_cobro: Decimal = Decimal("0.00")
+
+
+@dataclass(frozen=True, slots=True)
+class CobrosPorEstado:
+    """Cuántos cobros creados en el período están hoy en un estado, y por cuánto."""
+
+    cantidad: int
+    monto: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class DetalleDeCobranzas:
+    """Las dos series de los gráficos de cobranza (RN-07 de HU-E10-01)."""
+
+    #: El cobrado neto por semana ISO (`2026-W09`), por fecha de pago menos lo devuelto.
+    por_semana: dict[str, Decimal]
+    #: Lo creado en el período por el nombre de su estado actual, en un orden estable.
+    por_estado: dict[str, CobrosPorEstado]
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +128,10 @@ class PortCobranzas(Protocol):
     """ACL sobre `payments`. **Sólo lectura.**"""
 
     async def totales(self, periodo: Periodo) -> TotalesDeCobranzas: ...
+
+    async def detalle(self, periodo: Periodo) -> DetalleDeCobranzas:
+        """Cobrado por semana y cobros por estado, con la misma definición que `totales`."""
+        ...
 
     async def filas(self, periodo: Periodo) -> list[FilaDeReporte]: ...
 
@@ -247,6 +272,8 @@ class PortEmpresasConPaquete(Protocol):
 
 
 __all__ = [
+    "CobrosPorEstado",
+    "DetalleDeCobranzas",
     "FilaDeReporte",
     "PortAgendaLeida",
     "PortArchivos",

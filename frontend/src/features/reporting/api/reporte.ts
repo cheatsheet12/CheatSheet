@@ -28,6 +28,12 @@ export interface Metrica {
   readonly variacion: string | null;
 }
 
+/** Los cobros **creados** en el período que hoy están en un estado: cuántos y por cuánto. */
+export interface CobrosDeUnEstado {
+  readonly cantidad: number;
+  readonly monto: string;
+}
+
 export interface Tablero {
   readonly desde: string;
   readonly hasta: string;
@@ -39,6 +45,12 @@ export interface Tablero {
   readonly por_semana: Readonly<Record<string, string>>;
   readonly pendiente: string;
   readonly en_mora: string;
+  /** Porcentaje ya redondeado por el backend, sobre lo creado en el período (RN-08). */
+  readonly tasa_de_cobro: string;
+  /** Semana ISO → lo cobrado neto de reembolsos. Puede ser negativo. */
+  readonly cobrado_por_semana: Readonly<Record<string, string>>;
+  /** Estado del cobro → cantidad y monto, en el orden del dominio. */
+  readonly cobros_por_estado: Readonly<Record<string, CobrosDeUnEstado>>;
   readonly sin_actividad: boolean;
 }
 

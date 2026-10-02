@@ -19,6 +19,7 @@ from cheatsheet.contexts.identity.application.errors import (
     CredencialesInvalidas,
     InvitacionInvalida,
     OAuthFallido,
+    ReusoDeRefreshDetectado,
     SesionInvalida,
 )
 from cheatsheet.contexts.identity.application.invitaciones import AceptarInvitacion
@@ -200,6 +201,37 @@ async def _salida_de(piezas: Identidad, empresa_id: EmpresaId, sesion: Sesion) -
     return _a_salida(sesion, empresa is not None and empresa.onboarding_completo)
 
 
+async def _rotar_refresh(
+    recursos: Recursos, empresa_id: EmpresaId, refresh_token: str
+) -> SesionSalida:
+    """Rotate a refresh token, committing the family revocation when it is a reuse (ADR-011).
+
+    `RefrescarSesion` revokes the family and then raises `ReusoDeRefreshDetectado`. The unit
+    of work commits only if this body ends without raising, so the error is caught inside
+    the loop and re-raised after it: raising in the body would roll the revocation back and
+    let whoever stole the token keep a live session. Only reuse is caught; every other
+    refusal wrote nothing and keeps discarding the transaction.
+    """
+    salida: SesionSalida | None = None
+    reuso: ReusoDeRefreshDetectado | None = None
+    async for unidad in unidad_de_trabajo(recursos, empresa_id):
+        piezas = Identidad.armar(unidad, recursos.settings)
+        try:
+            sesion = await RefrescarSesion(
+                usuarios=piezas.usuarios,
+                refrescos=piezas.refrescos,
+                tokens=piezas.tokens,
+                emisor=piezas.emisor,
+            ).ejecutar(refresh_token=refresh_token, ahora=unidad.reloj.ahora())
+        except ReusoDeRefreshDetectado as detectado:
+            reuso = detectado
+        else:
+            salida = await _salida_de(piezas, empresa_id, sesion)
+    if reuso is not None:
+        raise reuso
+    return _exigir(salida)
+
+
 def _rutas_de_sesion(recursos: Recursos) -> APIRouter:
     """The token lifecycle: obtain, rotate, revoke.
 
@@ -239,18 +271,7 @@ def _rutas_de_sesion(recursos: Recursos) -> APIRouter:
         )
         if empresa_id is None:
             raise SesionInvalida("El refresh token no existe")
-
-        salida: SesionSalida | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = Identidad.armar(unidad, recursos.settings)
-            sesion = await RefrescarSesion(
-                usuarios=piezas.usuarios,
-                refrescos=piezas.refrescos,
-                tokens=piezas.tokens,
-                emisor=piezas.emisor,
-            ).ejecutar(refresh_token=entrada.refresh_token, ahora=unidad.reloj.ahora())
-            salida = await _salida_de(piezas, empresa_id, sesion)
-        return _exigir(salida)
+        return await _rotar_refresh(recursos, empresa_id, entrada.refresh_token)
 
     # `response_class=Response`: a 204 carries no body, and FastAPI refuses to build a
     # response model for one.

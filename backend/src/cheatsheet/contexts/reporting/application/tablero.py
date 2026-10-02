@@ -20,6 +20,7 @@ from datetime import date
 from decimal import Decimal
 
 from cheatsheet.contexts.reporting.application.ports import (
+    CobrosPorEstado,
     PortAgendaLeida,
     PortBitacora,
     PortCobranzas,
@@ -63,6 +64,9 @@ class Tablero:
     por_semana: dict[str, Decimal]
     pendiente: Decimal
     en_mora: Decimal
+    tasa_de_cobro: Decimal
+    cobrado_por_semana: dict[str, Decimal]
+    cobros_por_estado: dict[str, CobrosPorEstado]
 
     @property
     def sin_actividad(self) -> bool:
@@ -70,12 +74,16 @@ class Tablero:
 
         Las cuatro en cero, no sólo la facturación: un mes sin facturar pero con veinte turnos
         atendidos **sí** tuvo actividad, y decirle a esa empresa que no pasó nada sería falso.
+        Tampoco es «sin actividad» un período con cobros creados, ni uno con un pago y un
+        reembolso que se anulan en el neto: el neto en cero no es lo mismo que no haber cobrado.
         """
         return (
             self.facturado.valor == 0
             and self.cobrado.valor == 0
             and self.turnos.valor == 0
             and self.operaciones.valor == 0
+            and not self.cobros_por_estado
+            and not self.cobrado_por_semana
         )
 
 
@@ -116,6 +124,8 @@ class VerTablero:
         previa_facturacion = await self._facturacion.totales(anterior)
         actual_cobros = await self._cobranzas.totales(periodo)
         previa_cobros = await self._cobranzas.totales(anterior)
+        # Los gráficos son sólo del período actual: la variación es de las cifras.
+        detalle_cobros = await self._cobranzas.detalle(periodo)
         actual_agenda = await self._agenda.totales(periodo)
         previa_agenda = await self._agenda.totales(anterior)
         actuales_operaciones = await self._bitacora.cuantas_operaciones(periodo)
@@ -131,6 +141,9 @@ class VerTablero:
             por_semana=actual_facturacion.por_semana,
             pendiente=actual_cobros.pendiente,
             en_mora=actual_cobros.en_mora,
+            tasa_de_cobro=actual_cobros.tasa_de_cobro,
+            cobrado_por_semana=detalle_cobros.por_semana,
+            cobros_por_estado=detalle_cobros.por_estado,
         )
 
 

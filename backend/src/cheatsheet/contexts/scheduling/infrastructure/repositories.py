@@ -52,6 +52,8 @@ from cheatsheet.shared.empresa import EmpresaId
 #: Los nombres que pone la migración 0020. Se comparan tal cual contra el texto del
 #: `IntegrityError` porque asyncpg no expone el nombre de la restricción de forma tipada.
 RESTRICCION_SOLAPAMIENTO = "excl_turno_recurso_franja"
+#: La de la migración 0028 (decisión D96): el turno más su intervalo no pisa al siguiente.
+RESTRICCION_INTERVALO = "excl_turno_recurso_intervalo"
 RESTRICCION_EXCEPCION = "uq_excepcion_recurso_fecha"
 
 
@@ -80,6 +82,7 @@ class RepositorioRecursoPostgres:
                 nombre=recurso.nombre,
                 activo=recurso.activo,
                 created_at=recurso.created_at or datetime.now(tz=ZONA_DE_LA_AGENDA),
+                intervalo_entre_turnos_min=recurso.intervalo_entre_turnos_min,
             )
         )
         await self._sesion.flush()
@@ -92,6 +95,7 @@ class RepositorioRecursoPostgres:
         fila.nombre = recurso.nombre
         fila.tipo = recurso.tipo.value
         fila.activo = recurso.activo
+        fila.intervalo_entre_turnos_min = recurso.intervalo_entre_turnos_min
         await self._reemplazar_hijos(recurso)
 
     async def buscar_por_id(self, recurso_id: UUID) -> RecursoReservable | None:
@@ -168,6 +172,7 @@ class RepositorioRecursoPostgres:
             ),
             servicios=frozenset(servicios),
             created_at=fila.created_at,
+            intervalo_entre_turnos_min=fila.intervalo_entre_turnos_min,
         )
 
     async def _reemplazar_hijos(self, recurso: RecursoReservable) -> None:
@@ -275,9 +280,10 @@ class RepositorioTurnoPostgres:
         try:
             await self._sesion.flush()
         except IntegrityError as exc:
-            if _es(exc, RESTRICCION_SOLAPAMIENTO):
+            if _es(exc, RESTRICCION_SOLAPAMIENTO) or _es(exc, RESTRICCION_INTERVALO):
                 # **Esta línea es la decisión D28 llegando a la pantalla.** El motor rechazó el
-                # solapamiento; acá se convierte en la frase que las historias escribieron.
+                # solapamiento, o el choque con el intervalo entre turnos (D96); para quien
+                # reserva son lo mismo, y se convierte en la frase que las historias escribieron.
                 raise FranjaOcupada(MENSAJE_HORARIO_OCUPADO) from exc
             raise
 
@@ -295,6 +301,7 @@ def _a_dominio(fila: TurnoORM) -> Turno:
         cobro_id=fila.cobro_id,
         created_at=fila.created_at,
         updated_at=fila.updated_at,
+        intervalo_posterior_min=fila.intervalo_posterior_min,
     )
 
 
@@ -309,6 +316,7 @@ def _a_fila(turno: Turno, fila: TurnoORM) -> TurnoORM:
     fila.franja_duracion_min = turno.franja.duracion_min
     fila.estado = turno.estado.value
     fila.canal_reserva = turno.canal_reserva
+    fila.intervalo_posterior_min = turno.intervalo_posterior_min
     fila.created_at = turno.created_at or datetime.now(tz=ZONA_DE_LA_AGENDA)
     fila.updated_at = turno.updated_at or fila.created_at
     return fila

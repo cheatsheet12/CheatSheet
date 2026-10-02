@@ -22,6 +22,9 @@ const verCobro = vi.fn();
 const generarCobro = vi.fn();
 const cancelarCobro = vi.fn();
 const reembolsarCobro = vi.fn();
+const actualizarReembolso = vi.fn();
+const registrarReembolso = vi.fn();
+const corregirReembolso = vi.fn();
 const push = vi.fn();
 
 vi.mock("@/features/payments/api/cobro", async () => {
@@ -35,6 +38,9 @@ vi.mock("@/features/payments/api/cobro", async () => {
     generarCobro: (...args: unknown[]) => generarCobro(...args),
     cancelarCobro: (...args: unknown[]) => cancelarCobro(...args),
     reembolsarCobro: (...args: unknown[]) => reembolsarCobro(...args),
+    actualizarReembolso: (...args: unknown[]) => actualizarReembolso(...args),
+    registrarReembolso: (...args: unknown[]) => registrarReembolso(...args),
+    corregirReembolso: (...args: unknown[]) => corregirReembolso(...args),
   };
 });
 
@@ -44,10 +50,16 @@ import {
   ErrorDeCobro,
   MENSAJE_LINK_COPIADO,
   MENSAJE_MONTO_NO_POSITIVO,
+  MENSAJE_NOTA_DE_CREDITO,
   MENSAJE_PAGO_HUERFANO,
   MENSAJE_SIN_RESULTADOS,
 } from "@/features/payments";
-import type { Cobro, DetalleDeCobroRespuesta, ListadoDeCobrosRespuesta } from "@/features/payments";
+import type {
+  Cobro,
+  DetalleDeCobroRespuesta,
+  ListadoDeCobrosRespuesta,
+  Reembolso,
+} from "@/features/payments";
 
 const { ListadoDeCobros } = await import("@/features/payments/components/ListadoDeCobros");
 const { DetalleDeCobro } = await import("@/features/payments/components/DetalleDeCobro");
@@ -59,14 +71,18 @@ const PENDIENTE: Cobro = {
   comprobante_id: null,
   turno_id: null,
   monto: "12500.00",
-  monto_reembolsado: null,
+  monto_reembolsado: "0.00",
   descripcion: "Consulta de septiembre",
   estado: "PENDIENTE",
   url_de_pago: "https://mp.test/checkout/co1",
   tiene_link_activo: true,
   vence_el: "2026-09-20",
-  pagado_en: null,
+  fecha_pago: null,
+  fecha_pago_aproximada: false,
+  medio_de_pago: "LINK_MERCADOPAGO",
+  numero_de_operacion: null,
   reembolso_en_proceso: false,
+  reembolso_en_proceso_monto: null,
   tiene_pago_huerfano: false,
   motivo_de_cancelacion: null,
   created_at: "2026-09-07T12:00:00Z",
@@ -102,13 +118,14 @@ const DETALLE: DetalleDeCobroRespuesta = {
     },
     { id: "r2", paso: 2, canal: "WHATSAPP", enviado_en: null, estado_entrega: null },
   ],
+  reembolsos: [],
 };
 
 const PAGADO: DetalleDeCobroRespuesta = {
   ...DETALLE,
   estado: "APROBADO",
   tiene_link_activo: false,
-  pagado_en: "2026-09-15T18:20:00Z",
+  fecha_pago: "2026-09-15T18:20:00Z",
 };
 
 beforeAll(() => {
@@ -155,6 +172,12 @@ describe("PAN-COB-01 — listado de cobros", () => {
     const tabla = within(screen.getByRole("table"));
     expect(tabla.getByText("En mora")).toBeTruthy();
     expect(tabla.queryByText("Vencido")).toBeNull();
+  });
+
+  it("aclara que «Cobrado» se mide por fecha de pago", () => {
+    render(<ListadoDeCobros inicial={LISTADO} puedeGestionar />);
+
+    expect(within(metrica("Cobrado")).getByText(/por fecha de pago/)).toBeTruthy();
   });
 
   it("filtra por el estado del dominio aunque muestre la etiqueta de interfaz", async () => {
@@ -323,6 +346,69 @@ describe("PAN-COB-02 — detalle del cobro", () => {
   });
 });
 
+/** El valor de una fila «clave/valor» del detalle: el `<dd>` que acompaña a ese `<dt>`. */
+function valorDe(rotulo: string): HTMLElement {
+  const par = screen.getByText(rotulo, { selector: "dt" }).closest("div");
+  if (par === null) {
+    throw new Error(`La fila «${rotulo}» no esta dentro de un <div>.`);
+  }
+  return par;
+}
+
+describe("PAN-COB-02 — cuándo y cómo se pagó (D91)", () => {
+  it("muestra el medio y la fecha de un cobro pagado por link, sin numero de operacion", () => {
+    render(<DetalleDeCobro inicial={PAGADO} puedeGestionar puedeReembolsar />);
+
+    expect(within(valorDe("Medio de pago")).getByText("Link de MercadoPago")).toBeTruthy();
+    expect(within(valorDe("Fecha de pago")).queryByText("—")).toBeNull();
+    expect(within(valorDe("Fecha de pago")).queryByText(/aproximada/)).toBeNull();
+    expect(screen.queryByText("N.º de operación", { selector: "dt" })).toBeNull();
+  });
+
+  it("avisa cuando la fecha de pago es aproximada", () => {
+    render(
+      <DetalleDeCobro
+        inicial={{ ...PAGADO, fecha_pago_aproximada: true }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+
+    expect(within(valorDe("Fecha de pago")).getByText(/\(aproximada\)/)).toBeTruthy();
+  });
+
+  it("muestra un guion en la fecha de un cobro que no se pago", () => {
+    render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar />);
+
+    expect(within(valorDe("Fecha de pago")).getByText("—")).toBeTruthy();
+    expect(within(valorDe("Medio de pago")).getByText("Link de MercadoPago")).toBeTruthy();
+  });
+
+  it("muestra el numero de operacion solo cuando el medio es una transferencia", () => {
+    render(
+      <DetalleDeCobro
+        inicial={{
+          ...PAGADO,
+          medio_de_pago: "TRANSFERENCIA",
+          numero_de_operacion: "0000123456",
+        }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+
+    expect(within(valorDe("Medio de pago")).getByText("Transferencia")).toBeTruthy();
+    expect(within(valorDe("N.º de operación")).getByText("0000123456")).toBeTruthy();
+  });
+
+  it("le llama «Referencia» al codigo del cobro y no «Operacion»", () => {
+    render(<DetalleDeCobro inicial={PAGADO} puedeGestionar puedeReembolsar />);
+
+    expect(screen.getByText("Referencia", { selector: "dt" })).toBeTruthy();
+    expect(screen.queryByText("Operación", { selector: "dt" })).toBeNull();
+  });
+});
+
 describe("PAN-COB-03 — nuevo cobro", () => {
   it("no deja generar sin concepto ni con monto cero, y lo dice", () => {
     render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
@@ -337,6 +423,41 @@ describe("PAN-COB-03 — nuevo cobro", () => {
 
     fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "12500.50" } });
     expect(generar.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("sin cliente no deja generar, lo dice y no llama a generarCobro", () => {
+    render(<NuevoCobro clienteId={null} comprobantes={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "1000" } });
+
+    const generar = screen.getByRole("button", { name: "Generar link de pago" });
+    expect(generar.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByText("Debe seleccionar un cliente.")).toBeTruthy();
+    fireEvent.click(generar);
+    expect(generarCobro).not.toHaveBeenCalled();
+  });
+
+  it("al cambiar de cliente descarta el comprobante que ya no se ofrece", async () => {
+    generarCobro.mockResolvedValue(PENDIENTE);
+    const deAna = [{ id: "c1", etiqueta: "Factura B 123 — saldo $ 2.420,00" }];
+    const { rerender } = render(<NuevoCobro clienteId="cl1" comprobantes={deAna} />);
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByLabelText("Comprobante asociado"), { target: { value: "c1" } });
+
+    // Lo escrito se conserva y el comprobante de Ana no viaja con el cobro de Bruno.
+    rerender(<NuevoCobro clienteId="cl2" comprobantes={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+
+    await waitFor(() => {
+      expect(generarCobro).toHaveBeenCalledWith({
+        cliente_id: "cl2",
+        monto: "1000",
+        descripcion: "Consulta",
+        comprobante_id: null,
+      });
+    });
   });
 
   it("manda el monto como texto, tal como se escribio", async () => {
@@ -386,5 +507,334 @@ describe("PAN-COB-03 — nuevo cobro", () => {
       await screen.findByText("No se pudo generar el link de pago. Intente nuevamente."),
     ).toBeTruthy();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("al cambiar de cliente deja de mostrar el error del cliente anterior", async () => {
+    generarCobro.mockRejectedValue(
+      new ErrorDeCobro("El comprobante no corresponde al cliente elegido."),
+    );
+    const { rerender } = render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "1000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    expect(
+      await screen.findByText("El comprobante no corresponde al cliente elegido."),
+    ).toBeTruthy();
+
+    rerender(<NuevoCobro clienteId="cl2" comprobantes={[]} />);
+
+    expect(screen.queryByText("El comprobante no corresponde al cliente elegido.")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Reembolsos parciales y manuales (HU-E6-05)
+// ---------------------------------------------------------------------------------------------
+
+const FILA_API: Reembolso = {
+  id: "rb1",
+  monto: "2500.00",
+  fecha_devolucion: "2026-09-20T15:00:00Z",
+  origen: "API_MERCADOPAGO",
+  referencia: null,
+  motivo: null,
+  corrige_a: null,
+  corregido: false,
+};
+
+const FILA_MANUAL: Reembolso = {
+  id: "rb2",
+  monto: "1000.00",
+  fecha_devolucion: "2026-09-21T15:00:00Z",
+  origen: "MANUAL",
+  referencia: "OP-9",
+  motivo: "Devolución por transferencia",
+  corrige_a: null,
+  corregido: false,
+};
+
+const PARCIAL: DetalleDeCobroRespuesta = {
+  ...PAGADO,
+  estado: "REEMBOLSADO_PARCIAL",
+  monto_reembolsado: "2500.00",
+  reembolsos: [FILA_API],
+};
+
+const POR_TRANSFERENCIA: DetalleDeCobroRespuesta = {
+  ...PAGADO,
+  medio_de_pago: "TRANSFERENCIA",
+  numero_de_operacion: "0000123456",
+};
+
+describe("PAN-COB-02 — reembolsos parciales y manuales (HU-E6-05)", () => {
+  it("ofrece «Reembolsar» en un pagado y en un parcial, por link, con el pendiente precargado", () => {
+    render(<DetalleDeCobro inicial={PAGADO} puedeGestionar puedeReembolsar />);
+    fireEvent.click(screen.getByRole("button", { name: "Reembolsar" }));
+    expect((screen.getByLabelText("Monto a reembolsar") as HTMLInputElement).value).toBe(
+      "12500.00",
+    );
+
+    cleanup();
+    render(<DetalleDeCobro inicial={PARCIAL} puedeGestionar puedeReembolsar />);
+    fireEvent.click(screen.getByRole("button", { name: "Reembolsar" }));
+    // 12500.00 - 2500.00: lo que falta devolver, no el monto entero.
+    expect((screen.getByLabelText("Monto a reembolsar") as HTMLInputElement).value).toBe(
+      "10000.00",
+    );
+  });
+
+  it("no ofrece «Reembolsar» sobre un reembolsado entero", () => {
+    render(
+      <DetalleDeCobro
+        inicial={{ ...PARCIAL, estado: "REEMBOLSADO", monto_reembolsado: "12500.00" }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Reembolsar" })).toBeNull();
+  });
+
+  it("ofrece «Registrar reembolso» solo en una transferencia, y no la API", () => {
+    render(<DetalleDeCobro inicial={POR_TRANSFERENCIA} puedeGestionar puedeReembolsar />);
+    expect(screen.getByRole("button", { name: "Registrar reembolso" })).toBeTruthy();
+    // Una transferencia no tiene API a la que pedirle nada.
+    expect(screen.queryByRole("button", { name: "Reembolsar" })).toBeNull();
+
+    cleanup();
+    render(<DetalleDeCobro inicial={PAGADO} puedeGestionar puedeReembolsar />);
+    expect(screen.queryByRole("button", { name: "Registrar reembolso" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Reembolsar" })).toBeTruthy();
+  });
+
+  it("no le muestra ninguna acción de reembolso al Operador, pero sí el historial", () => {
+    render(
+      <DetalleDeCobro
+        inicial={{
+          ...POR_TRANSFERENCIA,
+          estado: "REEMBOLSADO_PARCIAL",
+          monto_reembolsado: "1000.00",
+          reembolsos: [FILA_MANUAL],
+        }}
+        puedeGestionar
+        puedeReembolsar={false}
+      />,
+    );
+
+    expect(screen.getByText("Devolución por transferencia")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Registrar reembolso" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Corregir" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reembolsar" })).toBeNull();
+  });
+
+  it("dice «Reembolso en proceso» con el monto y ofrece «Actualizar estado»", async () => {
+    actualizarReembolso.mockResolvedValue(PARCIAL);
+    verCobro.mockResolvedValue(PARCIAL);
+    render(
+      <DetalleDeCobro
+        inicial={{ ...PAGADO, reembolso_en_proceso: true, reembolso_en_proceso_monto: "400.00" }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+
+    expect(screen.getByText("Reembolso en proceso")).toBeTruthy();
+    expect(screen.getByText(/\$ 400,00/)).toBeTruthy();
+    // No se ofrece pedir otro mientras el primero no volvió.
+    expect(screen.queryByRole("button", { name: "Reembolsar" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar estado" }));
+
+    await waitFor(() => {
+      expect(actualizarReembolso).toHaveBeenCalledWith("co1");
+    });
+    expect(await screen.findByText("Reembolsado parcialmente")).toBeTruthy();
+  });
+
+  it("solo el Administrador ve «Actualizar estado»", () => {
+    render(
+      <DetalleDeCobro
+        inicial={{ ...PAGADO, reembolso_en_proceso: true, reembolso_en_proceso_monto: "400.00" }}
+        puedeGestionar
+        puedeReembolsar={false}
+      />,
+    );
+
+    expect(screen.getByText("Reembolso en proceso")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Actualizar estado" })).toBeNull();
+  });
+
+  it("muestra el historial con la corrección visible y «Corregir» solo donde corresponde", () => {
+    const anulada: Reembolso = { ...FILA_MANUAL, corregido: true };
+    const correccion: Reembolso = {
+      id: "rb3",
+      monto: "-1000.00",
+      fecha_devolucion: "2026-09-22T15:00:00Z",
+      origen: "MANUAL",
+      referencia: null,
+      motivo: "Se cargó por error",
+      corrige_a: "rb2",
+      corregido: false,
+    };
+    const otra: Reembolso = { ...FILA_MANUAL, id: "rb4", referencia: "OP-10", monto: "300.00" };
+    render(
+      <DetalleDeCobro
+        inicial={{
+          ...POR_TRANSFERENCIA,
+          estado: "REEMBOLSADO_PARCIAL",
+          monto_reembolsado: "300.00",
+          reembolsos: [anulada, correccion, otra],
+        }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+
+    expect(screen.getByText("Corregido")).toBeTruthy();
+    expect(screen.getByText("Corrección")).toBeTruthy();
+    // La anulada y la corrección no se corrigen de nuevo: solo la última fila manual.
+    expect(screen.getAllByRole("button", { name: "Corregir" })).toHaveLength(1);
+  });
+
+  it("no ofrece «Corregir» sobre una fila de MercadoPago", () => {
+    render(<DetalleDeCobro inicial={PARCIAL} puedeGestionar puedeReembolsar />);
+
+    expect(screen.getByText("MercadoPago", { selector: ".cob-reembolso__origen" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Corregir" })).toBeNull();
+  });
+
+  it("corrige una fila manual pidiendo el motivo", async () => {
+    corregirReembolso.mockResolvedValue(POR_TRANSFERENCIA);
+    verCobro.mockResolvedValue(POR_TRANSFERENCIA);
+    render(
+      <DetalleDeCobro
+        inicial={{
+          ...POR_TRANSFERENCIA,
+          estado: "REEMBOLSADO_PARCIAL",
+          monto_reembolsado: "1000.00",
+          reembolsos: [FILA_MANUAL],
+        }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Corregir" }));
+    const confirmar = screen.getByRole("button", { name: "Confirmar corrección" });
+    // Sin motivo no se corrige: la corrección es una fila visible y tiene que decir por qué.
+    expect(confirmar.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("Motivo de la corrección"), {
+      target: { value: "Se cargó por error" },
+    });
+    fireEvent.click(confirmar);
+
+    await waitFor(() => {
+      expect(corregirReembolso).toHaveBeenCalledWith("co1", "rb2", "Se cargó por error");
+    });
+  });
+
+  it("registra un reembolso manual con monto, fecha, referencia y motivo", async () => {
+    registrarReembolso.mockResolvedValue(POR_TRANSFERENCIA);
+    verCobro.mockResolvedValue(POR_TRANSFERENCIA);
+    render(<DetalleDeCobro inicial={POR_TRANSFERENCIA} puedeGestionar puedeReembolsar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Registrar reembolso" }));
+    const confirmar = screen.getByRole("button", { name: "Confirmar registro" });
+    expect(confirmar.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("Monto devuelto"), { target: { value: "300.10" } });
+    fireEvent.change(screen.getByLabelText("Fecha de devolución"), {
+      target: { value: "2026-09-20" },
+    });
+    fireEvent.change(screen.getByLabelText("Referencia (opcional)"), {
+      target: { value: "OP-77" },
+    });
+    fireEvent.change(screen.getByLabelText("Motivo"), {
+      target: { value: "Devolución por transferencia" },
+    });
+    fireEvent.click(confirmar);
+
+    await waitFor(() => {
+      expect(registrarReembolso).toHaveBeenCalledWith("co1", {
+        monto: "300.10",
+        fecha: "2026-09-20",
+        referencia: "OP-77",
+        motivo: "Devolución por transferencia",
+      });
+    });
+  });
+
+  it("muestra el rechazo del registro manual con las palabras del backend", async () => {
+    registrarReembolso.mockRejectedValue(
+      new ErrorDeCobro(
+        "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+      ),
+    );
+    render(<DetalleDeCobro inicial={POR_TRANSFERENCIA} puedeGestionar puedeReembolsar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Registrar reembolso" }));
+    fireEvent.change(screen.getByLabelText("Monto devuelto"), { target: { value: "99999.00" } });
+    fireEvent.change(screen.getByLabelText("Fecha de devolución"), {
+      target: { value: "2026-09-20" },
+    });
+    fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "Devolución" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar registro" }));
+
+    expect(
+      await screen.findByText(
+        "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("avisa que corresponde una nota de crédito, con el enlace, si hay comprobante y reembolso", () => {
+    render(
+      <DetalleDeCobro
+        inicial={{ ...PARCIAL, comprobante_id: "cm1" }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+
+    expect(screen.getByText(MENSAJE_NOTA_DE_CREDITO)).toBeTruthy();
+    const enlace = screen.getByRole("link", { name: "Emitir nota de crédito" });
+    expect(enlace.getAttribute("href")).toBe("/facturacion/cm1/anular");
+  });
+
+  it("no avisa de la nota de crédito sin comprobante o sin nada reembolsado", () => {
+    const { rerender } = render(
+      <DetalleDeCobro inicial={PARCIAL} puedeGestionar puedeReembolsar />,
+    );
+    expect(screen.queryByText(MENSAJE_NOTA_DE_CREDITO)).toBeNull();
+
+    rerender(
+      <DetalleDeCobro
+        inicial={{ ...PAGADO, comprobante_id: "cm1" }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+    expect(screen.queryByText(MENSAJE_NOTA_DE_CREDITO)).toBeNull();
+  });
+
+  it("le pone «Reembolsado parcialmente» al estado y lo ofrece en el filtro del listado", () => {
+    render(<DetalleDeCobro inicial={PARCIAL} puedeGestionar puedeReembolsar />);
+    expect(screen.getByText("Reembolsado parcialmente")).toBeTruthy();
+
+    cleanup();
+    render(<ListadoDeCobros inicial={LISTADO} puedeGestionar />);
+    expect(screen.getByRole("option", { name: "Reembolsado parcialmente" })).toBeTruthy();
+  });
+
+  it("filtra por el estado del dominio REEMBOLSADO_PARCIAL", async () => {
+    listarCobros.mockResolvedValue({ ...LISTADO, cobros: [] });
+    render(<ListadoDeCobros inicial={LISTADO} puedeGestionar />);
+
+    fireEvent.change(screen.getByLabelText("Estado"), {
+      target: { value: "REEMBOLSADO_PARCIAL" },
+    });
+
+    await waitFor(() => {
+      expect(listarCobros).toHaveBeenCalledWith({ estado: "REEMBOLSADO_PARCIAL" });
+    });
   });
 });

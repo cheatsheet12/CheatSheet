@@ -86,6 +86,7 @@ class RegistrarRecurso:
         ahora: datetime,
         patrones: tuple[PatronDeDisponibilidad, ...] = (),
         servicios: frozenset[UUID] = frozenset(),
+        intervalo_entre_turnos_min: int = 0,
     ) -> RecursoReservable:
         _exigir_administrador(rol)
         recurso = RecursoReservable(
@@ -96,6 +97,7 @@ class RegistrarRecurso:
             patrones=tuple(patrones),
             servicios=servicios,
             created_at=ahora,
+            intervalo_entre_turnos_min=intervalo_entre_turnos_min,
         )
         await self._recursos.agregar(recurso)
         await _auditar(
@@ -105,7 +107,7 @@ class RegistrarRecurso:
 
 
 class ConfigurarDisponibilidad:
-    """HU-E7-04 RN-01. Reemplaza el horario semanal entero.
+    """HU-E7-04 RN-01 y RN-06. Reemplaza el horario semanal entero y, si se pide, el intervalo.
 
     La franja invertida la rechaza el propio `PatronDeDisponibilidad` al construirse, con la
     frase de la historia. No se revalida acá: dos lugares que validan lo mismo son dos lugares
@@ -125,10 +127,14 @@ class ConfigurarDisponibilidad:
         recurso_id: UUID,
         patrones: tuple[PatronDeDisponibilidad, ...],
         ahora: datetime,
+        intervalo_entre_turnos_min: int | None = None,
     ) -> RecursoReservable:
         _exigir_administrador(rol)
         recurso = await VerRecurso(self._recursos).ejecutar(recurso_id)
         recurso.definir_disponibilidad(patrones)
+        # `None` conserva el actual. Cambiarlo no mueve turnos existentes (HU-E7-04 RN-08).
+        if intervalo_entre_turnos_min is not None:
+            recurso.definir_intervalo(intervalo_entre_turnos_min)
         await self._recursos.guardar(recurso)
         await _auditar(
             self._publicador, empresa_id, usuario_id, recurso, "configurar_disponibilidad", ahora

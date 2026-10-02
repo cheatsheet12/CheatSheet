@@ -22,6 +22,7 @@ from uuid import UUID
 
 from cheatsheet.api.agenda import armar_avisador, armar_catalogo
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.contexts.scheduling.application.disponibilidad import VerHorariosDisponibles
 from cheatsheet.contexts.scheduling.application.ports import FiltrosDeAgenda
 from cheatsheet.contexts.scheduling.application.recursos import (
     AsociarServicios,
@@ -31,7 +32,6 @@ from cheatsheet.contexts.scheduling.application.recursos import (
     QuitarExcepcion,
     RegistrarExcepcion,
     RegistrarRecurso,
-    VerRecurso,
 )
 from cheatsheet.contexts.scheduling.application.turnos import (
     CancelarTurno,
@@ -77,10 +77,13 @@ class RecursoEntrada(BaseModel):
     tipo: str
     patrones: list[PatronEntrada] = []
     servicios: list[UUID] = []
+    #: HU-E7-04 RN-06. `None`: 0 al registrar, y al configurar conserva el actual.
+    intervalo_entre_turnos_min: int | None = None
 
 
 class DisponibilidadEntrada(BaseModel):
     patrones: list[PatronEntrada]
+    intervalo_entre_turnos_min: int | None = None
 
 
 class ServiciosEntrada(BaseModel):
@@ -103,8 +106,8 @@ class TurnoEntrada(BaseModel):
     servicio_id: UUID
     recurso_id: UUID
     inicio: datetime
-    #: Opcional: por defecto la del servicio. Ver `ReservarTurno`.
-    duracion_min: int | None = None
+    #: La duración es siempre la del servicio (HU-E7-06 RN-08): si un cliente viejo manda
+    #: `duracion_min`, Pydantic lo ignora y nunca llega al caso de uso.
     #: La carga a posteriori (HU-E7-06 RN-07): sólo el Administrador, y siempre explícita. Un
     #: inicio pasado sin este indicador se rechaza igual que para cualquier rol.
     a_posteriori: bool = False
@@ -112,7 +115,6 @@ class TurnoEntrada(BaseModel):
 
 class ReprogramacionEntrada(BaseModel):
     inicio: datetime
-    duracion_min: int | None = None
     #: La corrección a posteriori (HU-E7-02 RN-07). Ver `TurnoEntrada.a_posteriori`.
     a_posteriori: bool = False
 
@@ -146,6 +148,7 @@ class RecursoSalida(BaseModel):
     patrones: list[PatronSalida]
     excepciones: list[ExcepcionSalida]
     servicios: list[UUID]
+    intervalo_entre_turnos_min: int
 
 
 class ListadoDeRecursos(BaseModel):
@@ -221,6 +224,7 @@ def _a_recurso(recurso: RecursoReservable) -> RecursoSalida:
             for una in recurso.excepciones
         ],
         servicios=sorted(recurso.servicios),
+        intervalo_entre_turnos_min=recurso.intervalo_entre_turnos_min,
     )
 
 
@@ -351,6 +355,7 @@ def _rutas_de_recursos(recursos: Recursos) -> APIRouter:
                 tipo=_tipo_de_recurso(entrada.tipo),
                 patrones=_patrones(entrada.patrones),
                 servicios=frozenset(entrada.servicios),
+                intervalo_entre_turnos_min=entrada.intervalo_entre_turnos_min or 0,
                 ahora=unidad.reloj.ahora(),
             )
             salida = _a_recurso(recurso)
@@ -384,6 +389,7 @@ def _rutas_de_configuracion(recursos: Recursos) -> APIRouter:
                 rol=rol,
                 recurso_id=recurso_id,
                 patrones=_patrones(entrada.patrones),
+                intervalo_entre_turnos_min=entrada.intervalo_entre_turnos_min,
                 ahora=unidad.reloj.ahora(),
             )
             salida = _a_recurso(recurso)
@@ -513,30 +519,36 @@ def _rutas_de_turnos(recursos: Recursos) -> APIRouter:
 
     @router.get("/disponibilidad")
     async def disponibilidad(
-        request: Request, recurso_id: Annotated[UUID, Query()], fecha: Annotated[date, Query()]
+        request: Request,
+        recurso_id: Annotated[UUID, Query()],
+        fecha: Annotated[date, Query()],
+        servicio_id: Annotated[UUID, Query()],
     ) -> DisponibilidadSalida:
-        """Los horarios que ese recurso ofrece ese día, con los ocupados marcados.
+        """Los horarios que ese recurso ofrece ese día **para ese servicio**, con los ocupados.
 
-        Lo que puebla el selector de PAN-AGE-02, y lo que el agente del épico 8 va a usar para
-        ofrecer turnos por WhatsApp. Ver la advertencia de `DisponibilidadSalida`.
+        Lo que puebla el selector de PAN-AGE-02. La duración del turno es la del servicio, así
+        que sin `servicio_id` no hay grilla (D96). Ver la advertencia de `DisponibilidadSalida`.
         """
-        empresa_id, _, _ = _actor(request)
+        empresa_id, _, rol = _actor(request)
         salida: DisponibilidadSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Agenda.armar(unidad)
-            recurso = await VerRecurso(piezas.recursos).ejecutar(recurso_id)
-            tomados = {
-                uno.franja.inicio for uno in await piezas.turnos.ocupados_en(recurso_id, fecha)
-            }
-            ahora = unidad.reloj.ahora()
-            salida = DisponibilidadSalida(
+            horarios = await VerHorariosDisponibles(
+                turnos=piezas.turnos,
+                recursos=piezas.recursos,
+                servicios=armar_catalogo(unidad, empresa_id=empresa_id, rol=rol),
+            ).ejecutar(
+                recurso_id=recurso_id,
+                servicio_id=servicio_id,
                 fecha=fecha,
                 # Los que ya pasaron no se ofrecen (D95). La carga a posteriori no usa esta
                 # grilla: el Administrador escribe la fecha y la hora.
+                ahora=unidad.reloj.ahora(),
+            )
+            salida = DisponibilidadSalida(
+                fecha=fecha,
                 horarios=[
-                    HorarioSalida(inicio=momento, ocupado=momento in tomados)
-                    for momento in recurso.horarios_del_dia(fecha)
-                    if momento >= ahora
+                    HorarioSalida(inicio=uno.inicio, ocupado=uno.ocupado) for uno in horarios
                 ],
             )
         return _exigir(salida)
@@ -577,7 +589,6 @@ def _rutas_de_turnos(recursos: Recursos) -> APIRouter:
                 servicio_id=entrada.servicio_id,
                 recurso_id=entrada.recurso_id,
                 inicio=entrada.inicio,
-                duracion_min=entrada.duracion_min,
                 ahora=unidad.reloj.ahora(),
                 a_posteriori=entrada.a_posteriori,
             )
@@ -639,7 +650,6 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
                 rol=rol,
                 turno_id=turno_id,
                 inicio=entrada.inicio,
-                duracion_min=entrada.duracion_min,
                 ahora=unidad.reloj.ahora(),
                 a_posteriori=entrada.a_posteriori,
             )

@@ -34,14 +34,10 @@ from cheatsheet.api.reporteria import (
     armar_bitacora,
     armar_cobranzas,
     armar_facturacion,
+    hoy_en_la_zona_del_reporte,
 )
-from cheatsheet.api.routers.reporteria import (
-    ListadoDePaquetes,
-    TableroSalida,
-    descarga,
-    paquete_salida,
-    tablero_salida,
-)
+from cheatsheet.api.routers.reporteria import ListadoDePaquetes, descarga, paquete_salida
+from cheatsheet.api.routers.tablero_salida import TableroSalida, tablero_salida
 from cheatsheet.contexts.reporting.application.errors import AccesoNoDisponible
 from cheatsheet.contexts.reporting.application.paquete import (
     AccederComoContador,
@@ -115,7 +111,7 @@ def crear_router(recursos: Recursos) -> APIRouter:
             periodo = (
                 Periodo.del_mes(acceso.paquetes[0].periodo_anio, acceso.paquetes[0].periodo_mes)
                 if acceso.paquetes
-                else periodo_por_defecto(ahora.date())
+                else periodo_por_defecto(hoy_en_la_zona_del_reporte(ahora))
             )
             tablero = await VerTablero(
                 facturacion=armar_facturacion(unidad),

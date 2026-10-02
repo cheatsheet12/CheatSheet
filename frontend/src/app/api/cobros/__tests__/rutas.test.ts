@@ -41,6 +41,11 @@ const rutaCobro = await import("@/app/api/cobros/[cobroId]/route");
 const rutaLink = await import("@/app/api/cobros/[cobroId]/link/route");
 const rutaCancelacion = await import("@/app/api/cobros/[cobroId]/cancelacion/route");
 const rutaReembolso = await import("@/app/api/cobros/[cobroId]/reembolso/route");
+const rutaActualizacion = await import("@/app/api/cobros/[cobroId]/reembolso/actualizacion/route");
+const rutaReembolsos = await import("@/app/api/cobros/[cobroId]/reembolsos/route");
+const rutaCorreccion = await import(
+  "@/app/api/cobros/[cobroId]/reembolsos/[reembolsoId]/correccion/route"
+);
 const rutaReglas = await import("@/app/api/reglas/route");
 const rutaEscalamiento = await import("@/app/api/reglas/escalamiento/route");
 const rutaEstadoDeRegla = await import("@/app/api/reglas/[reglaId]/estado/route");
@@ -69,12 +74,17 @@ describe("sin sesión", () => {
       rutaLink.POST(lectura(), { params: { cobroId: "co1" } }),
       rutaCancelacion.POST(pedido({ motivo: "x" }), { params: { cobroId: "co1" } }),
       rutaReembolso.POST(pedido({ monto: "100" }), { params: { cobroId: "co1" } }),
+      rutaActualizacion.POST(pedido(), { params: { cobroId: "co1" } }),
+      rutaReembolsos.POST(pedido({ monto: "100" }), { params: { cobroId: "co1" } }),
+      rutaCorreccion.POST(pedido({ motivo: "x" }), {
+        params: { cobroId: "co1", reembolsoId: "rb1" },
+      }),
       rutaReglas.GET(),
       rutaEscalamiento.PUT(pedido({ pasos: [] }, "PUT")),
       rutaEstadoDeRegla.PUT(pedido({ activa: false }, "PUT"), { params: { reglaId: "rg1" } }),
     ]);
 
-    expect(respuestas.map((respuesta) => respuesta.status)).toEqual(Array(9).fill(401));
+    expect(respuestas.map((respuesta) => respuesta.status)).toEqual(Array(12).fill(401));
     expect(llamarApi).not.toHaveBeenCalled();
   });
 });
@@ -235,5 +245,76 @@ describe("las reglas", () => {
     // Ni un POST en el listado: la única regla que este épico escribe es la de escalamiento,
     // y tiene su propia ruta porque **reemplaza**.
     expect("POST" in rutaReglas).toBe(false);
+  });
+});
+
+describe("los reembolsos parciales y manuales", () => {
+  it("«Actualizar estado» va a la ruta de actualización, sin cuerpo propio", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue(COBRO);
+
+    await rutaActualizacion.POST(pedido(), { params: { cobroId: "co1" } });
+
+    expect(llamarApi).toHaveBeenCalledWith("/cobros/co1/reembolso/actualizacion", {
+      method: "POST",
+      body: {},
+    });
+  });
+
+  it("el registro manual cruza el monto como texto y la fecha como día", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue(COBRO);
+
+    await rutaReembolsos.POST(
+      pedido({ monto: "300.10", fecha: "2026-09-20", motivo: "Devolución" }),
+      { params: { cobroId: "co1" } },
+    );
+
+    const [ruta, opciones] = llamarApi.mock.calls[0] as [
+      string,
+      { body: { monto: unknown; fecha: unknown } },
+    ];
+    expect(ruta).toBe("/cobros/co1/reembolsos");
+    expect(opciones.body.monto).toBe("300.10");
+    expect(opciones.body.fecha).toBe("2026-09-20");
+  });
+
+  it("la corrección usa el cobro y la fila de la ruta", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue(COBRO);
+
+    await rutaCorreccion.POST(pedido({ motivo: "Se cargó por error" }), {
+      params: { cobroId: "co1", reembolsoId: "rb1" },
+    });
+
+    expect(llamarApi).toHaveBeenCalledWith("/cobros/co1/reembolsos/rb1/correccion", {
+      method: "POST",
+      body: { motivo: "Se cargó por error" },
+    });
+  });
+
+  it("un conflicto (409) lleva su mensaje al navegador", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockRejectedValue(
+      new ErrorDeApi(409, "Este cobro ya tiene un reembolso en proceso.", "ReembolsoEnProceso"),
+    );
+
+    const respuesta = await rutaReembolso.POST(pedido({ monto: "100" }), {
+      params: { cobroId: "co1" },
+    });
+
+    expect(respuesta.status).toBe(409);
+    expect(await respuesta.json()).toEqual({
+      error: "ReembolsoEnProceso",
+      detalle: "Este cobro ya tiene un reembolso en proceso.",
+    });
+  });
+
+  it("no ofrece un DELETE ni un PUT: una fila de reembolso no se edita ni se borra", () => {
+    for (const ruta of [rutaActualizacion, rutaReembolsos, rutaCorreccion]) {
+      expect("DELETE" in ruta).toBe(false);
+      expect("PUT" in ruta).toBe(false);
+      expect("PATCH" in ruta).toBe(false);
+    }
   });
 });
