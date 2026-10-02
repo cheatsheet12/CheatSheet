@@ -31,6 +31,18 @@ async def test_registra_los_seis_datos_que_exige_rn02(
 
 
 @pytest.mark.asyncio
+async def test_el_detalle_del_evento_llega_a_la_fila(
+    repositorio: RepositorioDeAuditoriaEnMemoria, evento_auditable: EventoAuditable
+):
+    """The event's `detalle` is what the audit panel shows; dropping it loses the counts."""
+    con_detalle = dataclasses.replace(evento_auditable, detalle={"clientes": "3"})
+
+    resultado = await RegistrarOperacion(repositorio).ejecutar(con_detalle)
+
+    assert repositorio.registros[resultado.registro_id].detalle == {"clientes": "3"}
+
+
+@pytest.mark.asyncio
 async def test_una_operacion_fallida_se_registra_igual(
     repositorio: RepositorioDeAuditoriaEnMemoria, evento_auditable: EventoAuditable
 ):
