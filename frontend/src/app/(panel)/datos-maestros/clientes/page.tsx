@@ -15,6 +15,9 @@
  * Maestros **Admin ● · Operador ● · Solo Lectura RO**. Hiding them is a courtesy, not the
  * guard — the backend refuses regardless.
  *
+ * **La corrección de datos existentes es sólo del Administrador** y va debajo del listado. Es
+ * la misma cortesía: el backend rechaza con 403 a cualquier otro rol.
+ *
  * **El encabezado ya no vive acá.** El CTA «Nuevo cliente» va al lado del título y depende del
  * mismo `puedeEditar` que el listado; tenerlos separados obligaba a pasar el rol dos veces por
  * dos caminos que pueden discrepar, y dejaba el botón caído dentro de la fila de filtros. Es
@@ -23,7 +26,7 @@
 
 import { redirect } from "next/navigation";
 
-import { ListadoDeClientes } from "@/features/master_data";
+import { CorreccionDeDatos, ListadoDeClientes } from "@/features/master_data";
 import type { ListadoDeClientesRespuesta } from "@/features/master_data";
 import { llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
@@ -43,6 +46,9 @@ export default async function PaginaDeClientes(): Promise<JSX.Element> {
   const listado = await llamarApi<ListadoDeClientesRespuesta>("/clientes");
 
   return (
-    <ListadoDeClientes inicial={listado} puedeEditar={ROLES_QUE_ESCRIBEN.includes(claims.rol)} />
+    <>
+      <ListadoDeClientes inicial={listado} puedeEditar={ROLES_QUE_ESCRIBEN.includes(claims.rol)} />
+      {claims.rol === "ADMINISTRADOR" && <CorreccionDeDatos />}
+    </>
   );
 }

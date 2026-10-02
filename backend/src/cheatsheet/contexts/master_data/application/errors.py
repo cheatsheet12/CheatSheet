@@ -92,3 +92,19 @@ class CategoriaDuplicada(EntradaInvalida):
     That policy is also why `ClienteDuplicado` does not reach the screen with its text
     today; see `TODO.md` §10.
     """
+
+
+class CorreccionEnCurso(InvarianteViolada):
+    """Another correction or restoration of this company is running right now.
+
+    An `InvarianteViolada` so it answers 409: the request was understood and the system is
+    healthy, the operation just cannot start while the other one holds the company's turn.
+    """
+
+
+class CorridaNoEncontrada(EntradaInvalida):
+    """No correction run with that id in **this** company.
+
+    Same reasoning as its siblings: RLS hides another company's backup rows, so the
+    repository cannot tell "does not exist" from "belongs to somebody else".
+    """

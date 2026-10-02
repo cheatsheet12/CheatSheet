@@ -82,3 +82,12 @@ export type {
   DatosDeCategoria,
   ListadoDeCategorias as ListadoDeCategoriasRespuesta,
 } from "./api/categoria";
+
+export { CorreccionDeDatos } from "./components/CorreccionDeDatos";
+export { ErrorDeCorreccion } from "./api/correccion";
+export type {
+  Corrida,
+  EntidadCorregible,
+  InformeDeCorreccion,
+  MotivoDeOmision,
+} from "./api/correccion";

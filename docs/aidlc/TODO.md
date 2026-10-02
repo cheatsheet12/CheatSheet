@@ -638,6 +638,31 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 
 **Archivos de más de 400 líneas (CLAUDE.md §5), vistos en `limites-e-intervalo-de-turnos`.** Ya superaban el límite antes de esa unidad y no se partieron (decisión P4): `scheduling/application/turnos.py` (~520), `api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y `tests/contexts/scheduling/application/test_agenda.py` (~1180). Una unidad aparte puede extraer `Avisador` a `application/avisador.py` y partir el router en uno de recursos y uno de turnos.
 
+## 23. Hallazgos y verificaciones de `correccion-de-datos-existentes`
+
+Hallazgos **sin unidad** (se vieron al implementar y no se arreglaron):
+
+- **Retención del respaldo.** `respaldo_de_normalizacion` guarda los nombres originales para
+  siempre, con RLS como la tabla de origen. Cuánto tiempo se retienen es una decisión pendiente
+  de datos personales.
+- **`lower()` puede alargar un nombre.** `normalizacion.py` usa `caracter.lower()` sin la
+  protección que tiene `_mayuscula`, y «İ» pasa a dos caracteres. La corrección omite esos
+  nombres como `NOMBRE_INVALIDO`; el normalizador no se tocó.
+- **Restaurar dos veces infla «conservados».** La segunda restauración informa como conservados
+  los registros que ya se habían restaurado en la primera. No cambia ningún dato; solo el conteo.
+- **La hoja propia conserva el formato viejo (P2).** La corrección no mueve `updated_at`, así que
+  el write-back no envía los nombres corregidos hasta que el cliente se edite o haya un write-back
+  completo.
+
+Verificaciones pendientes (sin Docker ni navegador en local):
+
+- Casos 12 a 22 del plan (PostgreSQL y API): se saltean en local y se observan en la CI.
+- En el navegador, PAN-DM-01 como Administrador: informe, aplicar, ver la bitácora, restaurar; y
+  que un Operador no vea la sección.
+- En `staging`, con datos cargados antes de la normalización: que la hoja «CheatSheet (no
+  editar)» no cambia después de aplicar, y que el `lower()` de PostgreSQL coincide con el de
+  Python en la intercalación del entorno.
+
 ## 24. Hallazgos de `normalizacion-de-datos`
 
 Todos quedan **sin unidad**: se vieron al implementar y no se arreglaron, porque ninguno es de

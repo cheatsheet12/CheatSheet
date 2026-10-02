@@ -13,11 +13,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
 from cheatsheet.contexts.master_data.domain.categoria import CategoriaEmpresa
 from cheatsheet.contexts.master_data.domain.cliente import Cliente, FiltrosDeCliente, Pagina
+from cheatsheet.contexts.master_data.domain.correccion import Cambio, NombreRegistrado
 from cheatsheet.contexts.master_data.domain.servicio import FiltrosDeServicio, Servicio
 from cheatsheet.contexts.master_data.domain.valores import AmbitoDeCategoria
 from cheatsheet.shared.empresa import EmpresaId
@@ -191,3 +193,54 @@ class PortClasificaciones(Protocol):
     async def quitar_de_servicio(self, *, servicio_id: UUID, categoria_id: UUID) -> None: ...
 
     async def categorias_de_servicio(self, servicio_id: UUID) -> Sequence[CategoriaEmpresa]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ResumenDeCorrida:
+    """One correction run, as the list of runs shows it: when and how many rows."""
+
+    corrida_id: UUID
+    creada_en: datetime
+    cantidad: int
+
+
+class PortCorreccionDeNombres(Protocol):
+    """The correction of stored names (HU-E4-05 RN-09), always inside one company.
+
+    Everything runs in the caller's transaction: the name changes and their backup rows are
+    written together or not at all. The company filter is the RLS policy, as in the sibling
+    ports.
+    """
+
+    async def tomar_turno(self) -> bool:
+        """Try to be the only correction or restoration of this company; never waits.
+
+        `False` when another one holds the turn. The turn is released with the transaction.
+        """
+        ...
+
+    async def leer_nombres(self) -> Sequence[NombreRegistrado]:
+        """Every client, service and category of the company, names exactly as stored."""
+        ...
+
+    async def aplicar(
+        self, corrida_id: UUID, cambios: Sequence[Cambio], momento: datetime
+    ) -> Sequence[Cambio]:
+        """Write the new names and one backup row each; return what was **actually** written.
+
+        A row edited since it was read, or a category the unique index refuses, is left
+        alone and not returned. `updated_at` is never touched.
+        """
+        ...
+
+    async def restaurar(self, corrida_id: UUID) -> tuple[int, int]:
+        """Put back the original names; return `(restaurados, conservados)`.
+
+        A row whose current name is no longer the one the run wrote was edited afterwards
+        and is kept (`conservados`).
+        """
+        ...
+
+    async def existe_corrida(self, corrida_id: UUID) -> bool: ...
+
+    async def listar_corridas(self) -> Sequence[ResumenDeCorrida]: ...

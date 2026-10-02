@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.master_data.application.ports import (
     PortClasificaciones,
+    PortCorreccionDeNombres,
     PortRepositorioCategoria,
     PortRepositorioCliente,
     PortRepositorioServicio,
@@ -25,6 +26,7 @@ from cheatsheet.contexts.master_data.infrastructure.categorias import (
     ClasificacionesPostgres,
     RepositorioCategoriaPostgres,
 )
+from cheatsheet.contexts.master_data.infrastructure.correccion import CorreccionDeNombresPostgres
 from cheatsheet.contexts.master_data.infrastructure.repositories import (
     RepositorioClientePostgres,
     RepositorioServicioPostgres,
@@ -39,6 +41,7 @@ class DatosMaestros:
     servicios: PortRepositorioServicio
     categorias: PortRepositorioCategoria
     clasificaciones: PortClasificaciones
+    correccion: PortCorreccionDeNombres
 
     @classmethod
     def armar(cls, unidad: UnidadDeTrabajo) -> DatosMaestros:
@@ -47,4 +50,5 @@ class DatosMaestros:
             servicios=RepositorioServicioPostgres(unidad.sesion),
             categorias=RepositorioCategoriaPostgres(unidad.sesion),
             clasificaciones=ClasificacionesPostgres(unidad.sesion),
+            correccion=CorreccionDeNombresPostgres(unidad.sesion),
         )

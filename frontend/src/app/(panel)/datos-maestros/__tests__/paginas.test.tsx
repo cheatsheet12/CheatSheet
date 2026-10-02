@@ -115,3 +115,31 @@ describe.each(paginas)("$nombre", ({ pagina, respuesta, ruta, titulo, boton }) =
     expect(html).not.toContain(boton);
   });
 });
+
+/**
+ * Caso 24 de `correccion-de-datos-existentes`: la sección de corrección es del Administrador.
+ *
+ * El rol se decide acá, en la página, y es una cortesía: el guard es el backend. Pero el panel
+ * no debe ofrecer un botón que va a ser rechazado con 403.
+ */
+describe("clientes · corrección de datos existentes", () => {
+  const SECCION = "Formato de los datos existentes";
+
+  it("un Administrador ve la sección", async () => {
+    leerClaims.mockReturnValue({ ...CLAIMS_OPERADOR, rol: "ADMINISTRADOR" });
+    llamarApi.mockResolvedValue({ clientes: [], total: 0 });
+
+    const html = renderToString(await PaginaDeClientes());
+
+    expect(html).toContain(SECCION);
+  });
+
+  it.each(["OPERADOR", "SOLO_LECTURA", "CONTADOR"])("un %s no la ve", async (rol) => {
+    leerClaims.mockReturnValue({ ...CLAIMS_OPERADOR, rol });
+    llamarApi.mockResolvedValue({ clientes: [], total: 0 });
+
+    const html = renderToString(await PaginaDeClientes());
+
+    expect(html).not.toContain(SECCION);
+  });
+});

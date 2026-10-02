@@ -60,6 +60,7 @@ class RegistrarOperacion:
             # The event's own instant, read from the emitter's injected clock. The row
             # records when the operation happened, not when it got persisted.
             timestamp=evento.ocurrido_en,
+            detalle=evento.detalle,
         )
         try:
             await self._registros.agregar(registro)
