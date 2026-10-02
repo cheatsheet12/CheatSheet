@@ -371,7 +371,7 @@ async def test_un_elemento_admite_varias_categorias(
         asignar=True,
     )
 
-    assert [c.nombre for c in resultado] == ["Mayorista", "VIP"]
+    assert [c.nombre for c in resultado] == ["Mayorista", "Vip"]
 
 
 async def test_asignar_dos_veces_deja_una_sola(

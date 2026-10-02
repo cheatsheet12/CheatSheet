@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
+from cheatsheet.contexts.master_data.domain.normalizacion import normalizar_nombre_de_catalogo
 from cheatsheet.contexts.master_data.domain.valores import AmbitoDeCategoria
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
@@ -108,7 +109,7 @@ class AmbitoIncompatible(InvarianteViolada):
 
 
 def _nombre_valido(nombre: str) -> str:
-    limpio = nombre.strip()
+    limpio = normalizar_nombre_de_catalogo(nombre)
     if not limpio:
         raise EntradaInvalida("El nombre de la categoria es obligatorio")
     if len(limpio) > LARGO_MAXIMO_NOMBRE:
@@ -117,10 +118,10 @@ def _nombre_valido(nombre: str) -> str:
 
 
 def clave_de_unicidad(nombre: str) -> str:
-    """How RN-02 compares two names: lowercased and trimmed.
+    """How RN-02 compares two names: normalized (HU-E4-05) and lowercased.
 
     «VIP» and «vip» are the same name to anybody reading the list, and allowing both
     produces two rows that look identical. The database enforces the same rule with a
     functional unique index over `lower(nombre)`, so the two cannot drift apart.
     """
-    return nombre.strip().lower()
+    return normalizar_nombre_de_catalogo(nombre).lower()

@@ -88,7 +88,7 @@ def test_el_nombre_vacio_no_construye_una_categoria() -> None:
 
 
 def test_el_nombre_se_recorta() -> None:
-    assert _categoria(nombre="  VIP  ").nombre == "VIP"
+    assert _categoria(nombre="  Vip  ").nombre == "Vip"
 
 
 def test_la_clave_de_unicidad_ignora_mayusculas_y_espacios() -> None:
@@ -122,7 +122,7 @@ def test_renombrar_valida_el_nombre_nuevo() -> None:
     with pytest.raises(EntradaInvalida):
         categoria.renombrar("  ")
 
-    assert categoria.nombre == "VIP"
+    assert categoria.nombre == "Vip"
 
 
 def test_achicar_el_ambito_no_desasigna_lo_que_ya_estaba() -> None:
@@ -138,3 +138,24 @@ def test_achicar_el_ambito_no_desasigna_lo_que_ya_estaba() -> None:
 
     assert categoria.aplica_a is AmbitoDeCategoria.CLIENTE
     assert categoria.admite_servicios is False
+
+
+# --- Normalización del nombre (HU-E4-05 RN-04) ---------------------------------------
+
+
+def test_el_nombre_de_la_categoria_se_guarda_normalizado() -> None:
+    categoria = _categoria(nombre="  VIP   GOLD ")
+
+    assert categoria.nombre == "Vip gold"
+
+    categoria.renombrar("CLIENTES FRECUENTES")
+    assert categoria.nombre == "Clientes frecuentes"
+
+
+def test_una_categoria_con_nombre_de_invisibles_es_obligatoria() -> None:
+    with pytest.raises(EntradaInvalida, match="obligatorio"):
+        _categoria(nombre="\ufeff \u200b")
+
+
+def test_la_clave_de_unicidad_es_el_nombre_normalizado_sin_mayusculas() -> None:
+    assert clave_de_unicidad("VIP   GOLD") == clave_de_unicidad("Vip gold") == "vip gold"

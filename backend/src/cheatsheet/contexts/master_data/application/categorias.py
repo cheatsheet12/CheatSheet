@@ -39,6 +39,7 @@ from cheatsheet.contexts.master_data.application.ports import (
 from cheatsheet.contexts.master_data.domain.categoria import (
     MENSAJE_DUPLICADA,
     CategoriaEmpresa,
+    clave_de_unicidad,
 )
 from cheatsheet.contexts.master_data.domain.valores import AmbitoDeCategoria
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
@@ -161,7 +162,10 @@ async def _exigir_nombre_libre(
     *prevents* the duplicate — it cannot lose a race — and this lookup is what lets the
     message be the one the story asks for.
     """
-    existente = await categorias.buscar_por_nombre_y_ambito(nombre=nombre, aplica_a=aplica_a)
+    # RN-04 of HU-E4-05: uniqueness is judged on the normalized name, not on the raw text.
+    existente = await categorias.buscar_por_nombre_y_ambito(
+        nombre=clave_de_unicidad(nombre), aplica_a=aplica_a
+    )
     if existente is not None and existente.id != excepto:
         raise CategoriaDuplicada(MENSAJE_DUPLICADA)
 

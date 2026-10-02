@@ -158,7 +158,9 @@ async def test_alta_con_cuit_conocido_completa_razon_social_y_condicion_iva(
     """Segundo criterio de aceptación, incluido el «guarda con origen PANEL»."""
     vista = await _alta(clientes, padron, publicador, DatosDeCliente(cuit=CUIT_VALIDO))
 
-    assert vista.cliente.nombre == "PANADERIA DONA ROSA SRL"
+    # HU-E4-05 RN-03: un CUIT 30 es razón social. Las palabras de hasta 4 letras en
+    # mayúsculas se conservan por suponerse siglas (el falso positivo que la historia acepta).
+    assert vista.cliente.nombre == "Panaderia DONA ROSA SRL"
     assert vista.cliente.condicion_iva is CondicionIVA.RESPONSABLE_INSCRIPTO
     assert vista.cliente.origen is OrigenDato.PANEL
     assert vista.validacion is not None
@@ -180,7 +182,7 @@ async def test_lo_que_escribio_el_usuario_le_gana_al_padron(
         ),
     )
 
-    assert vista.cliente.nombre == "Panaderia de la esquina"
+    assert vista.cliente.nombre == "Panaderia de la Esquina"
     assert vista.cliente.condicion_iva is CondicionIVA.MONOTRIBUTO
 
 

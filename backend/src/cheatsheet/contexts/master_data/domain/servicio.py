@@ -22,6 +22,7 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from uuid import UUID
 
+from cheatsheet.contexts.master_data.domain.normalizacion import normalizar_nombre_de_catalogo
 from cheatsheet.contexts.master_data.domain.valores import AlicuotaIVA, OrigenDato
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida
@@ -200,7 +201,7 @@ def _duracion_valida(agendable: bool, duracion: int | None) -> int | None:
 
 
 def _nombre_valido(nombre: str) -> str:
-    limpio = nombre.strip()
+    limpio = normalizar_nombre_de_catalogo(nombre)
     if not limpio:
         raise EntradaInvalida("El nombre del servicio es obligatorio")
     if len(limpio) > LARGO_MAXIMO_NOMBRE:

@@ -206,6 +206,17 @@ async def test_el_boton_de_validar_contra_arca_responde_los_tres_estados(
 
 
 @pytest.mark.asyncio
+async def test_el_alta_responde_el_nombre_normalizado(cliente_http: httpx.AsyncClient) -> None:
+    """HU-E4-05 RN-07, de punta a punta: la API devuelve lo que quedó guardado."""
+    token = await _registrar_empresa(cliente_http, "ana@empresa.com")
+
+    respuesta = await _crear(cliente_http, token, nombre="JUAN CARLOS DE LA CRUZ")
+
+    assert respuesta.status_code == 201, respuesta.text
+    assert respuesta.json()["nombre"] == "Juan Carlos de la Cruz"
+
+
+@pytest.mark.asyncio
 async def test_ver_un_cliente_por_id(cliente_http: httpx.AsyncClient) -> None:
     token = await _registrar_empresa(cliente_http, "ana@empresa.com")
     creado = await _crear(cliente_http, token, nombre="Rosa Diaz", cuit=CUIT_VALIDO)

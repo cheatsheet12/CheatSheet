@@ -310,10 +310,11 @@ class EditarCliente:
         )
         whatsapp, email = _contacto(datos)
         ahora = self._reloj.ahora()
-        cliente.renombrar(_nombre_para_edicion(datos, cliente), ahora)
+        # The CUIT first: it decides whether the name is a person's or a company's.
         cliente.actualizar_datos_fiscales(
             cuit=fiscales.cuit, condicion_iva=fiscales.condicion_iva, momento=ahora
         )
+        cliente.renombrar(_nombre_para_edicion(datos, cliente), ahora)
         cliente.actualizar_contacto(contacto_whatsapp=whatsapp, contacto_email=email, momento=ahora)
         await self._clientes.guardar(cliente)
         await _auditar(
