@@ -249,3 +249,48 @@ historia no llega a la pantalla.
 **Se eligió que la frase llegue.** Está anotado en los pendientes que el épico 6 tomó la
 decisión opuesta para `CobroNoCancelable` y que su texto, por lo tanto, no llega — una
 inconsistencia real que conviene resolver en un solo sentido.
+
+---
+
+## D97 — el comprobante de transferencia no llega nunca a un LLM externo
+
+*Enmienda de la revisión de 2026-09 · ADR-0009 · unidad `comprobante-por-whatsapp` · HU-E8-06, HU-E8-05*
+
+Un cliente que pagó por transferencia va a mandar por WhatsApp la captura del comprobante. Esa imagen
+contiene nombres, CUIT o CUIL y CVU o CBU. `CLAUDE.md` §3.6 prohíbe enviar datos personales reales a
+un LLM sin anonimizar, y anonimizar una imagen no se puede garantizar.
+
+**El archivo, su texto extraído y el número de operación no se envían a ningún LLM externo.** El
+número se extrae con esta escalera, toda dentro de la infraestructura propia:
+
+1. Si el cliente lo escribe en un mensaje, se extrae con una expresión regular **antes** de que el
+   mensaje llegue al clasificador de intención. Ni el número ni ningún token con forma de CUIT o CUIL
+   del mismo mensaje se mandan al LLM.
+2. Si es un PDF con texto, se lee localmente.
+3. Si es una imagen, OCR local.
+4. Si falla o es ambigua, el agente pide que se escriba el número.
+
+Se descartaron la visión con un LLM externo (expone datos personales) y un modelo de visión propio
+(infraestructura pesada, sin beneficio frente al OCR). Toda salida de extracción se valida contra un
+esquema, y monto y fecha son solo pistas. Ningún efecto monetario sale de una salida de modelo: lo
+confirma solo la verificación determinista de D94, y la respuesta al cliente es una plantilla entre
+tres —confirmado, en verificación o derivado (HU-E8-05)— sin revelar cuentas, montos, coincidencias ni
+identidad del pagador. En `mensaje.contenido` solo queda un marcador, y el contenido del archivo es
+dato no confiable.
+
+**Retención:** almacenamiento privado y cifrado, acceso solo del Administrador y el Operador por
+enlaces firmados de corta duración, y cada acceso en la bitácora. Si el pago se confirma, el archivo se
+elimina en el acto. Si el caso se escala, se conserva hasta 30 días después de cerrarlo, con un máximo
+de 90, y un proceso programado lo elimina; también se elimina ante un pedido de supresión, salvo
+obligación legal. Se acepta JPEG, PNG y PDF de hasta 10 MB, con límites de tiempo y memoria.
+
+**Para el Gate 1 de `comprobante-por-whatsapp`:**
+
+- `tipo_contenido_mensaje` no tiene `DOCUMENTO`, y el webhook debe poder recibir imágenes y
+  documentos, que hoy descarta.
+- Dónde se guarda el archivo escalado y qué worker ejecuta el borrado programado.
+- El motor de OCR y su costo de infraestructura; si suma una dependencia de sistema o un servicio,
+  necesita su ADR.
+- `conversational` llama a `payments` por su capa de `application` (R3), nunca a su dominio.
+- Límites de intentos (D94) y de frecuencia por teléfono, e idempotencia por mensaje entregado más de
+  una vez.

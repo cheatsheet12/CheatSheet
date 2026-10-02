@@ -188,3 +188,73 @@ cobro puede apuntarlo sin que la FK ordene la creación al revés.
 En el código las dos direcciones cruzan por id y sin join, que es lo que R3 pide.
 `AsignarSenaAlTurno` es un caso de uso de `scheduling` que el composition root llama después de
 que `payments` generó el cobro; `payments` nunca escribe en `turno`.
+
+---
+
+## D95 — un turno no nace ni se mueve al pasado, salvo la corrección a posteriori del Administrador
+
+*Enmienda de la revisión de 2026-09 · ADR-0009 · unidad `turnos-no-en-el-pasado` · HU-E7-06, HU-E7-02, HU-E8-01*
+
+El panel dejaba crear, y no decía si dejaba reprogramar, un turno a un horario ya transcurrido. Pero
+hay un caso legítimo: registrar una atención que ya ocurrió, para poder facturarla.
+
+**Crear o reprogramar a un instante ya transcurrido se rechaza.** La comparación es contra el
+instante actual, no solo el día, y se hace al confirmar. Mensajes: «No se puede agendar un turno en un
+horario que ya pasó.» y «No se puede reprogramar un turno a un horario que ya pasó.» El Operador y el
+agente de WhatsApp nunca pueden; el agente solo ofrece horarios futuros y el motor los vuelve a
+verificar al confirmar (HU-E8-01 RN-06).
+
+**El Administrador tiene una única excepción, en dos formas:**
+
+- **Carga a posteriori (HU-E7-06 RN-07):** registra una atención ya realizada. La franja debe haber
+  terminado y el turno nace `COMPLETADO` con canal `PANEL`, sin confirmación ni recordatorios.
+- **Corrección a posteriori (HU-E7-02 RN-07):** reprograma un turno a una franja pasada, con las mismas
+  reglas y sin mensaje al cliente.
+
+En ambas se sigue rechazando el solapamiento con otros turnos reales del recurso, pero no se exige la
+disponibilidad base ni se respeta el intervalo entre turnos (D96), y queda en la bitácora marcada como
+«carga a posteriori» o «corrección a posteriori», con el usuario. Habilita la facturación (HU-E7-03
+RN-02).
+
+**Los dos criterios de tiempo no se contradicen con D35.** Para crear o reprogramar en condiciones
+normales, el inicio no puede ser anterior a ahora; para la excepción, la franja completa debe haber
+terminado, que es el mismo «ya transcurrió» de D35. Un turno cuyo inicio pasó pero cuyo fin no, no
+admite ninguna de las dos cosas. El reloj se recibe como parámetro del caso de uso, como en D35.
+
+**Para el Gate 1:** la marca va en la bitácora y no hay columna nueva; hay que decidir si el turno
+`COMPLETADO` se crea directo o se crea y transiciona en la misma transacción según la máquina de
+estados, y que el panel y el agente comparten el caso de uso de reserva. La exclusión de la base
+contra el solapamiento sigue valiendo también para la excepción. HU-E7-06 y HU-E5-03 también dejan de
+admitir «se crea en el momento» para el cliente (D92).
+
+## D96 — la duración del turno es la del servicio, el slot es el paso de la grilla, y el intervalo es por recurso
+
+*Enmienda de la revisión de 2026-09 · ADR-0009 · unidad `limites-e-intervalo-de-turnos` · HU-E7-04, HU-E7-06*
+
+Las historias no decían qué define `turno.franja_duracion_min`: la duración del servicio o el slot
+de la franja del recurso. Tampoco existía un margen entre turnos consecutivos.
+
+**La duración del turno es la `duracion_estandar_min` del servicio (D86) y no se ingresa a mano. La
+duración del slot, entre 5 y 480 minutos y sin superar la franja, es el paso de la grilla de horarios
+de inicio que se ofrecen.** Cada recurso tiene además un intervalo entre turnos opcional, en minutos
+(0 por defecto, máximo 480), que se agrega después de cada turno: un turno nuevo o reprogramado
+empieza desde el fin del anterior más el intervalo, y su fin más el intervalo no pisa el inicio del
+siguiente. El intervalo posterior al último turno de la franja puede exceder `hora_fin`. Cambiar el
+intervalo o el slot aplica a reservas nuevas y no mueve turnos existentes. El agente solo ofrece
+inicios que cumplan todo esto.
+
+Esto se apoya en D29 (la franja es inicio más duración) y D31 (la disponibilidad se calcula, no se
+materializa).
+
+**Modelo, para el Gate 1 de `limites-e-intervalo-de-turnos`:**
+
+- Falta `intervalo_entre_turnos_min` en `recurso_reservable`.
+- La restricción de exclusión con `btree_gist` sobre inicio y duración del DER no puede expresar un
+  intervalo variable por recurso. Para que la base siga impidiendo el doble booking hay dos caminos:
+  guardar en el turno el intervalo aplicado al reservar (por ejemplo `intervalo_posterior_min`), o
+  pasar el chequeo al dominio. El primero conserva la garantía de la base; el segundo la pierde
+  frente a dos reservas simultáneas.
+- La carga y la corrección a posteriori (D95) no respetan el intervalo.
+
+**Lo que se paga:** con intervalo, el horario de un turno deja de ser suficiente para saber si dos
+turnos chocan; hay que mirar también el intervalo con que se reservó.

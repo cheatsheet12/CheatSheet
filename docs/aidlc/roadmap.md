@@ -3,7 +3,7 @@
 > Todas las historias del sistema, repartidas en épicos ordenados. Cada épico termina en algo
 > demostrable en `staging`. Ninguna historia queda afuera.
 
-Insumo: [`inputs/historias-de-usuario.md`](inputs/historias-de-usuario.md) — 61 HUs agrupadas en
+Insumo: [`inputs/historias-de-usuario.md`](inputs/historias-de-usuario.md) — 65 HUs agrupadas en
 12 épicas temáticas, más 7 historias de sistema. **Ese agrupamiento es por bounded context, no un
 orden de construcción.** Este documento lo re-corta en rebanadas verticales y lo ordena por
 dependencia. Las dos numeraciones conviven; la tabla de trazabilidad (§4) las vincula.
@@ -14,14 +14,14 @@ dependencia. Las dos numeraciones conviven; la tabla de trazabilidad (§4) las v
 
 | # | Épico | Historias | Contextos | Termina en (demo) |
 |---|---|---|---|---|
-| 1 | **Cimientos, identidad y bitácora** | HU-E1-01 … HU-E1-07 · HS-T5 | `identity`, `observability` | Una empresa se registra, completa el onboarding, invita usuarios y les cambia el rol — y **cada acción queda registrada en la bitácora**, aunque todavía no exista pantalla para leerla |
+| 1 | **Cimientos, identidad y bitácora** | HU-E1-01 … HU-E1-08 · HS-T5 | `identity`, `observability` | Una empresa se registra, completa el onboarding, invita usuarios y les cambia el rol — y **cada acción queda registrada en la bitácora**, aunque todavía no exista pantalla para leerla |
 | 2 | **Conexión con los servicios externos** | HU-E2-01, HU-E2-02, HU-E2-03, HU-E2-05 · *(deuda de D1: consulta de padrón de HU-E1-02)* | `integrations`, `identity` | PAN-CFG-INT mostrando ARCA y MercadoPago **conectados de verdad** (credenciales validadas contra el servicio) y WhatsApp en verificación de Meta, con la verificación en vivo de estado funcionando; y el CUIT del onboarding validado ya contra el padrón |
-| 3 | **Catálogo de clientes y servicios** | HU-E4-01 … HU-E4-04 | `master_data` | ABM completo de clientes (con CUIT validado contra ARCA) y de servicios (precio, IVA, agendable), clasificados por categorías propias de la empresa |
+| 3 | **Catálogo de clientes y servicios** | HU-E4-01 … HU-E4-05 | `master_data` | ABM completo de clientes (con CUIT validado contra ARCA) y de servicios (precio, IVA, agendable), clasificados por categorías propias de la empresa |
 | 4 | **Sincronización de planillas** | HU-E2-04 · HU-E3-01 … HU-E3-07 · HS-T6 | `spreadsheet_sync`, `observability` | Se vincula una planilla real, la IA propone el mapeo, el usuario lo corrige y confirma, la carga inicial puebla el catálogo del épico 3, se ven los errores de fila y se reprocesa tras corregirlos, y lo que se crea desde el panel **se escribe de vuelta** en la hoja protegida de la planilla |
 | 5 | **Facturación electrónica** | HU-E5-01 … HU-E5-05 · HS-T4 | `billing`, `reference_data` | Se emite una factura contra ARCA en homologación y **se obtiene un CAE real**, se descarga el PDF, se la anula con una nota de crédito y se administran los puntos de venta |
-| 6 | **Cobros y recordatorios** | HU-E6-01 … HU-E6-06 · HU-E11-01 · HS-T1, HS-T3 | `payments`, `business_config`, `billing` | Se genera un link de MercadoPago, se paga en sandbox, el webhook lo marca **Pagado sin duplicar efectos**, baja el saldo del comprobante asociado y la cadena de recordatorios se despacha —y se detiene— según la regla configurada |
+| 6 | **Cobros y recordatorios** | HU-E6-01 … HU-E6-06, HU-E6-08 · HU-E11-01 · HS-T1, HS-T3 | `payments`, `business_config`, `billing` | Se genera un link de MercadoPago, se paga en sandbox, el webhook lo marca **Pagado sin duplicar efectos**, baja el saldo del comprobante asociado y la cadena de recordatorios se despacha —y se detiene— según la regla configurada |
 | 7 | **Agenda y recursos** | HU-E7-01 … HU-E7-06 · HU-E6-07 | `scheduling`, `payments` | Se configuran recursos con disponibilidad semanal y excepciones, se ve la agenda del día, se crea un turno a mano desde el panel, se cancela y reprograma **rechazando solapamientos**, se marca asistencia y se seña un turno con un cobro |
-| 8 | **Agente de WhatsApp y atención humana** | HU-E8-01 … HU-E8-05 · HU-E9-01, HU-E9-02, HU-E9-04 · HU-E11-02 · HS-T2, HS-T7 | `conversational`, `business_config` | Un cliente reserva y cancela un turno conversando por WhatsApp (incluida una nota de voz), consulta una FAQ, y cuando el agente no entiende **la conversación escala y un operador la atiende desde el panel con el contexto previo** |
+| 8 | **Agente de WhatsApp y atención humana** | HU-E8-01 … HU-E8-06 · HU-E9-01, HU-E9-02, HU-E9-04 · HU-E11-02 · HS-T2, HS-T7 | `conversational`, `business_config` | Un cliente reserva y cancela un turno conversando por WhatsApp (incluida una nota de voz), consulta una FAQ, y cuando el agente no entiende **la conversación escala y un operador la atiende desde el panel con el contexto previo** |
 | 9 | **Reportería y paquete contable** | HU-E10-01 … HU-E10-06 | `reporting` | Dashboard de KPIs con datos reales acumulados por los épicos anteriores, generación y descarga de reportes, y el contador externo entrando por enlace a descargar el paquete contable |
 | 10 | **Panel de auditoría y notificaciones** | HU-E12-01, HU-E12-02 · HU-E11-03 · HU-E9-03 | `observability`, `business_config` | La bitácora completa filtrable por módulo, estado e iniciador, con el detalle y el timeline de cada operación; el centro de notificaciones; y el alta de solicitudes de soporte |
 
@@ -29,9 +29,9 @@ dependencia. Las dos numeraciones conviven; la tabla de trazabilidad (§4) las v
 
 ## 2. Cobertura
 
-- **Historias totales: 68** (61 `HU-…` + 7 `HS-T…`) · **asignadas: 68** · **sin asignar: ninguna**
+- **Historias totales: 72** (65 `HU-…` + 7 `HS-T…`) · **asignadas: 72** · **sin asignar: ninguna**
 - Ninguna historia aparece en dos épicos.
-- Reparto: 8 · 4 · 4 · 9 · 6 · 9 · 7 · 11 · 6 · 4.
+- Reparto: 9 · 4 · 5 · 9 · 6 · 10 · 7 · 12 · 6 · 4.
 
 ---
 
