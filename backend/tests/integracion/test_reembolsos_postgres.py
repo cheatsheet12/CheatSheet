@@ -184,7 +184,8 @@ async def test_un_reembolso_y_su_correccion_sobreviven_a_la_ida_y_vuelta(
         monto=Decimal("250.50"),
         fecha_devolucion=AHORA,
         origen=OrigenDeReembolso.MANUAL,
-        created_at=AHORA,
+        # Un minuto antes que la corrección: con el mismo `created_at`, el orden lo decidiría el id.
+        created_at=AHORA - timedelta(minutes=1),
         referencia="OP-77",
         motivo="Devolucion por transferencia",
         registrado_por=USUARIO,
