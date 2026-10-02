@@ -551,7 +551,10 @@ async def test_despues_de_cada_camino_la_suma_de_las_filas_es_el_acumulado(
     assert await _suma_y_acumulado(engine_dueno, manual.id) == (Decimal("500.00"),) * 2
 
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
-        primera = (await RepositorioReembolsoPostgres(sesion).de_cobro(manual.id))[0]
+        # Las dos filas tienen el mismo `created_at`: el orden entre ellas lo decide el id, que es
+        # aleatorio. La que se corrige se elige por el monto.
+        reembolsos = await RepositorioReembolsoPostgres(sesion).de_cobro(manual.id)
+        primera = next(uno for uno in reembolsos if uno.monto == Decimal("300.00"))
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
         await CorregirReembolso(
             cobros=RepositorioCobroPostgres(sesion),
