@@ -109,7 +109,15 @@ class UnidadDeTrabajo:
 async def unidad_de_trabajo(
     recursos: Recursos, empresa_id: EmpresaId
 ) -> AsyncIterator[UnidadDeTrabajo]:
-    """Open a company-scoped transaction with its event publisher attached."""
+    """Open a company-scoped transaction with its event publisher attached.
+
+    **Trap: an exception in the `async for` body discards the transaction.** The commit sits
+    after the `yield`, and a body that raises never resumes this generator, so everything
+    written before the raise is rolled back. That is what a use case that writes and then
+    fails on purpose needs to avoid (e.g. token-reuse detection, which revokes a family and
+    then raises). To commit a write and still fail, catch the error inside the body, let the
+    loop end, and re-raise after it: see `refresh` in `routers/auth.py`.
+    """
     async with sesion_de_empresa(recursos.sesiones, empresa_id) as sesion:
         yield UnidadDeTrabajo(
             sesion=sesion,

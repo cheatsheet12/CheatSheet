@@ -17,12 +17,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.invitacion import Invitacion
-from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import (
     CUIT,
@@ -37,8 +36,10 @@ from cheatsheet.contexts.identity.domain.valores import (
 from cheatsheet.contexts.identity.infrastructure.models import (
     EmpresaORM,
     InvitacionORM,
-    RefreshTokenORM,
     UsuarioORM,
+)
+from cheatsheet.contexts.identity.infrastructure.refresh_tokens import (
+    RepositorioRefreshTokenPostgres as RepositorioRefreshTokenPostgres,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 
@@ -296,73 +297,3 @@ class RepositorioInvitacionPostgres:
         )
         filas = (await self._sesion.execute(consulta)).scalars().all()
         return [_invitacion_a_dominio(fila) for fila in filas]
-
-
-class RepositorioRefreshTokenPostgres:
-    def __init__(self, sesion: AsyncSession) -> None:
-        self._sesion = sesion
-
-    async def agregar(self, token: RefreshToken) -> None:
-        self._sesion.add(
-            RefreshTokenORM(
-                id=token.id,
-                familia_id=token.familia_id,
-                empresa_id=token.empresa_id,
-                usuario_id=token.usuario_id,
-                hash_del_token=token.hash_del_token,
-                expira_en=token.expira_en,
-                usado_en=token.usado_en,
-                revocado=token.revocado,
-            )
-        )
-        await self._sesion.flush()
-
-    async def guardar(self, token: RefreshToken) -> None:
-        fila = await self._sesion.get(RefreshTokenORM, token.id)
-        if fila is None:
-            await self.agregar(token)
-            return
-        fila.usado_en = token.usado_en
-        fila.revocado = token.revocado
-        await self._sesion.flush()
-
-    async def buscar_por_hash(self, hash_del_token: str) -> RefreshToken | None:
-        consulta = select(RefreshTokenORM).where(RefreshTokenORM.hash_del_token == hash_del_token)
-        fila = (await self._sesion.execute(consulta)).scalar_one_or_none()
-        if fila is None:
-            return None
-        return RefreshToken(
-            id=fila.id,
-            familia_id=fila.familia_id,
-            empresa_id=EmpresaId(fila.empresa_id),
-            usuario_id=UsuarioId(fila.usuario_id),
-            hash_del_token=fila.hash_del_token,
-            expira_en=fila.expira_en,
-            usado_en=fila.usado_en,
-            revocado=fila.revocado,
-        )
-
-    async def revocar_familia(self, familia_id: UUID) -> int:
-        resultado = await self._sesion.execute(
-            update(RefreshTokenORM)
-            .where(RefreshTokenORM.familia_id == familia_id)
-            .where(RefreshTokenORM.revocado.is_(False))
-            .values(revocado=True)
-        )
-        await self._sesion.flush()
-        return int(resultado.rowcount or 0)
-
-    async def revocar_de_usuario(self, usuario_id: UsuarioId) -> int:
-        """Every live session of one user — HU-E1-06 RN-01.
-
-        Families, not just the current one: someone signed in on a phone and a laptop has
-        two, and deactivating them has to reach both.
-        """
-        resultado = await self._sesion.execute(
-            update(RefreshTokenORM)
-            .where(RefreshTokenORM.usuario_id == usuario_id)
-            .where(RefreshTokenORM.revocado.is_(False))
-            .values(revocado=True)
-        )
-        await self._sesion.flush()
-        return int(resultado.rowcount or 0)
