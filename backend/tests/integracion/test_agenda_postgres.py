@@ -66,6 +66,12 @@ PONER_EXCLUSION_INTERVALO = text(
     "WHERE (estado IN ('RESERVADO', 'CONFIRMADO', 'COMPLETADO') "
     "AND intervalo_posterior_min IS NOT NULL)"
 )
+INSERTAR_TURNO_SIN_INTERVALO = text(
+    "INSERT INTO turno (id, empresa_id, cliente_id, servicio_id, recurso_id, franja_inicio, "
+    "franja_duracion_min, estado, canal_reserva, created_at, updated_at) "
+    "VALUES (:id, :empresa_id, :cliente_id, :servicio_id, :recurso_id, :inicio, :duracion, "
+    ":estado, 'PANEL', :ahora, :ahora)"
+)
 PONER_EXCLUSION = text(
     "ALTER TABLE turno ADD CONSTRAINT excl_turno_recurso_franja "
     "EXCLUDE USING gist (recurso_id WITH =, "
@@ -134,6 +140,28 @@ async def _reservar(
 ) -> None:
     async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
         await RepositorioTurnoPostgres(sesion).agregar(turno)
+
+
+async def _reservar_sin_intervalo(engine_dueno: AsyncEngine, turno: Turno) -> None:
+    """Inserta un turno en un esquema anterior a 0028, que no tiene `intervalo_posterior_min`.
+
+    El ORM manda esa columna aunque valga `None`, así que con el esquema bajado se usa SQL.
+    """
+    async with engine_dueno.begin() as conexion:
+        await conexion.execute(
+            INSERTAR_TURNO_SIN_INTERVALO,
+            {
+                "id": turno.id,
+                "empresa_id": turno.empresa_id,
+                "cliente_id": turno.cliente_id,
+                "servicio_id": turno.servicio_id,
+                "recurso_id": turno.recurso_id,
+                "inicio": turno.franja.inicio,
+                "duracion": turno.franja.duracion_min,
+                "estado": turno.estado.value,
+                "ahora": AHORA,
+            },
+        )
 
 
 async def test_dos_reservas_simultaneas_de_la_misma_franja_no_entran_las_dos(
@@ -476,7 +504,7 @@ async def test_la_migracion_aborta_y_lista_los_completados_solapados(
     config = Config(str(RAIZ_BACKEND / "alembic.ini"))
     config.set_main_option("script_location", str(RAIZ_BACKEND / "migrations"))
     # El escenario se crea antes de bajar: el ORM ya escribe columnas que 0023 no tiene. Los
-    # turnos van con intervalo `None`, que el ORM omite del `INSERT`.
+    # turnos se insertan con SQL, sin `intervalo_posterior_min`.
     escenario = await _escenario(engine_dueno, sesiones)
     await asyncio.to_thread(command.downgrade, config, "0023")
     try:
@@ -486,8 +514,8 @@ async def test_la_migracion_aborta_y_lista_los_completados_solapados(
             inicio=INICIO + timedelta(minutes=30),
             intervalo_posterior_min=None,
         )
-        await _reservar(sesiones, escenario, uno)
-        await _reservar(sesiones, escenario, otro)
+        await _reservar_sin_intervalo(engine_dueno, uno)
+        await _reservar_sin_intervalo(engine_dueno, otro)
 
         with pytest.raises(RuntimeError, match=str(min(uno.id, otro.id))):
             await asyncio.to_thread(command.upgrade, config, "0024")
@@ -711,7 +739,7 @@ async def test_la_migracion_0028_aborta_con_slots_invalidos_rellena_con_cero_y_b
                 ),
                 {"id": patron_id, "recurso": escenario.recurso_id},
             )
-        await _reservar(sesiones, escenario, escenario.turno(intervalo_posterior_min=None))
+        await _reservar_sin_intervalo(engine_dueno, escenario.turno())
 
         with pytest.raises(RuntimeError, match=str(patron_id)):
             await asyncio.to_thread(command.upgrade, config, "head")
@@ -728,4 +756,9 @@ async def test_la_migracion_0028_aborta_con_slots_invalidos_rellena_con_cero_y_b
     finally:
         async with engine_dueno.begin() as conexion:
             await conexion.execute(text("DELETE FROM turno"))
+            # Sin esto, si el cuerpo falla antes de corregirlo, 0028 vuelve a abortar y el
+            # esquema queda a medias para el resto de la sesión.
+            await conexion.execute(
+                text("DELETE FROM patron_de_disponibilidad WHERE id = :id"), {"id": patron_id}
+            )
         await asyncio.to_thread(command.upgrade, config, "head")
