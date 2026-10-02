@@ -42,7 +42,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cobros y recordatorios | cancelacion-invalida-el-link | payments | HU-E6-04, HS-T1 | cobros-y-recordatorios | Cristian | fix/payments-cancelacion-invalida-el-link | en revisión |
 | Cimientos, identidad y bitácora | revocacion-inmediata-de-sesion | identity | HU-E1-05, HU-E1-06 | — | — | — | pendiente |
 | Cimientos, identidad y bitácora | terminos-y-privacidad | identity | HU-E1-03, HU-E1-08 | — | — | — | pendiente |
-| Catálogo de clientes y servicios | duracion-de-servicios | master_data | HU-E4-02 | — | — | — | pendiente |
+| Catálogo de clientes y servicios | duracion-de-servicios | master_data | HU-E4-02 | — | Luciano | feature/master_data-duracion-de-servicios | en revisión |
 | Catálogo de clientes y servicios | normalizacion-de-datos | master_data | HU-E4-05, HU-E4-01, HU-E3-03, HU-E3-04, HU-E3-07 | — | — | — | pendiente |
 | Facturación electrónica | tipos-de-comprobante-por-receptor | billing | HU-E5-03, HU-E5-02, HU-E5-04 | — | — | — | pendiente |
 | Facturación electrónica | arca-homologacion-completa | billing | HU-E5-03 | tipos-de-comprobante-por-receptor | — | — | pendiente |

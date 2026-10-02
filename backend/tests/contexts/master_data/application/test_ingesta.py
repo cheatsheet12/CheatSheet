@@ -194,3 +194,91 @@ async def test_una_condicion_de_iva_irreconocible_queda_vacia_y_no_falla() -> No
     await _ingerir_cliente(repo, nombre="Panaderia", cuit=CUIT_VALIDO, condicion_iva="lo que sea")
 
     assert next(iter(repo.guardados.values())).condicion_iva is None
+
+
+# --- Agendable y duración (HU-E3-03, HU-E4-02) ---------------------------------------
+
+
+async def test_una_fila_agendable_con_duracion_crea_un_servicio_agendable() -> None:
+    repo = ServiciosFalsos()
+
+    await _ingerir_servicio(
+        repo, nombre="Corte", precio="100", agendable="si", duracion_estandar_min="30"
+    )
+
+    servicio = next(iter(repo.guardados.values()))
+    assert servicio.agendable is True
+    assert servicio.duracion_estandar_min == 30
+
+
+@pytest.mark.parametrize("crudo", ["si", "Sí", " TRUE ", "1", "x"])
+async def test_los_textos_afirmativos_de_agendable(crudo: str) -> None:
+    repo = ServiciosFalsos()
+
+    await _ingerir_servicio(
+        repo, nombre="Corte", precio="100", agendable=crudo, duracion_estandar_min="30"
+    )
+
+    assert next(iter(repo.guardados.values())).agendable is True
+
+
+@pytest.mark.parametrize("crudo", ["no", "false", "0", "", "  "])
+async def test_los_textos_negativos_o_vacios_no_son_agendables(crudo: str) -> None:
+    repo = ServiciosFalsos()
+
+    await _ingerir_servicio(repo, nombre="Corte", precio="100", agendable=crudo)
+
+    servicio = next(iter(repo.guardados.values()))
+    assert servicio.agendable is False
+    assert servicio.duracion_estandar_min is None
+
+
+async def test_una_fila_sin_columnas_de_agenda_sigue_creando_un_servicio_no_agendable() -> None:
+    repo = ServiciosFalsos()
+
+    await _ingerir_servicio(repo, nombre="Corte", precio="100")
+
+    assert next(iter(repo.guardados.values())).agendable is False
+
+
+@pytest.mark.parametrize(
+    "campos",
+    [
+        {"agendable": "si", "duracion_estandar_min": "481"},
+        {"agendable": "si", "duracion_estandar_min": "4"},
+        {"agendable": "si", "duracion_estandar_min": "abc"},
+        {"agendable": "si", "duracion_estandar_min": "12,7"},
+        {"agendable": "si"},
+        {"agendable": "quizas", "duracion_estandar_min": "30"},
+    ],
+)
+async def test_una_fila_con_agenda_invalida_falla_con_un_error_de_dominio(
+    campos: dict[str, str],
+) -> None:
+    """Un `ValueError` suelto romperia el aislamiento por fila: tiene que ser de dominio."""
+    repo = ServiciosFalsos()
+
+    with pytest.raises(ErrorDeDominio):
+        await _ingerir_servicio(repo, nombre="Corte", precio="100", **campos)
+
+    assert repo.guardados == {}
+
+
+async def test_la_fila_invalida_del_medio_no_impide_ingerir_las_otras_dos() -> None:
+    """HU-E3-03: la fila con duracion fuera de 5 a 480 se marca con error y el resto sigue."""
+    repo = ServiciosFalsos()
+    filas = [
+        {"nombre": "Corte", "agendable": "si", "duracion_estandar_min": "30"},
+        {"nombre": "Tintura", "agendable": "si", "duracion_estandar_min": "600"},
+        {"nombre": "Barba", "agendable": "si", "duracion_estandar_min": "15"},
+    ]
+    errores: list[str] = []
+
+    for fila in filas:
+        try:
+            await _ingerir_servicio(repo, precio="100", **fila)
+        except ErrorDeDominio:
+            errores.append(fila["nombre"])
+
+    assert errores == ["Tintura"]
+    assert sorted(s.nombre for s in repo.guardados.values()) == ["Barba", "Corte"]

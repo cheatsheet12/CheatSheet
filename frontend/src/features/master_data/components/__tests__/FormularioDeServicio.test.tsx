@@ -125,6 +125,96 @@ describe("FormularioDeServicio", () => {
     expect(datos.duracion_estandar_min).toBeNull();
   });
 
+  it.each(["12.7", "99999abc", "12,5"])(
+    "una duracion %s no es un entero: muestra el mensaje de formato y no guarda",
+    async (escrito) => {
+      const onGuardar = vi.fn().mockResolvedValue(undefined);
+      montar(onGuardar);
+
+      fireEvent.change(screen.getByLabelText(/^Nombre/), { target: { value: "Corte" } });
+      fireEvent.change(screen.getByLabelText(/Precio sin IVA/), { target: { value: "5000" } });
+      fireEvent.click(screen.getByLabelText(/Se puede reservar por agenda/));
+      fireEvent.change(screen.getByLabelText(/Duración estándar/), { target: { value: escrito } });
+      fireEvent.click(screen.getByRole("button", { name: "Crear servicio" }));
+
+      expect(
+        await screen.findByText("La duracion debe ser un numero entero de minutos."),
+      ).toBeDefined();
+      expect(onGuardar).not.toHaveBeenCalled();
+    },
+  );
+
+  it("corregir la duracion limpia el mensaje de formato", async () => {
+    const onGuardar = vi.fn().mockResolvedValue(undefined);
+    montar(onGuardar);
+
+    fireEvent.change(screen.getByLabelText(/^Nombre/), { target: { value: "Corte" } });
+    fireEvent.change(screen.getByLabelText(/Precio sin IVA/), { target: { value: "5000" } });
+    fireEvent.click(screen.getByLabelText(/Se puede reservar por agenda/));
+    fireEvent.change(screen.getByLabelText(/Duración estándar/), { target: { value: "12.7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear servicio" }));
+    await screen.findByText("La duracion debe ser un numero entero de minutos.");
+
+    fireEvent.change(screen.getByLabelText(/Duración estándar/), { target: { value: "30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear servicio" }));
+
+    await waitFor(() => {
+      expect(onGuardar).toHaveBeenCalled();
+    });
+    expect(screen.queryByText("La duracion debe ser un numero entero de minutos.")).toBeNull();
+  });
+
+  it("no valida el rango en el cliente: 9999 llega al backend", async () => {
+    const onGuardar = vi.fn().mockResolvedValue(undefined);
+    montar(onGuardar);
+
+    fireEvent.change(screen.getByLabelText(/^Nombre/), { target: { value: "Corte" } });
+    fireEvent.change(screen.getByLabelText(/Precio sin IVA/), { target: { value: "5000" } });
+    fireEvent.click(screen.getByLabelText(/Se puede reservar por agenda/));
+    fireEvent.change(screen.getByLabelText(/Duración estándar/), { target: { value: "9999" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear servicio" }));
+
+    await waitFor(() => {
+      expect(onGuardar).toHaveBeenCalled();
+    });
+    expect(datosDe(onGuardar).duracion_estandar_min).toBe(9999);
+  });
+
+  it("una duracion escrita solo con digitos viaja como numero", async () => {
+    const onGuardar = vi.fn().mockResolvedValue(undefined);
+    montar(onGuardar);
+
+    fireEvent.change(screen.getByLabelText(/^Nombre/), { target: { value: "Corte" } });
+    fireEvent.change(screen.getByLabelText(/Precio sin IVA/), { target: { value: "5000" } });
+    fireEvent.click(screen.getByLabelText(/Se puede reservar por agenda/));
+    fireEvent.change(screen.getByLabelText(/Duración estándar/), { target: { value: " 45 " } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear servicio" }));
+
+    await waitFor(() => {
+      expect(onGuardar).toHaveBeenCalled();
+    });
+    expect(datosDe(onGuardar).duracion_estandar_min).toBe(45);
+  });
+
+  it("la ayuda de la duracion dice el rango de 5 a 480 minutos", () => {
+    montar(vi.fn(), CORTE);
+
+    expect(screen.getByText(/Entre 5 y 480 minutos\./)).toBeDefined();
+  });
+
+  it("muestra el mensaje de rango que devuelve el backend", () => {
+    render(
+      <FormularioDeServicio
+        servicio={CORTE}
+        onGuardar={async () => undefined}
+        onCancelar={() => undefined}
+        error="La duracion debe estar entre 5 y 480 minutos."
+      />,
+    );
+
+    expect(screen.getByText("La duracion debe estar entre 5 y 480 minutos.")).toBeDefined();
+  });
+
   it("ofrece las tres alicuotas de la regla y ninguna mas", () => {
     montar();
 
