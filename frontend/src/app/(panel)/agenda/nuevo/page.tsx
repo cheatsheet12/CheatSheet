@@ -74,7 +74,12 @@ export default async function PaginaDeNuevoTurno({ searchParams }: Props): Promi
           </Link>
         </div>
       </div>
-      <NuevoTurno clienteId={clienteId} recursos={recursos.recursos} servicios={servicios} />
+      <NuevoTurno
+        clienteId={clienteId}
+        recursos={recursos.recursos}
+        servicios={servicios}
+        puedeRegistrarAPosteriori={claims.rol === "ADMINISTRADOR"}
+      />
     </div>
   );
 }

@@ -51,6 +51,11 @@ export interface TurnoNuevo {
   readonly servicio_id: string;
   readonly recurso_id: string;
   readonly inicio: string;
+  /**
+   * La carga a posteriori (HU-E7-06 RN-07), sólo del Administrador. Siempre explícita: el
+   * backend nunca la infiere de un inicio pasado, y sin ella un inicio pasado se rechaza.
+   */
+  readonly a_posteriori?: boolean;
 }
 
 export interface FiltrosDeAgenda {
@@ -78,6 +83,10 @@ export interface Nombrado {
 export const MENSAJE_SIN_TURNOS = "No hay turnos para el período seleccionado.";
 export const MENSAJE_HORARIO_OCUPADO = "El horario seleccionado no está disponible.";
 export const MENSAJE_NO_TRANSCURRIO = "El turno aún no transcurrió.";
+/** HU-E7-06 RN-06 y HU-E7-02 RN-06. El backend los manda tal cual; acá se nombran para los tests. */
+export const MENSAJE_TURNO_EN_EL_PASADO = "No se puede agendar un turno en un horario que ya pasó.";
+export const MENSAJE_REPROGRAMAR_AL_PASADO =
+  "No se puede reprogramar un turno a un horario que ya pasó.";
 
 /**
  * Cómo se llama cada estado **en pantalla** (HU-E7-01 RN-02).
@@ -179,11 +188,19 @@ export async function cancelarTurno(turnoId: string): Promise<Turno> {
   return (await respuesta.json()) as Turno;
 }
 
-export async function reprogramarTurno(turnoId: string, inicio: string): Promise<Turno> {
+/**
+ * HU-E7-02. `aPosteriori` es la corrección a posteriori del Administrador (RN-07): sólo viaja
+ * cuando es `true`, así que el cuerpo de una reprogramación normal no cambia.
+ */
+export async function reprogramarTurno(
+  turnoId: string,
+  inicio: string,
+  aPosteriori = false,
+): Promise<Turno> {
   const respuesta = await fetch(`/api/turnos/${turnoId}/reprogramacion`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ inicio }),
+    body: JSON.stringify(aPosteriori ? { inicio, a_posteriori: true } : { inicio }),
   });
   if (!respuesta.ok) {
     await fallar(respuesta);
@@ -239,6 +256,27 @@ export function horaDe(iso: string): string {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+function dosDigitos(numero: number): string {
+  return String(numero).padStart(2, "0");
+}
+
+/**
+ * Hoy, en la zona del navegador y con el formato de un `<input type="date">` (`AAAA-MM-DD`).
+ *
+ * **Es una cortesía de interfaz para el atributo `min`, no una regla**: quien rechaza un turno
+ * en el pasado es el backend (D95), que compara el instante. Por eso se calcula después de
+ * montar, en el navegador, y no en el render del servidor: el servidor puede estar en otra zona
+ * y escribir un día distinto.
+ */
+export function fechaDeHoy(ahora: Date = new Date()): string {
+  return `${ahora.getFullYear()}-${dosDigitos(ahora.getMonth() + 1)}-${dosDigitos(ahora.getDate())}`;
+}
+
+/** Ahora, con el formato de un `<input type="datetime-local">` (`AAAA-MM-DDTHH:mm`). Ídem. */
+export function instanteDeAhora(ahora: Date = new Date()): string {
+  return `${fechaDeHoy(ahora)}T${dosDigitos(ahora.getHours())}:${dosDigitos(ahora.getMinutes())}`;
 }
 
 /**

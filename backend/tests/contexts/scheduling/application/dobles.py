@@ -26,7 +26,7 @@ from cheatsheet.contexts.scheduling.application.ports import (
 )
 from cheatsheet.contexts.scheduling.domain.recurso import ZONA_DE_LA_AGENDA, RecursoReservable
 from cheatsheet.contexts.scheduling.domain.turno import (
-    ESTADOS_ABIERTOS,
+    ESTADOS_QUE_OCUPAN_LA_FRANJA,
     MENSAJE_HORARIO_OCUPADO,
     Turno,
 )
@@ -87,7 +87,7 @@ class RepositorioTurnoEnMemoria:
             for uno in self.turnos.values()
             if uno.recurso_id == recurso_id
             and uno.franja.inicio.astimezone(ZONA_DE_LA_AGENDA).date() == dia
-            and uno.estado in ESTADOS_ABIERTOS
+            and uno.estado in ESTADOS_QUE_OCUPAN_LA_FRANJA
         ]
 
     def _quizas_fallar(self) -> None:

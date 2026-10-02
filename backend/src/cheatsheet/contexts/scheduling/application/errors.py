@@ -53,6 +53,14 @@ class RecursoInactivo(EntradaInvalida):
     """
 
 
+class TurnoEnElPasado(EntradaInvalida):
+    """D95: crear o reprogramar un turno a un instante que ya transcurrió (HU-E7-06 RN-06).
+
+    Es un rechazo de entrada y no de estado: el turno no existe todavía, o sigue donde estaba.
+    Los textos los escriben las historias y llegan a la pantalla tal cual.
+    """
+
+
 class TurnoNoModificable(InvarianteViolada):
     """El turno no está Reservado ni Confirmado, que es lo que HU-E7-02 exige para actuar."""
 
@@ -68,6 +76,7 @@ __all__ = [
     "RecursoInactivo",
     "RecursoInexistente",
     "ServicioNoAdmitido",
+    "TurnoEnElPasado",
     "TurnoInexistente",
     "TurnoNoModificable",
 ]

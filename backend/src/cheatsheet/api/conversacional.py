@@ -173,6 +173,7 @@ def armar_agenda(
         servicios=armar_catalogo(unidad, empresa_id=empresa_id, rol=RolUsuario.OPERADOR),
         avisador=armar_avisador(unidad, settings, empresa_id=empresa_id, rol=RolUsuario.OPERADOR),
         publicador=unidad.publicador,
+        reloj=unidad.reloj,
         empresa_id=empresa_id,
         usuario_id=usuario_id,
     )

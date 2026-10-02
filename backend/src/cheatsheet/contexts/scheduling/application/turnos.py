@@ -27,6 +27,7 @@ from cheatsheet.contexts.scheduling.application.errors import (
     FueraDeHorario,
     RecursoInactivo,
     ServicioNoAdmitido,
+    TurnoEnElPasado,
     TurnoInexistente,
     TurnoNoModificable,
 )
@@ -38,11 +39,15 @@ from cheatsheet.contexts.scheduling.application.ports import (
     PortNotificadorDeTurnos,
     PortRepositorioRecurso,
     PortRepositorioTurno,
+    ServicioAgendable,
 )
 from cheatsheet.contexts.scheduling.application.recursos import VerRecurso
 from cheatsheet.contexts.scheduling.domain.recurso import RecursoReservable
 from cheatsheet.contexts.scheduling.domain.turno import (
     MENSAJE_HORARIO_OCUPADO,
+    MENSAJE_REPROGRAMAR_AL_PASADO,
+    MENSAJE_TURNO_EN_EL_PASADO,
+    MENSAJE_TURNO_NO_TRANSCURRIO,
     CanalDeReserva,
     Franja,
     Turno,
@@ -54,6 +59,11 @@ from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
 MOTIVO_SIN_PERMISO = "Solo un Administrador u Operador puede gestionar turnos"
+MOTIVO_SOLO_ADMIN_A_POSTERIORI = (
+    "Solo un Administrador puede registrar o corregir un turno a posteriori"
+)
+ACCION_CARGA_A_POSTERIORI = "cargar_turno_a_posteriori"
+ACCION_CORRECCION_A_POSTERIORI = "corregir_turno_a_posteriori"
 MENSAJE_RECURSO_INACTIVO = "El recurso está desactivado y no admite reservas nuevas."
 MENSAJE_SERVICIO_NO_ADMITIDO = "El servicio seleccionado no se presta en ese recurso."
 MENSAJE_FUERA_DE_HORARIO = "El recurso no atiende en el horario seleccionado."
@@ -62,6 +72,27 @@ MENSAJE_FUERA_DE_HORARIO = "El recurso no atiende en el horario seleccionado."
 def _exigir_gestor(rol: RolUsuario) -> None:
     if rol not in (RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR):
         raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+
+
+def _validar_momento(
+    franja: Franja, ahora: datetime, *, rol: RolUsuario, a_posteriori: bool, mensaje: str
+) -> None:
+    """D95: los dos criterios de tiempo, y quién puede pedir el segundo.
+
+    Normal: el inicio no puede haber pasado (`inicio >= ahora`; igual a `ahora` vale).
+    A posteriori, sólo el Administrador: la franja completa tiene que haber terminado. Un turno
+    en curso (`inicio < ahora < fin`) no cumple ninguno de los dos y se rechaza en ambos modos.
+    El indicador es explícito y nunca se infiere del inicio pasado: un Administrador que se
+    equivoca de fecha no debe crear sin querer un turno completado y sin aviso.
+    """
+    if not a_posteriori:
+        if franja.empieza_antes_de(ahora):
+            raise TurnoEnElPasado(mensaje)
+        return
+    if rol is not RolUsuario.ADMINISTRADOR:
+        raise EntradaInvalida(MOTIVO_SOLO_ADMIN_A_POSTERIORI)
+    if not franja.ya_termino(ahora):
+        raise TurnoEnElPasado(MENSAJE_TURNO_NO_TRANSCURRIO)
 
 
 class Avisador:
@@ -207,8 +238,57 @@ class ReservarTurno:
         ahora: datetime,
         duracion_min: int | None = None,
         canal: str = CanalDeReserva.PANEL,
+        a_posteriori: bool = False,
     ) -> Turno:
         _exigir_gestor(rol)
+        recurso, servicio = await self._resolver(recurso_id, servicio_id)
+
+        franja = Franja(inicio=inicio, duracion_min=duracion_min or servicio.duracion_estandar_min)
+        _validar_momento(
+            franja, ahora, rol=rol, a_posteriori=a_posteriori, mensaje=MENSAJE_TURNO_EN_EL_PASADO
+        )
+        # La carga a posteriori omite **sólo** la disponibilidad base (HU-E7-06 RN-07): el
+        # servicio y el recurso activo se siguen exigiendo, y el solapamiento lo sigue
+        # garantizando la restricción de exclusión.
+        if not a_posteriori and not recurso.esta_disponible_en(franja.inicio, franja.duracion_min):
+            raise FueraDeHorario(MENSAJE_FUERA_DE_HORARIO)
+
+        if a_posteriori:
+            turno = Turno.registrar_a_posteriori(
+                id=uuid4(),
+                empresa_id=empresa_id,
+                cliente_id=cliente_id,
+                servicio_id=servicio_id,
+                recurso_id=recurso_id,
+                franja=franja,
+                ahora=ahora,
+            )
+        else:
+            turno = Turno(
+                id=uuid4(),
+                empresa_id=empresa_id,
+                cliente_id=cliente_id,
+                servicio_id=servicio_id,
+                recurso_id=recurso_id,
+                franja=franja,
+                canal_reserva=canal,
+                created_at=ahora,
+                updated_at=ahora,
+            )
+        # Puede levantar `FranjaOcupada`: es la restricción de exclusión hablando, y es la
+        # única afirmación confiable de que el horario estaba libre.
+        await self._turnos.agregar(turno)
+
+        accion = ACCION_CARGA_A_POSTERIORI if a_posteriori else "reservar_turno"
+        await _auditar(self._publicador, empresa_id, usuario_id, turno, accion, ahora)
+        # Una atención que ya ocurrió no se le avisa al cliente (HU-E7-06 RN-07).
+        if not a_posteriori:
+            await self._avisador.reserva(turno, recurso, servicio.nombre)
+        return turno
+
+    async def _resolver(
+        self, recurso_id: UUID, servicio_id: UUID
+    ) -> tuple[RecursoReservable, ServicioAgendable]:
         recurso = await VerRecurso(self._recursos).ejecutar(recurso_id)
         servicio = await self._servicios.buscar_agendable(servicio_id)
         if servicio is None or not recurso.admite_servicio(servicio_id):
@@ -217,29 +297,7 @@ class ReservarTurno:
             raise ServicioNoAdmitido(MENSAJE_SERVICIO_NO_ADMITIDO)
         if not recurso.activo:
             raise RecursoInactivo(MENSAJE_RECURSO_INACTIVO)
-
-        franja = Franja(inicio=inicio, duracion_min=duracion_min or servicio.duracion_estandar_min)
-        if not recurso.esta_disponible_en(franja.inicio, franja.duracion_min):
-            raise FueraDeHorario(MENSAJE_FUERA_DE_HORARIO)
-
-        turno = Turno(
-            id=uuid4(),
-            empresa_id=empresa_id,
-            cliente_id=cliente_id,
-            servicio_id=servicio_id,
-            recurso_id=recurso_id,
-            franja=franja,
-            canal_reserva=canal,
-            created_at=ahora,
-            updated_at=ahora,
-        )
-        # Puede levantar `FranjaOcupada`: es la restricción de exclusión hablando, y es la
-        # única afirmación confiable de que el horario estaba libre.
-        await self._turnos.agregar(turno)
-
-        await _auditar(self._publicador, empresa_id, usuario_id, turno, "reservar_turno", ahora)
-        await self._avisador.reserva(turno, recurso, servicio.nombre)
-        return turno
+        return recurso, servicio
 
 
 class CancelarTurno:
@@ -314,6 +372,7 @@ class ReprogramarTurno:
         inicio: datetime,
         ahora: datetime,
         duracion_min: int | None = None,
+        a_posteriori: bool = False,
     ) -> Turno:
         _exigir_gestor(rol)
         turno = await VerTurno(self._turnos).ejecutar(turno_id)
@@ -321,7 +380,14 @@ class ReprogramarTurno:
         recurso = await VerRecurso(self._recursos).ejecutar(turno.recurso_id)
 
         franja = Franja(inicio=inicio, duracion_min=duracion_min or turno.franja.duracion_min)
-        if not recurso.esta_disponible_en(franja.inicio, franja.duracion_min):
+        _validar_momento(
+            franja,
+            ahora,
+            rol=rol,
+            a_posteriori=a_posteriori,
+            mensaje=MENSAJE_REPROGRAMAR_AL_PASADO,
+        )
+        if not a_posteriori and not recurso.esta_disponible_en(franja.inicio, franja.duracion_min):
             # La historia usa una sola frase para «ocupado» y este caso es «cerrado», que es
             # distinto — pero para quien reprograma el efecto es el mismo, así que se dice lo
             # que la historia escribió y el detalle queda en el tipo de la excepción.
@@ -334,8 +400,11 @@ class ReprogramarTurno:
         turno.updated_at = ahora
         await self._turnos.guardar(turno)
 
-        await _auditar(self._publicador, empresa_id, usuario_id, turno, "reprogramar_turno", ahora)
-        await self._avisador.reprogramacion(turno, recurso, anterior=anterior)
+        accion = ACCION_CORRECCION_A_POSTERIORI if a_posteriori else "reprogramar_turno"
+        await _auditar(self._publicador, empresa_id, usuario_id, turno, accion, ahora)
+        # La corrección a posteriori no le avisa nada al cliente (HU-E7-02 RN-07).
+        if not a_posteriori:
+            await self._avisador.reprogramacion(turno, recurso, anterior=anterior)
         return turno
 
 

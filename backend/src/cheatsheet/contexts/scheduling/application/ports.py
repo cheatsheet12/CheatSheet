@@ -108,7 +108,7 @@ class PortRepositorioTurno(Protocol):
     async def listar(self, filtros: FiltrosDeAgenda) -> list[Turno]: ...
 
     async def ocupados_en(self, recurso_id: UUID, dia: date) -> list[Turno]:
-        """Los turnos abiertos de ese recurso ese día.
+        """Los turnos que ocupan la franja de ese recurso ese día: abiertos y completados.
 
         Lo usa el selector de horarios para tachar los que ya están tomados. Es una ayuda de
         interfaz, no una garantía: la garantía sigue siendo la restricción de exclusión.

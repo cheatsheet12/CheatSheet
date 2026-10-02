@@ -28,6 +28,7 @@ from cheatsheet.contexts.scheduling.application.errors import (
     RecursoInactivo,
     RecursoInexistente,
     ServicioNoAdmitido,
+    TurnoEnElPasado,
     TurnoInexistente,
     TurnoNoModificable,
 )
@@ -45,6 +46,7 @@ from cheatsheet.contexts.scheduling.application.recursos import (
 )
 from cheatsheet.contexts.scheduling.application.turnos import (
     MOTIVO_SIN_PERMISO,
+    MOTIVO_SOLO_ADMIN_A_POSTERIORI,
     AsignarSenaAlTurno,
     Avisador,
     CancelarTurno,
@@ -64,6 +66,9 @@ from cheatsheet.contexts.scheduling.domain.recurso import (
 )
 from cheatsheet.contexts.scheduling.domain.turno import (
     MENSAJE_HORARIO_OCUPADO,
+    MENSAJE_REPROGRAMAR_AL_PASADO,
+    MENSAJE_TURNO_EN_EL_PASADO,
+    MENSAJE_TURNO_NO_TRANSCURRIO,
     CanalDeReserva,
     EstadoTurno,
     Franja,
@@ -686,3 +691,246 @@ class TestExcepciones:
                 ),
                 **argumentos,  # type: ignore[arg-type]
             )
+
+
+#: Martes 8 de septiembre de 2026, 12:00 hora de la agenda: «hoy», a mitad del día.
+AHORA_MARTES = local(12)
+
+
+async def _reservar_el_martes(
+    escena: Escena,
+    *,
+    inicio: datetime,
+    rol: RolUsuario = RolUsuario.OPERADOR,
+    a_posteriori: bool = False,
+) -> Turno:
+    return await escena.reservar().ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=rol,
+        cliente_id=uuid4(),
+        servicio_id=CORTE.id,
+        recurso_id=escena.recurso.id,
+        inicio=inicio,
+        ahora=AHORA_MARTES,
+        a_posteriori=a_posteriori,
+    )
+
+
+async def _reprogramar_el_martes(
+    escena: Escena,
+    turno: Turno,
+    *,
+    inicio: datetime,
+    rol: RolUsuario = RolUsuario.ADMINISTRADOR,
+    a_posteriori: bool = False,
+) -> Turno:
+    return await escena.reprogramar().ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=rol,
+        turno_id=turno.id,
+        inicio=inicio,
+        ahora=AHORA_MARTES,
+        a_posteriori=a_posteriori,
+    )
+
+
+class TestNoEnElPasado:
+    """D95: crear o reprogramar a un instante ya transcurrido se rechaza, para cualquier rol."""
+
+    async def test_reservar_hoy_a_una_hora_anterior_a_la_actual_se_rechaza(self) -> None:
+        """HU-E7-06 RN-06, con el mensaje palabra por palabra."""
+        escena = Escena(un_recurso())
+
+        with pytest.raises(TurnoEnElPasado) as fallo:
+            await _reservar_el_martes(escena, inicio=local(10))
+
+        assert str(fallo.value) == MENSAJE_TURNO_EN_EL_PASADO
+        assert escena.turnos.turnos == {}
+        assert escena.notificador.avisos == []
+
+    async def test_reservar_hoy_a_una_hora_posterior_a_la_actual_se_crea(self) -> None:
+        escena = Escena(un_recurso())
+
+        turno = await _reservar_el_martes(escena, inicio=local(15))
+
+        assert turno.franja.inicio == local(15)
+
+    @pytest.mark.parametrize("rol", [RolUsuario.OPERADOR, RolUsuario.ADMINISTRADOR])
+    async def test_reprogramar_a_una_hora_ya_transcurrida_se_rechaza_y_conserva_la_franja(
+        self, rol: RolUsuario
+    ) -> None:
+        """HU-E7-02 RN-06: vale para el Operador y para el Administrador sin la excepción."""
+        recurso = un_recurso()
+        turno = un_turno(recurso, franja=Franja(inicio=local(16), duracion_min=30))
+        escena = Escena(recurso, turno)
+
+        with pytest.raises(TurnoEnElPasado) as fallo:
+            await escena.reprogramar().ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=rol,
+                turno_id=turno.id,
+                inicio=local(10),
+                ahora=AHORA_MARTES,
+            )
+
+        assert str(fallo.value) == MENSAJE_REPROGRAMAR_AL_PASADO
+        assert escena.turnos.turnos[turno.id].franja.inicio == local(16)
+        assert escena.notificador.avisos == []
+
+    async def test_reservar_un_turno_en_curso_se_rechaza(self) -> None:
+        """Empezó y no terminó (`inicio < ahora < fin`): ni es futuro ni terminó."""
+        escena = Escena(un_recurso())
+
+        with pytest.raises(TurnoEnElPasado) as fallo:
+            await _reservar_el_martes(escena, inicio=local(11, 45))
+
+        assert str(fallo.value) == MENSAJE_TURNO_EN_EL_PASADO
+
+    async def test_reservar_un_turno_en_curso_se_rechaza_tambien_a_posteriori(self) -> None:
+        """La excepción pide que la franja **haya terminado**: en curso no alcanza."""
+        escena = Escena(un_recurso())
+
+        with pytest.raises(TurnoEnElPasado) as fallo:
+            await _reservar_el_martes(
+                escena,
+                inicio=local(11, 45),
+                rol=RolUsuario.ADMINISTRADOR,
+                a_posteriori=True,
+            )
+
+        assert str(fallo.value) == MENSAJE_TURNO_NO_TRANSCURRIO
+        assert escena.turnos.turnos == {}
+
+    async def test_un_inicio_exactamente_igual_a_ahora_se_acepta(self) -> None:
+        escena = Escena(un_recurso())
+
+        turno = await _reservar_el_martes(escena, inicio=AHORA_MARTES)
+
+        assert turno.franja.inicio == AHORA_MARTES
+
+    async def test_reprogramar_a_un_inicio_igual_a_ahora_se_acepta(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso, franja=Franja(inicio=local(16), duracion_min=30))
+        escena = Escena(recurso, turno)
+
+        movido = await _reprogramar_el_martes(escena, turno, inicio=AHORA_MARTES)
+
+        assert movido.franja.inicio == AHORA_MARTES
+
+
+class TestCargaAPosteriori:
+    """HU-E7-06 RN-07: la excepción exclusiva del Administrador, y sus límites."""
+
+    async def test_nace_completado_por_panel_sin_aviso_y_deja_la_marca_en_la_bitacora(
+        self,
+    ) -> None:
+        escena = Escena(un_recurso())
+        cliente = uuid4()
+        escena.con_contacto(cliente)
+
+        turno = await escena.reservar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            cliente_id=cliente,
+            servicio_id=CORTE.id,
+            recurso_id=escena.recurso.id,
+            inicio=local(10),
+            ahora=AHORA_MARTES,
+            a_posteriori=True,
+        )
+
+        assert _estado(turno) is EstadoTurno.COMPLETADO
+        assert turno.canal_reserva == CanalDeReserva.PANEL
+        assert turno.habilita_facturacion
+        assert escena.notificador.avisos == []
+        assert escena.publicador.acciones == ["cargar_turno_a_posteriori"]
+        assert escena.turnos.turnos[turno.id] is turno
+
+    async def test_el_operador_no_puede_pedirla(self) -> None:
+        escena = Escena(un_recurso())
+
+        with pytest.raises(EntradaInvalida) as fallo:
+            await _reservar_el_martes(
+                escena, inicio=local(10), rol=RolUsuario.OPERADOR, a_posteriori=True
+            )
+
+        assert str(fallo.value) == MOTIVO_SOLO_ADMIN_A_POSTERIORI
+        assert escena.turnos.turnos == {}
+
+    async def test_omite_solo_la_disponibilidad_base(self) -> None:
+        """A las 6 el recurso no atiende (9 a 18), y aun así se registra lo que ocurrió."""
+        escena = Escena(un_recurso())
+
+        turno = await _reservar_el_martes(
+            escena, inicio=local(6), rol=RolUsuario.ADMINISTRADOR, a_posteriori=True
+        )
+
+        assert _estado(turno) is EstadoTurno.COMPLETADO
+
+    async def test_sigue_exigiendo_un_recurso_activo_y_un_servicio_admitido(self) -> None:
+        inactivo = Escena(un_recurso(activo=False))
+        sin_servicio = Escena(un_recurso(servicios=frozenset()))
+
+        with pytest.raises(RecursoInactivo):
+            await _reservar_el_martes(
+                inactivo, inicio=local(10), rol=RolUsuario.ADMINISTRADOR, a_posteriori=True
+            )
+        with pytest.raises(ServicioNoAdmitido):
+            await _reservar_el_martes(
+                sin_servicio, inicio=local(10), rol=RolUsuario.ADMINISTRADOR, a_posteriori=True
+            )
+
+    async def test_deja_pasar_el_rechazo_del_motor_por_solapamiento(self) -> None:
+        escena = Escena(un_recurso())
+        escena.turnos.ocupado = True
+
+        with pytest.raises(FranjaOcupada):
+            await _reservar_el_martes(
+                escena, inicio=local(10), rol=RolUsuario.ADMINISTRADOR, a_posteriori=True
+            )
+
+
+class TestCorreccionAPosteriori:
+    """HU-E7-02 RN-07: mover un turno a una franja ya terminada, sin avisar."""
+
+    async def test_mueve_el_turno_conserva_el_estado_no_avisa_y_deja_la_marca(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(
+            recurso,
+            estado=EstadoTurno.CONFIRMADO,
+            franja=Franja(inicio=local(16), duracion_min=30),
+        )
+        escena = Escena(recurso, turno)
+
+        movido = await _reprogramar_el_martes(escena, turno, inicio=local(10), a_posteriori=True)
+
+        assert movido.franja.inicio == local(10)
+        # No pasa a COMPLETADO solo: la asistencia se marca por el camino normal (HU-E7-03).
+        assert _estado(movido) is EstadoTurno.CONFIRMADO
+        assert escena.notificador.avisos == []
+        assert escena.publicador.acciones == ["corregir_turno_a_posteriori"]
+
+    async def test_el_operador_no_puede_pedirla_y_el_turno_queda_donde_estaba(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso, franja=Franja(inicio=local(16), duracion_min=30))
+        escena = Escena(recurso, turno)
+
+        with pytest.raises(EntradaInvalida) as fallo:
+            await _reprogramar_el_martes(
+                escena, turno, inicio=local(10), rol=RolUsuario.OPERADOR, a_posteriori=True
+            )
+
+        assert str(fallo.value) == MOTIVO_SOLO_ADMIN_A_POSTERIORI
+        assert escena.turnos.turnos[turno.id].franja.inicio == local(16)
+
+    async def test_una_franja_que_no_termino_se_rechaza(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso, franja=Franja(inicio=local(16), duracion_min=30))
+        escena = Escena(recurso, turno)
+
+        with pytest.raises(TurnoEnElPasado):
+            await _reprogramar_el_martes(escena, turno, inicio=local(11, 45), a_posteriori=True)

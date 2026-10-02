@@ -180,3 +180,17 @@ No muerde todavía porque el agente **no confirma reservas** (pendiente #5): los
 ofrece son del recurso, y el servicio se decide cuando se reserve de verdad. El día que se cierre
 ese flujo, el servicio tiene que salir de lo que el cliente pidió — que es parte de la misma
 decisión pendiente.
+
+
+### 18. El diálogo de «ese horario ya pasó, te ofrezco otros» no existe · **cierra con el #5**
+
+HU-E8-01 RN-06 pide que el agente, ante una fecha u hora que ya pasó, lo indique y ofrezca
+alternativas futuras. **El diálogo no se agregó porque el flujo conversacional todavía no llama a
+`reservar`** (pendiente #5): no hay un paso donde un horario elegido se confirme, así que no hay
+dónde atrapar el rechazo.
+
+Lo que sí quedó listo con la unidad `turnos-no-en-el-pasado` (D95): `horarios_ofrecibles` ya
+filtra los horarios pasados con el reloj inyectado, y `PortAgenda.reservar` puede levantar
+`TurnoEnElPasado` —el motor vuelve a verificar al confirmar— sin excepción a posteriori en este
+canal. Cuando se cierre el #5, el diálogo es atrapar ese error y volver a llamar a
+`horarios_ofrecibles`.
