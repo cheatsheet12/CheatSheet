@@ -34,6 +34,7 @@ from cheatsheet.api.reporteria import (
     hoy_en_la_zona_del_reporte,
 )
 from cheatsheet.api.routers.tablero_salida import TableroSalida, tablero_salida
+from cheatsheet.contexts.reporting.application.errors import GeneracionFallida
 from cheatsheet.contexts.reporting.application.generacion import (
     DescargarReporte,
     GenerarReporte,
@@ -294,6 +295,53 @@ def _rutas_del_tablero(recursos: Recursos) -> APIRouter:
     return router
 
 
+async def _generar_reporte(
+    recursos: Recursos,
+    actor: tuple[EmpresaId, UsuarioId, RolUsuario],
+    entrada: ReporteEntrada,
+    desde: date | None,
+    hasta: date | None,
+) -> ReporteSalida:
+    """Generate a report, committing the `FALLIDO` row when generation fails (D65).
+
+    `GenerarReporte` saves the row as `FALLIDO` and then raises `GeneracionFallida`. The unit
+    of work commits only if this body ends without raising, so the error is caught inside the
+    loop and re-raised after it: raising in the body would roll the row back and leave no
+    evidence of the failure. Only `GeneracionFallida` is caught; every other refusal (no data,
+    role, invalid input) wrote nothing and keeps discarding the transaction.
+    """
+    empresa_id, usuario_id, rol = actor
+    salida: ReporteSalida | None = None
+    fallo: GeneracionFallida | None = None
+    async for unidad in unidad_de_trabajo(recursos, empresa_id):
+        piezas = Reporteria.armar(unidad, recursos.settings)
+        ahora = unidad.reloj.ahora()
+        try:
+            reporte = await GenerarReporte(
+                reportes=piezas.reportes,
+                facturacion=armar_facturacion(unidad),
+                cobranzas=armar_cobranzas(unidad),
+                bitacora=armar_bitacora(unidad),
+                archivos=piezas.archivos,
+                publicador=unidad.publicador,
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                tipo=_tipo(entrada.tipo),
+                formato=_formato(entrada.formato),
+                periodo=_periodo(desde, hasta, hoy_en_la_zona_del_reporte(ahora)),
+                ahora=ahora,
+            )
+        except GeneracionFallida as error:
+            fallo = error
+        else:
+            salida = _a_reporte(reporte)
+    if fallo is not None:
+        raise fallo
+    return _exigir(salida)
+
+
 def _rutas_de_reportes(recursos: Recursos) -> APIRouter:
     """HU-E10-03: generar, descargar y el historial."""
     router = APIRouter()
@@ -316,28 +364,9 @@ def _rutas_de_reportes(recursos: Recursos) -> APIRouter:
         hasta: Annotated[date | None, Query()] = None,
     ) -> ReporteSalida:
         empresa_id, usuario_id, rol = _actor(request)
-        salida: ReporteSalida | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = Reporteria.armar(unidad, recursos.settings)
-            ahora = unidad.reloj.ahora()
-            reporte = await GenerarReporte(
-                reportes=piezas.reportes,
-                facturacion=armar_facturacion(unidad),
-                cobranzas=armar_cobranzas(unidad),
-                bitacora=armar_bitacora(unidad),
-                archivos=piezas.archivos,
-                publicador=unidad.publicador,
-            ).ejecutar(
-                empresa_id=empresa_id,
-                usuario_id=usuario_id,
-                rol=rol,
-                tipo=_tipo(entrada.tipo),
-                formato=_formato(entrada.formato),
-                periodo=_periodo(desde, hasta, hoy_en_la_zona_del_reporte(ahora)),
-                ahora=ahora,
-            )
-            salida = _a_reporte(reporte)
-        return _exigir(salida)
+        return await _generar_reporte(
+            recursos, (empresa_id, usuario_id, rol), entrada, desde, hasta
+        )
 
     @router.get("/{reporte_id}/archivo")
     async def descargar(request: Request, reporte_id: UUID) -> Response:

@@ -352,6 +352,24 @@ describe("PAN-REP-01 · generar reportes", () => {
     });
   });
 
+  it("un fallo al generar muestra el error y recarga el historial", async () => {
+    const FALLIDO: Reporte = { ...REPORTE, id: "r2", estado: "FALLIDO", descargable: false };
+    previsualizar.mockResolvedValue(ESTIMACION);
+    generarReporte.mockRejectedValue(new ErrorDeReporte("No se pudo generar el reporte."));
+    listarReportes.mockResolvedValue({ reportes: [FALLIDO] });
+    render(<GeneradorDeReportes inicial={[]} periodo={{}} puedeGenerar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+
+    await waitFor(() => {
+      expect(listarReportes).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByText("No se pudo generar el reporte.")).toBeTruthy();
+    await waitFor(() => {
+      expect(within(screen.getByRole("table")).getByText("Facturación")).toBeTruthy();
+    });
+  });
+
   it("un período sin datos muestra la frase de la historia", async () => {
     previsualizar.mockResolvedValue(ESTIMACION);
     generarReporte.mockRejectedValue(new ErrorDeReporte(MENSAJE_SIN_DATOS));
