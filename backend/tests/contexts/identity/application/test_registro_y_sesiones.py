@@ -29,6 +29,7 @@ from cheatsheet.contexts.identity.application.sesiones import (
     Sesion,
 )
 from cheatsheet.contexts.identity.domain.empresa import Empresa
+from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import (
     CUIT,
@@ -354,6 +355,40 @@ async def test_cerrar_sesion_revoca_la_familia(usuarios, hasher, emisor, refresc
     )
 
     assert all(token.revocado for token in refrescos.tokens.values())
+
+
+async def test_refrescar_y_cerrar_sesion_toman_el_candado_de_la_familia(
+    usuarios, hasher, emisor, refrescos, tokens, monkeypatch
+):
+    """Both must read the token through the family lock, never through a plain lookup."""
+    _, sesion = await _sesion_inicial(usuarios, hasher, emisor)
+    con_candado: list[str] = []
+    con_lectura_simple: list[str] = []
+    con_candado_original = refrescos.tomar_con_familia_bloqueada
+    simple_original = refrescos.buscar_por_hash
+
+    async def espiar_candado(hash_del_token: str) -> RefreshToken | None:
+        con_candado.append(hash_del_token)
+        token: RefreshToken | None = await con_candado_original(hash_del_token)
+        return token
+
+    async def espiar_simple(hash_del_token: str) -> RefreshToken | None:
+        con_lectura_simple.append(hash_del_token)
+        token: RefreshToken | None = await simple_original(hash_del_token)
+        return token
+
+    monkeypatch.setattr(refrescos, "tomar_con_familia_bloqueada", espiar_candado)
+    monkeypatch.setattr(refrescos, "buscar_por_hash", espiar_simple)
+
+    nueva = await RefrescarSesion(
+        usuarios=usuarios, refrescos=refrescos, tokens=tokens, emisor=emisor
+    ).ejecutar(refresh_token=sesion.refresh_token, ahora=INSTANTE_FIJO)
+    await CerrarSesion(refrescos=refrescos, tokens=tokens).ejecutar(
+        refresh_token=nueva.refresh_token
+    )
+
+    assert con_candado == [f"h::{sesion.refresh_token}", f"h::{nueva.refresh_token}"]
+    assert con_lectura_simple == []
 
 
 async def test_cerrar_sesion_con_un_token_desconocido_no_falla(refrescos, tokens):
