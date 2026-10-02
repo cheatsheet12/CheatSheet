@@ -13,6 +13,12 @@
 
 export type EstadoCobro = "PENDIENTE" | "APROBADO" | "VENCIDO" | "CANCELADO" | "REEMBOLSADO";
 
+/**
+ * Por dónde entró la plata (ADR-0010). Un conjunto cerrado y **propio**: el vocabulario de
+ * MercadoPago (tarjeta, dinero en cuenta) no llega hasta acá.
+ */
+export type MedioDePago = "LINK_MERCADOPAGO" | "TRANSFERENCIA";
+
 export interface Recordatorio {
   readonly id: string;
   readonly paso: number;
@@ -33,7 +39,13 @@ export interface Cobro {
   readonly url_de_pago: string | null;
   readonly tiene_link_activo: boolean;
   readonly vence_el: string;
-  readonly pagado_en: string | null;
+  /** Cuándo pagó el cliente (D91), en UTC. `null` mientras no se pagó. */
+  readonly fecha_pago: string | null;
+  /** `true` cuando `fecha_pago` es una estimación y no la fecha que informó el medio. */
+  readonly fecha_pago_aproximada: boolean;
+  readonly medio_de_pago: MedioDePago;
+  /** Solo lo tienen las transferencias (HU-E6-02 RN-05); un pago por link lo deja en `null`. */
+  readonly numero_de_operacion: string | null;
   /** HU-E6-05: la pantalla muestra «Reembolso en proceso» a partir de esto (D27). */
   readonly reembolso_en_proceso: boolean;
   /**
@@ -110,6 +122,12 @@ export const ETIQUETAS_DE_ESTADO: Readonly<Record<EstadoCobro, string>> = {
   VENCIDO: "En mora",
   CANCELADO: "Cancelado",
   REEMBOLSADO: "Reembolsado",
+};
+
+/** Cómo se llama cada medio de pago **en pantalla**. */
+export const ETIQUETAS_DE_MEDIO: Readonly<Record<MedioDePago, string>> = {
+  LINK_MERCADOPAGO: "Link de MercadoPago",
+  TRANSFERENCIA: "Transferencia",
 };
 
 export class ErrorDeCobro extends Error {

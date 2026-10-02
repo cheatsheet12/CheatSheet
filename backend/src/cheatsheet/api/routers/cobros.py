@@ -78,7 +78,12 @@ class CobroSalida(BaseModel):
     url_de_pago: str | None
     tiene_link_activo: bool
     vence_el: datetime
-    pagado_en: datetime | None
+    #: Cuándo pagó el cliente (D91). `fecha_pago_aproximada` avisa cuándo es una estimación.
+    fecha_pago: datetime | None
+    fecha_pago_aproximada: bool
+    medio_de_pago: str
+    #: Solo las transferencias lo tienen (HU-E6-02 RN-05); los links lo dejan en `null`.
+    numero_de_operacion: str | None
     #: HU-E6-05: la pantalla muestra «Reembolso en proceso» a partir de esto (decisión D27).
     reembolso_en_proceso: bool
     #: HU-E6-04: entró plata por el link de un cobro cancelado. PAN-COB-02 lo muestra
@@ -119,7 +124,10 @@ def _a_salida(cobro: Cobro) -> CobroSalida:
         url_de_pago=cobro.link.url if cobro.link else None,
         tiene_link_activo=cobro.tiene_link_activo,
         vence_el=cobro.vence_el,
-        pagado_en=cobro.pagado_en,
+        fecha_pago=cobro.fecha_pago,
+        fecha_pago_aproximada=cobro.fecha_pago_aproximada,
+        medio_de_pago=cobro.medio_de_pago.value,
+        numero_de_operacion=cobro.numero_de_operacion,
         reembolso_en_proceso=cobro.reembolso_en_proceso,
         tiene_pago_huerfano=cobro.tiene_pago_huerfano,
         motivo_de_cancelacion=cobro.motivo_de_cancelacion,

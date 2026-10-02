@@ -186,7 +186,7 @@ export function ListadoDeCobros({ inicial, puedeGestionar }: PropsDeListadoDeCob
           <Card titulo="Cobrado">
             <span className="cob-metrica__icono">{ICONO_TILDE}</span>
             <p className="cob-metrica__valor">$ {formatearNumero(listado.metricas.cobrado)}</p>
-            <p className="cob-metrica__pie">Cobros aprobados del período.</p>
+            <p className="cob-metrica__pie">Cobros aprobados, por fecha de pago.</p>
           </Card>
         </div>
         <div className="cob-metrica cob-metrica--pendiente">

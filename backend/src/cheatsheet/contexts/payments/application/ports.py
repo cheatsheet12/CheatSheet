@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Protocol
 from uuid import UUID
 
@@ -42,29 +42,44 @@ class FiltrosDeCobro:
 
 @dataclass(frozen=True, slots=True)
 class MetricasDeCobros:
-    """El encabezado de PAN-COB-01 (HU-E6-01 RN-01).
+    """El encabezado de PAN-COB-01 (HU-E6-01 RN-01, D91).
 
-    Cuatro números sobre el período activo. `cobrado` agrupa `APROBADO` y `en_mora` agrupa
-    `VENCIDO`, que es lo que la historia dice con todas las letras — y por eso los nombres de
-    este DTO son los de la **pantalla** y no los del enum: es lo que se muestra.
+    Cuatro números sobre el período activo. Los nombres son los de la **pantalla** y no los del
+    enum: `cobrado` agrupa `APROBADO` y `en_mora` agrupa `VENCIDO`.
+
+    **Cada número tiene su propia base, y no es la misma** (ADR-0010, punto 6):
+
+    - `cobrado` es lo cobrado **en** el período: suma por *fecha de pago*. Un cobro creado en
+      febrero y pagado en marzo suma en marzo.
+    - `pendiente` y `en_mora` son de lo **creado** en el período: suma por fecha de creación.
+    - `cobrado_de_lo_creado` es la parte de `cobrado` que además se creó en el período. Existe
+      solo para que la tasa tenga un numerador que sea subconjunto de su denominador.
     """
 
     cobrado: Decimal
     pendiente: Decimal
     en_mora: Decimal
+    cobrado_de_lo_creado: Decimal
 
     @property
     def tasa_de_cobro(self) -> Decimal:
-        """Cobrado sobre el total del período, en porcentaje.
+        """Lo cobrado de lo creado en el período, sobre lo creado, en porcentaje.
+
+        Se calcula con `cobrado_de_lo_creado` y **no** con `cobrado`: como el numerador está
+        incluido en el denominador, **nunca supera 100 %**, por más que el período cobre pagos de
+        cobros creados antes. Un pago posterior al cierre del período cuenta en la tasa de ese
+        período (cohorte «al día de hoy»).
 
         Con un total de cero devuelve cero y no rompe: un período sin cobros tiene tasa cero,
         no tasa indefinida, y una pantalla que muestra «—» donde debería ir un número lleva a
         alguien a pensar que el sistema falló.
         """
-        total = self.cobrado + self.pendiente + self.en_mora
+        total = self.cobrado_de_lo_creado + self.pendiente + self.en_mora
         if total == 0:
             return Decimal("0.00")
-        return ((self.cobrado / total) * 100).quantize(Decimal("0.01"))
+        return ((self.cobrado_de_lo_creado / total) * 100).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +95,10 @@ class PagoRecibido:
     preference_id: str | None
     estado: str
     monto: Decimal | None = None
+    #: Cuándo aprobó MercadoPago el pago (`date_approved`), ya en UTC. `None` si el proveedor no
+    #: lo informó o no se pudo leer: el dominio entonces usa el momento de la confirmación y
+    #: marca la fecha como aproximada.
+    fecha_aprobacion: datetime | None = None
 
     @property
     def esta_aprobado(self) -> bool:

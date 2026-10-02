@@ -30,8 +30,13 @@ from cheatsheet.contexts.business_config.infrastructure.repositories import (
     RepositorioReglasPostgres,
 )
 from cheatsheet.contexts.payments.application.errors import RecordatorioDuplicado
-from cheatsheet.contexts.payments.application.ports import FiltrosDeCobro
-from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDePago
+from cheatsheet.contexts.payments.application.ports import FiltrosDeCobro, MetricasDeCobros
+from cheatsheet.contexts.payments.domain.cobro import (
+    Cobro,
+    EstadoCobro,
+    LinkDePago,
+    MedioDePago,
+)
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     RepositorioCobroPostgres,
@@ -81,6 +86,7 @@ def _cobro(
     monto: str = "1210.00",
     vence_en_dias: int = 30,
     preferencia: str = "pref-1",
+    creado_el: datetime = AHORA,
 ) -> Cobro:
     cobro = Cobro(
         id=uuid.uuid4(),
@@ -88,12 +94,12 @@ def _cobro(
         cliente_id=cliente_id,
         monto=Decimal(monto),
         descripcion="Consulta de septiembre",
-        vence_el=AHORA + timedelta(days=vence_en_dias),
-        created_at=AHORA,
-        updated_at=AHORA,
+        vence_el=creado_el + timedelta(days=vence_en_dias),
+        created_at=creado_el,
+        updated_at=creado_el,
     )
     cobro.asignar_link(
-        LinkDePago(preference_id=preferencia, url=f"https://mp.com/{preferencia}"), AHORA
+        LinkDePago(preference_id=preferencia, url=f"https://mp.com/{preferencia}"), creado_el
     )
     return cobro
 
@@ -414,6 +420,7 @@ async def test_las_metricas_se_suman_en_la_base(
         metricas = await RepositorioCobroPostgres(sesion).metricas(FiltrosDeCobro())
 
     assert metricas.cobrado == Decimal("1000.00")
+    assert metricas.cobrado_de_lo_creado == Decimal("1000.00")
     assert metricas.pendiente == Decimal("500.00")
     assert metricas.en_mora == Decimal("250.00")
     # 1000 sobre 1750.
@@ -434,6 +441,247 @@ async def test_sin_cobros_la_tasa_es_cero_y_no_rompe(
         metricas = await RepositorioCobroPostgres(sesion).metricas(FiltrosDeCobro())
 
     assert metricas.tasa_de_cobro == Decimal("0.00")
+
+
+async def _en(
+    sesiones: async_sessionmaker[AsyncSession], empresa_id: EmpresaId, filtros: FiltrosDeCobro
+) -> MetricasDeCobros:
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        return await RepositorioCobroPostgres(sesion).metricas(filtros)
+
+
+FEBRERO = datetime(2026, 2, 10, 12, 0, tzinfo=UTC)
+MARZO = datetime(2026, 3, 5, 12, 0, tzinfo=UTC)
+TODO_FEBRERO = FiltrosDeCobro(
+    desde=datetime(2026, 2, 1, tzinfo=UTC), hasta=datetime(2026, 2, 28, 23, 59, tzinfo=UTC)
+)
+TODO_MARZO = FiltrosDeCobro(
+    desde=datetime(2026, 3, 1, tzinfo=UTC), hasta=datetime(2026, 3, 31, 23, 59, tzinfo=UTC)
+)
+
+
+async def test_un_cobro_creado_en_febrero_y_pagado_en_marzo_suma_en_marzo(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """**D91.** «Cobrado» es por fecha de pago; la tasa, por lo creado en el período."""
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    cobro = _cobro(empresa_id, cliente_id, monto="1000.00", creado_el=FEBRERO)
+    cobro.aprobar(payment_id="pago-1", ahora=MARZO, fecha_pago=MARZO)
+    await _guardar(sesiones, empresa_id, cobro)
+
+    en_marzo = await _en(sesiones, empresa_id, TODO_MARZO)
+    en_febrero = await _en(sesiones, empresa_id, TODO_FEBRERO)
+
+    assert en_marzo.cobrado == Decimal("1000.00")
+    # En marzo no se creó nada: la tasa de marzo no puede contar un cobro de febrero.
+    assert en_marzo.cobrado_de_lo_creado == Decimal("0.00")
+    assert en_marzo.tasa_de_cobro == Decimal("0.00")
+    assert en_febrero.cobrado == Decimal("0.00")
+    # La tasa de febrero (cohorte) sí lo incluye, aunque se haya pagado después.
+    assert en_febrero.cobrado_de_lo_creado == Decimal("1000.00")
+    assert en_febrero.tasa_de_cobro == Decimal("100.00")
+
+
+async def test_la_tasa_no_pasa_de_cien_aunque_se_cobre_mas_de_lo_creado(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    viejo = _cobro(empresa_id, cliente_id, monto="9000.00", creado_el=FEBRERO, preferencia="p1")
+    viejo.aprobar(payment_id="pago-1", ahora=MARZO, fecha_pago=MARZO)
+    nuevo = _cobro(empresa_id, cliente_id, monto="100.00", creado_el=MARZO, preferencia="p2")
+    nuevo.aprobar(payment_id="pago-2", ahora=MARZO + timedelta(hours=1))
+    await _guardar(sesiones, empresa_id, viejo, nuevo)
+
+    metricas = await _en(sesiones, empresa_id, TODO_MARZO)
+
+    assert metricas.cobrado == Decimal("9100.00")
+    assert metricas.tasa_de_cobro == Decimal("100.00")
+
+
+async def test_un_reembolsado_no_suma_en_cobrado_de_ningun_periodo(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """Limitación conocida, fijada acá: la unidad de reembolsos lo resta por fecha de devolución."""
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    cobro = _cobro(empresa_id, cliente_id, monto="1000.00", creado_el=FEBRERO)
+    cobro.aprobar(payment_id="pago-1", ahora=FEBRERO + timedelta(days=1))
+    cobro.confirmar_reembolso(monto=Decimal("1000.00"), ahora=MARZO)
+    await _guardar(sesiones, empresa_id, cobro)
+
+    assert (await _en(sesiones, empresa_id, TODO_FEBRERO)).cobrado == Decimal("0.00")
+    assert (await _en(sesiones, empresa_id, TODO_MARZO)).cobrado == Decimal("0.00")
+
+
+async def test_pendiente_y_en_mora_siguen_por_creacion_y_el_estado_no_altera_las_metricas(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    pendiente = _cobro(empresa_id, cliente_id, monto="500.00", creado_el=FEBRERO, preferencia="a")
+    moroso = _cobro(empresa_id, cliente_id, monto="250.00", creado_el=FEBRERO, preferencia="b")
+    moroso.vencer(MARZO)
+    pagado = _cobro(empresa_id, cliente_id, monto="100.00", creado_el=MARZO, preferencia="c")
+    pagado.aprobar(payment_id="pago-1", ahora=MARZO + timedelta(hours=1))
+    await _guardar(sesiones, empresa_id, pendiente, moroso, pagado)
+    solo_pagados = FiltrosDeCobro(
+        desde=TODO_FEBRERO.desde, hasta=TODO_FEBRERO.hasta, estados=(EstadoCobro.APROBADO,)
+    )
+
+    sin_estado = await _en(sesiones, empresa_id, TODO_FEBRERO)
+    con_estado = await _en(sesiones, empresa_id, solo_pagados)
+
+    assert sin_estado.pendiente == Decimal("500.00")
+    assert sin_estado.en_mora == Decimal("250.00")
+    assert con_estado == sin_estado
+
+
+async def test_los_importes_de_las_metricas_son_decimal_sin_error_binario(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """`0.10 + 0.20` da `0.30` y nunca `0.30000000000000004`: se suma en NUMERIC."""
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    uno = _cobro(empresa_id, cliente_id, monto="0.10", preferencia="a")
+    otro = _cobro(empresa_id, cliente_id, monto="0.20", preferencia="b")
+    uno.aprobar(payment_id="pago-1", ahora=AHORA)
+    otro.aprobar(payment_id="pago-2", ahora=AHORA)
+    await _guardar(sesiones, empresa_id, uno, otro)
+
+    metricas = await _en(sesiones, empresa_id, FiltrosDeCobro())
+
+    assert metricas.cobrado == Decimal("0.30")
+    assert isinstance(metricas.cobrado, Decimal)
+    assert isinstance(metricas.cobrado_de_lo_creado, Decimal)
+
+
+async def test_el_cobrado_de_una_empresa_no_suma_los_pagos_de_otra(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """RLS también acota la agregación por fecha de pago."""
+    empresa_a = await _empresa(engine_dueno)
+    empresa_b = await _empresa(engine_dueno)
+    cliente_a = await _cliente(engine_dueno, empresa_a)
+    cliente_b = await _cliente(engine_dueno, empresa_b)
+    de_a = _cobro(empresa_a, cliente_a, monto="1000.00")
+    de_a.aprobar(payment_id="pago-a", ahora=AHORA)
+    de_b = _cobro(empresa_b, cliente_b, monto="70.00")
+    de_b.aprobar(payment_id="pago-b", ahora=AHORA)
+    await _guardar(sesiones, empresa_a, de_a)
+    await _guardar(sesiones, empresa_b, de_b)
+
+    assert (await _en(sesiones, empresa_a, FiltrosDeCobro())).cobrado == Decimal("1000.00")
+    assert (await _en(sesiones, empresa_b, FiltrosDeCobro())).cobrado == Decimal("70.00")
+
+
+# ------------------------------------------------- la fecha, el medio y la operación · ADR-0010
+
+
+async def test_la_fecha_el_medio_y_la_operacion_sobreviven_a_la_ida_y_vuelta(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    pagado_el = AHORA + timedelta(hours=1)
+    exacto = _cobro(empresa_id, cliente_id, preferencia="a")
+    exacto.aprobar(payment_id="pago-1", ahora=pagado_el + timedelta(days=1), fecha_pago=pagado_el)
+    aproximado = _cobro(empresa_id, cliente_id, preferencia="b")
+    aproximado.aprobar(payment_id="pago-2", ahora=pagado_el)
+    transferido = _cobro(empresa_id, cliente_id, preferencia="c")
+    transferido.aprobar(payment_id="pago-3", ahora=pagado_el)
+    transferido.medio_de_pago = MedioDePago.TRANSFERENCIA
+    transferido.numero_de_operacion = "0000123456"
+    await _guardar(sesiones, empresa_id, exacto, aproximado, transferido)
+
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        repo = RepositorioCobroPostgres(sesion)
+        leido_exacto = await repo.buscar_por_id(exacto.id)
+        leido_aproximado = await repo.buscar_por_id(aproximado.id)
+        leido_transferido = await repo.buscar_por_id(transferido.id)
+
+    assert leido_exacto is not None
+    assert leido_exacto.fecha_pago == pagado_el
+    assert leido_exacto.fecha_pago_aproximada is False
+    assert leido_exacto.medio_de_pago is MedioDePago.LINK_MERCADOPAGO
+    assert leido_exacto.numero_de_operacion is None
+    assert leido_aproximado is not None
+    assert leido_aproximado.fecha_pago_aproximada is True
+    assert leido_transferido is not None
+    assert leido_transferido.medio_de_pago is MedioDePago.TRANSFERENCIA
+    assert leido_transferido.numero_de_operacion == "0000123456"
+
+
+async def test_un_numero_de_operacion_no_puede_repetir_el_pago_de_otro_cobro(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """HU-E6-08 RN-03: la unicidad cubre también los pagos recibidos por link."""
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    por_link = _cobro(empresa_id, cliente_id, preferencia="a")
+    por_link.aprobar(payment_id="123456", ahora=AHORA)
+    await _guardar(sesiones, empresa_id, por_link)
+    transferido = _cobro(empresa_id, cliente_id, preferencia="b")
+    transferido.aprobar(payment_id="pago-2", ahora=AHORA)
+    transferido.medio_de_pago = MedioDePago.TRANSFERENCIA
+    transferido.numero_de_operacion = "123456"
+
+    with pytest.raises(IntegrityError):
+        await _guardar(sesiones, empresa_id, transferido)
+
+
+async def test_el_mismo_numero_de_operacion_en_otra_empresa_convive(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    empresa_a = await _empresa(engine_dueno)
+    empresa_b = await _empresa(engine_dueno)
+    cliente_a = await _cliente(engine_dueno, empresa_a)
+    cliente_b = await _cliente(engine_dueno, empresa_b)
+    por_link = _cobro(empresa_a, cliente_a)
+    por_link.aprobar(payment_id="123456", ahora=AHORA)
+    transferido = _cobro(empresa_b, cliente_b)
+    transferido.aprobar(payment_id="pago-2", ahora=AHORA)
+    transferido.medio_de_pago = MedioDePago.TRANSFERENCIA
+    transferido.numero_de_operacion = "123456"
+
+    await _guardar(sesiones, empresa_a, por_link)
+    await _guardar(sesiones, empresa_b, transferido)
+
+    async with sesion_de_empresa(sesiones, empresa_b) as sesion:
+        assert await RepositorioCobroPostgres(sesion).buscar_por_id(transferido.id) is not None
+
+
+async def test_un_medio_de_pago_fuera_del_conjunto_lo_rechaza_el_esquema(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    cobro = _cobro(empresa_id, cliente_id)
+    await _guardar(sesiones, empresa_id, cobro)
+
+    with pytest.raises(IntegrityError):
+        async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+            await sesion.execute(
+                text("UPDATE cobro SET medio_de_pago = 'EFECTIVO' WHERE id = :id"),
+                {"id": cobro.id},
+            )
+
+
+async def test_un_aprobado_sin_fecha_de_pago_lo_rechaza_el_esquema(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """`ck_cobro_fecha_de_pago` es `NOT VALID` pero protege toda escritura nueva."""
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    cobro = _cobro(empresa_id, cliente_id)
+    await _guardar(sesiones, empresa_id, cobro)
+
+    with pytest.raises(IntegrityError):
+        async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+            await sesion.execute(
+                text("UPDATE cobro SET estado = 'APROBADO' WHERE id = :id"), {"id": cobro.id}
+            )
 
 
 # ------------------------------------------------------------------ las reglas

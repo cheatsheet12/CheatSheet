@@ -65,7 +65,10 @@ const PENDIENTE: Cobro = {
   url_de_pago: "https://mp.test/checkout/co1",
   tiene_link_activo: true,
   vence_el: "2026-09-20",
-  pagado_en: null,
+  fecha_pago: null,
+  fecha_pago_aproximada: false,
+  medio_de_pago: "LINK_MERCADOPAGO",
+  numero_de_operacion: null,
   reembolso_en_proceso: false,
   tiene_pago_huerfano: false,
   motivo_de_cancelacion: null,
@@ -108,7 +111,7 @@ const PAGADO: DetalleDeCobroRespuesta = {
   ...DETALLE,
   estado: "APROBADO",
   tiene_link_activo: false,
-  pagado_en: "2026-09-15T18:20:00Z",
+  fecha_pago: "2026-09-15T18:20:00Z",
 };
 
 beforeAll(() => {
@@ -155,6 +158,12 @@ describe("PAN-COB-01 — listado de cobros", () => {
     const tabla = within(screen.getByRole("table"));
     expect(tabla.getByText("En mora")).toBeTruthy();
     expect(tabla.queryByText("Vencido")).toBeNull();
+  });
+
+  it("aclara que «Cobrado» se mide por fecha de pago", () => {
+    render(<ListadoDeCobros inicial={LISTADO} puedeGestionar />);
+
+    expect(within(metrica("Cobrado")).getByText(/por fecha de pago/)).toBeTruthy();
   });
 
   it("filtra por el estado del dominio aunque muestre la etiqueta de interfaz", async () => {
@@ -320,6 +329,69 @@ describe("PAN-COB-02 — detalle del cobro", () => {
     expect(screen.getByText("Reembolso en proceso")).toBeTruthy();
     // Y no se ofrece pedir un segundo reembolso mientras el primero no volvio.
     expect(screen.queryByRole("button", { name: "Reembolsar" })).toBeNull();
+  });
+});
+
+/** El valor de una fila «clave/valor» del detalle: el `<dd>` que acompaña a ese `<dt>`. */
+function valorDe(rotulo: string): HTMLElement {
+  const par = screen.getByText(rotulo, { selector: "dt" }).closest("div");
+  if (par === null) {
+    throw new Error(`La fila «${rotulo}» no esta dentro de un <div>.`);
+  }
+  return par;
+}
+
+describe("PAN-COB-02 — cuándo y cómo se pagó (D91)", () => {
+  it("muestra el medio y la fecha de un cobro pagado por link, sin numero de operacion", () => {
+    render(<DetalleDeCobro inicial={PAGADO} puedeGestionar puedeReembolsar />);
+
+    expect(within(valorDe("Medio de pago")).getByText("Link de MercadoPago")).toBeTruthy();
+    expect(within(valorDe("Fecha de pago")).queryByText("—")).toBeNull();
+    expect(within(valorDe("Fecha de pago")).queryByText(/aproximada/)).toBeNull();
+    expect(screen.queryByText("N.º de operación", { selector: "dt" })).toBeNull();
+  });
+
+  it("avisa cuando la fecha de pago es aproximada", () => {
+    render(
+      <DetalleDeCobro
+        inicial={{ ...PAGADO, fecha_pago_aproximada: true }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+
+    expect(within(valorDe("Fecha de pago")).getByText(/\(aproximada\)/)).toBeTruthy();
+  });
+
+  it("muestra un guion en la fecha de un cobro que no se pago", () => {
+    render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar />);
+
+    expect(within(valorDe("Fecha de pago")).getByText("—")).toBeTruthy();
+    expect(within(valorDe("Medio de pago")).getByText("Link de MercadoPago")).toBeTruthy();
+  });
+
+  it("muestra el numero de operacion solo cuando el medio es una transferencia", () => {
+    render(
+      <DetalleDeCobro
+        inicial={{
+          ...PAGADO,
+          medio_de_pago: "TRANSFERENCIA",
+          numero_de_operacion: "0000123456",
+        }}
+        puedeGestionar
+        puedeReembolsar
+      />,
+    );
+
+    expect(within(valorDe("Medio de pago")).getByText("Transferencia")).toBeTruthy();
+    expect(within(valorDe("N.º de operación")).getByText("0000123456")).toBeTruthy();
+  });
+
+  it("le llama «Referencia» al codigo del cobro y no «Operacion»", () => {
+    render(<DetalleDeCobro inicial={PAGADO} puedeGestionar puedeReembolsar />);
+
+    expect(screen.getByText("Referencia", { selector: "dt" })).toBeTruthy();
+    expect(screen.queryByText("Operación", { selector: "dt" })).toBeNull();
   });
 });
 

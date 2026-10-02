@@ -579,3 +579,41 @@ comentario. Corregirlo es una línea, en el PR que toque ese archivo por otra ra
 `catalogos_fiscales()`. Es la misma pieza pendiente —resolver el ticket de cada empresa
 desde `integrations`— y se arma una sola vez en `emision-de-comprobantes`, que la necesita
 sí o sí.
+
+---
+
+# Fase 2 — Verificaciones pendientes contra los sandbox
+
+Lo que la fase 2 (ajustes de la revisión, ADR-0009) dejó **sin poder verificar** porque las
+integraciones corren simuladas. Cuando el equipo tenga el sandbox de MercadoPago y el certificado
+de homologación de ARCA (ola 0), se recorre esta lista **antes** de dar por cerradas las unidades
+que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
+
+## 20. MercadoPago (sandbox)
+
+| # | Qué verificar | Unidad | Qué pasa si falla |
+|---|---|---|---|
+| 20.1 | El monto máximo que acepta una preferencia o link de pago, contra el tope propio `MONTO_MAXIMO_DE_COBRO` (100.000.000,00) | `nuevo-cobro-desde-su-panel` | Si el de MercadoPago es menor, manda el suyo: se baja la constante |
+| 20.2 | Un pago aprobado trae siempre `date_approved`, en ISO 8601 y con zona horaria | `fecha-de-pago` | Si falta o viene sin zona, `fecha_pago` queda marcada aproximada; revisar la regla |
+| 20.3 | Los valores reales de `payment_type_id` / `payment_method_id` | `fecha-de-pago` (ADR-0010) | El medio de pago es un conjunto cerrado; confirmar que nada se clasifica mal |
+| 20.4 | Qué trae una **transferencia entrante**: identidad del pagador (DNI/CUIT), fecha y número de operación, y si se consulta con las credenciales del vendedor | `fecha-de-pago`, `cobro-por-transferencia` | Cualquier «no» cambia HU-E6-08 (ADR-0009) |
+| 20.5 | La API de reembolsos acepta reembolsos **parciales** y con qué respuesta | `reembolsos-parciales-y-manuales` | Cambia HU-E6-05 |
+| 20.6 | Montos con centavos llegan exactos: `pasarela.py` todavía envía `float(cobro.monto)` (líneas 85 y 162) | hallazgo sin unidad | Un centavo de diferencia entre el cobro y el pago |
+| 20.7 | Dos notificaciones simultáneas del mismo pago: la segunda hoy puede devolver 500 | hallazgo sin unidad | MercadoPago reintenta; confirmar que no queda un pago sin imputar |
+| 20.8 | Que el `date_approved` de un pago real cae dentro de la tolerancia de reloj de 5 minutos respecto de nuestra hora de confirmación y nunca es anterior a la creación del cobro | `fecha-de-pago` | Si un pago legítimo se descarta como implausible, queda marcado aproximado sin necesidad; ajustar `TOLERANCIA_DE_RELOJ` |
+
+## 21. ARCA (homologación)
+
+| # | Qué verificar | Unidad | Qué pasa si falla |
+|---|---|---|---|
+| 21.1 | Responsable Inscripto → receptor IVA No Alcanzado emite **Factura B** (confianza media) | `tipos-de-comprobante-por-receptor` | D90: se corrige la tabla con un release y no se emite ese tipo hasta entonces |
+| 21.2 | `CondicionIVAReceptorId = 6` sirve para Monotributista Social y Promovido (13 y 16) | `tipos-de-comprobante-por-receptor` | Se agrega el código fino |
+| 21.3 | Fecha real desde la que ARCA **rechaza** comprobantes sin `CondicionIVAReceptorId` (RG 5616/2024; hoy solo fuentes secundarias dicen 01/12/2026) | `tipos-de-comprobante-por-receptor` | Define el plazo de la sesión dedicada a esa unidad |
+| 21.4 | Factura C sin arreglo `Iva` y con `ImpIVA` en 0 | `tipos-de-comprobante-por-receptor` | Rechazo de toda Factura C |
+| 21.5 | Si una nota de crédito exige `CbtesAsoc` | `tipos-de-comprobante-por-receptor` | Rechazo de las notas de crédito |
+
+## 22. Verificaciones manuales (no dependen del sandbox)
+
+| # | Qué verificar | Unidad |
+|---|---|---|
+| 22.1 | En `/cobros/nuevo`, el concepto y el monto escritos no se pierden al elegir cliente (`router.replace`) | `nuevo-cobro-desde-su-panel` |

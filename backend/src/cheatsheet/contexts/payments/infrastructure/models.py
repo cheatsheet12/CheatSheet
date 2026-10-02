@@ -1,6 +1,6 @@
 """Modelos de persistencia de `payments`.
 
-Las dos tablas del DER sin cambios. Dos cosas valen leerse dos veces:
+Las dos tablas del DER. Dos cosas valen leerse dos veces:
 
 - **`mp_payment_id` no lo muestra ninguna pantalla y existe igual.** Es la clave de
   idempotencia del webhook (decisión D20), y el índice único parcial de la migración 0019 es
@@ -16,7 +16,18 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    false,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,7 +60,16 @@ class CobroORM(Base):
     mp_url_pago: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     vence_el: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    pagado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Cuándo pagó el cliente (D91, ADR-0010). Era `pagado_en` hasta la migración 0026.
+    fecha_pago: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    fecha_pago_aproximada: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=false()
+    )
+    medio_de_pago: Mapped[str] = mapped_column(
+        String(30), nullable=False, server_default="LINK_MERCADOPAGO"
+    )
+    #: Solo lo escribe una transferencia verificada (unidad `cobro-por-transferencia`).
+    numero_de_operacion: Mapped[str | None] = mapped_column(String(120), nullable=True)
     reembolso_solicitado_en: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -62,6 +82,27 @@ class CobroORM(Base):
         Index("ix_cobro_empresa_estado", "empresa_id", "estado", "vence_el"),
         Index("ix_cobro_estado_vence", "estado", "vence_el"),
         Index("ix_cobro_comprobante", "comprobante_id"),
+        # Las mismas expresiones que la migración 0026: si divergen, Alembic y el metadata
+        # también. Una operación (link o transferencia) tiene efecto una sola vez por empresa.
+        Index(
+            "uq_cobro_operacion",
+            "empresa_id",
+            text("(COALESCE(numero_de_operacion, mp_payment_id))"),
+            unique=True,
+            postgresql_where=text("COALESCE(numero_de_operacion, mp_payment_id) IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "medio_de_pago IN ('LINK_MERCADOPAGO', 'TRANSFERENCIA')",
+            name="ck_cobro_medio_de_pago",
+        ),
+        CheckConstraint(
+            "estado NOT IN ('APROBADO', 'REEMBOLSADO') OR fecha_pago IS NOT NULL",
+            name="ck_cobro_fecha_de_pago",
+        ),
+        CheckConstraint(
+            "fecha_pago_aproximada = false OR fecha_pago IS NOT NULL",
+            name="ck_cobro_fecha_aproximada",
+        ),
     )
 
 

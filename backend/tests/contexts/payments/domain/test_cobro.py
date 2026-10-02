@@ -12,7 +12,7 @@ Lo que se prueba acá es lo que, si falla, cuesta dinero de verdad:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import uuid4
 
@@ -27,6 +27,7 @@ from cheatsheet.contexts.payments.domain.cobro import (
     Cobro,
     EstadoCobro,
     LinkDePago,
+    MedioDePago,
     redondear,
 )
 from cheatsheet.shared.empresa import EmpresaId
@@ -140,7 +141,7 @@ def test_el_camino_feliz_va_de_pendiente_a_aprobado() -> None:
 
     assert _estado(cobro) is EstadoCobro.APROBADO
     assert cobro.mp_payment_id == "pago-1"
-    assert cobro.pagado_en == AHORA
+    assert cobro.fecha_pago == AHORA
     assert not cobro.recibe_recordatorios
 
 
@@ -349,3 +350,110 @@ def test_un_cobro_aprobado_no_es_un_pago_huerfano() -> None:
     cobro.aprobar(payment_id="pago-1", ahora=AHORA)
 
     assert not cobro.tiene_pago_huerfano
+
+
+# ---------------------------------------------------------- cuándo y cómo se pagó (D91)
+
+
+def _con_link() -> Cobro:
+    cobro = _cobro()
+    cobro.asignar_link(UN_LINK, AHORA)
+    return cobro
+
+
+def test_aprobar_con_la_fecha_de_mercadopago_la_guarda_como_cierta() -> None:
+    """El pago se ubica en el período en que el cliente pagó, no en el que lo procesamos."""
+    cobro = _con_link()
+    aprobado_el = AHORA + timedelta(hours=1)
+
+    cobro.aprobar(payment_id="pago-1", ahora=AHORA + timedelta(days=2), fecha_pago=aprobado_el)
+
+    assert cobro.fecha_pago == aprobado_el
+    assert cobro.fecha_pago_aproximada is False
+    assert cobro.medio_de_pago is MedioDePago.LINK_MERCADOPAGO
+    assert cobro.numero_de_operacion is None
+
+
+def test_la_fecha_informada_con_otro_offset_se_guarda_en_utc() -> None:
+    cobro = _con_link()
+    en_buenos_aires = timezone(timedelta(hours=-3))
+    informada = datetime(2026, 9, 7, 10, 0, tzinfo=en_buenos_aires)  # 13:00 UTC
+
+    cobro.aprobar(payment_id="pago-1", ahora=AHORA + timedelta(hours=2), fecha_pago=informada)
+
+    assert cobro.fecha_pago == datetime(2026, 9, 7, 13, 0, tzinfo=UTC)
+    assert cobro.fecha_pago is not None
+    assert cobro.fecha_pago.utcoffset() == timedelta(0)
+
+
+def test_aprobar_sin_fecha_usa_el_momento_y_la_marca_aproximada() -> None:
+    cobro = _con_link()
+
+    cobro.aprobar(payment_id="pago-1", ahora=AHORA)
+
+    assert cobro.fecha_pago == AHORA
+    assert cobro.fecha_pago_aproximada is True
+
+
+@pytest.mark.parametrize(
+    "informada",
+    [
+        pytest.param(AHORA.replace(tzinfo=None), id="sin-zona-horaria"),
+        pytest.param(AHORA + timedelta(hours=1, minutes=6), id="en-el-futuro"),
+        pytest.param(AHORA - timedelta(seconds=1), id="anterior-a-la-creacion"),
+    ],
+)
+def test_una_fecha_implausible_se_ignora_y_queda_aproximada(informada: datetime) -> None:
+    """Una fecha equivocada mueve plata de período: ante la duda, no se la toma por cierta."""
+    cobro = _con_link()
+    ahora = AHORA + timedelta(hours=1)
+
+    cobro.aprobar(payment_id="pago-1", ahora=ahora, fecha_pago=informada)
+
+    assert cobro.fecha_pago == ahora
+    assert cobro.fecha_pago_aproximada is True
+
+
+def test_la_tolerancia_de_reloj_de_cinco_minutos_es_inclusiva() -> None:
+    cobro = _con_link()
+    informada = AHORA + timedelta(minutes=5)
+
+    cobro.aprobar(payment_id="pago-1", ahora=AHORA, fecha_pago=informada)
+
+    assert cobro.fecha_pago == informada
+    assert cobro.fecha_pago_aproximada is False
+
+
+def test_aprobar_dos_veces_sigue_rechazado_y_no_toca_la_fecha() -> None:
+    cobro = _con_link()
+    cobro.aprobar(payment_id="pago-1", ahora=AHORA)
+
+    with pytest.raises(InvarianteViolada):
+        cobro.aprobar(
+            payment_id="pago-2",
+            ahora=AHORA + timedelta(days=1),
+            fecha_pago=AHORA + timedelta(hours=1),
+        )
+
+    assert cobro.fecha_pago == AHORA
+    assert cobro.fecha_pago_aproximada is True
+    assert cobro.mp_payment_id == "pago-1"
+
+
+def test_el_pago_huerfano_no_escribe_fecha_ni_medio() -> None:
+    cobro = _cobro()
+    cobro.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+
+    cobro.registrar_pago_huerfano(payment_id="pago-1", ahora=AHORA)
+
+    assert _estado(cobro) is EstadoCobro.CANCELADO
+    assert cobro.fecha_pago is None
+    assert cobro.fecha_pago_aproximada is False
+    assert cobro.medio_de_pago is MedioDePago.LINK_MERCADOPAGO
+
+
+def test_un_cobro_nuevo_no_tiene_fecha_de_pago() -> None:
+    cobro = _cobro()
+
+    assert cobro.fecha_pago is None
+    assert cobro.fecha_pago_aproximada is False

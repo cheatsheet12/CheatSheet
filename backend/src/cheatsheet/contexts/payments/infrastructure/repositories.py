@@ -8,7 +8,8 @@ un mensaje que un cliente recibio: los dos se cancelan o se reembolsan, no se bo
 
 `metricas` suma **en la base** y no en Python sobre `listar`. La diferencia no es de
 rendimiento: las metricas son del periodo entero y el listado se pagina, asi que sumarlas
-sobre la pagina mostraria un total que cambia al pasar de hoja.
+sobre la pagina mostraria un total que cambia al pasar de hoja. El listado sigue filtrando por
+fecha de creacion; `cobrado` mide por fecha de pago (D91).
 """
 
 from __future__ import annotations
@@ -21,10 +22,16 @@ from uuid import UUID
 from sqlalchemy import Select, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from cheatsheet.contexts.payments.application.errors import RecordatorioDuplicado
 from cheatsheet.contexts.payments.application.ports import FiltrosDeCobro, MetricasDeCobros
-from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDePago
+from cheatsheet.contexts.payments.domain.cobro import (
+    Cobro,
+    EstadoCobro,
+    LinkDePago,
+    MedioDePago,
+)
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
 from cheatsheet.contexts.payments.infrastructure.models import CobroORM, RecordatorioORM
 from cheatsheet.shared.empresa import EmpresaId
@@ -57,7 +64,10 @@ def _a_dominio(fila: CobroORM) -> Cobro:
         mp_payment_id=fila.mp_payment_id,
         comprobante_id=fila.comprobante_id,
         turno_id=fila.turno_id,
-        pagado_en=fila.pagado_en,
+        fecha_pago=fila.fecha_pago,
+        fecha_pago_aproximada=fila.fecha_pago_aproximada,
+        medio_de_pago=MedioDePago(fila.medio_de_pago),
+        numero_de_operacion=fila.numero_de_operacion,
         monto_reembolsado=fila.monto_reembolsado,
         reembolso_solicitado_en=fila.reembolso_solicitado_en,
         motivo_de_cancelacion=fila.motivo_de_cancelacion,
@@ -79,7 +89,10 @@ def _a_fila(cobro: Cobro, fila: CobroORM) -> CobroORM:
     fila.mp_url_pago = cobro.link.url if cobro.link else None
     fila.mp_payment_id = cobro.mp_payment_id
     fila.vence_el = cobro.vence_el
-    fila.pagado_en = cobro.pagado_en
+    fila.fecha_pago = cobro.fecha_pago
+    fila.fecha_pago_aproximada = cobro.fecha_pago_aproximada
+    fila.medio_de_pago = cobro.medio_de_pago.value
+    fila.numero_de_operacion = cobro.numero_de_operacion
     fila.reembolso_solicitado_en = cobro.reembolso_solicitado_en
     fila.motivo_de_cancelacion = cobro.motivo_de_cancelacion
     fila.created_at = cobro.created_at
@@ -132,14 +145,36 @@ class RepositorioCobroPostgres:
         return [_a_dominio(fila) for fila in filas]
 
     async def metricas(self, filtros: FiltrosDeCobro) -> MetricasDeCobros:
-        sentencia = self._con_filtros(
-            select(CobroORM.estado, func.coalesce(func.sum(CobroORM.monto), CERO)), filtros
+        """Las dos bases del encabezado, sumadas **en la base** y en `Decimal` (D91).
+
+        - Por **fecha de creación**: `pendiente`, `en_mora` y `cobrado_de_lo_creado`.
+        - Por **fecha de pago**: `cobrado`.
+
+        Son dos agregaciones porque son dos poblaciones: un cobro creado en febrero y pagado en
+        marzo está en la primera al mirar febrero y en la segunda al mirar marzo. Los `REEMBOLSADO`
+        siguen fuera de `cobrado` hasta que la unidad de reembolsos los reste por fecha de
+        devolución. `filtros.estados` no interviene: el estado es del listado, no del período.
+        """
+        creados = self._en_periodo(
+            select(CobroORM.estado, func.coalesce(func.sum(CobroORM.monto), CERO)),
+            CobroORM.created_at,
+            filtros,
         ).group_by(CobroORM.estado)
-        totales = {estado: monto for estado, monto in (await self._sesion.execute(sentencia)).all()}
+        totales = {estado: monto for estado, monto in (await self._sesion.execute(creados)).all()}
+
+        pagados = self._en_periodo(
+            select(func.coalesce(func.sum(CobroORM.monto), CERO)).where(
+                CobroORM.estado == EstadoCobro.APROBADO.value
+            ),
+            CobroORM.fecha_pago,
+            filtros,
+        )
+        cobrado = (await self._sesion.execute(pagados)).scalar_one()
         return MetricasDeCobros(
-            cobrado=totales.get(EstadoCobro.APROBADO.value, CERO),
+            cobrado=cobrado,
             pendiente=totales.get(EstadoCobro.PENDIENTE.value, CERO),
             en_mora=totales.get(EstadoCobro.VENCIDO.value, CERO),
+            cobrado_de_lo_creado=totales.get(EstadoCobro.APROBADO.value, CERO),
         )
 
     async def de_comprobante(self, comprobante_id: UUID) -> list[Cobro]:
@@ -171,11 +206,20 @@ class RepositorioCobroPostgres:
         return [_a_dominio(fila) for fila in filas]
 
     @staticmethod
-    def _con_filtros(sentencia: _Sentencia, filtros: FiltrosDeCobro) -> _Sentencia:
+    def _en_periodo(
+        sentencia: _Sentencia,
+        columna: InstrumentedAttribute[datetime] | InstrumentedAttribute[datetime | None],
+        filtros: FiltrosDeCobro,
+    ) -> _Sentencia:
         if filtros.desde is not None:
-            sentencia = sentencia.where(CobroORM.created_at >= filtros.desde)
+            sentencia = sentencia.where(columna >= filtros.desde)
         if filtros.hasta is not None:
-            sentencia = sentencia.where(CobroORM.created_at <= filtros.hasta)
+            sentencia = sentencia.where(columna <= filtros.hasta)
+        return sentencia
+
+    @staticmethod
+    def _con_filtros(sentencia: _Sentencia, filtros: FiltrosDeCobro) -> _Sentencia:
+        sentencia = RepositorioCobroPostgres._en_periodo(sentencia, CobroORM.created_at, filtros)
         if filtros.estados:
             sentencia = sentencia.where(
                 CobroORM.estado.in_([estado.value for estado in filtros.estados])
