@@ -36,9 +36,24 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agenda y recursos | agenda-y-recursos | scheduling | HU-E7-01 … HU-E7-06, HU-E6-07 | cobros-y-recordatorios | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
 | Agente de WhatsApp y atención humana | agente-y-atencion-humana | conversational | HU-E8-01 … HU-E8-05, HU-E9-01, HU-E9-02, HU-E9-04, HU-E11-02, HS-T2, HS-T7 | agenda-y-recursos | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
 | Reportería y paquete contable | reporteria-y-paquete-contable | reporting | HU-E10-01 … HU-E10-06 | agente-y-atencion-humana | vichen12 | feature/payments-cobros-agenda-agente-y-reportes | mergeada |
-| Reportería y paquete contable | reporte-fallido-persistido | reporting | HU-E10-03 | — | — | — | pendiente |
+| Reportería y paquete contable | reporte-fallido-persistido | reporting | HU-E10-03 | — | Luciano | fix/reporting-reporte-fallido-persistido | en revisión |
+| Reportería y paquete contable | paquete-fallido-visible | reporting | HU-E10-04 | reporte-fallido-persistido | — | — | pendiente |
 | Panel de auditoría y notificaciones | panel-de-auditoria-y-notificaciones | observability | HU-E12-01, HU-E12-02, HU-E11-03, HU-E9-03 | reporteria-y-paquete-contable | vichen12 | feature/observability-panel-de-auditoria | mergeada |
 | Cobros y recordatorios | cancelacion-invalida-el-link | payments | HU-E6-04, HS-T1 | cobros-y-recordatorios | Cristian | fix/payments-cancelacion-invalida-el-link | en revisión |
+| Cimientos, identidad y bitácora | revocacion-inmediata-de-sesion | identity | HU-E1-05, HU-E1-06 | — | — | — | pendiente |
+| Cimientos, identidad y bitácora | terminos-y-privacidad | identity | HU-E1-03, HU-E1-08 | — | — | — | pendiente |
+| Catálogo de clientes y servicios | duracion-de-servicios | master_data | HU-E4-02 | — | — | — | pendiente |
+| Catálogo de clientes y servicios | normalizacion-de-datos | master_data | HU-E4-05, HU-E4-01, HU-E3-03, HU-E3-04, HU-E3-07 | — | — | — | pendiente |
+| Facturación electrónica | tipos-de-comprobante-por-receptor | billing | HU-E5-03, HU-E5-02, HU-E5-04 | — | — | — | pendiente |
+| Facturación electrónica | arca-homologacion-completa | billing | HU-E5-03 | tipos-de-comprobante-por-receptor | — | — | pendiente |
+| Cobros y recordatorios | nuevo-cobro-desde-su-panel | payments | HU-E6-03 | — | — | — | pendiente |
+| Cobros y recordatorios | fecha-de-pago | payments | HU-E6-01, HU-E6-02 | — | — | — | pendiente |
+| Cobros y recordatorios | reembolsos-parciales-y-manuales | payments | HU-E6-05 | fecha-de-pago | — | — | pendiente |
+| Cobros y recordatorios | cobro-por-transferencia | payments | HU-E6-08 | reembolsos-parciales-y-manuales | — | — | pendiente |
+| Agenda y recursos | turnos-no-en-el-pasado | scheduling | HU-E7-06, HU-E7-02, HU-E8-01 | — | — | — | pendiente |
+| Agenda y recursos | limites-e-intervalo-de-turnos | scheduling | HU-E7-04, HU-E7-06 | turnos-no-en-el-pasado | — | — | pendiente |
+| Agente de WhatsApp y atención humana | comprobante-por-whatsapp | conversational | HU-E8-06, HU-E8-05 | cobro-por-transferencia | — | — | pendiente |
+| Reportería y paquete contable | indicadores-de-cobranza | reporting | HU-E10-01 | fecha-de-pago | — | — | pendiente |
 | Cobros y recordatorios | reembolso-rechazado-persistido | payments | HU-E6-05 | — | — | — | pendiente |
 
 
@@ -114,6 +129,46 @@ Consecuencias, explícitas para que nadie las descubra después:
   Eso se mapeará como unidad del épico 2, no acá.
 - Un CUIT estructuralmente válido pero inexistente en ARCA **entra al sistema** hasta entonces. Es
   aceptable porque ningún comprobante se emite antes del épico 5, y la emisión revalida contra ARCA.
+
+### Decisión D83 — los términos los acepta la empresa; la política de privacidad la acepta cada usuario · ADR-0009
+
+HU-E1-03 RN-03 pedía una nueva aceptación «al usuario», pero `terminos_version` y
+`terminos_fecha_aceptacion` son atributos de `empresa` (RN-01 y DER). Y la revisión de 2026-09 sumó
+la política de privacidad conforme a la Ley 25.326 (HU-E1-08), que el catálogo no tenía.
+
+**Los términos son un vínculo contractual con la empresa, y los re-acepta un Administrador; los
+demás roles no se bloquean. La política es un consentimiento personal, y lo acepta cada Usuario.**
+Los invitados aceptan solo la política, porque el contrato es de la empresa; el Contador externo
+no es Usuario y solo ve un aviso con el enlace. Las dos páginas son públicas, versionadas y con
+ruta estable: el enlace `/terminos` responde hoy 404, lo que vuelve informada solo en apariencia la
+aceptación de RN-02. La casilla de la política es propia, sin marcar y separada de la de términos.
+
+La empresa no puede otorgar por sus usuarios un consentimiento que es personal. El texto de la
+política incluye la verificación de la identidad del pagador contra MercadoPago (D94), y su
+contenido se valida con asesoría legal antes de publicarse.
+
+**Modelo, para el Gate 1 de `terminos-y-privacidad`:** el DER no tiene dónde guardar aceptaciones
+por usuario. Hace falta una tabla, por ejemplo `aceptacion_legal` (`usuario_id`, `documento`,
+`version`, `fecha_aceptacion`), sin guardar IP. También se resuelven dónde viven los textos
+versionados y el código de pantalla de la política (`PAN-LEG-01`, a asignar).
+
+**Lo que se paga:** un bloqueo más en el ingreso de cada usuario cuando cambia la versión, y dos
+rutas públicas que hay que mantener siempre disponibles.
+
+### Decisión D84 — cambiar el rol o desactivar a un usuario se evalúa en su siguiente solicitud · ADR-0009
+
+HU-E1-05 RN-01 y HU-E1-06 RN-01 piden efecto inmediato. El token de acceso corto deja hoy una
+ventana de hasta 15 minutos en la que rige el rol o el estado anterior. La historia ya decía lo
+correcto; lo que falla es la implementación, y por eso solo ganó criterios verificables.
+
+**El rol y el estado del usuario se evalúan contra el estado actual en cada solicitud, no contra lo
+que dice el token.** Desactivar a un usuario revoca además sus sesiones renovables, y el intento de
+renovar una sesión de un usuario desactivado se rechaza y lleva al inicio de sesión.
+
+**Para el Gate 1 de `revocacion-inmediata-de-sesion`:** el mecanismo (consultar el usuario en cada
+solicitud, o una versión de sesión con caché corta) se elige midiendo su costo por solicitud. Si
+cambia el esquema de autenticación, necesita su propio ADR antes de cerrar el Gate 1
+(`docs/adr/README.md`). El refresh opaco rotativo con detección de reuso no cambia.
 
 ### Estado
 
@@ -384,6 +439,51 @@ Se resuelve igual, porque funcionó: se construyen con el catálogo de component
 tokens ya importados, reusando el listado y el formulario que `usuarios-y-preferencias` dejó en el
 sistema de diseño. Si el prototipo aparece, se ajustan. No es una decisión de este mapa; se anota
 para que nadie lo descubra a mitad de la unidad y crea que falta un insumo.
+
+### Decisión D85 — el formato de los datos se normaliza una sola vez, en la entrada común de `master_data` · ADR-0009
+
+Panel, planilla y agente escriben `Cliente`, `Servicio` y `CategoriaEmpresa`, y cada camino los
+guardaba como llegaban. Eso produce duplicados aparentes («Vip» y «VIP») y falsos cambios en la
+resincronización (HU-E4-05, HU-E3-03, HU-E3-04, HU-E3-07, HU-E4-01).
+
+**La normalización es una regla de dominio de `master_data`, idempotente, y se aplica una sola vez
+en el punto de entrada común, sea cual sea el camino.** Ingesta y agente la alcanzan por la capa de
+`application` de `master_data` (R3). En la resincronización se compara el valor normalizado de la
+planilla con el normalizado almacenado, de modo que una diferencia que desaparece al normalizar no
+es un cambio; la planilla original nunca se reescribe (ADR-007, HU-E3-07 RN-02). Los identificadores
+que ya se normalizan (email, teléfono, CUIT en `shared/`) se citan y no se rehacen. Los textos libres
+solo reciben la limpieza de espacios, y los comprobantes emitidos nunca se modifican porque sus datos
+están desnormalizados a propósito.
+
+Las reglas de mayúsculas de HU-E4-05 son deliberadas: una palabra se capitaliza solo si viene toda en
+mayúsculas o toda en minúsculas, de modo que «McDonald» se preserva; las siglas societarias y las
+palabras en mayúsculas de hasta 4 letras se conservan; y un cliente es razón social si su CUIT
+empieza con 30, 33 o 34.
+
+**Para el Gate 1 de `normalizacion-de-datos`:**
+
+- Dónde vive el normalizador (funciones puras del dominio) y cómo se cablean las tres entradas.
+- La unicidad de categoría y de CUIT pasa a evaluarse sobre el valor normalizado, sin distinguir
+  mayúsculas; el índice único actual de categoría hay que revisarlo.
+- La corrección única de datos existentes: informe previo (dry-run), respaldo restaurable de los
+  valores originales —y dónde se guarda—, los casos que colisionarían con una unicidad se informan y no
+  se cambian, y no toca comprobantes ni hojas.
+
+**Lo que se paga:** falsos positivos de siglas («SUR» queda en mayúsculas) y que las tildes no se
+agreguen ni se quiten nunca, así que «Maria» no se corrige a «María».
+
+### Decisión D86 — un servicio agendable dura entre 5 y 480 minutos · ADR-0009
+
+HU-E4-02 RN-03 exige duración a los servicios agendables, pero ninguna regla la acotaba, y esa
+duración es la del turno (D96) y decide la grilla de la agenda.
+
+**La duración estándar es un entero de minutos entre 5 y 480, en panel, ingesta de planilla y agente
+por igual** (HU-E4-02 RN-05). Una fila de planilla fuera de rango se marca con error y no aborta el
+resto del procesamiento (HU-E3-03 RN-02).
+
+**Para el Gate 1 de `duracion-de-servicios`:** el invariante vive en el dominio de `Servicio` y se
+refuerza con una restricción en la base. Hay que decidir qué se hace con los servicios existentes
+que estén fuera de rango (informe previo y corrección explícita, sin cambios silenciosos).
 
 ### Lo que se alinea de paso
 
@@ -736,6 +836,80 @@ comprobante emitido ayer se valide contra la tabla de hoy.
 
 **Lo que se paga:** si el régimen cambia de verdad, es un release y no una fila. Ha pasado
 dos veces en veinte años.
+
+### Decisión D87 — el tipo de comprobante sale de la condición del receptor, y el padrón es la fuente de verdad · ADR-0009
+
+D16 dejó la tabla de tipos válidos en el dominio de `billing`. Esta decisión la completa y no la
+contradice: sigue siendo un release y no una fila (HU-E5-03 RN-01, HU-E5-02, HU-E5-04).
+
+**Tabla.** Responsable Inscripto emite Factura A a Responsable Inscripto y a Monotributo (RG 5003/2021,
+con la leyenda de la Ley 27.618 en el detalle y en el PDF), y Factura B a Exento y a Consumidor Final;
+Monotributo y Exento emiten siempre Factura C.
+
+**El padrón de ARCA es la fuente de verdad de la condición del receptor.** Se consulta con el CUIT y se
+reconsulta al confirmar la emisión: si difiere del resultado mostrado, se pide reconfirmar el tipo. La
+condición del catálogo de clientes es dato de referencia y se actualiza con la del padrón, con registro
+en la bitácora. Si el padrón no responde se usa la última condición confirmada, con su fecha; si nunca
+hubo una, la emisión se bloquea. El comprobante guarda la condición usada, su origen y su fecha, y todo
+comprobante y nota de crédito informa a ARCA `CondicionIVAReceptorId` (RG 5616/2024). Un CUIT existente
+sin inscripción se trata como Consumidor Final o «IVA No Alcanzado», y no bloquea; uno inexistente sí.
+El concepto es «Servicios», con período y vencimiento de pago obligatorios y, si nace de un turno, con
+valores por defecto.
+
+**Un receptor «IVA No Alcanzado» con emisor Responsable Inscripto recibe Factura B**, regla que
+`arca-homologacion-completa` (D90) verifica contra homologación antes de darla por cerrada. Y HU-E5-03
+ya no admite crear el cliente en el momento: el cliente existe en Datos Maestros (mismo criterio que
+D92).
+
+Fuentes de los hechos fiscales: RG 5003/2021, RG 5616/2024 y el manual WSFEv1 v4.7 del 2026-09-01.
+
+**Modelo, para el Gate 1 de `tipos-de-comprobante-por-receptor`:** el enum `condicion_iva` no tiene
+`IVA_NO_ALCANZADO`; `comprobante` no tiene concepto, período del servicio, vencimiento de pago ni
+origen y fecha de la condición del receptor; `cliente` no guarda la fecha de última confirmación por
+padrón. La consulta al padrón sigue por `integrations` (ADR-0003).
+
+**Lo que se paga:** una llamada más al padrón al confirmar, y que cambiar la tabla sea un release.
+
+### Decisión D88 — en Factura C, el precio del catálogo es el precio final · ADR-0009
+
+El catálogo guarda el precio sin IVA y una alícuota (0, 10,5 o 21 %; HU-E4-02 RN-01 y RN-02), pero la
+Factura C no discrimina IVA (HU-E5-03 RN-12).
+
+**Para emisores Monotributo y Exento el precio del catálogo es el precio final, y la alícuota se
+ignora:** no se muestra ni se aplica, el IVA es cero y el total es igual al subtotal. El redondeo por
+ítem de D15 sigue rigiendo. Aplicar la alícuota inflaría el total de un comprobante que no puede
+discriminarla.
+
+**Para el Gate 1 de `tipos-de-comprobante-por-receptor`:** cómo se etiqueta la alícuota en la pantalla
+de servicios cuando el emisor es Monotributo o Exento, y el test de redondeo de esta rama.
+
+### Decisión D89 — la nota de crédito hereda el contexto fiscal del original · ADR-0009
+
+HU-E5-04 RN-02 ya obligaba a repetir el tipo del original. Faltaba decir qué más hereda y qué no
+(HU-E5-04 RN-06 y RN-07).
+
+**La nota de crédito hereda el tipo, la condición IVA del receptor, la leyenda y, si corresponde, el
+período de servicio y el vencimiento de pago. No reconsulta el padrón, y la condición heredada es la
+que se informa a ARCA.** Revierte ese comprobante, no el estado actual del receptor. Puede iniciarse
+desde el aviso de reembolso de un cobro (D93) con el original precargado, y nunca se emite sola: es un
+documento fiscal irreversible.
+
+**Para el Gate 1:** el acceso directo desde el reembolso es un enlace a una ruta con el id del
+comprobante, no un import entre features del frontend (R5).
+
+### Decisión D90 — `arca-homologacion-completa` cierra contra homologación, no contra fixtures · ADR-0009
+
+La tabla de D87 se apoya en normativa; solo homologación dice qué acepta ARCA. Los tests no tocan la
+red (`CLAUDE.md` §5), así que esa verificación no puede vivir en el CI.
+
+**Una unidad aparte, que depende de `tipos-de-comprobante-por-receptor`, recorre en homologación cada
+combinación de emisor y receptor de la tabla, más el receptor «IVA No Alcanzado» y el campo de
+condición del receptor por tipo, y deja escritos los códigos que ARCA acepta o rechaza.** De ahí salen
+los fixtures de contrato que después sí corren en CI.
+
+**Para el Gate 1:** las credenciales de homologación y los puntos de venta de prueba que se usan, y qué
+se hace si ARCA rechaza una combinación que la norma permite: se corrige la tabla de D87 con un release
+y no se emite ese tipo hasta entonces.
 
 ### Preguntas que resuelve el Gate 1 de cada unidad
 

@@ -40,11 +40,13 @@ from cheatsheet.contexts.reporting.domain.paquete import (
     TokenDeAccesoContable,
 )
 from cheatsheet.contexts.reporting.domain.reporte import MENSAJE_SIN_DATOS
+from cheatsheet.contexts.reporting.infrastructure import ensamblado
 from cheatsheet.contexts.reporting.infrastructure.acceso import EnlaceContableAleatorio
 from cheatsheet.contexts.reporting.infrastructure.repositories import (
     RepositorioPaquetePostgres,
     RepositorioTokenContablePostgres,
 )
+from cheatsheet.platform.almacenamiento import AlmacenamientoEnMemoria, ArchivoGuardado
 from cheatsheet.platform.database import crear_sessionmaker, sesion_de_empresa
 from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.empresa import EmpresaId
@@ -245,6 +247,76 @@ async def test_un_formato_que_el_tipo_no_admite_se_rechaza(
         json={"tipo": "OPERACIONES", "formato": "PDF"},
     )
     assert respuesta.status_code == 422
+
+
+class _AlmacenamientoQueFalla:
+    """Object storage that can be switched between failing and working mid-test."""
+
+    def __init__(self) -> None:
+        self.falla = True
+        self._real = AlmacenamientoEnMemoria()
+
+    async def guardar(
+        self, *, clave: str, contenido: bytes, tipo_de_contenido: str
+    ) -> ArchivoGuardado:
+        if self.falla:
+            raise RuntimeError("el almacenamiento no responde")
+        return await self._real.guardar(
+            clave=clave, contenido=contenido, tipo_de_contenido=tipo_de_contenido
+        )
+
+    async def leer(self, clave: str) -> bytes:
+        return await self._real.leer(clave)
+
+
+def _almacenamiento_que_falla(monkeypatch: pytest.MonkeyPatch) -> _AlmacenamientoQueFalla:
+    falso = _AlmacenamientoQueFalla()
+    monkeypatch.setattr(ensamblado, "almacenamiento", lambda *_, **__: falso)
+    return falso
+
+
+@pytest.mark.asyncio
+async def test_un_reporte_que_falla_queda_en_el_historial_como_fallido(
+    cliente_http: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D65: the `FALLIDO` row is committed before the error is answered, not rolled back."""
+    _almacenamiento_que_falla(monkeypatch)
+    token, _ = await _sesion_admin(cliente_http)
+
+    respuesta = await cliente_http.post(
+        "/reporteria/reportes",
+        headers=_auth(token),
+        json={"tipo": "OPERACIONES", "formato": "CSV"},
+    )
+    assert respuesta.status_code == 422, respuesta.text
+    assert respuesta.json()["error"] == "GeneracionFallida"
+
+    historial = await cliente_http.get("/reporteria/reportes", headers=_auth(token))
+    reportes = historial.json()["reportes"]
+    assert len(reportes) == 1
+    assert reportes[0]["estado"] == "FALLIDO"
+    assert reportes[0]["descargable"] is False
+
+
+@pytest.mark.asyncio
+async def test_volver_a_pedir_un_reporte_fallido_crea_otra_fila(
+    cliente_http: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D65 end to end: a failed report is never retried on the same row."""
+    almacenamiento = _almacenamiento_que_falla(monkeypatch)
+    token, _ = await _sesion_admin(cliente_http)
+    pedido = {"tipo": "OPERACIONES", "formato": "CSV"}
+
+    fallido = await cliente_http.post("/reporteria/reportes", headers=_auth(token), json=pedido)
+    assert fallido.status_code == 422, fallido.text
+
+    almacenamiento.falla = False
+    listo = await cliente_http.post("/reporteria/reportes", headers=_auth(token), json=pedido)
+    assert listo.status_code == 201, listo.text
+
+    historial = await cliente_http.get("/reporteria/reportes", headers=_auth(token))
+    estados = sorted(uno["estado"] for uno in historial.json()["reportes"])
+    assert estados == ["FALLIDO", "LISTO"]
 
 
 # ------------------------------------------------------------------ el paquete contable
