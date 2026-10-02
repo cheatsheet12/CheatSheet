@@ -136,7 +136,10 @@ class ConfirmarPago:
         # El link queda desactivado por el estado (`tiene_link_activo`), sin borrar la
         # preferencia: es lo que ata una notificación tardía a esta fila, y sin ella el
         # webhook siguiente diría «no es de esta empresa» sobre un cobro que sí lo es.
-        cobro.aprobar(payment_id=pago.payment_id, ahora=ahora)
+        # `fecha_aprobacion` es cuándo pagó el cliente (D91). Si MercadoPago no la informó o
+        # no es plausible, el dominio usa `ahora` y marca la fecha como aproximada: un dato
+        # ilegible nunca rompe el webhook.
+        cobro.aprobar(payment_id=pago.payment_id, ahora=ahora, fecha_pago=pago.fecha_aprobacion)
         await self._cobros.guardar(cobro)
 
         # HS-T1 RN-03. Dentro de la misma transacción que la aprobación: un saldo que baja en

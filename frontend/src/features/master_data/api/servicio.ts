@@ -39,6 +39,7 @@ export interface DatosDeServicio {
   readonly precio: string;
   readonly alicuota_iva: AlicuotaIVA;
   readonly agendable: boolean;
+  /** Whole minutes. The form refuses non-integer text; the 5-to-480 range is the backend's. */
   readonly duracion_estandar_min?: number | null;
 }
 

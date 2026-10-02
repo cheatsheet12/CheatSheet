@@ -24,9 +24,16 @@ import {
   generarCobro,
 } from "../api/cobro";
 
+/** PAN-COB-03: el texto de la historia para el botón sin cliente elegido. */
+const MENSAJE_SIN_CLIENTE = "Debe seleccionar un cliente.";
+
 export interface PropsDeNuevoCobro {
-  /** A quién se le cobra. Se elige antes de llegar acá, como en la emisión. */
-  readonly clienteId: string;
+  /**
+   * A quién se le cobra, o `null` mientras no se eligió. Lo elige el selector que la página
+   * pone arriba (la URL es la fuente de verdad): este formulario no importa nada de
+   * `master_data` (R5), solo recibe el id y se niega a generar sin él.
+   */
+  readonly clienteId: string | null;
   /** HU-E6-06: los comprobantes con saldo, para poder asociar el cobro a uno. */
   readonly comprobantes: readonly { readonly id: string; readonly etiqueta: string }[];
 }
@@ -36,30 +43,45 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
   const [descripcion, setDescripcion] = useState("");
   const [monto, setMonto] = useState("");
   const [comprobanteId, setComprobanteId] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // El error recuerda de que cliente era: un rechazo del backend («el comprobante no
+  // corresponde al cliente elegido») no debe quedar colgado cuando se elige otro cliente.
+  const [fallido, setFallido] = useState<{ mensaje: string; clienteId: string } | null>(null);
   const [generando, setGenerando] = useState(false);
 
+  const error = fallido !== null && fallido.clienteId === clienteId ? fallido.mensaje : null;
+  const sinCliente = clienteId === null;
   const sinConcepto = descripcion.trim() === "";
+  // Al cambiar de cliente los comprobantes ofrecidos cambian, y el elegido puede ya no estar:
+  // no se manda el comprobante de Ana con el cobro de Bruno. Lo escrito no se pierde.
+  const comprobanteVigente = comprobantes.some((uno) => uno.id === comprobanteId)
+    ? comprobanteId
+    : "";
   // `Number` sólo para decidir si el botón está gris: lo que viaja es el texto, y quien
   // decide si el monto vale es el backend.
   const montoInvalido = monto.trim() === "" || !(Number(monto) > 0);
 
   async function generar(): Promise<void> {
-    setError(null);
+    if (clienteId === null) {
+      return;
+    }
+    setFallido(null);
     setGenerando(true);
     try {
       const cobro = await generarCobro({
         cliente_id: clienteId,
         monto,
         descripcion,
-        comprobante_id: comprobanteId === "" ? null : comprobanteId,
+        comprobante_id: comprobanteVigente === "" ? null : comprobanteVigente,
       });
       // Derecho al detalle: es la pantalla que muestra el link recién generado.
       router.push(`/cobros/${cobro.id}`);
     } catch (fallo) {
       // «No se pudo generar el link de pago. Intente nuevamente.» y «El monto no puede superar
       // el saldo pendiente del comprobante.» llegan por acá, con el texto del backend.
-      setError(fallo instanceof ErrorDeCobro ? fallo.message : "No se pudo generar el cobro.");
+      setFallido({
+        mensaje: fallo instanceof ErrorDeCobro ? fallo.message : "No se pudo generar el cobro.",
+        clienteId,
+      });
     } finally {
       setGenerando(false);
     }
@@ -111,18 +133,23 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
                 { valor: "", etiqueta: "Sin comprobante" },
                 ...comprobantes.map((uno) => ({ valor: uno.id, etiqueta: uno.etiqueta })),
               ]}
-              value={comprobanteId}
+              value={comprobanteVigente}
               onChange={(evento) => setComprobanteId(evento.target.value)}
             />
           )}
 
+          {sinCliente && <Alert tono="neutral">{MENSAJE_SIN_CLIENTE}</Alert>}
           {sinConcepto && <Alert tono="neutral">{MENSAJE_SIN_CONCEPTO}</Alert>}
 
           <div className="dm-formulario__acciones">
             <Button variante="secundario" onClick={() => router.push("/cobros")}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={sinConcepto || montoInvalido} cargando={generando}>
+            <Button
+              type="submit"
+              disabled={sinCliente || sinConcepto || montoInvalido}
+              cargando={generando}
+            >
               Generar link de pago
             </Button>
           </div>

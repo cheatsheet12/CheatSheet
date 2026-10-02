@@ -14,6 +14,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -97,7 +98,21 @@ class ServicioORM(Base):
 
     # No unique index: services have no uniqueness rule. Two branches may both sell a
     # "Corte", and no story says otherwise.
-    __table_args__ = (Index("ix_servicio_empresa", "empresa_id"),)
+    #
+    # The duration rule (HU-E4-02: 5 to 480 minutes for a bookable service, none otherwise)
+    # is the same text as migration 0025, which adds it `NOT VALID` so rows written before
+    # it are reported instead of blocking the upgrade. Declared here so the metadata and
+    # Alembic agree. `IS NOT NULL` in the first branch is deliberate: a CHECK passes on
+    # `NULL`, and without it a bookable service with no duration would satisfy the rule.
+    __table_args__ = (
+        Index("ix_servicio_empresa", "empresa_id"),
+        CheckConstraint(
+            "(agendable AND duracion_estandar_min IS NOT NULL "
+            "AND duracion_estandar_min BETWEEN 5 AND 480) "
+            "OR (NOT agendable AND duracion_estandar_min IS NULL)",
+            name="ck_servicio_duracion_en_rango",
+        ),
+    )
 
 
 TABLA_CATEGORIA = "categoria_empresa"

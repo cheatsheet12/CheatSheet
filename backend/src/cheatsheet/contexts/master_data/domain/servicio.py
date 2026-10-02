@@ -39,6 +39,16 @@ CENTAVOS = Decimal("0.01")
 MENSAJE_PRECIO = "El precio debe ser mayor a cero."
 MENSAJE_DURACION = "La duracion es obligatoria para servicios agendables."
 
+#: HU-E4-02 / HU-E3-03: how long a bookable service may take. Named apart from scheduling's
+#: `DURACION_MAXIMA_MIN` (the ceiling of one *turno*, another rule): the whole range fits
+#: inside it, and neither constant should be mistaken for the other.
+DURACION_MINIMA_MIN = 5
+DURACION_MAXIMA_DEL_SERVICIO_MIN = 480
+MENSAJE_RANGO_DURACION = (
+    f"La duracion debe estar entre {DURACION_MINIMA_MIN} y "
+    f"{DURACION_MAXIMA_DEL_SERVICIO_MIN} minutos."
+)
+
 
 @dataclass(slots=True)
 class Servicio:
@@ -105,10 +115,12 @@ class Servicio:
         self.alicuota_iva = alicuota
         self.actualizado_en = momento
 
-    def volver_agendable(self, duracion_estandar_min: int, momento: datetime) -> None:
+    def volver_agendable(self, duracion_estandar_min: int | None, momento: datetime) -> None:
         """RN-01: a bookable service declares how long it takes."""
-        self.agendable = True
+        # Validate first: a refusal must not leave the service flagged bookable with no
+        # (or a stale) duration.
         self.duracion_estandar_min = _duracion_valida(True, duracion_estandar_min)
+        self.agendable = True
         self.actualizado_en = momento
 
     def dejar_de_ser_agendable(self, momento: datetime) -> None:
@@ -169,11 +181,21 @@ def _duracion_valida(agendable: bool, duracion: int | None) -> int | None:
     The mirror is not in the story and follows from it. If a non-bookable service kept a
     duration, the two fields could disagree, and the screen that hides the field would be
     hiding a value that is still there.
+
+    **Two different messages, on purpose.** Nothing at all (`None`) is «obligatoria»; a
+    value that was typed but is not between 5 and 480 -- zero and negatives included -- is
+    the range message, because telling someone who wrote «0» that the field is missing is
+    misleading. A `bool` is refused with the range message too: `True` is an `int` in
+    Python and would otherwise pass as one minute.
     """
     if not agendable:
         return None
-    if duracion is None or duracion <= 0:
+    if duracion is None:
         raise EntradaInvalida(MENSAJE_DURACION)
+    if isinstance(duracion, bool) or not (
+        DURACION_MINIMA_MIN <= duracion <= DURACION_MAXIMA_DEL_SERVICIO_MIN
+    ):
+        raise EntradaInvalida(MENSAJE_RANGO_DURACION)
     return duracion
 
 

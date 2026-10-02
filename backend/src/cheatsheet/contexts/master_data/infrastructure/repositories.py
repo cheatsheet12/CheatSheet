@@ -77,12 +77,31 @@ def _volcar(cliente: Cliente, fila: ClienteORM) -> None:
 Consulta = Select[tuple[ClienteORM]]
 
 
+_SEPARADORES_DE_CUIT = frozenset("-. ")
+
+
+def _patron_de_cuit(texto: str) -> str:
+    """The pattern the CUIT column is compared with.
+
+    The column stores digits only and the API shows `30-71234567-1`, so a CUIT copied from
+    the screen would never match as typed. When the text is made only of digits and the
+    separators a CUIT is written with, it is reduced to its digits; anything else (a name, or
+    a name with a number in it) is compared as typed, exactly as before.
+    """
+    digitos = "".join(c for c in texto if c.isdigit())
+    parece_cuit = bool(digitos) and all(c.isdigit() or c in _SEPARADORES_DE_CUIT for c in texto)
+    return f"%{digitos if parece_cuit else texto.lower()}%"
+
+
 def _filtrar(consulta: Consulta, filtros: FiltrosDeCliente) -> Consulta:
     """The three filters PAN-DM-01 offers. The category one arrives with its own unit."""
     if filtros.texto:
         patron = f"%{filtros.texto.lower()}%"
         consulta = consulta.where(
-            or_(func.lower(ClienteORM.nombre).like(patron), ClienteORM.cuit.like(patron))
+            or_(
+                func.lower(ClienteORM.nombre).like(patron),
+                ClienteORM.cuit.like(_patron_de_cuit(filtros.texto)),
+            )
         )
     if filtros.origen is not None:
         consulta = consulta.where(ClienteORM.origen == filtros.origen.value)

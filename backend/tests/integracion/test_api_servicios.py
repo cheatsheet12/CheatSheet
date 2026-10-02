@@ -152,6 +152,53 @@ async def test_agendable_sin_duracion_responde_el_mensaje_de_la_historia(
     assert respuesta.json()["detalle"] == "La duracion es obligatoria para servicios agendables."
 
 
+RANGO_DE_DURACION = "La duracion debe estar entre 5 y 480 minutos."
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("duracion", [4, 99999])
+async def test_una_duracion_fuera_del_rango_responde_el_mensaje_de_rango(
+    cliente_http: httpx.AsyncClient, duracion: int
+) -> None:
+    """La regla vive en el dominio: llega como `detalle`, no como un 422 de Pydantic."""
+    token = await _registrar_empresa(cliente_http, "ana@empresa.com")
+
+    respuesta = await _crear(cliente_http, token, agendable=True, duracion_estandar_min=duracion)
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["detalle"] == RANGO_DE_DURACION
+
+
+@pytest.mark.asyncio
+async def test_editar_con_una_duracion_fuera_del_rango_responde_el_mensaje_de_rango(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    token = await _registrar_empresa(cliente_http, "ana@empresa.com")
+    servicio_id = (await _crear(cliente_http, token)).json()["id"]
+
+    respuesta = await cliente_http.put(
+        f"/servicios/{servicio_id}",
+        json=_cuerpo(agendable=True, duracion_estandar_min=481),
+        headers=_auth(token),
+    )
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["detalle"] == RANGO_DE_DURACION
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("duracion", [5, 480])
+async def test_los_limites_de_la_duracion_se_aceptan(
+    cliente_http: httpx.AsyncClient, duracion: int
+) -> None:
+    token = await _registrar_empresa(cliente_http, "ana@empresa.com")
+
+    respuesta = await _crear(cliente_http, token, agendable=True, duracion_estandar_min=duracion)
+
+    assert respuesta.status_code == 201, respuesta.text
+    assert respuesta.json()["duracion_estandar_min"] == duracion
+
+
 @pytest.mark.asyncio
 async def test_una_alicuota_que_no_esta_en_el_enum_se_rechaza(
     cliente_http: httpx.AsyncClient,

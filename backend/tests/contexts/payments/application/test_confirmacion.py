@@ -27,10 +27,13 @@ from cheatsheet.contexts.payments.application.confirmacion import (
     ConfirmarPago,
     RegistrarWebhookRechazado,
 )
+from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
 from cheatsheet.contexts.payments.application.ports import (
+    EstadoDeReembolso,
     FiltrosDeCobro,
     MetricasDeCobros,
     PagoRecibido,
+    RespuestaDeReembolso,
 )
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDePago
 from cheatsheet.shared.auditoria import EventoAuditable, Resultado
@@ -56,6 +59,9 @@ class CobrosFalsos:
     def __init__(self) -> None:
         self.guardados: dict[UUID, Cobro] = {}
         self.escrituras: list[UUID] = []
+        #: Los cobros que se cargaron con bloqueo de fila: todo camino que suma plata tiene que
+        #: estar acá, o dos reembolsos simultáneos se pisan el acumulado.
+        self.bloqueados: list[UUID] = []
 
     async def agregar(self, cobro: Cobro) -> None:
         self.guardados[cobro.id] = cobro
@@ -65,6 +71,11 @@ class CobrosFalsos:
         self.escrituras.append(cobro.id)
 
     async def buscar_por_id(self, cobro_id: UUID) -> Cobro | None:
+        return self.guardados.get(cobro_id)
+
+    async def buscar_para_actualizar(self, cobro_id: UUID) -> Cobro | None:
+        """`SELECT ... FOR UPDATE` en la base; acá solo anota que se pidió con bloqueo."""
+        self.bloqueados.append(cobro_id)
         return self.guardados.get(cobro_id)
 
     async def buscar_por_payment_id(self, payment_id: str) -> Cobro | None:
@@ -87,7 +98,10 @@ class CobrosFalsos:
     async def metricas(self, filtros: FiltrosDeCobro) -> MetricasDeCobros:
         del filtros
         return MetricasDeCobros(
-            cobrado=Decimal("0.00"), pendiente=Decimal("0.00"), en_mora=Decimal("0.00")
+            cobrado=Decimal("0.00"),
+            pendiente=Decimal("0.00"),
+            en_mora=Decimal("0.00"),
+            cobrado_de_lo_creado=Decimal("0.00"),
         )
 
     async def de_comprobante(self, comprobante_id: UUID) -> list[Cobro]:
@@ -107,25 +121,50 @@ class CobrosFalsos:
 class PasarelaFalsa:
     """Cuenta las consultas: es lo que hace afirmable la propiedad central de D20."""
 
-    def __init__(self, *, estado: str = "approved", preferencia: str | None = "pref-1") -> None:
+    def __init__(
+        self,
+        *,
+        estado: str = "approved",
+        preferencia: str | None = "pref-1",
+        fecha_aprobacion: datetime | None = None,
+    ) -> None:
         self.estado = estado
         self.preferencia = preferencia
+        #: Lo que MercadoPago diría en `date_approved`. `None` es «no lo informó o no se leyó».
+        self.fecha_aprobacion = fecha_aprobacion
         self.consultas = 0
+        #: Cuantas veces se pidio un link: un cliente invalido no debe gastar ninguna.
+        self.creados = 0
         #: Con qué preferencias se llamó a `invalidar_link`. Lo que hace afirmable RN-03 de
         #: HU-E6-04: que la cancelación no se quedó en una anotación nuestra.
         self.invalidados: list[str] = []
+        #: Lo que MercadoPago contesta a un reembolso y a su consulta. Una excepción se levanta:
+        #: es «MercadoPago no respondió».
+        self.respuesta_de_reembolso: RespuestaDeReembolso | PasarelaNoDisponible = (
+            RespuestaDeReembolso(estado=EstadoDeReembolso.ACEPTADO, mp_refund_id="ref-1")
+        )
+        self.respuesta_de_consulta: RespuestaDeReembolso | PasarelaNoDisponible = (
+            RespuestaDeReembolso(estado=EstadoDeReembolso.ACEPTADO, mp_refund_id="ref-1")
+        )
+        #: `(payment_id, monto, clave)` de cada POST, y el id de cada consulta.
+        self.reembolsos_pedidos: list[tuple[str, Decimal, UUID]] = []
+        self.reembolsos_consultados: list[str] = []
 
     async def crear_link(
         self, *, empresa_id: EmpresaId, cobro: Cobro, url_de_retorno: str
     ) -> LinkDePago:
         del empresa_id, cobro, url_de_retorno
+        self.creados += 1
         return UN_LINK
 
     async def consultar_pago(self, *, empresa_id: EmpresaId, payment_id: str) -> PagoRecibido:
         del empresa_id
         self.consultas += 1
         return PagoRecibido(
-            payment_id=payment_id, preference_id=self.preferencia, estado=self.estado
+            payment_id=payment_id,
+            preference_id=self.preferencia,
+            estado=self.estado,
+            fecha_aprobacion=self.fecha_aprobacion,
         )
 
     async def invalidar_link(
@@ -134,23 +173,67 @@ class PasarelaFalsa:
         del empresa_id, ahora
         self.invalidados.append(preference_id)
 
-    async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:
-        del empresa_id, payment_id, monto
-        return True
+    async def reembolsar(
+        self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal, clave: UUID
+    ) -> RespuestaDeReembolso:
+        del empresa_id
+        self.reembolsos_pedidos.append((payment_id, monto, clave))
+        if isinstance(self.respuesta_de_reembolso, PasarelaNoDisponible):
+            raise self.respuesta_de_reembolso
+        return self.respuesta_de_reembolso
+
+    async def consultar_reembolso(
+        self, *, empresa_id: EmpresaId, payment_id: str, refund_id: str
+    ) -> RespuestaDeReembolso:
+        del empresa_id, payment_id
+        self.reembolsos_consultados.append(refund_id)
+        if isinstance(self.respuesta_de_consulta, PasarelaNoDisponible):
+            raise self.respuesta_de_consulta
+        return self.respuesta_de_consulta
+
+
+#: El cliente con el que los tests de cobros generan, salvo que digan otra cosa.
+CLIENTE = uuid4()
+
+
+class ClientesFalsos:
+    """`PortClienteDeCobro`. Conoce a los clientes que se le dan como activos."""
+
+    def __init__(self, *activos: UUID) -> None:
+        self.activos = set(activos)
+        self.consultas: list[UUID] = []
+
+    async def esta_activo(self, cliente_id: UUID) -> bool:
+        self.consultas.append(cliente_id)
+        return cliente_id in self.activos
 
 
 class SaldosFalsos:
-    def __init__(self, saldo: Decimal = Decimal("5000.00")) -> None:
+    def __init__(
+        self, saldo: Decimal = Decimal("5000.00"), *, cliente: UUID | None = CLIENTE
+    ) -> None:
         self.saldo = saldo
+        #: El dueno del comprobante; `None` es un comprobante que no existe.
+        self.cliente = cliente
         self.descuentos: list[tuple[UUID, Decimal]] = []
+        #: Lo que un reembolso (positivo) o su corrección (negativo) devolvió al saldo.
+        self.devoluciones: list[tuple[UUID, Decimal]] = []
 
     async def saldo_pendiente(self, comprobante_id: UUID) -> Decimal | None:
         del comprobante_id
         return self.saldo
 
+    async def cliente_de(self, comprobante_id: UUID) -> UUID | None:
+        del comprobante_id
+        return self.cliente
+
     async def registrar_cobro(self, comprobante_id: UUID, monto: Decimal) -> None:
         self.descuentos.append((comprobante_id, monto))
         self.saldo -= monto
+
+    async def registrar_reembolso(self, comprobante_id: UUID, monto: Decimal) -> None:
+        self.devoluciones.append((comprobante_id, monto))
+        self.saldo += monto
 
 
 class PublicadorFalso:
@@ -262,6 +345,102 @@ async def test_dos_ids_distintos_sobre_el_mismo_cobro_tampoco_cobran_dos_veces()
     assert segunda.ya_procesado
     assert cobro.mp_payment_id == "pago-1"
     assert len(saldos.descuentos) == 1
+
+
+# ------------------------------------------------------------------ la fecha de pago · D91
+
+
+async def test_el_cobro_guarda_la_fecha_de_aprobacion_que_informo_mercadopago() -> None:
+    """Un webhook procesado tarde no mueve el pago de período: vale cuándo pagó el cliente."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pagado_el = AHORA + timedelta(hours=1)
+    procesado_el = AHORA + timedelta(days=3)
+
+    await _confirmar(
+        cobros, PasarelaFalsa(fecha_aprobacion=pagado_el), SaldosFalsos(), PublicadorFalso()
+    ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=procesado_el)
+
+    assert cobro.fecha_pago == pagado_el
+    assert cobro.fecha_pago_aproximada is False
+
+
+async def test_sin_fecha_de_aprobacion_el_pago_se_aprueba_con_fecha_aproximada() -> None:
+    """`date_approved` ausente, `null` o ilegible llega como `None`: no rompe el webhook."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+
+    resultado = await _confirmar(
+        cobros, PasarelaFalsa(fecha_aprobacion=None), SaldosFalsos(), PublicadorFalso()
+    ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
+
+    assert resultado.aprobado
+    assert cobro.estado is EstadoCobro.APROBADO
+    assert cobro.fecha_pago == AHORA
+    assert cobro.fecha_pago_aproximada is True
+
+
+async def test_una_fecha_de_aprobacion_del_futuro_no_se_toma_por_cierta() -> None:
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+
+    resultado = await _confirmar(
+        cobros,
+        PasarelaFalsa(fecha_aprobacion=AHORA + timedelta(days=40)),
+        SaldosFalsos(),
+        PublicadorFalso(),
+    ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
+
+    assert resultado.aprobado
+    assert cobro.fecha_pago == AHORA
+    assert cobro.fecha_pago_aproximada is True
+
+
+async def test_un_webhook_repetido_no_toca_la_fecha_de_pago() -> None:
+    """Primera línea de D20: el mismo `payment_id` corta antes de tocar nada."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pagado_el = AHORA + timedelta(hours=1)
+    confirmar = _confirmar(
+        cobros, PasarelaFalsa(fecha_aprobacion=pagado_el), SaldosFalsos(), PublicadorFalso()
+    )
+
+    await confirmar.ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA + timedelta(hours=2)
+    )
+    escrituras = len(cobros.escrituras)
+    await confirmar.ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA + timedelta(days=2)
+    )
+
+    assert cobro.fecha_pago == pagado_el
+    assert len(cobros.escrituras) == escrituras
+
+
+async def test_otro_payment_id_sobre_un_cobro_cerrado_no_toca_la_fecha_de_pago() -> None:
+    """Segunda línea de D20: `ya_procesado` y la fecha intacta."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pagado_el = AHORA + timedelta(hours=1)
+    confirmar = _confirmar(
+        cobros, PasarelaFalsa(fecha_aprobacion=pagado_el), SaldosFalsos(), PublicadorFalso()
+    )
+
+    await confirmar.ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA + timedelta(hours=2)
+    )
+    segunda = await confirmar.ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-2", ahora=AHORA + timedelta(days=2)
+    )
+
+    assert segunda.ya_procesado
+    assert cobro.fecha_pago == pagado_el
+    assert cobro.fecha_pago_aproximada is False
 
 
 # ------------------------------------------------------------------ lo que no es un pago
@@ -408,8 +587,10 @@ async def test_un_pago_sobre_un_cobro_reembolsado_sigue_siendo_idempotencia() ->
     cobros, publicador = CobrosFalsos(), PublicadorFalso()
     cobro = _cobro()
     cobro.aprobar(payment_id="pago-viejo", ahora=AHORA)
-    cobro.solicitar_reembolso(monto=cobro.monto, ahora=AHORA)
-    cobro.confirmar_reembolso(monto=cobro.monto, ahora=AHORA)
+    cobro.solicitar_reembolso(monto=cobro.monto, clave=uuid4(), ahora=AHORA)
+    cobro.confirmar_reembolso(
+        reembolso_id=uuid4(), monto=cobro.monto, mp_refund_id="ref-1", fecha=None, ahora=AHORA
+    )
     await cobros.agregar(cobro)
 
     resultado = await _confirmar(cobros, PasarelaFalsa(), SaldosFalsos(), publicador).ejecutar(
@@ -418,6 +599,32 @@ async def test_un_pago_sobre_un_cobro_reembolsado_sigue_siendo_idempotencia() ->
 
     assert resultado.ya_procesado
     assert not resultado.huerfano
+    assert publicador.eventos == []
+
+
+async def test_el_webhook_de_un_pago_ya_reembolsado_no_toca_el_reembolso() -> None:
+    """Caso 19. El mismo `payment_id` es `ya_procesado` **antes** de preguntarle a MercadoPago, y
+    ni el acumulado ni el reembolso en vuelo se mueven."""
+    cobros, pasarela, publicador = CobrosFalsos(), PasarelaFalsa(), PublicadorFalso()
+    clave = uuid4()
+    cobro = _cobro()
+    cobro.aprobar(payment_id="pago-viejo", ahora=AHORA)
+    cobro.solicitar_reembolso(monto=Decimal("200.00"), clave=uuid4(), ahora=AHORA)
+    cobro.confirmar_reembolso(
+        reembolso_id=uuid4(), monto=Decimal("200.00"), mp_refund_id="ref-1", fecha=None, ahora=AHORA
+    )
+    cobro.solicitar_reembolso(monto=Decimal("100.00"), clave=clave, ahora=AHORA)
+    await cobros.agregar(cobro)
+
+    resultado = await _confirmar(cobros, pasarela, SaldosFalsos(), publicador).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-viejo", ahora=AHORA
+    )
+
+    assert resultado.ya_procesado
+    assert pasarela.consultas == 0
+    assert cobro.monto_reembolsado == Decimal("200.00")
+    assert cobro.reembolso_clave_idempotencia == clave
+    assert cobros.escrituras == []
     assert publicador.eventos == []
 
 

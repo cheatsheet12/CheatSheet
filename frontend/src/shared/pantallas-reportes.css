@@ -161,6 +161,19 @@
   margin-bottom: 26px;
 }
 
+/* El resumen de cobros de Inicio: las cuatro cifras de PAN-COB-01 en una sola fila. */
+.rep-kpis--cuatro {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Inicio sin la tarjeta de cobros: tres tarjetas ocupan el ancho, no cuatro columnas con un
+ * hueco. Sólo en ancho: abajo de 1100 px mandan los cortes de la grilla original. */
+@media (width > 1100px) {
+  .dsh-stats--tres {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .rep-kpi {
   background: var(--card);
   border: 1px solid var(--line);
@@ -353,6 +366,13 @@
   background: var(--accent-700);
 }
 
+/* Una semana en que se devolvió más de lo que se cobró. Sigue siendo una barra (su alto es la
+ * magnitud), pero con el color de lo que resta, para que no se lea como un buen resultado. */
+.rep-barras__barra--negativa,
+.rep-barras__col:hover .rep-barras__barra--negativa {
+  background: var(--err);
+}
+
 /* Una semana sin facturación no es una barra chiquita: es una barra que no está. */
 .rep-barras__barra--vacia {
   background: var(--line-2);
@@ -472,6 +492,14 @@
   font-weight: 600;
   color: var(--ink-900);
   display: block;
+}
+
+/* La cantidad de cobros, al lado del nombre del estado: apoyo, no protagonista. */
+.rep-dist__secundario {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-400);
+  margin-top: 1px;
 }
 
 .rep-dist__pista {

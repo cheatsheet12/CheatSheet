@@ -21,6 +21,7 @@ import pytest
 from cheatsheet.contexts.master_data.domain.servicio import (
     MENSAJE_DURACION,
     MENSAJE_PRECIO,
+    MENSAJE_RANGO_DURACION,
     FiltrosDeServicio,
     Servicio,
     precio_valido,
@@ -188,10 +189,33 @@ def test_un_servicio_agendable_sin_duracion_no_se_guarda() -> None:
         _servicio(agendable=True)
 
 
-@pytest.mark.parametrize("duracion", [0, -30])
-def test_una_duracion_que_no_es_positiva_tampoco(duracion: int) -> None:
-    with pytest.raises(EntradaInvalida, match=MENSAJE_DURACION):
+@pytest.mark.parametrize("duracion", [4, 481, 99999])
+def test_una_duracion_fuera_del_rango_no_se_guarda(duracion: int) -> None:
+    """HU-E4-02: entre 5 y 480 minutos."""
+    with pytest.raises(EntradaInvalida, match=MENSAJE_RANGO_DURACION):
         _servicio(agendable=True, duracion_estandar_min=duracion)
+
+
+@pytest.mark.parametrize("duracion", [0, -30])
+def test_cero_y_negativos_dan_el_mensaje_de_rango_y_no_el_de_obligatoria(duracion: int) -> None:
+    """El usuario escribio algo: decirle que falta seria enganoso."""
+    with pytest.raises(EntradaInvalida) as error:
+        _servicio(agendable=True, duracion_estandar_min=duracion)
+
+    assert str(error.value) == MENSAJE_RANGO_DURACION
+
+
+def test_un_booleano_no_es_una_duracion() -> None:
+    """`True` es un `int` en Python: sin defensa pasaria como 1 (y `False` como 0)."""
+    with pytest.raises(EntradaInvalida, match=MENSAJE_RANGO_DURACION):
+        _servicio(agendable=True, duracion_estandar_min=True)
+
+
+@pytest.mark.parametrize("duracion", [5, 480])
+def test_los_limites_del_rango_se_aceptan(duracion: int) -> None:
+    assert _servicio(agendable=True, duracion_estandar_min=duracion).duracion_estandar_min == (
+        duracion
+    )
 
 
 def test_un_servicio_no_agendable_puede_no_tener_duracion() -> None:
@@ -220,11 +244,21 @@ def test_dejar_de_ser_agendable_borra_la_duracion() -> None:
 def test_volver_agendable_exige_la_duracion() -> None:
     servicio = _servicio()
 
-    with pytest.raises(EntradaInvalida, match=MENSAJE_DURACION):
+    with pytest.raises(EntradaInvalida, match=MENSAJE_RANGO_DURACION):
         servicio.volver_agendable(0, INSTANTE_FIJO)
 
     servicio.volver_agendable(30, INSTANTE_FIJO)
     assert servicio.duracion_estandar_min == 30
+
+
+def test_volver_agendable_fuera_del_rango_rechaza_sin_dejar_el_servicio_a_medias() -> None:
+    servicio = _servicio()
+
+    with pytest.raises(EntradaInvalida, match=MENSAJE_RANGO_DURACION):
+        servicio.volver_agendable(600, INSTANTE_FIJO)
+
+    assert servicio.agendable is False
+    assert servicio.duracion_estandar_min is None
 
 
 # --- Lo que comparte con `Cliente` ----------------------------------------------------

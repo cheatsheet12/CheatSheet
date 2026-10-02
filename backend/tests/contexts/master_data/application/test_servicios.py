@@ -25,6 +25,7 @@ from cheatsheet.contexts.master_data.application.servicios import (
 from cheatsheet.contexts.master_data.domain.servicio import (
     MENSAJE_DURACION,
     MENSAJE_PRECIO,
+    MENSAJE_RANGO_DURACION,
     FiltrosDeServicio,
     ListadoDeServicios,
     Servicio,
@@ -166,6 +167,17 @@ async def test_un_agendable_sin_duracion_no_guarda(
     assert servicios.servicios == {}
 
 
+@pytest.mark.parametrize("duracion", [4, 481, 99999])
+async def test_un_agendable_fuera_del_rango_no_guarda_ni_audita(
+    servicios: RepositorioServicioEnMemoria, publicador: PublicadorFalso, duracion: int
+) -> None:
+    with pytest.raises(EntradaInvalida, match=MENSAJE_RANGO_DURACION):
+        await _alta(servicios, publicador, _datos(agendable=True, duracion=duracion))
+
+    assert servicios.servicios == {}
+    assert publicador.eventos == []
+
+
 # --- Edición -------------------------------------------------------------------------
 
 
@@ -213,6 +225,19 @@ async def test_editar_a_agendable_sin_duracion_da_el_mensaje_de_la_regla(
 
     with pytest.raises(EntradaInvalida, match=MENSAJE_DURACION):
         await _edicion(servicios, publicador, creado.id, _datos(agendable=True))
+
+
+async def test_editar_con_una_duracion_fuera_del_rango_no_guarda_ni_audita(
+    servicios: RepositorioServicioEnMemoria, publicador: PublicadorFalso
+) -> None:
+    creado = await _alta(servicios, publicador)
+    eventos_antes = len(publicador.eventos)
+
+    with pytest.raises(EntradaInvalida, match=MENSAJE_RANGO_DURACION):
+        await _edicion(servicios, publicador, creado.id, _datos(agendable=True, duracion=481))
+
+    assert servicios.servicios[creado.id].agendable is False
+    assert len(publicador.eventos) == eventos_antes
 
 
 async def test_editar_un_servicio_que_no_existe(

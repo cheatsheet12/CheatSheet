@@ -171,6 +171,26 @@ class ListarClientes:
         return ListadoDeClientes(clientes=tuple(encontrados), total=total)
 
 
+class VerCliente:
+    """One client by id. Every role that may read the catalogue may read one.
+
+    Returns an inactive client as well: whether that one is good enough for what the caller
+    is doing is the caller's decision (a payment says no, a preselected name still wants it).
+    Raises `ClienteNoEncontrado` for a missing client and for another company's alike, since
+    RLS makes the two indistinguishable and answering differently would leak which ids exist.
+    """
+
+    def __init__(self, *, clientes: PortRepositorioCliente) -> None:
+        self._clientes = clientes
+
+    async def ejecutar(self, *, rol: RolUsuario, cliente_id: UUID) -> Cliente:
+        exigir_lectura(rol)
+        cliente = await self._clientes.buscar_por_id(cliente_id)
+        if cliente is None:
+            raise ClienteNoEncontrado(f"No existe el cliente {cliente_id}")
+        return cliente
+
+
 class RegistrarCliente:
     """Create a client from the panel (RN-04: usable by the other modules at once)."""
 
@@ -388,5 +408,6 @@ __all__ = [
     "ListarClientes",
     "OrigenDato",
     "RegistrarCliente",
+    "VerCliente",
     "VistaDeCliente",
 ]

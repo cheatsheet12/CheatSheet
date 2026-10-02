@@ -215,13 +215,15 @@ class EditarServicio:
         return servicio
 
 
-def _duracion_pedida(datos: DatosDeServicio) -> int:
-    """`volver_agendable` takes an `int`, and the form may have sent nothing.
+def _duracion_pedida(datos: DatosDeServicio) -> int | None:
+    """`volver_agendable` takes whatever the form sent, including nothing.
 
-    Zero is passed through rather than short-circuited so the aggregate raises the one
-    message the acceptance criterion names, instead of this function inventing a second.
+    The value is passed through untouched -- `None` included -- so the aggregate decides
+    which of its two messages applies: «obligatoria» for an empty duration, the 5-to-480
+    range message for anything typed. This function invents neither. (It used to map
+    `None` to `0`, which was fine while `0` meant «obligatoria»; now `0` is out of range.)
     """
-    return datos.duracion_estandar_min if datos.duracion_estandar_min is not None else 0
+    return datos.duracion_estandar_min
 
 
 class CambiarEstadoDeServicio:

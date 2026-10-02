@@ -56,13 +56,25 @@ function inicial(servicio: Servicio | undefined): Campos {
   };
 }
 
-/** `""` and a non-numeric string both mean "nothing usable", and the backend decides. */
-function duracionDe(campos: Campos): number | null {
+const MENSAJE_DURACION_NO_ENTERA = "La duracion debe ser un numero entero de minutos.";
+
+/**
+ * Only the FORMAT is checked here: a non-empty duration must be digits. `parseInt` would turn
+ * "12.7" into 12 and "99999abc" into 99999 without telling anyone, and sending the text on
+ * would earn Pydantic's generic 422. The 5-to-480 rule stays in one place (the domain).
+ * An empty field is `null`: «obligatoria» is the backend's message to give.
+ */
+function formatoDeDuracionInvalido(campos: Campos): boolean {
   if (!campos.agendable) {
-    return null;
+    return false;
   }
-  const numero = Number.parseInt(campos.duracion, 10);
-  return Number.isNaN(numero) ? null : numero;
+  const escrito = campos.duracion.trim();
+  return escrito !== "" && !/^\d+$/.test(escrito);
+}
+
+function duracionDe(campos: Campos): number | null {
+  const escrito = campos.duracion.trim();
+  return campos.agendable && escrito !== "" ? Number.parseInt(escrito, 10) : null;
 }
 
 export function FormularioDeServicio({
@@ -73,12 +85,18 @@ export function FormularioDeServicio({
 }: PropsDeFormularioDeServicio): JSX.Element {
   const [campos, setCampos] = useState<Campos>(() => inicial(servicio));
   const [guardando, setGuardando] = useState(false);
+  const [errorDeDuracion, setErrorDeDuracion] = useState<string | undefined>(undefined);
 
   function cambiar<C extends keyof Campos>(clave: C, valor: Campos[C]): void {
     setCampos((previos) => ({ ...previos, [clave]: valor }));
   }
 
   async function guardar(): Promise<void> {
+    if (formatoDeDuracionInvalido(campos)) {
+      setErrorDeDuracion(MENSAJE_DURACION_NO_ENTERA);
+      return;
+    }
+    setErrorDeDuracion(undefined);
     setGuardando(true);
     try {
       await onGuardar({
@@ -155,8 +173,12 @@ export function FormularioDeServicio({
           etiqueta="Duración estándar (minutos)"
           inputMode="numeric"
           value={campos.duracion}
-          onChange={(evento) => cambiar("duracion", evento.target.value)}
-          ayuda="Obligatoria para los servicios agendables."
+          onChange={(evento) => {
+            setErrorDeDuracion(undefined);
+            cambiar("duracion", evento.target.value);
+          }}
+          {...(errorDeDuracion !== undefined ? { error: errorDeDuracion } : {})}
+          ayuda="Entre 5 y 480 minutos."
         />
       )}
 

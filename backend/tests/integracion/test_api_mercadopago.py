@@ -249,3 +249,70 @@ async def test_la_funcion_de_barrido_ve_a_la_empresa_conectada(
         empresas = [str(valor) for (valor,) in filas.all()]
 
     assert empresas == [str(_empresa_de(token))]
+
+
+# ------------------------------------------------------------------ POST /cobros · D92
+
+
+async def _crear_cliente(cliente: httpx.AsyncClient, token: str) -> str:
+    respuesta = await cliente.post("/clientes", json={"nombre": "Rosa Diaz"}, headers=_auth(token))
+    assert respuesta.status_code == 201, respuesta.text
+    return str(respuesta.json()["id"])
+
+
+def _cobro(cliente_id: str) -> dict[str, str]:
+    return {"cliente_id": cliente_id, "monto": "1210.00", "descripcion": "Consulta de septiembre"}
+
+
+@pytest.mark.asyncio
+async def test_un_cobro_a_un_cliente_que_no_existe_responde_422_con_el_texto_de_la_historia(
+    cliente: httpx.AsyncClient,
+) -> None:
+    """El rechazo ocurre antes de pedir el link: con un cliente inexistente no se gasta una
+    preferencia (el simulado no cuenta, pero el orden lo fija el test unitario del caso de uso)."""
+    token = await _registrar(cliente, "ana@empresa.com")
+
+    respuesta = await cliente.post(
+        "/cobros", json=_cobro("00000000-0000-4000-8000-000000000000"), headers=_auth(token)
+    )
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["detalle"] == "El cliente seleccionado no existe o esta inactivo."
+
+
+@pytest.mark.asyncio
+async def test_un_cobro_a_un_cliente_valido_responde_201(cliente: httpx.AsyncClient) -> None:
+    token = await _registrar(cliente, "ana@empresa.com")
+    cliente_id = await _crear_cliente(cliente, token)
+
+    respuesta = await cliente.post("/cobros", json=_cobro(cliente_id), headers=_auth(token))
+
+    assert respuesta.status_code == 201, respuesta.text
+    assert respuesta.json()["cliente_id"] == cliente_id
+
+
+@pytest.mark.asyncio
+async def test_un_cobro_a_un_cliente_inactivo_responde_422(cliente: httpx.AsyncClient) -> None:
+    token = await _registrar(cliente, "ana@empresa.com")
+    cliente_id = await _crear_cliente(cliente, token)
+    await cliente.put(
+        f"/clientes/{cliente_id}/estado", json={"activo": False}, headers=_auth(token)
+    )
+
+    respuesta = await cliente.post("/cobros", json=_cobro(cliente_id), headers=_auth(token))
+
+    assert respuesta.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_un_monto_no_finito_o_gigante_responde_422_y_no_500(
+    cliente: httpx.AsyncClient,
+) -> None:
+    token = await _registrar(cliente, "ana@empresa.com")
+    cliente_id = await _crear_cliente(cliente, token)
+
+    for monto in ("NaN", "Infinity", "100000000.01"):
+        respuesta = await cliente.post(
+            "/cobros", json={**_cobro(cliente_id), "monto": monto}, headers=_auth(token)
+        )
+        assert respuesta.status_code == 422, (monto, respuesta.text)

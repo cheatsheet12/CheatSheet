@@ -15,6 +15,10 @@ export { ConfiguracionDelPaquete } from "./components/ConfiguracionDelPaquete";
 export type { PropsDeConfiguracionDelPaquete } from "./components/ConfiguracionDelPaquete";
 export { GeneradorDeReportes } from "./components/GeneradorDeReportes";
 export type { PropsDeGeneradorDeReportes } from "./components/GeneradorDeReportes";
+export { ResumenDeCobros } from "./components/ResumenDeCobros";
+export type { PropsDeResumenDeCobros } from "./components/ResumenDeCobros";
+export { SelectorDePeriodo } from "./components/SelectorDePeriodo";
+export type { PropsDeSelectorDePeriodo } from "./components/SelectorDePeriodo";
 export { Tablero } from "./components/Tablero";
 export type { PropsDeTablero } from "./components/Tablero";
 export {
@@ -39,6 +43,7 @@ export {
 export type {
   EstadoReporte,
   FormatoReporte,
+  CobrosDeUnEstado,
   ListadoDeReportes,
   Metrica,
   Previsualizacion,

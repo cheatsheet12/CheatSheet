@@ -42,7 +42,7 @@ vi.mock("next/navigation", () => ({
   notFound: () => notFound(),
   // PAN-COB-03 lleva al detalle despues de generar. En SSR el router no existe, y sin este
   // doble el formulario ni siquiera se renderiza.
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 const PaginaDeCobros = (await import("@/app/(panel)/cobros/page")).default;
@@ -61,23 +61,39 @@ const METRICAS = {
   tasa_de_cobro: "68.75",
 };
 
+const CLIENTE = {
+  id: "cl1",
+  nombre: "Panaderia Dona Rosa",
+  cuit: "30-71234567-1",
+  condicion_iva: "RESPONSABLE_INSCRIPTO",
+  contacto_whatsapp: null,
+  contacto_email: null,
+  origen: "PANEL",
+  activo: true,
+};
+
 const COBRO = {
   id: "co1",
   cliente_id: "cl1",
   comprobante_id: null,
   turno_id: null,
   monto: "12500.00",
-  monto_reembolsado: null,
+  monto_reembolsado: "0.00",
   descripcion: "Consulta de septiembre",
   estado: "APROBADO",
   url_de_pago: null,
   tiene_link_activo: false,
   vence_el: "2026-09-20",
-  pagado_en: "2026-09-15T18:20:00Z",
+  fecha_pago: "2026-09-15T18:20:00Z",
+  fecha_pago_aproximada: false,
+  medio_de_pago: "LINK_MERCADOPAGO",
+  numero_de_operacion: null,
   reembolso_en_proceso: false,
+  reembolso_en_proceso_monto: null,
   motivo_de_cancelacion: null,
   created_at: "2026-09-07T12:00:00Z",
   recordatorios: [],
+  reembolsos: [],
 };
 
 afterEach(() => {
@@ -142,29 +158,108 @@ describe("PaginaDeNuevoCobro", () => {
     expect(llamarApi).not.toHaveBeenCalled();
   });
 
-  it("pide elegir un cliente antes que nada", async () => {
+  it("sin cliente muestra el selector y el formulario, ya no «Falta elegir el cliente»", async () => {
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
 
     const html = renderToString(await PaginaDeNuevoCobro({ searchParams: {} }));
-    expect(html).toContain("Elegí primero a quién le vas a cobrar");
+
+    expect(html).toContain("Buscar cliente por nombre o CUIT");
+    expect(html).toContain("Generar link de pago");
+    expect(html).toContain("Debe seleccionar un cliente.");
+    expect(html).not.toContain("Falta elegir el cliente");
+    // Sin cliente no hay comprobantes que ofrecer, asi que no se le pregunta nada al backend.
     expect(llamarApi).not.toHaveBeenCalled();
   });
 
-  it("ofrece solo los comprobantes con saldo pendiente (HU-E6-06)", async () => {
+  it("con un cliente lo muestra preseleccionado, y editable, sin el aviso de falta", async () => {
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
-    llamarApi.mockResolvedValue({
-      comprobantes: [
-        { id: "c1", tipo: "FACTURA_B", numero: 123, saldo_pendiente: "2420.00" },
-        // Saldado: no tiene nada que cobrar, asi que no se ofrece.
-        { id: "c2", tipo: "FACTURA_B", numero: 124, saldo_pendiente: "0.00" },
-      ],
-    });
+    llamarApi.mockImplementation(async (ruta: string) =>
+      ruta === "/clientes/cl1" ? CLIENTE : { comprobantes: [] },
+    );
+
+    const html = renderToString(await PaginaDeNuevoCobro({ searchParams: { cliente: "cl1" } }));
+
+    expect(llamarApi).toHaveBeenCalledWith("/clientes/cl1");
+    expect(html).toContain("Cliente seleccionado");
+    expect(html).toContain("Panaderia Dona Rosa");
+    expect(html).toContain("Buscar cliente por nombre o CUIT");
+    expect(html).not.toContain("Debe seleccionar un cliente.");
+  });
+
+  it.each([
+    ["no existe", new ErrorDeApi(422, "No existe el cliente", "ClienteNoEncontrado")],
+    ["no es de esta empresa", new ErrorDeApi(404, "No existe", "ClienteNoEncontrado")],
+  ])("un cliente que %s se trata como sin cliente y se avisa", async (_caso, fallo) => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockRejectedValue(fallo);
+
+    const html = renderToString(await PaginaDeNuevoCobro({ searchParams: { cliente: "viejo" } }));
+
+    expect(html).toContain("El cliente indicado no existe o está inactivo.");
+    expect(html).toContain("Debe seleccionar un cliente.");
+    // Ni siquiera pide comprobantes de alguien que no existe.
+    expect(llamarApi).toHaveBeenCalledTimes(1);
+  });
+
+  it("un cliente inactivo se trata como sin cliente y se avisa", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockResolvedValue({ ...CLIENTE, activo: false });
+
+    const html = renderToString(await PaginaDeNuevoCobro({ searchParams: { cliente: "cl1" } }));
+
+    expect(html).toContain("El cliente indicado no existe o está inactivo.");
+    expect(html).toContain("Debe seleccionar un cliente.");
+  });
+
+  it("un fallo del backend que no es «no existe» no se disfraza de cliente vacio", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockRejectedValue(new ErrorDeApi(500, "Se cayo", "ErrorInterno"));
+
+    await expect(PaginaDeNuevoCobro({ searchParams: { cliente: "cl1" } })).rejects.toThrow(
+      ErrorDeApi,
+    );
+  });
+
+  it("ofrece solo los comprobantes con saldo del cliente elegido (HU-E6-06)", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation(async (ruta: string) =>
+      ruta === "/clientes/cl1"
+        ? CLIENTE
+        : {
+            comprobantes: [
+              {
+                id: "c1",
+                cliente_id: "cl1",
+                tipo: "FACTURA_B",
+                numero: 123,
+                saldo_pendiente: "2420.00",
+              },
+              // Saldado: no tiene nada que cobrar, asi que no se ofrece.
+              {
+                id: "c2",
+                cliente_id: "cl1",
+                tipo: "FACTURA_B",
+                numero: 124,
+                saldo_pendiente: "0.00",
+              },
+              // Con saldo, pero de otro cliente: cobrarlo seria cobrar una deuda ajena.
+              {
+                id: "c3",
+                cliente_id: "cl2",
+                tipo: "FACTURA_B",
+                numero: 125,
+                saldo_pendiente: "900.00",
+              },
+            ],
+          },
+    );
 
     const html = renderToString(await PaginaDeNuevoCobro({ searchParams: { cliente: "cl1" } }));
 
     expect(llamarApi).toHaveBeenCalledWith("/comprobantes?estado=AUTORIZADO");
     expect(html).toContain("Factura B 123");
     expect(html).not.toContain("Factura B 124");
+    expect(html).not.toContain("Factura B 125");
   });
 });
 
