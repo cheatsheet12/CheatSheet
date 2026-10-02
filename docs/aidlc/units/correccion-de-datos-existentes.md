@@ -73,7 +73,7 @@ RN-09 no nombra un rol (ver P1).
    caracteres y `normalizacion.py:114, 145` no tienen la protección de `_mayuscula` (`:134-137`). Los
    límites son 60 en categoría y 200 en cliente y servicio (`categoria.py:24`, `cliente.py:31`,
    `servicio.py:30`). Se omiten con el motivo `NOMBRE_INVALIDO`. La expansión de `lower()` es un
-   defecto menor del normalizador: se anota en `TODO.md` §20 y no se arregla acá.
+   defecto menor del normalizador: se anota en `TODO.md` §23 y no se arregla acá.
 6. **`master_data` no tiene un guard de Administrador**: solo `exigir_lectura` y `exigir_escritura`
    (`autorizacion.py:24-31`). El de `identity` no se puede importar (R3). Se agrega
    `exigir_administrador` en `master_data/application/autorizacion.py`, como en
@@ -292,7 +292,7 @@ holgura la referencia de unas 400.
 
 Riesgos que no son tests:
 - **Retención del respaldo**: guarda nombres para siempre, con la misma protección que la tabla de
-  origen (RLS). Cuánto se retienen queda en `TODO.md` §20 como pendiente, sin unidad.
+  origen (RLS). Cuánto se retienen queda en `TODO.md` §23 como pendiente, sin unidad.
 - **Restaurar no es definitivo**: un cliente restaurado se vuelve a normalizar la próxima vez que
   alguien lo edita (decisión del Gate 2 anterior).
 - **Ventana entre informe y aplicación**: la aplicación vuelve a calcular. El resultado que muestra es
