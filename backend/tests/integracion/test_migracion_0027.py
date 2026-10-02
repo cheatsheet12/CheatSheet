@@ -337,7 +337,7 @@ async def _correr_el_informe() -> list[str]:
             # El log del servidor llega al driver, no a SQLAlchemy: se escucha en el driver.
             driver = crudo.driver_connection
             assert driver is not None
-            driver._connection.add_log_listener(lambda _con, mensaje: avisos.append(str(mensaje)))
+            driver.add_log_listener(lambda _con, mensaje: avisos.append(str(mensaje)))
             await conexion.execute(text(_la_migracion().INFORME_Y_VALIDACION))
     finally:
         await motor.dispose()
