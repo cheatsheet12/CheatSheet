@@ -678,7 +678,7 @@ async def test_el_intervalo_de_un_recurso_de_una_empresa_no_toca_a_la_otra(
 async def test_la_migracion_0028_aborta_con_slots_invalidos_rellena_con_cero_y_baja_limpia(
     sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
 ) -> None:
-    """Baja a 0024, siembra un patrón fuera de rango y un turno, y sube.
+    """Baja a 0027 (la anterior a 0028), siembra un patrón fuera de rango y un turno, y sube.
 
     1. `downgrade` deja el esquema como estaba: sin las columnas nuevas.
     2. `upgrade` **aborta listando el patrón** cuyo slot es inválido (no hay recorte).
@@ -686,13 +686,13 @@ async def test_la_migracion_0028_aborta_con_slots_invalidos_rellena_con_cero_y_b
 
     Al final se vuelve a `head`, pase lo que pase. Alembic corre `asyncio.run` en su `env.py`,
     así que se llama desde otro hilo. El escenario se crea antes de bajar por lo mismo que en
-    el test de 0024: el ORM ya escribe columnas que 0024 no tiene.
+    el test de 0024: el ORM ya escribe columnas que 0027 no tiene.
     """
     config = Config(str(RAIZ_BACKEND / "alembic.ini"))
     config.set_main_option("script_location", str(RAIZ_BACKEND / "migrations"))
     escenario = await _escenario(engine_dueno, sesiones)
     patron_id = uuid.uuid4()
-    await asyncio.to_thread(command.downgrade, config, "0024")
+    await asyncio.to_thread(command.downgrade, config, "0027")
     try:
         async with engine_dueno.begin() as conexion:
             columnas = await conexion.execute(
