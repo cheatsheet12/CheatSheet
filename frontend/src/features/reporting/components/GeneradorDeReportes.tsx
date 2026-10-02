@@ -113,12 +113,16 @@ export function GeneradorDeReportes({
     setError(null);
     try {
       await generarReporte(tipo, formato, rango);
-      setReportes((await listarReportes()).reportes);
     } catch (fallo) {
       setError(fallo instanceof ErrorDeReporte ? fallo.message : "No se pudo generar el reporte.");
-    } finally {
-      setGenerando(false);
     }
+    // También tras un fallo: el servidor deja la fila en FALLIDO (D65) y el historial la muestra.
+    try {
+      setReportes((await listarReportes()).reportes);
+    } catch {
+      // El historial queda como estaba; el error de la generación (si hubo) ya se muestra.
+    }
+    setGenerando(false);
   }
 
   const columnas: readonly Columna<Reporte>[] = [
