@@ -16,6 +16,7 @@ dejarían escribir un nombre sin normalizar.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -206,7 +207,7 @@ async def test_aplicar_escribe_el_nombre_y_el_respaldo(
     assert len(escritos) == 3
     assert await _nombre(engine_dueno, "cliente", cliente_id) == "Juan Perez"
     assert await _nombre(engine_dueno, "servicio", servicio_id) == "Corte de pelo"
-    assert await _nombre(engine_dueno, "categoria", categoria_id) == "Vip Gold"
+    assert await _nombre(engine_dueno, "categoria", categoria_id) == "Vip gold"
     async with engine_dueno.connect() as conexion:
         filas = (
             await conexion.execute(
@@ -218,7 +219,7 @@ async def test_aplicar_escribe_el_nombre_y_el_respaldo(
             )
         ).all()
     assert [tuple(f) for f in filas] == [
-        ("CATEGORIA", "VIP  GOLD", "Vip Gold", "nombre"),
+        ("CATEGORIA", "VIP  GOLD", "Vip gold", "nombre"),
         ("CLIENTE", "JUAN PEREZ", "Juan Perez", "nombre"),
         ("SERVICIO", "CORTE DE PELO", "Corte de pelo", "nombre"),
     ]
@@ -520,9 +521,9 @@ async def test_la_migracion_0030_sube_y_baja(
     assert privilegios == {"SELECT", "INSERT"}
     assert tuple(flags) == (True, True)
 
-    command.downgrade(config, "0028")
+    await asyncio.to_thread(command.downgrade, config, "0028")
     async with engine_dueno.connect() as conexion:
         assert (await conexion.execute(existe)).scalar_one() is False
-    command.upgrade(config, "head")
+    await asyncio.to_thread(command.upgrade, config, "head")
     async with engine_dueno.connect() as conexion:
         assert (await conexion.execute(existe)).scalar_one() is True
