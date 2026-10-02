@@ -82,22 +82,24 @@ export function NuevoTurno({
   const disponibles = servicios.filter((uno) => recurso?.servicios.includes(uno.id) ?? false);
   const libres = horarios.filter((uno) => !uno.ocupado);
   const consultado = !aPosteriori && recursoId !== "" && fecha !== "";
+  const conServicio = servicioId !== "";
   const inicioElegido = aPosteriori
     ? inicioPasado === ""
       ? ""
       : new Date(inicioPasado).toISOString()
     : elegido;
 
-  async function buscar(idRecurso: string, dia: string): Promise<void> {
+  async function buscar(idRecurso: string, idServicio: string, dia: string): Promise<void> {
     setElegido("");
     setHorarios([]);
-    if (idRecurso === "" || dia === "") {
+    // La duración del turno es la del servicio (D96): sin los tres datos no hay grilla.
+    if (idRecurso === "" || idServicio === "" || dia === "") {
       return;
     }
     setError(null);
     setBuscando(true);
     try {
-      setHorarios((await verDisponibilidad(idRecurso, dia)).horarios);
+      setHorarios((await verDisponibilidad(idRecurso, dia, idServicio)).horarios);
     } catch (fallo) {
       setError(fallo instanceof ErrorDeTurno ? fallo.message : "No se pudieron leer los horarios.");
     } finally {
@@ -123,7 +125,7 @@ export function NuevoTurno({
       // se pone **después**, porque `buscar` limpia el error para no dejar uno viejo colgado
       // cuando alguien cambia de recurso.
       if (!aPosteriori) {
-        await buscar(recursoId, fecha);
+        await buscar(recursoId, servicioId, fecha);
       }
       setError(fallo instanceof ErrorDeTurno ? fallo.message : "No se pudo crear el turno.");
     } finally {
@@ -171,7 +173,7 @@ export function NuevoTurno({
           onChange={(evento) => {
             setRecursoId(evento.target.value);
             setServicioId("");
-            void buscar(evento.target.value, fecha);
+            void buscar(evento.target.value, "", fecha);
           }}
         />
 
@@ -187,7 +189,12 @@ export function NuevoTurno({
             })),
           ]}
           value={servicioId}
-          onChange={(evento) => setServicioId(evento.target.value)}
+          onChange={(evento) => {
+            setServicioId(evento.target.value);
+            // Cambiar de servicio cambia la duración, y con ella la grilla: se vuelve a pedir
+            // y no queda elegido un horario que era de la grilla anterior.
+            void buscar(recursoId, evento.target.value, fecha);
+          }}
         />
 
         {aPosteriori ? (
@@ -209,7 +216,7 @@ export function NuevoTurno({
             value={fecha}
             onChange={(evento) => {
               setFecha(evento.target.value);
-              void buscar(recursoId, evento.target.value);
+              void buscar(recursoId, servicioId, evento.target.value);
             }}
           />
         )}
@@ -237,14 +244,18 @@ export function NuevoTurno({
             <h3 className="age-slots__titulo" id="turno-slots-titulo">
               Disponibilidad del recurso
             </h3>
-            <span className="age-slots__cuenta">
-              {buscando
-                ? "buscando…"
-                : `${libres.length} de ${horarios.length} ${horarios.length === 1 ? "libre" : "libres"}`}
-            </span>
+            {conServicio && (
+              <span className="age-slots__cuenta">
+                {buscando
+                  ? "buscando…"
+                  : `${libres.length} de ${horarios.length} ${horarios.length === 1 ? "libre" : "libres"}`}
+              </span>
+            )}
           </div>
 
-          {horarios.length > 0 && (
+          {!conServicio && <Alert tono="neutral">Elegí el servicio para ver los horarios</Alert>}
+
+          {conServicio && horarios.length > 0 && (
             <>
               <div className="age-slots__grilla">
                 {horarios.map((horario) => (
@@ -274,7 +285,7 @@ export function NuevoTurno({
             </>
           )}
 
-          {!buscando && horarios.length === 0 && (
+          {conServicio && !buscando && horarios.length === 0 && (
             <Alert tono="neutral">
               El recurso no tiene horarios libres ese día. Puede ser un feriado configurado, un día
               que no atiende, o que ya esté completo.

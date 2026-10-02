@@ -23,11 +23,13 @@ from uuid import uuid4
 
 import pytest
 from cheatsheet.contexts.scheduling.domain.turno import (
+    MENSAJE_DURACION_DE_TURNO,
     MENSAJE_TURNO_NO_TRANSCURRIO,
     CanalDeReserva,
     EstadoTurno,
     Franja,
     Turno,
+    validar_duracion_de_turno,
 )
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
@@ -134,6 +136,72 @@ class TestRegistrarAPosteriori:
 
         assert _estado(uno) is EstadoTurno.COMPLETADO
 
+    def test_la_carga_a_posteriori_no_lleva_intervalo(self) -> None:
+        """D96: queda en `None`, que significa «sin intervalo» (HU-E7-06 RN-07)."""
+        uno = self.registrar(INICIO + timedelta(hours=2))
+
+        assert uno.intervalo_posterior_min is None
+
+
+class TestDuracionDelTurno:
+    """HU-E7-06 RN-08 y HU-E7-02 RN-08: de 5 a 480 minutos."""
+
+    @pytest.mark.parametrize("minutos", [5, 45, 480])
+    def test_acepta_el_rango(self, minutos: int) -> None:
+        validar_duracion_de_turno(minutos)
+
+    @pytest.mark.parametrize("minutos", [4, 481, 600])
+    def test_rechaza_lo_que_esta_afuera(self, minutos: int) -> None:
+        with pytest.raises(EntradaInvalida) as fallo:
+            validar_duracion_de_turno(minutos)
+
+        assert str(fallo.value) == MENSAJE_DURACION_DE_TURNO
+        assert (
+            MENSAJE_DURACION_DE_TURNO == "La duración del turno debe estar entre 5 y 480 minutos."
+        )
+
+
+class TestBloquea:
+    """El mismo criterio que las dos restricciones de la base (D96)."""
+
+    def con_intervalo(self, minutos: int | None) -> Turno:
+        # 09:00 a 09:30 hora de la agenda (12:00 UTC, UTC-3).
+        return turno(
+            franja=Franja(inicio=datetime(2026, 9, 8, 12, 0, tzinfo=UTC), duracion_min=30),
+            intervalo_posterior_min=minutos,
+        )
+
+    def inicio(self, minutos: int) -> datetime:
+        return datetime(2026, 9, 8, 12, 0, tzinfo=UTC) + timedelta(minutes=minutos)
+
+    def test_pisar_la_franja_real_siempre_bloquea(self) -> None:
+        for intervalo in (None, 0, 10):
+            assert self.con_intervalo(intervalo).bloquea(self.inicio(29), 30, 0)
+
+    def test_con_intervalo_el_contiguo_bloquea_hasta_que_pasa_el_margen(self) -> None:
+        uno = self.con_intervalo(10)
+
+        assert uno.bloquea(self.inicio(30), 30, 10)
+        assert uno.bloquea(self.inicio(39), 30, 10)
+        assert not uno.bloquea(self.inicio(40), 30, 10)
+
+    def test_el_margen_del_nuevo_tampoco_puede_pisar_al_siguiente(self) -> None:
+        uno = self.con_intervalo(10)
+
+        # Un turno nuevo de 08:20 a 08:50 con intervalo 10 llega hasta las 09:00: contiguo.
+        assert not uno.bloquea(self.inicio(-40), 30, 10)
+        # Con intervalo 11 su margen llega a las 09:01 y pisa el inicio de este.
+        assert uno.bloquea(self.inicio(-40), 30, 11)
+
+    def test_sin_intervalo_los_contiguos_conviven(self) -> None:
+        assert not self.con_intervalo(0).bloquea(self.inicio(30), 30, 0)
+
+    def test_un_turno_a_posteriori_solo_bloquea_su_franja_real(self) -> None:
+        uno = self.con_intervalo(None)
+
+        assert not uno.bloquea(self.inicio(30), 30, 10)
+        assert uno.bloquea(self.inicio(29), 30, 10)
+
 
 class TestTransiciones:
     def test_reprogramar_conserva_el_estado(self) -> None:
@@ -141,18 +209,31 @@ class TestTransiciones:
         uno = turno()
         uno.confirmar()
 
-        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60))
+        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 0)
 
         assert _estado(uno) is EstadoTurno.CONFIRMADO
         assert uno.franja.inicio == INICIO + timedelta(days=1)
         assert "REPROGRAMADO" not in EstadoTurno.__members__
+
+    def test_reprogramar_actualiza_el_intervalo_aplicado(self) -> None:
+        uno = turno(intervalo_posterior_min=0)
+
+        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 15)
+        assert uno.intervalo_posterior_min == 15
+
+        # La corrección a posteriori no respeta el intervalo: queda en `None`.
+        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=2), duracion_min=60), None)
+        assert uno.intervalo_posterior_min is None
+
+    def test_un_turno_nuevo_nace_con_intervalo_cero(self) -> None:
+        assert turno().intervalo_posterior_min == 0
 
     def test_un_turno_cancelado_no_se_reprograma(self) -> None:
         uno = turno()
         uno.cancelar()
 
         with pytest.raises(InvarianteViolada):
-            uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60))
+            uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 0)
 
     def test_un_turno_cancelado_no_vuelve(self) -> None:
         uno = turno()

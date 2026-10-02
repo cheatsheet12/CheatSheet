@@ -39,7 +39,7 @@ vi.mock("@/features/scheduling/api/recurso", async () => {
   };
 });
 
-import { MENSAJE_HORARIO_INVERTIDO } from "@/features/scheduling";
+import { ErrorDeRecurso, MENSAJE_HORARIO_INVERTIDO } from "@/features/scheduling";
 import type { ListadoDeRecursos, Recurso, ServicioAgendable } from "@/features/scheduling";
 
 const { RecursosReservables } = await import(
@@ -60,6 +60,7 @@ const RECURSO: Recurso = {
     { fecha: "2027-09-05", tipo: "BLOQUEO", franja_inicio: null, franja_duracion_min: null },
   ],
   servicios: [CORTE.id],
+  intervalo_entre_turnos_min: 0,
 };
 
 const SIN_CONFIGURAR: Recurso = {
@@ -166,11 +167,55 @@ describe("PAN-AGE-03", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar horario" }));
 
     await waitFor(() => {
-      expect(configurarDisponibilidad).toHaveBeenCalledWith("r1", [
-        { dia_semana: 1, hora_inicio: "09:00:00", hora_fin: "18:00:00", duracion_slot_min: 30 },
-        { dia_semana: 0, hora_inicio: "09:00:00", hora_fin: "18:00:00", duracion_slot_min: 30 },
-      ]);
+      expect(configurarDisponibilidad).toHaveBeenCalledWith(
+        "r1",
+        [
+          { dia_semana: 1, hora_inicio: "09:00:00", hora_fin: "18:00:00", duracion_slot_min: 30 },
+          { dia_semana: 0, hora_inicio: "09:00:00", hora_fin: "18:00:00", duracion_slot_min: 30 },
+        ],
+        0,
+      );
     });
+  });
+
+  it("rotula el paso de la grilla como duracion del slot y no como minutos por turno (D96)", () => {
+    render(<RecursosReservables inicial={LISTADO} servicios={[CORTE]} puedeEditar />);
+    fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
+
+    expect(screen.getByLabelText("Duración del slot (min)")).toBeTruthy();
+    expect(screen.queryByLabelText("Minutos por turno")).toBeNull();
+    expect(screen.getByText(/La duración del turno es la del servicio/)).toBeTruthy();
+  });
+
+  it("manda el intervalo entre turnos junto con el horario (HU-E7-04 RN-06)", async () => {
+    configurarDisponibilidad.mockResolvedValue({ ...RECURSO, intervalo_entre_turnos_min: 10 });
+    listarRecursos.mockResolvedValue(LISTADO);
+    render(<RecursosReservables inicial={LISTADO} servicios={[CORTE]} puedeEditar />);
+    fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
+
+    const intervalo = screen.getByLabelText("Intervalo entre turnos (min)") as HTMLInputElement;
+    // Arranca en el valor del recurso: 0 por defecto.
+    expect(intervalo.value).toBe("0");
+    fireEvent.change(intervalo, { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar horario" }));
+
+    await waitFor(() => {
+      expect(configurarDisponibilidad).toHaveBeenCalledWith("r1", expect.any(Array), 10);
+    });
+  });
+
+  it("muestra el rechazo del backend con sus palabras al guardar un intervalo invalido", async () => {
+    const mensaje = "El intervalo entre turnos debe estar entre 0 y 480 minutos.";
+    configurarDisponibilidad.mockRejectedValue(new ErrorDeRecurso(mensaje));
+    render(<RecursosReservables inicial={LISTADO} servicios={[CORTE]} puedeEditar />);
+    fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
+
+    fireEvent.change(screen.getByLabelText("Intervalo entre turnos (min)"), {
+      target: { value: "-1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar horario" }));
+
+    expect(await screen.findByText(mensaje)).toBeTruthy();
   });
 
   it("no deja quitar la ultima franja: un recurso sin horario no atiende nunca", () => {

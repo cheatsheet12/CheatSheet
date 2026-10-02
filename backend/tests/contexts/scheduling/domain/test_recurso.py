@@ -23,8 +23,11 @@ from uuid import uuid4
 
 import pytest
 from cheatsheet.contexts.scheduling.domain.recurso import (
+    MENSAJE_DURACION_SLOT,
     MENSAJE_EXCEPCION_DUPLICADA,
     MENSAJE_HORARIO_INVERTIDO,
+    MENSAJE_INTERVALO,
+    MENSAJE_SLOT_MAYOR_QUE_FRANJA,
     ZONA_DE_LA_AGENDA,
     ExcepcionDeDisponibilidad,
     PatronDeDisponibilidad,
@@ -83,6 +86,73 @@ class TestPatron:
                 dia_semana=1, hora_inicio=time(9), hora_fin=time(18), duracion_slot_min=0
             )
 
+    @pytest.mark.parametrize("minutos", [4, 481])
+    def test_rechaza_un_slot_fuera_de_5_a_480_con_la_frase_de_la_historia(
+        self, minutos: int
+    ) -> None:
+        """HU-E7-04 RN-05, criterio nuevo: 4 y 481 se rechazan, letra por letra."""
+        with pytest.raises(EntradaInvalida) as fallo:
+            PatronDeDisponibilidad(
+                dia_semana=1, hora_inicio=time(0), hora_fin=time(23), duracion_slot_min=minutos
+            )
+
+        assert str(fallo.value) == MENSAJE_DURACION_SLOT
+        assert MENSAJE_DURACION_SLOT == "La duración del slot debe estar entre 5 y 480 minutos."
+
+    @pytest.mark.parametrize("minutos", [5, 480])
+    def test_acepta_los_extremos_del_rango_del_slot(self, minutos: int) -> None:
+        uno = PatronDeDisponibilidad(
+            dia_semana=1, hora_inicio=time(0), hora_fin=time(23), duracion_slot_min=minutos
+        )
+
+        assert uno.duracion_slot_min == minutos
+
+    def test_rechaza_un_slot_mayor_que_la_franja(self) -> None:
+        with pytest.raises(EntradaInvalida) as fallo:
+            PatronDeDisponibilidad(
+                dia_semana=1, hora_inicio=time(9), hora_fin=time(10), duracion_slot_min=90
+            )
+
+        assert str(fallo.value) == MENSAJE_SLOT_MAYOR_QUE_FRANJA
+
+    def test_acepta_un_slot_igual_a_la_franja(self) -> None:
+        uno = PatronDeDisponibilidad(
+            dia_semana=1, hora_inicio=time(9), hora_fin=time(10), duracion_slot_min=60
+        )
+
+        assert uno.duracion_slot_min == 60
+
+
+class TestIntervaloEntreTurnos:
+    """HU-E7-04 RN-06: opcional, 0 por defecto, máximo 480."""
+
+    def test_sin_configurar_es_cero(self) -> None:
+        assert recurso().intervalo_entre_turnos_min == 0
+
+    @pytest.mark.parametrize("minutos", [-1, 481])
+    def test_rechaza_un_intervalo_fuera_de_rango_al_construir(self, minutos: int) -> None:
+        with pytest.raises(EntradaInvalida) as fallo:
+            recurso(intervalo_entre_turnos_min=minutos)
+
+        assert str(fallo.value) == MENSAJE_INTERVALO
+
+    @pytest.mark.parametrize("minutos", [-1, 481])
+    def test_rechaza_un_intervalo_fuera_de_rango_al_definirlo(self, minutos: int) -> None:
+        uno = recurso()
+
+        with pytest.raises(EntradaInvalida) as fallo:
+            uno.definir_intervalo(minutos)
+
+        assert str(fallo.value) == MENSAJE_INTERVALO
+        assert uno.intervalo_entre_turnos_min == 0
+
+    @pytest.mark.parametrize("minutos", [0, 10, 480])
+    def test_acepta_el_rango(self, minutos: int) -> None:
+        uno = recurso()
+        uno.definir_intervalo(minutos)
+
+        assert uno.intervalo_entre_turnos_min == minutos
+
 
 class TestDisponibilidad:
     def test_acepta_una_franja_que_entra_entera(self) -> None:
@@ -137,7 +207,7 @@ class TestExcepciones:
         uno.agregar_excepcion(ExcepcionDeDisponibilidad(fecha=MARTES, tipo=TipoExcepcion.BLOQUEO))
 
         assert not uno.esta_disponible_en(local(MARTES, 15), 30)
-        assert uno.horarios_del_dia(MARTES) == ()
+        assert uno.horarios_del_dia(MARTES, 30) == ()
 
     def test_una_apertura_especial_reemplaza_al_patron_en_vez_de_sumarse(self) -> None:
         """RN-03: la excepción **tiene prioridad**, no se acumula.
@@ -221,10 +291,10 @@ class TestHorariosDelDia:
         )
 
         # 9:00 y 9:30 entran; 10:00 terminaría 10:30, después del cierre.
-        assert uno.horarios_del_dia(MARTES) == (local(MARTES, 9), local(MARTES, 9, 30))
+        assert uno.horarios_del_dia(MARTES, 30) == (local(MARTES, 9), local(MARTES, 9, 30))
 
     def test_no_ofrece_nada_el_dia_que_el_recurso_no_atiende(self) -> None:
-        assert recurso().horarios_del_dia(date(2026, 9, 9)) == ()
+        assert recurso().horarios_del_dia(date(2026, 9, 9), 30) == ()
 
     def test_la_apertura_especial_hereda_la_duracion_de_slot_del_patron(self) -> None:
         """El DER no le da columna de duración a la excepción, así que la hereda.
@@ -242,7 +312,62 @@ class TestHorariosDelDia:
             )
         )
 
-        assert uno.horarios_del_dia(MARTES) == (local(MARTES, 20), local(MARTES, 20, 30))
+        assert uno.horarios_del_dia(MARTES, 30) == (local(MARTES, 20), local(MARTES, 20, 30))
+
+    def test_el_paso_es_el_slot_y_el_ultimo_inicio_es_el_que_deja_entrar_el_turno(self) -> None:
+        """Slot de 30 y servicio de 45 en 09:00-11:00: 10:30 no entra (terminaría 11:15)."""
+        uno = recurso(
+            patrones=(
+                PatronDeDisponibilidad(
+                    dia_semana=1, hora_inicio=time(9), hora_fin=time(11), duracion_slot_min=30
+                ),
+            )
+        )
+
+        assert uno.horarios_del_dia(MARTES, 45) == (
+            local(MARTES, 9),
+            local(MARTES, 9, 30),
+            local(MARTES, 10),
+        )
+
+    def test_un_servicio_mas_largo_que_la_franja_no_ofrece_nada(self) -> None:
+        uno = recurso(
+            patrones=(
+                PatronDeDisponibilidad(
+                    dia_semana=1, hora_inicio=time(9), hora_fin=time(10), duracion_slot_min=30
+                ),
+            )
+        )
+
+        assert uno.horarios_del_dia(MARTES, 90) == ()
+
+    def test_la_apertura_especial_ofrece_el_turno_que_entra(self) -> None:
+        uno = recurso()
+        uno.agregar_excepcion(
+            ExcepcionDeDisponibilidad(
+                fecha=MARTES,
+                tipo=TipoExcepcion.APERTURA_ESPECIAL,
+                franja_inicio=local(MARTES, 20),
+                franja_duracion_min=60,
+            )
+        )
+
+        # Slot heredado de 30; un servicio de 45 entra a las 20:00 y no a las 20:30.
+        assert uno.horarios_del_dia(MARTES, 45) == (local(MARTES, 20),)
+
+    def test_la_apertura_sin_patron_ofrece_su_inicio_solo_si_el_turno_entra(self) -> None:
+        uno = recurso(patrones=())
+        uno.agregar_excepcion(
+            ExcepcionDeDisponibilidad(
+                fecha=MARTES,
+                tipo=TipoExcepcion.APERTURA_ESPECIAL,
+                franja_inicio=local(MARTES, 20),
+                franja_duracion_min=60,
+            )
+        )
+
+        assert uno.horarios_del_dia(MARTES, 60) == (local(MARTES, 20),)
+        assert uno.horarios_del_dia(MARTES, 61) == ()
 
 
 class TestServicios:

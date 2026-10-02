@@ -58,6 +58,20 @@ CREAR_SERVICIO = text(
     ":ahora, :ahora)"
 )
 QUITAR_EXCLUSION = text("ALTER TABLE turno DROP CONSTRAINT excl_turno_recurso_franja")
+QUITAR_EXCLUSION_INTERVALO = text("ALTER TABLE turno DROP CONSTRAINT excl_turno_recurso_intervalo")
+PONER_EXCLUSION_INTERVALO = text(
+    "ALTER TABLE turno ADD CONSTRAINT excl_turno_recurso_intervalo "
+    "EXCLUDE USING gist (recurso_id WITH =, "
+    "franja_de_turno(franja_inicio, franja_duracion_min + intervalo_posterior_min) WITH &&) "
+    "WHERE (estado IN ('RESERVADO', 'CONFIRMADO', 'COMPLETADO') "
+    "AND intervalo_posterior_min IS NOT NULL)"
+)
+INSERTAR_TURNO_SIN_INTERVALO = text(
+    "INSERT INTO turno (id, empresa_id, cliente_id, servicio_id, recurso_id, franja_inicio, "
+    "franja_duracion_min, estado, canal_reserva, created_at, updated_at) "
+    "VALUES (:id, :empresa_id, :cliente_id, :servicio_id, :recurso_id, :inicio, :duracion, "
+    ":estado, 'PANEL', :ahora, :ahora)"
+)
 PONER_EXCLUSION = text(
     "ALTER TABLE turno ADD CONSTRAINT excl_turno_recurso_franja "
     "EXCLUDE USING gist (recurso_id WITH =, "
@@ -128,6 +142,28 @@ async def _reservar(
         await RepositorioTurnoPostgres(sesion).agregar(turno)
 
 
+async def _reservar_sin_intervalo(engine_dueno: AsyncEngine, turno: Turno) -> None:
+    """Inserta un turno en un esquema anterior a 0028, que no tiene `intervalo_posterior_min`.
+
+    El ORM manda esa columna aunque valga `None`, así que con el esquema bajado se usa SQL.
+    """
+    async with engine_dueno.begin() as conexion:
+        await conexion.execute(
+            INSERTAR_TURNO_SIN_INTERVALO,
+            {
+                "id": turno.id,
+                "empresa_id": turno.empresa_id,
+                "cliente_id": turno.cliente_id,
+                "servicio_id": turno.servicio_id,
+                "recurso_id": turno.recurso_id,
+                "inicio": turno.franja.inicio,
+                "duracion": turno.franja.duracion_min,
+                "estado": turno.estado.value,
+                "ahora": AHORA,
+            },
+        )
+
+
 async def test_dos_reservas_simultaneas_de_la_misma_franja_no_entran_las_dos(
     sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
 ) -> None:
@@ -168,8 +204,10 @@ async def test_sin_la_restriccion_las_dos_entran(
     """
     escenario = await _escenario(engine_dueno, sesiones)
 
+    # Las dos: un turno normal lleva intervalo (0) y también lo vigila la exclusión nueva.
     async with engine_dueno.begin() as conexion:
         await conexion.execute(QUITAR_EXCLUSION)
+        await conexion.execute(QUITAR_EXCLUSION_INTERVALO)
     try:
         await _reservar(sesiones, escenario, escenario.turno())
         await _reservar(sesiones, escenario, escenario.turno())
@@ -181,6 +219,7 @@ async def test_sin_la_restriccion_las_dos_entran(
         async with engine_dueno.begin() as conexion:
             await conexion.execute(text("DELETE FROM turno"))
             await conexion.execute(PONER_EXCLUSION)
+            await conexion.execute(PONER_EXCLUSION_INTERVALO)
 
 
 async def test_dos_turnos_contiguos_conviven(
@@ -275,7 +314,7 @@ async def test_reprogramar_a_una_franja_ocupada_es_rechazado_por_el_motor(
             repositorio = RepositorioTurnoPostgres(sesion)
             movido = await repositorio.buscar_por_id(segundo.id)
             assert movido is not None
-            movido.reprogramar(Franja(inicio=INICIO, duracion_min=60))
+            movido.reprogramar(Franja(inicio=INICIO, duracion_min=60), 0)
             await repositorio.guardar(movido)
 
     with pytest.raises(FranjaOcupada):
@@ -464,17 +503,262 @@ async def test_la_migracion_aborta_y_lista_los_completados_solapados(
     """
     config = Config(str(RAIZ_BACKEND / "alembic.ini"))
     config.set_main_option("script_location", str(RAIZ_BACKEND / "migrations"))
+    # El escenario se crea antes de bajar: el ORM ya escribe columnas que 0023 no tiene. Los
+    # turnos se insertan con SQL, sin `intervalo_posterior_min`.
+    escenario = await _escenario(engine_dueno, sesiones)
     await asyncio.to_thread(command.downgrade, config, "0023")
     try:
-        escenario = await _escenario(engine_dueno, sesiones)
-        uno = escenario.turno(estado=EstadoTurno.COMPLETADO)
-        otro = escenario.turno(estado=EstadoTurno.COMPLETADO, inicio=INICIO + timedelta(minutes=30))
-        await _reservar(sesiones, escenario, uno)
-        await _reservar(sesiones, escenario, otro)
+        uno = escenario.turno(estado=EstadoTurno.COMPLETADO, intervalo_posterior_min=None)
+        otro = escenario.turno(
+            estado=EstadoTurno.COMPLETADO,
+            inicio=INICIO + timedelta(minutes=30),
+            intervalo_posterior_min=None,
+        )
+        await _reservar_sin_intervalo(engine_dueno, uno)
+        await _reservar_sin_intervalo(engine_dueno, otro)
 
         with pytest.raises(RuntimeError, match=str(min(uno.id, otro.id))):
             await asyncio.to_thread(command.upgrade, config, "0024")
     finally:
         async with engine_dueno.begin() as conexion:
             await conexion.execute(text("DELETE FROM turno"))
+        await asyncio.to_thread(command.upgrade, config, "head")
+
+
+def _en_minutos(minutos: int) -> datetime:
+    return INICIO + timedelta(minutes=minutos)
+
+
+async def test_con_intervalo_el_horario_pegado_se_rechaza_y_el_del_margen_entra(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """D96, la frontera exacta: turno de 15:00 a 15:30 con intervalo 10.
+
+    15:39 cae dentro del margen y lo rechaza `excl_turno_recurso_intervalo` (traducida a
+    `FranjaOcupada`); 15:40 es el primer inicio permitido.
+    """
+    escenario = await _escenario(engine_dueno, sesiones)
+    await _reservar(sesiones, escenario, escenario.turno(duracion=30, intervalo_posterior_min=10))
+
+    with pytest.raises(FranjaOcupada):
+        await _reservar(
+            sesiones,
+            escenario,
+            escenario.turno(inicio=_en_minutos(39), duracion=30, intervalo_posterior_min=10),
+        )
+    await _reservar(
+        sesiones,
+        escenario,
+        escenario.turno(inicio=_en_minutos(40), duracion=30, intervalo_posterior_min=10),
+    )
+
+
+async def test_el_margen_del_turno_nuevo_tampoco_puede_pisar_al_siguiente(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """RN-07, la otra mitad: «su fin más el intervalo no debe pisar el inicio del siguiente».
+
+    Con un turno existente a las 16:00, uno nuevo de 15:20 a 15:50 más 10 de margen llega
+    justo a las 16:00 y entra; empezando a las 15:21 el margen pisa el inicio y se rechaza.
+    """
+    escenario = await _escenario(engine_dueno, sesiones)
+    await _reservar(
+        sesiones,
+        escenario,
+        escenario.turno(inicio=_en_minutos(60), duracion=30, intervalo_posterior_min=10),
+    )
+
+    with pytest.raises(FranjaOcupada):
+        await _reservar(
+            sesiones,
+            escenario,
+            escenario.turno(inicio=_en_minutos(21), duracion=30, intervalo_posterior_min=10),
+        )
+    await _reservar(
+        sesiones,
+        escenario,
+        escenario.turno(inicio=_en_minutos(20), duracion=30, intervalo_posterior_min=10),
+    )
+
+
+async def test_sin_intervalo_los_turnos_contiguos_entran(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    escenario = await _escenario(engine_dueno, sesiones)
+    await _reservar(sesiones, escenario, escenario.turno(duracion=30, intervalo_posterior_min=0))
+    await _reservar(
+        sesiones,
+        escenario,
+        escenario.turno(inicio=_en_minutos(30), duracion=30, intervalo_posterior_min=0),
+    )
+
+
+async def test_la_carga_a_posteriori_entra_dentro_del_intervalo_pero_no_pisa_la_franja_real(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """HU-E7-06 RN-07: la carga a posteriori «no respeta el intervalo entre turnos».
+
+    Con un completado de 15:00 a 15:30 y intervalo 10, el Administrador puede registrar una
+    atención pasada a las 15:30 (dentro del margen); pero la franja real sigue protegida por
+    `excl_turno_recurso_franja`, así que 15:29 se rechaza.
+    """
+    escenario = await _escenario(engine_dueno, sesiones)
+    await _reservar(
+        sesiones,
+        escenario,
+        escenario.turno(duracion=30, estado=EstadoTurno.COMPLETADO, intervalo_posterior_min=10),
+    )
+
+    with pytest.raises(FranjaOcupada):
+        await _reservar(
+            sesiones,
+            escenario,
+            escenario.turno(
+                inicio=_en_minutos(29),
+                duracion=30,
+                estado=EstadoTurno.COMPLETADO,
+                intervalo_posterior_min=None,
+            ),
+        )
+    await _reservar(
+        sesiones,
+        escenario,
+        escenario.turno(
+            inicio=_en_minutos(30),
+            duracion=30,
+            estado=EstadoTurno.COMPLETADO,
+            intervalo_posterior_min=None,
+        ),
+    )
+
+
+async def test_el_intervalo_aplicado_sobrevive_al_viaje_y_a_posteriori_queda_nulo(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """`None` se guarda como `NULL` (sin `DEFAULT` en la columna) y 10 como 10."""
+    escenario = await _escenario(engine_dueno, sesiones)
+    normal = escenario.turno(duracion=30, intervalo_posterior_min=10)
+    a_posteriori = escenario.turno(
+        inicio=_en_minutos(300),
+        duracion=30,
+        estado=EstadoTurno.COMPLETADO,
+        intervalo_posterior_min=None,
+    )
+    await _reservar(sesiones, escenario, normal)
+    await _reservar(sesiones, escenario, a_posteriori)
+
+    async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+        repositorio = RepositorioTurnoPostgres(sesion)
+        leido_normal = await repositorio.buscar_por_id(normal.id)
+        leido_posteriori = await repositorio.buscar_por_id(a_posteriori.id)
+
+    assert leido_normal is not None
+    assert leido_posteriori is not None
+    assert leido_normal.intervalo_posterior_min == 10
+    assert leido_posteriori.intervalo_posterior_min is None
+
+
+async def test_cambiar_el_intervalo_del_recurso_no_altera_los_turnos_existentes(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """HU-E7-04 RN-08: aplica a reservas nuevas y no mueve turnos existentes."""
+    escenario = await _escenario(engine_dueno, sesiones)
+    existente = escenario.turno(duracion=30, intervalo_posterior_min=10)
+    await _reservar(sesiones, escenario, existente)
+
+    async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+        repositorio = RepositorioRecursoPostgres(sesion)
+        recurso = await repositorio.buscar_por_id(escenario.recurso_id)
+        assert recurso is not None
+        recurso.definir_intervalo(45)
+        await repositorio.guardar(recurso)
+
+    async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+        recurso_leido = await RepositorioRecursoPostgres(sesion).buscar_por_id(escenario.recurso_id)
+        turno_leido = await RepositorioTurnoPostgres(sesion).buscar_por_id(existente.id)
+
+    assert recurso_leido is not None
+    assert recurso_leido.intervalo_entre_turnos_min == 45
+    assert turno_leido is not None
+    assert turno_leido.intervalo_posterior_min == 10
+
+
+async def test_el_intervalo_de_un_recurso_de_una_empresa_no_toca_a_la_otra(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    una = await _escenario(engine_dueno, sesiones)
+    otra = await _escenario(engine_dueno, sesiones)
+    async with sesion_de_empresa(sesiones, una.empresa_id) as sesion:
+        repositorio = RepositorioRecursoPostgres(sesion)
+        recurso = await repositorio.buscar_por_id(una.recurso_id)
+        assert recurso is not None
+        recurso.definir_intervalo(30)
+        await repositorio.guardar(recurso)
+
+    async with sesion_de_empresa(sesiones, otra.empresa_id) as sesion:
+        propios = await RepositorioRecursoPostgres(sesion).listar()
+        ajeno = await RepositorioRecursoPostgres(sesion).buscar_por_id(una.recurso_id)
+
+    assert [uno.intervalo_entre_turnos_min for uno in propios] == [0]
+    assert ajeno is None
+
+
+async def test_la_migracion_0028_aborta_con_slots_invalidos_rellena_con_cero_y_baja_limpia(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """Baja a 0027 (la anterior a 0028), siembra un patrón fuera de rango y un turno, y sube.
+
+    1. `downgrade` deja el esquema como estaba: sin las columnas nuevas.
+    2. `upgrade` **aborta listando el patrón** cuyo slot es inválido (no hay recorte).
+    3. Corregido el patrón, `upgrade` rellena los turnos existentes con intervalo 0.
+
+    Al final se vuelve a `head`, pase lo que pase. Alembic corre `asyncio.run` en su `env.py`,
+    así que se llama desde otro hilo. El escenario se crea antes de bajar por lo mismo que en
+    el test de 0024: el ORM ya escribe columnas que 0027 no tiene.
+    """
+    config = Config(str(RAIZ_BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(RAIZ_BACKEND / "migrations"))
+    escenario = await _escenario(engine_dueno, sesiones)
+    patron_id = uuid.uuid4()
+    await asyncio.to_thread(command.downgrade, config, "0027")
+    try:
+        async with engine_dueno.begin() as conexion:
+            columnas = await conexion.execute(
+                text(
+                    "SELECT count(*) FROM information_schema.columns "
+                    "WHERE column_name IN ('intervalo_posterior_min', 'intervalo_entre_turnos_min')"
+                )
+            )
+            assert columnas.scalar_one() == 0
+            # Un slot de 600 minutos: valía con `> 0` y ya no vale con 5-480.
+            await conexion.execute(
+                text(
+                    "INSERT INTO patron_de_disponibilidad "
+                    "(id, recurso_id, dia_semana, hora_inicio, hora_fin, duracion_slot_min) "
+                    "VALUES (:id, :recurso, 1, '00:00', '23:00', 600)"
+                ),
+                {"id": patron_id, "recurso": escenario.recurso_id},
+            )
+        await _reservar_sin_intervalo(engine_dueno, escenario.turno())
+
+        with pytest.raises(RuntimeError, match=str(patron_id)):
+            await asyncio.to_thread(command.upgrade, config, "head")
+
+        async with engine_dueno.begin() as conexion:
+            await conexion.execute(
+                text("UPDATE patron_de_disponibilidad SET duracion_slot_min = 60")
+            )
+        await asyncio.to_thread(command.upgrade, config, "head")
+
+        async with engine_dueno.begin() as conexion:
+            rellenados = await conexion.execute(text("SELECT intervalo_posterior_min FROM turno"))
+        assert rellenados.scalars().all() == [0]
+    finally:
+        async with engine_dueno.begin() as conexion:
+            await conexion.execute(text("DELETE FROM turno"))
+            # Sin esto, si el cuerpo falla antes de corregirlo, 0028 vuelve a abortar y el
+            # esquema queda a medias para el resto de la sesión.
+            await conexion.execute(
+                text("DELETE FROM patron_de_disponibilidad WHERE id = :id"), {"id": patron_id}
+            )
         await asyncio.to_thread(command.upgrade, config, "head")

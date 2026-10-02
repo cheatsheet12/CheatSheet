@@ -35,6 +35,8 @@ export interface Recurso {
   readonly patrones: readonly Patron[];
   readonly excepciones: readonly Excepcion[];
   readonly servicios: readonly string[];
+  /** HU-E7-04 RN-06: minutos que se agregan después de cada turno. 0 por defecto. */
+  readonly intervalo_entre_turnos_min: number;
 }
 
 export interface ListadoDeRecursos {
@@ -132,14 +134,26 @@ export async function registrarRecurso(datos: {
   return (await respuesta.json()) as Recurso;
 }
 
+/**
+ * Reemplaza el horario semanal y, si se pasa, el intervalo entre turnos (HU-E7-04 RN-06).
+ *
+ * Sin intervalo el backend conserva el actual. Los rangos —slot de 5 a 480, intervalo de 0 a
+ * 480— los decide el backend y su mensaje se muestra tal cual: los `min` y `max` de los campos
+ * son una cortesía.
+ */
 export async function configurarDisponibilidad(
   recursoId: string,
   patrones: readonly Patron[],
+  intervaloEntreTurnosMin?: number,
 ): Promise<Recurso> {
   const respuesta = await fetch(`/api/recursos/${recursoId}/disponibilidad`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ patrones }),
+    body: JSON.stringify(
+      intervaloEntreTurnosMin === undefined
+        ? { patrones }
+        : { patrones, intervalo_entre_turnos_min: intervaloEntreTurnosMin },
+    ),
   });
   if (!respuesta.ok) {
     await fallar(respuesta);
