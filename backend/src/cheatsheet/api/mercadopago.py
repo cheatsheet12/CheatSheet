@@ -4,12 +4,13 @@ La misma forma que `padron.py` y `arca.py`, y por la misma razón: acá se encue
 y la infraestructura de uno no puede meter mano en la de otro (R3). El ensamblado ocurre en el
 composition root, por encima de todos.
 
-Cuatro piezas se arman acá:
+Cinco piezas se arman acá:
 
 - **El token de MercadoPago**, que sale de `integrations` — el OAuth y su refresco ya existen
   desde el épico 2, y este módulo sólo pide la credencial vigente.
 - **La pasarela**, real o simulada según el `*_ADAPTADOR` de siempre.
 - **El saldo de un comprobante**, que sale de `billing` (HU-E6-06).
+- **El cliente de un cobro**, que sale de `master_data` (D92).
 - **La cadena de recordatorios**, que sale de `business_config` (HS-T3).
 
 Se construyen **por request** y no cacheadas por proceso: las tres primeras están atadas a una
@@ -33,13 +34,18 @@ from cheatsheet.contexts.integrations.application.errors import (
 )
 from cheatsheet.contexts.integrations.domain.valores import SistemaExterno
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
+from cheatsheet.contexts.master_data.infrastructure.repositories import (
+    RepositorioClientePostgres,
+)
 from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
 from cheatsheet.contexts.payments.application.ports import (
     PortCadenaDeEscalamiento,
+    PortClienteDeCobro,
     PortPasarelaDePago,
     PortSaldoDeComprobante,
 )
 from cheatsheet.contexts.payments.infrastructure.cadena import CadenaViaConfiguracion
+from cheatsheet.contexts.payments.infrastructure.clientes import ClienteViaMasterData
 from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorConsola
 from cheatsheet.contexts.payments.infrastructure.pasarela import (
     PasarelaMercadoPago,
@@ -113,6 +119,11 @@ def armar_saldos(unidad: UnidadDeTrabajo) -> PortSaldoDeComprobante:
     return SaldoViaBilling(RepositorioComprobantePostgres(unidad.sesion))
 
 
+def armar_clientes(unidad: UnidadDeTrabajo) -> PortClienteDeCobro:
+    """El cliente de un cobro, como `payments` lo ve (D92)."""
+    return ClienteViaMasterData(RepositorioClientePostgres(unidad.sesion))
+
+
 def armar_cadena(unidad: UnidadDeTrabajo) -> PortCadenaDeEscalamiento:
     """La cadena de recordatorios, como `payments` la ve (HS-T3)."""
     piezas = ConfiguracionDeNegocio.armar(unidad)
@@ -133,6 +144,7 @@ def armar_envio(settings: Settings) -> EnvioPorConsola:
 __all__ = [
     "TokenDesdeIntegraciones",
     "armar_cadena",
+    "armar_clientes",
     "armar_envio",
     "armar_pasarela",
     "armar_saldos",

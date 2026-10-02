@@ -1,6 +1,6 @@
 """ACL sobre `billing`: el saldo de un comprobante, en el vocabulario de `payments`.
 
-Dos operaciones y ninguna mas: cuanto falta, y descontá esto. `payments` no ve el comprobante,
+Tres operaciones y ninguna mas: cuanto falta, de quien es, y descontá esto. `payments` no ve el comprobante,
 ni sus items, ni su CAE — pregunta lo unico que necesita para HU-E6-06.
 
 **Lo que esta capa decide es que significa `None`.** `billing` puede no encontrar el
@@ -30,6 +30,14 @@ class SaldoViaBilling:
         except ComprobanteInexistente:
             return None
         return comprobante.saldo_pendiente
+
+    async def cliente_de(self, comprobante_id: UUID) -> UUID | None:
+        """El cliente del comprobante. `None` cuando no existe o es de otra empresa."""
+        try:
+            comprobante = await VerComprobante(self._comprobantes).ejecutar(comprobante_id)
+        except ComprobanteInexistente:
+            return None
+        return comprobante.cliente_id
 
     async def registrar_cobro(self, comprobante_id: UUID, monto: Decimal) -> None:
         """Reduce el saldo pendiente (HU-E6-06 RN-03). **Solo al aprobarse el cobro** (D26).

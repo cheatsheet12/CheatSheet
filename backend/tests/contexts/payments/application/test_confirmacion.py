@@ -111,6 +111,8 @@ class PasarelaFalsa:
         self.estado = estado
         self.preferencia = preferencia
         self.consultas = 0
+        #: Cuantas veces se pidio un link: un cliente invalido no debe gastar ninguna.
+        self.creados = 0
         #: Con qué preferencias se llamó a `invalidar_link`. Lo que hace afirmable RN-03 de
         #: HU-E6-04: que la cancelación no se quedó en una anotación nuestra.
         self.invalidados: list[str] = []
@@ -119,6 +121,7 @@ class PasarelaFalsa:
         self, *, empresa_id: EmpresaId, cobro: Cobro, url_de_retorno: str
     ) -> LinkDePago:
         del empresa_id, cobro, url_de_retorno
+        self.creados += 1
         return UN_LINK
 
     async def consultar_pago(self, *, empresa_id: EmpresaId, payment_id: str) -> PagoRecibido:
@@ -139,14 +142,38 @@ class PasarelaFalsa:
         return True
 
 
+#: El cliente con el que los tests de cobros generan, salvo que digan otra cosa.
+CLIENTE = uuid4()
+
+
+class ClientesFalsos:
+    """`PortClienteDeCobro`. Conoce a los clientes que se le dan como activos."""
+
+    def __init__(self, *activos: UUID) -> None:
+        self.activos = set(activos)
+        self.consultas: list[UUID] = []
+
+    async def esta_activo(self, cliente_id: UUID) -> bool:
+        self.consultas.append(cliente_id)
+        return cliente_id in self.activos
+
+
 class SaldosFalsos:
-    def __init__(self, saldo: Decimal = Decimal("5000.00")) -> None:
+    def __init__(
+        self, saldo: Decimal = Decimal("5000.00"), *, cliente: UUID | None = CLIENTE
+    ) -> None:
         self.saldo = saldo
+        #: El dueno del comprobante; `None` es un comprobante que no existe.
+        self.cliente = cliente
         self.descuentos: list[tuple[UUID, Decimal]] = []
 
     async def saldo_pendiente(self, comprobante_id: UUID) -> Decimal | None:
         del comprobante_id
         return self.saldo
+
+    async def cliente_de(self, comprobante_id: UUID) -> UUID | None:
+        del comprobante_id
+        return self.cliente
 
     async def registrar_cobro(self, comprobante_id: UUID, monto: Decimal) -> None:
         self.descuentos.append((comprobante_id, monto))

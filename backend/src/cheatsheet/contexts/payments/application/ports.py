@@ -259,16 +259,36 @@ class PortCadenaDeEscalamiento(Protocol):
     async def pasos(self, *, empresa_id: EmpresaId) -> tuple[PasoDeCadena, ...]: ...
 
 
+class PortClienteDeCobro(Protocol):
+    """Lo que `master_data` publica para que un cobro tenga a quien cobrarle (D92).
+
+    Una sola pregunta. `payments` no ve el CUIT ni el contacto del cliente: es un ACL sobre
+    el puerto de aplicacion del otro contexto (R3, ADR-0003).
+    """
+
+    async def esta_activo(self, cliente_id: UUID) -> bool:
+        """`False` cuando no existe, es de otra empresa o esta inactivo.
+
+        Las tres se colapsan a proposito: bajo RLS las dos primeras no se distinguen, y para
+        un cobro las tres significan lo mismo: no hay a quien cobrarle.
+        """
+        ...
+
+
 class PortSaldoDeComprobante(Protocol):
     """Lo que `billing` publica para que un cobro pueda descontar (HU-E6-06).
 
-    Dos operaciones y ninguna más: cuánto falta, y descontá esto. `payments` no ve el
-    comprobante ni sus ítems — es un ACL sobre el servicio de aplicación del otro contexto
-    (R3, ADR-0003).
+    Tres operaciones y ninguna más: cuánto falta, de quién es, y descontá esto. `payments` no
+    ve el comprobante ni sus ítems — es un ACL sobre el servicio de aplicación del otro
+    contexto (R3, ADR-0003).
     """
 
     async def saldo_pendiente(self, comprobante_id: UUID) -> Decimal | None:
         """`None` cuando el comprobante no existe o no es de esta empresa."""
+        ...
+
+    async def cliente_de(self, comprobante_id: UUID) -> UUID | None:
+        """El cliente del comprobante, o `None` si no existe o no es de esta empresa."""
         ...
 
     async def registrar_cobro(self, comprobante_id: UUID, monto: Decimal) -> None:
@@ -282,6 +302,7 @@ __all__ = [
     "PagoRecibido",
     "PasoDeCadena",
     "PortCadenaDeEscalamiento",
+    "PortClienteDeCobro",
     "PortEnvioDeRecordatorio",
     "PortPasarelaDePago",
     "PortRepositorioCobro",

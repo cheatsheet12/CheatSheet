@@ -203,3 +203,33 @@ async def test_el_boton_de_validar_contra_arca_responde_los_tres_estados(
 
     assert respuesta.status_code == 200, respuesta.text
     assert respuesta.json()["estado"] == "NO_DISPONIBLE"
+
+
+@pytest.mark.asyncio
+async def test_ver_un_cliente_por_id(cliente_http: httpx.AsyncClient) -> None:
+    token = await _registrar_empresa(cliente_http, "ana@empresa.com")
+    creado = await _crear(cliente_http, token, nombre="Rosa Diaz", cuit=CUIT_VALIDO)
+    cliente_id = creado.json()["id"]
+
+    respuesta = await cliente_http.get(f"/clientes/{cliente_id}", headers=_auth(token))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["id"] == cliente_id
+    assert respuesta.json()["nombre"] == "Rosa Diaz"
+
+
+@pytest.mark.asyncio
+async def test_ver_un_cliente_de_otra_empresa_responde_igual_que_uno_inexistente(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    """Distinguirlos le diria a una empresa que el id ajeno es real."""
+    token_a = await _registrar_empresa(cliente_http, "ana@empresa-a.com")
+    token_b = await _registrar_empresa(cliente_http, "bruno@empresa-b.com")
+    ajeno = (await _crear(cliente_http, token_a, nombre="De la empresa A")).json()["id"]
+
+    de_otra = await cliente_http.get(f"/clientes/{ajeno}", headers=_auth(token_b))
+    inexistente = await cliente_http.get(
+        "/clientes/00000000-0000-4000-8000-000000000000", headers=_auth(token_b)
+    )
+
+    assert de_otra.status_code == inexistente.status_code == 422
