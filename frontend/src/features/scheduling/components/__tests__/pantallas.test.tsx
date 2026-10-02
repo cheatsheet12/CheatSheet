@@ -69,6 +69,7 @@ const RECURSO: Recurso = {
   ],
   excepciones: [],
   servicios: [CORTE.id],
+  intervalo_entre_turnos_min: 0,
 };
 
 const INACTIVO: Recurso = { ...RECURSO, id: "r2", nombre: "Consultorio 2", activo: false };
@@ -285,6 +286,7 @@ describe("PAN-AGE-02 — nuevo turno", () => {
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
     fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
 
     const horario = (await screen.findByLabelText("Horario")) as HTMLSelectElement;
     // El ocupado no se ofrece: es la única opción, además de la vacía.
@@ -311,8 +313,8 @@ describe("PAN-AGE-02 — nuevo turno", () => {
 
     expect(await screen.findByText("El horario seleccionado no está disponible.")).toBeTruthy();
     // La lista se vuelve a pedir: el segundo intento tiene que ver lo que hay ahora. Dos
-    // llamadas: la de elegir la fecha y la del refresco despues del rechazo — elegir el
-    // recurso sin fecha todavia no consulta nada.
+    // llamadas: la de elegir el servicio y la del refresco despues del rechazo — sin servicio
+    // todavia no se consulta nada (D96).
     await waitFor(() => {
       expect(verDisponibilidad).toHaveBeenCalledTimes(2);
     });
@@ -325,8 +327,52 @@ describe("PAN-AGE-02 — nuevo turno", () => {
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
     fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-05" } });
+    fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
 
     expect(await screen.findByText(/El recurso no tiene horarios libres ese día/)).toBeTruthy();
+  });
+
+  it("no busca los horarios sin servicio y pide elegirlo (D96)", async () => {
+    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
+
+    fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
+    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+
+    expect(await screen.findByText("Elegí el servicio para ver los horarios")).toBeTruthy();
+    expect(verDisponibilidad).not.toHaveBeenCalled();
+  });
+
+  it("busca con el servicio y vuelve a buscar cuando se cambia de servicio (D96)", async () => {
+    const color: ServicioAgendable = { id: "s2", nombre: "Color", duracion_estandar_min: 90 };
+    verDisponibilidad.mockResolvedValue({
+      fecha: "2027-09-07",
+      horarios: [{ inicio: "2027-09-07T19:00:00+00:00", ocupado: false }],
+    });
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        recursos={[{ ...RECURSO, servicios: [CORTE.id, color.id] }]}
+        servicios={[CORTE, color]}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
+    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
+    fireEvent.change(await screen.findByLabelText("Horario"), {
+      target: { value: "2027-09-07T19:00:00+00:00" },
+    });
+    expect(verDisponibilidad).toHaveBeenLastCalledWith(RECURSO.id, "2027-09-07", CORTE.id);
+
+    fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: color.id } });
+
+    await waitFor(() => {
+      expect(verDisponibilidad).toHaveBeenLastCalledWith(RECURSO.id, "2027-09-07", color.id);
+    });
+    // Un horario elegido para el servicio anterior no queda elegido: la grilla es otra.
+    await waitFor(() => {
+      expect((screen.getByLabelText("Horario") as HTMLSelectElement).value).toBe("");
+    });
   });
 
   it("solo ofrece los servicios que el recurso presta (RN-03)", async () => {

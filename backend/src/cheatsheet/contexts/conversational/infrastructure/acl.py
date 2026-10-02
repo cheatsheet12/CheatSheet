@@ -29,6 +29,8 @@ from cheatsheet.contexts.master_data.application.clientes import (
     RegistrarCliente,
 )
 from cheatsheet.contexts.master_data.application.ports import PortPadron, PortRepositorioCliente
+from cheatsheet.contexts.scheduling.application.disponibilidad import VerHorariosDisponibles
+from cheatsheet.contexts.scheduling.application.errors import ServicioNoAdmitido
 from cheatsheet.contexts.scheduling.application.ports import (
     FiltrosDeAgenda,
     PortCatalogoDeServicios,
@@ -82,22 +84,35 @@ class AgendaViaScheduling:
     async def horarios_ofrecibles(self, *, dia: date, limite: int = 4) -> list[HorarioOfrecible]:
         """HU-E8-01 RN-02: **sólo horarios efectivamente disponibles.**
 
-        Se cruzan los que el recurso ofrece ese día —patrón semanal más excepciones— contra los
-        que ya están tomados, y se descartan los que ya pasaron (HU-E8-01 RN-06, D95). Lo que
-        sale de acá es lo único que el agente puede nombrar.
+        La grilla la calcula `VerHorariosDisponibles`, la misma que usa el panel: inicios por el
+        paso del slot, el turno del servicio entra en la franja, y «ocupado» es solapamiento más
+        intervalo entre turnos (D96). Se descartan los que ya pasaron (HU-E8-01 RN-06, D95). Lo
+        que sale de acá es lo único que el agente puede nombrar.
         """
         ahora = self._reloj.ahora()
+        grilla = VerHorariosDisponibles(
+            turnos=self._turnos, recursos=self._recursos, servicios=self._servicios
+        )
         ofrecibles: list[HorarioOfrecible] = []
         for recurso in await ListarRecursos(self._recursos).ejecutar(solo_activos=True):
             if not recurso.servicios:
                 continue
             servicio_id = sorted(recurso.servicios)[0]
-            tomados = {uno.franja.inicio for uno in await self._turnos.ocupados_en(recurso.id, dia)}
-            for momento in recurso.horarios_del_dia(dia):
-                if momento in tomados or momento < ahora:
+            try:
+                horarios = await grilla.ejecutar(
+                    recurso_id=recurso.id, servicio_id=servicio_id, fecha=dia, ahora=ahora
+                )
+            except ServicioNoAdmitido:
+                # El servicio asociado dejó de ser agendable: sin servicio no hay duración, y
+                # ofrecer un horario que `reservar` va a rechazar es lo que esto evita.
+                continue
+            for horario in horarios:
+                if horario.ocupado:
                     continue
                 ofrecibles.append(
-                    HorarioOfrecible(recurso_id=recurso.id, servicio_id=servicio_id, inicio=momento)
+                    HorarioOfrecible(
+                        recurso_id=recurso.id, servicio_id=servicio_id, inicio=horario.inicio
+                    )
                 )
                 if len(ofrecibles) >= limite:
                     return ofrecibles

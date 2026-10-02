@@ -38,6 +38,7 @@ const RECURSO: Recurso = {
   ],
   excepciones: [],
   servicios: ["s1"],
+  intervalo_entre_turnos_min: 0,
 };
 
 function respuesta(cuerpo: unknown, ok = true, status = 200): Response {
@@ -129,6 +130,17 @@ describe("las tres configuraciones", () => {
     expect(ruta).toBe("/api/recursos/r1/disponibilidad");
     expect(opciones.method).toBe("PUT");
     expect(opciones.body).toBe(JSON.stringify({ patrones: RECURSO.patrones }));
+  });
+
+  it("el horario manda el intervalo entre turnos cuando se lo pasa", async () => {
+    const espia = espiarFetch(respuesta(RECURSO));
+
+    await configurarDisponibilidad("r1", RECURSO.patrones, 10);
+
+    const [, opciones] = espia.mock.calls[0] as [string, RequestInit];
+    expect(opciones.body).toBe(
+      JSON.stringify({ patrones: RECURSO.patrones, intervalo_entre_turnos_min: 10 }),
+    );
   });
 
   it("los servicios se reemplazan con un PUT", async () => {

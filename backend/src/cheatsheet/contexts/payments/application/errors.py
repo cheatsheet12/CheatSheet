@@ -21,12 +21,33 @@ class CobroInexistente(EntradaInvalida):
     distinguirlas le diría a una empresa que el id de un cobro ajeno es real."""
 
 
+class ClienteInexistente(EntradaInvalida):
+    """El cliente no existe, es de otra empresa o esta inactivo.
+
+    Las tres son la misma respuesta a proposito: bajo RLS "no existe" y "es de otra empresa"
+    no se distinguen, y separarlas le diria a una empresa que el id ajeno es real.
+    """
+
+
+class ComprobanteDeOtroCliente(EntradaInvalida):
+    """El comprobante pertenece a otro cliente: seria cobrar la deuda de otra persona."""
+
+
 class CobroNoCancelable(InvarianteViolada):
     """HU-E6-04 RN-01: un cobro pagado no se cancela, se reembolsa."""
 
 
 class CobroNoReembolsable(InvarianteViolada):
     """HU-E6-05 RN-01: solo se reembolsa lo que está aprobado."""
+
+
+class ReembolsoEnProceso(InvarianteViolada):
+    """HU-E6-05: ya hay un reembolso en vuelo. Solo uno a la vez por cobro (es el mutex)."""
+
+
+class ReembolsoNoCorregible(InvarianteViolada):
+    """HU-E6-05 RN-08: solo se corrige un reembolso manual que no sea una corrección ni esté
+    ya corregido. Las filas de la API las manda MercadoPago, que es la fuente de verdad."""
 
 
 class MontoExcedeSaldo(EntradaInvalida):
@@ -63,12 +84,16 @@ class WebhookNoAutentico(EntradaInvalida):
 
 
 __all__ = [
+    "ClienteInexistente",
     "CobroInexistente",
     "CobroNoCancelable",
     "CobroNoReembolsable",
+    "ComprobanteDeOtroCliente",
     "MontoExcedeSaldo",
     "PasarelaNoDisponible",
     "RecordatorioDuplicado",
+    "ReembolsoEnProceso",
+    "ReembolsoNoCorregible",
     "ReembolsoRechazado",
     "WebhookNoAutentico",
 ]

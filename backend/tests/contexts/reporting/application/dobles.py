@@ -20,6 +20,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from cheatsheet.contexts.reporting.application.ports import (
+    DetalleDeCobranzas,
     FilaDeReporte,
     TotalesDeAgenda,
     TotalesDeCobranzas,
@@ -171,15 +172,22 @@ class CobranzasFalsas:
         *,
         totales: TotalesDeCobranzas | None = None,
         filas: list[FilaDeReporte] | None = None,
+        detalle: DetalleDeCobranzas | None = None,
     ) -> None:
         self.totales_fijos = totales or TotalesDeCobranzas(
             cobrado=CERO, pendiente=CERO, en_mora=CERO
         )
         self.filas_fijas = filas or []
+        self.detalle_fijo = detalle or DetalleDeCobranzas(por_semana={}, por_estado={})
+        self.periodos_de_detalle: list[Periodo] = []
 
     async def totales(self, periodo: Periodo) -> TotalesDeCobranzas:
         del periodo
         return self.totales_fijos
+
+    async def detalle(self, periodo: Periodo) -> DetalleDeCobranzas:
+        self.periodos_de_detalle.append(periodo)
+        return self.detalle_fijo
 
     async def filas(self, periodo: Periodo) -> list[FilaDeReporte]:
         del periodo

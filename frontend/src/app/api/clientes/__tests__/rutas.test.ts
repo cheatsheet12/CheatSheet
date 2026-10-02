@@ -33,7 +33,7 @@ vi.mock("@/lib/api", async () => {
 
 const { ErrorDeApi } = await import("@/lib/api");
 const { GET: getClientes, POST: postCliente } = await import("@/app/api/clientes/route");
-const { PUT: putCliente } = await import("@/app/api/clientes/[clienteId]/route");
+const { GET: getCliente, PUT: putCliente } = await import("@/app/api/clientes/[clienteId]/route");
 const { PUT: putEstado } = await import("@/app/api/clientes/[clienteId]/estado/route");
 const { POST: postPadron } = await import("@/app/api/clientes/padron/route");
 
@@ -65,13 +65,14 @@ describe("sin sesión", () => {
   it("ninguna ruta llega al backend", async () => {
     const respuestas = await Promise.all([
       getClientes(listado()),
+      getCliente(listado(), { params: { clienteId: "un-cliente" } }),
       postCliente(pedido({ nombre: "Rosa" })),
       putCliente(pedido({ nombre: "Rosa" }), { params: { clienteId: "un-cliente" } }),
       putEstado(pedido({ activo: false }), { params: { clienteId: "un-cliente" } }),
       postPadron(pedido({ cuit: "30712345671" })),
     ]);
 
-    expect(respuestas.map((respuesta) => respuesta.status)).toEqual(Array(5).fill(401));
+    expect(respuestas.map((respuesta) => respuesta.status)).toEqual(Array(6).fill(401));
     expect(llamarApi).not.toHaveBeenCalled();
   });
 });
@@ -86,6 +87,17 @@ describe("con sesión", () => {
     expect(respuesta.status).toBe(200);
     expect(await respuesta.json()).toEqual({ clientes: [CLIENTE], total: 1 });
     expect(llamarApi).toHaveBeenCalledWith("/clientes", { method: "GET" });
+  });
+
+  it("trae un cliente por el id de la ruta", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue(CLIENTE);
+
+    const respuesta = await getCliente(listado(), { params: { clienteId: "c-1" } });
+
+    expect(respuesta.status).toBe(200);
+    expect(await respuesta.json()).toEqual(CLIENTE);
+    expect(llamarApi).toHaveBeenCalledWith("/clientes/c-1", { method: "GET" });
   });
 
   it("reenvía el query string entero, sin conocer los filtros", async () => {

@@ -4,12 +4,13 @@ La misma forma que `padron.py` y `arca.py`, y por la misma razón: acá se encue
 y la infraestructura de uno no puede meter mano en la de otro (R3). El ensamblado ocurre en el
 composition root, por encima de todos.
 
-Cuatro piezas se arman acá:
+Cinco piezas se arman acá:
 
 - **El token de MercadoPago**, que sale de `integrations` — el OAuth y su refresco ya existen
   desde el épico 2, y este módulo sólo pide la credencial vigente.
 - **La pasarela**, real o simulada según el `*_ADAPTADOR` de siempre.
 - **El saldo de un comprobante**, que sale de `billing` (HU-E6-06).
+- **El cliente de un cobro**, que sale de `master_data` (D92).
 - **La cadena de recordatorios**, que sale de `business_config` (HS-T3).
 
 Se construyen **por request** y no cacheadas por proceso: las tres primeras están atadas a una
@@ -33,13 +34,18 @@ from cheatsheet.contexts.integrations.application.errors import (
 )
 from cheatsheet.contexts.integrations.domain.valores import SistemaExterno
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
+from cheatsheet.contexts.master_data.infrastructure.repositories import (
+    RepositorioClientePostgres,
+)
 from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
 from cheatsheet.contexts.payments.application.ports import (
     PortCadenaDeEscalamiento,
+    PortClienteDeCobro,
     PortPasarelaDePago,
     PortSaldoDeComprobante,
 )
 from cheatsheet.contexts.payments.infrastructure.cadena import CadenaViaConfiguracion
+from cheatsheet.contexts.payments.infrastructure.clientes import ClienteViaMasterData
 from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorConsola
 from cheatsheet.contexts.payments.infrastructure.pasarela import (
     PasarelaMercadoPago,
@@ -47,7 +53,7 @@ from cheatsheet.contexts.payments.infrastructure.pasarela import (
     PortTokenDeMercadoPago,
 )
 from cheatsheet.contexts.payments.infrastructure.saldo import SaldoViaBilling
-from cheatsheet.platform.settings import AdaptadorDeMercadoPago, Settings
+from cheatsheet.platform.settings import AdaptadorDeMercadoPago, Entorno, Settings
 from cheatsheet.shared.empresa import EmpresaId
 
 
@@ -97,6 +103,13 @@ def _desempaquetar(credencial: bytes) -> tuple[str, str]:
     return desempaquetar(credencial)
 
 
+#: **El doble es de proceso, no de request.** «rechazar» se decide al crear el link, «demorar» se
+#: resuelve en «Actualizar estado» (otro request) y la clave de idempotencia de un reembolso viaja
+#: de una transacción a la otra: con un doble nuevo por llamada, ninguna de las tres ramas se
+#: podría caminar en una laptop. Solo para desarrollo: en producción no se construye.
+_SIMULADAS: dict[Entorno, PasarelaSimulada] = {}
+
+
 def armar_pasarela(unidad: UnidadDeTrabajo, settings: Settings) -> PortPasarelaDePago:
     """MercadoPago, real o simulado según `MERCADOPAGO_ADAPTADOR`."""
     if settings.mercadopago_adaptador is AdaptadorDeMercadoPago.MERCADOPAGO:
@@ -105,12 +118,20 @@ def armar_pasarela(unidad: UnidadDeTrabajo, settings: Settings) -> PortPasarelaD
                 integraciones=Integraciones.armar(unidad.sesion, settings)
             )
         )
-    return PasarelaSimulada(settings.entorno)
+    if settings.entorno not in _SIMULADAS:
+        # Se construye antes de guardarse: en producción levanta y no queda nada cacheado.
+        _SIMULADAS[settings.entorno] = PasarelaSimulada(settings.entorno)
+    return _SIMULADAS[settings.entorno]
 
 
 def armar_saldos(unidad: UnidadDeTrabajo) -> PortSaldoDeComprobante:
     """El saldo de un comprobante, como `payments` lo ve (HU-E6-06)."""
     return SaldoViaBilling(RepositorioComprobantePostgres(unidad.sesion))
+
+
+def armar_clientes(unidad: UnidadDeTrabajo) -> PortClienteDeCobro:
+    """El cliente de un cobro, como `payments` lo ve (D92)."""
+    return ClienteViaMasterData(RepositorioClientePostgres(unidad.sesion))
 
 
 def armar_cadena(unidad: UnidadDeTrabajo) -> PortCadenaDeEscalamiento:
@@ -133,6 +154,7 @@ def armar_envio(settings: Settings) -> EnvioPorConsola:
 __all__ = [
     "TokenDesdeIntegraciones",
     "armar_cadena",
+    "armar_clientes",
     "armar_envio",
     "armar_pasarela",
     "armar_saldos",

@@ -34,9 +34,22 @@ MENSAJE_TURNO_NO_TRANSCURRIO = "El turno aún no transcurrió."
 MENSAJE_TURNO_EN_EL_PASADO = "No se puede agendar un turno en un horario que ya pasó."
 MENSAJE_REPROGRAMAR_AL_PASADO = "No se puede reprogramar un turno a un horario que ya pasó."
 
-#: Un turno de más de un día no es un turno. El techo evita que un `franja_duracion_min`
-#: escrito con un cero de más bloquee la agenda de un recurso durante una semana.
+#: Un turno de más de un día no es un turno. El techo estructural evita que un
+#: `franja_duracion_min` escrito con un cero de más bloquee la agenda de un recurso durante una
+#: semana. Es el de `Franja` y el de `ck_turno_duracion`; el rango del negocio es el de abajo.
 DURACION_MAXIMA_MIN = 24 * 60
+
+#: HU-E7-06 RN-08 y HU-E7-02 RN-08 (decisión D96): un turno dura de 5 a 480 minutos. Se valida
+#: acá, al crear y al reprogramar, y **no** en `Franja` ni en la base: un turno viejo de 600
+#: minutos (la duración manual existía) tiene que poder leerse aunque ya no se pueda reprogramar.
+DURACION_TURNO_MINIMA_MIN = 5
+DURACION_TURNO_MAXIMA_MIN = 480
+MENSAJE_DURACION_DE_TURNO = "La duración del turno debe estar entre 5 y 480 minutos."
+
+
+def validar_duracion_de_turno(duracion_min: int) -> None:
+    if not DURACION_TURNO_MINIMA_MIN <= duracion_min <= DURACION_TURNO_MAXIMA_MIN:
+        raise EntradaInvalida(MENSAJE_DURACION_DE_TURNO)
 
 
 class EstadoTurno(StrEnum):
@@ -172,6 +185,10 @@ class Turno:
     cobro_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    #: El intervalo entre turnos que se aplicó al reservar o reprogramar (decisión D96). `None`
+    #: significa «sin intervalo»: la carga y la corrección a posteriori no lo respetan ni lo
+    #: imponen (HU-E7-06 RN-07), y la base deja esos turnos fuera de `excl_turno_recurso_intervalo`.
+    intervalo_posterior_min: int | None = 0
 
     @classmethod
     def registrar_a_posteriori(
@@ -204,6 +221,7 @@ class Turno:
             canal_reserva=CanalDeReserva.PANEL,
             created_at=ahora,
             updated_at=ahora,
+            intervalo_posterior_min=None,
         )
 
     # -- transiciones -----------------------------------------------------------------
@@ -220,17 +238,19 @@ class Turno:
         """
         self._transicionar_a(EstadoTurno.CANCELADO)
 
-    def reprogramar(self, franja: Franja) -> None:
+    def reprogramar(self, franja: Franja, intervalo_posterior_min: int | None) -> None:
         """Mueve el turno a otra franja **conservando el estado** (RN-02).
 
         No hay `estado` de por medio y no lo va a haber: la historia dice que la reprogramación
-        no es un estado, y este método es donde esa frase se vuelve código.
+        no es un estado, y este método es donde esa frase se vuelve código. El intervalo es el
+        **actual** del recurso, o `None` en la corrección a posteriori.
         """
         if self.estado not in ESTADOS_ABIERTOS:
             raise InvarianteViolada(
                 f"Un turno {self.estado.value.lower()} no se reprograma: se crea uno nuevo"
             )
         self.franja = franja
+        self.intervalo_posterior_min = intervalo_posterior_min
 
     def marcar_completado(self, ahora: datetime) -> None:
         """HU-E7-03. Sólo cuando el turno ya transcurrió (RN-01)."""
@@ -255,6 +275,23 @@ class Turno:
         deriva de otro y se guarda igual es un dato que algún día va a discrepar.
         """
         return self.estado is EstadoTurno.COMPLETADO
+
+    def bloquea(self, inicio: datetime, duracion_min: int, intervalo_min: int | None) -> bool:
+        """¿Este turno impide ofrecer un turno nuevo con esa franja y ese intervalo?
+
+        Es el mismo criterio que las dos restricciones de la base (D96). Pisar la franja real
+        siempre choca. Si **los dos** llevan intervalo, también choca que se pisen las franjas
+        extendidas con su margen, con la semántica `[)` de siempre. Un turno a posteriori
+        (`None`) sólo bloquea su franja real.
+        """
+        nueva = Franja(inicio=inicio, duracion_min=duracion_min)
+        if self.franja.se_solapa_con(nueva):
+            return True
+        if self.intervalo_posterior_min is None or intervalo_min is None:
+            return False
+        propio_fin = self.franja.fin + timedelta(minutes=self.intervalo_posterior_min)
+        nuevo_fin = nueva.fin + timedelta(minutes=intervalo_min)
+        return self.franja.inicio < nuevo_fin and nueva.inicio < propio_fin
 
     def ya_transcurrio(self, ahora: datetime) -> bool:
         """El turno terminó. Se mide contra el **fin** de la franja, no contra el inicio.

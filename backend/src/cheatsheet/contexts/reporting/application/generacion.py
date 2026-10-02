@@ -79,7 +79,11 @@ class ListarReportes:
 
 
 class GenerarReporte:
-    """HU-E10-03. Arma el archivo, lo guarda y deja el reporte listo para descargar."""
+    """HU-E10-03. Arma el archivo, lo guarda y deja el reporte listo para descargar.
+
+    Levanta `GeneracionFallida` **después** de guardar la fila en `FALLIDO`: quien abre la
+    transacción tiene que confirmarla antes de relanzar, o la fila se pierde (D65).
+    """
 
     def __init__(
         self,

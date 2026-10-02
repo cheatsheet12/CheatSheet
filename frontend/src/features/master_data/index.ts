@@ -12,6 +12,11 @@ export { ListadoDeClientes } from "./components/ListadoDeClientes";
 export type { PropsDeListado } from "./components/ListadoDeClientes";
 export { FormularioDeCliente } from "./components/FormularioDeCliente";
 export type { PropsDeFormulario } from "./components/FormularioDeCliente";
+export { SelectorDeClientes } from "./components/SelectorDeClientes";
+export type {
+  ClienteSeleccionado,
+  PropsDeSelectorDeClientes,
+} from "./components/SelectorDeClientes";
 export {
   ErrorDeCatalogo,
   cambiarEstadoDeCliente,
@@ -19,6 +24,7 @@ export {
   crearCliente,
   editarCliente,
   listarClientes,
+  verCliente,
 } from "./api/cliente";
 export type {
   Cliente,

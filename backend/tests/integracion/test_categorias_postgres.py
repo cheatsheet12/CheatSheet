@@ -301,7 +301,7 @@ async def test_los_dos_listados_filtran_por_categoria(
         )
 
     assert total == 1
-    assert [c.nombre for c in encontrados] == ["Con etiqueta"]
+    assert [c.id for c in encontrados] == [con_etiqueta.id]
 
 
 @pytest.mark.asyncio

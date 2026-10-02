@@ -582,7 +582,63 @@ sí o sí.
 
 ---
 
-## 20. Hallazgos de `normalizacion-de-datos`
+# Fase 2 — Verificaciones pendientes contra los sandbox
+
+Lo que la fase 2 (ajustes de la revisión, ADR-0009) dejó **sin poder verificar** porque las
+integraciones corren simuladas. Cuando el equipo tenga el sandbox de MercadoPago y el certificado
+de homologación de ARCA (ola 0), se recorre esta lista **antes** de dar por cerradas las unidades
+que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
+
+## 20. MercadoPago (sandbox)
+
+| # | Qué verificar | Unidad | Qué pasa si falla |
+|---|---|---|---|
+| 20.1 | El monto máximo que acepta una preferencia o link de pago, contra el tope propio `MONTO_MAXIMO_DE_COBRO` (100.000.000,00) | `nuevo-cobro-desde-su-panel` | Si el de MercadoPago es menor, manda el suyo: se baja la constante |
+| 20.2 | Un pago aprobado trae siempre `date_approved`, en ISO 8601 y con zona horaria | `fecha-de-pago` | Si falta o viene sin zona, `fecha_pago` queda marcada aproximada; revisar la regla |
+| 20.3 | Los valores reales de `payment_type_id` / `payment_method_id` | `fecha-de-pago` (ADR-0010) | El medio de pago es un conjunto cerrado; confirmar que nada se clasifica mal |
+| 20.4 | Qué trae una **transferencia entrante**: identidad del pagador (DNI/CUIT), fecha y número de operación, y si se consulta con las credenciales del vendedor | `fecha-de-pago`, `cobro-por-transferencia` | Cualquier «no» cambia HU-E6-08 (ADR-0009) |
+| 20.5 | La API acepta reembolsos **parciales** en un pago por link de Checkout Pro, varios sobre el mismo pago, y con qué respuesta (la referencia lista el error `4295` «parcial no soportado» para algunas transacciones) | `reembolsos-parciales-y-manuales` | Si un medio no admite parcial, se muestra el rechazo con el motivo; si ninguno, cambia HU-E6-05 |
+| 20.6 | Montos con centavos llegan exactos: `crear_link` (`pasarela.py`) todavía envía `float(cobro.monto)`; el de reembolsar ya sale de `_numero_json` (P3 de `reembolsos-parciales-y-manuales`), que quien tome esto puede reusar | hallazgo sin unidad | Un centavo de diferencia entre el cobro y el pago |
+| 20.7 | Dos notificaciones simultáneas del mismo pago: la segunda hoy puede devolver 500 | hallazgo sin unidad | MercadoPago reintenta; confirmar que no queda un pago sin imputar |
+| 20.8 | Que el `date_approved` de un pago real cae dentro de la tolerancia de reloj de 5 minutos respecto de nuestra hora de confirmación y nunca es anterior a la creación del cobro | `fecha-de-pago` | Si un pago legítimo se descarta como implausible, queda marcado aproximado sin necesidad; ajustar `TOLERANCIA_DE_RELOJ` |
+| 20.9 | Qué valores de `status` devuelve el `POST` de reembolso (la referencia solo muestra `approved`) y si un reembolso de tarjeta vuelve aprobado en el acto | `reembolsos-parciales-y-manuales` | Si nunca hay `in_process`, la rama «en proceso» queda solo para la falta de respuesta |
+| 20.10 | **Crítico.** Reenviar el mismo `POST` con la misma `X-Idempotency-Key` devuelve el mismo reembolso y no crea otro; cuánto tiempo vale la clave | `reembolsos-parciales-y-manuales` | Si no deduplica, «Actualizar estado» sin id puede duplicar un reembolso: habría que consultar la lista de reembolsos del pago en vez de reenviar |
+| 20.11 | `GET /v1/payments/{id}/refunds/{refund_id}` devuelve `status`, `amount` y `date_created` con zona horaria | `reembolsos-parciales-y-manuales` | Si la fecha falta, la devolución toma el momento de la confirmación |
+| 20.12 | Si un reembolso dispara un webhook `payment.updated` o solo el tópico `topic_claims_integration_wh` | `reembolsos-parciales-y-manuales`, `reembolsos-en-vuelo` | Define si se puede confirmar por notificación además de por barrido, y detectar reembolsos hechos desde el panel de MercadoPago |
+| 20.13 | `amount` con centavos (`0.10`, `1234.56`) se reembolsa exacto; mínimo por reembolso y máximo de parciales por pago | `reembolsos-parciales-y-manuales` | Un centavo de diferencia entre la fila y lo devuelto |
+| 20.14 | El rechazo trae `message` legible (códigos `2063`, `2024`/`15016`, `4293`, `4295`) y rige el plazo de 180 días | `reembolsos-parciales-y-manuales` | Si no hay mensaje, la pantalla muestra solo el código |
+| 20.15 | Qué código HTTP devuelve el `POST` de reembolso cuando **se reenvía la misma `X-Idempotency-Key` mientras el primero sigue en curso** (¿409?) y cuando hay límite de tasa (429). **Resuelto en el código (verificador independiente):** `pasarela.py` ya trata 401, 403, 408, 409, 425 y 429 al reembolsar como «no se pudo preguntar» (`PasarelaNoDisponible`): el reembolso queda en vuelo con su clave y el administrador ve «en proceso» y puede usar «Actualizar estado»; solo el resto de los 4xx es rechazo. **El sandbox debe confirmar** qué código devuelve realmente la clave repetida (¿409?) y el límite de tasa (¿429?), y si algún 4xx de negocio real cae en esa lista y nunca se resolvería solo | `reembolsos-parciales-y-manuales` | Si un 409 o un 429 no significan «no», un reintento legítimo se registraría como rechazado y la clave guardada se perdería: habría que tratarlos como «no se pudo preguntar» (`PasarelaNoDisponible`) y dejar el reembolso en vuelo |
+| 20.16 | Qué `status` y `status_detail` tiene el **pago** después de un reembolso parcial y de uno total, y si `GET /v1/payments/{id}` trae el acumulado devuelto | `reembolsos-parciales-y-manuales`, `reembolsos-en-vuelo` | Es la alternativa para conciliar sin depender del id del reembolso, y para detectar devoluciones hechas desde el panel de MercadoPago (fuera de esta unidad) |
+
+## 21. ARCA (homologación)
+
+| # | Qué verificar | Unidad | Qué pasa si falla |
+|---|---|---|---|
+| 21.1 | Responsable Inscripto → receptor IVA No Alcanzado emite **Factura B** (confianza media) | `tipos-de-comprobante-por-receptor` | D90: se corrige la tabla con un release y no se emite ese tipo hasta entonces |
+| 21.2 | `CondicionIVAReceptorId = 6` sirve para Monotributista Social y Promovido (13 y 16) | `tipos-de-comprobante-por-receptor` | Se agrega el código fino |
+| 21.3 | Fecha real desde la que ARCA **rechaza** comprobantes sin `CondicionIVAReceptorId` (RG 5616/2024; hoy solo fuentes secundarias dicen 01/12/2026) | `tipos-de-comprobante-por-receptor` | Define el plazo de la sesión dedicada a esa unidad |
+| 21.4 | Factura C sin arreglo `Iva` y con `ImpIVA` en 0 | `tipos-de-comprobante-por-receptor` | Rechazo de toda Factura C |
+| 21.5 | Si una nota de crédito exige `CbtesAsoc` | `tipos-de-comprobante-por-receptor` | Rechazo de las notas de crédito |
+
+## 22. Verificaciones manuales (no dependen del sandbox)
+
+| # | Qué verificar | Unidad |
+|---|---|---|
+| 22.1 | En `/cobros/nuevo`, el concepto y el monto escritos no se pierden al elegir cliente (`router.replace`) | `nuevo-cobro-desde-su-panel` |
+| 22.2 | En el navegador, Inicio (PAN-DSH-01) y Reportes con el mismo período muestran las mismas cifras de cobranza, y el selector de Inicio conserva el período al recargar | `indicadores-de-cobranza` |
+| 22.3 | Una semana con cobrado negativo y un período con un solo estado de cobro se leen bien en Reportes (color, signo, nota del dato único) | `indicadores-de-cobranza` |
+| 22.4 | Después de las 21:00 del último día del mes (hora argentina), Inicio y Reportes abren en el mes que termina, no en el siguiente | `indicadores-de-cobranza` |
+| 22.5 | **Hallazgo sin unidad.** El período por defecto de PAN-COB-01 sale de `ahora.replace(day=1)` en UTC (`payments/application/cobros.py:118-123`): entre las 21:00 y las 24:00 del último día del mes ya muestra el mes siguiente. Reportes e Inicio ya lo calculan en hora argentina (`indicadores-de-cobranza`, P5) | hallazgo sin unidad |
+| 22.6 | **Hallazgo sin unidad.** `periodo_cerrado(ahora)` (`reporting/application/paquete.py:116`) usa `ahora.date()` en UTC; lo llaman la generación del paquete contable (`api/routers/reporteria.py`) y la tarea programada (`workers/tasks_reporting.py:97`). Entre las 21:00 y las 24:00 del último día del mes (hora argentina) toma como «cerrado» el mes que todavía está en curso. Se arregla con `hoy_en_la_zona_del_reporte` (`indicadores-de-cobranza`, P5) | hallazgo sin unidad |
+| 22.7 | Inicio con tres tarjetas (`dsh-stats--tres`) y el resumen de cobros de cuatro cifras (`rep-kpis--cuatro`) se acomodan bien en escritorio, tablet y celular | `indicadores-de-cobranza` |
+| 22.8 | Con un intervalo de 10 min en un recurso y un turno a las 09:00, la grilla de PAN-AGE-02 marca 09:30 como no disponible y ofrece 09:40 (`run-local`) | `limites-e-intervalo-de-turnos` |
+| 22.9 | En el formulario de recursos, el campo «Intervalo entre turnos (min)» y el rótulo «Duración del slot (min)» con su ayuda se ven bien en escritorio y en celular | `limites-e-intervalo-de-turnos` |
+| 22.10 | En Nuevo turno, cambiar de servicio recalcula la grilla sin dejar elegido un horario viejo, y sin servicio pide «Elegí el servicio para ver los horarios» | `limites-e-intervalo-de-turnos` |
+| 22.11 | **Hallazgo sin unidad.** `ocupados_en` (`scheduling/infrastructure/repositories.py:267-273`) trae solo los turnos que **empiezan** ese día: un turno de la noche anterior cuya franja más su intervalo pasa la medianoche no aparece en la grilla, que puede ofrecer un horario que la base después rechaza con 409. No hay doble reserva (la restricción lo frena). Se arregla trayendo también los turnos del día anterior | hallazgo sin unidad |
+
+**Archivos de más de 400 líneas (CLAUDE.md §5), vistos en `limites-e-intervalo-de-turnos`.** Ya superaban el límite antes de esa unidad y no se partieron (decisión P4): `scheduling/application/turnos.py` (~520), `api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y `tests/contexts/scheduling/application/test_agenda.py` (~1180). Una unidad aparte puede extraer `Avisador` a `application/avisador.py` y partir el router en uno de recursos y uno de turnos.
+
+## 24. Hallazgos de `normalizacion-de-datos`
 
 Todos quedan **sin unidad**: se vieron al implementar y no se arreglaron, porque ninguno es de
 HU-E4-05.

@@ -15,6 +15,8 @@ transacción y a la empresa del pedido. Es la misma conclusión de los cinco ant
 
 from __future__ import annotations
 
+from datetime import date, datetime
+
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.billing.infrastructure.repositorio_comprobante import (
     RepositorioComprobantePostgres,
@@ -23,6 +25,9 @@ from cheatsheet.contexts.identity.application.empresa import ConsultarDatosFisca
 from cheatsheet.contexts.identity.infrastructure.repositories import RepositorioEmpresaPostgres
 from cheatsheet.contexts.observability.infrastructure.repository import (
     RepositorioDeAuditoriaPostgres,
+)
+from cheatsheet.contexts.payments.infrastructure.consultas_de_cobranza import (
+    ConsultasDeCobranzaPostgres,
 )
 from cheatsheet.contexts.payments.infrastructure.repositories import RepositorioCobroPostgres
 from cheatsheet.contexts.reporting.application.ports import (
@@ -33,6 +38,7 @@ from cheatsheet.contexts.reporting.application.ports import (
     PortFacturacion,
 )
 from cheatsheet.contexts.reporting.infrastructure.acl import (
+    ZONA_DEL_REPORTE,
     AgendaViaSchedulingLeida,
     BitacoraViaObservability,
     CobranzasViaPayments,
@@ -57,7 +63,20 @@ def armar_facturacion(unidad: UnidadDeTrabajo) -> PortFacturacion:
 
 
 def armar_cobranzas(unidad: UnidadDeTrabajo) -> PortCobranzas:
-    return CobranzasViaPayments(RepositorioCobroPostgres(unidad.sesion))
+    return CobranzasViaPayments(
+        RepositorioCobroPostgres(unidad.sesion), ConsultasDeCobranzaPostgres(unidad.sesion)
+    )
+
+
+def hoy_en_la_zona_del_reporte(ahora: datetime) -> date:
+    """El día de hoy en la zona del reporte, que es el que define «el mes en curso».
+
+    El reloj devuelve UTC, y entre las 21:00 y las 24:00 del último día del mes (hora
+    argentina) ya es el mes siguiente en UTC. Los límites del período sí se cortan en
+    `ZONA_DEL_REPORTE`, así que el período por defecto tiene que salir de la misma zona: es lo
+    que usan el tablero, la previsualización, la generación y la ruta del contador.
+    """
+    return ahora.astimezone(ZONA_DEL_REPORTE).date()
 
 
 def armar_agenda_leida(unidad: UnidadDeTrabajo) -> PortAgendaLeida:
@@ -99,4 +118,5 @@ __all__ = [
     "armar_cobranzas",
     "armar_facturacion",
     "armar_nombre_de_empresa",
+    "hoy_en_la_zona_del_reporte",
 ]

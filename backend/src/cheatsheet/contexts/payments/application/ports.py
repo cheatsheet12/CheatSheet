@@ -8,8 +8,8 @@ webhook (decisión **D20**) sin depender de Redis.
 
 `PortPasarelaDePago` es el ACL contra MercadoPago, y el `verificar_firma` que lo precede:
 **una notificación cuya firma no valida no llega a este puerto**, se descarta antes (HS-T1
-RN-01). Sus cuatro operaciones se dividen en dos clases por cómo tratan un «no» del
-proveedor: `reembolsar` lo devuelve como booleano porque un rechazo deja el mundo en un
+RN-01). Sus operaciones se dividen en dos clases por cómo tratan un «no» del proveedor:
+`reembolsar` lo devuelve como `RespuestaDeReembolso` porque un rechazo deja el mundo en un
 estado conocido; `invalidar_link` levanta, porque un rechazo deja un link cobrable.
 """
 
@@ -17,12 +17,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
+from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDePago
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
+from cheatsheet.contexts.payments.domain.reembolso import Reembolso
 from cheatsheet.shared.empresa import EmpresaId
 
 
@@ -42,29 +44,44 @@ class FiltrosDeCobro:
 
 @dataclass(frozen=True, slots=True)
 class MetricasDeCobros:
-    """El encabezado de PAN-COB-01 (HU-E6-01 RN-01).
+    """El encabezado de PAN-COB-01 (HU-E6-01 RN-01, D91).
 
-    Cuatro números sobre el período activo. `cobrado` agrupa `APROBADO` y `en_mora` agrupa
-    `VENCIDO`, que es lo que la historia dice con todas las letras — y por eso los nombres de
-    este DTO son los de la **pantalla** y no los del enum: es lo que se muestra.
+    Cuatro números sobre el período activo. Los nombres son los de la **pantalla** y no los del
+    enum: `cobrado` agrupa `APROBADO` y `en_mora` agrupa `VENCIDO`.
+
+    **Cada número tiene su propia base, y no es la misma** (ADR-0010, punto 6):
+
+    - `cobrado` es lo cobrado **en** el período: suma por *fecha de pago*. Un cobro creado en
+      febrero y pagado en marzo suma en marzo.
+    - `pendiente` y `en_mora` son de lo **creado** en el período: suma por fecha de creación.
+    - `cobrado_de_lo_creado` es la parte de `cobrado` que además se creó en el período. Existe
+      solo para que la tasa tenga un numerador que sea subconjunto de su denominador.
     """
 
     cobrado: Decimal
     pendiente: Decimal
     en_mora: Decimal
+    cobrado_de_lo_creado: Decimal
 
     @property
     def tasa_de_cobro(self) -> Decimal:
-        """Cobrado sobre el total del período, en porcentaje.
+        """Lo cobrado de lo creado en el período, sobre lo creado, en porcentaje.
+
+        Se calcula con `cobrado_de_lo_creado` y **no** con `cobrado`: como el numerador está
+        incluido en el denominador, **nunca supera 100 %**, por más que el período cobre pagos de
+        cobros creados antes. Un pago posterior al cierre del período cuenta en la tasa de ese
+        período (cohorte «al día de hoy»).
 
         Con un total de cero devuelve cero y no rompe: un período sin cobros tiene tasa cero,
         no tasa indefinida, y una pantalla que muestra «—» donde debería ir un número lleva a
         alguien a pensar que el sistema falló.
         """
-        total = self.cobrado + self.pendiente + self.en_mora
+        total = self.cobrado_de_lo_creado + self.pendiente + self.en_mora
         if total == 0:
             return Decimal("0.00")
-        return ((self.cobrado / total) * 100).quantize(Decimal("0.01"))
+        return ((self.cobrado_de_lo_creado / total) * 100).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +97,10 @@ class PagoRecibido:
     preference_id: str | None
     estado: str
     monto: Decimal | None = None
+    #: Cuándo aprobó MercadoPago el pago (`date_approved`), ya en UTC. `None` si el proveedor no
+    #: lo informó o no se pudo leer: el dominio entonces usa el momento de la confirmación y
+    #: marca la fecha como aproximada.
+    fecha_aprobacion: datetime | None = None
 
     @property
     def esta_aprobado(self) -> bool:
@@ -89,6 +110,33 @@ class PagoRecibido:
         tratarlas como pago sería dar por saldada una deuda que todavía puede rechazarse.
         """
         return self.estado.lower() == "approved"
+
+
+class EstadoDeReembolso(StrEnum):
+    """Lo que MercadoPago dijo de un reembolso, en **nuestro** vocabulario.
+
+    La traducción de su `status` vive en el ACL (`pasarela.py`) y nunca devuelve `ACEPTADO` por
+    defecto: cualquier valor que no sea `approved` (o ninguno) es `EN_PROCESO`.
+    """
+
+    ACEPTADO = "ACEPTADO"
+    RECHAZADO = "RECHAZADO"
+    EN_PROCESO = "EN_PROCESO"
+
+
+@dataclass(frozen=True, slots=True)
+class RespuestaDeReembolso:
+    """La respuesta a pedir o consultar un reembolso.
+
+    `motivo` es el mensaje de MercadoPago **sin traducir** (mismo criterio que los códigos de
+    ARCA). `monto` y `fecha` son lo que informó el proveedor y pueden faltar.
+    """
+
+    estado: EstadoDeReembolso
+    mp_refund_id: str | None = None
+    monto: Decimal | None = None
+    fecha: datetime | None = None
+    motivo: str | None = None
 
 
 class PortRepositorioCobro(Protocol):
@@ -103,6 +151,15 @@ class PortRepositorioCobro(Protocol):
     async def guardar(self, cobro: Cobro) -> None: ...
 
     async def buscar_por_id(self, cobro_id: UUID) -> Cobro | None: ...
+
+    async def buscar_para_actualizar(self, cobro_id: UUID) -> Cobro | None:
+        """`SELECT ... FOR UPDATE`: **todo camino que suma plata carga el cobro así.**
+
+        Dos transacciones que leen acumulado 0 y escriben cada una su monto terminan con el
+        acumulado de la última: se pierde una actualización, el `CHECK` pasa y hay dos filas que
+        suman más que el cobro. Con el bloqueo, la segunda espera y ve el acumulado nuevo.
+        """
+        ...
 
     async def buscar_por_payment_id(self, payment_id: str) -> Cobro | None:
         """El cobro que ya registró este pago. **La idempotencia del webhook** (D20).
@@ -145,6 +202,22 @@ class PortRepositorioCobro(Protocol):
     async def abiertos(self) -> list[Cobro]:
         """Los que siguen esperando plata. Lo que el barrido de recordatorios recorre."""
         ...
+
+
+class PortRepositorioReembolso(Protocol):
+    """Los reembolsos de un cobro: **solo se agrega** (ADR-0010, punto 4).
+
+    Sin `guardar` ni `eliminar`: la tabla admite `SELECT` e `INSERT` y nada más. Un error se
+    corrige con una fila negativa, nunca editando.
+    """
+
+    async def agregar(self, reembolso: Reembolso) -> None: ...
+
+    async def de_cobro(self, cobro_id: UUID) -> list[Reembolso]:
+        """El historial, del más viejo al más nuevo."""
+        ...
+
+    async def buscar_por_id(self, reembolso_id: UUID) -> Reembolso | None: ...
 
 
 class PortRepositorioRecordatorios(Protocol):
@@ -208,13 +281,22 @@ class PortPasarelaDePago(Protocol):
         """Qué dice MercadoPago de un pago. El webhook manda un id, no el estado."""
         ...
 
-    async def reembolsar(self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal) -> bool:
-        """`True` si MercadoPago aceptó (HU-E6-05 RN-03). `False` si lo rechazó.
+    async def reembolsar(
+        self, *, empresa_id: EmpresaId, payment_id: str, monto: Decimal, clave: UUID
+    ) -> RespuestaDeReembolso:
+        """Pide el reembolso **con una clave de idempotencia que viene de afuera**.
 
-        Un booleano y no una excepción, porque un rechazo **es una respuesta**: el cobro
-        mantiene su estado y se avisa al administrador. No poder preguntar es otra cosa, y eso
-        sí levanta `PasarelaNoDisponible`.
+        La clave se genera una vez por solicitud, se guarda y se reusa en cada reintento: una
+        clave nueva por llamada le permitiría a MercadoPago ejecutar un segundo reembolso. Un
+        rechazo (4xx) **es una respuesta** y vuelve como `RECHAZADO`; no poder preguntar levanta
+        `PasarelaNoDisponible`. Nunca se manda sin `amount`: sería un reembolso total.
         """
+        ...
+
+    async def consultar_reembolso(
+        self, *, empresa_id: EmpresaId, payment_id: str, refund_id: str
+    ) -> RespuestaDeReembolso:
+        """El estado de un reembolso ya pedido. Un 4xx no dice nada del reembolso: levanta."""
         ...
 
 
@@ -259,32 +341,60 @@ class PortCadenaDeEscalamiento(Protocol):
     async def pasos(self, *, empresa_id: EmpresaId) -> tuple[PasoDeCadena, ...]: ...
 
 
+class PortClienteDeCobro(Protocol):
+    """Lo que `master_data` publica para que un cobro tenga a quien cobrarle (D92).
+
+    Una sola pregunta. `payments` no ve el CUIT ni el contacto del cliente: es un ACL sobre
+    el puerto de aplicacion del otro contexto (R3, ADR-0003).
+    """
+
+    async def esta_activo(self, cliente_id: UUID) -> bool:
+        """`False` cuando no existe, es de otra empresa o esta inactivo.
+
+        Las tres se colapsan a proposito: bajo RLS las dos primeras no se distinguen, y para
+        un cobro las tres significan lo mismo: no hay a quien cobrarle.
+        """
+        ...
+
+
 class PortSaldoDeComprobante(Protocol):
     """Lo que `billing` publica para que un cobro pueda descontar (HU-E6-06).
 
-    Dos operaciones y ninguna más: cuánto falta, y descontá esto. `payments` no ve el
-    comprobante ni sus ítems — es un ACL sobre el servicio de aplicación del otro contexto
-    (R3, ADR-0003).
+    Cuatro operaciones y ninguna más: cuánto falta, de quién es, descontá esto y devolvé esto. `payments` no
+    ve el comprobante ni sus ítems — es un ACL sobre el servicio de aplicación del otro
+    contexto (R3, ADR-0003).
     """
 
     async def saldo_pendiente(self, comprobante_id: UUID) -> Decimal | None:
         """`None` cuando el comprobante no existe o no es de esta empresa."""
         ...
 
+    async def cliente_de(self, comprobante_id: UUID) -> UUID | None:
+        """El cliente del comprobante, o `None` si no existe o no es de esta empresa."""
+        ...
+
     async def registrar_cobro(self, comprobante_id: UUID, monto: Decimal) -> None:
         """Reduce el saldo pendiente (RN-03). **Sólo al aprobarse el cobro** (D26)."""
         ...
 
+    async def registrar_reembolso(self, comprobante_id: UUID, monto: Decimal) -> None:
+        """Sube el saldo por un reembolso (`monto` > 0) o lo baja por su corrección (< 0)."""
+        ...
+
 
 __all__ = [
+    "EstadoDeReembolso",
     "FiltrosDeCobro",
     "MetricasDeCobros",
     "PagoRecibido",
     "PasoDeCadena",
     "PortCadenaDeEscalamiento",
+    "PortClienteDeCobro",
     "PortEnvioDeRecordatorio",
     "PortPasarelaDePago",
     "PortRepositorioCobro",
     "PortRepositorioRecordatorios",
+    "PortRepositorioReembolso",
     "PortSaldoDeComprobante",
+    "RespuestaDeReembolso",
 ]

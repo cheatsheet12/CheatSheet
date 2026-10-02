@@ -39,6 +39,8 @@ class RecursoReservableORM(Base):
     nombre: Mapped[str] = mapped_column(String(200), nullable=False)
     activo: Mapped[bool] = mapped_column(nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: HU-E7-04 RN-06 (decisión D96): minutos que se agregan después de cada turno.
+    intervalo_entre_turnos_min: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     __table_args__ = (Index("ix_recurso_empresa_activo", "empresa_id", "activo"),)
 
@@ -124,6 +126,9 @@ class TurnoORM(Base):
     franja_duracion_min: Mapped[int] = mapped_column(Integer, nullable=False)
     estado: Mapped[str] = mapped_column(String(20), nullable=False)
     canal_reserva: Mapped[str] = mapped_column(String(20), nullable=False)
+    #: El intervalo que se aplicó al reservar o reprogramar (decisión D96). `NULL` es «sin
+    #: intervalo»: la carga y la corrección a posteriori. Ver `excl_turno_recurso_intervalo`.
+    intervalo_posterior_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

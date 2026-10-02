@@ -492,3 +492,84 @@
     transform: none;
   }
 }
+
+/* --- El selector de clientes activos (PAN-COB-03; lo reusan facturación y agenda) ------- */
+
+.dm-clientes__elegido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  color: var(--ink-600);
+}
+
+.dm-clientes__rotulo {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+}
+
+.dm-clientes__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.dm-clientes__opcion {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  color: var(--ink-600);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.dm-clientes__opcion:hover {
+  border-color: var(--ink-300);
+}
+
+.dm-clientes__opcion[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.dm-clientes__cuit {
+  font-family: var(--mono);
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+}
+
+.dm-clientes__vacio {
+  margin: 0;
+  color: var(--ink-400);
+  font-size: var(--text-caption);
+}
+
+.dm-clientes__enlace {
+  color: var(--accent-700);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-clientes__opcion {
+    transition: none;
+  }
+}

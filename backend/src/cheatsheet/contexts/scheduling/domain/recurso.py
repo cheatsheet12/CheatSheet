@@ -50,11 +50,18 @@ MENSAJE_HORARIO_INVERTIDO = "La hora de inicio debe ser anterior a la hora de fi
 MENSAJE_EXCEPCION_DUPLICADA = "Ya existe una excepción para esa fecha en este recurso."
 MENSAJE_SIN_NOMBRE = "El recurso debe tener un nombre."
 
-#: Cuánto puede durar un slot. El piso evita un patrón con `duracion_slot_min=0`, que haría
-#: infinita cualquier enumeración de horarios; el techo es un día, porque un slot más largo que
-#: eso no es un turno sino un alquiler.
+#: Cuánto puede durar un slot (HU-E7-04 RN-05, decisión D96). El piso evita un patrón con
+#: `duracion_slot_min=0`, que haría infinita cualquier enumeración de horarios. El slot es sólo
+#: el **paso** de la grilla de inicios: la duración del turno es la del servicio.
 DURACION_SLOT_MINIMA_MIN = 5
-DURACION_SLOT_MAXIMA_MIN = 24 * 60
+DURACION_SLOT_MAXIMA_MIN = 480
+MENSAJE_DURACION_SLOT = "La duración del slot debe estar entre 5 y 480 minutos."
+MENSAJE_SLOT_MAYOR_QUE_FRANJA = "La duración del slot no puede superar la extensión de la franja."
+
+#: El intervalo entre turnos de un recurso (HU-E7-04 RN-06): cero por defecto, máximo 480.
+INTERVALO_MINIMO_MIN = 0
+INTERVALO_MAXIMO_MIN = 480
+MENSAJE_INTERVALO = "El intervalo entre turnos debe estar entre 0 y 480 minutos."
 
 
 class TipoRecurso(StrEnum):
@@ -114,10 +121,16 @@ class PatronDeDisponibilidad:
             # por letra.
             raise EntradaInvalida(MENSAJE_HORARIO_INVERTIDO)
         if not DURACION_SLOT_MINIMA_MIN <= self.duracion_slot_min <= DURACION_SLOT_MAXIMA_MIN:
-            raise EntradaInvalida(
-                f"La duración del turno debe estar entre {DURACION_SLOT_MINIMA_MIN} y "
-                f"{DURACION_SLOT_MAXIMA_MIN} minutos"
-            )
+            # HU-E7-04 RN-05, letra por letra.
+            raise EntradaInvalida(MENSAJE_DURACION_SLOT)
+        if self.duracion_slot_min > self._extension_min():
+            raise EntradaInvalida(MENSAJE_SLOT_MAYOR_QUE_FRANJA)
+
+    def _extension_min(self) -> int:
+        """Cuántos minutos dura la franja del patrón (`hora_inicio < hora_fin` ya se validó)."""
+        desde = self.hora_inicio.hour * 60 + self.hora_inicio.minute
+        hasta = self.hora_fin.hour * 60 + self.hora_fin.minute
+        return hasta - desde
 
     def cubre(self, inicio: datetime, duracion_min: int) -> bool:
         """¿Esta franja entra entera dentro del patrón, en el día que le toca?
@@ -197,10 +210,15 @@ class RecursoReservable:
     excepciones: tuple[ExcepcionDeDisponibilidad, ...] = ()
     servicios: frozenset[UUID] = field(default_factory=frozenset)
     created_at: datetime | None = None
+    #: Minutos que se agregan después de cada turno (HU-E7-04 RN-06). Cambiarlo aplica a las
+    #: reservas nuevas y **no mueve** los turnos existentes (RN-08): cada turno guarda el que
+    #: se aplicó al reservarlo.
+    intervalo_entre_turnos_min: int = 0
 
     def __post_init__(self) -> None:
         if not self.nombre.strip():
             raise EntradaInvalida(MENSAJE_SIN_NOMBRE)
+        _validar_intervalo(self.intervalo_entre_turnos_min)
 
     # -- configuración ----------------------------------------------------------------
 
@@ -212,6 +230,11 @@ class RecursoReservable:
         entre dos patrones del mismo día, y el desempate no lo pide ninguna historia.
         """
         self.patrones = tuple(patrones)
+
+    def definir_intervalo(self, minutos: int) -> None:
+        """Cambia el intervalo entre turnos. Sólo aplica a reservas y reprogramaciones nuevas."""
+        _validar_intervalo(minutos)
+        self.intervalo_entre_turnos_min = minutos
 
     def agregar_excepcion(self, excepcion: ExcepcionDeDisponibilidad) -> None:
         """Registra una excepción, o se niega si ya hay una para esa fecha (RN-02).
@@ -279,27 +302,28 @@ class RecursoReservable:
     def excepcion_de(self, fecha: date) -> ExcepcionDeDisponibilidad | None:
         return next((una for una in self.excepciones if una.fecha == fecha), None)
 
-    def horarios_del_dia(self, fecha: date) -> tuple[datetime, ...]:
-        """Los comienzos de slot que el recurso ofrece ese día, en orden.
+    def horarios_del_dia(self, fecha: date, duracion_min: int) -> tuple[datetime, ...]:
+        """Los comienzos de turno que el recurso ofrece ese día para un turno de `duracion_min`.
 
-        Lo usa el panel para poblar el selector de horarios y lo va a usar el agente del épico
-        8 para ofrecerlos por WhatsApp. **No dice cuáles están libres** —eso sale de cruzar
-        con los turnos ya reservados—, dice cuáles existen.
+        Los inicios siguen el **paso del slot**, y el último es el último cuyo **turno** (no el
+        slot) termina dentro de la franja. El intervalo posterior al último turno puede pasarse
+        de `hora_fin` (HU-E7-04 RN-07), así que no se descuenta acá. **No dice cuáles están
+        libres** —eso sale de cruzar con los turnos ya reservados—, dice cuáles existen.
         """
         excepcion = self.excepcion_de(fecha)
         if excepcion is not None:
-            return self._horarios_de_la_excepcion(excepcion)
+            return self._horarios_de_la_excepcion(excepcion, duracion_min)
         return tuple(
             momento
             for patron in sorted(self.patrones, key=lambda uno: uno.hora_inicio)
             if patron.dia_semana == fecha.weekday()
             for momento in _slots(
-                fecha, patron.hora_inicio, patron.hora_fin, patron.duracion_slot_min
+                fecha, patron.hora_inicio, patron.hora_fin, patron.duracion_slot_min, duracion_min
             )
         )
 
     def _horarios_de_la_excepcion(
-        self, excepcion: ExcepcionDeDisponibilidad
+        self, excepcion: ExcepcionDeDisponibilidad, duracion_min: int
     ) -> tuple[datetime, ...]:
         if excepcion.tipo is TipoExcepcion.BLOQUEO or excepcion.franja_inicio is None:
             return ()
@@ -307,11 +331,13 @@ class RecursoReservable:
         fin = inicio + timedelta(minutes=excepcion.franja_duracion_min or 0)
         # La apertura especial no trae duración de slot propia —el DER no le da la columna—,
         # así que hereda la del patrón de ese día, y si no hay patrón, la del recurso. Sin
-        # ninguno de los dos no hay con qué cortar la franja y se ofrece entera.
-        duracion = self._duracion_de_slot(excepcion.fecha)
-        if duracion is None:
-            return (inicio,)
-        return _slots(excepcion.fecha, inicio.time(), fin.time(), duracion)
+        # ninguno de los dos no hay con qué cortar la franja y se ofrece su inicio, si el turno
+        # entra.
+        paso = self._duracion_de_slot(excepcion.fecha)
+        if paso is None:
+            entra = inicio + timedelta(minutes=duracion_min) <= fin
+            return (inicio,) if entra else ()
+        return _slots(excepcion.fecha, inicio.time(), fin.time(), paso, duracion_min)
 
     def _duracion_de_slot(self, fecha: date) -> int | None:
         del_dia = [uno for uno in self.patrones if uno.dia_semana == fecha.weekday()]
@@ -319,18 +345,26 @@ class RecursoReservable:
         return min((uno.duracion_slot_min for uno in candidatos), default=None)
 
 
-def _slots(fecha: date, desde: time, hasta: time, duracion_min: int) -> tuple[datetime, ...]:
-    """Los comienzos de slot entre dos horas, cada `duracion_min` minutos.
+def _validar_intervalo(minutos: int) -> None:
+    if not INTERVALO_MINIMO_MIN <= minutos <= INTERVALO_MAXIMO_MIN:
+        raise EntradaInvalida(MENSAJE_INTERVALO)
 
-    El último slot es el último que **termina** antes del cierre: ofrecer uno que se pasa sería
-    ofrecer un turno que no cabe.
+
+def _slots(
+    fecha: date, desde: time, hasta: time, paso_min: int, duracion_min: int
+) -> tuple[datetime, ...]:
+    """Los comienzos de turno entre dos horas, cada `paso_min` minutos.
+
+    El último inicio es el último cuyo **turno** termina antes del cierre: ofrecer uno que se
+    pasa sería ofrecer un turno que no cabe.
     """
     inicio = datetime.combine(fecha, desde, tzinfo=ZONA_DE_LA_AGENDA)
     cierre = datetime.combine(fecha, hasta, tzinfo=ZONA_DE_LA_AGENDA)
-    paso = timedelta(minutes=duracion_min)
+    paso = timedelta(minutes=paso_min)
+    duracion = timedelta(minutes=duracion_min)
     momentos: list[datetime] = []
     actual = inicio
-    while actual + paso <= cierre:
+    while actual + duracion <= cierre:
         momentos.append(actual)
         actual += paso
     return tuple(momentos)

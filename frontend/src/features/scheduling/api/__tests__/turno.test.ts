@@ -118,13 +118,13 @@ describe("verTurno y verDisponibilidad", () => {
     expect(espia).toHaveBeenCalledWith("/api/turnos/t1", { cache: "no-store" });
   });
 
-  it("la disponibilidad manda el recurso y la fecha", async () => {
+  it("la disponibilidad manda el recurso, la fecha y el servicio (D96)", async () => {
     const espia = espiarFetch(respuesta({ fecha: "2027-09-07", horarios: [] }));
 
-    await verDisponibilidad("r1", "2027-09-07");
+    await verDisponibilidad("r1", "2027-09-07", "s1");
 
     expect(espia).toHaveBeenCalledWith(
-      "/api/turnos/disponibilidad?recurso_id=r1&fecha=2027-09-07",
+      "/api/turnos/disponibilidad?recurso_id=r1&fecha=2027-09-07&servicio_id=s1",
       { cache: "no-store" },
     );
   });

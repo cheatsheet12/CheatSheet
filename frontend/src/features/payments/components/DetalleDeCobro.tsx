@@ -11,8 +11,10 @@
  * como línea de tiempo.
  *
  * **El reembolso sólo aparece para el Administrador** (HU-E6-05 RN-05) y sólo sobre un cobro
- * pagado (RN-01). Esconder el botón es una cortesía: el caso de uso lo rechaza igual, que es
- * lo que enseñó PRU-09.
+ * pagado (RN-01), por link, que todavía tenga algo por devolver. Puede ser **parcial** y repetirse
+ * hasta completar el monto. Esconder el botón es una cortesía: el caso de uso lo rechaza igual,
+ * que es lo que enseñó PRU-09. El historial, «Registrar reembolso» (transferencias), «Corregir»
+ * y «Actualizar estado» viven en `ReembolsosDeCobro.tsx`.
  *
  * **La cancelación pide el motivo antes de confirmar**, con el largo mínimo puesto en el
  * botón. La validación de verdad es del backend, porque dos pestañas pasan esta.
@@ -35,6 +37,7 @@ import {
 
 import {
   ETIQUETAS_DE_ESTADO,
+  ETIQUETAS_DE_MEDIO,
   ErrorDeCobro,
   LARGO_MINIMO_DE_MOTIVO,
   MENSAJE_LINK_COPIADO,
@@ -42,7 +45,9 @@ import {
   MENSAJE_PAGO_HUERFANO,
   cancelarCobro,
   copiarLink,
+  pendienteDeReembolso,
   reembolsarCobro,
+  tieneReembolsos,
   tonoDeEstado,
   verCobro,
 } from "../api/cobro";
@@ -56,6 +61,7 @@ import {
   tonoDeEntrega,
   varianteDeAvatar,
 } from "./presentacion";
+import { AvisosDeReembolso, ReembolsosDeCobro } from "./ReembolsosDeCobro";
 
 export interface PropsDeDetalleDeCobro {
   readonly inicial: Detalle;
@@ -76,7 +82,7 @@ export function DetalleDeCobro({
   const [cancelando, setCancelando] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [reembolsando, setReembolsando] = useState(false);
-  const [montoAReembolsar, setMontoAReembolsar] = useState(inicial.monto);
+  const [montoAReembolsar, setMontoAReembolsar] = useState(pendienteDeReembolso(inicial));
   const [trabajando, setTrabajando] = useState(false);
   const [copiando, setCopiando] = useState(false);
 
@@ -129,6 +135,12 @@ export function DetalleDeCobro({
     }
   }
 
+  /** El pendiente precargado: lo que falta devolver, no el monto entero (puede ser parcial). */
+  function abrirReembolso(): void {
+    setMontoAReembolsar(pendienteDeReembolso(cobro));
+    setReembolsando(true);
+  }
+
   const motivoCorto = motivo.trim().length < LARGO_MINIMO_DE_MOTIVO;
 
   return (
@@ -140,13 +152,12 @@ export function DetalleDeCobro({
       )}
       {aviso !== null && <Alert tono="exito">{aviso}</Alert>}
 
-      {cobro.reembolso_en_proceso && (
-        // Decisión D27: el cobro sigue `APROBADO` y esto sale de `reembolso_solicitado_en`.
-        <Alert tono="advertencia" titulo="Reembolso en proceso">
-          Le pedimos el reembolso a MercadoPago. Cuando conteste, el cobro va a quedar como
-          reembolsado o va a volver a figurar como pagado.
-        </Alert>
-      )}
+      <AvisosDeReembolso
+        cobro={cobro}
+        puedeReembolsar={puedeReembolsar}
+        alActualizar={recargar}
+        alFallar={setError}
+      />
 
       <div className="cob-detalle">
         <div>
@@ -184,15 +195,30 @@ export function DetalleDeCobro({
                 <dt>Concepto</dt>
                 <dd>{cobro.descripcion}</dd>
               </div>
+              {/* «Referencia» es el código derivado del id del cobro. «Operación» quedó para el
+                  número de la transferencia: dos cosas distintas no se llaman igual. */}
               <div className="cob-kv__par">
-                <dt>Operación</dt>
+                <dt>Referencia</dt>
                 <dd className="cob-mono">{referenciaDeCobro(cobro.id)}</dd>
               </div>
               <div className="cob-kv__par">
-                <dt>Pagado</dt>
-                <dd>{formatearFechaHora(cobro.pagado_en)}</dd>
+                <dt>Medio de pago</dt>
+                <dd>{ETIQUETAS_DE_MEDIO[cobro.medio_de_pago]}</dd>
               </div>
-              {cobro.monto_reembolsado !== null && (
+              <div className="cob-kv__par">
+                <dt>Fecha de pago</dt>
+                <dd>
+                  {formatearFechaHora(cobro.fecha_pago)}
+                  {cobro.fecha_pago !== null && cobro.fecha_pago_aproximada && " (aproximada)"}
+                </dd>
+              </div>
+              {cobro.medio_de_pago === "TRANSFERENCIA" && cobro.numero_de_operacion !== null && (
+                <div className="cob-kv__par">
+                  <dt>N.º de operación</dt>
+                  <dd className="cob-mono">{cobro.numero_de_operacion}</dd>
+                </div>
+              )}
+              {tieneReembolsos(cobro) && (
                 <div className="cob-kv__par">
                   <dt>Reembolsado</dt>
                   <dd>$ {formatearNumero(cobro.monto_reembolsado)}</dd>
@@ -233,6 +259,8 @@ export function DetalleDeCobro({
               </p>
             )}
           </section>
+
+          <ReembolsosDeCobro cobro={cobro} puedeReembolsar={puedeReembolsar} alCambiar={recargar} />
         </div>
 
         <section className="cob-tarjeta">
@@ -255,11 +283,14 @@ export function DetalleDeCobro({
                   Cancelar cobro
                 </Button>
               )}
-              {puedeReembolsar && cobro.estado === "APROBADO" && !cobro.reembolso_en_proceso && (
-                <Button variante="secundario" onClick={() => setReembolsando(true)}>
-                  Reembolsar
-                </Button>
-              )}
+              {puedeReembolsar &&
+                cobro.medio_de_pago === "LINK_MERCADOPAGO" &&
+                (cobro.estado === "APROBADO" || cobro.estado === "REEMBOLSADO_PARCIAL") &&
+                !cobro.reembolso_en_proceso && (
+                  <Button variante="secundario" onClick={abrirReembolso}>
+                    Reembolsar
+                  </Button>
+                )}
             </div>
           )}
         </section>
@@ -304,14 +335,14 @@ export function DetalleDeCobro({
           }}
         >
           <p className="dm-intro">
-            Se le pide el reembolso a MercadoPago. Hasta que conteste, el cobro sigue figurando como
-            pagado.
+            Se le pide el reembolso a MercadoPago. Puede ser parcial y se puede repetir hasta
+            completar el monto. Hasta que conteste, el estado del cobro no cambia.
           </p>
           <Campo
             id="cobro-reembolso"
             etiqueta="Monto a reembolsar"
             mono
-            ayuda={`No puede superar $ ${formatearNumero(cobro.monto)}.`}
+            ayuda={`No puede superar $ ${formatearNumero(pendienteDeReembolso(cobro))}, lo que falta devolver.`}
             value={montoAReembolsar}
             onChange={(evento) => setMontoAReembolsar(evento.target.value)}
           />

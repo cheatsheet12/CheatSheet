@@ -24,98 +24,40 @@ eso.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal
-from enum import StrEnum
+from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
+from cheatsheet.contexts.payments.domain.dinero import CENTAVOS, redondear
+from cheatsheet.contexts.payments.domain.estado_de_cobro import (
+    LARGO_MINIMO_DE_MOTIVO,
+    MENSAJE_FECHA_ANTERIOR_AL_PAGO,
+    MENSAJE_FECHA_FUTURA,
+    MENSAJE_MONTO_NO_POSITIVO,
+    MENSAJE_MOTIVO_CORTO,
+    MENSAJE_PAGADO_NO_CANCELABLE,
+    MENSAJE_REEMBOLSO_EN_PROCESO,
+    MENSAJE_REEMBOLSO_EXCEDIDO,
+    MENSAJE_REEMBOLSO_MANUAL_SOLO_TRANSFERENCIA,
+    MENSAJE_REEMBOLSO_NO_CORREGIBLE,
+    MENSAJE_REEMBOLSO_POR_API_SOLO_LINK,
+    MENSAJE_SIN_CONCEPTO,
+    MENSAJE_SIN_REEMBOLSO_EN_PROCESO,
+    MENSAJE_SOLO_PAGADOS_SE_REEMBOLSAN,
+    TOLERANCIA_DE_RELOJ,
+    TRANSICIONES_LEGALES,
+    VIGENCIA_POR_DEFECTO,
+    EstadoCobro,
+    LinkDePago,
+    MedioDePago,
+)
+from cheatsheet.contexts.payments.domain.reembolsos_de_cobro import ReembolsosDeCobro
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 
-CENTAVOS = Decimal("0.01")
-
-#: Cuánto dura un link de pago sin vencer, cuando nadie dice otra cosa. Treinta días es lo que
-#: MercadoPago deja abierta una preferencia sin tocarla, y ponerlo más largo sería un link que
-#: el proveedor invalida antes que nosotros — un cobro «pendiente» que ya no se puede pagar.
-VIGENCIA_POR_DEFECTO = timedelta(days=30)
-
-#: HU-E6-03, HU-E6-04 y HU-E6-05, palabra por palabra. Constantes porque las historias las
-#: escriben y los tests las afirman.
-MENSAJE_SIN_CONCEPTO = "Debe ingresar un concepto para el cobro."
-MENSAJE_MONTO_NO_POSITIVO = "El monto debe ser mayor a cero."
-MENSAJE_PAGADO_NO_CANCELABLE = (
-    "Un cobro pagado no puede cancelarse. Si corresponde, emita un reembolso."
-)
-MENSAJE_MOTIVO_CORTO = "El motivo debe tener al menos 10 caracteres."
-MENSAJE_SOLO_PAGADOS_SE_REEMBOLSAN = "Solo pueden reembolsarse cobros pagados."
-MENSAJE_REEMBOLSO_EXCEDIDO = "El monto a reembolsar no puede superar el monto del cobro."
-
-#: HU-E6-04 RN-02. Diez caracteres no es una cifra mágica: es lo que hace que «ok» y «error»
-#: no pasen, y lo que la historia pide textualmente.
-LARGO_MINIMO_DE_MOTIVO = 10
-
-
-def redondear(monto: Decimal) -> Decimal:
-    """Dos decimales, `ROUND_HALF_UP`. El único lugar donde este contexto redondea plata."""
-    return monto.quantize(CENTAVOS, rounding=ROUND_HALF_UP)
-
-
-class EstadoCobro(StrEnum):
-    """El enum `estado_cobro` del DER, con la etiqueta de interfaz que le corresponde.
-
-    Los nombres de dominio y los de pantalla **no coinciden a propósito**, y las historias lo
-    dicen explícitamente: `APROBADO` se muestra «Pagado» y `VENCIDO` se muestra «En mora». El
-    dominio es la fuente de verdad; la etiqueta es presentación y vive en el frontend.
-    """
-
-    PENDIENTE = "PENDIENTE"
-    APROBADO = "APROBADO"
-    VENCIDO = "VENCIDO"
-    CANCELADO = "CANCELADO"
-    REEMBOLSADO = "REEMBOLSADO"
-
-
-#: Qué transiciones existen. Escritas como tabla por lo que dice `TareaAsincrona`: una máquina
-#: de estados desparramada en diez `if` es una máquina que nadie puede revisar.
-#:
-#: **`APROBADO → APROBADO` está ausente, y esa ausencia es la que trabaja.** Es lo que hace
-#: idempotente el webhook de HS-T1 sin depender de nada externo: una notificación repetida
-#: encuentra el cobro ya aprobado y no mueve nada. `mp_payment_id` con índice único es la
-#: segunda línea; ésta es la primera.
-#:
-#: **`VENCIDO → APROBADO` existe.** Alguien puede pagar un link vencido de hecho pero no de
-#: derecho: MercadoPago acepta el pago mientras la preferencia viva, y rechazarlo acá dejaría
-#: plata cobrada sin cobro que la explique.
-TRANSICIONES_LEGALES: dict[EstadoCobro, frozenset[EstadoCobro]] = {
-    EstadoCobro.PENDIENTE: frozenset(
-        {EstadoCobro.APROBADO, EstadoCobro.VENCIDO, EstadoCobro.CANCELADO}
-    ),
-    EstadoCobro.VENCIDO: frozenset({EstadoCobro.APROBADO, EstadoCobro.CANCELADO}),
-    EstadoCobro.APROBADO: frozenset({EstadoCobro.REEMBOLSADO}),
-    EstadoCobro.CANCELADO: frozenset(),
-    EstadoCobro.REEMBOLSADO: frozenset(),
-}
-
-
-@dataclass(frozen=True, slots=True)
-class LinkDePago:
-    """La preferencia de MercadoPago y su URL (HU-E6-03 RN-01).
-
-    Frozen, y sin método para cambiarla. Un cobro tiene **un solo link activo a la vez**
-    (RN-04): generar otro reemplaza el objeto entero, que es lo que hace que «invalidar el
-    anterior» sea imposible de olvidar.
-    """
-
-    preference_id: str
-    url: str
-
-    def __post_init__(self) -> None:
-        if not self.preference_id.strip() or not self.url.strip():
-            raise EntradaInvalida("Un link de pago necesita preferencia y URL")
-
 
 @dataclass(slots=True)
-class Cobro:
+class Cobro(ReembolsosDeCobro):
     """Una deuda con un link para pagarla.
 
     `descripcion` es el «concepto» de la historia. Se llama así porque así lo llama el DER, y
@@ -138,9 +80,24 @@ class Cobro:
     #: Referenciado por id y sin FK (hallazgo H4 del DER): `turno` es de otro contexto. Lo
     #: escribe el épico 7.
     turno_id: UUID | None = None
-    pagado_en: datetime | None = None
-    monto_reembolsado: Decimal | None = None
+    #: **Cuándo pagó el cliente**, en UTC (D91, ADR-0010). Se escribe una sola vez, en la
+    #: transición a `APROBADO`. No es «cuándo lo procesamos», salvo que `fecha_pago_aproximada`
+    #: diga que sí.
+    fecha_pago: datetime | None = None
+    #: `True` cuando `fecha_pago` es una estimación (el momento en que se confirmó, o el valor
+    #: que el cobro ya tenía antes de existir esta columna) y no la fecha que informó el medio.
+    fecha_pago_aproximada: bool = False
+    medio_de_pago: MedioDePago = MedioDePago.LINK_MERCADOPAGO
+    #: Solo lo escribe una transferencia verificada. Nunca el pagador (HU-E6-08 RN-07).
+    numero_de_operacion: str | None = None
+    #: El acumulado de `reembolso` (filas y correcciones): se escribe junto con cada fila.
+    monto_reembolsado: Decimal = Decimal("0.00")
+    #: El reembolso en vuelo (D27: **no es un estado**). Las cuatro columnas viven solo mientras
+    #: dura; `reembolso_mp_refund_id` es la única que puede faltar.
     reembolso_solicitado_en: datetime | None = None
+    reembolso_solicitado_monto: Decimal | None = None
+    reembolso_clave_idempotencia: UUID | None = None
+    reembolso_mp_refund_id: str | None = None
     motivo_de_cancelacion: str | None = None
     updated_at: datetime | None = None
 
@@ -184,17 +141,34 @@ class Cobro:
 
     # ------------------------------------------------------------------ los estados
 
-    def aprobar(self, *, payment_id: str, ahora: datetime) -> None:
+    def aprobar(
+        self, *, payment_id: str, ahora: datetime, fecha_pago: datetime | None = None
+    ) -> None:
         """MercadoPago confirmó el pago (HS-T1 RN-02).
 
         **Se niega a aprobar dos veces**, y esa negativa es la primera línea de defensa de la
         idempotencia del webhook: la tabla de transiciones no tiene `APROBADO → APROBADO`. El
-        índice único sobre `mp_payment_id` es la segunda.
+        índice único sobre `mp_payment_id` es la segunda. Como la fecha se escribe solo acá, un
+        webhook repetido tampoco puede moverla.
+
+        `fecha_pago` es la fecha de aprobación que informó MercadoPago. **Una fecha equivocada
+        mueve plata de un período a otro**, así que solo se toma si es plausible; si falta o no
+        lo es, se usa `ahora` y el cobro queda marcado como de fecha aproximada.
         """
         self._transicionar(EstadoCobro.APROBADO)
         self.mp_payment_id = payment_id
-        self.pagado_en = ahora
+        informada = self._fecha_plausible(fecha_pago, ahora)
+        self.fecha_pago = informada if informada is not None else ahora
+        self.fecha_pago_aproximada = informada is None
         self.updated_at = ahora
+
+    def _fecha_plausible(self, fecha: datetime | None, ahora: datetime) -> datetime | None:
+        """La fecha en UTC si tiene zona horaria, no es del futuro y no precede al cobro."""
+        if fecha is None or fecha.utcoffset() is None:
+            return None
+        if fecha > ahora + TOLERANCIA_DE_RELOJ or fecha < self.created_at:
+            return None
+        return fecha.astimezone(UTC)
 
     def vencer(self, ahora: datetime) -> None:
         """RN-03 de HU-E6-01, ejecutada por el barrido de la decisión D23.
@@ -218,7 +192,7 @@ class Cobro:
         primero esta validación, después la red— es lo que hace que un motivo de nueve
         caracteres no gaste una llamada.
         """
-        if self.estado is EstadoCobro.APROBADO:
+        if self.estado in (EstadoCobro.APROBADO, EstadoCobro.REEMBOLSADO_PARCIAL):
             # El texto de la historia, que además dice qué hacer en su lugar.
             raise InvarianteViolada(MENSAJE_PAGADO_NO_CANCELABLE)
         if len(motivo.strip()) < LARGO_MINIMO_DE_MOTIVO:
@@ -259,45 +233,6 @@ class Cobro:
         """
         return self.estado is EstadoCobro.CANCELADO and self.mp_payment_id is not None
 
-    def solicitar_reembolso(self, *, monto: Decimal, ahora: datetime) -> Decimal:
-        """HU-E6-05 — pide el reembolso a MercadoPago. **No cambia el estado** (D27).
-
-        El cobro sigue `APROBADO` mientras la solicitud está en vuelo, y lo que la pantalla
-        muestra como «Reembolso en proceso» sale de `reembolso_solicitado_en`. Si MercadoPago
-        rechaza, no hay nada que revertir — que es exactamente por qué no se agregó un estado.
-        """
-        if self.estado is not EstadoCobro.APROBADO:
-            raise InvarianteViolada(MENSAJE_SOLO_PAGADOS_SE_REEMBOLSAN)
-        pedido = redondear(monto)
-        if pedido <= 0:
-            raise EntradaInvalida(MENSAJE_MONTO_NO_POSITIVO)
-        if pedido > self.monto:
-            raise EntradaInvalida(MENSAJE_REEMBOLSO_EXCEDIDO)
-
-        self.reembolso_solicitado_en = ahora
-        self.updated_at = ahora
-        return pedido
-
-    def confirmar_reembolso(self, *, monto: Decimal, ahora: datetime) -> None:
-        """MercadoPago confirmó (RN-04). Recién ahora el cobro cambia de estado."""
-        self._transicionar(EstadoCobro.REEMBOLSADO)
-        self.monto_reembolsado = redondear(monto)
-        self.reembolso_solicitado_en = None
-        self.updated_at = ahora
-
-    def rechazar_reembolso(self, ahora: datetime) -> None:
-        """MercadoPago dijo que no (RN-03). El cobro **mantiene** su estado `APROBADO`.
-
-        No hay transición porque no hubo cambio de estado, y ahí está la elegancia de D27: la
-        vuelta atrás no existe porque nunca se fue.
-        """
-        self.reembolso_solicitado_en = None
-        self.updated_at = ahora
-
-    @property
-    def reembolso_en_proceso(self) -> bool:
-        return self.reembolso_solicitado_en is not None
-
     # ------------------------------------------------------------------ consultas
 
     @property
@@ -325,25 +260,29 @@ class Cobro:
                 f"Un cobro en estado {self.estado.value} ya no admite un link de pago"
             )
 
-    def _transicionar(self, destino: EstadoCobro) -> None:
-        if destino not in TRANSICIONES_LEGALES[self.estado]:
-            raise InvarianteViolada(f"Un cobro no pasa de {self.estado.value} a {destino.value}")
-        self.estado = destino
-
 
 __all__ = [
     "CENTAVOS",
     "LARGO_MINIMO_DE_MOTIVO",
+    "MENSAJE_FECHA_ANTERIOR_AL_PAGO",
+    "MENSAJE_FECHA_FUTURA",
     "MENSAJE_MONTO_NO_POSITIVO",
     "MENSAJE_MOTIVO_CORTO",
     "MENSAJE_PAGADO_NO_CANCELABLE",
+    "MENSAJE_REEMBOLSO_EN_PROCESO",
     "MENSAJE_REEMBOLSO_EXCEDIDO",
+    "MENSAJE_REEMBOLSO_MANUAL_SOLO_TRANSFERENCIA",
+    "MENSAJE_REEMBOLSO_NO_CORREGIBLE",
+    "MENSAJE_REEMBOLSO_POR_API_SOLO_LINK",
     "MENSAJE_SIN_CONCEPTO",
+    "MENSAJE_SIN_REEMBOLSO_EN_PROCESO",
     "MENSAJE_SOLO_PAGADOS_SE_REEMBOLSAN",
+    "TOLERANCIA_DE_RELOJ",
     "TRANSICIONES_LEGALES",
     "VIGENCIA_POR_DEFECTO",
     "Cobro",
     "EstadoCobro",
     "LinkDePago",
+    "MedioDePago",
     "redondear",
 ]

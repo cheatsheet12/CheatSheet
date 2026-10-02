@@ -15,10 +15,14 @@ from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.payments.application.ports import (
     PortRepositorioCobro,
     PortRepositorioRecordatorios,
+    PortRepositorioReembolso,
 )
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     RepositorioCobroPostgres,
     RepositorioRecordatoriosPostgres,
+)
+from cheatsheet.contexts.payments.infrastructure.repositorio_reembolso import (
+    RepositorioReembolsoPostgres,
 )
 
 
@@ -28,10 +32,12 @@ class Cobros:
 
     cobros: PortRepositorioCobro
     recordatorios: PortRepositorioRecordatorios
+    reembolsos: PortRepositorioReembolso
 
     @classmethod
     def armar(cls, unidad: UnidadDeTrabajo) -> Cobros:
         return cls(
             cobros=RepositorioCobroPostgres(unidad.sesion),
             recordatorios=RepositorioRecordatoriosPostgres(unidad.sesion),
+            reembolsos=RepositorioReembolsoPostgres(unidad.sesion),
         )
