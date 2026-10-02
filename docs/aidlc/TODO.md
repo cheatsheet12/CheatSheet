@@ -638,26 +638,6 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 
 **Archivos de más de 400 líneas (CLAUDE.md §5), vistos en `limites-e-intervalo-de-turnos`.** Ya superaban el límite antes de esa unidad y no se partieron (decisión P4): `scheduling/application/turnos.py` (~520), `api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y `tests/contexts/scheduling/application/test_agenda.py` (~1180). Una unidad aparte puede extraer `Avisador` a `application/avisador.py` y partir el router en uno de recursos y uno de turnos.
 
-## 24. Hallazgos de `normalizacion-de-datos`
-
-Todos quedan **sin unidad**: se vieron al implementar y no se arreglaron, porque ninguno es de
-HU-E4-05.
-
-- **Textos libres de otros contextos (P5).** RN-06 dice que FAQ, descripciones de cobro o de
-  ítem y mensajes «solo reciben RN-01». Limpiarlos toca `conversational`, `payments` y
-  `billing` y altera lo que el usuario escribió; `master_data` no tiene textos libres.
-- **Un cliente de planilla sin CUIT se duplica en cada reproceso (P6).** La ingesta solo
-  identifica por CUIT (`ingesta.py`), así que sin CUIT siempre crea. La identidad por
-  `referencia_fila_planilla` (columna que nadie escribe) se decide junto con la lectura
-  incremental de §15.1.
-- **`categoria_empresa` no traduce su `IntegrityError`.** Con la búsqueda normalizada ya no
-  se escapa por espacios o mayúsculas, pero la carrera de dos pestañas que crean el mismo nombre
-  a la vez sigue llegando al índice y responde 500.
-- **`ListarClientesParaEscrituraDeVuelta` no funciona.** Su `LIMITE` es 500 y `Pagina` solo
-  admite hasta 200, así que cada llamada levanta `EntradaInvalida`. Ningún test del repo lo
-  ejercitaba; los de esta unidad fijan el límite en 200 con `monkeypatch`. El arreglo es de una
-  línea, pero es de la unidad del write-back.
-
 ## 23. Hallazgos y verificaciones de `correccion-de-datos-existentes`
 
 Hallazgos **sin unidad** (se vieron al implementar y no se arreglaron):
@@ -682,3 +662,23 @@ Verificaciones pendientes (sin Docker ni navegador en local):
 - En `staging`, con datos cargados antes de la normalización: que la hoja «CheatSheet (no
   editar)» no cambia después de aplicar, y que el `lower()` de PostgreSQL coincide con el de
   Python en la intercalación del entorno.
+
+## 24. Hallazgos de `normalizacion-de-datos`
+
+Todos quedan **sin unidad**: se vieron al implementar y no se arreglaron, porque ninguno es de
+HU-E4-05.
+
+- **Textos libres de otros contextos (P5).** RN-06 dice que FAQ, descripciones de cobro o de
+  ítem y mensajes «solo reciben RN-01». Limpiarlos toca `conversational`, `payments` y
+  `billing` y altera lo que el usuario escribió; `master_data` no tiene textos libres.
+- **Un cliente de planilla sin CUIT se duplica en cada reproceso (P6).** La ingesta solo
+  identifica por CUIT (`ingesta.py`), así que sin CUIT siempre crea. La identidad por
+  `referencia_fila_planilla` (columna que nadie escribe) se decide junto con la lectura
+  incremental de §15.1.
+- **`categoria_empresa` no traduce su `IntegrityError`.** Con la búsqueda normalizada ya no
+  se escapa por espacios o mayúsculas, pero la carrera de dos pestañas que crean el mismo nombre
+  a la vez sigue llegando al índice y responde 500.
+- **`ListarClientesParaEscrituraDeVuelta` no funciona.** Su `LIMITE` es 500 y `Pagina` solo
+  admite hasta 200, así que cada llamada levanta `EntradaInvalida`. Ningún test del repo lo
+  ejercitaba; los de esta unidad fijan el límite en 200 con `monkeypatch`. El arreglo es de una
+  línea, pero es de la unidad del write-back.
