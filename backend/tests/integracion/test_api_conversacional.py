@@ -24,11 +24,13 @@ import pytest
 import pytest_asyncio
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
+from cheatsheet.api.routers import conversaciones as router_conversaciones
 from cheatsheet.contexts.business_config.domain.plantilla import MENSAJE_VARIABLE_INVALIDA
 from cheatsheet.contexts.conversational.domain.faq import MENSAJE_CAMPOS_OBLIGATORIOS
 from cheatsheet.platform.settings import Settings
 
 from tests.conftest import settings_de_prueba
+from tests.contexts.conversational.application.dobles import MensajeriaEnMemoria
 from tests.integracion.conftest import requiere_base
 
 pytestmark = [requiere_base, pytest.mark.integration, pytest.mark.asyncio]
@@ -352,7 +354,7 @@ class TestAtencionHumana:
         rechazado = await cliente_http.post(
             f"/conversaciones/{conversacion_id}/mensajes",
             headers=_auth(token),
-            json={"texto": "hola, soy Ana", "telefono": TELEFONO},
+            json={"texto": "hola, soy Ana"},
         )
 
         assert rechazado.status_code == 422, rechazado.text
@@ -377,7 +379,7 @@ class TestAtencionHumana:
         enviado = await cliente_http.post(
             f"/conversaciones/{hilo['id']}/mensajes",
             headers=_auth(token),
-            json={"texto": "Hola, soy Ana. ¿En qué te ayudo?", "telefono": TELEFONO},
+            json={"texto": "Hola, soy Ana. ¿En qué te ayudo?"},
         )
 
         assert enviado.status_code == 201, enviado.text
@@ -388,6 +390,38 @@ class TestAtencionHumana:
             uno["origen"] for uno in detalle.json()["mensajes"] if uno["direccion"] == "SALIENTE"
         }
         assert origenes == {"AGENTE", "OPERADOR"}
+
+    async def test_el_mensaje_del_operador_sale_siempre_al_cliente_del_hilo(
+        self, cliente_http: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Seguridad: el destino no viene del request. Un `telefono` ajeno se ignora."""
+        mensajeria = MensajeriaEnMemoria()
+
+        async def _en_memoria(*_: Any, **__: Any) -> MensajeriaEnMemoria:
+            return mensajeria
+
+        monkeypatch.setattr(router_conversaciones, "armar_mensajeria", _en_memoria)
+        token, empresa_id = await _registrar(cliente_http, "wa-destino@test.local")
+        crudo = _notificacion("quiero un asesor", externo_id="wamid-destino")
+        await cliente_http.post(
+            f"/webhooks/whatsapp/{empresa_id}", content=crudo, headers=_firmado(crudo)
+        )
+        listado = await cliente_http.get(
+            "/conversaciones", headers=_auth(token), params={"solo_escaladas": True}
+        )
+        hilo = listado.json()["conversaciones"][0]
+        await cliente_http.post(
+            f"/escalamientos/{hilo['escalamiento_id']}/toma", headers=_auth(token)
+        )
+
+        enviado = await cliente_http.post(
+            f"/conversaciones/{hilo['id']}/mensajes",
+            headers=_auth(token),
+            json={"texto": "Hola, soy Ana", "telefono": "5491199999999"},
+        )
+
+        assert enviado.status_code == 201, enviado.text
+        assert mensajeria.enviados == [(TELEFONO, "Hola, soy Ana")]
 
 
 class TestFAQ:
