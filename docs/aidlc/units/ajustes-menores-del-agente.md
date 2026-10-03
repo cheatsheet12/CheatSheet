@@ -1,0 +1,253 @@
+# Unidad: ajustes-menores-del-agente
+
+**HUs**: HS-T2, HU-E8-05, HU-E9-04   **Contexto dueño**: conversational   **Rama**: fix/conversational-ajustes-menores-del-agente
+
+> Origen: hallazgos de una auditoría de código sobre `agente-y-atencion-humana` (mergeada). Tres bugs
+> **Menores**, independientes entre sí, todos dentro de `conversational`. B5 además se confirmó en
+> `staging` el 2026-10-03. Es un `fix/…` cortado de `develop` (`2eff3a0`); el PR va a `develop` y no
+> depende de ninguna otra unidad. Ninguno de los tres está registrado en
+> [`pendientes.md`](../epicas/08-agente-de-whatsapp/pendientes.md) del épico 8.
+
+## Qué hace
+
+Tres correcciones chicas, una por sección, cada una con su test que la reproduce primero:
+
+- **B5 — La intención del mensaje entrante se guarda** (HS-T2 RN-02 / CA1). Hoy el agente interpreta
+  el mensaje pero la intención sólo queda en el texto de la acción de auditoría; el mensaje se guarda
+  con `intencion = None` y el hilo de PAN-WA-01 no muestra la etiqueta. Después del fix, el mensaje
+  entrante interpretado queda con su intención y el panel la muestra.
+- **B6 — El contador de usos de las FAQ deja de decir «en el período»** (HU-E9-04 RN-02 / CA4). `usos`
+  es un contador histórico que nunca se reinicia; la pantalla promete un período que no existe.
+- **B7 — El pedido explícito de una persona deja de dispararse por subcadenas** (HU-E8-05 RN-01 / CA1).
+  Hoy «soy una persona que quiere un turno» escala la conversación. Después del fix, se escala cuando
+  el cliente **pide** una persona, no cuando la nombra.
+
+**Fuera de esta unidad:**
+- Entender un «sí» como respuesta a «¿Querés que te derive con un asesor?» (`MENSAJE_OFRECER_ASESOR`):
+  es estado de conversación, la misma decisión abierta que el pendiente #5 del épico 8.
+- Reemplazar el `InterpreteSimulado` (también clasifica por subcadenas): es un doble que se niega en
+  producción, y su reemplazo es una decisión de despliegue.
+- Un contador de usos por período real (tabla de usos o columnas nuevas): ver Pregunta 2.
+
+## La historia
+
+> **HS-T2 — Procesar un mensaje entrante recibido desde WhatsApp**
+> * RN-01: El proceso registra el mensaje entrante con su contenido, tipo y conversación asociada,
+>   conforme a la entidad Mensaje.
+> * RN-02: El sistema interpreta la intención del mensaje y la clasifica (turno, consulta, pago, FAQ).
+>
+> | Cuando | Espero |
+> | :---- | :---- |
+> | Llega un mensaje entrante | El sistema lo registra e interpreta su intención |
+
+> **HU-E8-05 — Ser derivado a un asesor humano**
+> * RN-01: La derivación se produce cuando el agente no interpreta la intención con confianza
+>   suficiente o cuando el cliente **la solicita explícitamente**, conforme a la entidad Escalamiento.
+>
+> | Cuando | Espero |
+> | :---- | :---- |
+> | Solicito explícitamente hablar con una persona | El agente deriva la conversación a un asesor humano y me lo avisa |
+
+> **HU-E9-04 — Administrar el repositorio de FAQ**
+> * RN-02: El sistema muestra cuántas veces fue usada cada FAQ **en el período actual**.
+>
+> | Cuando | Espero |
+> | :---- | :---- |
+> | Agrego una FAQ nueva | Aparece en el listado con contador en cero y disponible para el agente |
+> | Reviso el listado de FAQ | Cada una muestra cuántas veces fue respondida en el período |
+
+**«El período actual» no está definido** en la historia, ni en el DER (la tabla `faq` no tiene
+columna de usos: `usos` lo agregó la implementación), ni en las anotaciones de PAN-WA-02 de los
+prototipos. No se inventa uno: ver Pregunta 2.
+
+## Hallazgos
+
+| Dónde | Qué |
+|---|---|
+| `contexts/conversational/application/agente.py:232-252` | **B5.** `_guardar_entrante` crea el `Mensaje` sin `intencion` (queda en `None`) y no lo devuelve |
+| `contexts/conversational/application/agente.py:177-178` | **B5.** `lectura = await self._interprete.leer(…)`; la intención sólo viaja a `_auditar` (acción `interpretar_mensaje:<intencion>`, líneas 411-433) y al `Respuesta` de retorno; **nunca se escribe en el mensaje** |
+| `contexts/conversational/domain/conversacion.py:135` | **B5.** `Mensaje.intencion: Intencion \| None = None` ya existe |
+| `contexts/conversational/infrastructure/models.py:71` · `repositories.py:290,304` | **B5.** La columna `mensaje.intencion` ya existe (migración `0021_agente_conversacional`) y el repositorio la lee y la escribe. **No hace falta migración** |
+| `contexts/conversational/application/ports.py:136` | **B5.** `PortRepositorioMensaje.guardar` ya existe (lo usa `CerrarEscalamiento._reclasificar`, `atencion.py:313-337`, que **sí** escribe la intención al devolver el hilo al agente) |
+| `api/routers/conversaciones.py:92,173` | **B5.** `MensajeSalida.intencion` ya se expone |
+| `frontend/src/features/conversational/components/HiloDeConversacion.tsx:109` | **B5.** El hilo ya pinta `· {ETIQUETAS_DE_INTENCION[…]}` cuando la intención no es `null`. **El frontend no tiene bug**: no le llega el dato |
+| `contexts/conversational/domain/faq.py:51-53,66,95-103` | **B6.** `usos: int = 0`, `registrar_uso()` hace `usos += 1`; nada lo reinicia ni lo fecha. El docstring cita RN-02 «en el período» |
+| `frontend/src/features/conversational/components/RespuestasFrecuentes.tsx:155,263-264` | **B6.** Columna «Usos en el período» y barra «N usos en el período» (la barra además suma los usos de todas las FAQ) |
+| `frontend/src/features/conversational/api/faq.ts:20` | **B6.** Comentario «cuántas veces se usó en el período» |
+| `contexts/conversational/application/agente.py:88-96` | **B7.** `PEDIDOS_DE_HUMANO` incluye `"una persona"`, `"un humano"`, `"un asesor"` sueltos |
+| `contexts/conversational/application/agente.py:170-173` · `438-446` | **B7.** `_pide_una_persona` hace `any(frase in texto.lower() …)`: subcadena pura. «soy una persona que quiere un turno» contiene «una persona» → escala sin pasar por el modelo |
+| `backend/tests/contexts/conversational/application/test_agente.py:226-236` | **B7.** El único caso positivo probado es «quiero hablar con una persona por favor»; no hay ningún caso negativo |
+| `contexts/conversational/application/agente.py` | El archivo ya tiene **456 líneas** (> 400 de `CLAUDE.md` §5). B7 saca la detección a un módulo propio, así que el fix no lo agranda |
+
+## Diseño
+
+### B5 — guardar la intención del mensaje entrante
+
+- **Dominio**: sin cambios (`Mensaje.intencion` ya existe).
+- **Aplicación** (`agente.py`, `ProcesarMensajeEntrante`):
+  - `_guardar_entrante` **devuelve** el `Mensaje` que agregó.
+  - Después de `leer` y de decidir el camino, se escribe la intención en ese mensaje y se llama a
+    `self._mensajes.guardar(mensaje)`. Se extrae a un helper (`_anotar_intencion`) para que
+    `ejecutar` no crezca.
+  - **Qué intención se guarda**: la **misma que devuelve `Respuesta`** — `lectura.intencion` si la
+    confianza alcanza el umbral, `Intencion.DESCONOCIDA` si no (ver Pregunta 3). Así el hilo del
+    panel y lo que el agente hizo dicen lo mismo.
+  - Los caminos que **no interpretan** dejan `intencion = None`, que en el dominio significa «no se
+    clasificó» (docstring de `Intencion`): con un escalamiento abierto (el agente calla), con
+    transcripción pobre, y con el pedido explícito de una persona. No se finge una clasificación que
+    no ocurrió.
+  - Si el intérprete falla con una excepción, el mensaje ya quedó guardado (paso 3 de HS-T2) y la
+    intención sigue en `None`: el orden «registrar antes de interpretar» no cambia.
+- **Puertos y adaptadores**: sin cambios (`PortRepositorioMensaje.guardar` ya existe y el adaptador
+  SQL ya persiste `intencion`).
+- **Otros contextos**: no aplica.
+- **Frontend**: sin cambios de código. Se agrega un test que fija que el hilo muestra la etiqueta.
+
+### B6 — el contador de usos dice lo que cuenta
+
+**Fix recomendado (sujeto a la Pregunta 2): reetiquetar, sin cambiar el dato.** Es lo más chico y lo
+único honesto mientras la historia no defina el período.
+
+- **Dominio**: sólo el docstring de `FAQ` (`faq.py:51-53`): `usos` es el total desde el alta; se
+  aclara que el período de RN-02 no está definido y se remite al pendiente.
+- **Aplicación / API**: sin cambios.
+- **Frontend** (`RespuestasFrecuentes.tsx`, `api/faq.ts`):
+  - columna «Usos en el período» → **«Usos desde el alta»**;
+  - barra «N usos en el período» → **«N usos desde el alta»**;
+  - comentario de `faq.ts:20` alineado.
+- **Pendiente nuevo** en `pendientes.md` del épico 8 (#19): «HU-E9-04 RN-02 pide los usos del período
+  actual y el período no está definido; el contador actual es histórico». Así la brecha con CA4 queda
+  a la vista y no se descubre leyendo código.
+
+Alternativa descartada salvo que el Gate 1 diga lo contrario: contar por **mes calendario** con dos
+columnas nuevas (`usos_del_periodo`, `periodo_de_usos`) y reinicio perezoso en `registrar_uso`. Es
+una migración y un período elegido por nosotros, no por la historia.
+
+### B7 — detectar el pedido, no la palabra
+
+- **Dominio**: módulo nuevo `contexts/conversational/domain/pedido_de_persona.py` con una función pura
+  `pide_una_persona(texto: str) -> bool` y su vocabulario. Es una regla de negocio (HU-E8-05 RN-01)
+  sin I/O ni framework: cumple R1. Sale de `agente.py`, que baja de tamaño.
+- **Regla, determinista y sin LLM:**
+  1. **Normalizar**: minúsculas, sin tildes (`unicodedata` NFKD), signos de puntuación como
+     separadores de cláusula.
+  2. **Destinatario**: `persona`, `humano`, `humana`, `asesor`, `asesora`, `operador`, `operadora`,
+     precedido de artículo (`un`, `una`) o de `con`; y la frase fija `atencion humana`.
+  3. **Pedido**: dentro de la **misma cláusula**, el destinatario va precedido (a pocas palabras) por
+     un verbo de pedido: `quiero`, `necesito`, `prefiero`, `hablar`, `comunicarme`, `pasame`,
+     `paseme`, `pasenme`, `derivame`, `que me atienda`; o `hablar con alguien`.
+  4. **Mensaje que es sólo el destinatario** (`"un asesor"`, `"una persona por favor"`,
+     `"atención humana"`) también cuenta: es un pedido escrito en telegrama.
+  Todo con límites de palabra (`\b`), así «personal» o «asesoramiento» no disparan.
+- **Aplicación**: `agente.py` importa `pide_una_persona` y borra `PEDIDOS_DE_HUMANO` y
+  `_pide_una_persona`. El lugar del chequeo (antes del modelo) no cambia.
+- **Puertos, otros contextos, frontend**: no aplica.
+
+Consecuencia aceptada: un pedido muy indirecto («me atiende alguien de carne y hueso?») no escala
+por esta vía; si el modelo no lo entiende, escala por baja confianza a los dos intentos (RN-01,
+primer motivo). Un falso positivo (escalar a quien quería un turno) es peor que un falso negativo
+que igual termina en una persona.
+
+## Infraestructura
+
+- **Migraciones**: no aplica. `mensaje.intencion` ya existe; B6 recomendado no toca el esquema.
+- **Trabajo asíncrono**: no aplica.
+- **Configuración**: no aplica.
+- **Integraciones externas**: no aplica (no se agrega ninguna llamada externa; B7 no usa el LLM).
+
+## Riesgos que obligan a tests
+
+- [ ] Toca dinero: no aplica
+- [ ] Comprobantes fiscales / CAE: no aplica
+- [ ] Webhook: no aplica (B5 corre dentro del webhook de WhatsApp, pero la idempotencia no cambia;
+      el test existente `test_un_mensaje_repetido_no_llega_al_modelo` sigue cubriéndola)
+- [ ] Datos con `empresa_id`: no aplica (no hay tablas ni consultas nuevas)
+- [x] Salida de un LLM: B5 **guarda** la intención que devolvió el intérprete. Ya viene validada por
+      schema (`interprete.py:55-57`, enum cerrado) y el valor guardado es un `Intencion` del enum;
+      no dispara ningún efecto real nuevo
+- [ ] Datos personales a un LLM: no aplica (B7 justamente evita el LLM)
+
+## Archivos a tocar
+
+### Backend
+- [ ] `backend/src/cheatsheet/contexts/conversational/application/agente.py` (B5, B7)
+- [ ] `backend/src/cheatsheet/contexts/conversational/domain/pedido_de_persona.py` (nuevo, B7)
+- [ ] `backend/src/cheatsheet/contexts/conversational/domain/faq.py` (docstring, B6)
+- [ ] `backend/tests/contexts/conversational/application/test_agente.py` (B5, B7)
+- [ ] `backend/tests/contexts/conversational/domain/test_pedido_de_persona.py` (nuevo, B7)
+- [ ] `backend/tests/integracion/test_api_conversacional.py` (B5)
+
+### Frontend
+- [ ] `frontend/src/features/conversational/components/RespuestasFrecuentes.tsx` (B6)
+- [ ] `frontend/src/features/conversational/api/faq.ts` (comentario, B6)
+- [ ] `frontend/src/features/conversational/components/__tests__/pantallas.test.tsx` (B5, B6)
+
+### Docs
+- [ ] `docs/aidlc/units.md` (fila de la unidad)
+- [ ] `docs/aidlc/units/ajustes-menores-del-agente.md` (este plan)
+- [ ] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (pendiente #19, B6)
+
+## Casos de prueba
+
+Modo: **test primero** (`CLAUDE.md` §5: todo bug arreglado empieza con un test que lo reproduce). Cada
+RED falla contra el código actual **por el motivo correcto** y su commit va antes que el del fix.
+Ningún test toca la red: intérprete, mensajería y embeddings son los dobles de
+`tests/contexts/conversational/application/dobles.py` (`InterpreteProgramado`,
+`MensajeriaEnMemoria`, `RepositorioMensajeEnMemoria`), cableados por `Escena` de `test_agente.py`.
+
+| # | Caso | Tipo | Estado |
+|---|---|---|---|
+| 1 | **RED B5** `test_el_mensaje_entrante_guarda_la_intencion_interpretada`: `Escena(lectura=leyendo(TURNO))`, procesar «quiero un turno» → el único entrante de `escena.mensajes` tiene `intencion is Intencion.TURNO`. **Hoy falla**: es `None` | unit (aplicación) | pendiente |
+| 2 | B5: con confianza bajo el umbral (`leyendo(FAQ, 0.3)`), el entrante queda con `Intencion.DESCONOCIDA`, igual que `Respuesta.intencion` | unit (aplicación) | pendiente |
+| 3 | B5: los caminos que no interpretan dejan `intencion is None` — escalamiento abierto, transcripción pobre y pedido explícito de una persona | unit (aplicación) | pendiente |
+| 4 | **RED B5 de API**: webhook firmado con «hola, cuánto sale un corte» (el `InterpreteSimulado` lo lee `FAQ` 0.9) → `GET /conversaciones/{id}` devuelve el entrante con `"intencion": "FAQ"`. **Hoy falla**: `null`. Prueba que el `guardar` llega a PostgreSQL y no sólo al objeto en memoria | integración (PostgreSQL) | CI |
+| 5 | B5 frontend: `HiloDeConversacion` con un mensaje `intencion: "TURNO"` muestra «Turno» en la línea del autor; con `null` no muestra etiqueta. **No es RED** (el componente ya está bien): fija el contrato | unit frontend (Vitest) | pendiente |
+| 6 | **RED B6** en `pantallas.test.tsx`: el listado de FAQ **no** contiene el texto «en el período» y la columna se llama «Usos desde el alta». **Hoy falla**: dice «Usos en el período» | unit frontend (Vitest) | pendiente |
+| 7 | B6: el test existente «lista pregunta, respuesta y contador de usos (RN-02)» sigue verde (muestra `12`) | unit frontend (existente) | pendiente |
+| 8 | **RED B7** `test_nombrar_a_una_persona_no_es_pedirla`: procesar «soy una persona que quiere un turno» con `leyendo(TURNO)` → **no** escala, el intérprete vio el texto, no hay escalamiento abierto. **Hoy falla**: escala por subcadena | unit (aplicación) | pendiente |
+| 9 | B7 negativos (paramétrico, dominio): «soy una persona que quiere un turno», «mi mamá es una persona mayor, ¿tienen rampa?», «el asesor me dijo que viniera el martes», «hablé con alguien ayer», «necesito asesoramiento contable», «¿cuánto sale el personal trainer?» → `False` | unit (dominio) | pendiente |
+| 10 | B7 positivos (paramétrico, dominio): «quiero hablar con una persona por favor», «hablar con alguien», «pasame con un humano», «necesito un asesor», «Quiero hablar con un ASESOR!», «atención humana», «ATENCION HUMANA», «un asesor», «una persona por favor», «que me atienda una persona» → `True` | unit (dominio) | pendiente |
+| 11 | B7: el test existente `test_el_pedido_explicito_de_una_persona_no_pasa_por_el_modelo` sigue verde sin cambios | unit (existente) | pendiente |
+| 12 | El resto de `test_agente.py` y de `tests/integracion/test_api_conversacional.py` sigue verde | unit + integración (existente) | pendiente |
+
+Los casos 1, 6 y 8 son la evidencia local de los RED. El 4 lo confirma contra la base real; sin
+Docker local se saltea y su RED lo muestra la primera corrida de CI sobre el commit del test.
+
+## Verificaciones que no se pueden hacer acá
+
+- Los casos 4 y 12 (integración) necesitan PostgreSQL: **el Gate 2 no se cierra sin la salida real
+  del CI** en esos casos.
+- Ver la etiqueta de intención en el hilo de PAN-WA-01 con un mensaje real de WhatsApp en `staging`
+  (donde se observó B5) queda en `docs/aidlc/TODO.md` (sandbox).
+
+## Preguntas para el Gate 1
+
+1. **¿Una unidad o tres?** → **Recomendación: una unidad, una rama, un PR**, con un commit RED y un
+   commit fix por bug (seis commits). Los tres son Menores, del mismo contexto, sin migración, y
+   suman pocas decenas de líneas de código; tres PRs triplican la revisión y el CI para nada. Si uno
+   se traba en la revisión (el más probable es B6, por la Pregunta 2), se puede revertir su par de
+   commits sin tocar los otros dos.
+2. **B6 — ¿qué es «el período actual» de HU-E9-04 RN-02?** La historia no lo define y no hay otro
+   insumo que lo haga. Opciones: (a) **reetiquetar** a «Usos desde el alta» y registrar el pendiente
+   #19, sin migración; (b) **mes calendario**, con dos columnas nuevas en `faq` y reinicio perezoso;
+   (c) otro período que defina el equipo. → **Recomendación: (a)**. Es honesto con el dato que hay y
+   no inventa un período; (b) se puede hacer después si la cátedra o el negocio lo definen.
+3. **B5 — bajo el umbral de confianza, ¿qué intención se guarda en el mensaje?** (a) **`DESCONOCIDA`**,
+   igual que `Respuesta` y que lo que el agente hizo (ofrecer un asesor); (b) la que el modelo dijo
+   aunque no alcance. → **Recomendación: (a)**. La lectura cruda ya queda en la auditoría
+   (`interpretar_mensaje:<intencion>`); el hilo tiene que contar lo que el agente decidió.
+4. **B7 — ¿alcanza el vocabulario propuesto** (destinatarios: persona, humano/a, asesor/a,
+   operador/a, «atención humana»; verbos: quiero, necesito, prefiero, hablar, comunicarme, pasame,
+   derivame, que me atienda)? → **Recomendación: sí**, como lista cerrada en el módulo nuevo; agregar
+   una palabra después es una línea más un caso de test.
+
+## Registro
+
+| Gate | Fecha | Resultado |
+|---|---|---|
+| 1 · Plan | 2026-10-03 | pendiente |
+| 2 · Verificación | | |
+| 3 · PR | | |
+
+## Decisiones tomadas durante la unidad
+- (pendiente del Gate 1)
