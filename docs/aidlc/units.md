@@ -57,6 +57,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agenda y recursos | limites-e-intervalo-de-turnos | scheduling | HU-E7-04, HU-E7-06 | turnos-no-en-el-pasado | Luciano | feature/scheduling-limites-e-intervalo-de-turnos | mergeada |
 | Agente de WhatsApp y atención humana | comprobante-por-whatsapp | conversational | HU-E8-06, HU-E8-05 | cobro-por-transferencia | — | — | pendiente |
 | Reportería y paquete contable | indicadores-de-cobranza | reporting | HU-E10-01 | fecha-de-pago | Luciano | feature/reporting-indicadores-de-cobranza | mergeada |
+| Agente de WhatsApp y atención humana | canal-real-de-whatsapp | conversational | HS-T3, HU-E7-02, HU-E7-06, HU-E8-04 | — | Luciano | feature/conversational-canal-real-de-whatsapp | en curso |
 
 
 ---
