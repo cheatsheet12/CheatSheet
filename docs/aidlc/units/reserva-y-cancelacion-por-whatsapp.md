@@ -519,10 +519,13 @@ Test primero: cada **RED** se escribe y se ve fallar contra el código actual an
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las cuatro preguntas |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
 
-- (vacío hasta el Gate 1)
+- Gate 1 (2026-10-04): Pregunta 1 → un solo mensaje de confirmación, el del agente; el composition root le pasa al ACL un `Avisador` que no envía para las operaciones del agente (el panel sigue avisando).
+- Gate 1 (2026-10-04): Pregunta 2 → con varios servicios agendables y ninguno nombrado, el agente pregunta con una lista numerada.
+- Gate 1 (2026-10-04): Pregunta 3 → un turno con seña no se cancela por WhatsApp: el agente avisa y escala con el motivo «Cancelación de turno con seña».
+- Gate 1 (2026-10-04): Pregunta 4 → una oferta o una pregunta de confirmación vale 30 minutos; vencida, se vuelve a ofrecer.
