@@ -259,6 +259,22 @@ describe("PAN-WA-01 — hilo", () => {
     expect(screen.getByText(/^Cliente ·/)).toBeTruthy();
   });
 
+  it("muestra la intención del mensaje del cliente y nada cuando no se clasificó (HS-T2 RN-02)", () => {
+    const sinClasificar: Mensaje = { ...DEL_CLIENTE, id: "m4", contenido: "hola", intencion: null };
+    render(
+      <HiloDeConversacion
+        inicial={hilo(ESCALADA, DEL_CLIENTE, sinClasificar)}
+        telefono="5491112345678"
+        puedeAtender
+      />,
+    );
+
+    const autores = screen.getAllByText(/^Cliente ·/).map((nodo) => nodo.textContent ?? "");
+    expect(autores).toHaveLength(2);
+    expect(autores[0]).toContain("· Turno");
+    expect(autores[1]).not.toContain("· Turno");
+  });
+
   it("no ofrece el campo de respuesta hasta tomar el escalamiento", () => {
     render(
       <HiloDeConversacion
