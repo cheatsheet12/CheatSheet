@@ -196,7 +196,7 @@ local se saltea y su RED lo muestra la primera corrida de CI sobre el commit del
 |---|---|---|
 | 1 · Plan | 2026-10-03 | aprobado |
 | 2 · Verificación | 2026-10-04 | Aprobado por Luciano con la evidencia local; los casos 2 y 7 (PostgreSQL) se confirman en la CI del PR |
-| 3 · PR | | |
+| 3 · PR | 2026-10-04 | [#61](https://github.com/cheatsheet12/CheatSheet/pull/61) contra `develop`; revisa Vincenzo |
 
 ## Decisiones tomadas durante la unidad
 - ¿Un cliente desactivado sigue recibiendo la respuesta del operador? → Sí: con el escalamiento
