@@ -26,12 +26,14 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from cheatsheet.contexts.conversational.application.errors import (
+    ClienteSinWhatsApp,
     ConversacionInexistente,
     EscalamientoInexistente,
     EscalamientoNoReabrible,
     MensajeriaNoDisponible,
 )
 from cheatsheet.contexts.conversational.application.ports import (
+    PortDirectorio,
     PortInterprete,
     PortMensajeria,
     PortRepositorioConversacion,
@@ -176,6 +178,11 @@ class ResponderComoOperador:
     **Requiere el escalamiento tomado.** Un operador escribiendo sobre un hilo que el agente
     todavía atiende produce dos interlocutores en la misma conversación, que es exactamente la
     experiencia que RN-02 evita.
+
+    **El destino no lo elige quien escribe.** Sale del cliente dueño del hilo
+    (`conversacion.cliente_id`), resuelto en `master_data` por el directorio. Si el operador
+    pudiera mandar el número, cualquier gestor podría escribirle a cualquiera desde la cuenta
+    de WhatsApp Business verificada de la empresa.
     """
 
     def __init__(
@@ -184,12 +191,14 @@ class ResponderComoOperador:
         conversaciones: PortRepositorioConversacion,
         mensajes: PortRepositorioMensaje,
         escalamientos: PortRepositorioEscalamiento,
+        directorio: PortDirectorio,
         mensajeria: PortMensajeria,
         publicador: PublicadorDeEventos,
     ) -> None:
         self._conversaciones = conversaciones
         self._mensajes = mensajes
         self._escalamientos = escalamientos
+        self._directorio = directorio
         self._mensajeria = mensajeria
         self._publicador = publicador
 
@@ -201,7 +210,6 @@ class ResponderComoOperador:
         rol: RolUsuario,
         conversacion_id: UUID,
         texto: str,
-        telefono: str,
         ahora: datetime,
     ) -> Mensaje:
         _exigir_gestor(rol)
@@ -215,6 +223,11 @@ class ResponderComoOperador:
             # Sin escalamiento tomado, el agente sigue contestando ese hilo. Ver el docstring.
             raise EntradaInvalida(
                 "Para escribirle al cliente hay que tomar el escalamiento primero"
+            )
+        telefono = await self._directorio.telefono_de(conversacion.cliente_id)
+        if telefono is None:
+            raise ClienteSinWhatsApp(
+                "El cliente de esta conversación no tiene un WhatsApp registrado"
             )
 
         externo_id: str | None = None
