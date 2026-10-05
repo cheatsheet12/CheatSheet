@@ -201,7 +201,7 @@ Docker local se saltea y su RED lo muestra la primera corrida de CI sobre el com
 |---|---|---|
 | 1 · Plan | 2026-10-04 | aprobado con cambios: B6 pasa a la unidad usos-de-faq-por-periodo |
 | 2 · Verificación | 2026-10-04 | Aprobado por Luciano. RED: B5 2 tests (`intencion` en `None`), B7 `test_nombrar_a_una_persona_no_es_pedirla` (escalaba por subcadena). GREEN: ruff y mypy sin errores; pytest 1767 pasan, 464 omitidos (PostgreSQL/Redis, los corre la CI); frontend `test:coverage` 75 archivos en verde, sin errores no atrapados. `agente.py` baja de 456 a 445 líneas (sigue > 400, `CLAUDE.md` §5). `test_guards.sh` no corre en local por falta de `jq` (entorno) |
-| 3 · PR | | |
+| 3 · PR | 2026-10-04 | [#79](https://github.com/cheatsheet12/CheatSheet/pull/79) contra `develop`; revisa Vincenzo |
 
 ## Decisiones tomadas durante la unidad
 - Q1: una unidad, un PR; B6 sale y pasa a la unidad `usos-de-faq-por-periodo` (contador por período
