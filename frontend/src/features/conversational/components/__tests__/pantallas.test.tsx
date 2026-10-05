@@ -268,6 +268,8 @@ describe("PAN-WA-01 — hilo", () => {
 
   it("enviar llama a responder con el hilo y el texto, sin teléfono", async () => {
     responder.mockResolvedValue(DEL_OPERADOR);
+    // After sending, the thread reloads itself from the API.
+    verConversacion.mockResolvedValue(hilo(ATENDIDA, DEL_CLIENTE, DEL_OPERADOR));
     render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
 
     fireEvent.change(screen.getByLabelText("Mensaje"), { target: { value: "Hola, soy Ana" } });
@@ -276,6 +278,7 @@ describe("PAN-WA-01 — hilo", () => {
     await waitFor(() => {
       expect(responder).toHaveBeenCalledWith("c1", "Hola, soy Ana");
     });
+    expect(await screen.findByText("Hola!")).toBeTruthy();
   });
 
   it("tomar el escalamiento recarga el hilo", async () => {
