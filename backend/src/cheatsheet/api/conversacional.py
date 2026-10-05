@@ -19,7 +19,8 @@ Es la misma conclusión de `arca.py` y `mercadopago.py`.
 
 from __future__ import annotations
 
-from cheatsheet.api.agenda import armar_avisador, armar_catalogo
+from cheatsheet.api.agenda import armar_catalogo
+from cheatsheet.api.agenda import armar_directorio as armar_directorio_de_avisos
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.api.padron import armar_padron_de_clientes
 from cheatsheet.contexts.business_config.application.plantillas import ResolverPlantilla
@@ -56,6 +57,8 @@ from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraci
 from cheatsheet.contexts.master_data.infrastructure.repositories import (
     RepositorioClientePostgres,
 )
+from cheatsheet.contexts.scheduling.application.ports import DatosDeAviso
+from cheatsheet.contexts.scheduling.application.turnos import Avisador
 from cheatsheet.contexts.scheduling.infrastructure.ensamblado import Agenda
 from cheatsheet.platform.settings import AdaptadorDeModelo, AdaptadorDeWhatsApp, Settings
 from cheatsheet.platform.telemetry import obtener_logger
@@ -154,9 +157,28 @@ def armar_directorio(
     )
 
 
+class _NotificadorSilencioso:
+    """`PortNotificadorDeTurnos` que **no manda nada** (Pregunta 1 del Gate 1).
+
+    `ReservarTurno` y `CancelarTurno` avisan siempre. Cuando el que reserva o cancela es el agente,
+    el cliente **ya recibe la confirmación en la conversación**, con su estado de entrega: un
+    segundo aviso igual, seguido, parece un error. El panel sigue avisando como siempre, porque
+    arma su propio `Avisador`; esto sólo cambia el de las operaciones del agente. Vive acá, en el
+    composition root, para no tocar `scheduling`.
+    """
+
+    async def avisar_reserva(self, datos: DatosDeAviso) -> None:
+        del datos
+
+    async def avisar_cancelacion(self, datos: DatosDeAviso) -> None:
+        del datos
+
+    async def avisar_reprogramacion(self, datos: DatosDeAviso) -> None:
+        del datos
+
+
 def armar_agenda(
     unidad: UnidadDeTrabajo,
-    settings: Settings,
     *,
     empresa_id: EmpresaId,
     usuario_id: UsuarioId | None,
@@ -165,17 +187,28 @@ def armar_agenda(
 
     Del otro lado están los casos de uso deterministas del épico 7. El agente no reserva: le
     pide a esto que reserve, y esto le pide al motor.
+
+    - **`aislar`** es `begin_nested`: cada reserva o cancelación corre en un savepoint, para que
+      un rechazo del motor —que en PostgreSQL aborta la transacción— no se lleve puesto lo que el
+      agente escribe después (T9).
+    - **El avisador no envía** (Pregunta 1): el agente confirma en la conversación.
     """
     piezas = Agenda.armar(unidad)
+    catalogo = armar_catalogo(unidad, empresa_id=empresa_id, rol=RolUsuario.OPERADOR)
     return AgendaViaScheduling(
         turnos=piezas.turnos,
         recursos=piezas.recursos,
-        servicios=armar_catalogo(unidad, empresa_id=empresa_id, rol=RolUsuario.OPERADOR),
-        avisador=armar_avisador(unidad, settings, empresa_id=empresa_id, rol=RolUsuario.OPERADOR),
+        servicios=catalogo,
+        avisador=Avisador(
+            clientes=armar_directorio_de_avisos(unidad, empresa_id=empresa_id),
+            servicios=catalogo,
+            notificador=_NotificadorSilencioso(),
+        ),
         publicador=unidad.publicador,
         reloj=unidad.reloj,
         empresa_id=empresa_id,
         usuario_id=usuario_id,
+        aislar=unidad.sesion.begin_nested,
     )
 
 

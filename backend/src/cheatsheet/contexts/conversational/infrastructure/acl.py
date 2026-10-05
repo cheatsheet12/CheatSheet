@@ -1,14 +1,20 @@
 """ACL sobre `scheduling` y `master_data`, en el vocabulario del agente.
 
-**`AgendaViaScheduling` es la puerta angosta de la decisión D38.** Cuatro operaciones, y del
+**`AgendaViaScheduling` es la puerta angosta de la decisión D38.** Cinco operaciones, y del
 otro lado están los casos de uso deterministas del épico 7 — con su comprobación de horario,
 su validación de servicio y, sobre todo, la restricción de exclusión que hace imposible el
 doble booking (D28). El agente no reserva: le pide a esta clase que reserve, y esta clase le
 pide al motor.
 
 Que sea un ACL y no una llamada directa importa por una razón concreta: `reservar` recibe un
-`HorarioOfrecible` que **salió de `horarios_ofrecibles`**, no una fecha que el modelo escribió.
+`HorarioOfrecible` que **salió de `horarios_libres`**, no una fecha que el modelo escribió.
 El agente no puede inventar un horario porque no tiene cómo construir uno.
+
+**Cada acción sobre la agenda corre en un savepoint** (T9). `FranjaOcupada` nace del
+`IntegrityError` de la restricción de exclusión, y en PostgreSQL eso deja la transacción
+abortada: sin savepoint, lo que el agente escriba después —el estado del diálogo, el mensaje
+saliente, la bitácora— fallaría y el webhook terminaría en 500. Con savepoint, un rechazo del
+motor revierte sólo ese intento.
 
 Nada de acá importa el dominio de los otros contextos: se llaman sus servicios de aplicación y
 lo que devuelven se lee por atributo, igual que `SaldoViaBilling` del épico 6.
@@ -16,13 +22,21 @@ lo que devuelven se lee por atributo, igual que `SaldoViaBilling` del épico 6.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager, nullcontext
 from datetime import date
 from uuid import UUID
 
+from cheatsheet.contexts.conversational.application.errors import (
+    HorarioEnElPasado,
+    HorarioNoDisponible,
+    TurnoNoCancelable,
+)
 from cheatsheet.contexts.conversational.application.ports import (
-    HorarioOfrecible,
+    ServicioOfrecible,
     TurnoDelCliente,
 )
+from cheatsheet.contexts.conversational.domain.seleccion_de_horarios import HorarioOfrecible
 from cheatsheet.contexts.master_data.application.clientes import (
     DatosDeCliente,
     OrigenDato,
@@ -30,7 +44,16 @@ from cheatsheet.contexts.master_data.application.clientes import (
 )
 from cheatsheet.contexts.master_data.application.ports import PortPadron, PortRepositorioCliente
 from cheatsheet.contexts.scheduling.application.disponibilidad import VerHorariosDisponibles
-from cheatsheet.contexts.scheduling.application.errors import ServicioNoAdmitido
+from cheatsheet.contexts.scheduling.application.errors import (
+    FranjaOcupada,
+    FueraDeHorario,
+    RecursoInactivo,
+    RecursoInexistente,
+    ServicioNoAdmitido,
+    TurnoEnElPasado,
+    TurnoInexistente,
+    TurnoNoModificable,
+)
 from cheatsheet.contexts.scheduling.application.ports import (
     FiltrosDeAgenda,
     PortCatalogoDeServicios,
@@ -56,6 +79,15 @@ from cheatsheet.shared.roles import RolUsuario
 #: escribe un desconocido es el atajo que después no se puede revertir.
 ROL_DEL_AGENTE = RolUsuario.OPERADOR
 
+#: Lo que el motor rechaza y para el cliente significa «ese horario no se puede».
+_RECHAZOS_DEL_MOTOR = (
+    FranjaOcupada,
+    FueraDeHorario,
+    RecursoInactivo,
+    RecursoInexistente,
+    ServicioNoAdmitido,
+)
+
 
 class AgendaViaScheduling:
     """`PortAgenda`, respaldado por los casos de uso publicados de `scheduling`."""
@@ -71,6 +103,7 @@ class AgendaViaScheduling:
         reloj: Reloj,
         empresa_id: EmpresaId,
         usuario_id: UsuarioId | None,
+        aislar: Callable[[], AbstractAsyncContextManager[object]] = nullcontext,
     ) -> None:
         self._turnos = turnos
         self._recursos = recursos
@@ -80,75 +113,98 @@ class AgendaViaScheduling:
         self._reloj = reloj
         self._empresa_id = empresa_id
         self._usuario_id = usuario_id
+        #: Abre un savepoint. El composition root le pasa `sesion.begin_nested`.
+        self._aislar = aislar
 
-    async def horarios_ofrecibles(self, *, dia: date, limite: int = 4) -> list[HorarioOfrecible]:
+    async def servicios_ofrecibles(self) -> list[ServicioOfrecible]:
+        """Los servicios agendables que algún recurso activo presta (pendiente #17)."""
+        prestados = {
+            servicio
+            for recurso in await ListarRecursos(self._recursos).ejecutar(solo_activos=True)
+            for servicio in recurso.servicios
+        }
+        agendables = await self._servicios.listar_agendables()
+        ofrecibles = [
+            ServicioOfrecible(id=uno.id, nombre=uno.nombre)
+            for uno in agendables
+            if uno.id in prestados
+        ]
+        return sorted(ofrecibles, key=lambda uno: uno.nombre.lower())
+
+    async def horarios_libres(self, *, servicio_id: UUID, dia: date) -> list[HorarioOfrecible]:
         """HU-E8-01 RN-02: **sólo horarios efectivamente disponibles.**
 
         La grilla la calcula `VerHorariosDisponibles`, la misma que usa el panel: inicios por el
         paso del slot, el turno del servicio entra en la franja, y «ocupado» es solapamiento más
         intervalo entre turnos (D96). Se descartan los que ya pasaron (HU-E8-01 RN-06, D95). Lo
-        que sale de acá es lo único que el agente puede nombrar.
+        que sale de acá es lo único que el agente puede nombrar. **No corta ni elige**: devuelve
+        todos los libres de todos los recursos que prestan el servicio.
         """
         ahora = self._reloj.ahora()
         grilla = VerHorariosDisponibles(
             turnos=self._turnos, recursos=self._recursos, servicios=self._servicios
         )
-        ofrecibles: list[HorarioOfrecible] = []
+        libres: list[HorarioOfrecible] = []
         for recurso in await ListarRecursos(self._recursos).ejecutar(solo_activos=True):
-            if not recurso.servicios:
+            if servicio_id not in recurso.servicios:
                 continue
-            servicio_id = sorted(recurso.servicios)[0]
             try:
                 horarios = await grilla.ejecutar(
                     recurso_id=recurso.id, servicio_id=servicio_id, fecha=dia, ahora=ahora
                 )
             except ServicioNoAdmitido:
-                # El servicio asociado dejó de ser agendable: sin servicio no hay duración, y
-                # ofrecer un horario que `reservar` va a rechazar es lo que esto evita.
+                # El servicio dejó de ser agendable: sin servicio no hay duración, y ofrecer un
+                # horario que `reservar` va a rechazar es lo que esto evita.
                 continue
-            for horario in horarios:
-                if horario.ocupado:
-                    continue
-                ofrecibles.append(
-                    HorarioOfrecible(
-                        recurso_id=recurso.id, servicio_id=servicio_id, inicio=horario.inicio
-                    )
+            libres.extend(
+                HorarioOfrecible(
+                    recurso_id=recurso.id, servicio_id=servicio_id, inicio=horario.inicio
                 )
-                if len(ofrecibles) >= limite:
-                    return ofrecibles
-        return ofrecibles
+                for horario in horarios
+                if not horario.ocupado
+            )
+        return libres
 
     async def reservar(self, *, cliente_id: UUID, horario: HorarioOfrecible) -> UUID:
         """HU-E8-01 RN-03: **el motor determinista.**
 
-        Puede levantar `FranjaOcupada` si alguien se adelantó entre que se ofreció el horario y
-        que el cliente lo eligió — que es exactamente el cuarto criterio de la historia: «dos
-        clientes intentan el mismo horario casi simultáneamente». Quien decide es PostgreSQL.
+        Puede rechazar si alguien se adelantó entre que se ofreció el horario y que el cliente lo
+        eligió — que es exactamente el cuarto criterio de la historia: «dos clientes intentan el
+        mismo horario casi simultáneamente». Quien decide es PostgreSQL. Los rechazos se
+        traducen al vocabulario del agente, y el savepoint deja la transacción usable.
         """
-        turno = await ReservarTurno(
-            turnos=self._turnos,
-            recursos=self._recursos,
-            servicios=self._servicios,
-            avisador=self._avisador,
-            publicador=self._publicador,
-        ).ejecutar(
-            empresa_id=self._empresa_id,
-            usuario_id=self._usuario_id,
-            rol=ROL_DEL_AGENTE,
-            cliente_id=cliente_id,
-            servicio_id=horario.servicio_id,
-            recurso_id=horario.recurso_id,
-            inicio=horario.inicio,
-            ahora=self._reloj.ahora(),
-            canal="AGENTE",
-        )
+        try:
+            async with self._aislar():
+                turno = await ReservarTurno(
+                    turnos=self._turnos,
+                    recursos=self._recursos,
+                    servicios=self._servicios,
+                    avisador=self._avisador,
+                    publicador=self._publicador,
+                ).ejecutar(
+                    empresa_id=self._empresa_id,
+                    usuario_id=self._usuario_id,
+                    rol=ROL_DEL_AGENTE,
+                    cliente_id=cliente_id,
+                    servicio_id=horario.servicio_id,
+                    recurso_id=horario.recurso_id,
+                    inicio=horario.inicio,
+                    ahora=self._reloj.ahora(),
+                    canal="AGENTE",
+                )
+        except TurnoEnElPasado as exc:
+            raise HorarioEnElPasado(str(exc)) from exc
+        except _RECHAZOS_DEL_MOTOR as exc:
+            raise HorarioNoDisponible(str(exc)) from exc
         return turno.id
 
     async def turnos_de(self, cliente_id: UUID) -> list[TurnoDelCliente]:
         """HU-E8-02 RN-01: los turnos del cliente, para saber cuál cancelar.
 
         Sólo los **futuros y abiertos**: cancelar un turno de la semana pasada no libera nada, y
-        ofrecérselo al cliente es ofrecerle una acción sin efecto.
+        ofrecérselo al cliente es ofrecerle una acción sin efecto. El estado se lee por atributo
+        (`esta_abierto`) porque filtrarlo con `FiltrosDeAgenda(estados=…)` exigiría importar el
+        enum del dominio de `scheduling` (R3).
         """
         desde = self._reloj.ahora()
         turnos = await VerAgenda(self._turnos).ejecutar(FiltrosDeAgenda(desde=desde))
@@ -158,6 +214,7 @@ class AgendaViaScheduling:
                 id=uno.id,
                 servicio=nombres.get(uno.servicio_id, "el servicio"),
                 inicio=uno.franja.inicio,
+                tiene_sena=uno.cobro_id is not None,
             )
             for uno in turnos
             if uno.cliente_id == cliente_id and uno.esta_abierto
@@ -169,18 +226,22 @@ class AgendaViaScheduling:
         Lo garantiza la cláusula `WHERE` de la restricción de exclusión, que sólo cuenta los
         turnos abiertos: cancelar saca al turno del conjunto que bloquea.
         """
-        await CancelarTurno(
-            turnos=self._turnos,
-            recursos=self._recursos,
-            avisador=self._avisador,
-            publicador=self._publicador,
-        ).ejecutar(
-            empresa_id=self._empresa_id,
-            usuario_id=self._usuario_id,
-            rol=ROL_DEL_AGENTE,
-            turno_id=turno_id,
-            ahora=self._reloj.ahora(),
-        )
+        try:
+            async with self._aislar():
+                await CancelarTurno(
+                    turnos=self._turnos,
+                    recursos=self._recursos,
+                    avisador=self._avisador,
+                    publicador=self._publicador,
+                ).ejecutar(
+                    empresa_id=self._empresa_id,
+                    usuario_id=self._usuario_id,
+                    rol=ROL_DEL_AGENTE,
+                    turno_id=turno_id,
+                    ahora=self._reloj.ahora(),
+                )
+        except (TurnoNoModificable, TurnoInexistente) as exc:
+            raise TurnoNoCancelable(str(exc)) from exc
 
 
 class DirectorioViaMasterData:

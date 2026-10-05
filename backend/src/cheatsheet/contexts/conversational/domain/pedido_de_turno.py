@@ -14,6 +14,9 @@ Función pura, sin I/O ni framework (R1).
 
 from __future__ import annotations
 
+import re
+import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, time, timedelta
 from enum import StrEnum
@@ -107,6 +110,25 @@ class PedidoDeTurno:
         """`True` cuando el cliente no dijo ni un día ni una hora: hay que preguntarle el día."""
         return not self.cuandos and self.hora is None
 
+    @property
+    def dice_algo_del_cuando(self) -> bool:
+        """`True` si el pedido trae un día, una hora o una franja: completa una reserva en curso."""
+        return bool(self.cuandos) or self.hora is not None or self.momento is not None
+
+    def completar_con(self, previo: PedidoDeTurno) -> PedidoDeTurno:
+        """Este pedido, con lo que no dijo tomado del anterior.
+
+        Es lo que hace que «el jueves a la tarde», dicho después de «quiero un turno para corte»,
+        siga siendo una reserva de corte.
+        """
+        return PedidoDeTurno(
+            accion=self.accion,
+            cuandos=self.cuandos or previo.cuandos,
+            momento=self.momento if self.momento is not None else previo.momento,
+            hora=self.hora if self.hora is not None else previo.hora,
+            servicio=self.servicio if self.servicio is not None else previo.servicio,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class DiasPedidos:
@@ -177,6 +199,44 @@ def _resolver_fecha(cuando: Cuando, hoy: date) -> tuple[date | None, bool]:
     return None, False
 
 
+#: Palabras que no distinguen un servicio de otro: no cuentan al compararlos con el catálogo.
+_PALABRAS_VACIAS = frozenset({"de", "del", "la", "el", "los", "las", "un", "una", "para", "con"})
+_PALABRAS_VACIAS |= frozenset({"por", "turno", "quiero", "necesito", "mi", "y", "o"})
+
+
+def coincidir_servicio(nombres: Sequence[str], texto: str | None) -> int | None:
+    """El índice del **único** servicio del catálogo que el texto nombra, o `None`.
+
+    Comparación determinista (T7): sin tildes, por palabras, ignorando las que no distinguen. Un
+    nombre coincide si todas sus palabras están en el texto o todas las del texto están en el
+    nombre; si hay uno que coincide **exacto**, gana. Con ninguno o con varios que coinciden
+    devuelve `None`, y el agente pregunta: reservar la duración equivocada sería en silencio.
+    """
+    palabras = _palabras(texto or "")
+    if not palabras:
+        return None
+    del_catalogo = [_palabras(nombre) for nombre in nombres]
+    exactos = [i for i, nombre in enumerate(del_catalogo) if nombre == palabras]
+    if len(exactos) == 1:
+        return exactos[0]
+    coinciden = [
+        i
+        for i, nombre in enumerate(del_catalogo)
+        if nombre and (nombre <= palabras or palabras <= nombre)
+    ]
+    return coinciden[0] if len(coinciden) == 1 else None
+
+
+def _palabras(texto: str) -> frozenset[str]:
+    descompuesto = unicodedata.normalize("NFKD", texto.lower())
+    sin_tildes = "".join(letra for letra in descompuesto if not unicodedata.combining(letra))
+    return frozenset(
+        palabra
+        for palabra in re.findall(r"[a-z0-9]+", sin_tildes)
+        if palabra not in _PALABRAS_VACIAS
+    )
+
+
 def _entre(valor: int | None, minimo: int, maximo: int) -> bool:
     return valor is not None and minimo <= valor <= maximo
 
@@ -190,5 +250,6 @@ __all__ = [
     "MomentoDelDia",
     "PedidoDeTurno",
     "ReferenciaDeDia",
+    "coincidir_servicio",
     "resolver_dias",
 ]

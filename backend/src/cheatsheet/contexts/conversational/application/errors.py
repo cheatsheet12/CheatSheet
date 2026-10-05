@@ -60,12 +60,32 @@ class MensajeriaNoDisponible(EntradaInvalida):
     """
 
 
+class HorarioNoDisponible(EntradaInvalida):
+    """El motor de `scheduling` no aceptó el horario (HU-E8-01 CA4 y CA3).
+
+    Se ocupó entre que se ofreció y que se eligió, o quedó fuera de horario, o el recurso dejó de
+    prestar el servicio. Para el cliente significa lo mismo, así que el ACL las colapsa: no hay
+    nada distinto que decirle.
+    """
+
+
+class HorarioEnElPasado(EntradaInvalida):
+    """El horario ofrecido ya pasó mientras el cliente dudaba (HU-E8-01 CA7)."""
+
+
+class TurnoNoCancelable(EntradaInvalida):
+    """El turno ya no está abierto o no existe: otro lo canceló, o lo completó (HU-E8-02)."""
+
+
 __all__ = [
     "AgenteNoDisponible",
     "ConversacionInexistente",
     "EscalamientoInexistente",
     "EscalamientoNoReabrible",
     "FAQInexistente",
+    "HorarioEnElPasado",
+    "HorarioNoDisponible",
     "MensajeYaProcesado",
     "MensajeriaNoDisponible",
+    "TurnoNoCancelable",
 ]

@@ -16,6 +16,7 @@ from cheatsheet.contexts.conversational.domain.pedido_de_turno import (
     MomentoDelDia,
     PedidoDeTurno,
     ReferenciaDeDia,
+    coincidir_servicio,
     resolver_dias,
 )
 from cheatsheet.shared.errors import EntradaInvalida
@@ -156,3 +157,62 @@ class TestValidacion:
         assert MomentoDelDia.TARDE.contiene(time(19, 59))
         assert MomentoDelDia.NOCHE.contiene(time(20))
         assert not MomentoDelDia.TARDE.contiene(time(20))
+
+
+class TestCoincidirServicio:
+    CATALOGO = ("Corte", "Color", "Consulta general")
+
+    @pytest.mark.parametrize(
+        ("texto", "indice"),
+        [
+            ("corte", 0),
+            ("Un turno para corte", 0),
+            ("quiero color", 1),
+            ("consulta", 2),
+            ("la consulta general", 2),
+        ],
+    )
+    def test_un_nombre_del_catalogo_en_el_texto_elige_ese_servicio(
+        self, texto: str, indice: int
+    ) -> None:
+        assert coincidir_servicio(self.CATALOGO, texto) == indice
+
+    @pytest.mark.parametrize(
+        "texto", ["corte y color", "masajes", "", None, "un turno para mañana"]
+    )
+    def test_sin_coincidencia_unica_no_elige(self, texto: str | None) -> None:
+        assert coincidir_servicio(self.CATALOGO, texto) is None
+
+    def test_ignora_tildes_y_mayusculas(self) -> None:
+        assert coincidir_servicio(("Depilación",), "DEPILACION") == 0
+
+    def test_el_nombre_exacto_gana_sobre_el_que_lo_contiene(self) -> None:
+        assert coincidir_servicio(("Corte", "Corte y color"), "corte") == 0
+
+
+class TestCompletarCon:
+    def test_lo_que_no_dijo_sale_del_pedido_anterior(self) -> None:
+        previo = PedidoDeTurno(
+            accion=AccionDeTurno.RESERVAR, momento=MomentoDelDia.TARDE, servicio="corte"
+        )
+        nuevo = PedidoDeTurno(
+            accion=AccionDeTurno.RESERVAR, cuandos=(Cuando(ReferenciaDeDia.MANANA),)
+        )
+
+        completo = nuevo.completar_con(previo)
+
+        assert completo.cuandos == nuevo.cuandos
+        assert completo.momento is MomentoDelDia.TARDE
+        assert completo.servicio == "corte"
+
+    def test_lo_que_si_dijo_pisa_al_anterior(self) -> None:
+        previo = PedidoDeTurno(accion=AccionDeTurno.RESERVAR, hora=time(9))
+        nuevo = PedidoDeTurno(accion=AccionDeTurno.RESERVAR, hora=time(0))
+
+        assert nuevo.completar_con(previo).hora == time(0)
+
+    def test_dice_algo_del_cuando(self) -> None:
+        assert not PedidoDeTurno(accion=AccionDeTurno.RESERVAR).dice_algo_del_cuando
+        assert PedidoDeTurno(
+            accion=AccionDeTurno.RESERVAR, momento=MomentoDelDia.NOCHE
+        ).dice_algo_del_cuando
