@@ -323,7 +323,7 @@ Gates: los mismos de U6. Los casos 8, 24, 25 y 26 corren con PostgreSQL en la CI
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. **Cierra cuando el equipo acepte el ADR-0011** ([#62](https://github.com/cheatsheet12/CheatSheet/pull/62)); hasta entonces no se escribe código |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
@@ -331,4 +331,7 @@ Gates: los mismos de U6. Los casos 8, 24, 25 y 26 corren con PostgreSQL en la CI
 
 ## Decisiones tomadas durante la unidad
 
-- (vacío hasta el Gate 1)
+- Gate 1 (2026-10-04): Pregunta 1 → hasta 3 recordatorios por turno, cada uno en horas antes (1 a 168).
+- Gate 1 (2026-10-04): Pregunta 2 → sin regla configurada rige un recordatorio por defecto 24 h antes.
+- Gate 1 (2026-10-04): Pregunta 3 → se omite el recordatorio si el turno se reservó o se movió cuando su momento ya había pasado.
+- Gate 1 (2026-10-04): Pregunta 4 → sin horario de silencio en esta unidad.
