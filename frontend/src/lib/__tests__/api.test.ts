@@ -116,6 +116,27 @@ describe("llamarApi", () => {
     expect(opciones.body).toBe(JSON.stringify({ cuit: "30-11111111-1" }));
   });
 
+  it("resuelve a undefined cuando la API contesta 204 sin cuerpo", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    await expect(llamarApi<unknown>("/faqs/f1", { method: "DELETE" })).resolves.toBeUndefined();
+  });
+
+  it("resuelve a undefined cuando un 200 llega con el cuerpo vacío", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 200 })));
+
+    await expect(llamarApi<unknown>("/health")).resolves.toBeUndefined();
+  });
+
+  it("sigue devolviendo el objeto parseado cuando el 200 trae JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ estado: "ok" }), { status: 200 })),
+    );
+
+    await expect(llamarApi<{ estado: string }>("/health")).resolves.toEqual({ estado: "ok" });
+  });
+
   it("el barril de lib expone la misma puerta", async () => {
     const barril = await import("@/lib");
 
