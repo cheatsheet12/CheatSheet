@@ -183,10 +183,11 @@ segundo lee el diálogo ya consumido. El bloqueo es por fila, así que no frena 
   (dominio, puro): correos, secuencias de 7 o más dígitos aunque tengan puntos, guiones o espacios
   (teléfono, DNI, CUIT/CUIL, CBU/CVU, tarjeta) → `[dato oculto]`. Horas y fechas (≤ 4 dígitos
   seguidos) no se tocan. La misma función la reutiliza `comprobante-por-whatsapp` (D97, paso 1).
-- El historial (`historial_para_el_interprete`, una sola función) lleva los entrantes y los textos
-  del **agente**; un mensaje del **operador** se reemplaza por `[Mensaje de un asesor]` y uno del
-  **sistema** por `[Aviso automático del negocio sobre un turno]` (el descriptor que U7 eligió en
-  D-U7-5; queda hecho acá y U7 lo reutiliza).
+- El historial (`historial_para_el_interprete`, una sola función) lleva **sólo los entrantes**; un
+  mensaje del **agente** se reemplaza por `[Respuesta del agente]`, uno del **operador** por
+  `[Mensaje de un asesor]` y uno del **sistema** por `[Aviso automático del negocio sobre un turno]`
+  (el descriptor que U7 eligió en D-U7-5; queda hecho acá y U7 lo reutiliza). El del agente se
+  agregó al cerrar el pendiente #20 (ver «Decisiones tomadas durante la unidad»).
 
 **T12 · Bitácora.** Además del `interpretar_mensaje:TURNO` de siempre y del `reservar_turno` /
 `cancelar_turno` que ya registra `scheduling` (iniciador derivado «Sistema»), el diálogo publica con
@@ -546,5 +547,5 @@ Test primero: cada **RED** se escribe y se ve fallar contra el código actual an
 - Implementación: `armar_agenda` perdió el parámetro `settings` (ya no lo usa: el avisador es el del agente y no envía). U5 cambia esa firma para pasarle la mensajería y rebasa sobre este cambio.
 - Implementación: la oferta de una sola opción dice «¿Te lo reservo?» para que un «sí» tenga sentido; con más de una, se elige por número, hora o día.
 - Implementación: si el modelo devuelve un pedido de reserva con un «cuándo» mientras el diálogo vigente espera el día o el servicio (T8), la lectura se toma con `confianza = max(confianza, UMBRAL_DE_CONFIANZA)`: sólo para seguir **ese** diálogo, que abrió el sistema.
-- **Abierto, decide Luciano:** el historial que va al intérprete lleva los textos del agente (T11), y el listado de turnos del cliente es uno de ellos (T3 dice que ese listado no va al modelo). La elección del turno nunca le llega, pero una llamada posterior lo vería en el historial. Anotado como pendiente #20 del épico 8.
+- Pendiente #20 (2026-10-05): T11 y T3 chocaban, porque el historial llevaba los textos del agente y el listado de turnos del cliente es uno de ellos. → Luciano eligió que **ningún saliente vaya con su texto**: el del agente también se reemplaza por `[Respuesta del agente]`. Se descartaron marcar sólo los textos de turnos (necesita una columna nueva y que cada texto nuevo se acuerde de marcarse), mandar sólo los entrantes (el modelo pierde el ida y vuelta) y dejarlo como estaba (choca con `CLAUDE.md` §3.6; el saludo «Hola Ana» también llegaba con el nombre).
 

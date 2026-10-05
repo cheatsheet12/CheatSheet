@@ -20,9 +20,19 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from cheatsheet.contexts.conversational.domain.conversacion import Mensaje, OrigenDelMensaje
+from cheatsheet.contexts.conversational.domain.conversacion import (
+    DireccionMensaje,
+    Mensaje,
+    OrigenDelMensaje,
+)
 
 DATO_OCULTO = "[dato oculto]"
+
+#: Lo que el modelo ve en lugar de lo que dijo el agente (pendiente #20 del épico 8). Esos textos los
+#: arma el sistema con datos de la agenda y del directorio («tu turno de Psicología del jueves
+#: 14/10», «Hola Ana»): reemplazarlos todos, y no sólo los que hablan de turnos, es lo que hace que
+#: un texto nuevo no pueda olvidarse de no ir. El modelo igual sabe que el agente contestó algo.
+DESCRIPTOR_DEL_AGENTE = "[Respuesta del agente]"
 
 #: Lo que el modelo ve en lugar de un mensaje que escribió una persona del negocio. El contenido de
 #: un operador es texto libre sobre clientes reales y no le sirve al clasificador.
@@ -48,11 +58,12 @@ def ocultar_datos_personales(texto: str) -> str:
 def historial_para_el_interprete(
     mensajes: Sequence[Mensaje], *, limite: int = MENSAJES_DE_HISTORIAL
 ) -> list[str]:
-    """Lo que el intérprete ve del hilo: los entrantes y lo que dijo el agente, ocultados.
+    """Lo que el intérprete ve del hilo: sólo lo que escribió el cliente, ocultado.
 
-    Un mensaje del **operador** se reemplaza por su descriptor, y uno del **sistema** por el suyo:
-    no son del cliente ni del agente, y su texto libre puede nombrar a cualquiera. **Es la única
-    función que arma el historial**: así ninguna ruta puede olvidarse de ocultar.
+    Cada saliente se reemplaza por el descriptor de quien lo escribió (**agente**, **operador** o
+    **sistema**): ninguno es texto del cliente, y todos pueden nombrar a una persona o un turno
+    suyo. **Es la única función que arma el historial**: así ninguna ruta puede olvidarse de
+    ocultar.
     """
     return [_para_el_modelo(uno) for uno in mensajes[-limite:]]
 
@@ -62,11 +73,15 @@ def _para_el_modelo(mensaje: Mensaje) -> str:
         return DESCRIPTOR_DEL_OPERADOR
     if mensaje.origen is OrigenDelMensaje.SISTEMA:
         return DESCRIPTOR_DEL_SISTEMA
+    if mensaje.direccion is DireccionMensaje.SALIENTE:
+        # Agente, o un saliente viejo guardado sin origen: nada saliente va con su texto.
+        return DESCRIPTOR_DEL_AGENTE
     return ocultar_datos_personales(mensaje.contenido)
 
 
 __all__ = [
     "DATO_OCULTO",
+    "DESCRIPTOR_DEL_AGENTE",
     "DESCRIPTOR_DEL_OPERADOR",
     "DESCRIPTOR_DEL_SISTEMA",
     "MENSAJES_DE_HISTORIAL",

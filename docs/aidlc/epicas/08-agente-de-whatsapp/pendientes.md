@@ -190,14 +190,16 @@ Ninguna HU lo pide. Si el cliente pide mover un turno, el agente ofrece un aseso
 la agenda. Si se quiere automatizar, hace falta primero la historia: qué pasa con la seña, qué anticipación
 mínima rige (pendiente #6) y si se reprograma sobre la misma oferta de horarios.
 
-### 20. El historial que se le manda al intérprete incluye los textos del agente
+### 20. ~~El historial que se le manda al intérprete incluye los textos del agente~~ · **cerrado por `reserva-y-cancelacion-por-whatsapp`**
 
-`historial_para_el_interprete` lleva los entrantes y los textos del agente (decisión D99, punto 5), con los
-datos personales ocultos y los mensajes del operador y del sistema reemplazados por un descriptor. Como el
-listado de turnos del cliente es un texto del agente, una llamada posterior al intérprete lo vería en el
-historial, aunque **la elección** del turno nunca le llega. Si se quiere que ningún listado de turnos salga
-hacia el proveedor, hay que marcar esos mensajes (hoy `mensaje` no tiene dónde) o dejar el historial sólo con
-los entrantes. **Decide Luciano.**
+Resuelto (decisión de Luciano, 2026-10-05): al intérprete sólo le llega lo que escribió el cliente, con los
+datos personales ocultos. **Todo** saliente se reemplaza por el descriptor de quien lo escribió, también los
+del agente (`[Respuesta del agente]`), y no sólo los que listan turnos. Los textos del agente los arma el
+sistema con datos de la agenda y del directorio («tu turno de Psicología del jueves 14/10», «Hola Ana»):
+marcar únicamente los que hablan de turnos obligaba a guardar una marca que `mensaje` no tiene y a que cada
+texto nuevo se acordara de marcarse. Lo que se pierde es poco: las respuestas a una oferta o a una
+confirmación ya no pasan por el modelo (las lee el analizador determinista), y un mensaje que queda ambiguo
+sin ese contexto vuelve con baja confianza, que repregunta o escala. Ver D99, punto 5.
 
 ### 21. La extracción real del modelo no se probó
 

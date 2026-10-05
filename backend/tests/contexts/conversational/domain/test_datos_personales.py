@@ -20,6 +20,7 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
 )
 from cheatsheet.contexts.conversational.domain.datos_personales import (
     DATO_OCULTO,
+    DESCRIPTOR_DEL_AGENTE,
     DESCRIPTOR_DEL_OPERADOR,
     DESCRIPTOR_DEL_SISTEMA,
     historial_para_el_interprete,
@@ -93,10 +94,20 @@ def mensaje(
 
 
 class TestHistorial:
-    def test_reemplaza_al_operador_y_al_sistema_por_su_descriptor(self) -> None:
+    def test_reemplaza_al_agente_al_operador_y_al_sistema_por_su_descriptor(self) -> None:
+        """Pendiente #20: sólo llega lo que escribió el cliente, ocultado.
+
+        Lo que dice el agente lo arma el sistema con datos de la agenda («tu turno de Psicología
+        del jueves 14/10») o del directorio («Hola Ana»): ningún texto saliente va al modelo, así
+        que ningún texto nuevo puede olvidarse de no ir.
+        """
         mensajes = [
             mensaje("quiero un turno", DireccionMensaje.ENTRANTE),
-            mensaje("Tengo estos horarios", DireccionMensaje.SALIENTE, OrigenDelMensaje.AGENTE),
+            mensaje(
+                "¿Confirmás que cancelamos tu turno de Psicología del jueves 14/10 a las 10:30?",
+                DireccionMensaje.SALIENTE,
+                OrigenDelMensaje.AGENTE,
+            ),
             mensaje(
                 "Hola, soy Marta, tu DNI es 30123456",
                 DireccionMensaje.SALIENTE,
@@ -111,7 +122,7 @@ class TestHistorial:
 
         assert historial == [
             "quiero un turno",
-            "Tengo estos horarios",
+            DESCRIPTOR_DEL_AGENTE,
             DESCRIPTOR_DEL_OPERADOR,
             DESCRIPTOR_DEL_SISTEMA,
         ]

@@ -331,9 +331,10 @@ unas en otras:
    10:00 de mañana). Cada opción guarda todos los recursos que la tenían libre y se prueba uno por uno antes
    de decirle al cliente que se ocupó.
 5. **Los datos personales no llegan al modelo.** Antes de llamar al intérprete, el texto y el historial
-   pasan por `ocultar_datos_personales` (correos y secuencias de siete o más dígitos), y los mensajes del
-   operador y del sistema se reemplazan por un descriptor. Las listas de turnos, los ids y las respuestas a
-   una oferta no se le mandan (punto 2).
+   pasan por `ocultar_datos_personales` (correos y secuencias de siete o más dígitos), y **todo saliente**
+   (agente, operador y sistema) se reemplaza por el descriptor de quien lo escribió: del hilo, al modelo
+   sólo le llega lo que escribió el cliente. Las listas de turnos, los ids y las respuestas a una oferta no
+   se le mandan (punto 2). Que también el agente vaya como descriptor se decidió al cerrar el pendiente #20.
 
 **Qué se paga.** Una columna que el DER no tiene; un diálogo que vence a los 30 minutos y obliga a repetir la
 oferta a quien tardó; un analizador de lista cerrada que no entiende todo lo que una persona puede escribir

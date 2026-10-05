@@ -410,8 +410,11 @@ class TestDatosPersonalesYElModelo:
             "mi dni es [dato oculto] y mi mail [dato oculto], ¿cuánto sale?"
         ]
 
-    async def test_el_historial_oculta_los_datos_y_reemplaza_al_operador_y_al_sistema(self) -> None:
-        """RED del caso 6: antes iban los `contenido` crudos de todo el hilo."""
+    async def test_el_historial_oculta_los_datos_y_reemplaza_todo_lo_saliente(self) -> None:
+        """RED del caso 6: antes iban los `contenido` crudos de todo el hilo.
+
+        Pendiente #20: el saludo del agente nombra al cliente, así que tampoco va.
+        """
         hilo = Conversacion(id=uuid4(), empresa_id=EMPRESA, cliente_id=uuid4(), created_at=AHORA)
         escena = Escena(lectura=leyendo(Intencion.FAQ), hilos=(hilo,))
         escena.clientes.conocidos[TELEFONO] = (hilo.cliente_id, "Ana")
@@ -444,7 +447,7 @@ class TestDatosPersonalesYElModelo:
         [historial] = escena.interprete.historiales
         assert historial == [
             "me llamo Ana, mi cel es [dato oculto]",
-            "Hola Ana, ¿en qué te ayudo?",
+            "[Respuesta del agente]",
             "[Mensaje de un asesor]",
             "[Aviso automático del negocio sobre un turno]",
             "¿cuánto sale?",
