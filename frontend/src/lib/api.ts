@@ -58,6 +58,15 @@ function urlDelBackend(): string {
   return base.replace(/\/$/, "");
 }
 
+/**
+ * Call the backend and return the JSON body as `T`.
+ *
+ * A successful response with **no body** — a `204 No Content`, which is what every DELETE
+ * of the API answers — resolves to `undefined`, not to an error. Whoever calls a 204
+ * endpoint declares `T` as `unknown` or `undefined`: the `undefined as T` is the same
+ * contract assertion the `as T` on the parsed JSON already is. A 200 whose body is
+ * present but not valid JSON still throws `SyntaxError`; it is not hidden.
+ */
 export async function llamarApi<T>(ruta: string, opciones: OpcionesDeLlamada = {}): Promise<T> {
   const { method = "GET", body, timeoutMs = TIMEOUT_POR_DEFECTO_MS } = opciones;
   const token = leerToken();
@@ -81,7 +90,11 @@ export async function llamarApi<T>(ruta: string, opciones: OpcionesDeLlamada = {
       const { codigo, detalle } = await leerFalla(respuesta);
       throw new ErrorDeApi(respuesta.status, detalle, codigo);
     }
-    return (await respuesta.json()) as T;
+    const texto = await respuesta.text();
+    if (texto === "") {
+      return undefined as T;
+    }
+    return JSON.parse(texto) as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new ErrorDeApi(504, `La API no respondió en ${timeoutMs} ms`);

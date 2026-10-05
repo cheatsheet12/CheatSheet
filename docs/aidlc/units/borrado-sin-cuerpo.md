@@ -123,13 +123,13 @@ y atrapar `SyntaxError` escondería un 200 con JSON realmente roto.
 ## Archivos a tocar
 
 ### Frontend
-- [ ] `frontend/src/lib/api.ts` (`llamarApi` y su comentario)
-- [ ] `frontend/src/lib/__tests__/api.test.ts` (casos 1, 3, 4, 5)
-- [ ] `frontend/src/app/api/faqs/__tests__/borrado.test.ts` (nuevo, caso 2)
+- [x] `frontend/src/lib/api.ts` (`llamarApi` y su comentario)
+- [x] `frontend/src/lib/__tests__/api.test.ts` (casos 1, 3, 4, 5)
+- [x] `frontend/src/app/api/faqs/__tests__/borrado.test.ts` (nuevo, caso 2)
 
 ### Docs
 - [ ] `docs/aidlc/units.md` (fila de la unidad)
-- [ ] `docs/aidlc/units/borrado-sin-cuerpo.md` (este plan)
+- [x] `docs/aidlc/units/borrado-sin-cuerpo.md` (este plan)
 
 ## Casos de prueba
 
@@ -145,12 +145,12 @@ Detalle de armado: el 204 se construye con `new Response(null, { status: 204 })`
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED**: `llamarApi("/faqs/f1", { method: "DELETE" })` con `fetch` → `new Response(null, { status: 204 })` resuelve a `undefined`. **Hoy falla**: rechaza con `SyntaxError` | unit (`lib/__tests__/api.test.ts`) | pendiente |
-| 2 | **RED de ruta**: el `DELETE` de `app/api/faqs/[faqId]/route.ts` con sesión, `llamarApi` **real** y `fetch` stubbeado a 204 vacío → el navegador recibe **200 `{}`** y el `fetch` salió a `…/faqs/f1` con `method: "DELETE"`. **Hoy falla**: 500 `{ error: "ErrorInterno" }`. Archivo nuevo porque `conversaciones/__tests__/rutas.test.ts` mockea `llamarApi` entero | unit (ruta BFF, Vitest) | pendiente |
-| 3 | Un 200 con cuerpo vacío (sin `Content-Length`) también resuelve a `undefined` | unit | pendiente |
-| 4 | Un 200 con JSON sigue devolviendo el objeto parseado (regresión del camino común) | unit | pendiente |
-| 5 | Un 4xx/5xx sigue lanzando `ErrorDeApi` con `status`, `codigo` y `detalle` (los casos existentes «traduce un error…» y «cae al statusText…» siguen verdes sin cambios) | unit (existente) | pendiente |
-| 6 | Las pruebas de rutas existentes (`categorias`, `conversaciones`, `planillas`, `reporteria`, `usuarios`, `auth`) siguen verdes sin cambios | unit (existente) | pendiente |
+| 1 | **RED**: `llamarApi("/faqs/f1", { method: "DELETE" })` con `fetch` → `new Response(null, { status: 204 })` resuelve a `undefined`. **Hoy falla**: rechaza con `SyntaxError` | unit (`lib/__tests__/api.test.ts`) | ok · RED: `SyntaxError: Unexpected end of JSON input` (api.ts:84); GREEN tras el fix |
+| 2 | **RED de ruta**: el `DELETE` de `app/api/faqs/[faqId]/route.ts` con sesión, `llamarApi` **real** y `fetch` stubbeado a 204 vacío → el navegador recibe **200 `{}`** y el `fetch` salió a `…/faqs/f1` con `method: "DELETE"`. **Hoy falla**: 500 `{ error: "ErrorInterno" }`. Archivo nuevo porque `conversaciones/__tests__/rutas.test.ts` mockea `llamarApi` entero | unit (ruta BFF, Vitest) | ok · RED: 500 en lugar de 200; GREEN tras el fix |
+| 3 | Un 200 con cuerpo vacío (sin `Content-Length`) también resuelve a `undefined` | unit | ok · RED: `SyntaxError`; GREEN tras el fix |
+| 4 | Un 200 con JSON sigue devolviendo el objeto parseado (regresión del camino común) | unit | ok · verde antes y después del fix (regresión) |
+| 5 | Un 4xx/5xx sigue lanzando `ErrorDeApi` con `status`, `codigo` y `detalle` (los casos existentes «traduce un error…» y «cae al statusText…» siguen verdes sin cambios) | unit (existente) | ok · casos existentes verdes sin cambios (908 tests, 76 archivos) |
+| 6 | Las pruebas de rutas existentes (`categorias`, `conversaciones`, `planillas`, `reporteria`, `usuarios`, `auth`) siguen verdes sin cambios | unit (existente) | ok · suite completa verde sin cambios en esas pruebas (908 tests, 76 archivos) |
 
 El 1 es la evidencia local del RED de la causa; el 2 lo es del síntoma que vio el usuario.
 
