@@ -207,3 +207,22 @@ Los tests no tocan la red: `pedido_de_turno` se prueba contra el esquema y contr
 Hay que verificar en staging con `LLM_ADAPTADOR=anthropic` que la API acepta el esquema anidado con
 `pattern` y `maxItems` en `output_config.format`, que `max_tokens` alcanza, y cómo extrae frases reales
 («el jueves que viene a la tarde», «no llego mañana»). Ver `TODO.md` §22.
+
+---
+
+## Lo que dejó `politica-fuera-de-horario`
+
+### 22. No hay calendario automático de feriados nacionales · **depende de un tercero**
+
+La empresa carga a mano sus fechas sin atención (feriados, vacaciones). Un calendario automático necesita una
+fuente oficial o un servicio que publique los feriados nacionales y sus traslados, y decidir qué hace el sistema
+cuando el calendario y la carga manual discrepan. Mientras tanto, la tarjeta «Fechas sin atención» de PAN-WA-02
+es el único camino. Ver D100, punto 4.
+
+### 23. El interruptor «Agente activo» del prototipo no existe
+
+PAN-WA-01 y PAN-WA-02 lo muestran en el encabezado («Enciende o pausa el agente»), y el issue #71 también lo
+menciona. Ninguna regla ni criterio dice qué hace un agente pausado (¿silencio total?, ¿mensaje fijo?, ¿todo a la
+bandeja del operador?): sólo aparece como precondición de HS-T2 y de HU-E9-04. Decidirlo es una pregunta de
+producto. Mientras tanto, la política (b) cubre el caso más pedido —que el agente no conteste con el negocio
+cerrado— y desactivar la regla en PAN-CFG-RN vuelve al comportamiento de siempre (D100).

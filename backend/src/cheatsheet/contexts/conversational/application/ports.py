@@ -34,6 +34,7 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
 )
 from cheatsheet.contexts.conversational.domain.escalamiento import Escalamiento
 from cheatsheet.contexts.conversational.domain.faq import FAQ, CoincidenciaDeFAQ
+from cheatsheet.contexts.conversational.domain.fuera_de_horario import AtencionDelNegocio
 from cheatsheet.contexts.conversational.domain.pedido_de_turno import PedidoDeTurno
 from cheatsheet.contexts.conversational.domain.seleccion_de_horarios import HorarioOfrecible
 
@@ -324,13 +325,26 @@ class PortPlantillas(Protocol):
     async def resolver(self, codigo: str, variables: dict[str, str]) -> str | None: ...
 
 
+class PortHorarioDeAtencion(Protocol):
+    """ACL sobre `business_config`: lo único que este contexto sabe del horario de atención.
+
+    Responde **una pregunta ya resuelta** —¿está abierto?, ¿con qué política?, ¿cuándo abre?—
+    y no entrega ninguna regla ni franja: el cálculo es de `business_config`, escrito una vez,
+    y el modelo no participa. Sin horario configurado responde «abierto».
+    """
+
+    async def consultar(self, ahora: datetime) -> AtencionDelNegocio: ...
+
+
 __all__ = [
+    "AtencionDelNegocio",
     "HorarioOfrecible",
     "Lectura",
     "MensajeEntrante",
     "PortAgenda",
     "PortDirectorio",
     "PortEmbeddings",
+    "PortHorarioDeAtencion",
     "PortInterprete",
     "PortMensajeria",
     "PortPlantillas",

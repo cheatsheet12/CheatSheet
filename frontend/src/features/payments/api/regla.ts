@@ -6,7 +6,11 @@
  * nueva, la resolución por prioridad tendría que desempatar entre versiones de lo mismo.
  */
 
-export type TipoRegla = "ESCALAMIENTO_DE_COBRO" | "POLITICA_DE_TURNO" | "AGENDA_DE_NOTIFICACION";
+export type TipoRegla =
+  | "ESCALAMIENTO_DE_COBRO"
+  | "POLITICA_DE_TURNO"
+  | "AGENDA_DE_NOTIFICACION"
+  | "HORARIO_DE_ATENCION";
 export type CanalNotificacion = "WHATSAPP" | "EMAIL" | "PANEL";
 
 export interface PasoDeEscalamiento {
@@ -39,6 +43,7 @@ export const ETIQUETAS_DE_TIPO: Readonly<Record<TipoRegla, string>> = {
   ESCALAMIENTO_DE_COBRO: "Escalamiento de cobros",
   POLITICA_DE_TURNO: "Política de turnos",
   AGENDA_DE_NOTIFICACION: "Agenda de notificaciones",
+  HORARIO_DE_ATENCION: "Horario de atención",
 };
 
 export const CANALES: readonly { readonly valor: string; readonly etiqueta: string }[] = [

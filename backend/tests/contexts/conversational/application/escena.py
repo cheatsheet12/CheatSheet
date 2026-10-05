@@ -50,6 +50,7 @@ from tests.contexts.conversational.application.dobles import (
     RepositorioMensajeEnMemoria,
     grilla_de,
 )
+from tests.contexts.conversational.application.horario_fijo import HorarioFijo, siempre_abierto
 
 EMPRESA = EmpresaId(uuid4())
 #: Martes 8 de septiembre de 2026, las 12:00 en Argentina.
@@ -85,6 +86,8 @@ class Escena:
         dias: int = 7,
         calidad_del_audio: float = 0.9,
         conocido: bool = False,
+        horario: HorarioFijo | None = None,
+        primer_dia: date = MANANA,
     ) -> None:
         self.ahora = AHORA
         self.cliente_id = uuid4()
@@ -102,13 +105,15 @@ class Escena:
         elegidos = list(servicios) if servicios is not None else [SERVICIO_DE_PRUEBA]
         if libres is None:
             libres = [
-                horario
+                libre
                 for servicio in elegidos
                 for indice in range(dias)
-                for horario in grilla_de(MANANA + timedelta(days=indice), servicio_id=servicio.id)
+                for libre in grilla_de(primer_dia + timedelta(days=indice), servicio_id=servicio.id)
             ]
         self.agenda = AgendaEnMemoria(*libres, servicios=elegidos)
         self.publicador = PublicadorEnMemoria()
+        #: Sin horario configurado, «siempre abierto»: los tests del agente no se enteran.
+        self.horario = horario or siempre_abierto()
         self._numero = 0
 
     @property
@@ -124,6 +129,7 @@ class Escena:
             mensajeria=self.mensajeria,
             embeddings=self.embeddings,
             agenda=self.agenda,
+            horario=self.horario,
             publicador=self.publicador,
         )
 

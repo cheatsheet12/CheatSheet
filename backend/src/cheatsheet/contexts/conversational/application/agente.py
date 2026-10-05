@@ -28,6 +28,10 @@ produce, como mucho, una pregunta de confirmación sobre un turno de ese cliente
 
 **Si hay un escalamiento abierto, el agente no contesta** (HU-E9-01 RN-02). El mensaje se
 registra igual —el operador lo tiene que ver— pero no se interpreta ni se responde.
+
+**Fuera de horario**, con la política de mensaje fijo, tampoco se interpreta: lo resuelve
+`AtencionFueraDeHorario` (HS-T2 RN-04). Con la política por defecto el agente sigue como de día y
+sólo cambia el aviso de derivación.
 """
 
 from __future__ import annotations
@@ -42,12 +46,14 @@ from cheatsheet.contexts.conversational.application.contexto import (
     evento_del_agente,
 )
 from cheatsheet.contexts.conversational.application.errors import MensajeYaProcesado
+from cheatsheet.contexts.conversational.application.fuera_de_horario import AtencionFueraDeHorario
 from cheatsheet.contexts.conversational.application.ports import (
     Lectura,
     MensajeEntrante,
     PortAgenda,
     PortDirectorio,
     PortEmbeddings,
+    PortHorarioDeAtencion,
     PortInterprete,
     PortMensajeria,
     PortRepositorioConversacion,
@@ -59,7 +65,6 @@ from cheatsheet.contexts.conversational.application.ports import (
 from cheatsheet.contexts.conversational.application.salida import SalidaAlCliente
 from cheatsheet.contexts.conversational.application.turnos_por_whatsapp import TurnosPorWhatsApp
 from cheatsheet.contexts.conversational.domain.conversacion import (
-    MENSAJE_DERIVACION,
     MENSAJE_OFRECER_ASESOR,
     Conversacion,
     DireccionMensaje,
@@ -121,6 +126,7 @@ class ProcesarMensajeEntrante:
         mensajeria: PortMensajeria,
         embeddings: PortEmbeddings,
         agenda: PortAgenda,
+        horario: PortHorarioDeAtencion,
         publicador: PublicadorDeEventos,
     ) -> None:
         self._conversaciones = conversaciones
@@ -135,6 +141,14 @@ class ProcesarMensajeEntrante:
         self._salida = SalidaAlCliente(mensajes=mensajes, mensajeria=mensajeria)
         self._turnos = TurnosPorWhatsApp(
             conversaciones=conversaciones, salida=self._salida, agenda=agenda, publicador=publicador
+        )
+        self._fuera_de_horario = AtencionFueraDeHorario(
+            horario=horario,
+            conversaciones=conversaciones,
+            mensajes=mensajes,
+            mensajeria=mensajeria,
+            agenda=agenda,
+            publicador=publicador,
         )
 
     async def ejecutar(
@@ -165,6 +179,12 @@ class ProcesarMensajeEntrante:
             return Respuesta(
                 conversacion.id, Intencion.DESCONOCIDA, escalado=True, texto_enviado=None
             )
+
+        # Fuera de horario con mensaje fijo: no se interpreta ni se escala (HS-T2 RN-04).
+        cerrado = await self._fuera_de_horario.atender_cerrado(contexto, guardado, texto)
+        if cerrado is not None:
+            await self._conversaciones.guardar(conversacion)
+            return await self._terminar(contexto, cerrado, guardado.intencion)
 
         if transcripcion_pobre:
             return await self._escalar(contexto, MOTIVO_TRANSCRIPCION_POBRE)
@@ -291,11 +311,18 @@ class ProcesarMensajeEntrante:
             salida = await self._decir(contexto, MENSAJE_OFRECER_ASESOR)
         return Respuesta(contexto.conversacion.id, lectura.intencion, False, salida)
 
-    async def _terminar(self, contexto: ContextoDelMensaje, desenlace: Desenlace) -> Respuesta:
-        """Cierra un turno: si el paso pide una persona, se escala; si no, ya contestó."""
+    async def _terminar(
+        self,
+        contexto: ContextoDelMensaje,
+        desenlace: Desenlace,
+        intencion: Intencion | None = Intencion.TURNO,
+    ) -> Respuesta:
+        """Cierra un paso: si pide una persona, se escala; si no, ya contestó (o calló)."""
         if desenlace.escalar_por is not None:
             return await self._escalar(contexto, desenlace.escalar_por)
-        return Respuesta(contexto.conversacion.id, Intencion.TURNO, False, desenlace.texto)
+        return Respuesta(
+            contexto.conversacion.id, intencion or Intencion.DESCONOCIDA, False, desenlace.texto
+        )
 
     async def _responder_faq(self, contexto: ContextoDelMensaje, texto: str) -> str | None:
         """HU-E8-03. Por significado (RN-02), y con umbral (RN-03).
@@ -330,7 +357,9 @@ class ProcesarMensajeEntrante:
         conversacion.anotar_intento_entendido()
         conversacion.cerrar_dialogo()  # escalar deja sin efecto lo que se había ofrecido
         await self._conversaciones.guardar(conversacion)
-        texto = await self._decir(contexto, MENSAJE_DERIVACION)
+        texto = await self._decir(
+            contexto, await self._fuera_de_horario.aviso_de_derivacion(contexto)
+        )
         await self._publicar(contexto, "escalar_conversacion")
         return Respuesta(conversacion.id, Intencion.DESCONOCIDA, escalado=True, texto_enviado=texto)
 
