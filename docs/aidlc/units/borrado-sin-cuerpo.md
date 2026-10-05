@@ -166,7 +166,7 @@ El 1 es la evidencia local del RED de la causa; el 2 lo es del síntoma que vio 
 |---|---|---|
 | 1 · Plan | 2026-10-04 | aprobado (contexto «frontend (`lib/`, transversal)») |
 | 2 · Verificación | 2026-10-04 | Aprobado por Luciano. RED: casos 1 y 3 `SyntaxError: Unexpected end of JSON input`, caso 2 `expected 500 to be 200`. GREEN: lint, typecheck, prettier y `test:coverage` en verde (908 tests, cobertura total 87,44 %). Pendiente: verificar en staging las cinco pantallas (`TODO.md`) |
-| 3 · PR | | |
+| 3 · PR | 2026-10-04 | [#78](https://github.com/cheatsheet12/CheatSheet/pull/78) contra `develop`; revisa Vincenzo |
 
 ## Decisiones tomadas durante la unidad
 - (ninguna todavía)
