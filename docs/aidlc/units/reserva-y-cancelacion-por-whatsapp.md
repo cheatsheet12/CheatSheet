@@ -444,7 +444,7 @@ Test primero: cada **RED** se escribe y se ve fallar contra el código actual an
 | 41 | Escalar (pedido de persona o intentos agotados) cierra el diálogo | unit (aplicación) | hecho |
 | 42 | Según Pregunta 1: una reserva o cancelación del agente produce **un solo** mensaje al cliente | unit (aplicación / api) | hecho (el notificador del agente no envía y un mensaje por paso) · de punta a punta: CI pendiente |
 | 43 | Según Pregunta 3: cancelar un turno con seña sigue la política aprobada | unit (aplicación) | hecho |
-| 44 | `agente.py` < 400 líneas; ningún archivo nuevo > 400; funciones ≤ 50 líneas | revisión + `ruff` (C901) | hecho · `agente.py` 363 líneas; ningún archivo nuevo supera 400; `ruff` (C901) limpio |
+| 44 | `agente.py` < 400 líneas; ningún archivo nuevo > 400; funciones ≤ 50 líneas | revisión + `ruff` (C901) | hecho · `agente.py` 370 líneas y ninguna función de más de 50; ningún archivo nuevo supera 400; `ruff` (C901) limpio |
 
 ## Verificaciones que no se pueden hacer acá
 

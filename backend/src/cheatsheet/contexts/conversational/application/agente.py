@@ -179,6 +179,13 @@ class ProcesarMensajeEntrante:
             await self._anotar_intencion(guardado, Intencion.TURNO)
             return await self._terminar(contexto, desenlace)
 
+        return await self._interpretar_y_encaminar(contexto, guardado, texto)
+
+    async def _interpretar_y_encaminar(
+        self, contexto: ContextoDelMensaje, guardado: Mensaje, texto: str
+    ) -> Respuesta:
+        """Los pasos 5 y 6: lo que sí necesita al modelo."""
+        conversacion = contexto.conversacion
         # 5. Interpretar: con los datos personales ocultos (`CLAUDE.md` §3.6).
         historial = historial_para_el_interprete(await self._mensajes.del_hilo(conversacion.id))
         lectura = await self._interprete.leer(ocultar_datos_personales(texto), historial=historial)
