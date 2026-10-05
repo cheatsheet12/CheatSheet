@@ -23,6 +23,7 @@ from cheatsheet.api.agenda import armar_catalogo
 from cheatsheet.api.agenda import armar_directorio as armar_directorio_de_avisos
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.api.padron import armar_padron_de_clientes
+from cheatsheet.contexts.business_config.application.atencion import ConsultarAtencion
 from cheatsheet.contexts.business_config.application.plantillas import ResolverPlantilla
 from cheatsheet.contexts.business_config.infrastructure.ensamblado import (
     ConfiguracionDeNegocio,
@@ -31,6 +32,7 @@ from cheatsheet.contexts.conversational.application.ports import (
     PortAgenda,
     PortDirectorio,
     PortEmbeddings,
+    PortHorarioDeAtencion,
     PortInterprete,
     PortMensajeria,
     PortPlantillas,
@@ -47,6 +49,7 @@ from cheatsheet.contexts.conversational.infrastructure.canal import (
     MensajeriaWhatsApp,
     TranscriptorSimulado,
 )
+from cheatsheet.contexts.conversational.infrastructure.horario import HorarioViaConfiguracion
 from cheatsheet.contexts.conversational.infrastructure.interprete import (
     ConfiguracionDelInterprete,
     InterpreteAnthropic,
@@ -212,6 +215,18 @@ def armar_agenda(
     )
 
 
+def armar_horario_de_atencion(
+    unidad: UnidadDeTrabajo, *, empresa_id: EmpresaId
+) -> PortHorarioDeAtencion:
+    """El horario de atención y la política de fuera de horario (HS-T2 RN-04).
+
+    Sobre `ConsultarAtencion`, el servicio de aplicación que `business_config` publica: el
+    cálculo de «¿está abierto?» es de ese contexto y llega acá ya resuelto.
+    """
+    consulta = ConsultarAtencion(ConfiguracionDeNegocio.armar(unidad).reglas)
+    return HorarioViaConfiguracion(consulta, empresa_id=empresa_id)
+
+
 def armar_plantillas(unidad: UnidadDeTrabajo) -> PortPlantillas:
     """Los textos salientes configurables (HU-E11-02).
 
@@ -241,6 +256,7 @@ __all__ = [
     "armar_agenda",
     "armar_directorio",
     "armar_embeddings",
+    "armar_horario_de_atencion",
     "armar_interprete",
     "armar_mensajeria",
     "armar_plantillas",
