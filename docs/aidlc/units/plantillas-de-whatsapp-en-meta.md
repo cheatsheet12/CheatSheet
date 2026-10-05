@@ -482,7 +482,7 @@ Numeración provisoria (sigue a las de U5; se renumera al mergear):
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. **Cierra cuando el equipo acepte el ADR-0011** ([#62](https://github.com/cheatsheet12/CheatSheet/pull/62)); hasta entonces no se escribe código |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
@@ -491,4 +491,5 @@ Numeración provisoria (sigue a las de U5; se renumera al mergear):
 
 ## Decisiones tomadas durante la unidad
 
-- (vacío hasta el Gate 1)
+- Gate 1 (2026-10-04): Pregunta 1 → automático: cuando la empresa tiene WhatsApp conectado, las plantillas de fábrica se siembran y se envían a Meta sin esperar a un administrador.
+- Gate 1 (2026-10-04): Pregunta 2 → sí: los textos de fábrica de `recordatorio_de_cobro` y `cobro_generado` terminan en « Gracias.» para que no terminen en una variable; se corrigen las filas no editadas.
