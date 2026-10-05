@@ -63,6 +63,7 @@ from cheatsheet.contexts.conversational.domain.escalamiento import (
     Escalamiento,
 )
 from cheatsheet.contexts.conversational.domain.faq import UMBRAL_DE_SIMILITUD
+from cheatsheet.contexts.conversational.domain.pedido_de_persona import pide_una_persona
 from cheatsheet.shared.auditoria import EventoAuditable, Iniciador, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import PublicadorDeEventos
@@ -81,19 +82,6 @@ UMBRAL_DE_TRANSCRIPCION = 0.5
 #: Cuántos horarios se ofrecen de una. Más de tres en un mensaje de WhatsApp es una lista que
 #: nadie lee; el ejemplo de la historia ofrece dos.
 HORARIOS_A_OFRECER = 3
-
-#: Las palabras con las que alguien pide una persona (HU-E8-05 RN-01: «cuando el cliente la
-#: solicita explícitamente»). Se comprueban **antes** de llamar al modelo: es la única
-#: intención cuya interpretación no puede depender de un modelo que quizá no entienda.
-PEDIDOS_DE_HUMANO = (
-    "hablar con una persona",
-    "hablar con alguien",
-    "un humano",
-    "una persona",
-    "un asesor",
-    "atencion humana",
-    "atención humana",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,8 +156,8 @@ class ProcesarMensajeEntrante:
                 empresa_id, conversacion, entrante.telefono, MOTIVO_TRANSCRIPCION_POBRE, ahora
             )
 
-        # El pedido explícito de una persona no pasa por el modelo: ver `PEDIDOS_DE_HUMANO`.
-        if _pide_una_persona(texto):
+        # El pedido explícito de una persona no pasa por el modelo: ver `pide_una_persona`.
+        if pide_una_persona(texto):
             return await self._escalar(
                 empresa_id, conversacion, entrante.telefono, MOTIVO_PEDIDO_POR_EL_CLIENTE, ahora
             )
@@ -445,17 +433,6 @@ class ProcesarMensajeEntrante:
                 iniciador=Iniciador.IA,
             )
         )
-
-
-def _pide_una_persona(texto: str) -> bool:
-    """HU-E8-05 RN-01, sin pasar por el modelo.
-
-    Es una comprobación de subcadenas y es a propósito: la única intención que **no puede**
-    depender de que un modelo la entienda es justamente la de alguien que ya se cansó del
-    modelo.
-    """
-    normalizado = texto.lower()
-    return any(frase in normalizado for frase in PEDIDOS_DE_HUMANO)
 
 
 __all__ = [
