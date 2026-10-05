@@ -244,6 +244,14 @@ dependencias del canal.
   sin cambios). La fila del Context Map llega con el PR del ADR-0011.
 - **Frontend**: No aplica. PAN-COB-02 ya muestra `estado_entrega` de cada recordatorio.
 
+### H3 — La hora de los avisos de turno sale en UTC
+
+`scheduling/infrastructure/avisos.py` formatea `datos.inicio.strftime(FORMATO_FECHA)` (y
+`inicio_anterior`) **sin convertir de zona**. Un turno leído de la base llega en UTC, así que, apenas
+el aviso deje de ir a la consola, el cliente leería una hora tres horas corrida. Se corrige en esta
+unidad, porque es la que hace reales los avisos: los textos convierten a `ZONA_DE_LA_AGENDA`
+(`scheduling/domain/recurso.py:46`) antes de formatear. Caso 33.
+
 ## Infraestructura
 
 - **Migraciones**: No aplica. (U7 agrega `recordatorio.externo_id`; número libre al mergear.)
@@ -434,6 +442,7 @@ U6–U8 agregan sus propias filas al planificarse; esta tabla deja reservadas la
 | 30 | `MensajeriaSimulada` detrás del adaptador real: el recordatorio queda `ENVIADO` en staging, como hoy | unit | pendiente |
 | 31 | Regresión: el agente sigue guardando `FALLIDO` y el operador sigue recibiendo `MensajeriaNoDisponible` (422) con las excepciones tipadas nuevas | regresión | pendiente |
 | 32 | `guard_architecture --scan` y `.claude/hooks/test_guards.sh` pasan: ningún import nuevo entre contextos | gate | pendiente |
+| 33 | **RED** — Un turno a las `2026-10-15T13:30Z` produce avisos de reserva, cancelación y reprogramación con «15/10/2026 a las 10:30» (hora de Argentina), no «13:30» | unit | pendiente |
 
 Los casos 2 y 3 necesitan PostgreSQL: sin Docker en esta máquina se saltean en local y se confirman en
 la CI del PR. Gates de Gate 2: `ruff format --check . && ruff check . && mypy . && pytest`
