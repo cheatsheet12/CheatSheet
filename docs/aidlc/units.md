@@ -59,6 +59,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Reportería y paquete contable | indicadores-de-cobranza | reporting | HU-E10-01 | fecha-de-pago | Luciano | feature/reporting-indicadores-de-cobranza | mergeada |
 | Agente de WhatsApp y atención humana | telefono-del-operador | conversational | HU-E9-01 | — | Luciano | fix/conversational-telefono-del-operador | en revisión |
 | Agente de WhatsApp y atención humana | borrado-sin-cuerpo | frontend (`lib/`, transversal) | HU-E9-04, HU-E4-03, HU-E1-04, HU-E2-04, HU-E10-05 | — | Luciano | fix/frontend-borrado-sin-cuerpo | en revisión |
+| Agente de WhatsApp y atención humana | ajustes-menores-del-agente | conversational | HS-T2, HU-E8-05 | — | Luciano | fix/conversational-ajustes-menores-del-agente | en revisión |
 
 
 ---

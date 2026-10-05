@@ -63,6 +63,7 @@ from cheatsheet.contexts.conversational.domain.escalamiento import (
     Escalamiento,
 )
 from cheatsheet.contexts.conversational.domain.faq import UMBRAL_DE_SIMILITUD
+from cheatsheet.contexts.conversational.domain.pedido_de_persona import pide_una_persona
 from cheatsheet.shared.auditoria import EventoAuditable, Iniciador, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import PublicadorDeEventos
@@ -81,19 +82,6 @@ UMBRAL_DE_TRANSCRIPCION = 0.5
 #: Cuántos horarios se ofrecen de una. Más de tres en un mensaje de WhatsApp es una lista que
 #: nadie lee; el ejemplo de la historia ofrece dos.
 HORARIOS_A_OFRECER = 3
-
-#: Las palabras con las que alguien pide una persona (HU-E8-05 RN-01: «cuando el cliente la
-#: solicita explícitamente»). Se comprueban **antes** de llamar al modelo: es la única
-#: intención cuya interpretación no puede depender de un modelo que quizá no entienda.
-PEDIDOS_DE_HUMANO = (
-    "hablar con una persona",
-    "hablar con alguien",
-    "un humano",
-    "una persona",
-    "un asesor",
-    "atencion humana",
-    "atención humana",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,7 +138,9 @@ class ProcesarMensajeEntrante:
         texto, tipo, transcripcion_pobre = await self._texto_de(entrante)
 
         # 3. Registrar. **Antes** de interpretar: si el modelo se cae, el mensaje quedó.
-        await self._guardar_entrante(empresa_id, conversacion, entrante, texto, tipo, ahora)
+        guardado = await self._guardar_entrante(
+            empresa_id, conversacion, entrante, texto, tipo, ahora
+        )
         conversacion.registrar_actividad(ahora)
 
         # Si un operador está atendiendo, el agente calla (HU-E9-01 RN-02).
@@ -166,8 +156,8 @@ class ProcesarMensajeEntrante:
                 empresa_id, conversacion, entrante.telefono, MOTIVO_TRANSCRIPCION_POBRE, ahora
             )
 
-        # El pedido explícito de una persona no pasa por el modelo: ver `PEDIDOS_DE_HUMANO`.
-        if _pide_una_persona(texto):
+        # El pedido explícito de una persona no pasa por el modelo: ver `pide_una_persona`.
+        if pide_una_persona(texto):
             return await self._escalar(
                 empresa_id, conversacion, entrante.telefono, MOTIVO_PEDIDO_POR_EL_CLIENTE, ahora
             )
@@ -179,6 +169,7 @@ class ProcesarMensajeEntrante:
 
         # 5. Encaminar.
         if lectura.confianza < UMBRAL_DE_CONFIANZA:
+            await self._anotar_intencion(guardado, Intencion.DESCONOCIDA)
             conversacion.anotar_intento_fallido()
             if conversacion.agoto_los_intentos:
                 return await self._escalar(
@@ -190,6 +181,7 @@ class ProcesarMensajeEntrante:
             )
             return Respuesta(conversacion.id, Intencion.DESCONOCIDA, False, texto_enviado)
 
+        await self._anotar_intencion(guardado, lectura.intencion)
         conversacion.anotar_intento_entendido()
         await self._conversaciones.guardar(conversacion)
         salida = await self._encaminar(empresa_id, conversacion, entrante, lectura, texto, ahora)
@@ -237,19 +229,27 @@ class ProcesarMensajeEntrante:
         texto: str,
         tipo: TipoContenido,
         ahora: datetime,
-    ) -> None:
-        await self._mensajes.agregar(
-            Mensaje(
-                id=uuid4(),
-                conversacion_id=conversacion.id,
-                empresa_id=empresa_id,
-                direccion=DireccionMensaje.ENTRANTE,
-                tipo_contenido=tipo,
-                contenido=texto,
-                momento=entrante.momento or ahora,
-                externo_id=entrante.externo_id,
-            )
+    ) -> Mensaje:
+        mensaje = Mensaje(
+            id=uuid4(),
+            conversacion_id=conversacion.id,
+            empresa_id=empresa_id,
+            direccion=DireccionMensaje.ENTRANTE,
+            tipo_contenido=tipo,
+            contenido=texto,
+            momento=entrante.momento or ahora,
+            externo_id=entrante.externo_id,
         )
+        await self._mensajes.agregar(mensaje)
+        return mensaje
+
+    async def _anotar_intencion(self, mensaje: Mensaje, intencion: Intencion) -> None:
+        """HS-T2 RN-02: el mensaje interpretado queda con la intención que el agente aplicó.
+
+        Los caminos que no interpretan no pasan por acá y la dejan en `None` («no se clasificó»).
+        """
+        mensaje.intencion = intencion
+        await self._mensajes.guardar(mensaje)
 
     async def _encaminar(
         self,
@@ -433,17 +433,6 @@ class ProcesarMensajeEntrante:
                 iniciador=Iniciador.IA,
             )
         )
-
-
-def _pide_una_persona(texto: str) -> bool:
-    """HU-E8-05 RN-01, sin pasar por el modelo.
-
-    Es una comprobación de subcadenas y es a propósito: la única intención que **no puede**
-    depender de que un modelo la entienda es justamente la de alguien que ya se cansó del
-    modelo.
-    """
-    normalizado = texto.lower()
-    return any(frase in normalizado for frase in PEDIDOS_DE_HUMANO)
 
 
 __all__ = [

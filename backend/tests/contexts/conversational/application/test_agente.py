@@ -49,6 +49,7 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
     DireccionMensaje,
     EstadoEntrega,
     Intencion,
+    Mensaje,
     TipoContenido,
 )
 from cheatsheet.contexts.conversational.domain.escalamiento import (
@@ -405,3 +406,78 @@ class TestClientes:
 
         assert respuesta.conversacion_id == hilo.id
         assert escena.clientes.altas == []
+
+
+async def _entrantes(escena: Escena) -> list[Mensaje]:
+    return [
+        uno
+        for uno in escena.mensajes.mensajes.values()
+        if uno.direccion is DireccionMensaje.ENTRANTE
+    ]
+
+
+class TestLaIntencionDelMensajeEntrante:
+    """HS-T2 RN-02: el mensaje interpretado queda con su intención, no sólo la auditoría."""
+
+    async def test_el_mensaje_entrante_guarda_la_intencion_interpretada(self) -> None:
+        escena = Escena(lectura=leyendo(Intencion.TURNO))
+
+        await escena.procesar("quiero un turno")
+
+        [entrante] = await _entrantes(escena)
+        assert entrante.intencion is Intencion.TURNO
+
+    async def test_bajo_el_umbral_el_entrante_queda_desconocido_como_la_respuesta(self) -> None:
+        escena = Escena(lectura=leyendo(Intencion.FAQ, 0.3))
+
+        respuesta = await escena.procesar("mmm")
+
+        [entrante] = await _entrantes(escena)
+        assert respuesta.intencion is Intencion.DESCONOCIDA
+        assert entrante.intencion is Intencion.DESCONOCIDA
+
+    async def test_el_pedido_explicito_de_una_persona_no_se_clasifica(self) -> None:
+        escena = Escena(lectura=leyendo(Intencion.FAQ))
+
+        await escena.procesar("quiero hablar con una persona por favor")
+
+        [entrante] = await _entrantes(escena)
+        assert entrante.intencion is None
+
+    async def test_la_transcripcion_pobre_no_se_clasifica(self) -> None:
+        escena = Escena(lectura=leyendo(Intencion.TURNO), calidad_del_audio=0.1)
+
+        await escena.procesar("", audio="audio-ruidoso")
+
+        [entrante] = await _entrantes(escena)
+        assert entrante.intencion is None
+
+    async def test_con_un_escalamiento_abierto_el_entrante_no_se_clasifica(self) -> None:
+        hilo = Conversacion(id=uuid4(), empresa_id=EMPRESA, cliente_id=uuid4(), created_at=AHORA)
+        abierto = Escalamiento(
+            id=uuid4(),
+            conversacion_id=hilo.id,
+            empresa_id=EMPRESA,
+            motivo=MOTIVO_BAJA_CONFIANZA,
+            created_at=AHORA,
+            updated_at=AHORA,
+        )
+        escena = Escena(lectura=leyendo(Intencion.TURNO), hilos=(hilo,), escalamientos=(abierto,))
+        escena.clientes.conocidos[TELEFONO] = (hilo.cliente_id, "Ana")
+
+        await escena.procesar("hola de nuevo")
+
+        [entrante] = await _entrantes(escena)
+        assert entrante.intencion is None
+
+
+class TestNombrarUnaPersonaNoEsPedirla:
+    async def test_nombrar_a_una_persona_no_es_pedirla(self) -> None:
+        """HU-E8-05 RN-01: «soy una persona que quiere un turno» no escala por subcadena."""
+        escena = Escena(lectura=leyendo(Intencion.TURNO))
+
+        respuesta = await escena.procesar("soy una persona que quiere un turno")
+
+        assert not respuesta.escalado
+        assert escena.interprete.vistos != []
+        assert await escena.escalamientos.listar_abiertos() == []
