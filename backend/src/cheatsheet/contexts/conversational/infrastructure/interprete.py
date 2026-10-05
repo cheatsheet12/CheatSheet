@@ -39,6 +39,15 @@ if TYPE_CHECKING:
 
 from cheatsheet.contexts.conversational.application.ports import Lectura
 from cheatsheet.contexts.conversational.domain.conversacion import Intencion
+from cheatsheet.contexts.conversational.domain.pedido_de_turno import (
+    AccionDeTurno,
+    MomentoDelDia,
+    ReferenciaDeDia,
+)
+from cheatsheet.contexts.conversational.infrastructure.lectura_de_pedido import (
+    extraer_pedido,
+    leer_pedido,
+)
 from cheatsheet.platform.settings import Entorno
 from cheatsheet.platform.telemetry import obtener_logger
 
@@ -46,6 +55,35 @@ logger = obtener_logger(__name__)
 
 #: Los prompts viven en archivos versionados, nunca embebidos en la lógica (`CLAUDE.md` §5).
 DIRECTORIO_DE_PROMPTS = Path(__file__).parent / "prompts"
+
+#: Un día pedido, como lo dijo el cliente. El modelo **no calcula fechas**: devuelve la referencia
+#: y el código la resuelve (T5).
+_ESQUEMA_DE_CUANDO: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["referencia"],
+    "properties": {
+        "referencia": {"type": "string", "enum": [uno.value for uno in ReferenciaDeDia]},
+        "dia_semana": {"type": "integer", "minimum": 0, "maximum": 6},
+        "dia": {"type": "integer", "minimum": 1, "maximum": 31},
+        "mes": {"type": "integer", "minimum": 1, "maximum": 12},
+    },
+}
+
+#: Lo que el cliente pidió sobre un turno. Todo enum o rango cerrado: la acción la ejecuta el motor
+#: de `scheduling`, y estos campos sólo orientan qué horarios se ofrecen.
+_ESQUEMA_DE_PEDIDO: dict[str, Any] = {
+    "type": ["object", "null"],
+    "additionalProperties": False,
+    "required": ["accion"],
+    "properties": {
+        "accion": {"type": "string", "enum": [uno.value for uno in AccionDeTurno]},
+        "cuandos": {"type": "array", "maxItems": 3, "items": _ESQUEMA_DE_CUANDO},
+        "momento": {"type": "string", "enum": [uno.value for uno in MomentoDelDia]},
+        "hora": {"type": "string", "pattern": r"^([01]\d|2[0-3]):[0-5]\d$"},
+        "servicio": {"type": "string", "maxLength": 60},
+    },
+}
 
 #: La forma en la que el modelo tiene que contestar. Se declara a la API **y** se comprueba a
 #: la vuelta. `intencion` es un enum cerrado: es la segunda de las tres defensas.
@@ -57,6 +95,7 @@ ESQUEMA_DE_LECTURA: dict[str, Any] = {
         "intencion": {"type": "string", "enum": [uno.value for uno in Intencion]},
         "confianza": {"type": "number", "minimum": 0, "maximum": 1},
         "resumen": {"type": "string", "maxLength": 200},
+        "pedido_de_turno": _ESQUEMA_DE_PEDIDO,
     },
 }
 
@@ -111,7 +150,19 @@ class InterpreteSimulado:
     """
 
     PALABRAS: tuple[tuple[Intencion, tuple[str, ...]], ...] = (
-        (Intencion.TURNO, ("turno", "reservar", "agendar", "cita", "cancelar")),
+        (
+            Intencion.TURNO,
+            (
+                "turno",
+                "reservar",
+                "agendar",
+                "cita",
+                "cancelar",
+                "reprogramar",
+                "no voy a poder",
+                "no puedo ir",
+            ),
+        ),
         (Intencion.PAGO, ("pagar", "pago", "debo", "deuda", "transferi", "transferí")),
         (Intencion.FAQ, ("precio", "cuanto", "cuánto", "horario", "direccion", "dirección")),
     )
@@ -128,7 +179,24 @@ class InterpreteSimulado:
         normalizado = texto.lower()
         for intencion, palabras in self.PALABRAS:
             if any(palabra in normalizado for palabra in palabras):
-                return Lectura(intencion=intencion, confianza=0.9, resumen=texto[:200])
+                pedido = extraer_pedido(texto) if intencion is Intencion.TURNO else None
+                return Lectura(
+                    intencion=intencion,
+                    confianza=0.9,
+                    resumen=texto[:200],
+                    pedido_de_turno=pedido,
+                )
+        # Sin palabra de turno pero con un «cuándo» («el jueves a la tarde»): es la respuesta a
+        # «¿para qué día?». Se devuelve floja a propósito: una lectura así sola no reserva nada,
+        # y una reserva en curso la toma igual (T8).
+        pedido = extraer_pedido(texto)
+        if pedido.cuandos or pedido.hora is not None or pedido.momento is not None:
+            return Lectura(
+                intencion=Intencion.TURNO,
+                confianza=0.5,
+                resumen=texto[:200],
+                pedido_de_turno=pedido,
+            )
         return SIN_LECTURA
 
 
@@ -241,6 +309,7 @@ def _interpretar(respuesta: Any) -> Lectura:
         intencion=Intencion[crudo],
         confianza=float(confianza),
         resumen=resumen[:200] if isinstance(resumen, str) else "",
+        pedido_de_turno=leer_pedido(datos.get("pedido_de_turno")),
     )
 
 

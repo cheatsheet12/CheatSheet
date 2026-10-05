@@ -34,6 +34,7 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
 )
 from cheatsheet.contexts.conversational.domain.escalamiento import Escalamiento
 from cheatsheet.contexts.conversational.domain.faq import FAQ, CoincidenciaDeFAQ
+from cheatsheet.contexts.conversational.domain.pedido_de_turno import PedidoDeTurno
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +51,10 @@ class Lectura:
     #: Lo que el modelo cree que el cliente quiere agendar, en texto libre y **sin efecto**.
     #: Lo lee un humano en el panel; ninguna decisión del sistema depende de esto.
     resumen: str = ""
+    #: Lo que el modelo extrajo de un pedido de turno: acción, días, franja, hora, servicio. Sigue
+    #: sin ser una acción ni una herramienta: orienta la búsqueda de horarios y nada más. Los ids
+    #: que se reservan o cancelan salen del `Dialogo` que armó el sistema, nunca de acá.
+    pedido_de_turno: PedidoDeTurno | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.confianza <= 1.0:
