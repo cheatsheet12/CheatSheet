@@ -1511,6 +1511,84 @@
   color: var(--ink-700);
 }
 
+/* ── Horarios de atención (PAN-WA-02, HS-T2 RN-04) ───────────────────── */
+
+/* La tarjeta del horario vive arriba de las respuestas frecuentes: la separa de ellas. */
+.hda-pantalla {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.hda-dias {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.hda-dia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line-2);
+}
+
+.hda-dia:first-child {
+  border-top: 0;
+}
+
+.hda-dia > .campo--casilla {
+  flex: 0 0 8rem;
+}
+
+.hda-franjas {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.hda-franja {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.hda-franja .campo {
+  margin-bottom: 0;
+}
+
+.hda-cerrado {
+  font-size: 13.5px;
+  color: var(--ink-400);
+}
+
+.hda-dia > .campo__error {
+  flex-basis: 100%;
+}
+
+.hda-politica {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.hda-politica__opcion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 13.5px;
+  color: var(--ink-700);
+}
+
 /* ── Cuando la pantalla se angosta ───────────────────────────────────── */
 
 @media (max-width: 720px) {

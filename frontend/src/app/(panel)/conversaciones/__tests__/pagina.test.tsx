@@ -108,6 +108,9 @@ function porRuta(ruta: string): unknown {
   if (ruta.startsWith("/faqs")) {
     return { faqs: [FAQ] };
   }
+  if (ruta.startsWith("/reglas")) {
+    return { reglas: [] };
+  }
   return { plantillas: [PLANTILLA] };
 }
 
@@ -195,13 +198,19 @@ describe("PaginaDeFaqs y PaginaDePlantillas", () => {
     llamarApi.mockImplementation((ruta: string) => Promise.resolve(porRuta(ruta)));
 
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
-    expect(renderToString(await PaginaDeFaqs())).toContain("Agregar respuesta");
+    const conAdmin = renderToString(await PaginaDeFaqs());
+    expect(conAdmin).toContain("Agregar respuesta");
+    // PAN-WA-02 compone la tarjeta de horarios de atención (HS-T2 RN-04) arriba de las respuestas.
+    expect(conAdmin).toContain("Horarios de atención");
+    expect(conAdmin).toContain("Guardar");
     expect(renderToString(await PaginaDePlantillas())).toContain("Editar texto");
 
     leerClaims.mockReturnValue(CLAIMS_OPERADOR);
     const faqs = renderToString(await PaginaDeFaqs());
     expect(faqs).toContain("¿Cuánto sale un corte?");
     expect(faqs).not.toContain("Agregar respuesta");
+    expect(faqs).toContain("Horarios de atención");
+    expect(faqs).not.toContain("Guardar");
     expect(renderToString(await PaginaDePlantillas())).not.toContain("Editar texto");
   });
 
