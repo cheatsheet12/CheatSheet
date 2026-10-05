@@ -510,46 +510,46 @@ escalamiento).
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/business_config/domain/horario_de_atencion.py` (nuevo: franjas, política, configuración e invariantes)
-- [ ] `backend/src/cheatsheet/contexts/business_config/domain/horario_de_atencion_json.py` (nuevo: JSON v1, `fechas_cerradas` opcional al leer)
-- [ ] `backend/src/cheatsheet/contexts/business_config/domain/apertura.py` (nuevo: `esta_abierto`, `proxima_apertura`, `cerrado_desde`, horizonte de 366 días, `EstadoDeAtencion`)
-- [ ] `backend/src/cheatsheet/contexts/business_config/domain/regla.py` (`HORARIO_DE_ATENCION`, `interpretada_como_atencion`)
-- [ ] `backend/src/cheatsheet/contexts/business_config/application/atencion.py` (nuevo: `ConfigurarHorarioDeAtencion` con la poda de fechas viejas, `ConsultarAtencion`)
-- [ ] `backend/src/cheatsheet/api/routers/reglas.py` (`PUT /reglas/horario-de-atencion`)
-- [ ] `backend/src/cheatsheet/contexts/conversational/domain/fuera_de_horario.py` (nuevo: `cuando_se_atiende`, los tres textos con su variante sin fecha, `ya_avisado`)
-- [ ] `backend/src/cheatsheet/contexts/conversational/application/fuera_de_horario.py` (nuevo: `AtencionFueraDeHorario`, `SalidaConPosdata`)
-- [ ] `backend/src/cheatsheet/contexts/conversational/application/ports.py` (`PortHorarioDeAtencion`)
-- [ ] `backend/src/cheatsheet/contexts/conversational/application/agente.py` (dos llamadas; < 400 líneas)
-- [ ] `backend/src/cheatsheet/contexts/conversational/infrastructure/horario.py` (nuevo, ACL)
-- [ ] `backend/src/cheatsheet/api/conversacional.py` (`armar_horario_de_atencion`)
-- [ ] `backend/src/cheatsheet/api/routers/whatsapp.py` (`_procesar` pasa el horario)
-- [ ] `backend/tests/contexts/business_config/domain/test_horario_de_atencion.py` (nuevo: invariantes y JSON)
-- [ ] `backend/tests/contexts/business_config/domain/test_apertura.py` (nuevo: cálculo, horario cortado, fechas, horizonte)
-- [ ] `backend/tests/contexts/business_config/application/test_atencion.py` (nuevo)
-- [ ] `backend/tests/contexts/conversational/domain/test_fuera_de_horario.py` (nuevo)
-- [ ] `backend/tests/contexts/conversational/application/horario_fijo.py` (nuevo: doble `HorarioFijo`; `dobles.py` ya pasa de 400)
-- [ ] `backend/tests/contexts/conversational/application/escena.py` (el horario en la escena, «siempre abierto» por defecto)
-- [ ] `backend/tests/contexts/conversational/application/test_fuera_de_horario.py` (nuevo: (a) y (b) sin diálogo)
-- [ ] `backend/tests/contexts/conversational/application/test_fuera_de_horario_dialogos.py` (nuevo: (b) con diálogo y los bordes de T9; aparte para que ningún archivo de tests pase de 400)
-- [ ] `backend/tests/contexts/conversational/infrastructure/test_horario.py` (nuevo, ACL)
-- [ ] `backend/tests/integracion/test_horario_de_atencion_postgres.py` (nuevo: RLS y API de punta a punta)
+- [x] `backend/src/cheatsheet/contexts/business_config/domain/horario_de_atencion.py` (nuevo: franjas, política, configuración e invariantes)
+- [x] `backend/src/cheatsheet/contexts/business_config/domain/horario_de_atencion_json.py` (nuevo: JSON v1, `fechas_cerradas` opcional al leer)
+- [x] `backend/src/cheatsheet/contexts/business_config/domain/apertura.py` (nuevo: `esta_abierto`, `proxima_apertura`, `cerrado_desde`, horizonte de 366 días, `EstadoDeAtencion`)
+- [x] `backend/src/cheatsheet/contexts/business_config/domain/regla.py` (`HORARIO_DE_ATENCION`, `interpretada_como_atencion`)
+- [x] `backend/src/cheatsheet/contexts/business_config/application/atencion.py` (nuevo: `ConfigurarHorarioDeAtencion` con la poda de fechas viejas, `ConsultarAtencion`)
+- [x] `backend/src/cheatsheet/api/routers/reglas.py` (`PUT /reglas/horario-de-atencion`)
+- [x] `backend/src/cheatsheet/contexts/conversational/domain/fuera_de_horario.py` (nuevo: `cuando_se_atiende`, los tres textos con su variante sin fecha, `ya_avisado`)
+- [x] `backend/src/cheatsheet/contexts/conversational/application/fuera_de_horario.py` (nuevo: `AtencionFueraDeHorario`, `SalidaConPosdata`)
+- [x] `backend/src/cheatsheet/contexts/conversational/application/ports.py` (`PortHorarioDeAtencion`)
+- [x] `backend/src/cheatsheet/contexts/conversational/application/agente.py` (dos llamadas; < 400 líneas)
+- [x] `backend/src/cheatsheet/contexts/conversational/infrastructure/horario.py` (nuevo, ACL)
+- [x] `backend/src/cheatsheet/api/conversacional.py` (`armar_horario_de_atencion`)
+- [x] `backend/src/cheatsheet/api/routers/whatsapp.py` (`_procesar` pasa el horario)
+- [x] `backend/tests/contexts/business_config/domain/test_horario_de_atencion.py` (nuevo: invariantes y JSON)
+- [x] `backend/tests/contexts/business_config/domain/test_apertura.py` (nuevo: cálculo, horario cortado, fechas, horizonte)
+- [x] `backend/tests/contexts/business_config/application/test_atencion.py` (nuevo)
+- [x] `backend/tests/contexts/conversational/domain/test_fuera_de_horario.py` (nuevo)
+- [x] `backend/tests/contexts/conversational/application/horario_fijo.py` (nuevo: doble `HorarioFijo`; `dobles.py` ya pasa de 400)
+- [x] `backend/tests/contexts/conversational/application/escena.py` (el horario en la escena, «siempre abierto» por defecto)
+- [x] `backend/tests/contexts/conversational/application/test_fuera_de_horario.py` (nuevo: (a) y (b) sin diálogo)
+- [x] `backend/tests/contexts/conversational/application/test_fuera_de_horario_dialogos.py` (nuevo: (b) con diálogo y los bordes de T9; aparte para que ningún archivo de tests pase de 400)
+- [x] `backend/tests/contexts/conversational/infrastructure/test_horario.py` (nuevo, ACL)
+- [x] `backend/tests/integracion/test_horario_de_atencion_postgres.py` (nuevo: RLS y API de punta a punta)
 
 ### Frontend
-- [ ] `frontend/src/features/business_config/api/atencion.ts` (nuevo) y `api/__tests__/atencion.test.ts`
-- [ ] `frontend/src/features/business_config/components/HorarioDeAtencion.tsx` (nuevo) y `components/__tests__/HorarioDeAtencion.test.tsx`
-- [ ] `frontend/src/features/business_config/components/FranjasDelDia.tsx` (nuevo; lo cubre el test de `HorarioDeAtencion`)
-- [ ] `frontend/src/features/business_config/components/FechasSinAtencion.tsx` (nuevo) y `components/__tests__/FechasSinAtencion.test.tsx`
-- [ ] `frontend/src/features/business_config/index.ts`
-- [ ] `frontend/src/app/(panel)/configuracion/respuestas/page.tsx`
-- [ ] `frontend/src/app/api/reglas/horario-de-atencion/route.ts` (nuevo)
-- [ ] `frontend/src/features/payments/api/regla.ts` y `api/__tests__/regla.test.ts` (rótulo del tipo nuevo)
+- [x] `frontend/src/features/business_config/api/atencion.ts` (nuevo) y `api/__tests__/atencion.test.ts`
+- [x] `frontend/src/features/business_config/components/HorarioDeAtencion.tsx` (nuevo) y `components/__tests__/HorarioDeAtencion.test.tsx`
+- [x] `frontend/src/features/business_config/components/FranjasDelDia.tsx` (nuevo; lo cubre el test de `HorarioDeAtencion`)
+- [x] `frontend/src/features/business_config/components/FechasSinAtencion.tsx` (nuevo) y `components/__tests__/FechasSinAtencion.test.tsx`
+- [x] `frontend/src/features/business_config/index.ts`
+- [x] `frontend/src/app/(panel)/configuracion/respuestas/page.tsx`
+- [x] `frontend/src/app/api/reglas/horario-de-atencion/route.ts` (nuevo)
+- [x] `frontend/src/features/payments/api/regla.ts` y `api/__tests__/regla.test.ts` (rótulo del tipo nuevo)
 
 ### Documentación
 - [x] `docs/aidlc/units/politica-fuera-de-horario.md` (este plan, con el Gate 1 registrado)
 - [x] `docs/aidlc/units.md` (fila nueva; estado `en curso` desde el Gate 1)
-- [ ] `docs/aidlc/epicas/08-agente-de-whatsapp/decisiones.md` (D100: cuarto `TipoRegla`; política (c); «siempre abierto» sin regla; franjas múltiples y fechas sin atención por decisión de Gate 1; versión 1 con `fechas_cerradas` opcional; horizonte de 366 días; la oración en las respuestas a diálogos; los riesgos aceptados)
-- [ ] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (nuevos: **calendario automático de feriados nacionales** —depende de un tercero— e **interruptor «Agente activo»** —Pregunta 6—. El horario cortado y los feriados cargados a mano **ya no son pendientes**: entran en esta unidad)
-- [ ] `docs/aidlc/TODO.md` §22 (verificaciones manuales en staging, ver abajo)
+- [x] `docs/aidlc/epicas/08-agente-de-whatsapp/decisiones.md` (D100: cuarto `TipoRegla`; política (c); «siempre abierto» sin regla; franjas múltiples y fechas sin atención por decisión de Gate 1; versión 1 con `fechas_cerradas` opcional; horizonte de 366 días; la oración en las respuestas a diálogos; los riesgos aceptados)
+- [x] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (nuevos: **calendario automático de feriados nacionales** —depende de un tercero— e **interruptor «Agente activo»** —Pregunta 6—. El horario cortado y los feriados cargados a mano **ya no son pendientes**: entran en esta unidad)
+- [x] `docs/aidlc/TODO.md` §22 (verificaciones manuales en staging, ver abajo)
 
 ## Casos de prueba
 
@@ -560,48 +560,48 @@ cerrado.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED** `ConfiguracionDeAtencion`: ida y vuelta por JSON (con dos franjas en un día y con fechas); rechaza `hasta ≤ desde`, día repetido, día fuera de 0–6, ningún día con franja, «9:00» sin cero, `version` desconocida, política fuera del enum, franjas superpuestas, franjas que se tocan, franjas desordenadas, fecha «12/10/2026» o «2026-13-01», fecha repetida, 201 fechas — cada uno con su mensaje | unit (dominio bc) | pendiente |
-| 2 | **RED** Versión: un JSON v1 **sin** `fechas_cerradas` se lee con la lista vacía; la escritura siempre la incluye, ordenada, y sólo los días con franjas | unit (dominio bc) | pendiente |
-| 3 | `esta_abierto` con lunes 09:00–19:00: 08:59 cerrado, 09:00 abierto, 18:59 abierto, **19:00 cerrado** | unit (dominio bc) | pendiente |
-| 4 | **RED** Borde de medianoche: lunes `20:00–24:00`, martes cerrado. `2026-10-06T02:59Z` (lunes 23:59 en Argentina, **martes en UTC**) → abierto; `2026-10-06T03:00Z` (martes 00:00) → cerrado | unit (dominio bc) | pendiente |
-| 5 | Contigüidad: lunes `20:00–24:00` y martes `00:00–02:00` → abierto a las 23:59 y a las 00:00; `proxima_apertura` y `cerrado_desde` lo tratan como un solo tramo; **con el martes sin atención**, martes 00:30 está cerrado y `cerrado_desde` = martes 00:00 | unit (dominio bc) | pendiente |
-| 6 | **RED** Horario cortado, lunes 09:00–13:00 y 16:00–20:00: 12:59 abierto; 13:00 cerrado; 13:30 cerrado con `proxima_apertura` = lunes 16:00 y `cerrado_desde` = lunes 13:00; 16:00 abierto; 20:00 cerrado con `cerrado_desde` = 20:00 y `proxima_apertura` = martes 09:00 | unit (dominio bc) | pendiente |
-| 7 | Día sin horario: domingo cerrado todo el día; `proxima_apertura` desde sábado 14:00 → lunes 09:00; con un solo día abierto a la semana → el mismo día de la semana siguiente | unit (dominio bc) | pendiente |
-| 8 | `cerrado_desde`: lunes 22:00 → lunes 19:00; domingo 10:00 → sábado 14:00; lunes 08:00 → sábado 14:00 | unit (dominio bc) | pendiente |
-| 9 | **RED** Fechas sin atención, con el 12/10 y el 14/10 sin atención: lunes 12/10 10:00 cerrado (es lunes y tiene franja); `proxima_apertura` desde sábado 10/10 20:00 → martes 13/10 09:00; `cerrado_desde` el lunes 12/10 10:00 → sábado 10/10 14:00; miércoles 14/10 10:00 → `cerrado_desde` martes 13/10 19:00 y `proxima_apertura` jueves 15/10 09:00; con el horario del caso 4 (lunes `20:00–24:00`) y el martes 06/10 sin atención, el lunes 05/10 23:30 local (`06/10 02:30Z`, ya martes 06/10 en UTC) sigue **abierto**: la fecha se compara en hora argentina | unit (dominio bc) | pendiente |
-| 10 | **RED** Horizonte: único día abierto el lunes y los 53 lunes de los próximos 366 días sin atención → `proxima_apertura` = `None` (sin bucle infinito); sin ninguna franja terminada en los 366 días anteriores → `cerrado_desde` = `ahora − 366 días`; una fecha sin atención de ayer sigue contando para `cerrado_desde`; una fecha a más de 366 días no cambia el cálculo de hoy | unit (dominio bc) | pendiente |
-| 11 | `interpretada_como_atencion` sobre una regla de escalamiento → falla; `TipoRegla("HORARIO_DE_ATENCION")` existe | unit (dominio bc) | pendiente |
-| 12 | **RED** `ConfigurarHorarioDeAtencion`: crea la regla; un segundo guardado la reemplaza (una sola fila); guardar una desactivada la reactiva; evento `alta_…`/`editar_regla_de_horario_de_atencion`; al guardar descarta las fechas anteriores a `hoy − 366 días` y conserva las pasadas más recientes y las futuras | unit (aplicación bc) | pendiente |
-| 13 | Un Operador no puede configurar el horario (`MOTIVO_SOLO_ADMIN`) | unit (aplicación bc) | pendiente |
-| 14 | **RED** `ConsultarAtencion`: sin regla → `configurado=False, abierto=True`; regla desactivada → igual (HU-E11-01 RN-04); con regla → estado calculado para `ahora`, con `proxima_apertura = None` cuando no hay apertura en el horizonte | unit (aplicación bc) | pendiente |
-| 15 | Dos reglas `HORARIO_DE_ATENCION` activas → rige la de mayor prioridad y, a igualdad, la más reciente (RN-05) | unit (aplicación bc) | pendiente |
-| 16 | Multi-tenant: la regla de la empresa A no se lee con la sesión de la empresa B (RLS) | integración (Postgres, CI) | pendiente |
-| 17 | API: `PUT /reglas/horario-de-atencion` con dos franjas en un día y fechas → 200 para Admin; 422 con «La hora de cierre debe ser posterior a la de apertura.» y con «Las franjas de un mismo día no pueden superponerse ni tocarse.»; rechazo para Operador; `GET /reglas` la lista con su tipo, prioridad, estado y su JSON | integración (API, CI) | pendiente |
-| 18 | **RED** Política (a) fuera de horario: «quiero hablar con una persona» → escalamiento creado y el cliente recibe `MENSAJE_DERIVACION` + «…un asesor te va a responder a partir del lunes 12/10 a las 09:00.» | unit (aplicación conv) | pendiente |
-| 19 | Política (a): baja confianza agotada y turno con seña fuera de horario → el mismo aviso con la hora; **dentro** de horario → exactamente `MENSAJE_DERIVACION` (sin cambios) | unit (aplicación conv) | pendiente |
-| 20 | **RED** Política (a), `{cuando}` en los bordes nuevos: pedido de persona el lunes 12/10 10:00 (sin atención) → «…a partir del martes 13/10 a las 09:00.»; a las 13:30 en el hueco de 09–13 y 16–20 → «…a partir de hoy a las 16:00.»; sin apertura en el horizonte → «…un asesor te va a responder cuando retomemos la atención.» | unit (aplicación conv) | pendiente |
-| 21 | Política (a) fuera de horario: «¿cuánto sale?» → el agente interpreta y contesta la FAQ como de día (el intérprete **sí** se llama) | unit (aplicación conv) | pendiente |
-| 22 | **RED** Política (b) fuera de horario, **sin ningún saliente previo del agente** en el hilo: el entrante queda guardado (contenido, `intencion = None`); el cliente recibe **un** mensaje fijo con la próxima apertura; **el intérprete y los embeddings no se llamaron**; no hay escalamiento; evento `responder_fuera_de_horario` con iniciador IA | unit (aplicación conv) | pendiente |
-| 23 | **RED** Política (b): segundo y tercer mensaje en el mismo cierre → se guardan, **ningún saliente nuevo**, el intérprete no se llamó, no se publica `responder_fuera_de_horario` (Pregunta 3) | unit (aplicación conv) | pendiente |
-| 24 | Política (b), otro período de cierre: un mensaje la noche siguiente → el mensaje fijo sale de nuevo; con horario cortado, fijo a las 13:30 y otro mensaje a las 20:30 → sale de nuevo (el de las 13:30 es anterior a `cerrado_desde` 20:00); un aviso `SISTEMA` o un mensaje del operador en el medio no cuentan como «ya avisado» | unit (aplicación conv) | pendiente |
-| 25 | Política (b) fuera de horario: «quiero hablar con una persona» → mensaje fijo, sin escalamiento (Pregunta 4), sin intérprete | unit (aplicación conv) | pendiente |
-| 26 | Política (b) con escalamiento abierto → silencio (ni mensaje fijo): manda el operador (HU-E9-01 RN-02) | unit (aplicación conv) | pendiente |
-| 27 | **RED** Política (b), arreglo del choque 3/4: oferta de horarios a las 18:55, cierre 19:00. «el primero» a las 19:05 → reserva sin el modelo y **un solo** saliente que termina en «Te recordamos que ahora estamos fuera del horario de atención; atendemos de nuevo mañana a las 09:00.»; «¿cuánto sale?» a las 19:10 → **ningún saliente**, el intérprete no se llamó, no se publica `responder_fuera_de_horario` | unit (aplicación conv) | pendiente |
-| 28 | Política (b), diálogo vigente y un mensaje que no es respuesta: oferta 18:55; «hola, ¿cuánto sale?» a las 19:02 → mensaje fijo, sin intérprete, el diálogo sigue abierto; «el primero» a las 19:04 → reserva con la oración; en el paso `PEDIR_CUANDO`, «el jueves» a las 19:02 → mensaje fijo (texto libre, necesita el modelo); confirmar una cancelación con «sí» a las 19:02 → cancela y la confirmación lleva la oración | unit (aplicación conv) | pendiente |
-| 29 | **RED** Política (b), diálogo que termina en escalamiento: tercera elección ambigua seguida a las 19:05 → escala con el aviso de derivación con la hora (T7), sin la oración duplicada; el mensaje siguiente → silencio (escalamiento abierto); cancelar de noche un turno con seña → dos salientes (el de la seña con la oración y el aviso con la hora) y escalamiento | unit (aplicación conv) | pendiente |
-| 30 | **RED** Bordes de T9: respuesta a un mensaje procesado con `ahora` 18:59:59 (saliente con `momento` 18:59:59 aunque el envío del doble tarde) → a las 19:10 sale el mensaje fijo; fijo el sábado 10/10 20:00 → el lunes 12/10 (sin atención) 10:00 silencio, un solo período desde el sábado 14:00; FAQ contestada el martes 13/10 18:30 → el miércoles 14/10 (sin atención) 10:00 recibe el fijo | unit (aplicación conv) | pendiente |
-| 31 | Política (b) con audio fuera de horario: se transcribe y se guarda el texto, no se interpreta; transcripción pobre → mensaje fijo, **no** escala | unit (aplicación conv) | pendiente |
-| 32 | Política (b) **dentro** de horario → el flujo de hoy, sin cambios (también en la franja de la tarde de un horario cortado) | unit (aplicación conv) | pendiente |
-| 33 | Sin horario configurado → los tests existentes del agente pasan sin tocarlos (la escena usa «siempre abierto») y la derivación dice `MENSAJE_DERIVACION` a cualquier hora | unit (aplicación conv) | pendiente |
-| 34 | **RED** Textos: `cuando_se_atiende` el domingo a las 22:30 de Argentina (`lunes 01:30Z`) con apertura el lunes 09:00 → «mañana a las 09:00», no «hoy»; el lunes 08:00 → «hoy a las 09:00»; el lunes 13:30 en el hueco → «hoy a las 16:00»; el viernes 09/10 20:00 → «el lunes 12/10 a las 09:00»; con el 12/10 sin atención, el sábado 10/10 20:00 → «el martes 13/10 a las 09:00». Sin apertura: el mensaje fijo, el aviso de derivación y la oración usan su variante sin fecha (Pregunta 5) | unit (dominio conv) | pendiente |
-| 35 | Mismo `externo_id` entregado dos veces fuera de horario en (b) → un solo mensaje fijo (idempotencia de siempre) | unit (aplicación conv) | pendiente |
-| 36 | ACL: regla con JSON ilegible → «sin horario», log `horario_ilegible`, el mensaje se procesa como hoy (no 500); política de business_config → enum propio de conversational; `proxima_apertura = None` pasa como `None` | unit (infra conv) | pendiente |
-| 37 | De punta a punta por la API con el simulado: empresa A con (b) y cerrada, empresa B sin horario; un mensaje a cada una → A recibe el mensaje fijo y su entrante queda sin intención; B recibe la respuesta normal | integración (API, CI) | pendiente |
-| 38 | **RED** `HorarioDeAtencion` (frontend): sin regla muestra «Sin horario configurado…» con los valores del prototipo precargados; con regla pinta sus días, sus franjas (dos en un día) y su política; «Agregar franja» suma un renglón y «Quitar» lo saca (quitar la última apaga el día); dos franjas superpuestas muestran el error y deshabilitan «Guardar»; «Guardar» manda el `PUT` con las franjas ordenadas y las fechas; el mensaje de validación del backend se muestra; un Operador la ve sin poder editar | unit (frontend) | pendiente |
-| 39 | **RED** `FechasSinAtencion`: agregar una fecha la suma a la tabla; «Quitar» la saca; una repetida no se agrega; las fechas pasadas no se muestran pero viajan sin cambios en el `PUT`; sin fechas muestra el texto vacío y la ayuda que dice que no bloquea los turnos | unit (frontend) | pendiente |
-| 40 | `atencion.ts`: lee la configuración de forma defensiva (mal formada → vacía; sin `fechas_cerradas` → `[]`); un error del `PUT` llega como `ErrorDeRegla` | unit (frontend) | pendiente |
-| 41 | **RED** PAN-CFG-RN: una regla `HORARIO_DE_ATENCION` se lista con el rótulo «Horario de atención» (hoy sale vacío) | unit (frontend) | pendiente |
-| 42 | `agente.py` < 400 líneas; `reserva_por_whatsapp.py` y `cancelacion_por_whatsapp.py` sin cambios; ningún archivo nuevo > 400; funciones ≤ 50 líneas; `guard_architecture --scan` (R3: conversational sólo importa `application/` de business_config; R5 en la ruta) | revisión + `ruff` (C901) + guard | pendiente |
+| 1 | **RED** `ConfiguracionDeAtencion`: ida y vuelta por JSON (con dos franjas en un día y con fechas); rechaza `hasta ≤ desde`, día repetido, día fuera de 0–6, ningún día con franja, «9:00» sin cero, `version` desconocida, política fuera del enum, franjas superpuestas, franjas que se tocan, franjas desordenadas, fecha «12/10/2026» o «2026-13-01», fecha repetida, 201 fechas — cada uno con su mensaje | unit (dominio bc) | RED visto, verde |
+| 2 | **RED** Versión: un JSON v1 **sin** `fechas_cerradas` se lee con la lista vacía; la escritura siempre la incluye, ordenada, y sólo los días con franjas | unit (dominio bc) | RED visto, verde |
+| 3 | `esta_abierto` con lunes 09:00–19:00: 08:59 cerrado, 09:00 abierto, 18:59 abierto, **19:00 cerrado** | unit (dominio bc) | verde |
+| 4 | **RED** Borde de medianoche: lunes `20:00–24:00`, martes cerrado. `2026-10-06T02:59Z` (lunes 23:59 en Argentina, **martes en UTC**) → abierto; `2026-10-06T03:00Z` (martes 00:00) → cerrado | unit (dominio bc) | RED visto, verde |
+| 5 | Contigüidad: lunes `20:00–24:00` y martes `00:00–02:00` → abierto a las 23:59 y a las 00:00; `proxima_apertura` y `cerrado_desde` lo tratan como un solo tramo; **con el martes sin atención**, martes 00:30 está cerrado y `cerrado_desde` = martes 00:00 | unit (dominio bc) | verde |
+| 6 | **RED** Horario cortado, lunes 09:00–13:00 y 16:00–20:00: 12:59 abierto; 13:00 cerrado; 13:30 cerrado con `proxima_apertura` = lunes 16:00 y `cerrado_desde` = lunes 13:00; 16:00 abierto; 20:00 cerrado con `cerrado_desde` = 20:00 y `proxima_apertura` = martes 09:00 | unit (dominio bc) | RED visto, verde |
+| 7 | Día sin horario: domingo cerrado todo el día; `proxima_apertura` desde sábado 14:00 → lunes 09:00; con un solo día abierto a la semana → el mismo día de la semana siguiente | unit (dominio bc) | verde |
+| 8 | `cerrado_desde`: lunes 22:00 → lunes 19:00; domingo 10:00 → sábado 14:00; lunes 08:00 → sábado 14:00 | unit (dominio bc) | verde |
+| 9 | **RED** Fechas sin atención, con el 12/10 y el 14/10 sin atención: lunes 12/10 10:00 cerrado (es lunes y tiene franja); `proxima_apertura` desde sábado 10/10 20:00 → martes 13/10 09:00; `cerrado_desde` el lunes 12/10 10:00 → sábado 10/10 14:00; miércoles 14/10 10:00 → `cerrado_desde` martes 13/10 19:00 y `proxima_apertura` jueves 15/10 09:00; con el horario del caso 4 (lunes `20:00–24:00`) y el martes 06/10 sin atención, el lunes 05/10 23:30 local (`06/10 02:30Z`, ya martes 06/10 en UTC) sigue **abierto**: la fecha se compara en hora argentina | unit (dominio bc) | RED visto, verde |
+| 10 | **RED** Horizonte: único día abierto el lunes y los 53 lunes de los próximos 366 días sin atención → `proxima_apertura` = `None` (sin bucle infinito); sin ninguna franja terminada en los 366 días anteriores → `cerrado_desde` = `ahora − 366 días`; una fecha sin atención de ayer sigue contando para `cerrado_desde`; una fecha a más de 366 días no cambia el cálculo de hoy | unit (dominio bc) | RED visto, verde |
+| 11 | `interpretada_como_atencion` sobre una regla de escalamiento → falla; `TipoRegla("HORARIO_DE_ATENCION")` existe | unit (dominio bc) | verde |
+| 12 | **RED** `ConfigurarHorarioDeAtencion`: crea la regla; un segundo guardado la reemplaza (una sola fila); guardar una desactivada la reactiva; evento `alta_…`/`editar_regla_de_horario_de_atencion`; al guardar descarta las fechas anteriores a `hoy − 366 días` y conserva las pasadas más recientes y las futuras | unit (aplicación bc) | RED visto, verde |
+| 13 | Un Operador no puede configurar el horario (`MOTIVO_SOLO_ADMIN`) | unit (aplicación bc) | verde |
+| 14 | **RED** `ConsultarAtencion`: sin regla → `configurado=False, abierto=True`; regla desactivada → igual (HU-E11-01 RN-04); con regla → estado calculado para `ahora`, con `proxima_apertura = None` cuando no hay apertura en el horizonte | unit (aplicación bc) | RED visto, verde |
+| 15 | Dos reglas `HORARIO_DE_ATENCION` activas → rige la de mayor prioridad y, a igualdad, la más reciente (RN-05) | unit (aplicación bc) | verde |
+| 16 | Multi-tenant: la regla de la empresa A no se lee con la sesión de la empresa B (RLS) | integración (Postgres, CI) | saltea en local (sin Docker), CI pendiente |
+| 17 | API: `PUT /reglas/horario-de-atencion` con dos franjas en un día y fechas → 200 para Admin; 422 con «La hora de cierre debe ser posterior a la de apertura.» y con «Las franjas de un mismo día no pueden superponerse ni tocarse.»; rechazo para Operador; `GET /reglas` la lista con su tipo, prioridad, estado y su JSON | integración (API, CI) | saltea en local (sin Docker), CI pendiente |
+| 18 | **RED** Política (a) fuera de horario: «quiero hablar con una persona» → escalamiento creado y el cliente recibe `MENSAJE_DERIVACION` + «…un asesor te va a responder a partir del lunes 12/10 a las 09:00.» | unit (aplicación conv) | RED visto, verde |
+| 19 | Política (a): baja confianza agotada y turno con seña fuera de horario → el mismo aviso con la hora; **dentro** de horario → exactamente `MENSAJE_DERIVACION` (sin cambios) | unit (aplicación conv) | verde |
+| 20 | **RED** Política (a), `{cuando}` en los bordes nuevos: pedido de persona el lunes 12/10 10:00 (sin atención) → «…a partir de mañana a las 09:00.» (y el sábado 10/10 20:00 → «…a partir del martes 13/10 a las 09:00.»); a las 13:30 en el hueco de 09–13 y 16–20 → «…a partir de hoy a las 16:00.»; sin apertura en el horizonte → «…un asesor te va a responder cuando retomemos la atención.» | unit (aplicación conv) | RED visto, verde |
+| 21 | Política (a) fuera de horario: «¿cuánto sale?» → el agente interpreta y contesta la FAQ como de día (el intérprete **sí** se llama) | unit (aplicación conv) | verde |
+| 22 | **RED** Política (b) fuera de horario, **sin ningún saliente previo del agente** en el hilo: el entrante queda guardado (contenido, `intencion = None`); el cliente recibe **un** mensaje fijo con la próxima apertura; **el intérprete y los embeddings no se llamaron**; no hay escalamiento; evento `responder_fuera_de_horario` con iniciador IA | unit (aplicación conv) | RED visto, verde |
+| 23 | **RED** Política (b): segundo y tercer mensaje en el mismo cierre → se guardan, **ningún saliente nuevo**, el intérprete no se llamó, no se publica `responder_fuera_de_horario` (Pregunta 3) | unit (aplicación conv) | RED visto, verde |
+| 24 | Política (b), otro período de cierre: un mensaje la noche siguiente → el mensaje fijo sale de nuevo; con horario cortado, fijo a las 13:30 y otro mensaje a las 20:30 → sale de nuevo (el de las 13:30 es anterior a `cerrado_desde` 20:00); un aviso `SISTEMA` o un mensaje del operador en el medio no cuentan como «ya avisado» | unit (aplicación conv) | verde |
+| 25 | Política (b) fuera de horario: «quiero hablar con una persona» → mensaje fijo, sin escalamiento (Pregunta 4), sin intérprete | unit (aplicación conv) | verde |
+| 26 | Política (b) con escalamiento abierto → silencio (ni mensaje fijo): manda el operador (HU-E9-01 RN-02) | unit (aplicación conv) | verde |
+| 27 | **RED** Política (b), arreglo del choque 3/4: oferta de horarios a las 18:55, cierre 19:00. «el primero» a las 19:05 → reserva sin el modelo y **un solo** saliente que termina en «Te recordamos que ahora estamos fuera del horario de atención; atendemos de nuevo mañana a las 09:00.»; «¿cuánto sale?» a las 19:10 → **ningún saliente**, el intérprete no se llamó, no se publica `responder_fuera_de_horario` | unit (aplicación conv) | RED visto, verde |
+| 28 | Política (b), diálogo vigente y un mensaje que no es respuesta: oferta 18:55; «hola, ¿cuánto sale?» a las 19:02 → mensaje fijo, sin intérprete, el diálogo sigue abierto; «el primero» a las 19:04 → reserva con la oración; en el paso `PEDIR_CUANDO`, «el jueves» a las 19:02 → mensaje fijo (texto libre, necesita el modelo); confirmar una cancelación con «sí» a las 19:02 → cancela y la confirmación lleva la oración | unit (aplicación conv) | verde |
+| 29 | **RED** Política (b), diálogo que termina en escalamiento: tercera elección ambigua seguida a las 19:05 → escala con el aviso de derivación con la hora (T7), sin la oración duplicada; el mensaje siguiente → silencio (escalamiento abierto); cancelar de noche un turno con seña → dos salientes (el de la seña con la oración y el aviso con la hora) y escalamiento | unit (aplicación conv) | RED visto, verde |
+| 30 | **RED** Bordes de T9: respuesta a un mensaje procesado con `ahora` 18:59:59 (saliente con `momento` 18:59:59 aunque el envío del doble tarde) → a las 19:10 sale el mensaje fijo; fijo el sábado 10/10 20:00 → el lunes 12/10 (sin atención) 10:00 silencio, un solo período desde el sábado 14:00; FAQ contestada el martes 13/10 18:30 → el miércoles 14/10 (sin atención) 10:00 recibe el fijo | unit (aplicación conv) | RED visto, verde |
+| 31 | Política (b) con audio fuera de horario: se transcribe y se guarda el texto, no se interpreta; transcripción pobre → mensaje fijo, **no** escala | unit (aplicación conv) | verde |
+| 32 | Política (b) **dentro** de horario → el flujo de hoy, sin cambios (también en la franja de la tarde de un horario cortado) | unit (aplicación conv) | verde |
+| 33 | Sin horario configurado → los tests existentes del agente pasan sin tocarlos (la escena usa «siempre abierto») y la derivación dice `MENSAJE_DERIVACION` a cualquier hora | unit (aplicación conv) | verde |
+| 34 | **RED** Textos: `cuando_se_atiende` el domingo a las 22:30 de Argentina (`lunes 01:30Z`) con apertura el lunes 09:00 → «mañana a las 09:00», no «hoy»; el lunes 08:00 → «hoy a las 09:00»; el lunes 13:30 en el hueco → «hoy a las 16:00»; el viernes 09/10 20:00 → «el lunes 12/10 a las 09:00»; con el 12/10 sin atención, el sábado 10/10 20:00 → «el martes 13/10 a las 09:00». Sin apertura: el mensaje fijo, el aviso de derivación y la oración usan su variante sin fecha (Pregunta 5) | unit (dominio conv) | RED visto, verde |
+| 35 | Mismo `externo_id` entregado dos veces fuera de horario en (b) → un solo mensaje fijo (idempotencia de siempre) | unit (aplicación conv) | verde |
+| 36 | ACL: regla con JSON ilegible → «sin horario», log `horario_ilegible`, el mensaje se procesa como hoy (no 500); política de business_config → enum propio de conversational; `proxima_apertura = None` pasa como `None` | unit (infra conv) | verde |
+| 37 | De punta a punta por la API con el simulado: empresa A con (b) y cerrada, empresa B sin horario; un mensaje a cada una → A recibe el mensaje fijo y su entrante queda sin intención; B recibe la respuesta normal | integración (API, CI) | saltea en local (sin Docker), CI pendiente |
+| 38 | **RED** `HorarioDeAtencion` (frontend): sin regla muestra «Sin horario configurado…» con los valores del prototipo precargados; con regla pinta sus días, sus franjas (dos en un día) y su política; «Agregar franja» suma un renglón y «Quitar» lo saca (quitar la última apaga el día); dos franjas superpuestas muestran el error y deshabilitan «Guardar»; «Guardar» manda el `PUT` con las franjas ordenadas y las fechas; el mensaje de validación del backend se muestra; un Operador la ve sin poder editar | unit (frontend) | RED visto, verde |
+| 39 | **RED** `FechasSinAtencion`: agregar una fecha la suma a la tabla; «Quitar» la saca; una repetida no se agrega; las fechas pasadas no se muestran pero viajan sin cambios en el `PUT`; sin fechas muestra el texto vacío y la ayuda que dice que no bloquea los turnos | unit (frontend) | RED visto, verde |
+| 40 | `atencion.ts`: lee la configuración de forma defensiva (mal formada → vacía; sin `fechas_cerradas` → `[]`); un error del `PUT` llega como `ErrorDeRegla` | unit (frontend) | verde |
+| 41 | **RED** PAN-CFG-RN: una regla `HORARIO_DE_ATENCION` se lista con el rótulo «Horario de atención» (hoy sale vacío) | unit (frontend) | RED visto, verde |
+| 42 | `agente.py` < 400 líneas; `reserva_por_whatsapp.py` y `cancelacion_por_whatsapp.py` sin cambios; ningún archivo nuevo > 400; funciones ≤ 50 líneas; `guard_architecture --scan` (R3: conversational sólo importa `application/` de business_config; R5 en la ruta) | revisión + `ruff` (C901) + guard | verde |
 
 ## Verificaciones que no se pueden hacer acá
 
@@ -692,6 +692,22 @@ cerrado.
   **no en la vista inicial de PAN-WA-01** (filtrada por escaladas); se ven con «Todas». No se cambia
   la bandeja ni se agrega un pendiente: es la consecuencia buscada de no escalar, y el mensaje fijo
   le pide al cliente que vuelva a escribir en horario.
+
+- Implementación (2026-10-05), desvíos del plan sin cambio de alcance:
+  - **Caso 20**: el martes 13/10 es «mañana» del lunes 12/10 según `cuando_se_atiende` (T-textos y caso 34),
+    así que el aviso del lunes 12/10 dice «a partir de mañana a las 09:00»; la forma «del martes 13/10» se prueba
+    desde el sábado 10/10. El ejemplo del plan contradecía su propia regla.
+  - **`ya_avisado` ignora los salientes `FALLIDO`**: si WhatsApp rechazó el mensaje, el cliente nunca se enteró y
+    el siguiente mensaje debe reintentar. Se agregó un caso en `test_fuera_de_horario.py` (dominio).
+  - **`atender_cerrado` recibe además el `Mensaje` guardado** para anotar la intención `TURNO` cuando sigue un
+    diálogo (igual que el flujo de día); el mensaje fijo lo deja en `None`.
+  - **`apertura.py` sin generador de «tramos»**: la contigüidad de medianoche no necesita unirlos (cada franja
+    cubre su propio día local), así que `proxima_apertura` y `cerrado_desde` recorren las franjas fecha por fecha.
+  - **Frontend**: el error del `PUT` es `ErrorDeAtencion` (no `ErrorDeRegla`, que es de `features/payments` y R5 no
+    deja importarlo); «Hasta la medianoche» es una casilla por franja porque `input type="time"` no admite `24:00`;
+    los helpers puros viven en `components/horario.ts`; se agregó un aviso cuando la regla está desactivada.
+  - **Tests de PostgreSQL**: el rechazo del Operador a `PUT /reglas/horario-de-atencion` se afirma como 422
+    (`EntradaInvalida(MOTIVO_SOLO_ADMIN)`, como el escalamiento).
 
 ## Preguntas del Gate 1 (resueltas el 2026-10-05)
 
