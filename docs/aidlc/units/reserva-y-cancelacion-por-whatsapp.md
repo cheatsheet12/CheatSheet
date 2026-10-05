@@ -528,7 +528,7 @@ Test primero: cada **RED** se escribe y se ve fallar contra el código actual an
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las cuatro preguntas |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-05 | Aprobado por Luciano. Local: `ruff format --check` y `ruff check` limpios, `mypy` sin errores (635 archivos), `pytest` 2036 pasan y 478 se saltean (PostgreSQL/Redis, sin Docker). Quedan para la CI del PR los casos 27 y 31–37 y la cobertura total (76 % en local por los tests de base saltados) |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
