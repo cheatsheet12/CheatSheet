@@ -458,7 +458,7 @@ la CI del PR. Gates de Gate 2: `ruff format --check . && ruff check . && mypy . 
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. **Cierra cuando el equipo acepte el ADR-0011** ([#62](https://github.com/cheatsheet12/CheatSheet/pull/62)); hasta entonces no se escribe código |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
@@ -477,3 +477,4 @@ Decididas por el dueño del producto el 2026-10-04, antes del Gate 1 (ya no son 
   arreglan acá; un timeout de lectura no se reintenta; el reintento entre barridos va en U7 (G4f).
 - Si Meta está caída tras 3 intentos, el paso queda `FALLIDO` y la cadena sigue con el próximo paso
   (ex P6, aprobada).
+- Gate 1 (2026-10-04): Pregunta 1 → sí: el recordatorio por email es una unidad propia, `recordatorio-por-email` (payments, sobre `platform/email.py`), después de `recordatorio-de-turno`; el paso `PANEL` va al centro de notificaciones del épico 10. Mientras tanto esos pasos quedan `FALLIDO`, visibles en PAN-COB-02.
