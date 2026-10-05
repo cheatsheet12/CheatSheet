@@ -255,11 +255,7 @@ describe("PAN-WA-01 — hilo", () => {
   it("muestra la intención del mensaje del cliente y nada cuando no se clasificó (HS-T2 RN-02)", () => {
     const sinClasificar: Mensaje = { ...DEL_CLIENTE, id: "m4", contenido: "hola", intencion: null };
     render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE, sinClasificar)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
+      <HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE, sinClasificar)} puedeAtender />,
     );
 
     const autores = screen.getAllByText(/^Cliente ·/).map((nodo) => nodo.textContent ?? "");
