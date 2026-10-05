@@ -11,12 +11,14 @@ que un rol no llegue donde no tiene que llegar, y que un 204 sea un 204.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
 import os
 from collections.abc import AsyncIterator
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -86,7 +88,7 @@ def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _notificacion(texto: str, *, externo_id: str = "wamid-1") -> bytes:
+def _notificacion(texto: str, *, externo_id: str = "wamid-1", telefono: str = TELEFONO) -> bytes:
     """La forma que Meta manda. Se arma cruda porque la firma es sobre los bytes exactos."""
     cuerpo: dict[str, Any] = {
         "object": "whatsapp_business_account",
@@ -101,7 +103,7 @@ def _notificacion(texto: str, *, externo_id: str = "wamid-1") -> bytes:
                             "messages": [
                                 {
                                     "id": externo_id,
-                                    "from": TELEFONO,
+                                    "from": telefono,
                                     "timestamp": "1789000000",
                                     "type": "text",
                                     "text": {"body": texto},
@@ -214,8 +216,9 @@ class TestWebhook:
         """**El test de seguridad del épico.**
 
         El mensaje pide cancelar turnos y filtrar teléfonos. Lo que queda es una fila con ese
-        texto, un cliente nuevo y —como el simulado no lo entiende— un ofrecimiento de asesor.
-        Ningún turno, ningún dato de otro cliente, ninguna acción.
+        texto, un cliente nuevo y —como el cliente no tiene turnos— un «no encuentro turnos» (el
+        simulado lo lee como un pedido de cancelar). Ningún turno, ningún dato de otro cliente,
+        ninguna acción.
         """
         token, empresa_id = await _registrar(cliente_http, "wa-inyeccion@test.local")
         crudo = _notificacion(INYECCION, externo_id="wamid-inyeccion")
@@ -533,3 +536,216 @@ async def test_sin_sesion_no_se_llega_a_ninguna_ruta_del_panel(
     for ruta in ("/conversaciones", "/faqs", "/plantillas"):
         respuesta = await cliente_http.get(ruta)
         assert respuesta.status_code == 401, f"{ruta}: {respuesta.text}"
+
+
+OTRO_TELEFONO = "5491198765432"
+
+
+async def _agenda_abierta_todos_los_dias(http: httpx.AsyncClient, token: str) -> None:
+    """Un servicio agendable y un recurso que atiende de 9 a 18 **todos** los días.
+
+    «Mañana» es relativo al reloj del servidor, así que el recurso no puede depender del día de la
+    semana en que corra la CI.
+    """
+    servicio = await http.post(
+        "/servicios",
+        headers=_auth(token),
+        json={
+            "nombre": "Consulta general",
+            "precio": "5000.00",
+            "alicuota_iva": "0.21",
+            "agendable": True,
+            "duracion_estandar_min": 60,
+        },
+    )
+    assert servicio.status_code == 201, servicio.text
+    patrones = [
+        {
+            "dia_semana": dia,
+            "hora_inicio": "09:00:00",
+            "hora_fin": "18:00:00",
+            "duracion_slot_min": 60,
+        }
+        for dia in range(7)
+    ]
+    recurso = await http.post(
+        "/recursos",
+        headers=_auth(token),
+        json={
+            "nombre": "Consultorio 1",
+            "tipo": "ESPACIO",
+            "patrones": patrones,
+            "servicios": [servicio.json()["id"]],
+        },
+    )
+    assert recurso.status_code == 201, recurso.text
+
+
+async def _decir(
+    http: httpx.AsyncClient,
+    empresa_id: str,
+    texto: str,
+    *,
+    externo_id: str,
+    telefono: str = TELEFONO,
+) -> None:
+    crudo = _notificacion(texto, externo_id=externo_id, telefono=telefono)
+    respuesta = await http.post(
+        f"/webhooks/whatsapp/{empresa_id}", content=crudo, headers=_firmado(crudo)
+    )
+    assert respuesta.status_code == 200, respuesta.text
+
+
+async def _turnos_de_la_agenda(http: httpx.AsyncClient, token: str) -> list[dict[str, Any]]:
+    ahora = datetime.now(UTC)
+    respuesta = await http.get(
+        "/turnos",
+        headers=_auth(token),
+        params={
+            "desde": (ahora - timedelta(hours=1)).isoformat(),
+            "hasta": (ahora + timedelta(days=3)).isoformat(),
+        },
+    )
+    assert respuesta.status_code == 200, respuesta.text
+    return list(respuesta.json()["turnos"])
+
+
+async def _salientes(http: httpx.AsyncClient, token: str) -> list[str]:
+    """Todo lo que el agente le dijo a los clientes de la empresa, en orden de aparición."""
+    textos: list[str] = []
+    listado = await http.get("/conversaciones", headers=_auth(token))
+    for conversacion in listado.json()["conversaciones"]:
+        detalle = await http.get(f"/conversaciones/{conversacion['id']}", headers=_auth(token))
+        textos += [
+            uno["contenido"] for uno in detalle.json()["mensajes"] if uno["direccion"] == "SALIENTE"
+        ]
+    return textos
+
+
+class TestReservaYCancelacionPorWhatsApp:
+    """HU-E8-01 y HU-E8-02 de punta a punta, contra la base y con el intérprete simulado de staging."""
+
+    async def test_pru_05_una_reserva_por_whatsapp_aparece_en_la_agenda_y_en_la_bitacora(
+        self, cliente_http: httpx.AsyncClient
+    ) -> None:
+        """RED del caso 37 (PRU-05): hasta esta unidad, «el primero» no reservaba nada (I-06)."""
+        token, empresa_id = await _registrar(cliente_http, "wa-pru05@test.local")
+        await _agenda_abierta_todos_los_dias(cliente_http, token)
+
+        await _decir(cliente_http, empresa_id, "Quiero un turno para mañana", externo_id="pru05-1")
+        await _decir(cliente_http, empresa_id, "Prefiero el primero", externo_id="pru05-2")
+
+        turnos = await _turnos_de_la_agenda(cliente_http, token)
+        assert [uno["estado"] for uno in turnos] == ["RESERVADO"]
+        assert turnos[0]["canal_reserva"] == "AGENTE"
+
+        bitacora = await cliente_http.get(
+            "/bitacora", headers=_auth(token), params={"texto": "reservar_turno"}
+        )
+        operaciones = {(uno["accion"], uno["iniciador"]) for uno in bitacora.json()["operaciones"]}
+        # PRU-05 paso 7: filtrando «Agente IA» se ve la reserva del agente.
+        assert ("reservar_turno_por_whatsapp", "ia") in operaciones
+        assert "reservar_turno" in {accion for accion, _ in operaciones}
+
+        # Pregunta 1: un solo mensaje de confirmación, el del agente (la oferta y la confirmación).
+        salientes = await _salientes(cliente_http, token)
+        assert len(salientes) == 2
+        assert salientes[-1].startswith("Listo, tu turno quedó reservado")
+
+    async def test_el_mismo_mensaje_entregado_dos_veces_deja_un_solo_turno(
+        self, cliente_http: httpx.AsyncClient
+    ) -> None:
+        """Caso 27: Meta reintenta por diseño y el segundo intento no reserva dos turnos."""
+        token, empresa_id = await _registrar(cliente_http, "wa-reintento@test.local")
+        await _agenda_abierta_todos_los_dias(cliente_http, token)
+        await _decir(cliente_http, empresa_id, "Quiero un turno para mañana", externo_id="rei-1")
+
+        for _ in range(2):
+            await _decir(cliente_http, empresa_id, "Prefiero el primero", externo_id="rei-2")
+
+        assert len(await _turnos_de_la_agenda(cliente_http, token)) == 1
+
+    async def test_dos_clientes_eligen_el_mismo_horario_y_el_segundo_recibe_alternativas(
+        self, cliente_http: httpx.AsyncClient
+    ) -> None:
+        """RED del caso 33 (CA4): el motor reserva sólo a uno, y lo que el agente escriba después
+        **queda guardado**.
+
+        Hoy la exclusión de PostgreSQL deja la transacción abortada: el mensaje saliente y el
+        diálogo del segundo cliente no se podían escribir y el webhook terminaba en 500. Con el
+        savepoint, el rechazo revierte sólo ese intento. La prueba de que el diálogo quedó
+        guardado es que el tercer mensaje del segundo cliente **reserva** una de las alternativas.
+        """
+        token, empresa_id = await _registrar(cliente_http, "wa-carrera@test.local")
+        await _agenda_abierta_todos_los_dias(cliente_http, token)
+        pedir = "Quiero un turno para mañana"
+        await _decir(cliente_http, empresa_id, pedir, externo_id="car-a1")
+        await _decir(cliente_http, empresa_id, pedir, externo_id="car-b1", telefono=OTRO_TELEFONO)
+
+        await _decir(cliente_http, empresa_id, "el primero", externo_id="car-a2")
+        await _decir(
+            cliente_http, empresa_id, "el primero", externo_id="car-b2", telefono=OTRO_TELEFONO
+        )
+
+        assert len(await _turnos_de_la_agenda(cliente_http, token)) == 1
+        salientes = await _salientes(cliente_http, token)
+        assert any(texto.startswith("Ese horario se acaba de ocupar.") for texto in salientes)
+
+        await _decir(
+            cliente_http, empresa_id, "el primero", externo_id="car-b3", telefono=OTRO_TELEFONO
+        )
+
+        assert len(await _turnos_de_la_agenda(cliente_http, token)) == 2
+
+    async def test_dos_mensajes_simultaneos_del_mismo_cliente_reservan_un_solo_turno(
+        self, cliente_http: httpx.AsyncClient
+    ) -> None:
+        """Caso 34 (T10): «1» y «2» casi a la vez se procesan de a uno.
+
+        El segundo lee el diálogo ya consumido, así que no puede reservar otro horario.
+        """
+        token, empresa_id = await _registrar(cliente_http, "wa-simultaneos@test.local")
+        await _agenda_abierta_todos_los_dias(cliente_http, token)
+        await _decir(cliente_http, empresa_id, "Quiero un turno para mañana", externo_id="sim-1")
+
+        await asyncio.gather(
+            _decir(cliente_http, empresa_id, "1", externo_id="sim-2"),
+            _decir(cliente_http, empresa_id, "2", externo_id="sim-3"),
+        )
+
+        assert len(await _turnos_de_la_agenda(cliente_http, token)) == 1
+
+    async def test_cancelar_pide_confirmacion_y_el_si_libera_el_horario(
+        self, cliente_http: httpx.AsyncClient
+    ) -> None:
+        """Caso 32 y HU-E8-02: `turnos_de` contra la base, la confirmación y la cancelación."""
+        token, empresa_id = await _registrar(cliente_http, "wa-cancelar@test.local")
+        await _agenda_abierta_todos_los_dias(cliente_http, token)
+        await _decir(cliente_http, empresa_id, "Quiero un turno para mañana", externo_id="can-1")
+        await _decir(cliente_http, empresa_id, "Prefiero el primero", externo_id="can-2")
+
+        await _decir(cliente_http, empresa_id, "quiero cancelar mi turno", externo_id="can-3")
+
+        salientes = await _salientes(cliente_http, token)
+        assert salientes[-1].startswith("¿Confirmás que cancelamos tu turno de Consulta general")
+        assert [uno["estado"] for uno in await _turnos_de_la_agenda(cliente_http, token)] == [
+            "RESERVADO"
+        ]
+
+        await _decir(cliente_http, empresa_id, "sí", externo_id="can-4")
+
+        assert [uno["estado"] for uno in await _turnos_de_la_agenda(cliente_http, token)] == [
+            "CANCELADO"
+        ]
+        assert (await _salientes(cliente_http, token))[-1].startswith("Listo, cancelamos tu turno")
+
+    async def test_cancelar_sin_turnos_lo_dice(self, cliente_http: httpx.AsyncClient) -> None:
+        """HU-E8-02 CA3, y que «cancelar» ya no reciba una oferta de horarios (I-07)."""
+        token, empresa_id = await _registrar(cliente_http, "wa-sin-turnos@test.local")
+        await _agenda_abierta_todos_los_dias(cliente_http, token)
+
+        await _decir(cliente_http, empresa_id, "quiero cancelar mi turno", externo_id="sin-1")
+
+        assert await _salientes(cliente_http, token) == [
+            "No encuentro turnos reservados a su nombre."
+        ]

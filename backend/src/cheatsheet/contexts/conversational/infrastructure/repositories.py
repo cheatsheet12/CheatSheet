@@ -38,6 +38,10 @@ from cheatsheet.contexts.conversational.domain.escalamiento import (
     EstadoEscalamiento,
 )
 from cheatsheet.contexts.conversational.domain.faq import FAQ, CoincidenciaDeFAQ
+from cheatsheet.contexts.conversational.infrastructure.dialogo_json import (
+    dialogo_a_json,
+    leer_dialogo_guardado,
+)
 from cheatsheet.contexts.conversational.infrastructure.models import (
     FAQORM,
     ConversacionORM,
@@ -89,11 +93,15 @@ class RepositorioConversacionPostgres:
         fila = await self._sesion.get(ConversacionORM, conversacion_id)
         return _conversacion_a_dominio(fila) if fila is not None else None
 
-    async def abierta_de(self, cliente_id: UUID) -> Conversacion | None:
+    async def abierta_de(self, cliente_id: UUID, *, bloquear: bool = False) -> Conversacion | None:
         """El hilo activo de ese cliente. **El más reciente**, si hubiera más de uno.
 
         No debería haber dos —sólo se abre uno cuando no hay ninguno— pero pedir el último es
         gratis y evita que una carrera deje el sistema contestando sobre un hilo viejo.
+
+        Con `bloquear`, `SELECT … FOR UPDATE` (T10): los mensajes de un mismo hilo se procesan de
+        a uno y el segundo lee el diálogo ya consumido. El bloqueo es por fila: no frena a otros
+        clientes.
         """
         sentencia = (
             select(ConversacionORM)
@@ -102,6 +110,8 @@ class RepositorioConversacionPostgres:
             .order_by(ConversacionORM.created_at.desc())
             .limit(1)
         )
+        if bloquear:
+            sentencia = sentencia.with_for_update()
         fila = (await self._sesion.execute(sentencia)).scalar_one_or_none()
         return _conversacion_a_dominio(fila) if fila is not None else None
 
@@ -263,6 +273,7 @@ def _conversacion_a_dominio(fila: ConversacionORM) -> Conversacion:
         ventana_maximo=fila.ventana_maximo,
         ultimo_mensaje_en=fila.ultimo_mensaje_en,
         created_at=fila.created_at,
+        dialogo=leer_dialogo_guardado(fila.dialogo, conversacion_id=fila.id),
     )
 
 
@@ -275,6 +286,7 @@ def _conversacion_a_fila(conversacion: Conversacion, fila: ConversacionORM) -> C
     fila.ventana_maximo = conversacion.ventana_maximo
     fila.ultimo_mensaje_en = conversacion.ultimo_mensaje_en
     fila.created_at = conversacion.created_at or _ahora(conversacion.ultimo_mensaje_en)
+    fila.dialogo = None if conversacion.dialogo is None else dialogo_a_json(conversacion.dialogo)
     return fila
 
 

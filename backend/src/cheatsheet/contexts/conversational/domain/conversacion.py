@@ -31,6 +31,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
+from cheatsheet.contexts.conversational.domain.dialogo import Dialogo
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 
@@ -184,6 +185,9 @@ class Conversacion:
     ventana_maximo: int = INTENTOS_ANTES_DE_ESCALAR
     ultimo_mensaje_en: datetime | None = None
     created_at: datetime | None = None
+    #: Lo que el agente le ofreció al cliente y espera que conteste. Uno solo por hilo, con su
+    #: vencimiento adentro. Ver `Dialogo`.
+    dialogo: Dialogo | None = None
 
     def __post_init__(self) -> None:
         if self.ventana_maximo < 1:
@@ -201,6 +205,13 @@ class Conversacion:
 
     def anotar_intento_entendido(self) -> None:
         self.contador = 0
+
+    def abrir_dialogo(self, dialogo: Dialogo) -> None:
+        """Deja pendiente una pregunta. Reemplaza la anterior: hay una sola a la vez."""
+        self.dialogo = dialogo
+
+    def cerrar_dialogo(self) -> None:
+        self.dialogo = None
 
     @property
     def agoto_los_intentos(self) -> bool:

@@ -294,3 +294,51 @@ obligación legal. Se acepta JPEG, PNG y PDF de hasta 10 MB, con límites de tie
 - `conversational` llama a `payments` por su capa de `application` (R3), nunca a su dominio.
 - Límites de intentos (D94) y de frecuencia por teléfono, e idempotencia por mensaje entregado más de
   una vez.
+
+## D99 — el estado del diálogo vive en `conversacion.dialogo`; el cliente elige entre lo que el sistema ofreció
+
+*Unidad `reserva-y-cancelacion-por-whatsapp` · HU-E8-01, HU-E8-02, HS-T2 · cierra los pendientes #5, #17 y #18*
+
+El agente ofrecía horarios y no recordaba cuáles, así que «el primero» no reservaba nada (issue #68), y
+«cancelar» se clasificaba como `TURNO` y recibía una oferta de horarios (issue #69). Arreglarlo exigía
+decidir dónde vive lo que el sistema le ofreció al cliente. Cinco decisiones, juntas porque se apoyan
+unas en otras:
+
+1. **El estado vive en una columna `conversacion.dialogo` (`jsonb`, nullable).** Un solo diálogo pendiente
+   por conversación, con su vencimiento adentro (30 minutos). En el dominio es un value object tipado
+   (`Dialogo`); el JSON existe sólo en el repositorio y lleva una clave `version`, y un JSON ilegible o de
+   una versión desconocida se lee como «sin diálogo»: **nunca se reserva ni se cancela sobre algo que no se
+   pudo leer**. Se apartó del DER, que no tiene columna para esto. Se descartaron *releer los mensajes
+   salientes* (parsear nuestro propio texto libre: cambiar una frase rompería la reserva), *Redis* (no es
+   transaccional con la reserva y un `FLUSHALL` lo pierde, el mismo motivo por el que la idempotencia del
+   webhook vive en PostgreSQL) y *una tabla aparte* (es 1 a 1 con la conversación, mismo ciclo de vida,
+   misma RLS: sería un repositorio y una política más para el mismo dato).
+2. **La respuesta a una oferta la lee un analizador determinista, no el modelo.** Con un diálogo vigente,
+   el mensaje pasa primero por `leer_respuesta` (lista cerrada con límites de palabra, como
+   `pedido_de_persona.py`). Si resuelve sin ambigüedad se actúa **sin llamar al LLM**: cero tokens, ningún
+   dato al proveedor y ninguna acción con efecto que dependa de una salida de modelo (D38). Una afirmación
+   es un mensaje que **es** un «sí» (más cortesías), no uno que lo contiene: «si hay más tarde» pregunta, no
+   confirma. Y un número, una hora o un día sólo eligen si **todo** el mensaje tiene forma de elección
+   («el segundo», «el de las 16 del viernes, por favor»): «quiero un turno el viernes» es un pedido nuevo. Los ids que se reservan o cancelan salen **sólo** del `Dialogo` que armó el sistema.
+3. **`TURNO` sigue siendo una sola intención; reservar o cancelar es una sub-acción extraída.** HS-T2 RN-02
+   enumera cuatro clases y el panel rotula la intención; un quinto valor `CANCELAR` cambiaría las dos. La
+   acción va en `pedido_de_turno.accion` (`RESERVAR`, `CANCELAR`, `REPROGRAMAR`), con el «cuándo» como
+   referencia relativa que el código resuelve en hora argentina: **el modelo no sabe qué día es hoy**.
+   Reprogramar no tiene historia: se ofrece un asesor.
+4. **Los horarios se reparten en el día.** Hasta cuatro, en índices equiespaciados (mañana y tarde), con la
+   franja o la hora que el cliente pidió, repartiendo el cupo entre varios días; sin nada en lo pedido, los
+   siete días siguientes. Antes eran siempre los tres primeros de la grilla del primer recurso (9:00, 9:30 y
+   10:00 de mañana). Cada opción guarda todos los recursos que la tenían libre y se prueba uno por uno antes
+   de decirle al cliente que se ocupó.
+5. **Los datos personales no llegan al modelo.** Antes de llamar al intérprete, el texto y el historial
+   pasan por `ocultar_datos_personales` (correos y secuencias de siete o más dígitos), y **todo saliente**
+   (agente, operador y sistema) se reemplaza por el descriptor de quien lo escribió: del hilo, al modelo
+   sólo le llega lo que escribió el cliente. Las listas de turnos, los ids y las respuestas a una oferta no
+   se le mandan (punto 2). Que también el agente vaya como descriptor se decidió al cerrar el pendiente #20.
+
+**Qué se paga.** Una columna que el DER no tiene; un diálogo que vence a los 30 minutos y obliga a repetir la
+oferta a quien tardó; un analizador de lista cerrada que no entiende todo lo que una persona puede escribir
+(lo que no entiende sigue al intérprete, no se pierde); y un savepoint por cada acción sobre la agenda
+(`AgendaViaScheduling` recibe `begin_nested`) porque la restricción de exclusión de PostgreSQL deja la
+transacción abortada. Un turno con seña no se cancela por WhatsApp: el agente avisa y escala, porque la
+política de seña no existe tipada (pendiente #6).
