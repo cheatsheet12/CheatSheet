@@ -118,6 +118,35 @@ class TestDiasYAfirmaciones:
         assert not respuesta.niega
 
 
+class TestSoloUnMensajeConFormaDeEleccionEligeAlgo:
+    """Nombrar un día o un ordinal de pasada no es elegir: sería reservar lo que nadie eligió."""
+
+    @pytest.mark.parametrize(
+        "texto",
+        [
+            "quiero un turno el viernes",
+            "necesito un turno el segundo martes del mes",
+            "un turno a las 10",
+            "puedo ir a las 5",
+            "mañana tengo el 2 de la facultad",
+            "el viernes no puedo",
+        ],
+    )
+    def test_un_pedido_que_nombra_un_dia_una_hora_o_un_ordinal_no_elige(self, texto: str) -> None:
+        respuesta = leer_respuesta(texto)
+
+        assert respuesta.ordinal is None
+        assert respuesta.horas == ()
+        assert respuesta.dias_semana == ()
+        assert elegir(OFERTA, respuesta) == NoEsEleccion()
+
+    @pytest.mark.parametrize(
+        "texto", ["quiero el segundo", "me queda mejor el del viernes", "el de las 16, gracias"]
+    )
+    def test_una_eleccion_con_cortesias_si_elige(self, texto: str) -> None:
+        assert not isinstance(elegir(OFERTA, leer_respuesta(texto)), NoEsEleccion)
+
+
 class TestElegir:
     def test_por_orden(self) -> None:
         assert elegir(OFERTA, leer_respuesta("2")) == Unica(1)

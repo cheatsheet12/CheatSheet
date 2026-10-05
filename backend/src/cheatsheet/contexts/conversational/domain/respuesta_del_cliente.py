@@ -69,6 +69,19 @@ _CORTESIAS = frozenset(
     {"gracias", "por", "favor", "porfa", "de", "acuerdo", "supuesto", "eso", "es", "mejor"}
 )
 _NO = frozenset({"no", "nop", "nope", "ninguno", "ninguna", "nada"})
+#: Las palabras que puede tener un mensaje que elige («el de las 16 del viernes, por favor»).
+#: Cualquier otra —«turno», «quiero un», «puedo»— lo vuelve un pedido que lee el intérprete.
+_VOCABULARIO_DE_ELECCION = frozenset(
+    {"el", "la", "los", "las", "del", "de", "en", "a", "y", "o", "para", "con", "que", "ese", "esa"}
+)
+_VOCABULARIO_DE_ELECCION |= frozenset(
+    {"opcion", "numero", "nro", "dia", "hs", "hrs", "h", "horas", "media", "cuarto", "manana"}
+)
+_VOCABULARIO_DE_ELECCION |= frozenset(
+    {"tarde", "noche", "prefiero", "quiero", "elijo", "mejor", "me", "queda", "quedo", "dame"}
+)
+_VOCABULARIO_DE_ELECCION |= frozenset({"por", "favor", "porfa", "gracias", "si", "dale", "ok"})
+_VOCABULARIO_DE_ELECCION |= frozenset({nombre for nombre, _ in _DIAS_DE_LA_SEMANA})
 _OTRO_MOMENTO = re.compile(r"\botr[oa]\s+(?:dia|fecha|horario|momento)\b")
 _PALABRAS = re.compile(r"[a-z0-9]+")
 #: Más largo que esto no es un «sí» suelto: es una frase.
@@ -121,10 +134,19 @@ Eleccion = Unica | Ambigua | FueraDeRango | NoEsEleccion | HoraNoOfrecida
 
 
 def leer_respuesta(texto: str) -> RespuestaDelCliente:
-    """Lee un mensaje corto contra la lista cerrada. Nunca levanta."""
+    """Lee un mensaje corto contra la lista cerrada. Nunca levanta.
+
+    **Un número, una hora o un día sólo cuentan si el mensaje tiene forma de elección**: todas sus
+    palabras son de `_VOCABULARIO_DE_ELECCION`. «el segundo» o «el de las 16» eligen; «quiero un
+    turno el segundo martes» o «quiero un turno el viernes» son un pedido nuevo y los lee el
+    intérprete. Sin esto, una frase que **nombra** un día de la semana o un ordinal podría reservar
+    un horario que nadie eligió.
+    """
     limpio = _sin_tildes(texto)
     palabras = _PALABRAS.findall(limpio)
     si, no = _afirma(palabras), _niega(palabras, limpio)
+    if not _tiene_forma_de_eleccion(palabras):
+        return RespuestaDelCliente(afirma=si and not no, niega=no and not si)
     return RespuestaDelCliente(
         ordinal=_ordinal(limpio),
         horas=_horas(limpio),
@@ -132,6 +154,31 @@ def leer_respuesta(texto: str) -> RespuestaDelCliente:
         afirma=si and not no,
         niega=no and not si,
     )
+
+
+def horas_mencionadas(texto: str) -> tuple[time, ...]:
+    """Las horas que el texto menciona, **sin** pedir que tenga forma de elección.
+
+    Para quien lee un pedido entero («quiero un turno el jueves a las 5») y no una respuesta a una
+    oferta: el doble del intérprete. La más plausible va primero.
+    """
+    return _horas(_sin_tildes(texto))
+
+
+def dias_de_la_semana_mencionados(texto: str) -> tuple[int, ...]:
+    """Los días de la semana que el texto nombra (0 es lunes), en orden de aparición."""
+    return _dias_de_la_semana(_sin_tildes(texto))
+
+
+def _tiene_forma_de_eleccion(palabras: list[str]) -> bool:
+    return all(
+        palabra in _VOCABULARIO_DE_ELECCION or palabra.isdigit() or _es_ordinal_en_palabras(palabra)
+        for palabra in palabras
+    )
+
+
+def _es_ordinal_en_palabras(palabra: str) -> bool:
+    return any(patron.fullmatch(palabra) for patron, _ in _ORDINALES_EN_PALABRAS)
 
 
 def elegir(inicios: Sequence[datetime | None], respuesta: RespuestaDelCliente) -> Eleccion:
@@ -250,6 +297,8 @@ __all__ = [
     "NoEsEleccion",
     "RespuestaDelCliente",
     "Unica",
+    "dias_de_la_semana_mencionados",
     "elegir",
+    "horas_mencionadas",
     "leer_respuesta",
 ]

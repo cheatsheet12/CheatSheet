@@ -318,7 +318,8 @@ unas en otras:
    `pedido_de_persona.py`). Si resuelve sin ambigüedad se actúa **sin llamar al LLM**: cero tokens, ningún
    dato al proveedor y ninguna acción con efecto que dependa de una salida de modelo (D38). Una afirmación
    es un mensaje que **es** un «sí» (más cortesías), no uno que lo contiene: «si hay más tarde» pregunta, no
-   confirma. Los ids que se reservan o cancelan salen **sólo** del `Dialogo` que armó el sistema.
+   confirma. Y un número, una hora o un día sólo eligen si **todo** el mensaje tiene forma de elección
+   («el segundo», «el de las 16 del viernes, por favor»): «quiero un turno el viernes» es un pedido nuevo. Los ids que se reservan o cancelan salen **sólo** del `Dialogo` que armó el sistema.
 3. **`TURNO` sigue siendo una sola intención; reservar o cancelar es una sub-acción extraída.** HS-T2 RN-02
    enumera cuatro clases y el panel rotula la intención; un quinto valor `CANCELAR` cambiaría las dos. La
    acción va en `pedido_de_turno.accion` (`RESERVAR`, `CANCELAR`, `REPROGRAMAR`), con el «cuándo» como

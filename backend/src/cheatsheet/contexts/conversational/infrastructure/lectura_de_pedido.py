@@ -27,7 +27,10 @@ from cheatsheet.contexts.conversational.domain.pedido_de_turno import (
     PedidoDeTurno,
     ReferenciaDeDia,
 )
-from cheatsheet.contexts.conversational.domain.respuesta_del_cliente import leer_respuesta
+from cheatsheet.contexts.conversational.domain.respuesta_del_cliente import (
+    dias_de_la_semana_mencionados,
+    horas_mencionadas,
+)
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.errors import EntradaInvalida
 
@@ -131,15 +134,18 @@ _FRANJA_DE_LA_MANANA = re.compile(r"\b(?:a|de|por|en) la manana\b|\btemprano\b")
 def extraer_pedido(texto: str) -> PedidoDeTurno:
     """Lo que el doble entiende de un pedido de turno. Conservador, por palabras clave."""
     limpio = _sin_tildes(texto)
-    lectura = leer_respuesta(texto)
+    horas = horas_mencionadas(texto)
     cuandos = _referencias_relativas(limpio)
-    cuandos += [Cuando(ReferenciaDeDia.DIA_DE_SEMANA, dia_semana=d) for d in lectura.dias_semana]
+    cuandos += [
+        Cuando(ReferenciaDeDia.DIA_DE_SEMANA, dia_semana=d)
+        for d in dias_de_la_semana_mencionados(texto)
+    ]
     cuandos += _fechas(limpio)
     return PedidoDeTurno(
         accion=_accion(limpio),
         cuandos=tuple(cuandos[:3]),
         momento=_momento(limpio),
-        hora=lectura.horas[0] if lectura.horas else None,
+        hora=horas[0] if horas else None,
     )
 
 

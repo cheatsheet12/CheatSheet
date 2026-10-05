@@ -385,6 +385,26 @@ class TestElegir:
         assert escena.agenda.reservados == []
         assert escena.agenda.cancelados == []
 
+    async def test_un_pedido_que_nombra_un_dia_ofrecido_no_reserva_nada(self) -> None:
+        """Nombrar «el viernes» de pasada no es elegir: sería reservar lo que nadie eligió."""
+        viernes = Cuando(ReferenciaDeDia.DIA_DE_SEMANA, dia_semana=4)
+        escena = Escena(
+            lectura=pidiendo(
+                AccionDeTurno.RESERVAR, Cuando(ReferenciaDeDia.DIA_DE_SEMANA, dia_semana=2), viernes
+            )
+        )
+        await escena.procesar("el miércoles o el viernes")
+        escena.interprete.lectura = pidiendo(AccionDeTurno.RESERVAR, viernes)
+
+        await escena.procesar("quiero un turno el viernes")
+
+        assert escena.agenda.reservados == []
+        assert len(escena.interprete.vistos) == 2  # el pedido nuevo lo leyó el intérprete
+        assert escena.dialogo is not None
+        assert {
+            uno.inicio.astimezone(ZONA_ARGENTINA).date() for uno in escena.dialogo.horarios
+        } == {date(2026, 9, 11)}
+
     async def test_el_mismo_mensaje_entregado_dos_veces_reserva_una_sola_vez(self) -> None:
         """Caso 26: Meta reintenta. El segundo intento no reserva dos turnos."""
         escena = await con_oferta()
