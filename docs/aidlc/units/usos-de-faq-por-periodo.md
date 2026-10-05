@@ -319,12 +319,15 @@ mismo `agente.py` y el mismo `test_agente.py`:
 ## Registro
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las tres preguntas. **Cierra cuando el equipo acepte el ADR-0012**; hasta entonces no se escribe código |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
-- (vacío hasta el Gate 1)
+
+- Gate 1 (2026-10-04): Pregunta 1 → la participación compara como máximo 30 días antes y después de la edición.
+- Gate 1 (2026-10-04): Pregunta 2 → los usos de una FAQ borrada siguen contando en el total de la empresa (RN-08).
+- Gate 1 (2026-10-04): Pregunta 3 → el contador previo a la unidad suma al «Total» como base sin fecha, sin asignarse a ningún mes.
 
 ## Preguntas del Gate 1
 
