@@ -77,18 +77,28 @@ The detail needed to implement it without asking again:
    status, and the composition root hands it the Meta client. The approval status stored in
    `PlantillaDeNotificacion` is always **read from Meta**, never set by a person: outside
    production, the simulated channel reports templates as approved.
-5. **Inbound callbacks** — delivery statuses and template status updates — arrive at the
-   existing `/webhooks/whatsapp/{empresa}` route, which already lives in `api/`. Routing a status
-   to a payments reminder or to a template is a call from the composition root to that
-   context's `application/`, not from `conversational` to another context.
-6. **A failure of the channel never undoes what was already sent.** The consumer adapters never
+5. **Inbound callbacks are routed by `api/`.** Delivery statuses arrive at the existing
+   `/webhooks/whatsapp/{empresa}` route. Template status updates cannot: Meta does not allow a
+   per-account callback override for the `message_template_status_update` field, so they arrive
+   at the app-level webhook URL and are routed to the company by its WhatsApp Business Account id
+   (a lookup published by `integrations`), with a periodic reconciliation against Meta as the
+   safety net. Either way, routing a status to a payments reminder or to a template is a call
+   from the composition root to that context's `application/`, not from `conversational` to
+   another context.
+6. **Notices the company sends are recorded in the customer's conversation.** An appointment
+   notice or reminder is stored as an outgoing `Mensaje` with origin `SISTEMA` through a
+   `conversational` use case that the composition root wires into `scheduling`'s adapter. That
+   gives the notice a delivery status (HU-E8-04 RN-04) and gives the agent the context when the
+   customer answers it. Before the history reaches the language model, a `SISTEMA` message is
+   replaced by a descriptor without personal data (`CLAUDE.md` §3.6).
+7. **A failure of the channel never undoes what was already sent.** The consumer adapters never
    raise: a failed send is recorded as `FALLIDO`. A sweep that sends several messages in one
    transaction isolates each one (a savepoint per item), so a failure on item K does not roll
    back the rows of items 1..K-1 whose messages already left — otherwise the next sweep would
    send them again. A read timeout counts as a failure and is **not retried**: Meta may have
    accepted the message, and the Cloud API offers no idempotency key, so a duplicate is worse
    than a missing reminder.
-7. **The Context Map gains one row**, added in the same PR as this ADR's acceptance:
+8. **The Context Map gains one row**, added in the same PR as this ADR's acceptance:
 
 | Upstream | Downstream | Type | What flows |
 | --- | --- | --- | --- |
