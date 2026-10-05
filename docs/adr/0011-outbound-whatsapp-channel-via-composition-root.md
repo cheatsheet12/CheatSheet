@@ -117,7 +117,9 @@ The detail needed to implement it without asking again:
   Meta is unreachable.
 - Without a Meta test number the real behaviour (error codes, number format, template payload)
   can only be checked against recorded contracts; it stays listed in `docs/aidlc/TODO.md`.
-- The composition root grows: three builders become `async` because reading the credential is.
+- The composition root grows: the channel builder is `async` because reading the credential
+  is, and the adapters' builders receive the channel already built for the unit of work, so the
+  credential is read once per request or sweep.
 
 **What becomes harder from now on**
 - Changing `MensajeriaWhatsApp`'s method signatures: two structural protocols must keep
