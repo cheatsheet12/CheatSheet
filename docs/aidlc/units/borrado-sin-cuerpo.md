@@ -164,7 +164,7 @@ El 1 es la evidencia local del RED de la causa; el 2 lo es del síntoma que vio 
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | 2026-10-03 | pendiente |
+| 1 · Plan | 2026-10-04 | aprobado (contexto «frontend (`lib/`, transversal)») |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
