@@ -655,7 +655,7 @@ cerrado.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-05 | Aprobado por Luciano con las seis recomendaciones y tres ajustes: horario cortado y fechas cerradas dentro del alcance, y el arreglo del choque entre las preguntas 3 y 4 |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-05 | Aprobado por Luciano. Local: `ruff` y `mypy` limpios (653 archivos), `pytest` 2156 pasan y 485 se saltean (PostgreSQL/Redis, sin Docker); frontend: prettier, lint y typecheck limpios, `test:coverage` 944 pasan, cobertura 87,76 %. Los RED se observaron mayormente como fallas de import (módulo inexistente); el caso 41 fue un RED por aserción. Quedan para la CI los casos 16, 17 y 37, y la revisión visual del CSS en staging (`TODO.md` §22.19) |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
