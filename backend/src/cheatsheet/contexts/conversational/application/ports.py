@@ -251,6 +251,14 @@ class PortDirectorio(Protocol):
 
     async def cliente_de(self, telefono: str) -> tuple[UUID, str] | None: ...
 
+    async def telefono_de(self, cliente_id: UUID) -> str | None:
+        """El WhatsApp del cliente, o `None` si no existe o no tiene uno registrado.
+
+        Es lo que usa la respuesta del operador: el destino sale del cliente dueño del hilo,
+        nunca de lo que mande el request.
+        """
+        ...
+
     async def alta_rapida(self, *, telefono: str, nombre: str) -> UUID:
         """Crea el cliente mínimo para poder abrirle un hilo.
 

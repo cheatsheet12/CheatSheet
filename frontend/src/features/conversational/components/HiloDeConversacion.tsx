@@ -32,8 +32,6 @@ import type { DetalleDeConversacion, Intencion, Mensaje } from "../api/conversac
 
 export interface PropsDeHiloDeConversacion {
   readonly inicial: DetalleDeConversacion;
-  /** El número del cliente, resuelto del lado del servidor. */
-  readonly telefono: string;
   readonly puedeAtender: boolean;
 }
 
@@ -54,7 +52,6 @@ function autorDe(mensaje: Mensaje): string {
 
 export function HiloDeConversacion({
   inicial,
-  telefono,
   puedeAtender,
 }: PropsDeHiloDeConversacion): JSX.Element {
   const [hilo, setHilo] = useState<DetalleDeConversacion>(inicial);
@@ -148,7 +145,7 @@ export function HiloDeConversacion({
             onSubmit={(evento) => {
               evento.preventDefault();
               void correr(async () => {
-                await responder(hilo.id, texto, telefono);
+                await responder(hilo.id, texto);
                 setTexto("");
               }, "No se pudo enviar el mensaje.");
             }}
