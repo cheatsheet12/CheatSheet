@@ -77,8 +77,17 @@ class TurnoNoCancelable(EntradaInvalida):
     """El turno ya no está abierto o no existe: otro lo canceló, o lo completó (HU-E8-02)."""
 
 
+class ClienteSinWhatsApp(EntradaInvalida):
+    """El cliente dueño del hilo no tiene un WhatsApp registrado en `master_data`.
+
+    El destino del operador sale del cliente de la conversación y de ningún otro lado: sin
+    número, no hay a dónde escribir, y no se envía ni se guarda nada.
+    """
+
+
 __all__ = [
     "AgenteNoDisponible",
+    "ClienteSinWhatsApp",
     "ConversacionInexistente",
     "EscalamientoInexistente",
     "EscalamientoNoReabrible",

@@ -105,9 +105,6 @@ function porRuta(ruta: string): unknown {
   if (ruta.startsWith("/conversaciones")) {
     return { conversaciones: [HILO] };
   }
-  if (ruta.startsWith("/clientes/")) {
-    return { contacto_whatsapp: "5491112345678" };
-  }
   if (ruta.startsWith("/faqs")) {
     return { faqs: [FAQ] };
   }
@@ -165,20 +162,15 @@ describe("PaginaDeConversacion", () => {
     expect(notFound).not.toHaveBeenCalled();
   });
 
-  it("muestra el hilo aunque no pueda resolver el telefono", async () => {
+  it("no le pide nada a /clientes: el teléfono ya no lo maneja la pantalla", async () => {
     leerClaims.mockReturnValue(CLAIMS_OPERADOR);
-    llamarApi.mockImplementation((ruta: string) => {
-      if (ruta.startsWith("/clientes/")) {
-        return Promise.reject(new ErrorDeApi(500, "se cayo", "ErrorInterno"));
-      }
-      return Promise.resolve(porRuta(ruta));
-    });
+    llamarApi.mockImplementation((ruta: string) => Promise.resolve(porRuta(ruta)));
 
-    // Un `throw` acá sería perder el historial completo por un dato que sólo hace falta para
-    // el campo de respuesta.
     const html = renderToString(await PaginaDeConversacion({ params: { conversacionId: "c1" } }));
 
     expect(html).toContain("hola, quiero un turno");
+    const rutas = llamarApi.mock.calls.map(([ruta]) => ruta as string);
+    expect(rutas.some((ruta) => ruta.startsWith("/clientes/"))).toBe(false);
   });
 
   it("le esconde las acciones a Solo Lectura", async () => {

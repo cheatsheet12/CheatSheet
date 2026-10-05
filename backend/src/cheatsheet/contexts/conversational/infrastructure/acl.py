@@ -273,6 +273,13 @@ class DirectorioViaMasterData:
         cliente = await self._clientes.buscar_por_telefono(telefono)
         return (cliente.id, cliente.nombre) if cliente is not None else None
 
+    async def telefono_de(self, cliente_id: UUID) -> str | None:
+        """El WhatsApp del cliente. Un cliente dado de baja **sí** se resuelve: ver HU-E9-01."""
+        cliente = await self._clientes.buscar_por_id(cliente_id)
+        if cliente is None or cliente.contacto_whatsapp is None:
+            return None
+        return str(cliente.contacto_whatsapp)
+
     async def alta_rapida(self, *, telefono: str, nombre: str) -> UUID:
         """Crea el cliente mínimo. **Origen `AGENTE`**, que es lo que el DER reserva para esto.
 

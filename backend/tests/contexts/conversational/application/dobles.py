@@ -239,6 +239,12 @@ class DirectorioEnMemoria:
     async def cliente_de(self, telefono: str) -> tuple[UUID, str] | None:
         return self.conocidos.get(telefono)
 
+    async def telefono_de(self, cliente_id: UUID) -> str | None:
+        return next(
+            (telefono for telefono, (uno, _) in self.conocidos.items() if uno == cliente_id),
+            None,
+        )
+
     async def alta_rapida(self, *, telefono: str, nombre: str) -> UUID:
         self.altas.append(telefono)
         nuevo = uuid4()

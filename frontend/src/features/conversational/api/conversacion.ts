@@ -148,15 +148,14 @@ export async function cerrarEscalamiento(
   return (await respuesta.json()) as Conversacion;
 }
 
-export async function responder(
-  conversacionId: string,
-  texto: string,
-  telefono: string,
-): Promise<Mensaje> {
+/**
+ * El destino no viaja: el backend lo resuelve del cliente dueño del hilo.
+ */
+export async function responder(conversacionId: string, texto: string): Promise<Mensaje> {
   const respuesta = await fetch(`/api/conversaciones/${conversacionId}/mensajes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ texto, telefono }),
+    body: JSON.stringify({ texto }),
   });
   if (!respuesta.ok) {
     await fallar(respuesta);

@@ -233,13 +233,7 @@ describe("PAN-WA-01 — bandeja", () => {
 
 describe("PAN-WA-01 — hilo", () => {
   it("muestra el historial completo, que es el contexto previo de RN-03", () => {
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE, DEL_AGENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE, DEL_AGENTE)} puedeAtender />);
 
     expect(screen.getByText("hola, quiero un turno")).toBeTruthy();
     expect(screen.getByText("Lo derivo con un asesor.")).toBeTruthy();
@@ -249,7 +243,6 @@ describe("PAN-WA-01 — hilo", () => {
     render(
       <HiloDeConversacion
         inicial={hilo(ATENDIDA, DEL_CLIENTE, DEL_AGENTE, DEL_OPERADOR)}
-        telefono="5491112345678"
         puedeAtender
       />,
     );
@@ -262,11 +255,7 @@ describe("PAN-WA-01 — hilo", () => {
   it("muestra la intención del mensaje del cliente y nada cuando no se clasificó (HS-T2 RN-02)", () => {
     const sinClasificar: Mensaje = { ...DEL_CLIENTE, id: "m4", contenido: "hola", intencion: null };
     render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE, sinClasificar)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
+      <HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE, sinClasificar)} puedeAtender />,
     );
 
     const autores = screen.getAllByText(/^Cliente ·/).map((nodo) => nodo.textContent ?? "");
@@ -276,41 +265,38 @@ describe("PAN-WA-01 — hilo", () => {
   });
 
   it("no ofrece el campo de respuesta hasta tomar el escalamiento", () => {
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE)} puedeAtender />);
 
     expect(screen.queryByLabelText("Mensaje")).toBeNull();
     expect(screen.getByRole("button", { name: "Tomar la conversación" })).toBeTruthy();
   });
 
   it("con el escalamiento tomado aparece el campo y dice que el agente esta callado", () => {
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ATENDIDA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
 
     expect(screen.getByLabelText("Mensaje")).toBeTruthy();
     expect(screen.getByText(/no está contestando/)).toBeTruthy();
   });
 
+  it("enviar llama a responder con el hilo y el texto, sin teléfono", async () => {
+    responder.mockResolvedValue(DEL_OPERADOR);
+    // After sending, the thread reloads itself from the API.
+    verConversacion.mockResolvedValue(hilo(ATENDIDA, DEL_CLIENTE, DEL_OPERADOR));
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
+
+    fireEvent.change(screen.getByLabelText("Mensaje"), { target: { value: "Hola, soy Ana" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+
+    await waitFor(() => {
+      expect(responder).toHaveBeenCalledWith("c1", "Hola, soy Ana");
+    });
+    expect(await screen.findByText("Hola!")).toBeTruthy();
+  });
+
   it("tomar el escalamiento recarga el hilo", async () => {
     tomarEscalamiento.mockResolvedValue(ATENDIDA);
     verConversacion.mockResolvedValue(hilo(ATENDIDA, DEL_CLIENTE));
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE)} puedeAtender />);
 
     fireEvent.click(screen.getByRole("button", { name: "Tomar la conversación" }));
 
@@ -323,13 +309,7 @@ describe("PAN-WA-01 — hilo", () => {
   it("devolver al agente manda la clasificacion elegida (RN-05)", async () => {
     cerrarEscalamiento.mockResolvedValue(RESUELTA);
     verConversacion.mockResolvedValue(hilo(RESUELTA, DEL_CLIENTE));
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ATENDIDA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
 
     fireEvent.change(screen.getByLabelText("Clasificación al devolver"), {
       target: { value: "PAGO" },
@@ -344,13 +324,7 @@ describe("PAN-WA-01 — hilo", () => {
   it("sin clasificacion elegida deja que reevalue el agente", async () => {
     cerrarEscalamiento.mockResolvedValue(RESUELTA);
     verConversacion.mockResolvedValue(hilo(RESUELTA, DEL_CLIENTE));
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ATENDIDA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
 
     fireEvent.click(screen.getByRole("button", { name: "Devolver al agente" }));
 
@@ -365,13 +339,7 @@ describe("PAN-WA-01 — hilo", () => {
         "Un escalamiento cerrado no se reabre. Un nuevo pedido del cliente genera uno nuevo.",
       ),
     );
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ATENDIDA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
 
     fireEvent.click(screen.getByRole("button", { name: "Dar por finalizada" }));
 
@@ -379,13 +347,7 @@ describe("PAN-WA-01 — hilo", () => {
   });
 
   it("le esconde todas las acciones a Solo Lectura pero le muestra el hilo", () => {
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender={false}
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE)} puedeAtender={false} />);
 
     expect(screen.getByText("hola, quiero un turno")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Tomar la conversación" })).toBeNull();
@@ -393,7 +355,7 @@ describe("PAN-WA-01 — hilo", () => {
 
   it("marca las notas de voz como transcriptas", () => {
     const audio: Mensaje = { ...DEL_CLIENTE, tipo_contenido: "AUDIO" };
-    render(<HiloDeConversacion inicial={hilo(ESCALADA, audio)} telefono="549111" puedeAtender />);
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, audio)} puedeAtender />);
 
     expect(screen.getByText(/nota de voz transcripta/)).toBeTruthy();
   });
