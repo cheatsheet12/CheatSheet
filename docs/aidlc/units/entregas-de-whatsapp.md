@@ -338,7 +338,7 @@ Gates: los mismos de U6 (backend y frontend). Los casos 10, 21 y 29 corren con P
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. **Cierra cuando el equipo acepte el ADR-0011** ([#62](https://github.com/cheatsheet12/CheatSheet/pull/62)); hasta entonces no se escribe código |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
@@ -347,4 +347,4 @@ Gates: los mismos de U6 (backend y frontend). Los casos 10, 21 y 29 corren con P
 
 ## Decisiones tomadas durante la unidad
 
-- (vacío hasta el Gate 1)
+- Gate 1 (2026-10-04): Pregunta 1 → no: los avisos de turno con falla transitoria no se reintentan; la falla queda visible en el hilo con su motivo.
