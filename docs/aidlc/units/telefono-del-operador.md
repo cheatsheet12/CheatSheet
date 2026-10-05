@@ -195,7 +195,7 @@ local se saltea y su RED lo muestra la primera corrida de CI sobre el commit del
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-03 | aprobado |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-04 | Aprobado por Luciano con la evidencia local; los casos 2 y 7 (PostgreSQL) se confirman en la CI del PR |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
