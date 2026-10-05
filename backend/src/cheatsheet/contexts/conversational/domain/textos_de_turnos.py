@@ -38,6 +38,7 @@ MENSAJE_HORARIO_OCUPADO = "Ese horario se acaba de ocupar."
 MENSAJE_HORARIO_PASADO = "Ese horario ya pasó."
 MENSAJE_OFERTA_VENCIDA = "Esos horarios ya no están vigentes; te paso los actuales:"
 MENSAJE_SIN_LO_PEDIDO = "No tengo horarios para lo que pedís. Estos son los más cercanos:"
+ENCABEZADO_DE_LA_OFERTA = "Tengo estos horarios disponibles:"
 MENSAJE_NO_ENTENDI_LA_ELECCION = "No te entendí. Contestame con el número de la opción (por ejemplo, «el primero») o con la hora."
 
 # -- cancelar ---------------------------------------------------------------------------
@@ -56,9 +57,16 @@ def formatear_inicio(inicio: datetime) -> str:
 
 
 def oferta_de_horarios(opciones: Sequence[OpcionDeHorario], *, antes: str = "") -> str:
-    """El listado numerado de horarios, con una frase delante si hace falta explicar algo."""
+    """El listado numerado de horarios, con una frase delante si hace falta explicar algo.
+
+    Una frase que termina en dos puntos ya presenta la lista («Estos son los más cercanos:»), así
+    que reemplaza al encabezado en vez de sumarse a él: dos presentaciones seguidas se leían
+    como un error (hallazgo H-T1, PRU-05 en staging).
+    """
     renglones = [f"{n}) {formatear_inicio(uno.inicio)}" for n, uno in enumerate(opciones, 1)]
-    cuerpo = "\n".join(["Tengo estos horarios disponibles:", *renglones])
+    presenta_la_lista = antes.rstrip().endswith(":")
+    encabezado = [] if presenta_la_lista else [ENCABEZADO_DE_LA_OFERTA]
+    cuerpo = "\n".join([*encabezado, *renglones])
     pie = "¿Cuál preferís? Contestame con el número o con la hora."
     return "\n".join(parte for parte in (antes, cuerpo, pie) if parte)
 
@@ -95,6 +103,7 @@ def cancelacion_confirmada(turno: OpcionDeTurno) -> str:
 
 
 __all__ = [
+    "ENCABEZADO_DE_LA_OFERTA",
     "MENSAJE_FECHA_PASADA",
     "MENSAJE_HORARIO_OCUPADO",
     "MENSAJE_HORARIO_PASADO",
