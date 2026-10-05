@@ -134,6 +134,24 @@ class TestWebhook:
         listado = await cliente_http.get("/conversaciones", headers=_auth(token))
         assert len(listado.json()["conversaciones"]) == 1
 
+    async def test_el_mensaje_entrante_queda_con_su_intencion_en_la_base(
+        self, cliente_http: httpx.AsyncClient
+    ) -> None:
+        """HS-T2 RN-02. El simulado lee «cuánto sale…» como FAQ con 0.9: el hilo lo muestra."""
+        token, empresa_id = await _registrar(cliente_http, "wa-intencion@test.local")
+        crudo = _notificacion("hola, cuánto sale un corte", externo_id="wamid-intencion")
+
+        respuesta = await cliente_http.post(
+            f"/webhooks/whatsapp/{empresa_id}", content=crudo, headers=_firmado(crudo)
+        )
+
+        assert respuesta.status_code == 200, respuesta.text
+        listado = await cliente_http.get("/conversaciones", headers=_auth(token))
+        conversacion_id = listado.json()["conversaciones"][0]["id"]
+        detalle = await cliente_http.get(f"/conversaciones/{conversacion_id}", headers=_auth(token))
+        entrantes = [uno for uno in detalle.json()["mensajes"] if uno["direccion"] == "ENTRANTE"]
+        assert [uno["intencion"] for uno in entrantes] == ["FAQ"]
+
     async def test_una_firma_invalida_se_descarta_con_200(
         self, cliente_http: httpx.AsyncClient
     ) -> None:
