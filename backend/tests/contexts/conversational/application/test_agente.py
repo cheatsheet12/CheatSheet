@@ -469,3 +469,15 @@ class TestLaIntencionDelMensajeEntrante:
 
         [entrante] = await _entrantes(escena)
         assert entrante.intencion is None
+
+
+class TestNombrarUnaPersonaNoEsPedirla:
+    async def test_nombrar_a_una_persona_no_es_pedirla(self) -> None:
+        """HU-E8-05 RN-01: «soy una persona que quiere un turno» no escala por subcadena."""
+        escena = Escena(lectura=leyendo(Intencion.TURNO))
+
+        respuesta = await escena.procesar("soy una persona que quiere un turno")
+
+        assert not respuesta.escalado
+        assert escena.interprete.vistos != []
+        assert await escena.escalamientos.listar_abiertos() == []
