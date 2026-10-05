@@ -150,7 +150,9 @@ class ProcesarMensajeEntrante:
         texto, tipo, transcripcion_pobre = await self._texto_de(entrante)
 
         # 3. Registrar. **Antes** de interpretar: si el modelo se cae, el mensaje quedó.
-        await self._guardar_entrante(empresa_id, conversacion, entrante, texto, tipo, ahora)
+        guardado = await self._guardar_entrante(
+            empresa_id, conversacion, entrante, texto, tipo, ahora
+        )
         conversacion.registrar_actividad(ahora)
 
         # Si un operador está atendiendo, el agente calla (HU-E9-01 RN-02).
@@ -179,6 +181,7 @@ class ProcesarMensajeEntrante:
 
         # 5. Encaminar.
         if lectura.confianza < UMBRAL_DE_CONFIANZA:
+            await self._anotar_intencion(guardado, Intencion.DESCONOCIDA)
             conversacion.anotar_intento_fallido()
             if conversacion.agoto_los_intentos:
                 return await self._escalar(
@@ -190,6 +193,7 @@ class ProcesarMensajeEntrante:
             )
             return Respuesta(conversacion.id, Intencion.DESCONOCIDA, False, texto_enviado)
 
+        await self._anotar_intencion(guardado, lectura.intencion)
         conversacion.anotar_intento_entendido()
         await self._conversaciones.guardar(conversacion)
         salida = await self._encaminar(empresa_id, conversacion, entrante, lectura, texto, ahora)
@@ -237,19 +241,27 @@ class ProcesarMensajeEntrante:
         texto: str,
         tipo: TipoContenido,
         ahora: datetime,
-    ) -> None:
-        await self._mensajes.agregar(
-            Mensaje(
-                id=uuid4(),
-                conversacion_id=conversacion.id,
-                empresa_id=empresa_id,
-                direccion=DireccionMensaje.ENTRANTE,
-                tipo_contenido=tipo,
-                contenido=texto,
-                momento=entrante.momento or ahora,
-                externo_id=entrante.externo_id,
-            )
+    ) -> Mensaje:
+        mensaje = Mensaje(
+            id=uuid4(),
+            conversacion_id=conversacion.id,
+            empresa_id=empresa_id,
+            direccion=DireccionMensaje.ENTRANTE,
+            tipo_contenido=tipo,
+            contenido=texto,
+            momento=entrante.momento or ahora,
+            externo_id=entrante.externo_id,
         )
+        await self._mensajes.agregar(mensaje)
+        return mensaje
+
+    async def _anotar_intencion(self, mensaje: Mensaje, intencion: Intencion) -> None:
+        """HS-T2 RN-02: el mensaje interpretado queda con la intención que el agente aplicó.
+
+        Los caminos que no interpretan no pasan por acá y la dejan en `None` («no se clasificó»).
+        """
+        mensaje.intencion = intencion
+        await self._mensajes.guardar(mensaje)
 
     async def _encaminar(
         self,
