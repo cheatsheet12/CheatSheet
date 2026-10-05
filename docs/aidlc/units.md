@@ -56,11 +56,11 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agenda y recursos | turnos-no-en-el-pasado | scheduling | HU-E7-06, HU-E7-02, HU-E8-01 | — | Luciano | feature/scheduling-turnos-no-en-el-pasado | mergeada |
 | Agenda y recursos | limites-e-intervalo-de-turnos | scheduling | HU-E7-04, HU-E7-06 | turnos-no-en-el-pasado | Luciano | feature/scheduling-limites-e-intervalo-de-turnos | mergeada |
 | Agente de WhatsApp y atención humana | comprobante-por-whatsapp | conversational | HU-E8-06, HU-E8-05 | cobro-por-transferencia | — | — | pendiente |
-| Agente de WhatsApp y atención humana | reserva-y-cancelacion-por-whatsapp | conversational | HU-E8-01, HU-E8-02, HS-T2 | ajustes-menores-del-agente | Luciano | feature/conversational-reserva-y-cancelacion-por-whatsapp | en revisión |
+| Agente de WhatsApp y atención humana | reserva-y-cancelacion-por-whatsapp | conversational | HU-E8-01, HU-E8-02, HS-T2 | ajustes-menores-del-agente | Luciano | feature/conversational-reserva-y-cancelacion-por-whatsapp | mergeada |
 | Reportería y paquete contable | indicadores-de-cobranza | reporting | HU-E10-01 | fecha-de-pago | Luciano | feature/reporting-indicadores-de-cobranza | mergeada |
-| Agente de WhatsApp y atención humana | telefono-del-operador | conversational | HU-E9-01 | — | Luciano | fix/conversational-telefono-del-operador | en revisión |
-| Agente de WhatsApp y atención humana | borrado-sin-cuerpo | frontend (`lib/`, transversal) | HU-E9-04, HU-E4-03, HU-E1-04, HU-E2-04, HU-E10-05 | — | Luciano | fix/frontend-borrado-sin-cuerpo | en revisión |
-| Agente de WhatsApp y atención humana | ajustes-menores-del-agente | conversational | HS-T2, HU-E8-05 | — | Luciano | fix/conversational-ajustes-menores-del-agente | en revisión |
+| Agente de WhatsApp y atención humana | telefono-del-operador | conversational | HU-E9-01 | — | Luciano | fix/conversational-telefono-del-operador | mergeada |
+| Agente de WhatsApp y atención humana | borrado-sin-cuerpo | frontend (`lib/`, transversal) | HU-E9-04, HU-E4-03, HU-E1-04, HU-E2-04, HU-E10-05 | — | Luciano | fix/frontend-borrado-sin-cuerpo | mergeada |
+| Agente de WhatsApp y atención humana | ajustes-menores-del-agente | conversational | HS-T2, HU-E8-05 | — | Luciano | fix/conversational-ajustes-menores-del-agente | mergeada |
 
 
 ---
