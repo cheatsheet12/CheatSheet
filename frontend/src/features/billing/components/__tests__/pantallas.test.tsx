@@ -119,18 +119,60 @@ describe("el listado", () => {
     const fila = screen.getAllByRole("row")[1] as HTMLTableRowElement;
     const celdas = [...fila.cells].map((celda) => celda.textContent);
 
-    expect(celdas[0]).toBe("00000123");
-    expect(celdas[1]).toBe("Factura A");
-    expect(celdas[2]).toBe("Acme SA");
+    // El número y su tipo viven en la misma celda: el tipo es la etiqueta del número.
+    expect(celdas[0]).toBe("00000123Factura A");
+    expect(celdas[1]).toBe("ASAcme SA");
     // El monto formateado, no recalculado: llega como texto y se muestra como texto.
-    expect(celdas[3]).toMatch(/2\.420,00/);
-    expect(celdas[5]).toBe("Autorizado");
+    expect(celdas[2]).toMatch(/2\.420,00/);
+    expect(celdas[4]).toBe("Autorizado");
   });
 
-  it("sin resultados muestra la frase de la historia", () => {
+  it("sin comprobantes invita a emitir el primero", () => {
     render(<ListadoDeComprobantes inicial={{ comprobantes: [] }} puedeEmitir />);
 
-    expect(screen.getByText(MENSAJE_SIN_RESULTADOS)).toBeDefined();
+    expect(screen.getByText("Todavía no emitiste comprobantes.")).toBeDefined();
+    expect(screen.getAllByText("Emitir comprobante").length).toBe(2);
+  });
+
+  it("sin resultados por filtro muestra la frase de la historia y deja limpiar", async () => {
+    listarComprobantes.mockResolvedValue({ comprobantes: [] });
+    render(<ListadoDeComprobantes inicial={{ comprobantes: [AUTORIZADO] }} puedeEmitir />);
+    expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Estado"), { target: { value: "RECHAZADO" } });
+
+    expect(await screen.findByText(MENSAJE_SIN_RESULTADOS)).toBeDefined();
+    listarComprobantes.mockResolvedValue({ comprobantes: [AUTORIZADO] });
+    fireEvent.click(screen.getAllByRole("button", { name: "Limpiar filtros" })[0] as HTMLElement);
+
+    await waitFor(() => expect(listarComprobantes).toHaveBeenLastCalledWith({}));
+    expect(await screen.findByText("Acme SA")).toBeDefined();
+  });
+
+  it("el rango de fechas usa el calendario propio y «Hasta» no admite días anteriores", async () => {
+    listarComprobantes.mockResolvedValue({ comprobantes: [AUTORIZADO] });
+    render(<ListadoDeComprobantes inicial={{ comprobantes: [AUTORIZADO] }} puedeEmitir />);
+
+    expect(document.querySelector('input[type="date"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Desde/ }));
+    const dia = screen.getAllByRole("button", { name: /de .* de \d{4}$/ })[9] as HTMLElement;
+    fireEvent.click(dia);
+
+    await waitFor(() =>
+      expect(listarComprobantes).toHaveBeenCalledWith({
+        desde: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) as string,
+      }),
+    );
+    expect(await screen.findByRole("button", { name: "Limpiar filtros" })).toBeDefined();
+  });
+
+  it("toda la fila lleva al detalle y ofrece el PDF solo si es descargable", () => {
+    render(<ListadoDeComprobantes inicial={{ comprobantes: [AUTORIZADO] }} puedeEmitir />);
+
+    const enlace = screen.getByRole("link", { name: "00000123" });
+    expect(enlace.getAttribute("href")).toBe("/facturacion/c1");
+    expect(screen.getByRole("link", { name: /Descargar PDF del comprobante/ })).toBeDefined();
+    expect(screen.getByRole("link", { name: /Anular el comprobante/ })).toBeDefined();
   });
 
   it("filtrar por estado pregunta al servidor y no filtra el array en memoria", async () => {
@@ -193,6 +235,20 @@ describe("el detalle", () => {
 
     expect(screen.getByText(/No lo emitas de nuevo/)).toBeDefined();
     expect(screen.getByText("Pendiente")).toBeDefined();
+  });
+
+  it("copia el CAE y confirma", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(<DetalleDeComprobante comprobante={AUTORIZADO} puntoNumero={1} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar CAE" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("75123456789012"));
+    expect(await screen.findByText("Copiado")).toBeDefined();
+    vi.unstubAllGlobals();
+    vi.stubGlobal("confirm", () => true);
+    vi.stubGlobal("open", vi.fn());
   });
 
   it("no ofrece editar nada: un comprobante autorizado es inmutable (RN-01)", () => {
