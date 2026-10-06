@@ -28,8 +28,6 @@
  * be filed.
  */
 
-import Image from "next/image";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -37,22 +35,11 @@ import { BotonDeSalida, RenovadorDeSesion } from "@/features/identity";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion, leerClaims } from "@/lib/session";
 
-import { NavegacionLateral } from "./navegacion-lateral";
+import { CarcasaDelPanel } from "./carcasa-del-panel";
 
 interface EstadoDeEmpresa {
   readonly razon_social: string | null;
   readonly onboarding_completo: boolean;
-}
-
-/** Las dos iniciales de la empresa, para el avatar del encabezado. */
-function iniciales(nombre: string): string {
-  return nombre
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((palabra) => palabra[0])
-    .join("")
-    .toUpperCase();
 }
 
 export default async function PanelLayout({
@@ -79,50 +66,14 @@ export default async function PanelLayout({
   const nombre = empresa.razon_social ?? "Tu empresa";
 
   return (
-    <div className="app">
-      <RenovadorDeSesion />
-      <aside className="sidebar">
-        <div className="sidebar__brand">
-          <Image
-            className="sidebar__logo"
-            src="/logo-simbolo.png"
-            alt=""
-            width={38}
-            height={38}
-            priority
-          />
-          <span>
-            <b className="sidebar__nombre">CheatSheet</b>
-            <small className="sidebar__version">iPaaS</small>
-          </span>
-        </div>
-
-        <NavegacionLateral />
-
-        <div className="sidebar__help">
-          <b>¿Necesitás ayuda?</b>
-          <Link href="/soporte">Abrir una solicitud</Link>
-        </div>
-      </aside>
-
-      <div className="app__main">
-        <header className="topbar">
-          <div className="org-switch">
-            <span className="org-switch__avatar" aria-hidden="true">
-              {iniciales(nombre)}
-            </span>
-            <span className="org-switch__datos">
-              <b>{nombre}</b>
-              <small>{claims?.rol.toLowerCase() ?? ""}</small>
-            </span>
-          </div>
-          <div className="topbar__right">
-            <BotonDeSalida />
-          </div>
-        </header>
-        <main className="page">{children}</main>
-      </div>
-    </div>
+    <CarcasaDelPanel
+      nombre={nombre}
+      rol={claims?.rol ?? ""}
+      renovador={<RenovadorDeSesion />}
+      salida={<BotonDeSalida />}
+    >
+      {children}
+    </CarcasaDelPanel>
   );
 }
 

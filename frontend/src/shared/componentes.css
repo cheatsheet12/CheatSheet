@@ -768,44 +768,65 @@ a:focus-visible {
   inset: 0 auto 0 0;
   width: var(--sidebar-w);
   /* Un degradado apenas perceptible: una barra de un solo color plano parece un bloque. */
-  background: radial-gradient(120% 60% at 0% 0%, rgb(0 168 121 / 9%), transparent 55%),
+  background: radial-gradient(120% 60% at 0% 0%, rgb(0 168 121 / 10%), transparent 55%),
     linear-gradient(180deg, #212134 0%, var(--primary) 38%);
   color: #cfcfdd;
   display: flex;
   flex-direction: column;
   z-index: 40;
   border-right: 1px solid rgb(255 255 255 / 5%);
+  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar__brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 20px 20px 18px;
-  margin: 0 12px;
+  gap: 13px;
+  padding: 22px 8px 20px;
+  margin: 0 16px;
   border-bottom: 1px solid rgb(255 255 255 / 7%);
+  min-height: 86px;
+  animation: barra-entra 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
 }
 
 .sidebar__logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
   /* El logo es un PNG con fondo blanco: sobre la barra oscura va en su propio azulejo. */
   background: #fff;
   object-fit: contain;
-  padding: 3px;
+  padding: 4px;
   flex: none;
   box-shadow:
-    0 0 0 1px rgb(255 255 255 / 12%),
-    0 6px 16px rgb(0 0 0 / 28%);
+    0 0 0 1px rgb(255 255 255 / 14%),
+    0 0 0 5px rgb(0 168 121 / 10%),
+    0 8px 20px rgb(0 0 0 / 32%);
+  transition:
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease;
+}
+
+.sidebar__brand:hover .sidebar__logo {
+  transform: rotate(-8deg) scale(1.07);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 18%),
+    0 0 0 6px rgb(0 168 121 / 22%),
+    0 10px 26px rgb(0 168 121 / 35%);
+}
+
+.sidebar__marca {
+  min-width: 0;
+  flex: 1;
 }
 
 .sidebar__nombre {
-  font-size: 16px;
+  font-size: 17px;
   color: #fff;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   display: block;
+  line-height: 1.15;
 }
 
 .sidebar__version {
@@ -813,12 +834,53 @@ a:focus-visible {
   font-size: 10.5px;
   color: #8a8aa3;
   display: block;
-  margin-top: 1px;
+  margin-top: 3px;
+  letter-spacing: 0.02em;
+}
+
+/* El marco de la lista: lleva los desvanecidos de arriba y abajo que avisan que hay más
+   entradas fuera de la vista. Son seudoelementos que no capturan el puntero. */
+.nav__marco {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav__marco::before,
+.nav__marco::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 26px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.nav__marco::before {
+  top: 0;
+  background: linear-gradient(rgb(14 14 26 / 70%), transparent);
+  border-top: 1px solid rgb(255 255 255 / 6%);
+}
+
+.nav__marco::after {
+  bottom: 0;
+  background: linear-gradient(transparent, rgb(14 14 26 / 80%));
+}
+
+.nav__marco[data-sombra-arriba="true"]::before,
+.nav__marco[data-sombra-abajo="true"]::after {
+  opacity: 1;
 }
 
 .nav {
-  padding: 2px 12px 12px;
+  padding: 6px 16px 14px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   /* La barra de desplazamiento del sistema es gris claro sobre fondo oscuro: se afina. */
@@ -844,7 +906,51 @@ a:focus-visible {
   background: rgb(255 255 255 / 26%);
 }
 
+.nav__contenido {
+  position: relative;
+}
+
+/* La píldora de la entrada activa: un solo elemento que se desliza hasta la entrada actual
+   en lugar de aparecer de golpe. Su posición la fija el componente (`translateY` y altura). */
+.nav__pildora {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 0;
+  border-radius: 11px;
+  background: linear-gradient(90deg, rgb(0 168 121 / 24%), rgb(0 168 121 / 6%));
+  box-shadow: inset 0 0 0 1px rgb(0 168 121 / 20%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.34s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease;
+}
+
+.nav__pildora[data-visible="true"] {
+  opacity: 1;
+}
+
+.nav__pildora::before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgb(0 168 121 / 60%);
+}
+
 .nav__group {
+  margin-top: 14px;
+  animation: barra-entra 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms + 120ms);
+}
+
+.nav__group:first-child {
   margin-top: 8px;
 }
 
@@ -857,21 +963,24 @@ a:focus-visible {
   width: 100%;
   font: inherit;
   font-size: 10.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #7d7d97;
+  color: #8383a0;
   font-weight: 700;
-  padding: 6px 11px 7px;
+  padding: 6px 10px 8px;
   margin: 0;
   background: none;
   border: 0;
   border-radius: 8px;
   cursor: pointer;
-  transition: color 0.16s ease;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease;
 }
 
 .nav__label:hover {
-  color: #c2c2d6;
+  color: #d0d0e2;
+  background: rgb(255 255 255 / 4%);
 }
 
 .nav__label:focus-visible {
@@ -879,10 +988,26 @@ a:focus-visible {
   outline-offset: -2px;
 }
 
+.nav__titulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* El grupo está cerrado pero la pantalla actual está adentro: un punto de acento que late. */
+.nav__punto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgb(0 168 121 / 70%);
+  animation: punto-late 1.8s ease-in-out infinite;
+}
+
 .nav__chevron {
   flex: none;
   opacity: 0.7;
-  transition: transform 0.22s ease;
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .nav__label[aria-expanded="false"] .nav__chevron {
@@ -895,7 +1020,7 @@ a:focus-visible {
 .nav__lista {
   display: grid;
   grid-template-rows: 1fr;
-  transition: grid-template-rows 0.24s ease;
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav__lista[data-abierto="false"] {
@@ -905,51 +1030,94 @@ a:focus-visible {
 .nav__lista-interior {
   overflow: hidden;
   min-height: 0;
-  padding-left: 0;
+  padding: 2px 0 0 0;
+  margin-top: -2px;
 }
 
 .nav__lista[data-abierto="false"] > .nav__lista-interior {
   visibility: hidden;
-  transition: visibility 0s linear 0.24s;
+  transition: visibility 0s linear 0.28s;
+}
+
+/* Al abrir un grupo las entradas entran en cascada, una tras otra. */
+.nav__lista[data-abierto="true"] .nav__item {
+  animation: item-entra 0.38s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--k, 0) * 28ms + 60ms);
 }
 
 .nav__item {
   position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 8px 11px;
-  border-radius: 10px;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 11px;
   color: #b7b7c8;
   font-size: 13.5px;
   font-weight: 500;
   margin-bottom: 2px;
   text-decoration: none;
   transition:
-    background 0.16s ease,
     color 0.16s ease,
-    transform 0.16s ease;
+    transform 0.12s ease;
+}
+
+/* El fondo del hover entra con un barrido desde la izquierda. */
+.nav__item::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 7%);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.26s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.nav__item:hover::after,
+.nav__item:focus-visible::after {
+  transform: scaleX(1);
+}
+
+.nav__item--activo::after {
+  display: none;
+}
+
+.nav__item:active {
+  transform: scale(0.97);
+}
+
+.nav__texto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: transform 0.22s ease;
 }
 
 .nav__icono {
   flex: none;
   color: #8383a0;
-  transition:
-    color 0.16s ease,
-    transform 0.16s ease;
+  transition: color 0.16s ease;
 }
 
 .nav__item:hover,
 .nav__item:focus-visible {
-  background: rgb(255 255 255 / 6%);
   color: #fff;
   text-decoration: none;
+}
+
+.nav__item:hover .nav__texto,
+.nav__item:focus-visible .nav__texto {
+  transform: translateX(3px);
 }
 
 .nav__item:hover .nav__icono,
 .nav__item:focus-visible .nav__icono {
   color: #fff;
-  transform: scale(1.08);
+  animation: icono-rebota 0.5s ease;
 }
 
 .nav__item:focus-visible {
@@ -957,25 +1125,12 @@ a:focus-visible {
   outline-offset: -2px;
 }
 
-/* La pantalla donde está la persona: fondo propio, la marca de acento a la izquierda y el
-   icono en el color de la marca. Es lo que le dice dónde está parada en el mapa. */
+/* La pantalla donde está la persona: el fondo lo pone la píldora que se desliza; acá queda
+   el texto en blanco y el icono en el color de la marca. */
 .nav__item--activo,
 .nav__item--activo:hover {
-  background: linear-gradient(90deg, rgb(0 168 121 / 20%), rgb(0 168 121 / 6%));
   color: #fff;
   font-weight: 600;
-}
-
-.nav__item--activo::before {
-  content: "";
-  position: absolute;
-  left: -12px;
-  top: 7px;
-  bottom: 7px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
-  box-shadow: 0 0 10px rgb(0 168 121 / 60%);
 }
 
 .nav__item--activo .nav__icono,
@@ -983,91 +1138,299 @@ a:focus-visible {
   color: var(--accent);
 }
 
-.sidebar__help {
-  margin: 4px 12px 14px;
-  padding: 13px 14px;
-  border-radius: 12px;
+/* El pie: la empresa y el rol de quien está dentro, y el botón que reduce la barra. */
+.sidebar__pie {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 14px;
+  padding: 10px;
+  border-radius: 14px;
   background: linear-gradient(160deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 3%));
   border: 1px solid rgb(255 255 255 / 7%);
+  animation: barra-entra 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 0.5s backwards;
 }
 
-.sidebar__help b {
+.sidebar__empresa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar__avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #06281f;
+  background: linear-gradient(135deg, #5be3b9, var(--accent));
+}
+
+.sidebar__empresa-datos {
+  min-width: 0;
+}
+
+.sidebar__empresa-datos b,
+.sidebar__empresa-datos small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar__empresa-datos b {
   color: #fff;
   font-size: 12.5px;
-  display: block;
-  margin-bottom: 2px;
 }
 
-.sidebar__help a {
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
+.sidebar__empresa-datos small {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #8a8aa3;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .nav__item,
-  .nav__icono,
-  .nav__chevron,
-  .nav__lista {
-    transition: none;
+.sidebar__colapsar,
+.sidebar__cerrar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  background: rgb(255 255 255 / 4%);
+  color: #b7b7c8;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+}
+
+.sidebar__colapsar:hover,
+.sidebar__cerrar:hover {
+  background: rgb(255 255 255 / 11%);
+  color: #fff;
+}
+
+.sidebar__colapsar:active,
+.sidebar__cerrar:active {
+  transform: scale(0.9);
+}
+
+.sidebar__colapsar:focus-visible,
+.sidebar__cerrar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sidebar__velo {
+  display: none;
+}
+
+/* ── Barra reducida a iconos (sólo en pantallas anchas) ───────────────────────────────── */
+
+@media (min-width: 901px) {
+  /* El botón de cerrar es del cajón móvil. */
+  .sidebar__cerrar {
+    display: none;
   }
 
-  .nav__item:hover .nav__icono,
-  .nav__item:focus-visible .nav__icono {
+  .app[data-colapsada="true"] {
+    --sidebar-w: 78px;
+  }
+
+  .app__main {
+    transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .app[data-colapsada="true"] .sidebar__marca,
+  .app[data-colapsada="true"] .nav__texto,
+  .app[data-colapsada="true"] .nav__chevron,
+  .app[data-colapsada="true"] .sidebar__empresa-datos,
+  .app[data-colapsada="true"] .nav__titulo {
+    display: none;
+  }
+
+  .app[data-colapsada="true"] .sidebar__brand {
+    justify-content: center;
+    padding-inline: 0;
+    margin-inline: 14px;
+  }
+
+  /* Sin títulos de grupo, el grupo se separa del anterior con una línea. Los grupos
+     cerrados se muestran abiertos: cerrados no dejarían ver a dónde ir. */
+  .app[data-colapsada="true"] .nav {
+    padding-inline: 14px;
+  }
+
+  .app[data-colapsada="true"] .nav__pildora::before {
+    left: -14px;
+  }
+
+  .app[data-colapsada="true"] .nav__label {
+    height: 1px;
+    padding: 0;
+    margin: 12px 8px 10px;
+    background: rgb(255 255 255 / 8%);
+    pointer-events: none;
+  }
+
+  .app[data-colapsada="true"] .nav__group:first-child .nav__label {
+    display: none;
+  }
+
+  .app[data-colapsada="true"] .nav__lista {
+    grid-template-rows: 1fr;
+  }
+
+  .app[data-colapsada="true"] .nav__lista > .nav__lista-interior {
+    visibility: visible;
+  }
+
+  .app[data-colapsada="true"] .nav__item {
+    justify-content: center;
+    padding: 11px 0;
+  }
+
+  .app[data-colapsada="true"] .nav__item:hover .nav__texto {
     transform: none;
   }
+
+  .app[data-colapsada="true"] .sidebar__pie {
+    flex-direction: column;
+    padding: 10px 0;
+    margin-inline: 14px;
+  }
+
+  .app[data-colapsada="true"] .sidebar__empresa {
+    flex: none;
+  }
 }
+
+@keyframes barra-entra {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
+@keyframes item-entra {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+
+@keyframes icono-rebota {
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(1.22) translateY(-2px);
+  }
+
+  70% {
+    transform: scale(0.94);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes punto-late {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.5);
+    opacity: 0.55;
+  }
+}
+
+/* ── Encabezado ───────────────────────────────────────────────────────────────────────── */
 
 .topbar {
   position: sticky;
   top: 0;
   z-index: 30;
   min-height: var(--topbar-h);
-  background: rgb(248 247 255 / 86%);
+  background: rgb(248 247 255 / 70%);
   backdrop-filter: saturate(180%) blur(10px);
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 0 30px;
+  gap: 14px;
+  padding: 0 38px;
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
-.org-switch {
+/* Al desplazar la página, el encabezado gana cuerpo: fondo más sólido y una sombra suave. */
+.topbar[data-desplazada="true"] {
+  background: rgb(248 247 255 / 92%);
+  box-shadow: 0 6px 20px rgb(30 30 46 / 8%);
+}
+
+.topbar__menu {
+  display: none;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-700);
+  place-items: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.12s ease;
+}
+
+.topbar__menu:active {
+  transform: scale(0.92);
+}
+
+.topbar__menu:focus-visible,
+.cuenta__disparador:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Las migas: grupo y pantalla. Calladas, para ubicarse sin competir con el título de la página. */
+.topbar__migas {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  padding: 7px 12px;
-  box-shadow: var(--shadow);
-}
-
-.org-switch__avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: var(--alert);
-  color: var(--primary);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 11px;
-}
-
-.org-switch__datos b {
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
   font-size: 13px;
-  display: block;
+  color: var(--ink-500);
+  white-space: nowrap;
+  animation: miga-entra 0.4s ease backwards;
 }
 
-.org-switch__datos small {
-  display: block;
-  font-family: var(--mono);
-  /* 11px y no 10: es una palabra para leer («administrador»), no un rótulo de columna.
-     Las dos excepciones declaradas arriba del archivo son el badge y el encabezado de
-     tabla; ésta no era ninguna de las dos. */
-  font-size: 11px;
-  color: var(--ink-400);
+.topbar__migas b {
+  color: var(--ink-900);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar__separador {
+  color: var(--ink-300);
 }
 
 .topbar__right {
@@ -1075,6 +1438,186 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.cuenta {
+  position: relative;
+}
+
+.cuenta__disparador {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px 5px 5px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    transform 0.12s ease;
+}
+
+.cuenta__disparador:hover,
+.cuenta__disparador[aria-expanded="true"] {
+  border-color: var(--ink-300);
+}
+
+.cuenta__disparador:active {
+  transform: scale(0.97);
+}
+
+.cuenta__avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-mid), var(--primary));
+  box-shadow: 0 0 0 2px var(--accent-100);
+  transition: box-shadow 0.2s ease;
+}
+
+.cuenta__disparador:hover .cuenta__avatar,
+.cuenta__disparador[aria-expanded="true"] .cuenta__avatar {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.cuenta__datos {
+  min-width: 0;
+  max-width: 190px;
+}
+
+.cuenta__datos b,
+.cuenta__datos small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cuenta__datos b {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.cuenta__datos small {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.cuenta__chevron {
+  flex: none;
+  color: var(--ink-400);
+  transition: transform 0.25s ease;
+}
+
+.cuenta__disparador[aria-expanded="true"] .cuenta__chevron {
+  transform: rotate(180deg);
+}
+
+/* El panel no usa `hidden`: se anima con escala y opacidad desde la esquina del botón, y
+   `visibility` lo saca del orden de foco cuando está cerrado. */
+.cuenta__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 252px;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow:
+    0 2px 4px rgb(30 30 46 / 6%),
+    0 18px 40px rgb(30 30 46 / 16%);
+  z-index: 50;
+  transform-origin: top right;
+  transform: translateY(-6px) scale(0.95);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 0.16s ease,
+    visibility 0s linear 0.2s;
+}
+
+.cuenta__panel[data-abierto="true"] {
+  transform: none;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 0.16s ease;
+}
+
+.cuenta__cabecera {
+  padding: 10px 12px 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cuenta__cabecera b,
+.cuenta__cabecera small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cuenta__cabecera b {
+  font-size: 13.5px;
+}
+
+.cuenta__cabecera small {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.cuenta__enlace {
+  display: block;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-700);
+  text-decoration: none;
+  transition:
+    background 0.14s ease,
+    padding-left 0.14s ease;
+}
+
+.cuenta__enlace:hover,
+.cuenta__enlace:focus-visible {
+  background: var(--bg);
+  color: var(--ink-900);
+  text-decoration: none;
+  padding-left: 15px;
+}
+
+.cuenta__enlace:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.cuenta__salida {
+  margin-top: 4px;
+  padding: 8px 6px 4px;
+  border-top: 1px solid var(--line);
+}
+
+.cuenta__salida .panel__salir {
+  width: 100%;
+  box-shadow: none;
 }
 
 .panel__salir {
@@ -1097,6 +1640,132 @@ a:focus-visible {
 .panel__salir:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+@keyframes miga-entra {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* ── Móvil: la barra es un cajón ──────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .app__main {
+    margin-left: 0;
+  }
+
+  .page {
+    padding: 22px 16px 44px;
+  }
+
+  .topbar {
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .topbar__menu {
+    display: grid;
+  }
+
+  .cuenta__datos,
+  .cuenta__chevron {
+    display: none;
+  }
+
+  .cuenta__disparador {
+    padding: 4px;
+  }
+
+  .sidebar {
+    width: min(86vw, 300px);
+    transform: translateX(-100%);
+    visibility: hidden;
+    /* `visibility` espera a que el cajón termine de salir: así el cierre no parpadea y,
+       cerrado, lo que hay adentro deja de estar en el orden de foco. */
+    transition:
+      transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      visibility 0s linear 0.3s;
+  }
+
+  .app[data-cajon="true"] .sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+    box-shadow: 0 0 60px rgb(0 0 0 / 45%);
+  }
+
+  .sidebar__cerrar {
+    display: grid;
+  }
+
+  .sidebar__velo {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    border: 0;
+    padding: 0;
+    background: rgb(14 14 26 / 55%);
+    backdrop-filter: blur(3px);
+    animation: velo-entra 0.25s ease;
+  }
+
+  .sidebar__colapsar {
+    display: none;
+  }
+}
+
+@keyframes velo-entra {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Quien pide menos movimiento no recibe ninguna de las animaciones de arriba: el estado final
+   es el mismo, sólo sin el trayecto. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar__brand,
+  .sidebar__logo,
+  .sidebar__pie,
+  .app__main,
+  .nav__group,
+  .nav__item,
+  .nav__item::after,
+  .nav__texto,
+  .nav__label,
+  .nav__icono,
+  .nav__chevron,
+  .nav__lista,
+  .nav__lista[data-abierto="true"] .nav__item,
+  .nav__pildora,
+  .nav__punto,
+  .nav__marco::before,
+  .nav__marco::after,
+  .sidebar__colapsar,
+  .sidebar__cerrar,
+  .sidebar__velo,
+  .topbar,
+  .topbar__migas,
+  .topbar__menu,
+  .cuenta__disparador,
+  .cuenta__avatar,
+  .cuenta__chevron,
+  .cuenta__panel,
+  .cuenta__enlace,
+  .nav__item:hover .nav__icono,
+  .nav__item:focus-visible .nav__icono {
+    animation: none;
+    transition: none;
+  }
+
+  .sidebar__brand:hover .sidebar__logo,
+  .nav__item:hover .nav__texto,
+  .nav__item:focus-visible .nav__texto {
+    transform: none;
+  }
 }
 
 /* ── Integration cards — PAN-CFG-INT, from PAN-ONB-03 ─────────────────────── */

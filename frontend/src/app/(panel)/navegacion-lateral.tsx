@@ -16,7 +16,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 type NombreDeIcono =
   | "inicio"
@@ -120,6 +120,16 @@ export function hrefActivo(ruta: string, hrefs: readonly string[]): string | nul
     }
   }
   return mejor;
+}
+
+/** El grupo y la etiqueta de la pantalla donde está la persona, para las migas del encabezado. */
+export function ubicacionDe(ruta: string): { grupo: string; etiqueta: string } | null {
+  const href = hrefActivo(ruta, HREFS);
+  for (const grupo of NAVEGACION) {
+    const entrada = grupo.entradas.find((candidata) => candidata.href === href);
+    if (entrada !== undefined) return { grupo: grupo.titulo, etiqueta: entrada.etiqueta };
+  }
+  return null;
 }
 
 const HREFS = NAVEGACION.flatMap((grupo) => grupo.entradas.map((entrada) => entrada.href));
@@ -305,15 +315,73 @@ function Chevron(): JSX.Element {
   );
 }
 
-export function NavegacionLateral(): JSX.Element {
+interface PropiedadesDeNavegacion {
+  /** Barra reducida a iconos: las etiquetas pasan a `title` y los grupos se muestran abiertos. */
+  readonly colapsada?: boolean;
+}
+
+export function NavegacionLateral({ colapsada = false }: PropiedadesDeNavegacion): JSX.Element {
   const activo = hrefActivo(usePathname() ?? "", HREFS);
   const nav = useRef<HTMLElement>(null);
+  const contenido = useRef<HTMLDivElement>(null);
+  const pildora = useRef<HTMLDivElement>(null);
 
   const grupoActivo = NAVEGACION.find((grupo) =>
     grupo.entradas.some((entrada) => entrada.href === activo),
   )?.titulo;
 
   const [cerrados, setCerrados] = useState<ReadonlySet<string>>(CERRADOS_AL_INICIO);
+  const [sombra, setSombra] = useState({ arriba: false, abajo: false });
+
+  // Un desvanecido arriba y abajo avisa que hay más entradas fuera de la vista.
+  const medir = useCallback((): void => {
+    const el = nav.current;
+    if (el === null) return;
+    const arriba = el.scrollTop > 4;
+    const abajo = el.scrollTop + el.clientHeight < el.scrollHeight - 4;
+    setSombra((actual) =>
+      actual.arriba === arriba && actual.abajo === abajo ? actual : { arriba, abajo },
+    );
+  }, []);
+
+  // La píldora de la entrada activa se desliza hasta ella: se mide su posición dentro del
+  // contenido y se la mueve con `transform`, que es lo único que se anima.
+  const ubicarPildora = useCallback((): void => {
+    const marca = pildora.current;
+    if (marca === null) return;
+    const entrada = nav.current?.querySelector<HTMLElement>(".nav__item--activo");
+    if (entrada === null || entrada === undefined || entrada.offsetHeight === 0) {
+      marca.dataset.visible = "false";
+      return;
+    }
+    // Con rectángulos y no con `offsetTop`: las entradas llevan una animación de entrada con
+    // `transform`, y Chrome toma entonces al grupo como referencia del `offsetTop`.
+    const base = contenido.current?.getBoundingClientRect();
+    if (base === undefined) return;
+    const arriba = entrada.getBoundingClientRect().top - base.top;
+    marca.style.height = `${entrada.offsetHeight}px`;
+    marca.style.width = `${entrada.offsetWidth}px`;
+    marca.style.transform = `translateY(${arriba}px)`;
+    marca.dataset.visible = "true";
+  }, []);
+
+  useEffect(() => {
+    medir();
+    window.addEventListener("resize", medir);
+    let observador: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      observador = new ResizeObserver(() => {
+        medir();
+        ubicarPildora();
+      });
+      if (nav.current !== null) observador.observe(nav.current);
+      if (contenido.current !== null) observador.observe(contenido.current);
+    }
+    return () => {
+      window.removeEventListener("resize", medir);
+      observador?.disconnect();
+    };
+  }, [medir, ubicarPildora]);
 
   // Llegar a una pantalla de un grupo cerrado lo abre: la entrada activa tiene que verse,
   // y una barra que marca algo que no se ve es peor que una que no marca nada.
@@ -336,6 +404,22 @@ export function NavegacionLateral(): JSX.Element {
       ?.scrollIntoView({ block: "nearest" });
   }, [activo, cerrados]);
 
+  // Un grupo que recién se abre mide cero hasta que termina de desplegarse: se repite la
+  // maniobra cuando acaba la animación, para que la entrada activa quede a la vista.
+  useEffect(() => {
+    const espera = window.setTimeout(() => {
+      nav.current
+        ?.querySelector<HTMLElement>(".nav__item--activo")
+        ?.scrollIntoView({ block: "nearest" });
+      ubicarPildora();
+    }, 360);
+    return () => window.clearTimeout(espera);
+  }, [activo, cerrados, ubicarPildora]);
+
+  useEffect(() => {
+    ubicarPildora();
+  }, [activo, cerrados, colapsada, ubicarPildora]);
+
   const alternar = (titulo: string): void => {
     setCerrados((actuales) => {
       const siguientes = new Set(actuales);
@@ -346,43 +430,65 @@ export function NavegacionLateral(): JSX.Element {
   };
 
   return (
-    <nav ref={nav} aria-label="Secciones" className="nav">
-      {NAVEGACION.map((grupo) => {
-        const abierto = !cerrados.has(grupo.titulo);
-        const idLista = `nav-grupo-${grupo.titulo}`;
-        return (
-          <div key={grupo.titulo} className="nav__group">
-            <button
-              type="button"
-              className="nav__label"
-              aria-expanded={abierto}
-              aria-controls={idLista}
-              onClick={() => alternar(grupo.titulo)}
-            >
-              <span>{grupo.titulo}</span>
-              <Chevron />
-            </button>
-            <div id={idLista} className="nav__lista" data-abierto={abierto}>
-              <div className="nav__lista-interior">
-                {grupo.entradas.map((entrada) => {
-                  const esActiva = entrada.href === activo;
-                  return (
-                    <Link
-                      key={entrada.href}
-                      className={esActiva ? "nav__item nav__item--activo" : "nav__item"}
-                      href={entrada.href}
-                      aria-current={esActiva ? "page" : undefined}
-                    >
-                      <Icono nombre={entrada.icono} />
-                      <span>{entrada.etiqueta}</span>
-                    </Link>
-                  );
-                })}
+    <div className="nav__marco" data-sombra-arriba={sombra.arriba} data-sombra-abajo={sombra.abajo}>
+      <nav ref={nav} aria-label="Secciones" className="nav" onScroll={medir}>
+        <div ref={contenido} className="nav__contenido">
+          <div ref={pildora} className="nav__pildora" aria-hidden="true" />
+          {NAVEGACION.map((grupo, indice) => {
+            const abierto = !cerrados.has(grupo.titulo);
+            const idLista = `nav-grupo-${grupo.titulo}`;
+            const contieneLaActiva = grupo.titulo === grupoActivo;
+            return (
+              <div
+                key={grupo.titulo}
+                className="nav__group"
+                style={{ "--i": indice } as CSSProperties}
+              >
+                <button
+                  type="button"
+                  className="nav__label"
+                  aria-expanded={abierto}
+                  aria-controls={idLista}
+                  data-contiene-activa={contieneLaActiva}
+                  onClick={() => alternar(grupo.titulo)}
+                >
+                  <span className="nav__titulo">
+                    {grupo.titulo}
+                    {contieneLaActiva && !abierto ? (
+                      <span
+                        className="nav__punto"
+                        role="img"
+                        aria-label="(contiene la pantalla actual)"
+                      />
+                    ) : null}
+                  </span>
+                  <Chevron />
+                </button>
+                <div id={idLista} className="nav__lista" data-abierto={abierto}>
+                  <div className="nav__lista-interior">
+                    {grupo.entradas.map((entrada, posicion) => {
+                      const esActiva = entrada.href === activo;
+                      return (
+                        <Link
+                          key={entrada.href}
+                          className={esActiva ? "nav__item nav__item--activo" : "nav__item"}
+                          href={entrada.href}
+                          title={colapsada ? entrada.etiqueta : undefined}
+                          style={{ "--k": posicion } as CSSProperties}
+                          aria-current={esActiva ? "page" : undefined}
+                        >
+                          <Icono nombre={entrada.icono} />
+                          <span className="nav__texto">{entrada.etiqueta}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        );
-      })}
-    </nav>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
   );
 }

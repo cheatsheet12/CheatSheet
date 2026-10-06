@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const ruta = vi.hoisted(() => ({ actual: "/" }));
 vi.mock("next/navigation", () => ({ usePathname: () => ruta.actual }));
 
-import { NAVEGACION, NavegacionLateral, hrefActivo } from "../navegacion-lateral";
+import { NAVEGACION, NavegacionLateral, hrefActivo, ubicacionDe } from "../navegacion-lateral";
 
 // jsdom no implementa `scrollIntoView`: se simula para poder comprobar que se pide.
 const desplazar = vi.fn();
@@ -145,5 +145,50 @@ describe("grupos plegables", () => {
 
     expect(boton("Operaciones").getAttribute("aria-expanded")).toBe("false");
     expect(boton("Análisis").getAttribute("aria-expanded")).toBe("true");
+  });
+});
+
+describe("indicador y pie de la barra", () => {
+  it("indica con un punto el grupo cerrado que contiene la pantalla actual", () => {
+    ruta.actual = "/configuracion/respuestas";
+    render(<NavegacionLateral />);
+
+    // El grupo se abre solo al llegar; si la persona lo cierra, el punto avisa que sigue ahí.
+    fireEvent.click(screen.getByRole("button", { name: "Sistema" }));
+    expect(screen.getByRole("img", { name: /contiene la pantalla actual/ })).toBeTruthy();
+  });
+
+  it("modo reducido: cada enlace lleva su etiqueta en title para el tooltip", () => {
+    ruta.actual = "/panel";
+    render(<NavegacionLateral colapsada />);
+
+    expect(screen.getByRole("link", { name: "Clientes" }).getAttribute("title")).toBe("Clientes");
+  });
+
+  it("modo normal: no duplica la etiqueta en title", () => {
+    ruta.actual = "/panel";
+    render(<NavegacionLateral />);
+
+    expect(screen.getByRole("link", { name: "Clientes" }).getAttribute("title")).toBeNull();
+  });
+
+  it("incluye la píldora que se desliza hasta la entrada activa, oculta a lectores", () => {
+    ruta.actual = "/panel";
+    const { container } = render(<NavegacionLateral />);
+
+    expect(container.querySelector(".nav__pildora")?.getAttribute("aria-hidden")).toBe("true");
+  });
+});
+
+describe("ubicacionDe", () => {
+  it("devuelve el grupo y la pantalla de una ruta profunda", () => {
+    expect(ubicacionDe("/datos-maestros/clientes/abc")).toEqual({
+      grupo: "Operaciones",
+      etiqueta: "Clientes",
+    });
+  });
+
+  it("devuelve null fuera del mapa", () => {
+    expect(ubicacionDe("/nada")).toBeNull();
   });
 });
