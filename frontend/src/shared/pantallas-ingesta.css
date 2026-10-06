@@ -2161,3 +2161,135 @@
 .ing-estado-carga + .ing-proc-stats {
   margin-top: 0;
 }
+
+/* «Cargas recientes»: las filas como progreso, los errores como cifra y el detalle como botón. */
+.ing-progreso {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 96px;
+}
+
+.ing-filas {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+/* La barra: lo procesado en verde y, si hubo errores, el resto del carril en un rojo tenue. El
+   porcentaje es un adorno; el dato está escrito arriba. */
+.ing-barra {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+
+.ing-barra--con-error {
+  background: var(--err-bg);
+}
+
+.ing-barra__relleno {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #14d39b, var(--accent));
+  transition: width 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: ing-barra-llena 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
+@keyframes ing-barra-llena {
+  from {
+    width: 0;
+  }
+}
+
+.ing-conteo {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--line-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-400);
+}
+
+.ing-conteo--error {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.ing-ver {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  text-decoration: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.ing-ver svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-400);
+  transition:
+    transform 0.2s ease,
+    color 0.16s ease;
+}
+
+.ing-ver:hover {
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+  color: var(--accent-700);
+  text-decoration: none;
+}
+
+.ing-ver:hover svg {
+  color: var(--accent-700);
+  transform: translateX(3px);
+}
+
+.ing-ver:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-barra__relleno {
+    animation: none;
+    transition: none;
+  }
+
+  .ing-ver,
+  .ing-ver svg {
+    transition: none;
+  }
+
+  .ing-ver:hover svg {
+    transform: none;
+  }
+}
+
+/* En pantallas angostas las tablas de ingesta conservan un ancho propio y se desplazan de costado
+   dentro de su caja. Apretarlas parte los nombres en tres renglones y deja las columnas
+   ilegibles. */
+@media (width <= 700px) {
+  .ing-tarjetas .tabla {
+    min-width: 640px;
+  }
+}

@@ -126,7 +126,9 @@ const COLUMNAS_DE_CARGA: readonly Columna<Carga>[] = [
             <b className="ing-carga__nombre">
               {carga.es_reproceso ? "Reproceso" : "Carga de planilla"}
             </b>
-            <span className="ing-carga__ref">{formatearFechaHora(carga.created_at)}</span>
+            <span className="ing-carga__ref">
+              {formatearFechaHora(carga.created_at).replace(", ", " · ")}
+            </span>
           </span>
         </span>
       );
@@ -136,14 +138,31 @@ const COLUMNAS_DE_CARGA: readonly Columna<Carga>[] = [
     clave: "filas",
     titulo: "Filas",
     // El criterio de HU-E3-03: «indicando la cantidad de filas validas y fallidas».
-    celda: (carga) => (
-      <span className="ing-filas">{`${carga.filas_ok} de ${carga.filas_totales}`}</span>
-    ),
+    celda: (carga) => {
+      // El porcentaje es sólo para la barra: el dato, para quien lee, es «98 de 100».
+      const porcentaje =
+        carga.filas_totales === 0 ? 0 : Math.round((carga.filas_ok / carga.filas_totales) * 100);
+      return (
+        <span className="ing-progreso">
+          <span className="ing-filas">{`${carga.filas_ok} de ${carga.filas_totales}`}</span>
+          <span
+            className={carga.filas_error > 0 ? "ing-barra ing-barra--con-error" : "ing-barra"}
+            aria-hidden="true"
+          >
+            <span className="ing-barra__relleno" style={{ width: `${porcentaje}%` }} />
+          </span>
+        </span>
+      );
+    },
   },
   {
     clave: "errores",
     titulo: "Con error",
-    celda: (carga) => <span className="ing-filas">{carga.filas_error}</span>,
+    celda: (carga) => (
+      <span className={carga.filas_error > 0 ? "ing-conteo ing-conteo--error" : "ing-conteo"}>
+        {carga.filas_error}
+      </span>
+    ),
   },
   {
     clave: "estado",
@@ -158,7 +177,12 @@ const COLUMNAS_DE_CARGA: readonly Columna<Carga>[] = [
     clave: "detalle",
     titulo: "Detalle",
     alDerecha: true,
-    celda: (carga) => <Link href={`/ingesta/${carga.id}`}>Ver detalle</Link>,
+    celda: (carga) => (
+      <Link className="ing-ver" href={`/ingesta/${carga.id}`}>
+        Ver detalle
+        <Icono nombre="flecha" />
+      </Link>
+    ),
   },
 ];
 
