@@ -206,7 +206,7 @@ Ningún test existente afirma hoy que el botón se rehabilita tras el éxito; lo
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-05 | Aprobado por Luciano: P1, P2, P3 y P4 según la recomendación |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-05 | Aprobado por Luciano: lint, typecheck, prettier y 965 tests en verde (88,02 %); revisión independiente sin bloqueantes. La prueba en Render (TODO §22.21-22.22) queda para después del merge y condiciona el cierre |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
