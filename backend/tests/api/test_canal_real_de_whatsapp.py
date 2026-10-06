@@ -28,6 +28,7 @@ from cheatsheet.contexts.conversational.infrastructure.canal import (
     MensajeriaWhatsApp,
     SinCanal,
 )
+from cheatsheet.contexts.integrations.infrastructure.cifrado import CredencialIlegible
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
 from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorWhatsApp
 from cheatsheet.contexts.scheduling.application.turnos import Avisador
@@ -128,6 +129,48 @@ async def test_en_produccion_sin_phone_number_id_devuelve_sin_canal(
 ) -> None:
     empresa = EmpresaId(uuid4())
     _con_integraciones(monkeypatch, {empresa: _Configuracion(b"fake-token-for-tests")})
+
+    canal = await armar_mensajeria(_unidad(), _meta(Entorno.PRODUCTION), empresa_id=empresa)
+
+    assert isinstance(canal, SinCanal)
+
+
+async def test_una_credencial_ilegible_en_produccion_cae_a_sin_canal_y_no_levanta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hallazgo de revisión: `descifrar` levantaba `CredencialIlegible` fuera de
+    `armar_mensajeria`; reservar, cancelar y reprogramar daban 500 y el barrido de cobros
+    abortaba la empresa entera. Ahora cae a `SinCanal` y quien llama registra `FALLIDO`."""
+    from structlog.testing import capture_logs
+
+    empresa = EmpresaId(uuid4())
+    _con_integraciones(
+        monkeypatch, {empresa: _Configuracion(b"x", {modulo.CLAVE_PHONE_NUMBER_ID: "111"})}
+    )
+
+    def _ilegible(_self: object, _credencial: bytes) -> bytes:
+        raise CredencialIlegible("La credencial no autentica: token-secreto-123")
+
+    monkeypatch.setattr(_Cifrado, "descifrar", _ilegible)
+
+    with capture_logs() as registros:
+        canal = await armar_mensajeria(_unidad(), _meta(Entorno.PRODUCTION), empresa_id=empresa)
+
+    assert isinstance(canal, SinCanal)
+    aviso = [r for r in registros if r["event"] == "whatsapp_credencial_ilegible"]
+    assert len(aviso) == 1
+    assert aviso[0]["empresa_id"] == str(empresa)
+    assert aviso[0]["causa"] == "CredencialIlegible"
+    assert "token-secreto-123" not in repr(registros)
+
+
+async def test_una_credencial_que_no_es_utf8_cae_a_sin_canal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    empresa = EmpresaId(uuid4())
+    _con_integraciones(
+        monkeypatch, {empresa: _Configuracion(b"\xff\xfe", {modulo.CLAVE_PHONE_NUMBER_ID: "111"})}
+    )
 
     canal = await armar_mensajeria(_unidad(), _meta(Entorno.PRODUCTION), empresa_id=empresa)
 

@@ -7,7 +7,9 @@ hacia adentro** a los adaptadores de los otros dos contextos, que lo reciben com
 local y nunca importan a `conversational`.
 
 El token y el `phone_number_id` salen de `integrations` en cada unidad de trabajo (ADR-0003):
-no se cachean, porque el token puede tener que refrescarse y refrescarlo persiste.
+no se cachean: la integración es la fuente de verdad y cada unidad la lee de nuevo. Acá **nada
+refresca el token**: uno vencido hace que Meta conteste con su código permanente 190, y el mensaje
+queda `FALLIDO` sin reintento.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from cheatsheet.contexts.conversational.infrastructure.canal import (
     SinCanal,
 )
 from cheatsheet.contexts.integrations.domain.valores import SistemaExterno
+from cheatsheet.contexts.integrations.infrastructure.cifrado import CredencialIlegible
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
 from cheatsheet.platform.settings import AdaptadorDeWhatsApp, Entorno, Settings
 from cheatsheet.platform.telemetry import obtener_logger
@@ -66,7 +69,18 @@ async def armar_mensajeria(
         logger.info("whatsapp_sin_conectar")
         return _sin_conectar(settings)
 
-    token = piezas.cifrado.descifrar(configuracion.credencial).decode("utf-8")
+    try:
+        token = piezas.cifrado.descifrar(configuracion.credencial).decode("utf-8")
+    except (CredencialIlegible, UnicodeDecodeError) as exc:
+        # Una credencial corrupta, o cifrada con otra clave, no puede voltear una reserva ni
+        # abortar el barrido de cobros de toda la empresa: cae a `SinCanal` (también fuera de
+        # producción: el simulado daría por enviado lo que no salió) y quien llama
+        # registra el mensaje `FALLIDO`. Sólo el id de la empresa y la clase del error: el
+        # texto de la excepción podría arrastrar material de la credencial.
+        logger.warning(
+            "whatsapp_credencial_ilegible", empresa_id=str(empresa_id), causa=type(exc).__name__
+        )
+        return SinCanal()
     phone_number_id = str(configuracion.parametros.get(CLAVE_PHONE_NUMBER_ID, ""))
     if not phone_number_id:
         logger.warning("whatsapp_sin_phone_number_id")
