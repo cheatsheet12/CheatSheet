@@ -16,7 +16,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type NombreDeIcono =
   | "inicio"
@@ -283,9 +283,49 @@ function Icono({ nombre }: { readonly nombre: NombreDeIcono }): JSX.Element {
   );
 }
 
+/** Los grupos que arrancan cerrados: los de uso ocasional, para que lo diario quepa sin scroll. */
+const CERRADOS_AL_INICIO: ReadonlySet<string> = new Set(["Sistema"]);
+
+function Chevron(): JSX.Element {
+  return (
+    <svg
+      className="nav__chevron"
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 export function NavegacionLateral(): JSX.Element {
   const activo = hrefActivo(usePathname() ?? "", HREFS);
   const nav = useRef<HTMLElement>(null);
+
+  const grupoActivo = NAVEGACION.find((grupo) =>
+    grupo.entradas.some((entrada) => entrada.href === activo),
+  )?.titulo;
+
+  const [cerrados, setCerrados] = useState<ReadonlySet<string>>(CERRADOS_AL_INICIO);
+
+  // Llegar a una pantalla de un grupo cerrado lo abre: la entrada activa tiene que verse,
+  // y una barra que marca algo que no se ve es peor que una que no marca nada.
+  useEffect(() => {
+    if (grupoActivo === undefined) return;
+    setCerrados((actuales) => {
+      if (!actuales.has(grupoActivo)) return actuales;
+      const siguientes = new Set(actuales);
+      siguientes.delete(grupoActivo);
+      return siguientes;
+    });
+  }, [grupoActivo]);
 
   // La barra tiene más entradas que alto: sin esto, quien llega a «Puntos de venta» o
   // «Soporte» ve una barra sin ninguna entrada marcada, porque la activa quedó debajo del
@@ -294,29 +334,55 @@ export function NavegacionLateral(): JSX.Element {
     nav.current
       ?.querySelector<HTMLElement>(".nav__item--activo")
       ?.scrollIntoView({ block: "nearest" });
-  }, [activo]);
+  }, [activo, cerrados]);
+
+  const alternar = (titulo: string): void => {
+    setCerrados((actuales) => {
+      const siguientes = new Set(actuales);
+      if (siguientes.has(titulo)) siguientes.delete(titulo);
+      else siguientes.add(titulo);
+      return siguientes;
+    });
+  };
 
   return (
     <nav ref={nav} aria-label="Secciones" className="nav">
-      {NAVEGACION.map((grupo) => (
-        <div key={grupo.titulo} className="nav__group">
-          <p className="nav__label">{grupo.titulo}</p>
-          {grupo.entradas.map((entrada) => {
-            const esActiva = entrada.href === activo;
-            return (
-              <Link
-                key={entrada.href}
-                className={esActiva ? "nav__item nav__item--activo" : "nav__item"}
-                href={entrada.href}
-                aria-current={esActiva ? "page" : undefined}
-              >
-                <Icono nombre={entrada.icono} />
-                <span>{entrada.etiqueta}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ))}
+      {NAVEGACION.map((grupo) => {
+        const abierto = !cerrados.has(grupo.titulo);
+        const idLista = `nav-grupo-${grupo.titulo}`;
+        return (
+          <div key={grupo.titulo} className="nav__group">
+            <button
+              type="button"
+              className="nav__label"
+              aria-expanded={abierto}
+              aria-controls={idLista}
+              onClick={() => alternar(grupo.titulo)}
+            >
+              <span>{grupo.titulo}</span>
+              <Chevron />
+            </button>
+            <div id={idLista} className="nav__lista" data-abierto={abierto}>
+              <div className="nav__lista-interior">
+                {grupo.entradas.map((entrada) => {
+                  const esActiva = entrada.href === activo;
+                  return (
+                    <Link
+                      key={entrada.href}
+                      className={esActiva ? "nav__item nav__item--activo" : "nav__item"}
+                      href={entrada.href}
+                      aria-current={esActiva ? "page" : undefined}
+                    >
+                      <Icono nombre={entrada.icono} />
+                      <span>{entrada.etiqueta}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </nav>
   );
 }
