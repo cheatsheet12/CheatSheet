@@ -456,7 +456,7 @@ class TestFAQ:
             json={"pregunta": "¿Cuánto sale un corte?", "respuesta": "Sale $8000."},
         )
         assert creada.status_code == 201, creada.text
-        assert creada.json()["usos"] == 0
+        assert creada.json()["usos_total"] == 0
 
         listado = await cliente_http.get("/faqs", headers=_auth(token))
         assert len(listado.json()["faqs"]) == 1
