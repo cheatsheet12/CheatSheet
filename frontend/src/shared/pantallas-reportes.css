@@ -96,15 +96,30 @@
 
 .rep-periodo {
   display: flex;
-  align-items: flex-end;
-  gap: var(--space-4);
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--space-3);
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   margin-bottom: var(--space-6);
+}
+
+.rep-periodo__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.rep-periodo__cuerpo {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
 }
 
 .rep-periodo__titulo {
@@ -115,19 +130,87 @@
   color: var(--ink-400);
   font-weight: 600;
   margin: 0;
-  align-self: center;
 }
 
-/* El rango que el backend efectivamente contestó, al otro extremo de la barra: los campos
- * dicen lo que se pidió y esto dice lo que se está viendo. */
+/* El rango que el backend efectivamente contestó, como chip: los campos dicen lo que se pidió
+ * y esto dice lo que se está viendo. */
 .rep-periodo__resumen {
-  margin: 0 0 0 auto;
-  align-self: center;
-  font-size: 13px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--ink-700);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.rep-periodo__flecha {
+  align-self: center;
+  color: var(--ink-300);
+  padding-top: 22px;
+}
+
+.rep-periodo .campo {
+  margin-bottom: 0;
+}
+
+.rep-periodo__atajos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.rep-atajo {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  min-height: 32px;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.rep-atajo:hover {
+  border-color: var(--accent);
+  color: var(--ink-900);
+}
+
+.rep-atajo:active {
+  transform: scale(0.97);
+}
+
+.rep-atajo:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rep-atajo--activo,
+.rep-atajo--activo:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rep-atajo {
+    transition: none;
+  }
+
+  .rep-atajo:active {
+    transform: none;
+  }
 }
 
 /* Los filtros de fecha y de tipo. `.rep-filtros` es anterior a esta unidad y lo usa también
@@ -1674,12 +1757,6 @@ main:has(> * > .rep-publico) > * {
     grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   }
 
-  /* La barra de período deja de tener dos extremos y pasa a ser una lista que se envuelve:
-     el resumen empujado a la derecha en una fila de una sola columna queda flotando solo. */
-  .rep-periodo__resumen {
-    margin-left: 0;
-  }
-
   .rep-graficos,
   .rep-cfg,
   .rep-generador {
@@ -1714,5 +1791,12 @@ main:has(> * > .rep-publico) > * {
   .rep-panel__pie div:nth-child(2),
   .rep-panel__pie div:last-child {
     text-align: left;
+  }
+}
+
+/* En celular los dos campos se apilan: la flecha entre ellos ya no señala nada. */
+@media (max-width: 640px) {
+  .rep-periodo__flecha {
+    display: none;
   }
 }
