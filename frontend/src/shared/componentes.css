@@ -2360,8 +2360,8 @@ select.campo__control:focus {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2300805c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
 }
 
-/* ── Casilla ─────────────────────────────────────────────────────────────────────────── */
-.campo--casilla input[type="checkbox"] {
+/* ── Casilla (todas, dentro o fuera de `Casilla`) ─────────────────────────────────────────────────────────────────────────── */
+input[type="checkbox"] {
   appearance: none;
   display: grid;
   place-items: center;
@@ -2378,11 +2378,11 @@ select.campo__control:focus {
     transform 0.12s ease;
 }
 
-.campo--casilla input[type="checkbox"]:hover:not(:disabled) {
+input[type="checkbox"]:hover:not(:disabled) {
   border-color: var(--accent);
 }
 
-.campo--casilla input[type="checkbox"]:checked {
+input[type="checkbox"]:checked {
   background-color: var(--accent);
   border-color: var(--accent);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e1e2e' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>");
@@ -2391,21 +2391,22 @@ select.campo__control:focus {
   background-repeat: no-repeat;
 }
 
-.campo--casilla input[type="checkbox"]:active:not(:disabled) {
+input[type="checkbox"]:active:not(:disabled) {
   transform: scale(0.88);
 }
 
-.campo--casilla input[type="checkbox"]:focus-visible {
+input[type="checkbox"]:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.campo--casilla input[type="checkbox"]:disabled {
+input[type="checkbox"]:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-.campo--casilla label {
+.campo--casilla label,
+input[type="checkbox"] + label {
   cursor: pointer;
   user-select: none;
 }
@@ -2486,7 +2487,7 @@ select.campo__control:focus {
 @media (prefers-reduced-motion: reduce) {
   .boton,
   .campo__control,
-  .campo--casilla input[type="checkbox"],
+  input[type="checkbox"],
   .modal__cerrar {
     transition: none;
   }
@@ -2500,5 +2501,130 @@ select.campo__control:focus {
   .modal[open],
   .modal[open]::backdrop {
     animation: none;
+  }
+}
+
+/* ── La lista del select ─────────────────────────────────────────────────────────────────
+ *
+ * El desplegable de un `<select>` lo dibuja el navegador y, con CSS común, no se puede tocar:
+ * es el recuadro azul y gris del sistema, distinto en cada plataforma. Chrome y Edge permiten
+ * personalizarlo con `appearance: base-select` y el seudoelemento `::picker(select)`.
+ *
+ * **Sigue siendo el `<select>` nativo**: el teclado (flechas, escribir para saltar, Esc), el
+ * selector del celular, los lectores de pantalla y los formularios funcionan igual. Lo que
+ * cambia es cómo se ve la lista. Donde el navegador no lo soporta (Firefox, Safari) el bloque
+ * entero se ignora y queda el select nativo de siempre, con la flecha propia de arriba. */
+@supports (appearance: base-select) {
+  select.campo__control,
+  select.campo__control::picker(select) {
+    appearance: base-select;
+  }
+
+  /* La flecha la dibuja ahora el propio select: la imagen de fondo de arriba sobraría. */
+  select.campo__control {
+    background-image: none;
+    padding-right: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  select.campo__control:focus {
+    background-image: none;
+  }
+
+  select.campo__control::picker-icon {
+    content: "";
+    width: 16px;
+    height: 16px;
+    flex: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a8a9c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: center;
+    transition: transform 0.2s ease;
+  }
+
+  select.campo__control:open::picker-icon {
+    transform: rotate(180deg);
+  }
+
+  /* El panel: una tarjeta flotante, con aire alrededor de las opciones y una entrada suave. */
+  select.campo__control::picker(select) {
+    margin-top: 6px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--card);
+    box-shadow:
+      0 2px 6px rgb(30 30 46 / 6%),
+      0 16px 40px rgb(30 30 46 / 16%);
+    max-height: 320px;
+    transition:
+      opacity 0.16s ease,
+      transform 0.16s ease,
+      display 0.16s allow-discrete,
+      overlay 0.16s allow-discrete;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @starting-style {
+    select.campo__control::picker(select) {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+
+  select.campo__control option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 9px;
+    font-size: 13.5px;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition:
+      background-color 0.12s ease,
+      color 0.12s ease;
+  }
+
+  select.campo__control option:hover,
+  select.campo__control option:focus-visible {
+    background: var(--bg-soft);
+    color: var(--ink-900);
+    outline: none;
+  }
+
+  /* La opción elegida: verde suave y su tilde, en lugar del azul del sistema. */
+  select.campo__control option:checked {
+    background: var(--accent-050);
+    color: var(--accent-700);
+    font-weight: 600;
+  }
+
+  select.campo__control option::checkmark {
+    order: 1;
+    margin-left: auto;
+    content: "";
+    width: 15px;
+    height: 15px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300805c' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>");
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+
+  select.campo__control option:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    select.campo__control::picker(select),
+    select.campo__control::picker-icon,
+    select.campo__control option {
+      transition: none;
+    }
   }
 }
