@@ -343,7 +343,7 @@ sobre esta unidad —`agente.py` sin margen— está resuelto en la «Revalidaci
 |---|---|---|
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las tres preguntas. **Cierra el 2026-10-05**: Luciano aceptó el ADR-0012 (#80, commit `292f3f6`) |
 | 2 · Verificación | 2026-10-06 | Aprobado por Luciano. Local: ruff, mypy y pytest (2204 aprobados, 506 salteados por PostgreSQL y Redis); frontend: lint, typecheck, 990 tests. Revisión independiente sin bloqueantes. Los casos de PostgreSQL se confirman en la CI del PR |
-| 3 · PR | | |
+| 3 · PR | 2026-10-06 | #99 mergeado (`b22c875`) con la CI en verde. Pendiente: prueba en Render (`TODO.md` §22.24) |
 
 ## Decisiones tomadas durante la unidad
 
