@@ -1,8 +1,8 @@
 # ADR-0011 — Share the outbound WhatsApp channel through the composition root
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-10-05, by the owner of the conversational module)
 - **Date:** 2026-10-04
-- **Decided by:** Product owners and the development team (pending approval)
+- **Decided by:** Luciano Oro, owner of Canal Conversacional and Configuración del Negocio (plantillas) in the Etapa 6 split
 - **Modules affected:** conversational, payments, scheduling, business_config
 
 ---
@@ -82,7 +82,11 @@ The detail needed to implement it without asking again:
    per-account callback override for the `message_template_status_update` field, so they arrive
    at the app-level webhook URL and are routed to the company by its WhatsApp Business Account id
    (a lookup published by `integrations`), with a periodic reconciliation against Meta as the
-   safety net. Either way, routing a status to a payments reminder or to a template is a call
+   safety net. The claim that Meta offers no per-account override for this field was not
+   re-verified when this ADR was accepted: Gate 1 of `entregas-de-whatsapp` checks it against
+   Meta's current documentation. If an override exists, only the mechanism changes (the status
+   still reaches the context through the composition root); the decision does not.
+   Either way, routing a status to a payments reminder or to a template is a call
    from the composition root to that context's `application/`, not from `conversational` to
    another context.
 6. **Notices the company sends are recorded in the customer's conversation.** An appointment
@@ -111,7 +115,7 @@ The detail needed to implement it without asking again:
 | **A. Each context keeps its own Meta HTTP client** | No cross-context runtime dependency at all | Three copies of the same ACL: timeouts, retries, 4xx handling and the template contract drift apart. Contradicts ADR-008 (one ACL per provider) |
 | **B. Move the outbound client to `integrations` (OHS, any downstream)** | The OHS row already allows every context; no new edge | `integrations` publishes *credentials and connection status* (ADR-0003 §Decision); sending customer messages is a new responsibility that would make the Generic credential service a messaging hub and would itself need to supersede ADR-0003. It also moves working, tested code out of the context that owns the conversation |
 | **C. `payments` / `scheduling` import `conversational/application.PortMensajeria`** | Explicit typed edge, enforceable by the hook | Same Context Map change, plus a compile-time coupling to another context's port, which changes whenever the agent's needs change. The structural protocol in the consumer gives the same safety without the import |
-| **D. Emit domain events (`RecordatorioSolicitado`, `TurnoCancelado`) and let `conversational` send** | Fully decoupled, natural fit for the "sync integrations" worker | Requires an outbox or a broker contract plus a way to report the delivery state back to `payments` (HS-T3 RN-04). Requires an outbox and a way to report the delivery state back to the sender; reconsider if the in-request sending becomes a latency problem |
+| **D. Emit domain events (`RecordatorioSolicitado`, `TurnoCancelado`) and let `conversational` send** | Fully decoupled, natural fit for the "sync integrations" worker | Requires an outbox or a broker contract plus a way to report the delivery state back to the sender (`payments`, HS-T3 RN-04). Reconsider if the in-request sending becomes a latency problem |
 | **E. Templates are registered by hand in WhatsApp Manager, and an administrator marks them approved in the panel** | No Business Management API calls | The same text lives in two places and drifts at the first edit; an approval typed by a person is an invented provider answer, and a template Meta rejected would be sent anyway. HU-E11-02 places template administration in PAN-CFG-NOT, with the approval status reflected there |
 
 ## Consequences
