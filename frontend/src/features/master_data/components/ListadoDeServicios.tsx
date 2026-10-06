@@ -13,15 +13,15 @@
  * **El encabezado lo dibuja este componente**, como en PAN-DM-01 y por la misma razón: el
  * CTA depende del rol y abre el formulario, así que vive donde está el estado.
  *
- * **Las acciones de fila son texto.** La caja aparece en hover; el rojo del borde en cada
- * renglón era una advertencia repetida diez veces, que es una advertencia que ya no avisa.
+ * **Editar y Desactivar van en el menú ⋯** (`MenuDeAcciones`), como en Clientes: el rojo en cada
+ * renglón era una advertencia repetida diez veces; la advertencia la da la confirmación.
  */
 
 "use client";
 
 import { useEffect, useState } from "react";
 
-import { Badge, Button, Campo, Modal, Select, Tabla, formatearNumero } from "@/shared";
+import { Badge, Modal, Tabla, formatearNumero } from "@/shared";
 import type { Columna } from "@/shared";
 
 import {
@@ -36,14 +36,11 @@ import type { DatosDeServicio, ListadoDeServicios as Listado, Servicio } from ".
 import { categoriasDeServicio, clasificarServicio, listarCategorias } from "../api/categoria";
 import type { Categoria } from "../api/categoria";
 import { FormularioDeServicio } from "./FormularioDeServicio";
-import { IconoDeMas } from "./iconos";
+import { AccionesDeServicio, DuracionDeServicio } from "./FilaDeServicio";
+import { HerramientasDeServicios } from "./HerramientasDeServicios";
+import { IconoDeMas, IconoDeServicio } from "./iconos";
+import { AzulejoDeIcono, VacioDeMaestros } from "./PiezasDeMaestros";
 import { SelectorDeCategorias } from "./SelectorDeCategorias";
-
-const AGENDABLE: readonly { valor: string; etiqueta: string }[] = [
-  { valor: "", etiqueta: "Agendables y no agendables" },
-  { valor: "true", etiqueta: "Solo agendables" },
-  { valor: "false", etiqueta: "Solo no agendables" },
-];
 
 export interface PropsDeListadoDeServicios {
   readonly inicial: Listado;
@@ -149,11 +146,34 @@ export function ListadoDeServicios({
     await recargar();
   }
 
+  /** Vuelve al catálogo entero: los cuatro filtros a su valor de origen, y una sola recarga. */
+  function limpiarFiltros(): void {
+    setTexto("");
+    setAgendable("");
+    setCategoria("");
+    setSoloActivos(false);
+    void recargar({ texto: "", agendable: "", categoriaId: "", soloActivos: false });
+  }
+
+  const hayFiltros = texto !== "" || agendable !== "" || categoria !== "" || soloActivos;
+
   const columnas: readonly Columna<Servicio>[] = [
     {
       clave: "nombre",
       titulo: "Nombre",
-      celda: (fila) => <span className="mae-nombre">{fila.nombre}</span>,
+      celda: (fila) => (
+        <span className="mae-persona">
+          <AzulejoDeIcono nombre={fila.nombre}>
+            <IconoDeServicio />
+          </AzulejoDeIcono>
+          <span className="mae-persona__datos">
+            <span className="mae-nombre">{fila.nombre}</span>
+            <span className="mae-persona__sub">
+              {fila.agendable ? "Se reserva por agenda" : "Sin agenda"}
+            </span>
+          </span>
+        </span>
+      ),
     },
     {
       clave: "precio",
@@ -166,17 +186,16 @@ export function ListadoDeServicios({
     {
       clave: "iva",
       titulo: "IVA",
-      celda: (fila) => <span className="mae-dato">{ETIQUETAS_DE_ALICUOTA[fila.alicuota_iva]}</span>,
+      celda: (fila) => (
+        <span className="mae-etiqueta mae-etiqueta--iva">
+          {ETIQUETAS_DE_ALICUOTA[fila.alicuota_iva]}
+        </span>
+      ),
     },
     {
       clave: "duracion",
       titulo: "Duración",
-      celda: (fila) =>
-        fila.duracion_estandar_min === null ? (
-          <span className="mae-dato mae-dato--tenue">—</span>
-        ) : (
-          <span className="mae-mono">{`${fila.duracion_estandar_min} min`}</span>
-        ),
+      celda: (fila) => <DuracionDeServicio minutos={fila.duracion_estandar_min} />,
     },
     {
       clave: "estado",
@@ -193,18 +212,11 @@ export function ListadoDeServicios({
       alDerecha: true,
       celda: (fila) =>
         puedeEditar ? (
-          <span className="tabla__acciones">
-            <button type="button" className="mae-accion" onClick={() => void abrirEdicion(fila)}>
-              Editar
-            </button>
-            <button
-              type="button"
-              className={`mae-accion${fila.activo ? " mae-accion--baja" : ""}`}
-              onClick={() => void alternarEstado(fila)}
-            >
-              {fila.activo ? "Desactivar" : "Reactivar"}
-            </button>
-          </span>
+          <AccionesDeServicio
+            servicio={fila}
+            onEditar={(servicio) => void abrirEdicion(servicio)}
+            onAlternarEstado={(servicio) => void alternarEstado(servicio)}
+          />
         ) : null,
     },
   ];
@@ -222,78 +234,68 @@ export function ListadoDeServicios({
         </div>
         {puedeEditar && (
           <div className="mae-encabezado__acciones">
-            <Button onClick={() => setEdicion({ servicio: undefined })}>
+            <button
+              type="button"
+              className="mae-cta"
+              onClick={() => setEdicion({ servicio: undefined })}
+            >
               <span className="mae-cta__icono" aria-hidden="true">
                 <IconoDeMas />
               </span>
               Nuevo servicio
-            </Button>
+            </button>
           </div>
         )}
       </header>
 
-      <div className="mae-filtros">
-        <Campo
-          id="dm-buscador-servicios"
-          etiqueta="Buscar"
-          value={texto}
-          onChange={(evento) => {
-            setTexto(evento.target.value);
-            void recargar({ texto: evento.target.value });
-          }}
-          placeholder="Nombre del servicio"
-        />
-        <Select
-          id="dm-agendable"
-          etiqueta="Agendables"
-          opciones={AGENDABLE}
-          value={agendable}
-          onChange={(evento) => {
-            setAgendable(evento.target.value);
-            void recargar({ agendable: evento.target.value });
-          }}
-        />
-        <Select
-          id="dm-categoria-servicios"
-          etiqueta="Categoría"
-          opciones={[
-            { valor: "", etiqueta: "Todas las categorías" },
-            ...categoriasDisponibles.map((c) => ({ valor: c.id, etiqueta: c.nombre })),
-          ]}
-          value={categoria}
-          onChange={(evento) => {
-            setCategoria(evento.target.value);
-            void recargar({ categoriaId: evento.target.value });
-          }}
-        />
-        <label className="mae-casilla" htmlFor="dm-servicios-activos">
-          <input
-            id="dm-servicios-activos"
-            type="checkbox"
-            checked={soloActivos}
-            onChange={(evento) => {
-              setSoloActivos(evento.target.checked);
-              void recargar({ soloActivos: evento.target.checked });
-            }}
+      <HerramientasDeServicios
+        texto={texto}
+        agendable={agendable}
+        categoria={categoria}
+        soloActivos={soloActivos}
+        categorias={categoriasDisponibles}
+        total={listado.total}
+        onTexto={(valor) => {
+          setTexto(valor);
+          void recargar({ texto: valor });
+        }}
+        onAgendable={(valor) => {
+          setAgendable(valor);
+          void recargar({ agendable: valor });
+        }}
+        onCategoria={(valor) => {
+          setCategoria(valor);
+          void recargar({ categoriaId: valor });
+        }}
+        onSoloActivos={(valor) => {
+          setSoloActivos(valor);
+          void recargar({ soloActivos: valor });
+        }}
+      />
+
+      {/* Las filas entran escalonadas con las reglas de `mae-panel--clientes`: es la misma tabla. */}
+      <div className="mae-panel mae-panel--clientes mae-panel--servicios">
+        {listado.servicios.length === 0 ? (
+          <VacioDeMaestros
+            icono={<IconoDeServicio />}
+            hayFiltros={hayFiltros}
+            puedeEditar={puedeEditar}
+            titulo="Todavía no hay servicios en el catálogo."
+            texto="Creá el primero y quedará disponible para facturar y agendar."
+            tituloFiltrado="Ningún servicio coincide"
+            etiquetaDeNuevo="Nuevo servicio"
+            onNuevo={() => setEdicion({ servicio: undefined })}
+            onLimpiar={limpiarFiltros}
           />
-          Solo activos
-        </label>
-      </div>
-
-      <div className="mae-barra">
-        <p className="mae-barra__cuenta">
-          <b>{listado.total}</b> {listado.total === 1 ? "servicio" : "servicios"} en el catálogo
-        </p>
-      </div>
-
-      <div className="mae-panel">
-        <Tabla
-          titulo={`${listado.total} servicio${listado.total === 1 ? "" : "s"}`}
-          columnas={columnas}
-          filas={listado.servicios}
-          claveDeFila={(fila) => fila.id}
-          vacia="Todavía no hay servicios en el catálogo."
-        />
+        ) : (
+          <Tabla
+            titulo="Listado de servicios"
+            columnas={columnas}
+            filas={listado.servicios}
+            claveDeFila={(fila) => fila.id}
+            vacia="Todavía no hay servicios en el catálogo."
+          />
+        )}
       </div>
 
       <Modal

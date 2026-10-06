@@ -7,8 +7,8 @@
 
 import { notFound, redirect } from "next/navigation";
 
-import { HiloDeConversacion } from "@/features/conversational";
-import type { DetalleDeConversacion } from "@/features/conversational";
+import { BandejaDeConversaciones, HiloDeConversacion } from "@/features/conversational";
+import type { DetalleDeConversacion, ListadoDeConversaciones } from "@/features/conversational";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
 
@@ -32,13 +32,34 @@ export default async function PaginaDeConversacion({ params }: Props): Promise<J
     notFound();
   }
 
+  const puedeAtender = claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR";
+  const listado = await llamarApi<ListadoDeConversaciones>("/conversaciones");
+
+  // La bandeja queda a la izquierda con este hilo resaltado: elegir otro es un clic y no un
+  // viaje de ida y vuelta. El listado viene completo porque el hilo abierto puede no estar
+  // escalado, y un renglón resaltado que no está en la lista se lee como un error.
   return (
     <>
-      <h1>Conversación</h1>
-      <HiloDeConversacion
-        inicial={hilo}
-        puedeAtender={claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR"}
-      />
+      {/* El mismo encabezado que la bandeja, para que abrir un hilo no mueva la pantalla. En el
+          celular se oculta: ahí el hilo ocupa todo el alto y lleva su propio «Volver». */}
+      <header className="wa-encabezado cv-encabezado cv-encabezado--hilo">
+        <div>
+          <p className="wa-encabezado__eyebrow">Agente WhatsApp · Conversaciones</p>
+          <h1 className="wa-encabezado__titulo">Conversación</h1>
+          <p className="wa-encabezado__intro">
+            Los hilos que el agente derivó a una persona. Tomar una conversación hace que el agente
+            deje de responderla hasta que la cierres.
+          </p>
+        </div>
+      </header>
+      <BandejaDeConversaciones
+        inicial={listado}
+        puedeAtender={puedeAtender}
+        seleccionadaId={hilo.id}
+        soloEscaladasInicial={false}
+      >
+        <HiloDeConversacion key={hilo.id} inicial={hilo} puedeAtender={puedeAtender} />
+      </BandejaDeConversaciones>
     </>
   );
 }

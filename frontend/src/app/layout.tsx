@@ -17,6 +17,7 @@ import type { ReactNode } from "react";
 
 import "@/shared/tokens.css";
 import "@/shared/componentes.css";
+import "@/shared/controles-de-fecha.css";
 // Las cuatro pantallas de auditoría, notificaciones y soporte traen su propia hoja: lo que
 // sólo usa un puñado de pantallas no engorda el catálogo compartido.
 import "@/shared/pantallas-auditoria.css";

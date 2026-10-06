@@ -29,6 +29,7 @@ import {
   Badge,
   Button,
   Campo,
+  Desplegable,
   Modal,
   formatearFecha,
   formatearFechaHora,
@@ -265,16 +266,22 @@ export function DetalleDeCobro({
 
         <section className="cob-tarjeta">
           <h2 className="cob-cabecera__titulo">Recordatorios</h2>
-          <p className="cob-rotulo">Cadena automática</p>
-          {cobro.recordatorios.length === 0 ? (
-            <p className="cob-vacio">Todavía no se envió ningún recordatorio para este cobro.</p>
-          ) : (
-            <ol className="cob-timeline">
-              {cobro.recordatorios.map((recordatorio) => (
-                <Hito key={recordatorio.id} recordatorio={recordatorio} />
-              ))}
-            </ol>
-          )}
+          <Desplegable
+            titulo="Cadena automática"
+            variante="simple"
+            abiertoAlInicio
+            resumen={cobro.recordatorios.length === 0 ? undefined : cobro.recordatorios.length}
+          >
+            {cobro.recordatorios.length === 0 ? (
+              <p className="cob-vacio">Todavía no se envió ningún recordatorio para este cobro.</p>
+            ) : (
+              <ol className="cob-timeline">
+                {cobro.recordatorios.map((recordatorio) => (
+                  <Hito key={recordatorio.id} recordatorio={recordatorio} />
+                ))}
+              </ol>
+            )}
+          </Desplegable>
 
           {(puedeGestionar || puedeReembolsar) && (
             <div className="cob-acciones">

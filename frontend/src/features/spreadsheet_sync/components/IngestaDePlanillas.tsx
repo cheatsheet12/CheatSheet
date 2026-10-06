@@ -1,9 +1,8 @@
 /**
  * PAN-ING-01 — Ingesta de Datos · Carga (HU-E2-04, HU-E3-03).
  *
- * La forma es la del prototipo (`docs/aidlc/inputs/prototipos/ingesta.html`): una zona de
- * carga grande con las dos maneras de traer datos —subir un archivo o vincular una hoja— y,
- * debajo, la banda que anuncia qué campos reconoce el modelo y las tablas de lo ya vinculado.
+ * De arriba abajo: una franja con cuatro cifras, la zona principal en dos columnas (traer una
+ * planilla, y «Cómo funciona»), las planillas vinculadas como tarjetas y las cargas recientes.
  *
  * **Las dos formas de traer datos van juntas y no en pestañas.** Son dos respuestas a la misma
  * pregunta y una empresa elige una sola vez; esconder una detrás de una pestaña obliga a
@@ -38,10 +37,7 @@ import type { Columna, EstadoDeBadge } from "@/shared";
 import Link from "next/link";
 
 import {
-  ATRIBUTOS_DE_CLIENTE,
-  ETIQUETAS_DE_ATRIBUTO,
   ETIQUETAS_DE_ESTADO,
-  ETIQUETAS_DE_PROVEEDOR,
   EXTENSIONES_ACEPTADAS,
   ErrorDePlanilla,
   LIMITE_TAMANO_MB,
@@ -56,6 +52,9 @@ import {
 import type { Carga, EstadoProcesamiento, ListadoDeVinculos, Vinculo } from "../api/planilla";
 import { Icono } from "./iconos";
 import type { NombreDeIcono } from "./iconos";
+import { ResumenDeIngesta, cifrasDeIngesta } from "./ResumenDeIngesta";
+import { SeccionPlegable } from "./SeccionPlegable";
+import { TarjetaDePlanilla } from "./TarjetaDePlanilla";
 
 export interface PropsDeIngesta {
   readonly inicial: ListadoDeVinculos;
@@ -63,26 +62,6 @@ export interface PropsDeIngesta {
   readonly cargasIniciales: readonly Carga[];
   readonly puedeEditar: boolean;
 }
-
-/** What a link's state is called on screen, and how the badge is toned. */
-function estadoDe(vinculo: Vinculo): { readonly texto: string; readonly tono: EstadoDeBadge } {
-  if (vinculo.pausado) {
-    return { texto: "Pausada", tono: "atencion" };
-  }
-  if (!vinculo.tiene_mapeo) {
-    return { texto: "Falta mapear", tono: "atencion" };
-  }
-  return { texto: "Vinculada", tono: "ok" };
-}
-
-function tamanoLegible(bytes: number | null): string {
-  if (bytes === null) {
-    return "—";
-  }
-  const mb = bytes / (1024 * 1024);
-  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
 /**
  * Cómo se ve cada estado de un procesamiento.
  *
@@ -126,7 +105,9 @@ const COLUMNAS_DE_CARGA: readonly Columna<Carga>[] = [
             <b className="ing-carga__nombre">
               {carga.es_reproceso ? "Reproceso" : "Carga de planilla"}
             </b>
-            <span className="ing-carga__ref">{formatearFechaHora(carga.created_at)}</span>
+            <span className="ing-carga__ref">
+              {formatearFechaHora(carga.created_at).replace(", ", " · ")}
+            </span>
           </span>
         </span>
       );
@@ -136,14 +117,31 @@ const COLUMNAS_DE_CARGA: readonly Columna<Carga>[] = [
     clave: "filas",
     titulo: "Filas",
     // El criterio de HU-E3-03: «indicando la cantidad de filas validas y fallidas».
-    celda: (carga) => (
-      <span className="ing-filas">{`${carga.filas_ok} de ${carga.filas_totales}`}</span>
-    ),
+    celda: (carga) => {
+      // El porcentaje es sólo para la barra: el dato, para quien lee, es «98 de 100».
+      const porcentaje =
+        carga.filas_totales === 0 ? 0 : Math.round((carga.filas_ok / carga.filas_totales) * 100);
+      return (
+        <span className="ing-progreso">
+          <span className="ing-filas">{`${carga.filas_ok} de ${carga.filas_totales}`}</span>
+          <span
+            className={carga.filas_error > 0 ? "ing-barra ing-barra--con-error" : "ing-barra"}
+            aria-hidden="true"
+          >
+            <span className="ing-barra__relleno" style={{ width: `${porcentaje}%` }} />
+          </span>
+        </span>
+      );
+    },
   },
   {
     clave: "errores",
     titulo: "Con error",
-    celda: (carga) => <span className="ing-filas">{carga.filas_error}</span>,
+    celda: (carga) => (
+      <span className={carga.filas_error > 0 ? "ing-conteo ing-conteo--error" : "ing-conteo"}>
+        {carga.filas_error}
+      </span>
+    ),
   },
   {
     clave: "estado",
@@ -158,7 +156,12 @@ const COLUMNAS_DE_CARGA: readonly Columna<Carga>[] = [
     clave: "detalle",
     titulo: "Detalle",
     alDerecha: true,
-    celda: (carga) => <Link href={`/ingesta/${carga.id}`}>Ver detalle</Link>,
+    celda: (carga) => (
+      <Link className="ing-ver" href={`/ingesta/${carga.id}`}>
+        Ver detalle
+        <Icono nombre="flecha" />
+      </Link>
+    ),
   },
 ];
 
@@ -264,181 +267,102 @@ export function IngestaDePlanillas({
     try {
       await desvincularPlanilla(vinculo.id);
       await refrescar();
-      setAviso("Se desvinculo la planilla. Los datos que ya se importaron siguen en el sistema.");
+      setAviso("Se desvinculó la planilla. Los datos que ya se importaron siguen en el sistema.");
     } catch (problema) {
       reportar(problema);
     }
   }
 
-  const columnasBase: readonly Columna<Vinculo>[] = [
-    {
-      clave: "origen",
-      titulo: "Origen",
-      celda: (vinculo) => (
-        <span className="ing-carga">
-          <span className="ing-carga__ico">
-            <Icono nombre={vinculo.proveedor === "ARCHIVO" ? "documento" : "planilla"} />
-          </span>
-          <span>
-            <b className="ing-carga__nombre">
-              {vinculo.nombre_archivo ?? vinculo.identificador_externo ?? vinculo.hoja_empresa}
-            </b>
-            <span className="ing-carga__ref">{ETIQUETAS_DE_PROVEEDOR[vinculo.proveedor]}</span>
-          </span>
-        </span>
-      ),
-    },
-    { clave: "tamano", titulo: "Tamano", celda: (v) => tamanoLegible(v.tamano_bytes) },
-    {
-      clave: "estado",
-      titulo: "Estado",
-      celda: (vinculo) => {
-        const { texto, tono } = estadoDe(vinculo);
-        return <Badge estado={tono}>{texto}</Badge>;
-      },
-    },
-    {
-      clave: "escritura",
-      titulo: "Escritura",
-      // HU-E3-07's fourth criterion: a link that cannot be written back to says so,
-      // rather than offering an option that would silently do nothing.
-      celda: (vinculo) => (vinculo.escribe_de_vuelta ? "Lectura y escritura" : "Solo lectura"),
-    },
-  ];
-
-  const columnaDeAcciones: Columna<Vinculo> = {
-    clave: "acciones",
-    titulo: "Acciones",
-    alDerecha: true,
-    celda: (vinculo) => (
-      <>
-        {/* El estado «Falta mapear» tiene que llevar a algún lado: sin este enlace la fila
-            sólo ofrecía desvincular, que es lo contrario de lo que quiere alguien que acaba
-            de subir el archivo.
-
-            Se ofrece **siempre**, y no sólo cuando falta el mapeo, porque `tiene_mapeo` dice
-            que hay uno, no que esté confirmado. Un mapeo propuesto y sin confirmar no se
-            puede procesar —el caso de uso lo rechaza— y esconder el enlace justo ahí dejaría
-            la fila sin ninguna salida hacia adelante. */}
-        {vinculo.nombre_archivo !== null && (
-          <Link className="ing-accion" href={`/ingesta/mapeo/${vinculo.id}`}>
-            Revisar mapeo
-          </Link>
-        )}
-        {vinculo.tiene_mapeo && (
-          <Button
-            variante="secundario"
-            onClick={() => {
-              void procesar(vinculo);
-            }}
-          >
-            Procesar
-          </Button>
-        )}
-        <Button
-          variante="destructivo"
-          confirmacion="Vas a desvincular esta planilla. Los datos que ya se importaron se quedan; solo se corta la conexion."
-          onClick={() => {
-            void desvincular(vinculo);
-          }}
-        >
-          Desvincular
-        </Button>
-      </>
-    ),
-  };
-
-  const columnas = puedeEditar ? [...columnasBase, columnaDeAcciones] : columnasBase;
+  const cifras = cifrasDeIngesta(listado.vinculos, cargas);
 
   return (
     <>
       {error !== null && <Alert tono="error">{error}</Alert>}
       {aviso !== null && <Alert tono="exito">{aviso}</Alert>}
 
-      {puedeEditar && (
-        <>
-          <div
-            className={arrastrando ? "ing-dropzone ing-dropzone--activa" : "ing-dropzone"}
-            onDragOver={(evento) => {
-              evento.preventDefault();
-              setArrastrando(true);
-            }}
-            onDragLeave={() => {
-              setArrastrando(false);
-            }}
-            onDrop={(evento) => {
-              evento.preventDefault();
-              setArrastrando(false);
-              void cargar(evento.dataTransfer.files[0]);
-            }}
-          >
-            <span className="ing-dz-ico">
-              <Icono nombre="nube" />
-            </span>
-            <p className="ing-dz-titulo">Arrastrá tu planilla acá</p>
-            <p className="ing-dz-sub">
-              Formatos aceptados: {EXTENSIONES_ACEPTADAS.join(", ")} · tamaño máximo{" "}
-              {LIMITE_TAMANO_MB} MB
-            </p>
-            <div className="ing-dz-acciones">
-              {/* El label es el botón y el input de verdad vive adentro: un solo control,
-                  nativo, que el teclado alcanza y el lector de pantalla anuncia. */}
-              <label className="ing-archivo">
-                <Icono nombre="archivo" />
-                Seleccionar archivo
-                <input
-                  ref={entrada}
-                  type="file"
-                  accept={EXTENSIONES_ACEPTADAS.join(",")}
-                  aria-label="Elegir una planilla"
-                  disabled={subiendo}
-                  onChange={(evento) => {
-                    void cargar(evento.target.files?.[0]);
-                  }}
-                />
-              </label>
-              <span className="ing-dz-o">o</span>
-              <Button
-                variante="secundario"
-                disabled={subiendo}
-                onClick={() => {
-                  setErrorDelEnlace(null);
-                  setPidiendoEnlace(true);
-                }}
-              >
-                Vincular Google Sheets
-              </Button>
-            </div>
-            <p className="ing-candado">
-              <Icono nombre="candado" />
-              Te vamos a pedir permiso de lectura <strong>sobre la planilla que elijas</strong>, no
-              sobre todo tu Drive.
-            </p>
-            {subiendo && <p role="status">Subiendo la planilla…</p>}
-          </div>
+      <ResumenDeIngesta cifras={cifras} />
 
-          {/* Qué campos reconoce el modelo, dicho antes de subir y no después de fallar
-              (HU-E3-01 RN-01): saber que el orden y el nombre de las columnas no importan es
-              justo lo que evita que alguien reordene su planilla a mano. */}
-          <div className="ing-detect">
-            <span className="ing-detect__ico">
-              <Icono nombre="chispa" />
-            </span>
-            <span>
-              <b className="ing-detect__titulo">La IA va a detectar automáticamente</b>
-              <span className="ing-detect__sub">
-                Sin importar el orden o el nombre exacto de tus columnas
+      {puedeEditar && (
+        <SeccionPlegable
+          titulo="Subir una planilla"
+          subtitulo="Arrastrá un archivo o vinculá una hoja de Google"
+          icono="nube"
+        >
+          <div className="ing-principal">
+            <div
+              className={arrastrando ? "ing-dropzone ing-dropzone--activa" : "ing-dropzone"}
+              onDragOver={(evento) => {
+                evento.preventDefault();
+                setArrastrando(true);
+              }}
+              onDragLeave={() => {
+                setArrastrando(false);
+              }}
+              onDrop={(evento) => {
+                evento.preventDefault();
+                setArrastrando(false);
+                void cargar(evento.dataTransfer.files[0]);
+              }}
+            >
+              <span className="ing-dz-ico">
+                <Icono nombre="nube" />
               </span>
-            </span>
-            <ul className="ing-chips">
-              {ATRIBUTOS_DE_CLIENTE.map((atributo) => (
-                <li key={atributo} className="ing-chip">
-                  {ETIQUETAS_DE_ATRIBUTO[atributo] ?? atributo}
-                </li>
-              ))}
-            </ul>
+              <p className="ing-dz-titulo">
+                {arrastrando ? "Soltá la planilla para subirla" : "Arrastrá tu planilla acá"}
+              </p>
+              <p className="ing-dz-sub">
+                {/* Los formatos y el tope, dichos una sola vez y como etiquetas: es lo que se
+                  mira de un vistazo antes de elegir un archivo. */}
+                <span className="ing-dz-formatos">
+                  {EXTENSIONES_ACEPTADAS.map((extension) => (
+                    <span key={extension} className="ing-dz-formato">
+                      {extension}
+                    </span>
+                  ))}
+                </span>
+                <span className="ing-dz-limite">Hasta {LIMITE_TAMANO_MB} MB</span>
+              </p>
+              <div className="ing-dz-acciones">
+                {/* El label es el botón y el input de verdad vive adentro: un solo control,
+                  nativo, que el teclado alcanza y el lector de pantalla anuncia. */}
+                <label className="ing-archivo">
+                  <Icono nombre="archivo" />
+                  Seleccionar archivo
+                  <input
+                    ref={entrada}
+                    type="file"
+                    accept={EXTENSIONES_ACEPTADAS.join(",")}
+                    aria-label="Elegir una planilla"
+                    disabled={subiendo}
+                    onChange={(evento) => {
+                      void cargar(evento.target.files?.[0]);
+                    }}
+                  />
+                </label>
+                <span className="ing-dz-o">o</span>
+                <Button
+                  variante="secundario"
+                  disabled={subiendo}
+                  onClick={() => {
+                    setErrorDelEnlace(null);
+                    setPidiendoEnlace(true);
+                  }}
+                >
+                  <Icono nombre="planilla" />
+                  Vincular Google Sheets
+                </Button>
+              </div>
+              <p className="ing-candado">
+                <Icono nombre="candado" />
+                <span>
+                  Te vamos a pedir permiso de lectura <strong>sobre la planilla que elijas</strong>,
+                  no sobre todo tu Drive.
+                </span>
+              </p>
+              {subiendo && <p role="status">Subiendo la planilla…</p>}
+            </div>
           </div>
-        </>
+        </SeccionPlegable>
       )}
 
       <Modal
@@ -484,40 +408,73 @@ export function IngestaDePlanillas({
         </div>
       </Modal>
 
-      {/* Las dos tablas van en tarjeta y con encabezado visible: `Tabla` pone su título en un
-          `<caption>` oculto, así que sin esto quien mira la pantalla ve dos rejillas seguidas y
-          tiene que deducir dónde termina una. */}
-      <Card>
-        <div className="ing-seccion">
-          <div>
-            <h2 className="ing-seccion__titulo">Planillas vinculadas</h2>
-            <p className="ing-seccion__sub">Las fuentes desde las que entran tus datos</p>
-          </div>
-        </div>
-        <Tabla
-          titulo="Planillas vinculadas"
-          columnas={columnas}
-          filas={listado.vinculos}
-          claveDeFila={(vinculo) => vinculo.id}
-          vacia="Todavia no vinculaste ninguna planilla."
-        />
-      </Card>
+      <SeccionPlegable
+        titulo="Planillas vinculadas"
+        subtitulo="Las fuentes desde las que entran tus datos"
+        icono="planilla"
+        cantidad={listado.vinculos.length}
+      >
+        {listado.vinculos.length === 0 ? (
+          <EstadoVacio icono="planilla">Todavía no vinculaste ninguna planilla.</EstadoVacio>
+        ) : (
+          <ul className="ing-planes">
+            {listado.vinculos.map((vinculo) => (
+              <TarjetaDePlanilla
+                key={vinculo.id}
+                vinculo={vinculo}
+                puedeEditar={puedeEditar}
+                alProcesar={(elegido) => {
+                  void procesar(elegido);
+                }}
+                alDesvincular={(elegido) => {
+                  void desvincular(elegido);
+                }}
+              />
+            ))}
+          </ul>
+        )}
+      </SeccionPlegable>
 
-      <Card>
-        <div className="ing-seccion">
-          <div>
-            <h2 className="ing-seccion__titulo">Cargas recientes</h2>
-            <p className="ing-seccion__sub">Tus últimas ingestas de datos</p>
+      <SeccionPlegable
+        titulo="Cargas recientes"
+        subtitulo="Tus últimas ingestas de datos"
+        icono="historial"
+        cantidad={cargas.length}
+      >
+        {cargas.length === 0 ? (
+          <EstadoVacio icono="historial">Todavía no procesaste ninguna planilla.</EstadoVacio>
+        ) : (
+          <div className="ing-tarjetas">
+            <Card>
+              <Tabla
+                titulo="Cargas recientes"
+                columnas={COLUMNAS_DE_CARGA}
+                filas={cargas}
+                claveDeFila={(carga) => carga.id}
+                vacia="Todavía no procesaste ninguna planilla."
+              />
+            </Card>
           </div>
-        </div>
-        <Tabla
-          titulo="Cargas recientes"
-          columnas={COLUMNAS_DE_CARGA}
-          filas={cargas}
-          claveDeFila={(carga) => carga.id}
-          vacia="Todavia no procesaste ninguna planilla."
-        />
-      </Card>
+        )}
+      </SeccionPlegable>
     </>
+  );
+}
+
+/** El estado vacío de una sección: un icono y una frase, en una caja suave y no en una alarma. */
+function EstadoVacio({
+  icono,
+  children,
+}: {
+  readonly icono: NombreDeIcono;
+  readonly children: string;
+}): JSX.Element {
+  return (
+    <div className="ing-vacio">
+      <span className="ing-vacio__ico">
+        <Icono nombre={icono} />
+      </span>
+      <p className="ing-vacio__texto">{children}</p>
+    </div>
   );
 }

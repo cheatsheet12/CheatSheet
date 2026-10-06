@@ -9,6 +9,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { elegirFecha } from "@/shared/ui/__tests__/elegir-fecha";
 import { FechasSinAtencion } from "../FechasSinAtencion";
 
 const HOY = "2026-10-05";
@@ -41,7 +42,7 @@ function Arnes({
 }
 
 function escribir(fecha: string): void {
-  fireEvent.change(screen.getByLabelText("Día sin atención"), { target: { value: fecha } });
+  elegirFecha("Día sin atención", fecha);
 }
 
 describe("FechasSinAtencion", () => {
@@ -52,7 +53,7 @@ describe("FechasSinAtencion", () => {
     fireEvent.click(screen.getByRole("button", { name: "Agregar fecha" }));
 
     expect(screen.getByText("2026-10-12")).toBeTruthy();
-    expect((screen.getByLabelText("Día sin atención") as HTMLInputElement).value).toBe("");
+    expect(screen.getByLabelText("Día sin atención").textContent).toContain("dd/mm/aaaa");
   });
 
   it("«Quitar» la saca", () => {

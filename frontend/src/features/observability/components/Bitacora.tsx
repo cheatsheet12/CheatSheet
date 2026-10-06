@@ -23,7 +23,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { Alert, Badge, Campo, Select, Tabla } from "@/shared";
+import { Alert, Badge, Campo, Select, SelectorDeFecha, Tabla } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import {
@@ -166,19 +166,19 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
       )}
 
       <div className="log-filtros">
-        <Campo
+        <SelectorDeFecha
           id="log-desde"
           etiqueta="Desde"
-          type="date"
           value={filtros.desde ?? ""}
-          onChange={(evento) => void aplicar({ desde: evento.target.value })}
+          max={filtros.hasta || undefined}
+          alCambiar={(valor) => void aplicar({ desde: valor })}
         />
-        <Campo
+        <SelectorDeFecha
           id="log-hasta"
           etiqueta="Hasta"
-          type="date"
           value={filtros.hasta ?? ""}
-          onChange={(evento) => void aplicar({ hasta: evento.target.value })}
+          min={filtros.desde || undefined}
+          alCambiar={(valor) => void aplicar({ hasta: valor })}
         />
         <Select
           id="log-modulo"

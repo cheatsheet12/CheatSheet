@@ -129,7 +129,7 @@ No es una diferencia de matiz: la tipografía es otra.
 
 | # | Concepto | PDF (especificación) | `styles.css` (implementado) |
 |---|---|---|---|
-| P1 | Tipografía del panel | **DM Sans** | Stack del sistema (`-apple-system, …`). DM Sans no aparece en ningún archivo |
+| P1 | Tipografía del panel | **DM Sans** | Stack del sistema (`-apple-system, …`). DM Sans no aparece en ningún archivo **Resuelto (6/10/2026): gana el PDF.** El panel usa DM Sans y JetBrains Mono, auto-hospedadas con `next/font`; el stack del sistema queda sólo como respaldo mientras la fuente carga. |
 | P2 | Color de error | `#CC0000` | `--err: #DC2B3A` |
 | P3 | Fondo de éxito | `#E8FAF5` | `--ok-bg: #E4F8F1` |
 | P4 | Texto de cuerpo | `#555555` (gris neutro) | `--ink-700: #3d3d52` (gris frío, derivado del primary) |

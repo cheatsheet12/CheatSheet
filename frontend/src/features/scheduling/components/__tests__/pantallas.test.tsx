@@ -54,6 +54,7 @@ import {
   MENSAJE_TURNO_EN_EL_PASADO,
 } from "@/features/scheduling";
 import type { ListadoDeTurnos, Recurso, ServicioAgendable, Turno } from "@/features/scheduling";
+import { elegirFecha } from "@/shared/ui/__tests__/elegir-fecha";
 
 const { AgendaDelDia } = await import("@/features/scheduling/components/AgendaDelDia");
 const { DetalleDeTurno } = await import("@/features/scheduling/components/DetalleDeTurno");
@@ -119,9 +120,9 @@ describe("PAN-AGE-01 — agenda", () => {
   it("no ofrece «Reprogramado» como estado en ningun lado (RN-02)", () => {
     render(<AgendaDelDia inicial={LISTADO} recursos={[RECURSO]} puedeGestionar />);
 
-    // Dentro de la tabla: el filtro de estados usa las mismas palabras, y lo que se afirma acá
+    // Dentro del listado: el filtro de estados usa las mismas palabras, y lo que se afirma acá
     // es lo que dice la **fila**.
-    const tabla = within(screen.getByRole("table"));
+    const tabla = within(screen.getByRole("region", { name: "Turnos" }));
     expect(tabla.getByText("Reservado")).toBeTruthy();
     expect(screen.queryByText("Reprogramado")).toBeNull();
     expect(Object.values(ETIQUETAS_DE_ESTADO)).not.toContain("Reprogramado");
@@ -130,8 +131,8 @@ describe("PAN-AGE-01 — agenda", () => {
   it("muestra el nombre del recurso y no su id", () => {
     render(<AgendaDelDia inicial={LISTADO} recursos={[RECURSO]} puedeGestionar />);
 
-    // Dentro de la tabla: el selector de recursos también lo nombra.
-    const tabla = within(screen.getByRole("table"));
+    // Dentro del listado: el selector de recursos también lo nombra.
+    const tabla = within(screen.getByRole("region", { name: "Turnos" }));
     expect(tabla.getByText("Consultorio 1")).toBeTruthy();
     expect(tabla.queryByText("r1")).toBeNull();
   });
@@ -292,7 +293,7 @@ describe("PAN-AGE-02 — nuevo turno", () => {
     render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
 
     const horario = (await screen.findByLabelText("Horario")) as HTMLSelectElement;
@@ -311,7 +312,7 @@ describe("PAN-AGE-02 — nuevo turno", () => {
     render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
     fireEvent.change(await screen.findByLabelText("Horario"), {
       target: { value: "2027-09-07T19:00:00+00:00" },
@@ -333,7 +334,7 @@ describe("PAN-AGE-02 — nuevo turno", () => {
     render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-05" } });
+    elegirFecha("Fecha", "2027-09-05");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
 
     expect(await screen.findByText(/El recurso no tiene horarios libres ese día/)).toBeTruthy();
@@ -343,7 +344,7 @@ describe("PAN-AGE-02 — nuevo turno", () => {
     render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
 
     expect(await screen.findByText("Elegí el servicio para ver los horarios")).toBeTruthy();
     expect(verDisponibilidad).not.toHaveBeenCalled();
@@ -364,7 +365,7 @@ describe("PAN-AGE-02 — nuevo turno", () => {
     );
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
     fireEvent.change(await screen.findByLabelText("Horario"), {
       target: { value: "2027-09-07T19:00:00+00:00" },
@@ -418,10 +419,14 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
   it("nuevo turno: el campo de fecha no deja elegir un dia anterior a hoy", async () => {
     render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
 
+    // El límite llega con la carga de «hoy»: recién entonces el mes anterior queda deshabilitado.
     await waitFor(() => {
-      expect((screen.getByLabelText("Fecha") as HTMLInputElement).min).toMatch(
-        /^\d{4}-\d{2}-\d{2}$/,
-      );
+      fireEvent.click(screen.getByLabelText("Fecha"));
+      fireEvent.click(screen.getByRole("button", { name: "Mes anterior" }));
+      const dia = screen
+        .getByRole("dialog")
+        .querySelector<HTMLButtonElement>('[data-afuera="false"]:not([disabled])');
+      expect(dia).toBeNull();
     });
   });
 
@@ -463,7 +468,7 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
     render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
     fireEvent.change(await screen.findByLabelText("Horario"), {
       target: { value: "2027-09-07T19:00:00+00:00" },
@@ -563,7 +568,7 @@ describe("PAN-AGE-02 — nuevo turno, mientras la navegación tarda", () => {
       </ArnesDeRouter>,
     );
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
     fireEvent.change(await screen.findByLabelText("Horario"), {
       target: { value: "2027-09-07T19:00:00+00:00" },
