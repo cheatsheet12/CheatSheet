@@ -13,7 +13,7 @@ reenvían explícitamente.
 
 from __future__ import annotations
 
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import EntradaInvalida, ErrorDeDominio, InvarianteViolada
 
 
 class CobroInexistente(EntradaInvalida):
@@ -89,6 +89,15 @@ class RecordatorioDuplicado(EntradaInvalida):
     """
 
 
+class DespachoNoPersistido(ErrorDeDominio):
+    """La base rechazó algo dentro del savepoint de un cobro del barrido (U5, H1).
+
+    Lo levanta el adaptador del aislamiento cuando un `SQLAlchemyError` sale del bloque. El
+    barrido lo registra y sigue con el cobro siguiente: sólo se deshacen las filas de **ese**
+    cobro. No lleva datos de la excepción original: puede traer valores de la fila.
+    """
+
+
 class WebhookNoAutentico(EntradaInvalida):
     """HS-T1 RN-01. Se registra y se descarta **con 200** (decisión D22).
 
@@ -104,6 +113,7 @@ __all__ = [
     "CobroNoCancelable",
     "CobroNoReembolsable",
     "ComprobanteDeOtroCliente",
+    "DespachoNoPersistido",
     "MontoExcedeSaldo",
     "PasarelaNoDisponible",
     "PedidoEnCurso",

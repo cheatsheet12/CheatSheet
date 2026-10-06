@@ -15,6 +15,8 @@ para los mismos protocolos serían dos cosas que pueden discrepar.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -33,6 +35,7 @@ from cheatsheet.contexts.payments.application.errors import (
     CobroInexistente,
     CobroNoCancelable,
     ComprobanteDeOtroCliente,
+    DespachoNoPersistido,
     MontoExcedeSaldo,
     PasarelaNoDisponible,
     RecordatorioDuplicado,
@@ -42,7 +45,11 @@ from cheatsheet.contexts.payments.application.ports import (
     FiltrosDeCobro,
     MetricasDeCobros,
 )
-from cheatsheet.contexts.payments.application.ports_de_recordatorios import PasoDeCadena
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    PasoDeCadena,
+    PortEnvioDeRecordatorio,
+)
+from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
 from cheatsheet.contexts.payments.application.recordatorios import (
     DespacharRecordatorios,
     VencerCobros,
@@ -127,6 +134,27 @@ class EnvioFalso:
         del empresa_id
         self.enviados.append((cobro.id, paso, canal))
         return EstadoEntrega.ENVIADO
+
+
+class AislamientoFalso:
+    """Un savepoint de mentira: cuenta lo que se confirmó y lo que se deshizo.
+
+    Como el real, convierte lo que la base rechaza adentro en `DespachoNoPersistido`; acá «lo
+    que la base rechaza» lo simula un doble que levanta esa excepción directamente.
+    """
+
+    def __init__(self) -> None:
+        self.confirmados = 0
+        self.deshechos = 0
+
+    @asynccontextmanager
+    async def aislar(self) -> AsyncIterator[None]:
+        try:
+            yield
+        except DespachoNoPersistido:
+            self.deshechos += 1
+            raise
+        self.confirmados += 1
 
 
 class CadenaFalsa:
@@ -694,8 +722,9 @@ async def test_vencer_dos_veces_no_rompe() -> None:
 def _despachar(
     cobros: CobrosFalsos,
     recordatorios: RecordatoriosFalsos,
-    envio: EnvioFalso,
+    envio: PortEnvioDeRecordatorio,
     cadena: CadenaFalsa,
+    aislamiento: PortAislamiento | None = None,
 ) -> DespacharRecordatorios:
     return DespacharRecordatorios(
         cobros=cobros,
@@ -703,6 +732,7 @@ def _despachar(
         envio=envio,
         cadena=cadena,
         publicador=PublicadorFalso(),
+        aislamiento=aislamiento or AislamientoFalso(),
     )
 
 
@@ -806,3 +836,115 @@ async def test_cuando_la_cadena_se_termina_no_pasa_nada() -> None:
     )
 
     assert resultado.procesados == 0
+
+
+# ------------------------------------------------------------------ U5 · H1: un fallo no deshace lo que salió
+
+
+class EnvioQueFallaEn:
+    """Levanta en el N-ésimo cobro; los demás salen. Simula un adaptador que rompió el contrato."""
+
+    def __init__(self, posicion: int, error: Exception | None = None) -> None:
+        self._posicion = posicion
+        self._error = error or RuntimeError("el adaptador rompió su contrato")
+        self.llamadas = 0
+        self.enviados: list[UUID] = []
+
+    async def enviar(
+        self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
+    ) -> EstadoEntrega:
+        del empresa_id, canal, paso
+        self.llamadas += 1
+        if self.llamadas == self._posicion:
+            raise self._error
+        self.enviados.append(cobro.id)
+        return EstadoEntrega.ENVIADO
+
+
+async def _tres_cobros_vencidos(cobros: CobrosFalsos) -> list[Cobro]:
+    todos = [_cobro(vence_en_dias=0) for _ in range(3)]
+    for uno in todos:
+        await cobros.agregar(uno)
+    return todos
+
+
+async def test_un_envio_que_levanta_en_el_cobro_2_no_voltea_el_barrido() -> None:
+    """**Caso 1 (H1).** Antes, la excepción salía del barrido y, en producción, la unidad de
+    trabajo descartaba también las filas de los cobros que ya habían salido: el barrido de la
+    hora siguiente los mandaba de nuevo."""
+    cobros, recordatorios = CobrosFalsos(), RecordatoriosFalsos()
+    envio = EnvioQueFallaEn(2)
+    uno, dos, tres = await _tres_cobros_vencidos(cobros)
+
+    resultado = await _despachar(cobros, recordatorios, envio, CadenaFalsa()).ejecutar(
+        empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4)
+    )
+
+    por_cobro = {r.cobro_id: r for r in recordatorios.guardados}
+    assert resultado.procesados == 3
+    assert por_cobro[uno.id].estado_entrega is EstadoEntrega.ENVIADO
+    assert por_cobro[tres.id].estado_entrega is EstadoEntrega.ENVIADO
+    # El del medio queda registrado `FALLIDO` **con fecha**, para que el índice único
+    # `(cobro_id, paso)` no lo deje salir de nuevo en la corrida siguiente.
+    assert por_cobro[dos.id].estado_entrega is EstadoEntrega.FALLIDO
+    assert por_cobro[dos.id].enviado_en == AHORA + timedelta(days=4)
+
+
+async def test_el_cobro_que_fallo_no_se_reenvia_en_el_barrido_siguiente() -> None:
+    cobros, recordatorios = CobrosFalsos(), RecordatoriosFalsos()
+    envio = EnvioQueFallaEn(2)
+    await _tres_cobros_vencidos(cobros)
+    barrido = _despachar(cobros, recordatorios, envio, CadenaFalsa())
+    despues = AHORA + timedelta(days=4)
+
+    await barrido.ejecutar(empresa_id=EMPRESA, ahora=despues)
+    llamadas_tras_el_primero = envio.llamadas
+    await barrido.ejecutar(empresa_id=EMPRESA, ahora=despues)
+
+    # Los tres pasos 1 ya están registrados: el segundo barrido no manda ninguno.
+    assert envio.llamadas == llamadas_tras_el_primero == 3
+
+
+async def test_un_fallo_de_persistencia_en_un_cobro_deshace_solo_ese_cobro() -> None:
+    """Lo que la base rechaza dentro del savepoint de un cobro no toca a los otros."""
+
+    class RecordatoriosQueNoGuardanElDos(RecordatoriosFalsos):
+        async def guardar(self, recordatorio: Recordatorio) -> None:
+            if recordatorio.paso == 1 and len(self.guardados) == 2:
+                raise DespachoNoPersistido("la base rechazó el guardado")
+
+    cobros, recordatorios = CobrosFalsos(), RecordatoriosQueNoGuardanElDos()
+    aislamiento = AislamientoFalso()
+    await _tres_cobros_vencidos(cobros)
+
+    resultado = await _despachar(
+        cobros, recordatorios, EnvioFalso(), CadenaFalsa(), aislamiento
+    ).ejecutar(empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4))
+
+    assert aislamiento.confirmados == 2
+    assert aislamiento.deshechos == 1
+    # Los otros dos siguieron: el barrido no se cortó en el que falló.
+    assert resultado.procesados == 2
+
+
+async def test_el_log_de_un_cobro_no_persistido_no_lleva_datos_personales() -> None:
+    from structlog.testing import capture_logs
+
+    class RecordatoriosQueNoGuardan(RecordatoriosFalsos):
+        async def guardar(self, recordatorio: Recordatorio) -> None:
+            del recordatorio
+            raise DespachoNoPersistido("la base rechazó el guardado de Ana Diaz")
+
+    cobros = CobrosFalsos()
+    cobro = _cobro(vence_en_dias=0)
+    await cobros.agregar(cobro)
+
+    with capture_logs() as registros:
+        await _despachar(cobros, RecordatoriosQueNoGuardan(), EnvioFalso(), CadenaFalsa()).ejecutar(
+            empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4)
+        )
+
+    eventos = [r for r in registros if r["event"] == "recordatorio_no_persistido"]
+    assert len(eventos) == 1
+    assert eventos[0]["cobro_id"] == str(cobro.id)
+    assert "Ana Diaz" not in repr(registros)

@@ -259,20 +259,27 @@ class RepositorioRecordatoriosPostgres:
         self._sesion = sesion
 
     async def agregar(self, recordatorio: Recordatorio) -> None:
-        self._sesion.add(
-            RecordatorioORM(
-                id=recordatorio.id,
-                cobro_id=recordatorio.cobro_id,
-                paso=recordatorio.paso,
-                canal=recordatorio.canal,
-                enviado_en=recordatorio.enviado_en,
-                estado_entrega=(
-                    recordatorio.estado_entrega.value if recordatorio.estado_entrega else None
-                ),
-            )
-        )
+        # **El `flush` va en su propio savepoint** (U5, H1b). En PostgreSQL un `IntegrityError`
+        # aborta la transacción entera: sin el savepoint, atrapar el duplicado dejaba la sesión
+        # inservible y el «no es un error, seguí» del barrido tiraba a todos los cobros que
+        # venían después. Con él, sólo se deshace este `INSERT`.
         try:
-            await self._sesion.flush()
+            async with self._sesion.begin_nested():
+                self._sesion.add(
+                    RecordatorioORM(
+                        id=recordatorio.id,
+                        cobro_id=recordatorio.cobro_id,
+                        paso=recordatorio.paso,
+                        canal=recordatorio.canal,
+                        enviado_en=recordatorio.enviado_en,
+                        estado_entrega=(
+                            recordatorio.estado_entrega.value
+                            if recordatorio.estado_entrega
+                            else None
+                        ),
+                    )
+                )
+                await self._sesion.flush()
         except IntegrityError as exc:
             # El indice unico `(cobro_id, paso)`, no una lectura previa: un «existe? -> no ->
             # insertá» pierde contra dos barridos solapados, que es exactamente el caso que

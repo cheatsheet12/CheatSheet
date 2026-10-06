@@ -62,6 +62,9 @@ async def barrer_cobros(recursos: Recursos) -> int:
 async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
     """Vence y despacha, **en ese orden y en la misma transacción**.
 
+    Cada cobro del despacho corre en su propio savepoint (`piezas.aislamiento`): un fallo en el
+    cobro K no deshace las filas de los cobros 1..K-1, cuyos mensajes ya salieron.
+
     El orden importa: un cobro que vence hoy tiene que estar `VENCIDO` antes de que la cadena
     lo evalúe, o su primer recordatorio se atrasaría una corrida entera. La transacción los
     junta para que no exista un instante en que uno pasó y el otro no.
@@ -81,6 +84,7 @@ async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
             envio=armar_envio(recursos.settings),
             cadena=armar_cadena(unidad),
             publicador=unidad.publicador,
+            aislamiento=piezas.aislamiento,
         ).ejecutar(empresa_id=empresa_id, ahora=ahora)
         despachados = resultado.procesados
 
