@@ -136,14 +136,14 @@ describe("PAN-ONB-02", () => {
     );
   });
 
-  it("al guardar lleva al panel", async () => {
+  it("al guardar lleva al paso 3, las integraciones, y no salta al panel", async () => {
     guardar.mockResolvedValue({ onboarding_completo: true });
     render(<FormularioDeEmpresa />);
     completarTodo();
 
     fireEvent.click(botonContinuar());
 
-    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/panel"));
+    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/configuracion/integraciones"));
   });
 
   it("un CUIT ya registrado se muestra sin sacar al usuario del formulario", async () => {
@@ -315,7 +315,7 @@ describe("FormularioDeEmpresa · padrón de ARCA", () => {
 });
 
 describe("FormularioDeEmpresa, mientras la navegación tarda", () => {
-  it("onboarding: un segundo envío antes de que abra el panel no guarda otra vez", async () => {
+  it("onboarding: un segundo envío antes de que abran las integraciones no guarda otra vez", async () => {
     guardar.mockResolvedValue({ onboarding_completo: true });
     render(
       <ArnesDeRouter>
@@ -325,7 +325,7 @@ describe("FormularioDeEmpresa, mientras la navegación tarda", () => {
     completarTodo();
 
     fireEvent.click(botonContinuar());
-    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/panel"));
+    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/configuracion/integraciones"));
 
     expect(botonContinuar().disabled).toBe(true);
     fireEvent.click(botonContinuar());
