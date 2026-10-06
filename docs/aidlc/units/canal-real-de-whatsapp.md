@@ -524,7 +524,7 @@ y `test_guards.sh` quedan para la CI del PR (TODO §22.41).
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. **Cerrado el 2026-10-06**: el ADR-0011 fue aceptado el 2026-10-05 ([#62](https://github.com/cheatsheet12/CheatSheet/pull/62), merge `bd100e5`) y el plan se revalidó contra develop el 2026-10-06 (ver «Revalidación contra develop»); Luciano confirmó C1 y C2. Ya se puede escribir código |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-06 | Aprobado por Luciano. Local: ruff, mypy y pytest (2312 aprobados, 522 salteados por PostgreSQL y Redis); `guard_architecture.py --scan` verde. Revisión independiente sin bloqueantes; sus dos correcciones aplicadas con test primero. Variables de Render aplicadas por Luciano. Los casos de PostgreSQL se confirman en la CI del PR |
 | 3 · PR | | |
 
 > Condición del Gate 1 (ADR-0011 aceptado): cumplida el 2026-10-05.
