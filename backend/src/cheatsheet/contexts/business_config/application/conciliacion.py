@@ -43,6 +43,7 @@ from cheatsheet.contexts.business_config.application.revision_de_meta import (
 )
 from cheatsheet.contexts.business_config.domain.estados_de_meta import estado_desde_nodo
 from cheatsheet.contexts.business_config.domain.plantilla import (
+    LARGO_MAXIMO_ID_EN_META,
     EstadoDeAprobacion,
     PlantillaDeNotificacion,
 )
@@ -88,6 +89,7 @@ class ConciliarPlantillasConMeta:
         plantillas = await ListarPlantillas(self._plantillas).ejecutar(
             empresa_id=empresa_id, ahora=ahora
         )
+        en_meta = [una for una in en_meta if _id_cabe(una)]
         por_id = {una.meta_plantilla_id: una for una in en_meta}
         por_nombre = {(una.nombre, una.idioma): una for una in en_meta}
 
@@ -167,6 +169,14 @@ class ConciliarPlantillasConMeta:
             categoria=en_meta.categoria,
         )
         return cambio or vinculada, diverge
+
+
+def _id_cabe(en_meta: EstadoEnMeta) -> bool:
+    """Un id de Meta más largo que su columna no se guarda ni se corta: se ignora y se avisa."""
+    if len(en_meta.meta_plantilla_id) <= LARGO_MAXIMO_ID_EN_META:
+        return True
+    logger.warning("plantilla_meta_id_demasiado_largo", largo=len(en_meta.meta_plantilla_id))
+    return False
 
 
 def _detalle(

@@ -25,6 +25,8 @@ from cheatsheet.contexts.business_config.application.plantillas import DE_FABRIC
 from cheatsheet.contexts.business_config.application.ports import EstadoEnMeta, RespuestaDeMeta
 from cheatsheet.contexts.business_config.application.revision_de_meta import DETALLE_SIN_CONECTAR
 from cheatsheet.contexts.business_config.domain.plantilla import (
+    LARGO_MAXIMO_ID_EN_META,
+    LARGO_MAXIMO_MOTIVO,
     EstadoDeAprobacion,
     PlantillaDeNotificacion,
 )
@@ -325,3 +327,32 @@ async def test_un_estado_desconocido_no_cambia_nada_y_deja_un_log(
 
     assert repositorio.filas[plantilla.id].estado_aprobacion is EstadoDeAprobacion.PENDIENTE
     assert any(r["event"] == "plantilla_estado_meta_desconocido" for r in registros)
+
+
+async def test_un_motivo_de_meta_mas_largo_que_su_columna_se_recorta() -> None:
+    plantilla = _plantilla(EstadoDeAprobacion.PENDIENTE, meta_plantilla_id="1")
+    repositorio = RepositorioPlantillasEnMemoria(plantilla)
+
+    await _conciliar(
+        repositorio,
+        RevisionDeMetaFalsa(estados=[_en_meta("1", estado="REJECTED", motivo="X" * 500)]),
+    )
+
+    assert repositorio.filas[plantilla.id].motivo_meta == "X" * LARGO_MAXIMO_MOTIVO
+
+
+async def test_un_id_de_meta_mas_largo_que_su_columna_se_ignora_con_un_aviso(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger_nuevo(monkeypatch, modulo_conciliacion)
+    plantilla = _plantilla(EstadoDeAprobacion.PENDIENTE, meta_plantilla_id="1")
+    repositorio = RepositorioPlantillasEnMemoria(plantilla)
+    largo = "9" * (LARGO_MAXIMO_ID_EN_META + 1)
+
+    with capture_logs() as registros:
+        await _conciliar(repositorio, RevisionDeMetaFalsa(estados=[_en_meta(largo)]))
+
+    fila = repositorio.filas[plantilla.id]
+    assert fila.meta_plantilla_id == "1"
+    assert fila.estado_aprobacion is EstadoDeAprobacion.PENDIENTE
+    assert any(r["event"] == "plantilla_meta_id_demasiado_largo" for r in registros)

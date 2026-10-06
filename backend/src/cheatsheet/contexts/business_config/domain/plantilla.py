@@ -31,6 +31,13 @@ from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.zona_horaria import ZONA_ARGENTINA
 
+#: Lo que cabe en las columnas de `plantilla_de_notificacion` que guardan lo que dice Meta
+#: (migración 0035). Un texto de un tercero más largo desborda la columna: se corta el motivo,
+#: que es informativo, y se descarta el id, que nunca se corta (uno cortado sería de otra fila).
+LARGO_MAXIMO_MOTIVO = 40
+LARGO_MAXIMO_ID_EN_META = 64
+LARGO_MAXIMO_DETALLE = 500
+
 #: HU-E11-02, tercer criterio, palabra por palabra.
 MENSAJE_VARIABLE_INVALIDA = "La variable indicada no es válida para esta plantilla."
 MENSAJE_SIN_APROBAR = (
@@ -288,7 +295,9 @@ class PlantillaDeNotificacion:
             return False
         nuevo = (
             estado,
-            motivo if estado is not EstadoDeAprobacion.APROBADA else None,
+            motivo[:LARGO_MAXIMO_MOTIVO]
+            if motivo and estado is not EstadoDeAprobacion.APROBADA
+            else None,
             detalle,
             categoria or self.categoria_en_meta,
             None if estado is EstadoDeAprobacion.SIN_ENVIAR else self.meta_plantilla_id,

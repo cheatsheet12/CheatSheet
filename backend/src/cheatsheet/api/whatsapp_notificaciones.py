@@ -17,11 +17,17 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from cheatsheet.contexts.business_config.domain.plantilla import (
+    LARGO_MAXIMO_DETALLE,
+    LARGO_MAXIMO_ID_EN_META,
+    LARGO_MAXIMO_MOTIVO,
+)
+from cheatsheet.platform.telemetry import obtener_logger
+
+logger = obtener_logger(__name__)
+
 #: El campo de la suscripción de la app a Meta que trae el estado de una plantilla.
 CAMPO_ESTADO_DE_PLANTILLA = "message_template_status_update"
-
-#: Cabe en `plantilla_de_notificacion.detalle_meta` (varchar 500).
-LARGO_MAXIMO_DEL_DETALLE = 500
 
 #: Meta manda «NONE» cuando no hay motivo de rechazo.
 SIN_MOTIVO = "NONE"
@@ -104,9 +110,12 @@ def _identificador(crudo: Any) -> str | None:
     """Meta manda el id como número; se compara como texto, que es como lo guardamos."""
     if isinstance(crudo, bool):
         return None
-    if isinstance(crudo, int):
-        return str(crudo)
-    return _texto(crudo)
+    texto = str(crudo) if isinstance(crudo, int) else _texto(crudo)
+    if texto is not None and len(texto) > LARGO_MAXIMO_ID_EN_META:
+        # Un id nunca se corta: uno truncado coincidiría con la fila equivocada.
+        logger.warning("plantilla_meta_id_demasiado_largo", largo=len(texto))
+        return None
+    return texto
 
 
 def _texto(crudo: Any) -> str | None:
@@ -117,7 +126,9 @@ def _motivo(razon: Any, rechazo: Any) -> str | None:
     candidato = _texto(razon)
     if candidato is None and isinstance(rechazo, dict):
         candidato = _texto(rechazo.get("reason"))
-    return None if candidato in (None, SIN_MOTIVO) else candidato
+    if candidato is None or candidato == SIN_MOTIVO:
+        return None
+    return candidato[:LARGO_MAXIMO_MOTIVO]
 
 
 def _detalle(rechazo: Any, otro: Any) -> str | None:
@@ -127,7 +138,7 @@ def _detalle(rechazo: Any, otro: Any) -> str | None:
         candidato = _texto(rechazo.get("recommendation"))
     if candidato is None and isinstance(otro, dict):
         candidato = _texto(otro.get("description"))
-    return candidato[:LARGO_MAXIMO_DEL_DETALLE] if candidato else None
+    return candidato[:LARGO_MAXIMO_DETALLE] if candidato else None
 
 
 def _momento(crudo: Any) -> datetime | None:

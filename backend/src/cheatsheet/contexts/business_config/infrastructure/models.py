@@ -16,6 +16,11 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from cheatsheet.contexts.business_config.domain.plantilla import (
+    LARGO_MAXIMO_DETALLE,
+    LARGO_MAXIMO_ID_EN_META,
+    LARGO_MAXIMO_MOTIVO,
+)
 from cheatsheet.platform.database import Base
 
 TABLA_REGLA = "regla_de_negocio"
@@ -61,9 +66,11 @@ class PlantillaDeNotificacionORM(Base):
     estado_aprobacion_meta: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Lo que se sabe de la plantilla del otro lado (U6, migración 0035).
     nombre_en_meta: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    meta_plantilla_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    motivo_meta: Mapped[str | None] = mapped_column(String(40), nullable=True)
-    detalle_meta: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    meta_plantilla_id: Mapped[str | None] = mapped_column(
+        String(LARGO_MAXIMO_ID_EN_META), nullable=True
+    )
+    motivo_meta: Mapped[str | None] = mapped_column(String(LARGO_MAXIMO_MOTIVO), nullable=True)
+    detalle_meta: Mapped[str | None] = mapped_column(String(LARGO_MAXIMO_DETALLE), nullable=True)
     categoria_en_meta: Mapped[str | None] = mapped_column(String(20), nullable=True)
     enviada_a_meta_en: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

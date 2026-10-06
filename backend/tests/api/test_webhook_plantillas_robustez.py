@@ -7,7 +7,15 @@ que no conocemos. Todo es 200 sin efecto: Meta reintenta durante horas ante cual
 from __future__ import annotations
 
 import pytest
-from cheatsheet.contexts.business_config.domain.plantilla import EstadoDeAprobacion
+from cheatsheet.api import whatsapp_notificaciones
+from cheatsheet.contexts.business_config.domain.plantilla import (
+    LARGO_MAXIMO_ID_EN_META,
+    LARGO_MAXIMO_MOTIVO,
+    EstadoDeAprobacion,
+)
+from structlog.testing import capture_logs
+
+from tests.logs import logger_nuevo
 
 from .montaje_webhook_plantillas import (
     EMPRESA_A,
@@ -71,3 +79,34 @@ async def test_un_evento_por_cada_cambio_de_la_notificacion(
 
     assert estado(montaje, EMPRESA_A).estado_aprobacion is EstadoDeAprobacion.APROBADA
     assert estado(montaje, EMPRESA_B).estado_aprobacion is EstadoDeAprobacion.RECHAZADA
+
+
+# --- Lo que Meta manda sin medida (revisión de U6) ----------------------------------------------------------------
+
+
+async def test_un_motivo_mas_largo_que_su_columna_se_recorta_y_no_rompe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    montaje = montar(monkeypatch)
+    cuerpo = evento(WABA_A, "REJECTED", meta_id=id_de(EMPRESA_A), reason="X" * 500)
+
+    respuesta = await enviar(montaje, cuerpo)
+
+    assert respuesta.status_code == 200
+    assert estado(montaje, EMPRESA_A).motivo_meta == "X" * LARGO_MAXIMO_MOTIVO
+
+
+async def test_un_id_mas_largo_que_su_columna_se_ignora_con_un_aviso_y_no_se_trunca(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger_nuevo(monkeypatch, whatsapp_notificaciones)
+    montaje = montar(monkeypatch)
+    largo = "9" * (LARGO_MAXIMO_ID_EN_META + 1)
+
+    with capture_logs() as registros:
+        respuesta = await enviar(montaje, evento(WABA_A, "APPROVED", meta_id=largo))
+
+    assert respuesta.status_code == 200
+    guardado = estado(montaje, EMPRESA_A).meta_plantilla_id
+    assert guardado == id_de(EMPRESA_A)
+    assert any(r["event"] == "plantilla_meta_id_demasiado_largo" for r in registros)
