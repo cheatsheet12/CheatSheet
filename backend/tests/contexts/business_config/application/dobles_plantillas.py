@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import copy
 from uuid import UUID
 
+from cheatsheet.contexts.business_config.application.ports import (
+    EstadoEnMeta,
+    RespuestaDeMeta,
+)
 from cheatsheet.contexts.business_config.domain.plantilla import PlantillaDeNotificacion
+from cheatsheet.shared.events import EventoDeDominio
 
 
 class RepositorioPlantillasEnMemoria:
@@ -55,4 +61,62 @@ class RepositorioPlantillasEnMemoria:
         return sorted((copy(una) for una in self.filas.values()), key=lambda una: una.codigo)
 
 
-__all__ = ["RepositorioPlantillasEnMemoria"]
+class PublicadorFalso:
+    def __init__(self) -> None:
+        self.eventos: list[EventoDeDominio] = []
+
+    async def publicar(self, evento: EventoDeDominio) -> None:
+        self.eventos.append(evento)
+
+
+class RevisionDeMetaFalsa:
+    """`PortRevisionDeMeta` programable: devuelve o levanta lo que se le diga, y anota los pedidos.
+
+    `creaciones` y `ediciones` guardan lo que se mandó (nombre, cuerpo, ejemplos): son datos de la
+    plantilla, nunca de un cliente.
+    """
+
+    def __init__(
+        self,
+        *,
+        respuestas: list[RespuestaDeMeta | Exception] | None = None,
+        estados: list[EstadoEnMeta] | Exception | None = None,
+    ) -> None:
+        self.respuestas = list(respuestas or [])
+        self._estados = estados if estados is not None else []
+        self.creaciones: list[tuple[str, str, str, Mapping[str, str]]] = []
+        self.ediciones: list[tuple[str, str, Mapping[str, str]]] = []
+        self.lecturas = 0
+
+    def _siguiente(self) -> RespuestaDeMeta:
+        """La que se programó; sin programar, una aprobada con un id propio por pedido."""
+        if not self.respuestas:
+            numero = len(self.creaciones) + len(self.ediciones)
+            return RespuestaDeMeta(
+                meta_plantilla_id=f"meta-{numero}", estado="APPROVED", categoria="UTILITY"
+            )
+        respuesta = self.respuestas.pop(0)
+        if isinstance(respuesta, Exception):
+            raise respuesta
+        return respuesta
+
+    async def crear(
+        self, *, nombre: str, idioma: str, cuerpo: str, ejemplos: Mapping[str, str]
+    ) -> RespuestaDeMeta:
+        self.creaciones.append((nombre, idioma, cuerpo, dict(ejemplos)))
+        return self._siguiente()
+
+    async def editar(
+        self, *, meta_plantilla_id: str, cuerpo: str, ejemplos: Mapping[str, str]
+    ) -> RespuestaDeMeta:
+        self.ediciones.append((meta_plantilla_id, cuerpo, dict(ejemplos)))
+        return self._siguiente()
+
+    async def estados(self) -> list[EstadoEnMeta]:
+        self.lecturas += 1
+        if isinstance(self._estados, Exception):
+            raise self._estados
+        return list(self._estados)
+
+
+__all__ = ["PublicadorFalso", "RepositorioPlantillasEnMemoria", "RevisionDeMetaFalsa"]

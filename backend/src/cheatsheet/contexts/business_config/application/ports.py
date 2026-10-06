@@ -7,6 +7,8 @@ que ya no existe.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
@@ -40,6 +42,50 @@ class PortRepositorioReglas(Protocol):
 
 
 __all__ = ["PortRepositorioReglas"]
+
+
+@dataclass(frozen=True, slots=True)
+class RespuestaDeMeta:
+    """Lo que Meta contesta al crear o editar una plantilla. `estado` es su vocabulario."""
+
+    meta_plantilla_id: str
+    estado: str
+    categoria: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EstadoEnMeta:
+    """Una plantilla tal como está en la WABA de la empresa."""
+
+    meta_plantilla_id: str
+    nombre: str
+    idioma: str
+    estado: str
+    categoria: str | None = None
+    motivo: str | None = None
+    cuerpo: str | None = None
+
+
+class PortRevisionDeMeta(Protocol):
+    """La WABA de la empresa, vista desde las plantillas (U6, ADR-0011 §4).
+
+    La forma estrecha que `business_config` necesita de Meta: crear, editar y leer. Quien la
+    implementa es la raíz de composición, sobre el cliente de `conversational`, y traduce sus
+    errores a los de este contexto: `MetaRechazoLaPlantilla`, `MetaNoDisponible` y
+    `MetaNoConectada`. Este contexto no importa `conversational`.
+    """
+
+    async def crear(
+        self, *, nombre: str, idioma: str, cuerpo: str, ejemplos: Mapping[str, str]
+    ) -> RespuestaDeMeta: ...
+
+    async def editar(
+        self, *, meta_plantilla_id: str, cuerpo: str, ejemplos: Mapping[str, str]
+    ) -> RespuestaDeMeta: ...
+
+    async def estados(self) -> list[EstadoEnMeta]:
+        """Todas las plantillas de la WABA (paginado del otro lado)."""
+        ...
 
 
 class PortRepositorioPlantillas(Protocol):

@@ -355,3 +355,21 @@ def test_solo_una_aprobada_se_puede_usar_por_whatsapp(
     estado: EstadoDeAprobacion, usable: bool
 ) -> None:
     assert _plantilla(estado=estado).puede_usarse is usable
+
+
+def test_un_envio_nuevo_descarta_el_reloj_del_estado_anterior() -> None:
+    """El estado que Meta contesta a nuestro envío no se ignora por un reloj de Meta adelantado."""
+    plantilla = _plantilla(estado=EstadoDeAprobacion.APROBADA, estado_meta_en=AHORA)
+
+    plantilla.registrar_envio_a_meta(
+        meta_plantilla_id="555", nombre_en_meta="recordatorio_de_turno", momento=AHORA
+    )
+    cambio = plantilla.aplicar_respuesta_de_meta(
+        EstadoDeAprobacion.PENDIENTE,
+        motivo=None,
+        detalle=None,
+        momento=AHORA - timedelta(seconds=2),
+    )
+
+    assert cambio is True
+    assert plantilla.estado_aprobacion is EstadoDeAprobacion.PENDIENTE

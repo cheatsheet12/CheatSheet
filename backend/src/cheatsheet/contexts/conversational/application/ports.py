@@ -347,17 +347,6 @@ class PortAgenda(Protocol):
         ...
 
 
-class PortPlantillas(Protocol):
-    """ACL sobre `business_config` para los textos salientes (HU-E11-02).
-
-    Devuelve `None` cuando no hay plantilla configurada para ese código, y el llamador usa su
-    texto por defecto. Es deliberado: un canal que se queda mudo porque falta una fila es peor
-    que uno que manda el texto de fábrica.
-    """
-
-    async def resolver(self, codigo: str, variables: dict[str, str]) -> str | None: ...
-
-
 class PortHorarioDeAtencion(Protocol):
     """ACL sobre `business_config`: lo único que este contexto sabe del horario de atención.
 
@@ -380,7 +369,6 @@ __all__ = [
     "PortHorarioDeAtencion",
     "PortInterprete",
     "PortMensajeria",
-    "PortPlantillas",
     "PortRepositorioConversacion",
     "PortRepositorioEscalamiento",
     "PortRepositorioFAQ",

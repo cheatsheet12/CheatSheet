@@ -242,13 +242,21 @@ class PlantillaDeNotificacion:
             return self.siguiente_nombre()
         return self.nombre_en_meta or self.codigo
 
-    def siguiente_nombre(self) -> str:
-        """`recordatorio_de_turno` → `…_v2` → `…_v3`."""
-        actual = self.nombre_en_meta or self.codigo
+    def siguiente_nombre(self, desde: str | None = None) -> str:
+        """`recordatorio_de_turno` → `…_v2` → `…_v3`. `desde` es el nombre recién probado."""
+        actual = desde or self.nombre_en_meta or self.codigo
         coincidencia = PATRON_DE_VERSION.match(actual)
         if coincidencia is None:
             return f"{actual}_v2"
         return f"{coincidencia.group(1)}_v{int(coincidencia.group(2)) + 1}"
+
+    def exigir_enviable(self) -> None:
+        """Lo que se puede mandar a Meta sin editar: el texto actual cumple sus reglas."""
+        self._exigir_bordes_validos(self.cuerpo)
+
+    def vincular_con_meta(self, meta_plantilla_id: str) -> None:
+        """La encontramos en Meta por nombre (una creación cuya respuesta se perdió)."""
+        self.meta_plantilla_id = meta_plantilla_id
 
     def registrar_envio_a_meta(
         self, *, meta_plantilla_id: str, nombre_en_meta: str, momento: datetime
@@ -257,6 +265,9 @@ class PlantillaDeNotificacion:
         self.meta_plantilla_id = meta_plantilla_id
         self.nombre_en_meta = nombre_en_meta
         self.enviada_a_meta_en = momento
+        # Lo que Meta dijo antes de este envío ya no vale: el estado nuevo lo escribe la respuesta
+        # de este envío, no se descarta por un reloj de Meta apenas adelantado al nuestro.
+        self.estado_meta_en = None
         self.updated_at = momento
 
     def aplicar_respuesta_de_meta(
