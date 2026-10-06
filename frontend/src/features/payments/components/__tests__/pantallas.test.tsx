@@ -458,12 +458,15 @@ describe("PAN-COB-03 — nuevo cobro", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
 
     await waitFor(() => {
-      expect(generarCobro).toHaveBeenCalledWith({
-        cliente_id: "cl2",
-        monto: "1000",
-        descripcion: "Consulta",
-        comprobante_id: null,
-      });
+      expect(generarCobro).toHaveBeenCalledWith(
+        {
+          cliente_id: "cl2",
+          monto: "1000",
+          descripcion: "Consulta",
+          comprobante_id: null,
+        },
+        expect.any(String),
+      );
     });
   });
 
@@ -476,13 +479,16 @@ describe("PAN-COB-03 — nuevo cobro", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
 
     await waitFor(() => {
-      expect(generarCobro).toHaveBeenCalledWith({
-        cliente_id: "cl1",
-        // Texto, no `12500.1`: el punto de todo el archivo `cobro.ts`.
-        monto: "12500.10",
-        descripcion: "Consulta",
-        comprobante_id: null,
-      });
+      expect(generarCobro).toHaveBeenCalledWith(
+        {
+          cliente_id: "cl1",
+          // Texto, no `12500.1`: el punto de todo el archivo `cobro.ts`.
+          monto: "12500.10",
+          descripcion: "Consulta",
+          comprobante_id: null,
+        },
+        expect.any(String),
+      );
     });
     expect(push).toHaveBeenCalledWith("/cobros/co1");
   });
@@ -843,6 +849,93 @@ describe("PAN-COB-02 — reembolsos parciales y manuales (HU-E6-05)", () => {
     await waitFor(() => {
       expect(listarCobros).toHaveBeenCalledWith({ estado: "REEMBOLSADO_PARCIAL" });
     });
+  });
+});
+
+describe("PAN-COB-03 — nuevo cobro, la clave del pedido (ADR-0013)", () => {
+  function completar(): void {
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "1000" } });
+  }
+
+  function claveDeLaLlamada(numero: number): string {
+    return (generarCobro.mock.calls[numero] as [unknown, string])[1];
+  }
+
+  it("manda la misma clave en dos envios tras un error (un 504 del BFF)", async () => {
+    generarCobro.mockRejectedValue(new ErrorDeCobro("No se pudo completar la operacion"));
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await screen.findByText("No se pudo completar la operacion");
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(generarCobro).toHaveBeenCalledTimes(2));
+
+    expect(claveDeLaLlamada(0)).toMatch(/^[0-9a-f-]{36}$/);
+    expect(claveDeLaLlamada(1)).toBe(claveDeLaLlamada(0));
+  });
+
+  it("no renueva la clave al editar el formulario despues de un error", async () => {
+    generarCobro.mockRejectedValue(new ErrorDeCobro("No se pudo completar la operacion"));
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await screen.findByText("No se pudo completar la operacion");
+
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "2000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(generarCobro).toHaveBeenCalledTimes(2));
+
+    expect(claveDeLaLlamada(1)).toBe(claveDeLaLlamada(0));
+  });
+
+  it("renueva la clave despues de un exito: un nuevo envio es otro cobro", async () => {
+    generarCobro.mockResolvedValue(PENDIENTE);
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/cobros/co1"));
+    // Como si el navegador restaurara la pantalla desde el bfcache: misma instancia, otro envio.
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Generar link de pago" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(generarCobro).toHaveBeenCalledTimes(2));
+
+    expect(claveDeLaLlamada(1)).not.toBe(claveDeLaLlamada(0));
+  });
+
+  it("ante una clave ya usada muestra el texto del backend y el enlace al listado", async () => {
+    generarCobro.mockRejectedValue(
+      new ErrorDeCobro(
+        "Esta clave ya se uso para generar un cobro con otros datos. Revise el listado de cobros antes de reintentar.",
+        "ClaveDeIdempotenciaReusada",
+      ),
+    );
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+
+    expect(await screen.findByText(/Esta clave ya se uso para generar un cobro/)).toBeTruthy();
+    const enlace = screen.getByRole("link", { name: "Ver el listado de cobros" });
+    expect(enlace.getAttribute("href")).toBe("/cobros");
+  });
+
+  it("un error comun no ofrece el enlace al listado", async () => {
+    generarCobro.mockRejectedValue(new ErrorDeCobro("No se pudo completar la operacion"));
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+
+    await screen.findByText("No se pudo completar la operacion");
+    expect(screen.queryByRole("link", { name: "Ver el listado de cobros" })).toBeNull();
   });
 });
 

@@ -23,7 +23,6 @@ import pytest
 from cheatsheet.contexts.payments.application.cobros import (
     MOTIVO_SIN_PERMISO,
     CancelarCobro,
-    GenerarCobro,
     ListarCobros,
     MetricasDelPeriodo,
     RegenerarLink,
@@ -38,11 +37,12 @@ from cheatsheet.contexts.payments.application.errors import (
     PasarelaNoDisponible,
     RecordatorioDuplicado,
 )
+from cheatsheet.contexts.payments.application.generacion_de_cobro import GenerarCobro
 from cheatsheet.contexts.payments.application.ports import (
     FiltrosDeCobro,
     MetricasDeCobros,
-    PasoDeCadena,
 )
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import PasoDeCadena
 from cheatsheet.contexts.payments.application.recordatorios import (
     DespacharRecordatorios,
     VencerCobros,
@@ -180,6 +180,7 @@ async def test_generar_deja_el_cobro_con_link_activo() -> None:
     cobro = await _generar(cobros, PasarelaFalsa(), SaldosFalsos()).ejecutar(
         empresa_id=EMPRESA,
         usuario_id=USUARIO,
+        clave_idempotencia=uuid4(),
         rol=RolUsuario.OPERADOR,
         cliente_id=CLIENTE,
         monto=Decimal("1210.00"),
@@ -203,6 +204,7 @@ async def test_si_mercadopago_no_responde_el_cobro_no_se_crea() -> None:
         await _generar(cobros, PasarelaCaida(), SaldosFalsos()).ejecutar(
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
+            clave_idempotencia=uuid4(),
             rol=RolUsuario.OPERADOR,
             cliente_id=CLIENTE,
             monto=Decimal("1210.00"),
@@ -219,6 +221,7 @@ async def test_solo_lectura_no_genera_cobros() -> None:
         await _generar(CobrosFalsos(), PasarelaFalsa(), SaldosFalsos()).ejecutar(
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
+            clave_idempotencia=uuid4(),
             rol=RolUsuario.SOLO_LECTURA,
             cliente_id=CLIENTE,
             monto=Decimal("100.00"),
@@ -253,6 +256,7 @@ async def _generar_para(
     ).ejecutar(
         empresa_id=EMPRESA,
         usuario_id=USUARIO,
+        clave_idempotencia=uuid4(),
         rol=rol,
         cliente_id=cliente_id,
         monto=Decimal("100.00"),
@@ -379,6 +383,7 @@ async def test_generar_un_cobro_asociado_no_descuenta_el_saldo_todavia() -> None
     await _generar(CobrosFalsos(), PasarelaFalsa(), saldos).ejecutar(
         empresa_id=EMPRESA,
         usuario_id=USUARIO,
+        clave_idempotencia=uuid4(),
         rol=RolUsuario.OPERADOR,
         cliente_id=CLIENTE,
         monto=Decimal("1210.00"),
@@ -397,6 +402,7 @@ async def test_un_monto_mayor_al_saldo_se_rechaza_y_dice_cuanto_queda() -> None:
         await _generar(CobrosFalsos(), PasarelaFalsa(), SaldosFalsos(Decimal("500.00"))).ejecutar(
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
+            clave_idempotencia=uuid4(),
             rol=RolUsuario.OPERADOR,
             cliente_id=CLIENTE,
             monto=Decimal("1210.00"),
@@ -418,6 +424,7 @@ async def test_un_comprobante_inexistente_no_deja_generar() -> None:
         await _generar(CobrosFalsos(), PasarelaFalsa(), SinSaldo()).ejecutar(
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
+            clave_idempotencia=uuid4(),
             rol=RolUsuario.OPERADOR,
             cliente_id=CLIENTE,
             monto=Decimal("100.00"),

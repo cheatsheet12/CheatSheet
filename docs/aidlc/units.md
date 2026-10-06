@@ -64,7 +64,8 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | ajustes-menores-del-agente | conversational | HS-T2, HU-E8-05 | — | Luciano | fix/conversational-ajustes-menores-del-agente | mergeada |
 | Agente de WhatsApp y atención humana | politica-fuera-de-horario | business_config (conversational aplica la política por su ACL) | HS-T2, HU-E11-01, HU-E8-05 | reserva-y-cancelacion-por-whatsapp | Luciano | feature/business_config-politica-fuera-de-horario | mergeada |
 | Cimientos, identidad y bitácora | navegacion-pendiente | frontend (`shared/`, transversal) | HU-E1-01, HU-E1-02, HU-E1-04, HU-E2-04, HU-E5-03, HU-E5-04, HU-E6-03, HU-E7-06 | — | Luciano | fix/frontend-navegacion-pendiente | mergeada |
-| Cobros y recordatorios | cobro-con-clave-de-idempotencia | payments | HU-E6-03 | navegacion-pendiente | Luciano | — | pendiente |
+| Cobros y recordatorios | cobro-con-clave-de-idempotencia | payments | HU-E6-03 | navegacion-pendiente | Luciano | feature/payments-cobro-con-clave-de-idempotencia | en revisión |
+| Cobros y recordatorios | pagos-sin-cobro-asociado | payments | HU-E6-03, HS-T1 | cobro-con-clave-de-idempotencia | Luciano | — | pendiente |
 | Agente de WhatsApp y atención humana | canal-real-de-whatsapp | conversational | HS-T3, HU-E7-02, HU-E7-06, HU-E8-04 | — | Luciano | feature/conversational-canal-real-de-whatsapp | en curso |
 | Agente de WhatsApp y atención humana | plantillas-de-whatsapp-en-meta | business_config | HU-E11-02, HU-E8-04, HS-T3, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp (ADR-0011 aceptado) | Luciano | — | pendiente |
 | Agente de WhatsApp y atención humana | entregas-de-whatsapp | conversational | HU-E8-04, HS-T3, HU-E6-02, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp, plantillas-de-whatsapp-en-meta | Luciano | — | pendiente |
