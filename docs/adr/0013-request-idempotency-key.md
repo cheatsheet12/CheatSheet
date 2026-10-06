@@ -1,6 +1,6 @@
 # ADR-0013 — Require a client-generated idempotency key on requests with irreversible external effects
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-10-06, by the owner of the payments module)
 - **Date:** 2026-10-06
 - **Decided by:** Luciano Oro, owner of the unit `cobro-con-clave-de-idempotencia` (Gate 1 approved 2026-10-06)
 - **Modules affected:** payments, billing, frontend

@@ -51,7 +51,7 @@ No ADR needed for: naming a function, adding a test, fixing a bug.
 | [0010](0010-payment-date-method-and-refunds.md) | Record how and when a payment was made, and model refunds as dated, append-only records | Accepted | 2026-09-30 |
 | [0011](0011-outbound-whatsapp-channel-via-composition-root.md) | Share the outbound WhatsApp channel through the composition root | Accepted | 2026-10-05 |
 | [0012](0012-faq-uses-per-month-and-share.md) | Count FAQ uses per calendar month in Argentina time, and show each FAQ's share before and after its last edit | Accepted | 2026-10-05 |
-| [0013](0013-request-idempotency-key.md) | Require a client-generated idempotency key on requests with irreversible external effects | Proposed | 2026-10-06 |
+| [0013](0013-request-idempotency-key.md) | Require a client-generated idempotency key on requests with irreversible external effects | Accepted | 2026-10-06 |
 
 > The architecture itself (modular monolith, hexagonal, multi-tenancy, sync model,
 > ACLs, processing guarantees, security) was decided during Etapa 5 and is recorded as
