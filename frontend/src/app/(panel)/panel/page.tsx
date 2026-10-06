@@ -21,6 +21,7 @@
  * encima de un número que cuenta otra cosa.
  */
 
+import { ArrowRight, Bot, UserRound } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -171,7 +172,8 @@ export default async function PanelHome({
               </p>
             </div>
             <Link className="dsh-seccion__enlace" href="/auditoria">
-              Ver log completo →
+              Ver log completo
+              <ArrowRight size={14} strokeWidth={2.2} aria-hidden="true" />
             </Link>
           </div>
           {actividad.motivo === undefined ? (
@@ -187,7 +189,7 @@ export default async function PanelHome({
           )}
         </Card>
 
-        <div>
+        <Card>
           <div className="dsh-seccion">
             <div>
               <h2 className="dsh-seccion__titulo">Accesos directos</h2>
@@ -195,22 +197,25 @@ export default async function PanelHome({
             </div>
           </div>
           <div className="dsh-accesos">
-            {ACCESOS.map((acceso) => (
+            {ACCESOS.map((acceso, indice) => (
               <Link key={acceso.href} className="dsh-acceso" href={acceso.href}>
-                <span className="dsh-acceso__ico">
+                <span className={`dsh-acceso__ico dsh-acceso__ico--${TONOS_DE_ACCESO[indice % 3]}`}>
                   <Icono nombre={acceso.icono} />
                 </span>
-                <span>
+                <span className="dsh-acceso__texto">
                   <b className="dsh-acceso__nombre">{acceso.nombre}</b>
                   <span className="dsh-acceso__sub">{acceso.detalle}</span>
                 </span>
-                <span className="dsh-acceso__flecha" aria-hidden="true">
-                  →
-                </span>
+                <ArrowRight
+                  className="dsh-acceso__flecha"
+                  size={16}
+                  strokeWidth={2}
+                  aria-hidden="true"
+                />
               </Link>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
 
       <p className="dsh-nota">
@@ -297,6 +302,51 @@ function sentidoDeVariacion(variacion: string | null): "sube" | "baja" | "neutro
   return Number(variacion) >= 0 ? "sube" : "baja";
 }
 
+/** Los tonos de los azulejos de los accesos, en rotación: seis tarjetas del mismo verde son una pared. */
+const TONOS_DE_ACCESO = ["menta", "tinta", "ambar"] as const;
+
+/** Qué dibujo lleva cada módulo en la tabla de actividad. Lo que no se conoce usa el genérico. */
+const ICONO_DE_MODULO: Readonly<Record<string, NombreDeIcono>> = {
+  billing: "documento",
+  payments: "tarjeta",
+  scheduling: "calendario",
+  spreadsheet_sync: "subir",
+  reporting: "barras",
+};
+
+/** `autorizar_comprobante` → «Autorizar comprobante»: el identificador técnico no es un título. */
+function nombreDeAccion(accion: string): string {
+  const texto = accion.replace(/_/g, " ").trim();
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/**
+ * `Comprobante:2f6d9478-3c56-…` → el tipo («Comprobante») y una referencia corta (`2f6d9478`).
+ *
+ * El identificador completo son 36 caracteres que parten la fila en dos renglones y no le
+ * dicen nada a nadie; se conserva entero en el `title` para quien lo necesite copiar.
+ */
+function partirEntidad(entidad: string): {
+  readonly tipo: string;
+  readonly referencia: string | null;
+  readonly completa: string;
+} {
+  const corte = entidad.indexOf(":");
+  if (corte === -1) {
+    return { tipo: entidad, referencia: null, completa: entidad };
+  }
+  const tipo = entidad
+    .slice(0, corte)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
+  const id = entidad.slice(corte + 1);
+  return {
+    tipo: tipo.charAt(0).toUpperCase() + tipo.slice(1),
+    referencia: /^[0-9a-f]{8}-/i.test(id) ? id.slice(0, 8) : id,
+    completa: id,
+  };
+}
+
 const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
   {
     clave: "operacion",
@@ -306,10 +356,16 @@ const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
         <span
           className={`dsh-op__ico dsh-op__ico--${operacion.resultado === "error" ? "error" : "ok"}`}
         >
-          <Icono nombre={operacion.resultado === "error" ? "alerta" : "documento"} />
+          <Icono
+            nombre={
+              operacion.resultado === "error"
+                ? "alerta"
+                : (ICONO_DE_MODULO[operacion.modulo] ?? "actividad")
+            }
+          />
         </span>
         <span>
-          <b className="dsh-op__nombre">{operacion.accion}</b>
+          <b className="dsh-op__nombre">{nombreDeAccion(operacion.accion)}</b>
           <span className="dsh-op__ref">
             {ETIQUETAS_DE_MODULO[operacion.modulo] ?? operacion.modulo}
           </span>
@@ -320,14 +376,30 @@ const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
   {
     clave: "entidad",
     titulo: "Entidad afectada",
-    celda: (operacion) => (
-      <span>
-        <b className="dsh-entidad">{operacion.entidad_afectada}</b>
-        <span className="dsh-entidad__quien">
-          {operacion.iniciador === "usuario" ? "Iniciada por una persona" : "Automática"}
+    celda: (operacion) => {
+      const entidad = partirEntidad(operacion.entidad_afectada);
+      const automatica = operacion.iniciador !== "usuario";
+      return (
+        <span>
+          <b className="dsh-entidad">
+            {entidad.tipo}
+            {entidad.referencia !== null && (
+              <code className="dsh-entidad__id" title={entidad.completa}>
+                {entidad.referencia}
+              </code>
+            )}
+          </b>
+          <span className="dsh-entidad__quien">
+            {automatica ? (
+              <Bot size={13} strokeWidth={2} aria-hidden="true" />
+            ) : (
+              <UserRound size={13} strokeWidth={2} aria-hidden="true" />
+            )}
+            {automatica ? "Automática" : "Iniciada por una persona"}
+          </span>
         </span>
-      </span>
-    ),
+      );
+    },
   },
   {
     clave: "resultado",
@@ -342,9 +414,16 @@ const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
     clave: "fecha",
     titulo: "Fecha y hora",
     alDerecha: true,
-    celda: (operacion) => (
-      <span className="dsh-fecha">{formatearFechaHora(operacion.timestamp)}</span>
-    ),
+    celda: (operacion) => {
+      // «15/9/26, 16:35»: la fecha arriba y la hora abajo, que se leen de un vistazo.
+      const [fecha = "", hora = ""] = formatearFechaHora(operacion.timestamp).split(", ");
+      return (
+        <span className="dsh-fecha">
+          <b>{fecha}</b>
+          <span>{hora}</span>
+        </span>
+      );
+    },
   },
 ];
 

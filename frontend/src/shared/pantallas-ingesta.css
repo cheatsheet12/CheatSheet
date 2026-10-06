@@ -485,22 +485,27 @@
   flex: none;
 }
 
-/* Celda «Operación» de la tabla de actividad: icono, qué pasó y su referencia técnica. */
+/* Celda «Operación» de la tabla de actividad: icono, qué pasó y de qué módulo. */
 .dsh-op {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 14px;
 }
 
 .dsh-op__ico {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
   background: var(--info-bg);
   color: var(--info);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tabla tr:hover .dsh-op__ico {
+  transform: scale(1.08) rotate(-4deg);
 }
 
 .dsh-op__ico--ok {
@@ -514,8 +519,8 @@
 }
 
 .dsh-op__ico svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
 }
 
 .dsh-op__nombre {
@@ -526,30 +531,79 @@
 }
 
 .dsh-op__ref {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-400);
   display: block;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .dsh-entidad {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13.5px;
   font-weight: 600;
-  display: block;
   color: var(--ink-900);
 }
 
+/* La referencia corta del registro: una pastilla en monoespaciada, con el identificador
+   completo en el `title` para quien necesite copiarlo. */
+.dsh-entidad__id {
+  padding: 2px 7px;
+  border-radius: 7px;
+  background: var(--line-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-500);
+}
+
 .dsh-entidad__quien {
-  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 12px;
   color: var(--ink-400);
 }
 
+.dsh-entidad__quien svg {
+  flex: none;
+}
+
 .dsh-fecha {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--ink-500);
+  display: block;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.dsh-fecha b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+.dsh-fecha span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+/* La tabla de la actividad: encabezados en la fuente del panel y no en monoespaciada (son
+   rótulos, no datos), y un fondo suave al pasar por una fila. */
+.dsh-grid .tabla th {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: var(--ink-400);
+}
+
+.dsh-grid .tabla tr:hover td {
+  background: var(--bg-soft);
 }
 
 /*
@@ -563,61 +617,122 @@
   text-align: center;
 }
 
+/* Una lista y no una grilla de seis tarjetas: cada acceso es una fila con su icono, su nombre y
+   una flecha, y todas comparten una sola superficie. Seis tarjetas con borde y sombra cada una
+   pesaban más que la tabla de al lado. */
 .dsh-accesos {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -10px;
 }
 
 .dsh-acceso {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--card);
-  box-shadow: var(--shadow);
-  transition: border-color 0.14s ease;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 12px;
+  border-radius: 14px;
   text-decoration: none;
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .dsh-acceso:hover {
-  border-color: var(--accent);
+  background: var(--bg-soft);
+  text-decoration: none;
+}
+
+.dsh-acceso:active {
+  transform: scale(0.99);
+}
+
+.dsh-acceso:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .dsh-acceso__ico {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  background: var(--accent-050);
-  color: var(--accent-700);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dsh-acceso:hover .dsh-acceso__ico {
+  transform: scale(1.1) rotate(-5deg);
 }
 
 .dsh-acceso__ico svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+}
+
+.dsh-acceso__ico--menta {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.dsh-acceso__ico--tinta {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.dsh-acceso__ico--ambar {
+  background: var(--alert-050);
+  color: var(--warn);
+}
+
+.dsh-acceso__texto {
+  min-width: 0;
+  flex: 1;
 }
 
 .dsh-acceso__nombre {
-  font-size: 13.5px;
-  font-weight: 600;
   display: block;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--ink-900);
 }
 
 .dsh-acceso__sub {
-  font-size: 12px;
+  display: block;
+  margin-top: 1px;
+  font-size: 12.5px;
   color: var(--ink-400);
 }
 
 .dsh-acceso__flecha {
-  margin-left: auto;
-  color: var(--ink-300);
   flex: none;
+  color: var(--ink-300);
+  transition:
+    color 0.16s ease,
+    transform 0.2s ease;
+}
+
+.dsh-acceso:hover .dsh-acceso__flecha {
+  color: var(--accent-700);
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsh-acceso,
+  .dsh-acceso__ico,
+  .dsh-acceso__flecha,
+  .dsh-op__ico {
+    transition: none;
+  }
+
+  .dsh-acceso:hover .dsh-acceso__ico,
+  .dsh-acceso:hover .dsh-acceso__flecha,
+  .tabla tr:hover .dsh-op__ico,
+  .dsh-acceso:active {
+    transform: none;
+  }
 }
 
 .dsh-nota {
@@ -1301,4 +1416,70 @@
   .ing-proc-stat:hover {
     transform: none;
   }
+}
+
+/* «Ver log completo»: una pastilla con su flecha, que avanza al pasar el mouse. */
+.dsh-seccion__enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--accent-050);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  text-decoration: none;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.dsh-seccion__enlace svg {
+  transition: transform 0.2s ease;
+}
+
+.dsh-seccion__enlace:hover {
+  background: var(--accent-100);
+  text-decoration: none;
+}
+
+.dsh-seccion__enlace:hover svg {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsh-seccion__enlace,
+  .dsh-seccion__enlace svg {
+    transition: none;
+  }
+
+  .dsh-seccion__enlace:hover svg {
+    transform: none;
+  }
+}
+
+/* Actividad y accesos lado a lado sólo cuando hay lugar para las cuatro columnas de la tabla.
+   Con el menú lateral de 244 px, una pantalla de 1360 deja a la tabla ~590 px: la columna de
+   fecha se corta. Debajo de 1480 px se apilan, y los accesos pasan a dos columnas para no
+   quedar como una lista angosta en un ancho completo. */
+@media (width <= 1480px) {
+  .dsh-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dsh-accesos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 8px;
+  }
+}
+
+@media (width <= 700px) {
+  .dsh-accesos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dsh-op__nombre {
+  white-space: nowrap;
 }
