@@ -56,7 +56,7 @@ async def test_el_agente_guarda_fallido_y_no_levanta(clase: type[MensajeriaNoDis
 
 
 @pytest.mark.parametrize("clase", TIPADAS)
-def test_las_tipadas_siguen_siendo_mensajeria_no_disponible_y_entrada_invalida(
+async def test_las_tipadas_siguen_siendo_mensajeria_no_disponible_y_entrada_invalida(
     clase: type[MensajeriaNoDisponible],
 ) -> None:
     # `api/main.py` mapea `EntradaInvalida` a 422 reenviando el texto: el operador sigue

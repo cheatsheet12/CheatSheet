@@ -7,26 +7,46 @@ enviado lo que no salió). Todo corre sin red: la integración y el cifrado son 
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field, replace
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 from cheatsheet.api import mensajeria as modulo
+from cheatsheet.api.agenda import armar_notificador
+from cheatsheet.api.conversacional import _NotificadorSilencioso, armar_agenda
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.api.mercadopago import armar_envio
+from cheatsheet.contexts.conversational.application.ports import PortMensajeria
 from cheatsheet.contexts.conversational.infrastructure.canal import (
     ConfiguracionDeMensajeria,
     MensajeriaSimulada,
+    MensajeriaWhatsApp,
     SinCanal,
 )
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
 from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorWhatsApp
+from cheatsheet.contexts.scheduling.application.turnos import Avisador
+from cheatsheet.contexts.scheduling.domain.turno import EstadoTurno, Turno
 from cheatsheet.platform.settings import AdaptadorDeWhatsApp, Entorno, Settings
 from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.roles import RolUsuario
 
 from tests.conftest import settings_de_prueba
+from tests.contexts.scheduling.application.test_agenda import (
+    AHORA as AHORA_DE_LA_AGENDA,
+)
+from tests.contexts.scheduling.application.test_agenda import (
+    EMPRESA as EMPRESA_DE_LA_AGENDA,
+)
+from tests.contexts.scheduling.application.test_agenda import (
+    USUARIO as USUARIO_DE_LA_AGENDA,
+)
+from tests.contexts.scheduling.application.test_agenda import Escena, un_recurso, un_turno
 
 pytestmark = pytest.mark.asyncio
 
@@ -175,3 +195,114 @@ async def test_armar_envio_cablea_el_canal_recibido_con_el_contacto_del_cliente(
     envio = armar_envio(_unidad(), canal=canal)
 
     assert isinstance(envio, EnvioPorWhatsApp)
+
+
+# --- avisos de turno por el canal real (U5, casos 14, 15, 25 y 34) ----------------------------
+
+
+class _Meta:
+    """Un Meta falso: contesta lo que le toque (el último se repite) y cuenta los `POST`."""
+
+    def __init__(self, *respuestas: httpx.Response) -> None:
+        self._respuestas = list(respuestas)
+        self.pedidos: list[httpx.Request] = []
+
+    def __call__(self, pedido: httpx.Request) -> httpx.Response:
+        self.pedidos.append(pedido)
+        return self._respuestas[min(len(self.pedidos), len(self._respuestas)) - 1]
+
+
+async def _sin_esperar(segundos: float) -> None:
+    del segundos
+
+
+def _canal_real(meta: _Meta) -> MensajeriaWhatsApp:
+    return MensajeriaWhatsApp(
+        ConfiguracionDeMensajeria(
+            token="fake-token-for-tests",
+            phone_number_id="999",
+            graph_url="https://graph.test",
+            graph_version="v21.0",
+            timeout_segundos=1.0,
+        ),
+        transporte=httpx.MockTransport(meta),
+        esperar=_sin_esperar,
+    )
+
+
+async def _cancelar(escena: Escena, turno: Turno) -> Turno:
+    return await escena.cancelar().ejecutar(
+        empresa_id=EMPRESA_DE_LA_AGENDA,
+        usuario_id=USUARIO_DE_LA_AGENDA,
+        rol=RolUsuario.OPERADOR,
+        turno_id=turno.id,
+        ahora=AHORA_DE_LA_AGENDA,
+    )
+
+
+def _escena_con_canal(canal: PortMensajeria) -> tuple[Escena, Turno]:
+    recurso = un_recurso()
+    turno = un_turno(recurso)
+    escena = Escena(recurso, turno)
+    escena.avisador = armar_avisador_con(escena, canal)
+    return escena, turno
+
+
+def armar_avisador_con(escena: Escena, canal: PortMensajeria) -> Avisador:
+    """El avisador del panel, con los dobles de la escena y el notificador real de `api`."""
+    return Avisador(
+        clientes=escena.directorio,
+        servicios=escena.catalogo,
+        notificador=armar_notificador(canal),
+    )
+
+
+async def test_cancelar_un_turno_desde_el_panel_llega_a_la_cloud_api() -> None:
+    """**Caso 14.** Antes el aviso iba a `AvisoPorConsola` y nunca salía."""
+    meta = _Meta(httpx.Response(200, json={"messages": [{"id": "wamid.OK"}]}))
+    escena, turno = _escena_con_canal(_canal_real(meta))
+
+    cancelado = await _cancelar(escena, turno)
+
+    assert cancelado.estado is EstadoTurno.CANCELADO
+    assert len(meta.pedidos) == 1
+    cuerpo = json.loads(meta.pedidos[0].read())
+    assert cuerpo["to"] == "5491112345678"
+    assert "fue cancelado" in cuerpo["text"]["body"]
+
+
+async def test_meta_en_500_durante_una_cancelacion_deja_el_turno_cancelado_y_la_bitacora() -> None:
+    """**Caso 25.** Un fallo del canal no voltea la operación."""
+    meta = _Meta(httpx.Response(500))
+    escena, turno = _escena_con_canal(_canal_real(meta))
+
+    cancelado = await _cancelar(escena, turno)
+
+    assert cancelado.estado is EstadoTurno.CANCELADO
+    assert len(meta.pedidos) == 3  # los tres intentos con espera, y después el aviso se loguea
+    assert "cancelar_turno" in escena.publicador.acciones
+
+
+async def test_cancelar_en_produccion_sin_whatsapp_conectado_no_levanta_y_cancela() -> None:
+    """**Caso 15.** Antes de `SinCanal`, el simulado levantaba `RuntimeError` en producción."""
+    escena, turno = _escena_con_canal(SinCanal())
+
+    cancelado = await _cancelar(escena, turno)
+
+    assert cancelado.estado is EstadoTurno.CANCELADO
+    assert "cancelar_turno" in escena.publicador.acciones
+
+
+async def test_el_agente_sigue_sin_mandar_un_segundo_aviso() -> None:
+    """**Caso 34.** `armar_agenda` arma su `Avisador` con el notificador silencioso, no con
+    `AvisoPorWhatsApp`: el agente confirma en la conversación."""
+    unidad = UnidadDeTrabajo(
+        sesion=SimpleNamespace(begin_nested=lambda: None),  # type: ignore[arg-type]
+        publicador=None,  # type: ignore[arg-type]
+        reloj=None,  # type: ignore[arg-type]
+    )
+    agenda = armar_agenda(unidad, empresa_id=EmpresaId(uuid4()), usuario_id=None)
+
+    notificador = vars(vars(agenda)["_avisador"])["_notificador"]
+
+    assert isinstance(notificador, _NotificadorSilencioso)
