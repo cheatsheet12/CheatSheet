@@ -118,16 +118,16 @@ hacen `BotonDeSalida` y `RevisionDeMapeo`). No cubre `refresh()` sobre la misma 
 ## Archivos a tocar
 
 ### Frontend
-- [ ] `frontend/src/shared/navegacion.ts` (nuevo) y `frontend/src/shared/index.ts`
-- [ ] `frontend/src/shared/__tests__/navegacion.test.tsx` (nuevo, casos 1-6)
-- [ ] `frontend/src/shared/__tests__/router-que-suspende.tsx` (nuevo, doble de prueba)
-- [ ] `features/identity/components/`: `FormularioDeIngreso.tsx`, `FormularioDeAceptacion.tsx`,
+- [x] `frontend/src/shared/navegacion.ts` (nuevo) y `frontend/src/shared/index.ts`
+- [x] `frontend/src/shared/__tests__/navegacion.test.tsx` (nuevo, casos 1-6)
+- [x] `frontend/src/shared/__tests__/router-que-suspende.tsx` (nuevo, doble de prueba)
+- [x] `features/identity/components/`: `FormularioDeIngreso.tsx`, `FormularioDeAceptacion.tsx`,
       `FormularioDeEmpresa.tsx`, `BotonDeSalida.tsx` y sus tests
-- [ ] `features/billing/components/`: `NuevaEmision.tsx`, `AnularComprobante.tsx`; tests en
+- [x] `features/billing/components/`: `NuevaEmision.tsx`, `AnularComprobante.tsx`; tests en
       `AnularComprobante.test.tsx` y `pantallas.test.tsx`
-- [ ] `features/payments/components/NuevoCobro.tsx`; test en `pantallas.test.tsx`
-- [ ] `features/scheduling/components/NuevoTurno.tsx`; test en `pantallas.test.tsx`
-- [ ] `features/spreadsheet_sync/components/IngestaDePlanillas.tsx` y su test (sujeto a la pregunta 2)
+- [x] `features/payments/components/NuevoCobro.tsx`; test en `pantallas.test.tsx`
+- [x] `features/scheduling/components/NuevoTurno.tsx`; test en `pantallas.test.tsx`
+- [x] `features/spreadsheet_sync/components/IngestaDePlanillas.tsx` y su test (sujeto a la pregunta 2)
 
 ### Docs
 - [ ] `docs/aidlc/units.md` (fila de la unidad)
@@ -151,22 +151,22 @@ Ningún test existente afirma hoy que el botón se rehabilita tras el éxito; lo
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Hook: `pendiente` es `true` desde `ejecutar` hasta que la navegación resuelve, aunque `accion` ya resolvió | unit | pendiente |
-| 2 | Hook: si `accion` rechaza, `pendiente` vuelve a `false`, el error se relanza y no se navega | unit | pendiente |
-| 3 | Hook: una segunda llamada a `ejecutar` mientras está pendiente (incluso en el mismo tick) no invoca `accion` | unit | pendiente |
-| 4 | Hook: desmontado antes de que `accion` resuelva → no se llama a `navegar` | unit | pendiente |
-| 5 | Hook: `navegar` con `refresh()` sobre la misma página mantiene `pendiente` hasta que el refresh resuelve | unit | pendiente |
-| 6 | Hook: no hay render intermedio con `pendiente === false` entre el fin de `accion` y el inicio de la transición | unit | pendiente |
-| 7 | **RED** `FormularioDeIngreso`: tras resolver `ingresar`, el botón sigue deshabilitado y con `aria-busy` hasta resolver la navegación; un segundo submit no llama a `ingresar` de nuevo. Hoy falla: el botón se habilita | componente | pendiente |
-| 8 | `FormularioDeIngreso`: `ingresar` rechaza → botón habilitado y mensaje de error como hoy | componente | pendiente |
-| 9 | **RED** `NuevaEmision`: segundo clic tras resolver `emitirComprobante` y antes de la navegación → una sola llamada | componente | pendiente |
-| 10 | **RED** `AnularComprobante`: ídem con `emitirNotaDeCredito` | componente | pendiente |
-| 11 | **RED** `NuevoCobro`: ídem con `generarCobro` | componente | pendiente |
-| 12 | **RED** `NuevoTurno`: ídem con `reservarTurno` | componente | pendiente |
-| 13 | **RED** `FormularioDeAceptacion` y `FormularioDeEmpresa` (onboarding y edición): ídem | componente | pendiente |
-| 14 | **RED** `BotonDeSalida`: `push("/")` se llama antes que `refresh()`; con el logout fallido igual navega | componente | pendiente |
-| 15 | **RED** `IngestaDePlanillas` «Continuar»: deshabilitado mientras pide la URL; un segundo clic no llama a `iniciarVinculacionConGoogle` | componente | pendiente |
-| 16 | Suites existentes de las ocho pantallas siguen verdes (errores, validaciones, destino de `push`) | regresión | pendiente |
+| 1 | Hook: `pendiente` es `true` desde `ejecutar` hasta que la navegación resuelve, aunque `accion` ya resolvió | unit | verde |
+| 2 | Hook: si `accion` rechaza, `pendiente` vuelve a `false`, el error se relanza y no se navega | unit | verde |
+| 3 | Hook: una segunda llamada a `ejecutar` mientras está pendiente (incluso en el mismo tick) no invoca `accion` | unit | verde |
+| 4 | Hook: desmontado antes de que `accion` resuelva → no se llama a `navegar` | unit | verde |
+| 5 | Hook: `navegar` con `refresh()` sobre la misma página mantiene `pendiente` hasta que el refresh resuelve | unit | verde |
+| 6 | Hook: no hay render intermedio con `pendiente === false` entre el fin de `accion` y el inicio de la transición | unit | verde |
+| 7 | **RED** `FormularioDeIngreso`: tras resolver `ingresar`, el botón sigue deshabilitado y con `aria-busy` hasta resolver la navegación; un segundo submit no llama a `ingresar` de nuevo. Hoy falla: el botón se habilita | componente | verde |
+| 8 | `FormularioDeIngreso`: `ingresar` rechaza → botón habilitado y mensaje de error como hoy | componente | verde |
+| 9 | **RED** `NuevaEmision`: segundo clic tras resolver `emitirComprobante` y antes de la navegación → una sola llamada | componente | verde |
+| 10 | **RED** `AnularComprobante`: ídem con `emitirNotaDeCredito` | componente | verde |
+| 11 | **RED** `NuevoCobro`: ídem con `generarCobro` | componente | verde |
+| 12 | **RED** `NuevoTurno`: ídem con `reservarTurno` | componente | verde |
+| 13 | **RED** `FormularioDeAceptacion` y `FormularioDeEmpresa` (onboarding y edición): ídem | componente | verde |
+| 14 | **RED** `BotonDeSalida`: `push("/")` se llama antes que `refresh()`; con el logout fallido igual navega | componente | verde |
+| 15 | **RED** `IngestaDePlanillas` «Continuar»: deshabilitado mientras pide la URL; un segundo clic no llama a `iniciarVinculacionConGoogle` | componente | verde |
+| 16 | Suites existentes de las ocho pantallas siguen verdes (errores, validaciones, destino de `push`) | regresión | verde |
 
 ## Verificaciones que no se pueden hacer acá
 
@@ -215,3 +215,21 @@ Ningún test existente afirma hoy que el botón se rehabilita tras el éxito; lo
   - P2: `IngestaDePlanillas` «Continuar» entra en esta unidad (caso 15).
   - P3: los selectores por URL quedan fuera de alcance.
   - P4: la salida conserva la navegación del router, con el orden `push` → `refresh`.
+- **Implementación (2026-10-05):**
+  - El hook libera `enCurso` **dentro** de la transición (`setEnCurso(false)` en un `finally` del
+    callback de `startTransition`), no a continuación de ella. El plan decía «en el mismo tick: React
+    los agrupa»; observado en el componente real, no se agrupan: `isPending` se enciende con prioridad
+    mayor que un `setState` común y llegaba a confirmarse un render con ambos en `false` (el botón
+    habilitado, y un segundo envío pasaba). Dentro de la transición se confirma junto con el destino.
+    El caso 6 del hook corre dentro de `act` (que agrupa todo) y no lo detecta; lo fija el caso 7.
+  - Opción `saleDeLaPagina` en `ejecutar` (tercer parámetro, no estaba en la forma propuesta): para
+    `IngestaDePlanillas` no hay transición que esperar, y sin la opción `pendiente` se apagaba apenas
+    se asignaba `window.location.href`. Con ella no se libera tras navegar; sólo ante un error.
+  - `ocupado` (la marca síncrona) se libera también en el `catch`: una acción que falla en el mismo
+    tick puede no producir ningún render en el que `pendiente` cambie, y el efecto no corría.
+  - `FormularioDeEmpresa` en edición: `setGuardado(true)` pasa dentro de la acción, después del
+    `await`, para que el aviso «Guardamos los datos» se vea ya y no recién cuando termina el refresco.
+  - `BotonDeSalida`: el `catch` que se traga el fallo de `/api/auth/logout` quedó en una función
+    aparte (`cerrarSesion`) que se pasa como acción; así la acción nunca rechaza y salir siempre navega.
+  - Los tests que montan el componente sin un `useRouter` en su mock (`ingesta/__tests__/pagina.test.tsx`)
+    necesitaron uno, porque el hook lo lee: `IngestaDePlanillas` no usaba el router hasta ahora.
