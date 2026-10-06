@@ -13,7 +13,10 @@
 
 import {
   Banknote,
+  Briefcase,
+  CalendarCheck,
   CalendarPlus,
+  Clock,
   Ellipsis,
   Mail,
   Pencil,
@@ -21,6 +24,9 @@ import {
   Receipt,
   RotateCcw,
   Search,
+  Tag,
+  Tags,
+  Trash2,
   UserRound,
   UserX,
   Users,
@@ -80,4 +86,28 @@ export function IconoDeCliente(): JSX.Element {
 
 export function IconoDeCorreo(): JSX.Element {
   return <Mail aria-hidden="true" strokeWidth={1.9} />;
+}
+
+export function IconoDeServicio(): JSX.Element {
+  return <Briefcase aria-hidden="true" strokeWidth={1.9} />;
+}
+
+export function IconoDeReloj(): JSX.Element {
+  return <Clock aria-hidden="true" strokeWidth={2.2} />;
+}
+
+export function IconoDeAgenda(): JSX.Element {
+  return <CalendarCheck aria-hidden="true" strokeWidth={1.9} />;
+}
+
+export function IconoDeCategoria(): JSX.Element {
+  return <Tag aria-hidden="true" strokeWidth={1.9} />;
+}
+
+export function IconoDeCategorias(): JSX.Element {
+  return <Tags aria-hidden="true" strokeWidth={1.8} />;
+}
+
+export function IconoDeEliminar(): JSX.Element {
+  return <Trash2 aria-hidden="true" strokeWidth={2} />;
 }

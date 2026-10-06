@@ -80,6 +80,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Abre el menú ⋯ de la primera fila: Editar y Desactivar viven ahí. */
+function abrirMenu(): void {
+  fireEvent.click(screen.getByRole("button", { name: /Más acciones para/ }));
+}
+
 describe("ListadoDeServicios", () => {
   it("muestra las cinco columnas del criterio de aceptacion", () => {
     render(<ListadoDeServicios inicial={INICIAL} puedeEditar />);
@@ -124,7 +129,8 @@ describe("ListadoDeServicios", () => {
     render(<ListadoDeServicios inicial={INICIAL} puedeEditar={false} />);
 
     expect(screen.queryByRole("button", { name: "Nuevo servicio" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Más acciones/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Editar" })).toBeNull();
   });
 
   it("un servicio inactivo se ofrece para reactivar, nunca para borrar", () => {
@@ -174,7 +180,8 @@ describe("ListadoDeServicios", () => {
     vi.stubGlobal("confirm", vi.fn().mockReturnValue(false));
     render(<ListadoDeServicios inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+    abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Desactivar" }));
 
     expect(cambiarEstadoDeServicio).not.toHaveBeenCalled();
   });
@@ -185,7 +192,8 @@ describe("ListadoDeServicios", () => {
     listarServicios.mockResolvedValue({ servicios: [{ ...CORTE, activo: false }], total: 1 });
     render(<ListadoDeServicios inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+    abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Desactivar" }));
 
     await waitFor(() => {
       expect(cambiarEstadoDeServicio).toHaveBeenCalledWith(CORTE.id, false);
@@ -231,7 +239,8 @@ describe("ListadoDeServicios", () => {
     listarServicios.mockResolvedValue(INICIAL);
     render(<ListadoDeServicios inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Editar" }));
 
     const precio = screen.getByLabelText(/Precio sin IVA/) as HTMLInputElement;
     expect(precio.value).toBe("5000.00");
@@ -242,6 +251,52 @@ describe("ListadoDeServicios", () => {
       expect(editarServicio).toHaveBeenCalledWith(
         CORTE.id,
         expect.objectContaining({ precio: "5000.00" }),
+      );
+    });
+  });
+
+  it("Desactivar y Editar están dentro del menú, no sueltos en la fila", () => {
+    render(<ListadoDeServicios inicial={INICIAL} puedeEditar />);
+
+    expect(screen.queryByRole("menuitem", { name: "Editar" })).toBeNull();
+    const disparador = screen.getByRole("button", { name: "Más acciones para Corte de pelo" });
+    expect(disparador.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(disparador);
+
+    expect(screen.getByRole("menuitem", { name: "Editar" })).toBeDefined();
+    expect(screen.getByRole("menuitem", { name: "Desactivar" })).toBeDefined();
+  });
+
+  it("el interruptor «Solo activos» es un switch", () => {
+    render(<ListadoDeServicios inicial={INICIAL} puedeEditar />);
+
+    expect(screen.getByRole("switch", { name: "Solo activos" })).toBeDefined();
+  });
+
+  it("el contador dice cuántos servicios hay", () => {
+    render(<ListadoDeServicios inicial={INICIAL} puedeEditar />);
+
+    expect(screen.getByText("1 servicio")).toBeDefined();
+  });
+
+  it("sin servicios ni filtros ofrece crear el primero", () => {
+    render(<ListadoDeServicios inicial={{ servicios: [], total: 0 }} puedeEditar />);
+
+    expect(screen.getByText("Todavía no hay servicios en el catálogo.")).toBeDefined();
+    expect(screen.getAllByRole("button", { name: "Nuevo servicio" }).length).toBe(2);
+  });
+
+  it("sin resultados por un filtro ofrece limpiar, y limpiar recarga todo", async () => {
+    listarServicios.mockResolvedValue({ servicios: [], total: 0 });
+    render(<ListadoDeServicios inicial={INICIAL} puedeEditar />);
+
+    fireEvent.change(screen.getByLabelText(/Buscar/), { target: { value: "zzz" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Limpiar filtros" }));
+
+    await waitFor(() => {
+      expect(listarServicios).toHaveBeenLastCalledWith(
+        expect.objectContaining({ texto: "", soloActivos: false }),
       );
     });
   });
