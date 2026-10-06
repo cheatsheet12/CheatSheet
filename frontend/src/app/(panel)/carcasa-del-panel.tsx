@@ -115,13 +115,17 @@ export function CarcasaDelPanel({
             className="sidebar__logo"
             src="/logo-simbolo.png"
             alt=""
-            width={44}
-            height={44}
+            width={46}
+            height={46}
             priority
           />
           <span className="sidebar__marca">
-            <b className="sidebar__nombre">CheatSheet</b>
-            <small className="sidebar__version">iPaaS · panel</small>
+            <b className="sidebar__nombre">
+              Cheat<em>Sheet</em>
+            </b>
+            <small className="sidebar__version">
+              iPaaS <i aria-hidden="true">·</i> panel
+            </small>
           </span>
           <button
             type="button"
