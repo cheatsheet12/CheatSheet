@@ -31,6 +31,7 @@ import {
   variablesDe,
   variablesInvalidas,
   verConversacion,
+  verUsoDeFaq,
 } from "@/features/conversational";
 
 function respuesta(cuerpo: unknown, ok = true, status = 200): Response {
@@ -168,6 +169,33 @@ describe("las FAQ", () => {
     await eliminarFaq("f1");
 
     expect(espia).toHaveBeenCalledWith("/api/faqs/f1", { method: "DELETE" });
+  });
+
+  it("ver el uso es un GET sin cache al detalle de esa FAQ", async () => {
+    const detalle = {
+      usos_este_mes: 3,
+      comparacion: null,
+      motivo_sin_comparacion: "SIN_EDICIONES",
+    };
+    const espia = espiarFetch(respuesta(detalle));
+
+    expect(await verUsoDeFaq("f1")).toEqual(detalle);
+
+    expect(espia).toHaveBeenCalledWith("/api/faqs/f1/uso", { cache: "no-store" });
+  });
+
+  it("ver el uso propaga el detalle del backend", async () => {
+    espiarFetch(
+      respuesta(
+        { error: "EntradaInvalida", detalle: "La respuesta frecuente no existe" },
+        false,
+        422,
+      ),
+    );
+
+    await expect(verUsoDeFaq("f1")).rejects.toThrow(
+      new ErrorDeFaq("La respuesta frecuente no existe"),
+    );
   });
 
   it("propaga la frase de los campos obligatorios", async () => {

@@ -39,11 +39,25 @@ class SalidaAlCliente:
         texto: str,
         ahora: datetime,
     ) -> str | None:
-        """Manda el mensaje y lo guarda. **Un fallo de WhatsApp no voltea lo que ya pasó.**
+        """Manda el mensaje y lo guarda. Devuelve el texto si salió y `None` si no."""
+        saliente = await self.enviar(empresa_id, conversacion, telefono, texto, ahora)
+        return texto if saliente.estado_entrega is EstadoEntrega.ENVIADO else None
+
+    async def enviar(
+        self,
+        empresa_id: EmpresaId,
+        conversacion: Conversacion,
+        telefono: str,
+        texto: str,
+        ahora: datetime,
+    ) -> Mensaje:
+        """Manda el mensaje, lo guarda y devuelve el saliente. **Un fallo de WhatsApp no voltea
+        lo que ya pasó.**
 
         Un turno reservado sigue reservado aunque la confirmación no salga; lo contrario
         dejaría al negocio sin poder operar cuando Meta tiene un problema. Es la misma decisión
-        D33 del épico 7.
+        D33 del épico 7. Quien necesite saber si salió (el uso de una FAQ) mira
+        `estado_entrega` del `Mensaje` devuelto.
         """
         externo_id: str | None = None
         estado = EstadoEntrega.FALLIDO
@@ -57,21 +71,20 @@ class SalidaAlCliente:
             # enumerarlos acá acoplaría este caso de uso a su infraestructura.
             estado = EstadoEntrega.FALLIDO
             del fallo
-        await self._mensajes.agregar(
-            Mensaje(
-                id=uuid4(),
-                conversacion_id=conversacion.id,
-                empresa_id=empresa_id,
-                direccion=DireccionMensaje.SALIENTE,
-                tipo_contenido=TipoContenido.TEXTO,
-                contenido=texto,
-                momento=ahora,
-                origen=OrigenDelMensaje.AGENTE,
-                estado_entrega=estado,
-                externo_id=externo_id,
-            )
+        mensaje = Mensaje(
+            id=uuid4(),
+            conversacion_id=conversacion.id,
+            empresa_id=empresa_id,
+            direccion=DireccionMensaje.SALIENTE,
+            tipo_contenido=TipoContenido.TEXTO,
+            contenido=texto,
+            momento=ahora,
+            origen=OrigenDelMensaje.AGENTE,
+            estado_entrega=estado,
+            externo_id=externo_id,
         )
-        return texto if estado is EstadoEntrega.ENVIADO else None
+        await self._mensajes.agregar(mensaje)
+        return mensaje
 
 
 __all__ = ["SalidaAlCliente"]

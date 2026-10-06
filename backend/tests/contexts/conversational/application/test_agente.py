@@ -230,7 +230,11 @@ class TestNotasDeVoz:
 
 class TestFAQ:
     async def test_contesta_la_faq_palabra_por_palabra_y_cuenta_el_uso(self) -> None:
-        """HU-E8-03 RN-01 y RN-04. **El modelo no reescribe la respuesta de la empresa.**"""
+        """HU-E8-03 RN-01 y RN-04. **El modelo no reescribe la respuesta de la empresa.**
+
+        El uso es un evento ligado al saliente `ENVIADO`, y el agente no escribe la fila de la
+        FAQ (así no puede pisar una edición del administrador).
+        """
         faq = FAQ(
             id=uuid4(),
             empresa_id=EMPRESA,
@@ -246,7 +250,12 @@ class TestFAQ:
         await escena.procesar("precio del corte")
 
         assert escena.mensajeria.textos == [faq.respuesta]
-        assert escena.faqs.faqs[faq.id].usos == 1
+        (saliente,) = escena.mensajes.salientes
+        assert saliente.estado_entrega is EstadoEntrega.ENVIADO
+        (uso,) = escena.usos.usos
+        assert (uso.faq_id, uso.mensaje_id, uso.usado_en) == (faq.id, saliente.id, escena.ahora)
+        assert uso.empresa_id == EMPRESA
+        assert escena.faqs.guardados == 0
 
     async def test_sin_faq_por_encima_del_umbral_ofrece_un_asesor(self) -> None:
         """RN-03. Contestar la FAQ equivocada con tono seguro es la peor de las dos fallas."""
@@ -264,7 +273,29 @@ class TestFAQ:
         await escena.procesar("tenés estacionamiento")
 
         assert escena.mensajeria.textos == [MENSAJE_OFRECER_ASESOR]
-        assert faq.usos == 0
+        assert escena.usos.usos == []
+
+    async def test_si_el_whatsapp_no_sale_el_uso_no_se_cuenta(self) -> None:
+        """ADR-0012, punto 1: un uso es una respuesta que el cliente pudo recibir."""
+        faq = FAQ(
+            id=uuid4(),
+            empresa_id=EMPRESA,
+            pregunta="¿Cuánto sale un corte?",
+            respuesta="Un corte sale $8000.",
+            created_at=AHORA,
+            updated_at=AHORA,
+        )
+        escena = Escena(lectura=leyendo(Intencion.FAQ))
+        escena.mensajeria.caida = True
+        escena.faqs.faqs[faq.id] = faq
+        escena.faqs.coincidencias = [CoincidenciaDeFAQ(faq=faq, similitud=0.9)]
+
+        respuesta = await escena.procesar("precio del corte")
+
+        assert respuesta.texto_enviado is None
+        (saliente,) = escena.mensajes.salientes
+        assert saliente.estado_entrega is EstadoEntrega.FALLIDO
+        assert escena.usos.usos == []
 
 
 class TestCanalCaido:
