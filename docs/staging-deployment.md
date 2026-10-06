@@ -83,6 +83,15 @@ and the OAuth2 `state` memory, the idempotency registry and half of `/health` li
 | `JWT_SECRET` | Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `SECRETS_ENCRYPTION_KEY` | 32 bytes base64. Generate with the command in `backend/.env.example` line 59 |
 | `APP_BASE_URL` | The **panel's** public URL — filled in at §5, not now |
+| `WHATSAPP_ADAPTADOR` | `simulado` on staging (no real Meta credentials, §8). Production must be `meta`; `simulado` is refused there |
+| `WHATSAPP_WEBHOOK_SECRET` | The **App Secret** of the Meta app, which signs `X-Hub-Signature-256` on every inbound notification |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | The token typed when the webhook URL is registered in the Meta app |
+
+> **Without `WHATSAPP_WEBHOOK_SECRET` every WhatsApp notification is discarded with a 200** (D49,
+> pending #3 of epic 8): the signature can never match an empty secret, and the 200 stops Meta from
+> retrying. The two `WHATSAPP_WEBHOOK_*` values are only needed once a Meta app exists
+> ([`aidlc/TODO.md`](aidlc/TODO.md) §22.30 and §22.39). The company's own WhatsApp token and number are
+> **not** environment variables: they live in `integrations`, per company.
 
 > **`SECRETS_ENCRYPTION_KEY` is not a password you can change your mind about.** It encrypts every
 > integration credential at rest. Rotating it later means re-encrypting `configuracion_de_integracion`
@@ -149,6 +158,10 @@ Environment variables: the same seven the API has — `APP_ENV`, `DATABASE_URL`,
 `DATABASE_URL_MIGRATIONS`, `JWT_SECRET`, `SECRETS_ENCRYPTION_KEY`, `APP_BASE_URL`, `REDIS_URL` —
 plus `ALMACENAMIENTO_ADAPTADOR=r2` and the four `R2_*` values from §4 bis.1. **Add those five to the
 API as well**, or it will keep writing reports into its own memory.
+
+The worker also needs `WHATSAPP_ADAPTADOR`, with **the same value as the API**: the payment-reminder
+sweep runs here and has to pick the same channel the API does (`simulado` on staging). It does not
+need the two `WHATSAPP_WEBHOOK_*` values, which only the API reads.
 
 > **`SECRETS_ENCRYPTION_KEY` must be character-for-character the same as the API's.** Integration
 > credentials are encrypted with it. A worker with a different key fails every ARCA authorisation

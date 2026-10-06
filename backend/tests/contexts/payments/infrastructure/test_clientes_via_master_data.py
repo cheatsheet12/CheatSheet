@@ -15,7 +15,10 @@ from cheatsheet.contexts.master_data.application.clientes import (
     DatosDeCliente,
     RegistrarCliente,
 )
-from cheatsheet.contexts.payments.infrastructure.clientes import ClienteViaMasterData
+from cheatsheet.contexts.payments.infrastructure.clientes import (
+    ClienteViaMasterData,
+    ContactoViaMasterData,
+)
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.roles import RolUsuario
@@ -71,3 +74,40 @@ async def test_un_cliente_inactivo_no_esta_activo() -> None:
 
 async def test_un_cliente_inexistente_no_esta_activo() -> None:
     assert await ClienteViaMasterData(RepositorioClienteEnMemoria()).esta_activo(uuid4()) is False
+
+
+# --- ContactoViaMasterData (U5): a quién se le escribe un recordatorio ------------------------
+
+
+async def _registrar_con(repositorio: RepositorioClienteEnMemoria, whatsapp: str | None) -> UUID:
+    vista = await RegistrarCliente(
+        clientes=repositorio, padron=PadronFalso(), publicador=PublicadorFalso(), reloj=RELOJ
+    ).ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=RolUsuario.OPERADOR,
+        datos=DatosDeCliente(nombre="Rosa Diaz", contacto_whatsapp=whatsapp),
+    )
+    return vista.cliente.id
+
+
+async def test_el_contacto_trae_nombre_y_whatsapp() -> None:
+    repositorio = RepositorioClienteEnMemoria()
+    cliente_id = await _registrar_con(repositorio, "+5491155550000")
+
+    contacto = await ContactoViaMasterData(repositorio).contacto_de(cliente_id)
+
+    assert contacto is not None
+    assert contacto.nombre == "Rosa Diaz"
+    assert contacto.telefono.endswith("5491155550000")
+
+
+async def test_un_cliente_sin_whatsapp_no_tiene_contacto() -> None:
+    repositorio = RepositorioClienteEnMemoria()
+    cliente_id = await _registrar_con(repositorio, None)
+
+    assert await ContactoViaMasterData(repositorio).contacto_de(cliente_id) is None
+
+
+async def test_un_cliente_inexistente_no_tiene_contacto() -> None:
+    assert await ContactoViaMasterData(RepositorioClienteEnMemoria()).contacto_de(uuid4()) is None

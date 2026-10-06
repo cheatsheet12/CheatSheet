@@ -22,6 +22,7 @@ from uuid import UUID
 
 from cheatsheet.api.agenda import armar_avisador, armar_catalogo
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.contexts.scheduling.application.disponibilidad import VerHorariosDisponibles
 from cheatsheet.contexts.scheduling.application.ports import FiltrosDeAgenda
 from cheatsheet.contexts.scheduling.application.recursos import (
@@ -575,11 +576,12 @@ def _rutas_de_turnos(recursos: Recursos) -> APIRouter:
         salida: TurnoSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Agenda.armar(unidad)
+            canal = await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id)
             turno = await ReservarTurno(
                 turnos=piezas.turnos,
                 recursos=piezas.recursos,
                 servicios=armar_catalogo(unidad, empresa_id=empresa_id, rol=rol),
-                avisador=armar_avisador(unidad, recursos.settings, empresa_id=empresa_id, rol=rol),
+                avisador=armar_avisador(unidad, empresa_id=empresa_id, rol=rol, canal=canal),
                 publicador=unidad.publicador,
             ).ejecutar(
                 empresa_id=empresa_id,
@@ -615,10 +617,11 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
         salida: TurnoSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Agenda.armar(unidad)
+            canal = await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id)
             turno = await CancelarTurno(
                 turnos=piezas.turnos,
                 recursos=piezas.recursos,
-                avisador=armar_avisador(unidad, recursos.settings, empresa_id=empresa_id, rol=rol),
+                avisador=armar_avisador(unidad, empresa_id=empresa_id, rol=rol, canal=canal),
                 publicador=unidad.publicador,
             ).ejecutar(
                 empresa_id=empresa_id,
@@ -639,10 +642,11 @@ def _rutas_de_gestion(recursos: Recursos) -> APIRouter:
         salida: TurnoSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Agenda.armar(unidad)
+            canal = await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id)
             turno = await ReprogramarTurno(
                 turnos=piezas.turnos,
                 recursos=piezas.recursos,
-                avisador=armar_avisador(unidad, recursos.settings, empresa_id=empresa_id, rol=rol),
+                avisador=armar_avisador(unidad, empresa_id=empresa_id, rol=rol, canal=canal),
                 publicador=unidad.publicador,
             ).ejecutar(
                 empresa_id=empresa_id,

@@ -184,8 +184,7 @@ WHATSAPP_ADAPTADOR=meta          # 'simulado' es rechazado al arrancar en produc
 WHATSAPP_GRAPH_VERSION=v21.0     # Meta deprecia una version por trimestre: revisala
 ```
 
-⚠️ **`WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_APP_SECRET` y
-`WHATSAPP_WEBHOOK_VERIFY_TOKEN` no son estas.** Ésas son de plataforma, para los webhooks entrantes
+⚠️ **`WHATSAPP_WEBHOOK_SECRET` y `WHATSAPP_WEBHOOK_VERIFY_TOKEN` no son estas.** Ésas son de plataforma, para los webhooks entrantes
 del agente conversacional (épico 8). Confundirlas significaría que **todas las empresas mandan
 mensajes desde el mismo número**.
 
@@ -268,7 +267,7 @@ Y tres cosas que conviene saber antes de probar contra MercadoPago de verdad:
 | Qué | Por qué queda afuera | Dueño |
 |---|---|---|
 | **Embedded Signup de Meta** reemplaza el formulario manual de tres campos | Exige una app de Meta **aprobada**, que no existe. El popup del SDK de Facebook es mucho mejor UX, pero no se puede construir ni demostrar hoy (decisión D-f) | Se cambia `FormularioDeWhatsApp.tsx` y `whatsapp/conector.py`, nada más |
-| **El webhook de cambio de estado del número** | Es de plataforma: necesita endpoint público, validación de firma con `WHATSAPP_APP_SECRET` y app de Meta. Su endpoint es del épico 8 (decisión D-d) | Épico 8. El sondeo pasa a ser la red de seguridad |
+| **El webhook de cambio de estado del número** | Es de plataforma: necesita endpoint público, validación de firma con `WHATSAPP_WEBHOOK_SECRET` y app de Meta. Su endpoint es del épico 8 (decisión D-d) | Épico 8. El sondeo pasa a ser la red de seguridad |
 | **La calidad de la línea sólo se ve cuando es `RED`** | Se registra siempre (RN-03) pero la pantalla la muestra únicamente como detalle del estado Atención. Mostrar `GREEN`/`YELLOW` en la tarjeta es diseño que el mockup no tiene | Cuando haya un mockup |
 | **Un certificado de ARCA revocado antes de vencer no se detecta hasta la próxima renovación de ticket** | La verificación en vivo lee el `notAfter` local y no llama a WSAA, a propósito: llamar quemaría el ticket de 12 h en cada refresco de pantalla y chocaría con la regla del proveedor (decisión D-e) | Aparece igual, en el primer momento en que importa: cuando hay que emitir |
 | **PyAfipWs sigue sin instalarse** | WSAA no lo necesita (ADR-0004). WSFEv1 es otra historia y es decisión del épico 5, donde ADR-012 sigue vigente | Épico 5 |
@@ -653,6 +652,19 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 | 22.27 | En **staging de Render** (no en local): generar un cobro desde `/cobros/nuevo`, volver con «Atrás» y generar otro → dos cobros distintos; cortar la red tras enviar y reintentar (misma pantalla, sin tocar el formulario) → un solo cobro y un solo link; editar el monto tras un error y reenviar → el aviso «Esta clave ya se uso…» con el enlace al listado | `cobro-con-clave-de-idempotencia` |
 | 22.28 | Los tests contra PostgreSQL de esta unidad (casos 9 a 15 del plan: mismo pedido y otro cuerpo por API, dos pedidos concurrentes, la misma clave en dos empresas, índice único y `PedidoEnCurso`, migración 0034) se saltearon en local (sin Docker): confirmar que pasan en la CI del PR | `cobro-con-clave-de-idempotencia` |
 | 22.29 | **Aviso a Cristian (#97).** `billing` reutiliza `api/clave_de_pedido.py::exigir_clave_de_pedido`, el parámetro `cabeceras` de `reenviarAlBackend` (`app/api/usuarios/_proxy.ts`) y el contrato del ADR-0013 para `POST /comprobantes` y las notas de crédito | `cobro-con-clave-de-idempotencia` |
+| 22.30 | Conseguir la app de Meta con número de prueba y cargar sus credenciales en staging (`integrations`, `WHATSAPP_ADAPTADOR=meta`) — responsable Cristian. **Sin esto no se puede verificar nada de 22.31–22.40**: el código de U5 queda probado sólo contra contratos grabados (`httpx.MockTransport`) | `canal-real-de-whatsapp` (U5–U8) |
+| 22.31 | Un texto libre iniciado por la empresa **fuera de la ventana de 24 h** vuelve con `error.code` 131047, y **con qué status HTTP** (la documentación de Meta no lo dice). Si el código llega distinto, ajustar la tabla de `conversational/infrastructure/canal_errores.py` | `canal-real-de-whatsapp` |
+| 22.32 | Formato del número argentino que acepta `to`: con o sin `+`, con o sin el `9` de celular (`549…` vs `54…`) contra lo que guarda `master_data`. Si falla, todos los envíos a celulares argentinos fallan y hay que normalizar en el adaptador | `canal-real-de-whatsapp` |
+| 22.33 | Status HTTP con que llegan los códigos de throttling (4, 80007, 130429, 131056) y si traen `Retry-After`. La clasificación por código los cubre igual; si traen espera sugerida, evaluar usarla | `canal-real-de-whatsapp` |
+| 22.34 | Un `ReadTimeout` provocado (proxy lento) no produce dos mensajes y deja el recordatorio `FALLIDO` | `canal-real-de-whatsapp` |
+| 22.35 | `messages[0].id` del envío coincide con el `id` de `statuses[]` del callback | `entregas-de-whatsapp` (U7) |
+| 22.36 | Forma del envío `type: template` (posicionales vs `parameter_name`, idioma `es_AR`) y respuesta ante plantilla no aprobada (132001) | `plantillas-de-whatsapp-en-meta` (U6) |
+| 22.37 | `GET /{waba_id}/message_templates` y el webhook `message_template_status_update` | `plantillas-de-whatsapp-en-meta` (U6) |
+| 22.38 | Un `failed` trae `errors[]` con código legible | `entregas-de-whatsapp` (U7) |
+| 22.39 | Punta a punta en staging: registrar `/webhooks/whatsapp/{empresa}` con `WHATSAPP_WEBHOOK_SECRET` y `WHATSAPP_WEBHOOK_VERIFY_TOKEN` cargados en Render (pendiente #3 del épico 8). Sin el secreto, toda notificación se descarta con 200 (D49) | `canal-real-de-whatsapp` (config) / `entregas-de-whatsapp` |
+| 22.40 | Cantidad de destinatarios que admite el número de prueba, para planificar la prueba con menos clientes si hace falta | `canal-real-de-whatsapp` (U5–U8) |
+| 22.41 | Los tests contra PostgreSQL de `canal-real-de-whatsapp` (casos 2 y 3 del plan: `tests/integracion/test_barrido_de_recordatorios_postgres.py`, el barrido sin duplicados y el duplicado que ya no envenena la transacción) y `bash .claude/hooks/test_guards.sh` (caso 32; falta `jq` en la máquina de desarrollo) se saltearon en local: confirmar que pasan en la CI del PR | `canal-real-de-whatsapp` |
+| 22.42 | `backend/src/cheatsheet/api/routers/agenda.py` tiene 688 líneas (límite de CLAUDE.md §5: 400). Ya superaba el límite antes de `canal-real-de-whatsapp` (684 líneas) y la unidad no lo partió: hace falta una unidad propia que lo divida por responsabilidad (hallazgo de la revisión independiente de la unidad) | unidad propia, sin asignar |
 
 **Archivos de más de 400 líneas (CLAUDE.md §5), vistos en `limites-e-intervalo-de-turnos`.** Ya superaban el límite antes de esa unidad y no se partieron (decisión P4): `scheduling/application/turnos.py` (~520), `api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y `tests/contexts/scheduling/application/test_agenda.py` (~1180). Una unidad aparte puede extraer `Avisador` a `application/avisador.py` y partir el router en uno de recursos y uno de turnos.
 
