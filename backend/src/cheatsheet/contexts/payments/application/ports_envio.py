@@ -7,7 +7,30 @@ uno es un contrato del *consumidor* (`recordatorios.py` y el adaptador de envío
 from __future__ import annotations
 
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from typing import Protocol
+from uuid import UUID
+
+
+@dataclass(frozen=True, slots=True)
+class ContactoDeCobro:
+    """A quién se le escribe un recordatorio: el nombre y el teléfono, nada más."""
+
+    nombre: str
+    telefono: str
+
+
+class PortContactoDeCliente(Protocol):
+    """El contacto de un cliente, **sólo para el adaptador de envío**.
+
+    Puerto aparte y no un método más de `PortClienteDeCobro`, a propósito: ese puerto no expone
+    el contacto (D92) y el caso de uso de cobros sigue sin verlo. Mismo patrón que
+    `scheduling` (`PortDirectorioDeClientes.contacto_de`).
+
+    Devuelve `None` si el cliente no existe o no tiene un WhatsApp registrado.
+    """
+
+    async def contacto_de(self, cliente_id: UUID) -> ContactoDeCobro | None: ...
 
 
 class PortAislamiento(Protocol):
@@ -25,4 +48,4 @@ class PortAislamiento(Protocol):
     def aislar(self) -> AbstractAsyncContextManager[None]: ...
 
 
-__all__ = ["PortAislamiento"]
+__all__ = ["ContactoDeCobro", "PortAislamiento", "PortContactoDeCliente"]

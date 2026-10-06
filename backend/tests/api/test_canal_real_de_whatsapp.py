@@ -15,12 +15,14 @@ import pytest
 from cheatsheet.api import mensajeria as modulo
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.api.mensajeria import armar_mensajeria
+from cheatsheet.api.mercadopago import armar_envio
 from cheatsheet.contexts.conversational.infrastructure.canal import (
     ConfiguracionDeMensajeria,
     MensajeriaSimulada,
     SinCanal,
 )
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
+from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorWhatsApp
 from cheatsheet.platform.settings import AdaptadorDeWhatsApp, Entorno, Settings
 from cheatsheet.shared.empresa import EmpresaId
 
@@ -162,3 +164,14 @@ async def test_cada_empresa_usa_su_propio_token_y_su_propio_numero(
         "fake-token-de-b",
         "222",
     )
+
+
+# --- armar_envio: el recordatorio sale por el canal que le pasan (U5, caso 13) -------------
+
+
+async def test_armar_envio_cablea_el_canal_recibido_con_el_contacto_del_cliente() -> None:
+    canal = MensajeriaSimulada(Entorno.STAGING)
+
+    envio = armar_envio(_unidad(), canal=canal)
+
+    assert isinstance(envio, EnvioPorWhatsApp)
