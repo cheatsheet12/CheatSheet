@@ -154,35 +154,35 @@ el reintento igual tiene que devolver el cobro que ya existe, no un 422.
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/payments/domain/cobro.py` (`clave_idempotencia`, `es_el_mismo_pedido`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/generacion_de_cobro.py` (nuevo: `GenerarCobro` extraído)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (sale `GenerarCobro`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/errors.py` (`ClaveDeIdempotenciaReusada`, `PedidoEnCurso`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/ports.py` (`buscar_por_clave_bloqueada`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/ports_de_recordatorios.py` (nuevo: bloque movido)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/models.py` (columna e índice)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/repositories.py` (bloqueo, lectura, mapeo, traducción del `IntegrityError`)
-- [ ] `backend/src/cheatsheet/api/routers/cobros.py` (encabezado `X-Idempotency-Key`, validación, imports)
-- [ ] `backend/migrations/versions/00NN_clave_de_idempotencia_de_cobro.py` (nuevo)
-- [ ] `backend/tests/contexts/payments/domain/…` (`es_el_mismo_pedido`)
-- [ ] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py` (y los imports movidos en `test_confirmacion.py` u otros que importen `GenerarCobro`)
-- [ ] `backend/tests/contexts/payments/application/test_generacion_idempotente.py` (nuevo)
-- [ ] `backend/tests/integracion/test_api_mercadopago.py` (los `POST /cobros` existentes mandan la clave; casos nuevos)
-- [ ] `backend/tests/integracion/test_cobros_postgres.py` (índice, RLS, concurrencia)
+- [x] `backend/src/cheatsheet/contexts/payments/domain/cobro.py` (`clave_idempotencia`, `es_el_mismo_pedido`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/generacion_de_cobro.py` (nuevo: `GenerarCobro` extraído)
+- [x] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (sale `GenerarCobro`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/errors.py` (`ClaveDeIdempotenciaReusada`, `PedidoEnCurso`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/ports.py` (`buscar_por_clave_bloqueada`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/ports_de_recordatorios.py` (nuevo: bloque movido)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/models.py` (columna e índice)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/repositories.py` (bloqueo, lectura, mapeo, traducción del `IntegrityError`)
+- [x] `backend/src/cheatsheet/api/routers/cobros.py` (encabezado `X-Idempotency-Key`, validación, imports)
+- [x] `backend/migrations/versions/0034_clave_de_idempotencia_de_cobro.py` (nuevo)
+- [x] `backend/tests/contexts/payments/domain/…` (`es_el_mismo_pedido`)
+- [x] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py` (y los imports movidos en `test_confirmacion.py` u otros que importen `GenerarCobro`)
+- [x] `backend/tests/contexts/payments/application/test_generacion_idempotente.py` (nuevo)
+- [x] `backend/tests/integracion/test_api_mercadopago.py` (los `POST /cobros` existentes mandan la clave; casos nuevos)
+- [x] `backend/tests/integracion/test_cobros_postgres.py` (índice, RLS, concurrencia)
 
 ### Frontend
-- [ ] `frontend/src/features/payments/api/cobro.ts` (`generarCobro(datos, clave)`)
-- [ ] `frontend/src/features/payments/api/__tests__/cobro.test.ts`
-- [ ] `frontend/src/features/payments/components/NuevoCobro.tsx`
-- [ ] `frontend/src/features/payments/components/__tests__/pantallas.test.tsx`
-- [ ] `frontend/src/app/api/cobros/route.ts` (reenvía el encabezado)
-- [ ] `frontend/src/app/api/usuarios/_proxy.ts` (parámetro opcional `cabeceras`)
-- [ ] `frontend/src/app/api/cobros/__tests__/rutas.test.ts`
+- [x] `frontend/src/features/payments/api/cobro.ts` (`generarCobro(datos, clave)`)
+- [x] `frontend/src/features/payments/api/__tests__/cobro.test.ts`
+- [x] `frontend/src/features/payments/components/NuevoCobro.tsx`
+- [x] `frontend/src/features/payments/components/__tests__/pantallas.test.tsx`
+- [x] `frontend/src/app/api/cobros/route.ts` (reenvía el encabezado)
+- [x] `frontend/src/app/api/usuarios/_proxy.ts` (parámetro opcional `cabeceras`)
+- [x] `frontend/src/app/api/cobros/__tests__/rutas.test.ts`
 
 ### Docs
-- [ ] `docs/adr/00NN-request-idempotency-key.md` (nuevo, en inglés, si se aprueba P7)
-- [ ] `docs/aidlc/units.md` (fila de la unidad: `Rama`, estado)
-- [ ] `docs/aidlc/units/cobro-con-clave-de-idempotencia.md` (este plan)
+- [x] `docs/adr/0013-request-idempotency-key.md` (nuevo, en inglés; aceptado en #100)
+- [x] `docs/aidlc/units.md` (fila de la unidad: `Rama`, estado; ya figuraba «en curso»)
+- [x] `docs/aidlc/units/cobro-con-clave-de-idempotencia.md` (este plan)
 
 ## Casos de prueba
 
@@ -191,34 +191,35 @@ y API no corren en la máquina local (sin Docker): se escriben y los confirma la
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | RED: `es_el_mismo_pedido` es verdadero con los mismos datos y con `1210.005` contra `1210.01`; falso si cambia cliente, monto, concepto o comprobante (incluido `None` contra un id) | unit (dominio) | pendiente |
-| 2 | RED: `GenerarCobro` con una clave nueva crea el cobro **con la clave** y llama una vez a la pasarela | unit | pendiente |
-| 3 | RED: segunda ejecución con la misma clave y los mismos datos → devuelve el **mismo** cobro (mismo id), la pasarela no se vuelve a llamar, no se persiste otro, no hay evento de bitácora nuevo | unit | pendiente |
-| 4 | RED: misma clave, otro monto (y otro cliente, concepto, comprobante) → `ClaveDeIdempotenciaReusada`, sin pasarela ni persistencia | unit | pendiente |
-| 5 | Repetición cuando el cliente ya está inactivo → devuelve el cobro original (la búsqueda va antes de validar el cliente) | unit | pendiente |
-| 6 | Solo Lectura con clave → rechazado por rol **antes** de buscar la clave (el fake no recibe consultas) | unit | pendiente |
-| 7 | Si la pasarela falla en el primer pedido, nada queda guardado y un segundo pedido con la misma clave crea el cobro | unit | pendiente |
-| 8 | RED: `POST /cobros` sin `X-Idempotency-Key` → 422 con el texto de la tabla; con un valor que no es UUID → 422 | integración (API) | pendiente |
-| 9 | RED: dos `POST /cobros` secuenciales con la misma clave → los dos 201 con el mismo `id`; MercadoPago (mock) recibió **una** preferencia | integración (API) | pendiente |
-| 10 | RED: misma clave con otro cuerpo → 422 `ClaveDeIdempotenciaReusada` | integración (API) | pendiente |
-| 11 | Los `POST /cobros` existentes de `test_api_mercadopago.py` siguen pasando mandando una clave | integración (API) | pendiente |
-| 12 | RED: dos pedidos **concurrentes** con la misma clave (dos sesiones, la pasarela del primero demora) → una sola fila, una sola llamada a la pasarela, las dos respuestas con el mismo id | integración (PostgreSQL) | pendiente |
-| 13 | RED: la misma clave en dos empresas → dos cobros; la empresa B no obtiene el cobro de A con la clave de A (RLS) | integración (PostgreSQL) | pendiente |
-| 14 | El índice único rechaza a nivel base una segunda fila `(empresa_id, clave)` y el repositorio la traduce a `PedidoEnCurso` (409), no a 500 | integración (PostgreSQL) | pendiente |
-| 15 | La migración sube y baja limpia sobre una base con cobros existentes (quedan con `NULL`) | integración (PostgreSQL) | pendiente |
-| 16 | RED: `generarCobro` manda `X-Idempotency-Key` con la clave recibida | unit (frontend) | pendiente |
-| 17 | RED: el BFF `POST /api/cobros` reenvía el encabezado al backend; sin encabezado no inventa uno | unit (frontend) | pendiente |
-| 18 | RED: `NuevoCobro` manda la **misma** clave en dos envíos tras un error (p. ej. 504) | unit (frontend) | pendiente |
-| 19 | RED: después de un éxito la clave se renueva (un nuevo envío desde la misma instancia usa otra) | unit (frontend) | pendiente |
-| 20 | Ante `ClaveDeIdempotenciaReusada` se muestra el texto del backend y el enlace a `/cobros` | unit (frontend) | pendiente |
-| 21 | `reenviarAlBackend` sin `cabeceras` se comporta exactamente como antes (las demás rutas) | unit (frontend) | pendiente |
-| 22 | En staging (Render): generar un cobro, volver con «Atrás» y generar otro → dos cobros distintos; cortar la red tras enviar y reintentar → un solo cobro | manual | pendiente (va a `docs/aidlc/TODO.md` §20-22 si no se puede verificar sin navegador) |
+| 1 | RED: `es_el_mismo_pedido` es verdadero con los mismos datos y con `1210.005` contra `1210.01`; falso si cambia cliente, monto, concepto o comprobante (incluido `None` contra un id) | unit (dominio) | hecho (verde en local) |
+| 2 | RED: `GenerarCobro` con una clave nueva crea el cobro **con la clave** y llama una vez a la pasarela | unit | hecho (verde en local) |
+| 3 | RED: segunda ejecución con la misma clave y los mismos datos → devuelve el **mismo** cobro (mismo id), la pasarela no se vuelve a llamar, no se persiste otro, no hay evento de bitácora nuevo | unit | hecho (verde en local) |
+| 4 | RED: misma clave, otro monto (y otro cliente, concepto, comprobante) → `ClaveDeIdempotenciaReusada`, sin pasarela ni persistencia | unit | hecho (verde en local) |
+| 5 | Repetición cuando el cliente ya está inactivo → devuelve el cobro original (la búsqueda va antes de validar el cliente) | unit | hecho (verde en local) |
+| 6 | Solo Lectura con clave → rechazado por rol **antes** de buscar la clave (el fake no recibe consultas) | unit | hecho (verde en local) |
+| 7 | Si la pasarela falla en el primer pedido, nada queda guardado y un segundo pedido con la misma clave crea el cobro | unit | hecho (verde en local) |
+| 8 | RED: `POST /cobros` sin `X-Idempotency-Key` → 422 con el texto de la tabla; con un valor que no es UUID → 422 | integración (API) | hecho (verde en local) |
+| 9 | RED: dos `POST /cobros` secuenciales con la misma clave → los dos 201 con el mismo `id`; MercadoPago (mock) recibió **una** preferencia | integración (API) | escrito; lo confirma la CI (sin Docker) |
+| 10 | RED: misma clave con otro cuerpo → 422 `ClaveDeIdempotenciaReusada` | integración (API) | escrito; lo confirma la CI (sin Docker) |
+| 11 | Los `POST /cobros` existentes de `test_api_mercadopago.py` siguen pasando mandando una clave | integración (API) | escrito; lo confirma la CI (sin Docker) |
+| 12 | RED: dos pedidos **concurrentes** con la misma clave (dos sesiones, la pasarela del primero demora) → una sola fila, una sola llamada a la pasarela, las dos respuestas con el mismo id | integración (PostgreSQL) | escrito; lo confirma la CI (sin Docker) |
+| 13 | RED: la misma clave en dos empresas → dos cobros; la empresa B no obtiene el cobro de A con la clave de A (RLS) | integración (PostgreSQL) | escrito; lo confirma la CI (sin Docker) |
+| 14 | El índice único rechaza a nivel base una segunda fila `(empresa_id, clave)` y el repositorio la traduce a `PedidoEnCurso` (409), no a 500 | integración (PostgreSQL) | escrito; lo confirma la CI (sin Docker) |
+| 15 | La migración sube y baja limpia sobre una base con cobros existentes (quedan con `NULL`) | integración (PostgreSQL) | escrito; lo confirma la CI (sin Docker) |
+| 16 | RED: `generarCobro` manda `X-Idempotency-Key` con la clave recibida | unit (frontend) | hecho (verde en local) |
+| 17 | RED: el BFF `POST /api/cobros` reenvía el encabezado al backend; sin encabezado no inventa uno | unit (frontend) | hecho (verde en local) |
+| 18 | RED: `NuevoCobro` manda la **misma** clave en dos envíos tras un error (p. ej. 504) | unit (frontend) | hecho (verde en local) |
+| 19 | RED: después de un éxito la clave se renueva (un nuevo envío desde la misma instancia usa otra) | unit (frontend) | hecho (verde en local) |
+| 20 | Ante `ClaveDeIdempotenciaReusada` se muestra el texto del backend y el enlace a `/cobros` | unit (frontend) | hecho (verde en local) |
+| 21 | `reenviarAlBackend` sin `cabeceras` se comporta exactamente como antes (las demás rutas) | unit (frontend) | hecho (verde en local) |
+| 22 | En staging (Render): generar un cobro, volver con «Atrás» y generar otro → dos cobros distintos; cortar la red tras enviar y reintentar → un solo cobro | manual | pendiente: registrado en `docs/aidlc/TODO.md` §22.27 |
 
 ## Registro
 
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-06 | Aprobado por Luciano con las recomendaciones de las diez preguntas. El ADR-0013 se escribe y se acepta dentro de esta unidad, antes del código |
+| 1 · Cierre | 2026-10-06 | El Gate 1 queda cerrado porque el ADR-0013 fue aceptado (PR #100, merge `4e79b1c`); desde ahí se escribe el código |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
@@ -234,6 +235,10 @@ y API no corren en la máquina local (sin Docker): se escriben y los confirma la
 - Gate 1 (2026-10-06): Pregunta 9 → el panel renueva la clave solo después de un éxito.
 - Gate 1 (2026-10-06): Pregunta 10 → el cambio de `_proxy.ts` y el ADR se hacen acá, y se avisa al responsable de #97 para que los reutilice.
 - Migración: `0034`, porque `0033` la toma `usos-de-faq-por-periodo` (#99), que se mergea antes.
+- Implementación: `application/cobros.py` pasa a 294 líneas y `GenerarCobro` vive en `application/generacion_de_cobro.py`; `exigir_gestor` (antes `_exigir_gestor`) es público porque lo comparten los dos módulos, y los tres `MENSAJE_*` que solo usaba `GenerarCobro` se mudaron con él.
+- Implementación: `repositories.py` habría quedado sobre 400 líneas con el bloqueo, así que el mapeo `Cobro` ↔ `CobroORM` salió a `infrastructure/mapeo_de_cobro.py` (`a_dominio`, `a_fila`).
+- Implementación: la validación del encabezado vive en `api/clave_de_pedido.py` (dependencia de FastAPI reutilizable por `billing`, #97), no en `routers/cobros.py`, que quedó en 385 líneas.
+- Implementación: los tests contra PostgreSQL de la clave están en archivos nuevos (`test_cobro_clave_postgres.py`, `test_migracion_0034.py`) y no en `test_cobros_postgres.py` (997 líneas); los casos de API sí van en `test_api_mercadopago.py`.
 
 ## Preguntas para el Gate 1 (responder en bloque)
 
