@@ -1483,3 +1483,50 @@
 .dsh-op__nombre {
   white-space: nowrap;
 }
+
+/* La celda de entidad es un enlace al detalle: toma un fondo suave al pasar el mouse y muestra
+   la flecha que dice que sale de acá. Sin hover la flecha no está, para que la tabla en
+   reposo no se llene de flechas. */
+.dsh-entidad-enlace {
+  display: block;
+  margin: -6px -10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.16s ease;
+}
+
+.dsh-entidad-enlace:hover {
+  background: var(--line-2);
+  text-decoration: none;
+}
+
+.dsh-entidad-enlace:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.dsh-entidad__ir {
+  flex: none;
+  margin-left: -2px;
+  color: var(--accent-700);
+  opacity: 0;
+  transform: translate(-3px, 3px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.2s ease;
+}
+
+.dsh-entidad-enlace:hover .dsh-entidad__ir,
+.dsh-entidad-enlace:focus-visible .dsh-entidad__ir {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsh-entidad-enlace,
+  .dsh-entidad__ir {
+    transition: none;
+  }
+}

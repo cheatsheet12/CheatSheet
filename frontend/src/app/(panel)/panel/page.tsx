@@ -21,7 +21,7 @@
  * encima de un número que cuenta otra cosa.
  */
 
-import { ArrowRight, Bot, UserRound } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Bot, UserRound } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -347,6 +347,61 @@ function partirEntidad(entidad: string): {
   };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Las entidades que tienen una pantalla de detalle propia, y cómo se llega a ella con su id. */
+const DETALLE_DE_ENTIDAD: Readonly<Record<string, (id: string) => string>> = {
+  Comprobante: (id) => `/facturacion/${id}`,
+  Cobro: (id) => `/cobros/${id}`,
+  Turno: (id) => `/agenda/${id}`,
+  ProcesamientoDePlanilla: (id) => `/ingesta/${id}`,
+};
+
+/** Las que no tienen detalle por id pero sí una pantalla donde se administran. */
+const PANTALLA_DE_ENTIDAD: Readonly<Record<string, string>> = {
+  PuntoDeVenta: "/facturacion/puntos-de-venta",
+  Empresa: "/configuracion/empresa",
+  ConfiguracionDeIntegracion: "/configuracion/integraciones",
+  ReglaDeNegocio: "/configuracion/reglas",
+  PlantillaDeNotificacion: "/configuracion/plantillas",
+  SolicitudDeSoporte: "/soporte",
+  RecursoReservable: "/agenda/recursos",
+  Reporte: "/reportes",
+};
+
+/**
+ * A dónde lleva una fila de la actividad.
+ *
+ * **Siempre lleva a algún lado.** Si la entidad tiene su pantalla se va a ella; si no (o si el
+ * identificador no es el que esa pantalla espera, que es lo que pasa con datos de prueba), se
+ * va al detalle de la operación en el log, que existe para toda operación. Una fila que se ve
+ * como enlace en unas filas y no en otras enseña a no confiar en ninguna.
+ */
+function destinoDeLaOperacion(operacion: Operacion): {
+  readonly href: string;
+  readonly titulo: string;
+} {
+  const corte = operacion.entidad_afectada.indexOf(":");
+  const tipo = corte === -1 ? "" : operacion.entidad_afectada.slice(0, corte);
+  const id = corte === -1 ? "" : operacion.entidad_afectada.slice(corte + 1);
+
+  const detalle = DETALLE_DE_ENTIDAD[tipo];
+  if (detalle !== undefined && UUID.test(id)) {
+    return {
+      href: detalle(id),
+      titulo: `Ver ${partirEntidad(operacion.entidad_afectada).tipo.toLowerCase()}`,
+    };
+  }
+  const pantalla = PANTALLA_DE_ENTIDAD[tipo];
+  if (pantalla !== undefined) {
+    return {
+      href: pantalla,
+      titulo: `Ir a ${partirEntidad(operacion.entidad_afectada).tipo.toLowerCase()}`,
+    };
+  }
+  return { href: `/auditoria/${operacion.id}`, titulo: "Ver el detalle de la operación" };
+}
+
 const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
   {
     clave: "operacion",
@@ -378,9 +433,10 @@ const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
     titulo: "Entidad afectada",
     celda: (operacion) => {
       const entidad = partirEntidad(operacion.entidad_afectada);
+      const destino = destinoDeLaOperacion(operacion);
       const automatica = operacion.iniciador !== "usuario";
       return (
-        <span>
+        <Link className="dsh-entidad-enlace" href={destino.href} title={destino.titulo}>
           <b className="dsh-entidad">
             {entidad.tipo}
             {entidad.referencia !== null && (
@@ -388,6 +444,12 @@ const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
                 {entidad.referencia}
               </code>
             )}
+            <ArrowUpRight
+              className="dsh-entidad__ir"
+              size={15}
+              strokeWidth={2.2}
+              aria-hidden="true"
+            />
           </b>
           <span className="dsh-entidad__quien">
             {automatica ? (
@@ -397,7 +459,7 @@ const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
             )}
             {automatica ? "Automática" : "Iniciada por una persona"}
           </span>
-        </span>
+        </Link>
       );
     },
   },
