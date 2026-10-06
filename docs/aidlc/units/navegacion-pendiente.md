@@ -167,6 +167,7 @@ Ningún test existente afirma hoy que el botón se rehabilita tras el éxito; lo
 | 14 | **RED** `BotonDeSalida`: `push("/")` se llama antes que `refresh()`; con el logout fallido igual navega | componente | verde |
 | 15 | **RED** `IngestaDePlanillas` «Continuar»: deshabilitado mientras pide la URL; un segundo clic no llama a `iniciarVinculacionConGoogle` | componente | verde |
 | 16 | Suites existentes de las ocho pantallas siguen verdes (errores, validaciones, destino de `push`) | regresión | verde |
+| 17 | **RED** Hook con `saleDeLaPagina`: al volver con «atrás» desde la caché del navegador (`pageshow` con `persisted`) el pendiente se libera y se puede volver a ejecutar. Hoy falla: queda `pendiente` | unit | verde |
 
 ## Verificaciones que no se pueden hacer acá
 
@@ -233,3 +234,7 @@ Ningún test existente afirma hoy que el botón se rehabilita tras el éxito; lo
     aparte (`cerrarSesion`) que se pasa como acción; así la acción nunca rechaza y salir siempre navega.
   - Los tests que montan el componente sin un `useRouter` en su mock (`ingesta/__tests__/pagina.test.tsx`)
     necesitaron uno, porque el hook lo lee: `IngestaDePlanillas` no usaba el router hasta ahora.
+- **Revisión independiente (2026-10-05):** sin defectos bloqueantes. Una nota causada por esta unidad:
+  con `saleDeLaPagina`, si el navegador restaura la página desde su caché al volver con «atrás»
+  desde Google, el botón «Continuar» quedaba trabado en «cargando» (antes no tenía estado de espera).
+  El hook libera el pendiente ante `pageshow` con `persisted` (caso 17).

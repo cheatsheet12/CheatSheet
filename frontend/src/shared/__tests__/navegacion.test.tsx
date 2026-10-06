@@ -218,4 +218,28 @@ describe("useAccionConNavegacion", () => {
     expect(navegar).toHaveBeenCalledTimes(1);
     expect(estado()).toBe("pendiente");
   });
+
+  it("con saleDeLaPagina, volver con «atrás» desde la caché del navegador libera el botón", async () => {
+    const { sonda } = montar();
+    const accion = vi.fn(async () => "https://destino.example");
+
+    await act(async () => {
+      await sonda.ejecutar(accion, vi.fn(), { saleDeLaPagina: true });
+    });
+    expect(estado()).toBe("pendiente");
+
+    // The browser restores the page from its back/forward cache: same React state, but the
+    // person is back on this screen and the page they went to is gone.
+    act(() => {
+      const evento = new Event("pageshow");
+      Object.defineProperty(evento, "persisted", { value: true });
+      window.dispatchEvent(evento);
+    });
+    expect(estado()).toBe("libre");
+
+    await act(async () => {
+      await sonda.ejecutar(accion, vi.fn(), { saleDeLaPagina: true });
+    });
+    expect(accion).toHaveBeenCalledTimes(2);
+  });
 });

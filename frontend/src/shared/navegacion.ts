@@ -73,6 +73,22 @@ export function useAccionConNavegacion(): AccionConNavegacion {
     }
   }, [pendiente]);
 
+  // A page left through `window.location` (`saleDeLaPagina`) never releases its pending
+  // state. If the browser restores it from the back/forward cache, the person is back on
+  // this screen with the same React state: without this the button would stay busy.
+  useEffect(() => {
+    const alVolver = (evento: PageTransitionEvent): void => {
+      if (evento.persisted) {
+        ocupado.current = false;
+        setEnCurso(false);
+      }
+    };
+    window.addEventListener("pageshow", alVolver);
+    return () => {
+      window.removeEventListener("pageshow", alVolver);
+    };
+  }, []);
+
   const ejecutar: AccionConNavegacion["ejecutar"] = async (accion, navegar, opciones) => {
     if (ocupado.current) {
       return;
