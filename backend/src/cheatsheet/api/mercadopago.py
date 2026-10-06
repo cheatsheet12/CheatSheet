@@ -116,7 +116,8 @@ def armar_pasarela(unidad: UnidadDeTrabajo, settings: Settings) -> PortPasarelaD
         return PasarelaMercadoPago(
             tokens=TokenDesdeIntegraciones(
                 integraciones=Integraciones.armar(unidad.sesion, settings)
-            )
+            ),
+            url_de_notificaciones=settings.mercadopago_url_de_notificaciones,
         )
     if settings.entorno not in _SIMULADAS:
         # Se construye antes de guardarse: en producción levanta y no queda nada cacheado.
