@@ -268,3 +268,13 @@
     transition: none;
   }
 }
+
+/*
+ * Un panel de pantalla (`.cob-panel`) recorta lo que se sale de él para que la tabla respete
+ * sus esquinas, y con eso cortaba el calendario por la mitad. Mientras hay uno abierto el panel
+ * deja de recortar; cerrado, vuelve a hacerlo.
+ */
+.cob-panel:has(.selector-fecha__boton[data-abierto="true"]),
+.fac-nuevo-panel:has(.selector-fecha__boton[data-abierto="true"]) {
+  overflow: visible;
+}
