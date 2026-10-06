@@ -2247,3 +2247,258 @@ a:focus-visible {
     height: 40px;
   }
 }
+
+/* ══ Refinamiento de las primitivas ═══════════════════════════════════════════════════
+ *
+ * Botones, campos, select, casilla y modal: lo que más se ve en todo el panel. Van al final
+ * para ganar por orden sobre las reglas de arriba sin reescribirlas una por una, y cada
+ * bloque dice qué cambió y por qué. */
+
+/* ── Botones ─────────────────────────────────────────────────────────────────────────── */
+.boton {
+  border-radius: 12px;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.boton:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.boton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* El principal: degradado verde con un brillo arriba y una sombra de su color. Levanta al pasar
+   el mouse. El texto sigue oscuro: el verde de marca es claro y con blanco no da el contraste. */
+.boton--primario {
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  color: var(--primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 28%),
+    0 6px 14px rgb(0 168 121 / 18%);
+}
+
+.boton--primario:hover:not(:disabled) {
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 10px 22px rgb(0 168 121 / 26%);
+}
+
+.boton--primario:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.boton--secundario {
+  box-shadow: 0 1px 2px rgb(30 30 46 / 5%);
+}
+
+.boton--secundario:hover:not(:disabled) {
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 2px rgb(30 30 46 / 5%),
+    0 8px 18px rgb(30 30 46 / 8%);
+}
+
+/* La destructiva no grita en reposo: texto rojo y borde tenue. El rojo pleno aparece al pasar
+   el mouse, que es cuando alguien está por apretarla; y de todos modos pide confirmación. */
+.boton--destructivo {
+  border-color: rgb(220 43 58 / 35%);
+  box-shadow: none;
+}
+
+.boton--destructivo:hover:not(:disabled) {
+  background: var(--err-bg);
+  border-color: var(--err);
+}
+
+/* ── Campos de texto ─────────────────────────────────────────────────────────────────── */
+.campo__control {
+  border-radius: 12px;
+  min-height: 42px;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.campo__control:hover:not(:focus, :disabled) {
+  border-color: var(--ink-300);
+}
+
+.campo__control:disabled {
+  background: var(--bg-soft);
+  color: var(--ink-400);
+  cursor: not-allowed;
+}
+
+/* El select nativo con una flecha propia: la del sistema cambia de un navegador a otro y rompe
+   la alineación con el resto de los campos. Sigue siendo un `<select>` nativo, con su teclado y
+   su selector de celular. */
+select.campo__control {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a8a9c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+}
+
+select.campo__control:focus {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2300805c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+}
+
+/* ── Casilla ─────────────────────────────────────────────────────────────────────────── */
+.campo--casilla input[type="checkbox"] {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--ink-300);
+  border-radius: 6px;
+  background: var(--card);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.12s ease;
+}
+
+.campo--casilla input[type="checkbox"]:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.campo--casilla input[type="checkbox"]:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e1e2e' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>");
+  background-size: 14px 14px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.campo--casilla input[type="checkbox"]:active:not(:disabled) {
+  transform: scale(0.88);
+}
+
+.campo--casilla input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.campo--casilla input[type="checkbox"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.campo--casilla label {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ── Modal: cómo se abre ─────────────────────────────────────────────────────────────── */
+.modal {
+  border-radius: 20px;
+  box-shadow:
+    0 4px 12px rgb(30 30 46 / 8%),
+    0 28px 80px rgb(30 30 46 / 28%);
+}
+
+/* Se abre con un fundido que sube unos píxeles y un leve crecimiento: aparece donde la persona
+   ya está mirando, en lugar de «saltar». El fondo se oscurece y se desenfoca de a poco. */
+.modal[open] {
+  animation: modal-entra 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.modal[open]::backdrop {
+  background: rgb(30 30 46 / 42%);
+  backdrop-filter: blur(3px);
+  animation: modal-fondo 0.22s ease;
+}
+
+@keyframes modal-entra {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+
+@keyframes modal-fondo {
+  from {
+    opacity: 0;
+  }
+}
+
+.modal__encabezado {
+  padding: 22px 26px 18px;
+}
+
+.modal__titulo {
+  font-size: 17px;
+  letter-spacing: -0.015em;
+}
+
+.modal__cerrar {
+  border-radius: 10px;
+  color: var(--ink-500);
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.2s ease;
+}
+
+.modal__cerrar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.modal__cerrar:hover {
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+  color: var(--ink-900);
+  transform: rotate(90deg);
+}
+
+.modal__cerrar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.modal__cuerpo {
+  padding: 24px 26px 26px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boton,
+  .campo__control,
+  .campo--casilla input[type="checkbox"],
+  .modal__cerrar {
+    transition: none;
+  }
+
+  .boton:hover:not(:disabled),
+  .boton:active:not(:disabled),
+  .modal__cerrar:hover {
+    transform: none;
+  }
+
+  .modal[open],
+  .modal[open]::backdrop {
+    animation: none;
+  }
+}
