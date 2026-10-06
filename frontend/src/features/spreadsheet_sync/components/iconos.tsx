@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Sheet,
   Sparkles,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 
@@ -36,6 +37,7 @@ export type NombreDeIcono =
   | "documento"
   | "alerta"
   | "tilde"
+  | "papelera"
   | "flecha"
   | "descargar"
   | "lista";
@@ -50,6 +52,7 @@ const ICONOS: Readonly<Record<NombreDeIcono, LucideIcon>> = {
   documento: FileText,
   alerta: TriangleAlert,
   tilde: Check,
+  papelera: Trash2,
   flecha: ArrowRight,
   descargar: Download,
   lista: ListChecks,

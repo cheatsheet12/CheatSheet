@@ -2087,22 +2087,70 @@
   }
 }
 
-/* «Revisar mapeo» es el paso que sigue a «Falta mapear»: dentro de la fila toma el relieve de
-   una acción principal discreta, y no el de un enlace de texto más. */
+/* Acciones de una fila de «Planillas vinculadas».
+ *
+ * Una sola jerarquía por fila: **la acción que sigue es la que tiene relieve**. Sin mapeo, el
+ * paso siguiente es «Revisar mapeo» y es el que va en verde; con mapeo, lo siguiente es
+ * «Procesar». «Desvincular» queda siempre discreto, con el icono de papelera. Antes eran tres
+ * botones de peso parecido y la fila no decía qué hacer primero. */
 .ing-acciones-fila .ing-accion {
   display: inline-flex;
   align-items: center;
   height: 36px;
   padding: 0 14px;
   border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink-700);
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+}
+
+.ing-acciones-fila .ing-accion:hover {
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+}
+
+.ing-acciones-fila .ing-accion--principal {
   background: var(--accent-050);
   border-color: var(--accent-100);
   color: var(--accent-700);
 }
 
-.ing-acciones-fila .ing-accion:hover {
+.ing-acciones-fila .ing-accion--principal:hover {
   background: var(--accent-100);
   border-color: var(--accent-100);
+}
+
+.ing-acciones-fila .boton--primario {
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  border-color: transparent;
+  color: var(--primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 28%);
+}
+
+.ing-acciones-fila .boton--primario:hover:not(:disabled) {
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  color: var(--primary);
+}
+
+.ing-acciones-fila .boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ing-acciones-fila .boton svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+/* El encabezado de una columna alineada a la derecha se alinea con su contenido: la regla de
+   `th` (a la izquierda) le ganaba a la de la celda y «Acciones» quedaba lejos de sus botones. */
+.tabla th.tabla__celda--derecha {
+  text-align: right;
 }
 
 /* Detalle de una carga: la etiqueta de estado se separa de los totales (antes se tocaban). */

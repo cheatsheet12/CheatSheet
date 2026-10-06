@@ -277,7 +277,7 @@ export function IngestaDePlanillas({
       celda: (vinculo) => (
         <span className="ing-carga">
           <span className="ing-carga__ico">
-            <Icono nombre={vinculo.proveedor === "ARCHIVO" ? "documento" : "planilla"} />
+            <Icono nombre="planilla" />
           </span>
           <span>
             <b className="ing-carga__nombre">
@@ -321,13 +321,16 @@ export function IngestaDePlanillas({
             puede procesar —el caso de uso lo rechaza— y esconder el enlace justo ahí dejaría
             la fila sin ninguna salida hacia adelante. */}
         {vinculo.nombre_archivo !== null && (
-          <Link className="ing-accion" href={`/ingesta/mapeo/${vinculo.id}`}>
+          <Link
+            className={vinculo.tiene_mapeo ? "ing-accion" : "ing-accion ing-accion--principal"}
+            href={`/ingesta/mapeo/${vinculo.id}`}
+          >
             Revisar mapeo
           </Link>
         )}
         {vinculo.tiene_mapeo && (
           <Button
-            variante="secundario"
+            variante="primario"
             onClick={() => {
               void procesar(vinculo);
             }}
@@ -342,6 +345,7 @@ export function IngestaDePlanillas({
             void desvincular(vinculo);
           }}
         >
+          <Icono nombre="papelera" />
           Desvincular
         </Button>
       </span>
