@@ -213,6 +213,10 @@ Ningún test existente afirma hoy que el botón se rehabilita tras el éxito; lo
 - **Gate 1 (2026-10-05), respuestas de Luciano:**
   - P1: la idempotencia de pedido en el backend (emisión, nota de crédito, cobro) va en una unidad
     propia, inmediatamente después de esta.
+    **Reparto (2026-10-05, Luciano):** emisión y nota de crédito son de `billing` (Cristian) y van
+    como issue [#97](https://github.com/cheatsheet12/CheatSheet/issues/97); el cobro lo hacemos
+    nosotros en la unidad `cobro-con-clave-de-idempotencia` (`payments`). Conviene que las dos usen
+    el mismo encabezado (`X-Idempotency-Key`).
   - P2: `IngestaDePlanillas` «Continuar» entra en esta unidad (caso 15).
   - P3: los selectores por URL quedan fuera de alcance.
   - P4: la salida conserva la navegación del router, con el orden `push` → `refresh`.
