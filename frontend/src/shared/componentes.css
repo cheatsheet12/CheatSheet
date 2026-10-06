@@ -869,13 +869,6 @@ a:focus-visible {
   color: #8f8fa8;
   letter-spacing: 0.04em;
 }
-
-.sidebar__version i {
-  font-style: normal;
-  margin-inline: 2px;
-  color: #5d5d76;
-}
-
 /* El marco de la lista: lleva los desvanecidos de arriba y abajo que avisan que hay más
    entradas fuera de la vista. Son seudoelementos que no capturan el puntero. */
 .nav__marco {

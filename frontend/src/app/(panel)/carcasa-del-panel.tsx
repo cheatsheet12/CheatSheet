@@ -123,9 +123,7 @@ export function CarcasaDelPanel({
             <b className="sidebar__nombre">
               Cheat<em>Sheet</em>
             </b>
-            <small className="sidebar__version">
-              iPaaS <i aria-hidden="true">·</i> panel
-            </small>
+            <small className="sidebar__version">Automatización PyME</small>
           </span>
           <button
             type="button"
