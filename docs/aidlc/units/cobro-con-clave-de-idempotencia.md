@@ -229,7 +229,7 @@ y API no corren en la máquina local (sin Docker): se escriben y los confirma la
 |---|---|---|
 | 1 · Plan | 2026-10-06 | Aprobado por Luciano con las recomendaciones de las diez preguntas. El ADR-0013 se escribe y se acepta dentro de esta unidad, antes del código |
 | 1 · Cierre | 2026-10-06 | El Gate 1 queda cerrado porque el ADR-0013 fue aceptado (PR #100, merge `4e79b1c`); desde ahí se escribe el código |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-06 | Aprobado por Luciano. Local: ruff, mypy y pytest (2225 aprobados, 518 salteados por PostgreSQL y Redis); frontend: lint, typecheck, prettier y 999 tests. Revisión independiente sin bloqueantes; la preferencia huérfana queda como riesgo aceptado y va a `pagos-sin-cobro-asociado`. Los casos de PostgreSQL se confirman en la CI del PR |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
