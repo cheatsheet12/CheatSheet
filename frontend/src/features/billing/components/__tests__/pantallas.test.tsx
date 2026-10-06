@@ -211,7 +211,7 @@ describe("la nueva emision", () => {
     render(<NuevaEmision puntos={[PUNTO]} clienteId="cl1" />);
 
     expect(screen.queryByLabelText("Tipo de comprobante")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Emitir" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Emitir comprobante/ })).toBeNull();
   });
 
   it("un CUIT invalido muestra la frase de la historia y no habilita el resto", async () => {
@@ -257,9 +257,9 @@ describe("la nueva emision", () => {
     await screen.findByText(/Acme SA/);
 
     expect(screen.getByText(/Debe agregar al menos un ítem/)).toBeDefined();
-    expect((screen.getByRole("button", { name: "Emitir" }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(
+      (screen.getByRole("button", { name: /Emitir comprobante/ }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it("cambiar el CUIT invalida el tipo elegido", async () => {
@@ -298,7 +298,7 @@ describe("la nueva emision", () => {
     fireEvent.change(screen.getByLabelText("Precio unitario"), {
       target: { value: "1000.00" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Emitir" }));
+    fireEvent.click(screen.getByRole("button", { name: /Emitir comprobante/ }));
 
     await waitFor(() => expect(emitirComprobante).toHaveBeenCalled());
     const enviado = emitirComprobante.mock.calls[0]?.[0] as {
@@ -332,10 +332,10 @@ describe("la nueva emision, mientras la navegacion tarda", () => {
     });
     fireEvent.change(screen.getByLabelText("Precio unitario"), { target: { value: "1000.00" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Emitir" }));
+    fireEvent.click(screen.getByRole("button", { name: /Emitir comprobante/ }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/facturacion/c1"));
 
-    const boton = screen.getByRole("button", { name: "Emitir" }) as HTMLButtonElement;
+    const boton = screen.getByRole("button", { name: /Emitir comprobante/ }) as HTMLButtonElement;
     expect(boton.disabled).toBe(true);
     fireEvent.click(boton);
     fireEvent.submit(boton.closest("form") as HTMLFormElement);

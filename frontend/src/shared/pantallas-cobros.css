@@ -1579,7 +1579,7 @@
  */
 .fac-elegir {
   list-style: none;
-  margin: var(--space-5) 0 0;
+  margin: 20px 0 0;
   padding: 0;
   display: grid;
   gap: 1px;
@@ -1653,7 +1653,7 @@
 }
 
 .fac-elegir__vacio {
-  margin: var(--space-5) 0 0;
+  margin: 20px 0 0;
   font-size: 14px;
   color: var(--ink-500);
 }
@@ -1718,4 +1718,879 @@
   background: var(--bg-soft);
   border: 1px dashed var(--line);
   border-radius: var(--radius-control);
+}
+
+/* ── PAN-FAC-03 · Nueva emisión (rediseño) ───────────────────────────────────
+ *
+ * Todo lo de abajo es nuevo y con prefijo `.fac-em-`: nada pisa una regla que usan el listado,
+ * el detalle o la anulación. Un flujo de tres pasos con estado (pendiente / activo / completo),
+ * un resumen que acompaña a la derecha y un único CTA verde.
+ */
+
+.fac-em-encabezado {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.fac-em-encabezado__icono {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.fac-em-encabezado__icono svg {
+  width: 22px;
+  height: 22px;
+}
+
+.fac-em-encabezado__texto {
+  flex: 1;
+  min-width: 0;
+}
+
+.fac-em-encabezado__titulo {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  color: var(--ink-900);
+  margin: 0 0 6px;
+}
+
+.fac-em-encabezado__sub {
+  color: var(--ink-500);
+  font-size: 14px;
+  margin: 0;
+  max-width: 64ch;
+}
+
+.fac-em-encabezado > .boton {
+  flex: none;
+  gap: 8px;
+}
+
+@media (max-width: 700px) {
+  .fac-em-encabezado {
+    flex-wrap: wrap;
+  }
+
+  .fac-em-encabezado__texto {
+    flex-basis: calc(100% - 60px);
+  }
+
+  .fac-em-encabezado > .boton {
+    width: 100%;
+  }
+}
+
+/* Formulario en dos columnas: los pasos y, a la derecha, el resumen que acompaña. */
+.fac-em-formulario {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .fac-em-formulario {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fac-em-flujo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* ── Indicador de progreso ── */
+
+.fac-em-progreso {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.fac-em-progreso__paso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+/* La línea que une un paso con el siguiente. */
+.fac-em-progreso__paso:not(:last-child)::after {
+  content: "";
+  flex: 1;
+  height: 2px;
+  margin: 0 var(--space-3);
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent) 0 50%, var(--line) 50% 100%) right / 200% 100%;
+  transition: background-position 0.4s ease;
+}
+
+.fac-em-progreso__paso--completo:not(:last-child)::after {
+  background-position: left;
+}
+
+.fac-em-progreso__paso:last-child {
+  flex: none;
+}
+
+.fac-em-progreso__nodo {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--card);
+  border: 2px solid var(--line);
+  color: var(--ink-400);
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.fac-em-progreso__nodo svg {
+  width: 15px;
+  height: 15px;
+}
+
+.fac-em-progreso__paso--activo .fac-em-progreso__nodo {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+.fac-em-progreso__paso--completo .fac-em-progreso__nodo {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--primary);
+}
+
+.fac-em-progreso__texto {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.fac-em-progreso__texto b {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.fac-em-progreso__texto small {
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.fac-em-progreso__paso--pendiente .fac-em-progreso__texto b {
+  color: var(--ink-400);
+}
+
+.fac-em-progreso__paso--completo .fac-em-progreso__texto small {
+  color: var(--accent-700);
+}
+
+@media (max-width: 520px) {
+  .fac-em-progreso__texto small {
+    display: none;
+  }
+
+  .fac-em-progreso__paso:not(:last-child)::after {
+    margin: 0 var(--space-2);
+  }
+}
+
+/* ── Tarjeta de paso ── */
+
+.fac-em-paso {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 20px var(--space-6);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.fac-em-paso--activo {
+  border-color: var(--ink-300);
+  box-shadow:
+    0 0 0 3px var(--accent-050),
+    var(--shadow);
+}
+
+.fac-em-paso--pendiente {
+  background: var(--bg-soft);
+  box-shadow: none;
+  border-style: dashed;
+}
+
+.fac-em-paso__cabecera {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.fac-em-paso__nodo {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: var(--card);
+  border: 2px solid var(--line);
+  color: var(--ink-400);
+}
+
+.fac-em-paso__nodo svg {
+  width: 14px;
+  height: 14px;
+}
+
+.fac-em-paso--activo .fac-em-paso__nodo {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+.fac-em-paso--completo .fac-em-paso__nodo {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--primary);
+}
+
+.fac-em-paso__titulos {
+  flex: 1;
+  min-width: 0;
+}
+
+.fac-em-paso__titulo {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.fac-em-paso--pendiente .fac-em-paso__titulo {
+  color: var(--ink-500);
+}
+
+.fac-em-paso__ayuda {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  margin: 2px 0 0;
+}
+
+.fac-em-paso__ayuda--bloqueo svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--ink-400);
+}
+
+.fac-em-paso__extremo {
+  flex: none;
+}
+
+.fac-em-paso__pastilla {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-700);
+  background: var(--accent-050);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.fac-em-paso__cuerpo {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: cob-aparecer var(--cob-entrada);
+}
+
+/* Un paso bloqueado no tiene cuerpo: su tarjeta es sólo la cabecera, baja y atenuada. */
+.fac-em-paso--pendiente {
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-4);
+}
+
+@media (max-width: 520px) {
+  .fac-em-paso {
+    padding: var(--space-4);
+  }
+
+  .fac-em-paso__cabecera {
+    flex-wrap: wrap;
+  }
+}
+
+/* Plegado con `grid-template-rows`: la altura anima de 0fr a 1fr sin conocerla. */
+.fac-em-colapsable {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 0.3s ease,
+    opacity 0.2s ease,
+    visibility 0s linear 0.3s;
+}
+
+.fac-em-colapsable--abierto {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 0.3s ease,
+    opacity 0.25s ease 0.05s,
+    visibility 0s;
+}
+
+.fac-em-colapsable__interior {
+  min-height: 0;
+  /* El borde de foco del campo no se recorta contra el panel. */
+  padding: 4px;
+  margin: -4px;
+  overflow: hidden;
+}
+
+.fac-em-colapsable:not(.fac-em-colapsable--abierto) .fac-em-colapsable__interior {
+  overflow: hidden;
+}
+
+.fac-em-colapsable--abierto .fac-em-colapsable__interior {
+  overflow: visible;
+}
+
+/* ── Paso 1 ── */
+
+.fac-em-cliente {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-500);
+}
+
+.fac-em-cliente svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--ink-400);
+}
+
+.fac-em-cliente b {
+  color: var(--ink-900);
+  font-weight: 600;
+}
+
+.fac-em-cuit {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.fac-em-cuit .campo {
+  flex: 0 1 340px;
+  min-width: 0;
+}
+
+/* El botón queda a la altura del campo y no se estira: se alinea con el control, no con la etiqueta. */
+.fac-em-cuit > .boton {
+  flex: none;
+  margin-top: 26px;
+}
+
+.fac-em-cuit > .boton svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 520px) {
+  .fac-em-cuit {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .fac-em-cuit .campo {
+    flex-basis: auto;
+  }
+
+  .fac-em-cuit > .boton {
+    margin-top: 0;
+  }
+}
+
+/* La tarjeta del receptor: lo que ARCA contestó, con jerarquía. */
+.fac-em-receptor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: var(--space-4);
+  animation: cob-aparecer var(--cob-entrada);
+}
+
+.fac-em-receptor__persona {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.fac-em-receptor__avatar {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+.fac-em-receptor__datos {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.fac-em-receptor__verificado {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent-700);
+}
+
+.fac-em-receptor__nombre {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--ink-900);
+  overflow-wrap: anywhere;
+}
+
+.fac-em-receptor__linea {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.fac-em-receptor__cuit {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-600);
+}
+
+.fac-em-receptor__emitible {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fac-em-receptor__rotulo {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.fac-em-receptor__tipos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fac-em-receptor__tipos li {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 11px;
+}
+
+/* ── Paso 2 ── */
+
+.fac-em-par {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 700px) {
+  .fac-em-par {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fac-em-numeracion {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-600);
+  background: var(--bg-soft);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+/* ── Paso 3 ── */
+
+.fac-em-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.fac-em-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 140px 140px 40px;
+  gap: var(--space-3);
+  align-items: end;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  padding: var(--space-3) var(--space-4);
+}
+
+.fac-em-item .campo {
+  min-width: 0;
+}
+
+.fac-em-item__quitar .boton {
+  padding: 0;
+  width: 40px;
+}
+
+.fac-em-item__quitar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.fac-em-items__agregar .boton svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 900px) {
+  .fac-em-item {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 40px;
+  }
+
+  .fac-em-item__descripcion {
+    grid-column: 1 / -1;
+  }
+
+  .fac-em-item > .campo:nth-of-type(1) {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .fac-em-item {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fac-em-item__quitar {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+/* Sugerencias del catálogo: un combobox, con la lista justo debajo del campo. */
+.fac-em-sugerencias {
+  position: relative;
+}
+
+.fac-em-sugerencias__lista {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgb(30 30 46 / 14%);
+  animation: cob-aparecer 0.14s ease both;
+}
+
+.fac-em-sugerencias__opcion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.fac-em-sugerencias__opcion--resaltada {
+  background: var(--accent-050);
+}
+
+.fac-em-sugerencias__nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  overflow-wrap: anywhere;
+}
+
+.fac-em-sugerencias__precio {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+@media (max-width: 520px) {
+  .fac-em-sugerencias__opcion {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
+/* ── Resumen y CTA ── */
+
+.fac-em-resumen {
+  position: sticky;
+  top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+@media (max-width: 1100px) {
+  .fac-em-resumen {
+    position: static;
+  }
+}
+
+.fac-em-resumen__titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.fac-em-resumen__lista {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fac-em-resumen__fila {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-2);
+  font-size: 13px;
+}
+
+.fac-em-resumen__fila:last-child {
+  border-bottom: 0;
+}
+
+.fac-em-resumen__fila dt {
+  color: var(--ink-500);
+}
+
+.fac-em-resumen__fila dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-900);
+  text-align: right;
+}
+
+.fac-em-resumen__mono {
+  font-family: var(--mono);
+  font-weight: 500;
+}
+
+.fac-em-resumen__vacio {
+  color: var(--ink-300);
+}
+
+.fac-em-resumen__motivos {
+  font-size: 12.5px;
+  color: var(--ink-600);
+  background: var(--warn-bg);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.fac-em-resumen__motivos b {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink-900);
+}
+
+.fac-em-resumen__motivos ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.fac-em-resumen__nota {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+/* El CTA verde: la misma referencia que `.dsh-enlace-cta`, a ancho completo del resumen. */
+.fac-em-cta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 46px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  color: var(--primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.fac-em-cta svg {
+  width: 24px;
+  height: 24px;
+  padding: 5px;
+  border-radius: 8px;
+  background: rgb(30 30 46 / 12%);
+}
+
+.fac-em-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 38%) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+
+.fac-em-cta:hover:not(:disabled) {
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 30%);
+}
+
+.fac-em-cta:hover:not(:disabled)::after {
+  transform: translateX(120%);
+  transition: transform 0.7s ease;
+}
+
+.fac-em-cta:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.fac-em-cta:focus-visible {
+  outline: 2px solid var(--accent-700);
+  outline-offset: 2px;
+}
+
+.fac-em-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fac-em-paso,
+  .fac-em-paso__cuerpo,
+  .fac-em-receptor,
+  .fac-em-sugerencias__lista {
+    animation: none;
+  }
+
+  .fac-em-colapsable,
+  .fac-em-colapsable--abierto,
+  .fac-em-progreso__paso::after,
+  .fac-em-progreso__nodo,
+  .fac-em-cta {
+    transition: none;
+  }
+
+  .fac-em-cta::after {
+    display: none;
+  }
+
+  .fac-em-cta:hover:not(:disabled),
+  .fac-em-cta:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Plegado, el panel no deja el hueco del `gap` de su contenedor. */
+.fac-em-colapsable:not(.fac-em-colapsable--abierto) {
+  margin-bottom: calc(-1 * var(--space-4));
 }
