@@ -65,6 +65,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | politica-fuera-de-horario | business_config (conversational aplica la política por su ACL) | HS-T2, HU-E11-01, HU-E8-05 | reserva-y-cancelacion-por-whatsapp | Luciano | feature/business_config-politica-fuera-de-horario | mergeada |
 | Cimientos, identidad y bitácora | navegacion-pendiente | frontend (`shared/`, transversal) | HU-E1-01, HU-E1-02, HU-E1-04, HU-E2-04, HU-E5-03, HU-E5-04, HU-E6-03, HU-E7-06 | — | Luciano | fix/frontend-navegacion-pendiente | mergeada |
 | Cobros y recordatorios | cobro-con-clave-de-idempotencia | payments | HU-E6-03 | navegacion-pendiente | Luciano | feature/payments-cobro-con-clave-de-idempotencia | en curso |
+| Cobros y recordatorios | pagos-sin-cobro-asociado | payments | HU-E6-03, HS-T1 | cobro-con-clave-de-idempotencia | Luciano | — | pendiente |
 
 
 ---

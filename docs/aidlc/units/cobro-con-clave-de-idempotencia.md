@@ -139,6 +139,15 @@ el reintento igual tiene que devolver el cobro que ya existe, no un 422.
   aplanado a `PasarelaNoDisponible`. Lo nuevo es que un pedido repetido **no** llega a MercadoPago, y
   que dos pedidos concurrentes no dejan una preferencia huérfana pagable (el segundo nunca la pide).
   Tests sin red: pasarela simulada / `httpx.MockTransport` como hoy.
+- **Riesgo aceptado, anterior a esta unidad: preferencia huérfana pagable.** Si MercadoPago crea la
+  preferencia y después falla `agregar` o el `COMMIT` (`generacion_de_cobro.py:129-133`), el link
+  existe sin cobro ni clave guardados, y el reintento crea otra preferencia. Si alguien paga la
+  primera, `ConfirmarPago` no encuentra el cobro (`confirmacion.py:102-107`) y solo deja un log
+  `info`: el pago no queda registrado. La clave no lo puede evitar, y MercadoPago no documenta
+  `X-Idempotency-Key` para preferencias. Ya pasaba antes de esta unidad y no se agrava. La solución
+  definitiva (guardar el cobro antes de pedir el link, encontrar el pago también por
+  `external_reference` y alertar el pago sin cobro) cambia cómo se crea un cobro: va en la unidad
+  propia `pagos-sin-cobro-asociado` (Gate 2, 2026-10-06, decisión de Luciano).
 
 ## Riesgos que obligan a tests (marcar los que apliquen)
 - [x] Toca dinero (`Decimal`, redondeo `ROUND_HALF_UP`) → la comparación del pedido repetido usa el
@@ -234,6 +243,7 @@ y API no corren en la máquina local (sin Docker): se escriben y los confirma la
 - Gate 1 (2026-10-06): Pregunta 8 → `GenerarCobro` se extrae a su propio módulo.
 - Gate 1 (2026-10-06): Pregunta 9 → el panel renueva la clave solo después de un éxito.
 - Gate 1 (2026-10-06): Pregunta 10 → el cambio de `_proxy.ts` y el ADR se hacen acá, y se avisa al responsable de #97 para que los reutilice.
+- Gate 2 (2026-10-06): la preferencia huérfana pagable queda como riesgo aceptado anterior a la unidad y se resuelve en `pagos-sin-cobro-asociado`.
 - Migración: `0034`, porque `0033` la toma `usos-de-faq-por-periodo` (#99), que se mergea antes.
 - Implementación: `application/cobros.py` pasa a 294 líneas y `GenerarCobro` vive en `application/generacion_de_cobro.py`; `exigir_gestor` (antes `_exigir_gestor`) es público porque lo comparten los dos módulos, y los tres `MENSAJE_*` que solo usaba `GenerarCobro` se mudaron con él.
 - Implementación: `repositories.py` habría quedado sobre 400 líneas con el bloqueo, así que el mapeo `Cobro` ↔ `CobroORM` salió a `infrastructure/mapeo_de_cobro.py` (`a_dominio`, `a_fila`).
