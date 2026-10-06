@@ -56,12 +56,7 @@ export default function LayoutDeIngreso({
   return (
     <div className="lgn">
       <aside className="lgn-marca" aria-label="Sobre CheatSheet">
-        <div className="lgn-fondo" aria-hidden="true">
-          <span className="lgn-fondo__mancha lgn-fondo__mancha--a" />
-          <span className="lgn-fondo__mancha lgn-fondo__mancha--b" />
-          <span className="lgn-fondo__mancha lgn-fondo__mancha--c" />
-          <span className="lgn-fondo__grilla" />
-        </div>
+        <div className="lgn-fondo" aria-hidden="true" />
 
         <div className="lgn-marca__logo">
           <Image src="/logo-simbolo.png" alt="" width={44} height={44} priority />
@@ -99,21 +94,6 @@ export default function LayoutDeIngreso({
               </li>
             ))}
           </ul>
-        </div>
-
-        <div className="lgn-flota" aria-hidden="true">
-          <div className="lgn-flota__ficha lgn-flota__ficha--a">
-            <span className="lgn-flota__punto" />
-            Factura emitida
-          </div>
-          <div className="lgn-flota__ficha lgn-flota__ficha--b">
-            <span className="lgn-flota__punto" />
-            Cobro acreditado
-          </div>
-          <div className="lgn-flota__ficha lgn-flota__ficha--c">
-            <span className="lgn-flota__punto" />
-            Turno confirmado
-          </div>
         </div>
 
         <p className="lgn-marca__pie">Plataforma de gestión para pequeñas y medianas empresas</p>

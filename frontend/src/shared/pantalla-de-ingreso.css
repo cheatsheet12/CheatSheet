@@ -1,6 +1,6 @@
 /*
- * Pantalla de ingreso: dos columnas. Izquierda, la marca sobre un fondo oscuro con movimiento
- * lento; derecha, el formulario sobre blanco.
+ * Pantalla de ingreso: dos columnas. Izquierda, la marca sobre un fondo claro con movimiento
+ * muy sutil; derecha, el formulario sobre blanco.
  *
  * El movimiento es decoración y se apaga entero con `prefers-reduced-motion`. Prefijo `lgn-`
  * para no pisar `.ing-*` (ingesta) ni `.acc-*` (el resto de las pantallas sin sesión).
@@ -23,76 +23,29 @@
   gap: 32px;
   padding: 44px 56px;
   overflow: hidden;
-  color: #fff;
-  background: linear-gradient(160deg, #1e1e2e 0%, #26264a 55%, #1b1b30 100%);
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-right: 1px solid var(--line);
 }
 
+/* Una grilla fina que se desvanece hacia los bordes: textura sin competir con el texto. */
 .lgn-fondo {
   position: absolute;
   inset: 0;
   z-index: -1;
-}
-
-.lgn-fondo__mancha {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.55;
-  will-change: transform;
-}
-
-.lgn-fondo__mancha--a {
-  width: 460px;
-  height: 460px;
-  top: -140px;
-  right: -120px;
-  background: rgb(0 196 140 / 38%);
-  animation: lgn-deriva-a 22s ease-in-out infinite alternate;
-}
-
-.lgn-fondo__mancha--b {
-  width: 520px;
-  height: 520px;
-  bottom: -220px;
-  left: -160px;
-  background: rgb(98 90 230 / 45%);
-  animation: lgn-deriva-b 26s ease-in-out infinite alternate;
-}
-
-.lgn-fondo__mancha--c {
-  width: 300px;
-  height: 300px;
-  top: 38%;
-  left: 42%;
-  background: rgb(58 58 140 / 55%);
-  animation: lgn-deriva-c 18s ease-in-out infinite alternate;
-}
-
-/* Una grilla fina que se desvanece hacia los bordes: da textura sin competir con el texto. */
-.lgn-fondo__grilla {
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(rgb(255 255 255 / 5%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 5%) 1px, transparent 1px);
+  background-image: linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
   background-size: 44px 44px;
-  mask-image: radial-gradient(ellipse at 40% 45%, #000 20%, transparent 75%);
+  mask-image: radial-gradient(ellipse at 30% 40%, #000 0%, transparent 70%);
+  opacity: 0.7;
+  animation: lgn-grilla 40s linear infinite;
 }
 
-@keyframes lgn-deriva-a {
+@keyframes lgn-grilla {
   to {
-    transform: translate(-90px, 120px) scale(1.15);
-  }
-}
-
-@keyframes lgn-deriva-b {
-  to {
-    transform: translate(120px, -90px) scale(1.1);
-  }
-}
-
-@keyframes lgn-deriva-c {
-  to {
-    transform: translate(-70px, -60px) scale(0.85);
+    background-position:
+      0 44px,
+      44px 0;
   }
 }
 
@@ -109,64 +62,66 @@
   border-radius: 12px;
   background: #fff;
   object-fit: contain;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 30%);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
 }
 
 .lgn-marca__nombre {
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: var(--ink-900);
 }
 
 .lgn-marca__nombre em,
 .lgn-form__nombre em {
   font-style: normal;
-  color: var(--accent);
+  color: var(--accent-700);
 }
 
 .lgn-marca__centro {
-  max-width: 30rem;
+  max-width: 31rem;
 }
 
 .lgn-marca__etiqueta {
-  display: inline-block;
-  margin: 0 0 18px;
-  padding: 6px 12px;
-  border: 1px solid rgb(255 255 255 / 16%);
-  border-radius: 999px;
-  background: rgb(255 255 255 / 6%);
+  margin: 0 0 16px;
   font-family: var(--mono);
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgb(255 255 255 / 78%);
+  color: var(--ink-500);
   animation: lgn-entra 0.6s 0.08s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .lgn-marca__titular {
   margin: 0 0 16px;
-  font-size: clamp(32px, 3.1vw, 44px);
+  font-size: clamp(30px, 2.9vw, 42px);
   font-weight: 700;
-  line-height: 1.08;
+  line-height: 1.1;
   letter-spacing: -0.03em;
-  color: #fff;
+  color: var(--ink-900);
   animation: lgn-entra 0.7s 0.14s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* Lo único que lleva el verde del titular: una raya debajo de la segunda línea. */
 .lgn-marca__titular span {
-  background: linear-gradient(90deg, #fff 0%, var(--accent) 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  background: linear-gradient(var(--accent), var(--accent)) left 92% / 0 3px no-repeat;
+  padding-bottom: 4px;
+  animation: lgn-subraya 0.9s 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes lgn-subraya {
+  to {
+    background-size: 100% 3px;
+  }
 }
 
 .lgn-marca__bajada {
-  margin: 0 0 32px;
+  margin: 0 0 28px;
   max-width: 30rem;
-  font-size: 16px;
-  line-height: 1.55;
-  color: rgb(255 255 255 / 72%);
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--ink-500);
   animation: lgn-entra 0.7s 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
@@ -183,20 +138,20 @@
   align-items: center;
   gap: 14px;
   padding: 12px 14px;
-  border: 1px solid rgb(255 255 255 / 9%);
+  border: 1px solid var(--line);
   border-radius: 14px;
-  background: rgb(255 255 255 / 5%);
-  backdrop-filter: blur(6px);
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
   animation: lgn-entra 0.6s calc(0.32s + var(--i) * 0.09s) cubic-bezier(0.2, 0.8, 0.2, 1) both;
   transition:
-    background-color 0.2s ease,
     border-color 0.2s ease,
+    box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
 .lgn-lista__item:hover {
-  background: rgb(255 255 255 / 9%);
-  border-color: rgb(0 196 140 / 45%);
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px rgb(30 30 46 / 8%);
   transform: translateX(4px);
 }
 
@@ -207,76 +162,33 @@
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  background: rgb(0 196 140 / 16%);
-  color: var(--accent);
+  background: var(--accent-050);
+  color: var(--accent-700);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lgn-lista__item:hover .lgn-lista__icono {
+  transform: scale(1.08) rotate(-5deg);
 }
 
 .lgn-lista__item strong {
   display: block;
   font-size: 14.5px;
   font-weight: 650;
+  color: var(--ink-900);
 }
 
 .lgn-lista__item small {
   display: block;
   margin-top: 1px;
   font-size: 12.5px;
-  color: rgb(255 255 255 / 58%);
+  color: var(--ink-500);
 }
 
 .lgn-marca__pie {
   margin: 0;
   font-size: 12.5px;
-  color: rgb(255 255 255 / 45%);
-}
-
-/* Fichas que flotan: un vistazo de lo que el producto hace, sin cifras ni datos reales. */
-.lgn-flota__ficha {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 14px;
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 12px;
-  background: rgb(255 255 255 / 10%);
-  backdrop-filter: blur(10px);
-  font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  box-shadow: 0 12px 30px rgb(0 0 0 / 22%);
-  animation: lgn-flota 7s ease-in-out infinite;
-}
-
-.lgn-flota__punto {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px rgb(0 196 140 / 22%);
-}
-
-.lgn-flota__ficha--a {
-  top: 12%;
-  right: 28px;
-}
-
-.lgn-flota__ficha--b {
-  top: 46%;
-  right: 20px;
-  animation-delay: -2.4s;
-}
-
-.lgn-flota__ficha--c {
-  bottom: 16%;
-  right: 36px;
-  animation-delay: -4.6s;
-}
-
-@keyframes lgn-flota {
-  50% {
-    transform: translateY(-12px);
-  }
+  color: var(--ink-400);
 }
 
 @keyframes lgn-entra {
@@ -292,7 +204,7 @@
   flex-direction: column;
   justify-content: center;
   padding: 40px 32px;
-  background: radial-gradient(34rem 20rem at 100% 0%, var(--accent-050) 0%, transparent 70%), #fff;
+  background: #fff;
 }
 
 .lgn-form__contenido {
@@ -385,13 +297,6 @@
 
   .lgn-form__marca-movil {
     display: flex;
-  }
-}
-
-/* Con poco espacio las fichas flotantes taparían el texto: se esconden. */
-@media (width <= 1280px), (height <= 760px) {
-  .lgn-flota {
-    display: none;
   }
 }
 
