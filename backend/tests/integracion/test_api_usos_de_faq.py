@@ -14,6 +14,7 @@ import pytest
 import pytest_asyncio
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
+from sqlalchemy.exc import IntegrityError
 
 from tests.integracion.conftest import requiere_base
 from tests.integracion.test_api_bitacora import _sesion_de_solo_lectura
@@ -22,6 +23,7 @@ from tests.integracion.test_api_conversacional import (
     _firmado,
     _notificacion,
     _registrar,
+    _salientes,
     _settings,
 )
 
@@ -124,17 +126,30 @@ class TestWebhookRepetido:
     async def test_dos_entregas_concurrentes_del_mismo_mensaje_cuentan_un_uso(
         self, cliente_http: httpx.AsyncClient
     ) -> None:
-        """Caso 14. El perdedor choca con `uq_mensaje_externo_id` y no deja nada."""
+        """Caso 14. El perdedor choca con `uq_mensaje_externo_id` y no deja nada.
+
+        En producción ese choque es un 500 y Meta reintenta (el reintento es el caso 13). El
+        transporte ASGI de las pruebas no lo convierte en 500: propaga la excepción, y por eso
+        se junta con `return_exceptions`.
+        """
         token, empresa_id = await _registrar(cliente_http, f"usos-carrera-{uuid4()}@test.local")
         await _crear_faq(cliente_http, token)
 
-        await asyncio.gather(
+        resultados = await asyncio.gather(
             _preguntar(cliente_http, empresa_id, "wamid-carrera"),
             _preguntar(cliente_http, empresa_id, "wamid-carrera"),
+            return_exceptions=True,
         )
 
+        # Si el primero confirma antes de que el segundo consulte, el segundo es un repetido
+        # común y también da 200: la carrera no siempre se da, el resultado es el mismo.
+        choques = [uno for uno in resultados if isinstance(uno, IntegrityError)]
+        assert 200 in resultados, resultados
+        assert all(uno == 200 for uno in resultados if uno not in choques), resultados
+        assert all("uq_mensaje_externo_id" in str(uno) for uno in choques), choques
         (faq,) = await _faqs(cliente_http, token)
         assert faq["usos_total"] == 1
+        assert len(await _salientes(cliente_http, token)) == 1
 
 
 class TestDetalle:
