@@ -1039,3 +1039,33 @@
   gap: var(--space-3);
   margin-top: var(--space-6);
 }
+
+/* ── Detalles de interacción: tarjetas de totales y estado vacío ─────────── */
+
+.ing-proc-stat {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.ing-proc-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.ing-seccion + .tabla__contenedor .tabla__vacia,
+.tarjeta .tabla__vacia {
+  padding: 28px 24px;
+  background: var(--bg);
+  border-style: dashed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-proc-stat {
+    transition: none;
+  }
+
+  .ing-proc-stat:hover {
+    transform: none;
+  }
+}

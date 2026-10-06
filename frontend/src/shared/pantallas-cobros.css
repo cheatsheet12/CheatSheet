@@ -1702,3 +1702,20 @@
   color: var(--ink-500);
   font-size: var(--text-caption);
 }
+
+/* ── Detalles de interacción: enlace de pago y estado vacío ──────────────── */
+
+.cob-link {
+  transition: border-color 0.18s ease;
+}
+
+.cob-link:hover {
+  border-color: var(--ink-300);
+}
+
+.cob-vacio {
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-control);
+}

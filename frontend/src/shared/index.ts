@@ -19,6 +19,12 @@ export { Campo, Casilla } from "@/shared/ui/Campo";
 export type { PropsDeCampo, PropsDeCasilla } from "@/shared/ui/Campo";
 export { Card } from "@/shared/ui/Card";
 export type { PropsDeCard } from "@/shared/ui/Card";
+export { Desplegable } from "@/shared/ui/Desplegable";
+export type {
+  PropsDeDesplegable,
+  PropsDeGrupo,
+  VarianteDeDesplegable,
+} from "@/shared/ui/Desplegable";
 export { Modal } from "@/shared/ui/Modal";
 export type { PropsDeModal } from "@/shared/ui/Modal";
 export { Select } from "@/shared/ui/Select";

@@ -22,7 +22,7 @@
 
 import { useState } from "react";
 
-import { Alert, Badge, Button, Card, Tabla, formatearFechaHora } from "@/shared";
+import { Alert, Badge, Button, Card, Desplegable, Tabla, formatearFechaHora } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import {
@@ -147,10 +147,10 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
           // Lo que el reproceso hace y lo que no, dicho antes de apretar el botón: sin esto,
           // «reprocesar» se lee como «volver a subir todo» y nadie lo toca por miedo a duplicar
           // (HU-E3-06 RN-01 y RN-02).
-          <Alert tono="neutral">
+          <Desplegable titulo="Qué hace reprocesar" variante="simple">
             Corregí los datos en la fuente y reprocesá: el sistema reutiliza el mapeo confirmado e
             incorpora sólo las filas corregidas, sin duplicar las ya procesadas.
-          </Alert>
+          </Desplegable>
         )}
 
         <div className="ing-acciones">
