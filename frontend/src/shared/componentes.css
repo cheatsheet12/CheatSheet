@@ -1408,7 +1408,7 @@ a:focus-visible {
   top: 0;
   z-index: 30;
   min-height: var(--topbar-h);
-  background: rgb(248 247 255 / 70%);
+  background: rgb(255 255 255 / 78%);
   backdrop-filter: saturate(180%) blur(10px);
   border-bottom: 1px solid var(--line);
   display: flex;
@@ -1422,7 +1422,7 @@ a:focus-visible {
 
 /* Al desplazar la página, el encabezado gana cuerpo: fondo más sólido y una sombra suave. */
 .topbar[data-desplazada="true"] {
-  background: rgb(248 247 255 / 92%);
+  background: rgb(255 255 255 / 94%);
   box-shadow: 0 6px 20px rgb(30 30 46 / 8%);
 }
 
@@ -1640,7 +1640,7 @@ a:focus-visible {
 
 .cuenta__enlace:hover,
 .cuenta__enlace:focus-visible {
-  background: var(--bg);
+  background: var(--bg-soft);
   color: var(--ink-900);
   text-decoration: none;
   padding-left: 15px;

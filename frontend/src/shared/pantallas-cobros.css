@@ -576,7 +576,7 @@
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   padding: 11px 14px;
@@ -1225,7 +1225,7 @@
 /* El inactivo se apaga en vez de esconderse: sigue estando, y con él la numeración de todo
    lo que ya emitió. */
 .fac-nuevo-punto--inactivo {
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 .fac-nuevo-punto__cabecera {
@@ -1503,7 +1503,7 @@
   align-items: end;
   gap: var(--space-3);
   padding: var(--space-3);
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-control);
   transition: border-color 0.14s ease;
@@ -1715,7 +1715,7 @@
 
 .cob-vacio {
   padding: 14px 16px;
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px dashed var(--line);
   border-radius: var(--radius-control);
 }

@@ -899,7 +899,7 @@
   gap: var(--space-3);
   padding: 16px 22px;
   border-top: 1px solid var(--line);
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 /* El aviso a la izquierda y la acción a la derecha, en la misma línea: un mensaje debajo
@@ -1051,7 +1051,7 @@
 }
 
 .cfg-panel .tabla tbody tr:hover td {
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 /* El vacío es un renglón adentro del panel. La caja punteada del catálogo ocupa media
@@ -1208,7 +1208,7 @@
 
 .cfg-accion:hover:not(:disabled) {
   color: var(--ink-900);
-  background: var(--bg);
+  background: var(--bg-soft);
   border-color: var(--line);
 }
 
@@ -1256,7 +1256,7 @@
   margin: 0;
   padding: 16px 22px 18px;
   border-top: 1px solid var(--line);
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 .cfg-roles__nombre {
@@ -1297,7 +1297,7 @@
 }
 
 .cfg-avisos__fila:hover {
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 .cfg-avisos__cab {
@@ -1356,7 +1356,7 @@
   gap: var(--space-2);
   margin: var(--space-4) 0 0;
   padding: 10px 14px;
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-control);
   font-size: 12.5px;

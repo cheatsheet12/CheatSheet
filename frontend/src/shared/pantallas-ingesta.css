@@ -1018,7 +1018,7 @@
 }
 
 .ing-proc-stat {
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   padding: var(--space-4);
@@ -1181,7 +1181,7 @@
 .ing-seccion + .tabla__contenedor .tabla__vacia,
 .tarjeta .tabla__vacia {
   padding: 28px 24px;
-  background: var(--bg);
+  background: var(--bg-soft);
   border-style: dashed;
 }
 

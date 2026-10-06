@@ -784,7 +784,7 @@
 /* La previsualización: cambia sola con cada filtro y no genera nada, así que aparece con
  * un fundido corto en vez de saltar. */
 .rep-previsualizacion {
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   padding: var(--space-4);
@@ -1416,7 +1416,7 @@
 }
 
 .rep-permiso--no {
-  background: var(--bg);
+  background: var(--bg-soft);
   color: var(--ink-400);
   border: 1px solid var(--line);
 }
@@ -1595,7 +1595,7 @@ main:has(> * > .rep-publico) > * {
 
 .rep-publico {
   min-height: 100dvh;
-  background: var(--bg);
+  background: var(--bg-soft);
   display: flex;
   flex-direction: column;
 }

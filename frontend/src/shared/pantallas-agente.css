@@ -327,7 +327,7 @@
 }
 
 .wa-chat__cuerpo {
-  background: var(--bg);
+  background: var(--bg-soft);
   padding: 22px 26px;
   max-height: 520px;
   overflow-y: auto;
@@ -632,7 +632,7 @@
 }
 
 .wa-faq__cuerpo {
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px 14px;
@@ -862,7 +862,7 @@
 }
 
 .age-lista .tabla tbody tr:hover td {
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 /*
@@ -1050,7 +1050,7 @@
 .age-slots {
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
-  background: var(--bg);
+  background: var(--bg-soft);
   padding: var(--space-4);
   margin: 0 0 var(--space-4);
 }
@@ -1141,7 +1141,7 @@
    las dos. */
 .age-slot:disabled {
   border-color: var(--line-2);
-  background: var(--bg);
+  background: var(--bg-soft);
   cursor: not-allowed;
 }
 
@@ -1330,7 +1330,7 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--ink-600);
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 4px 11px;
@@ -1918,7 +1918,7 @@
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--ink-600);
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 3px 10px;
@@ -1957,7 +1957,7 @@
 .faq-accion:hover:not(:disabled),
 .plt-accion:hover:not(:disabled) {
   color: var(--ink-900);
-  background: var(--bg);
+  background: var(--bg-soft);
   border-color: var(--line);
 }
 
@@ -2108,7 +2108,7 @@
  * marca donde está el cursor, así que la lista no es sólo un cartel. */
 
 .plt-vars {
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   padding: 14px 16px;
@@ -2179,7 +2179,7 @@
 .faq-modal__pregunta {
   margin: 0;
   padding: 12px 14px;
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   font-size: 13px;
@@ -2419,7 +2419,7 @@
 .age-accion:hover:not(:disabled),
 .age-accion:focus-visible {
   color: var(--ink-900);
-  background: var(--bg);
+  background: var(--bg-soft);
   border-color: var(--line);
 }
 
@@ -2473,7 +2473,7 @@
 /* El inactivo se apaga en vez de esconderse: sigue estando, y con él la numeración de todo
    lo que ya emitió. */
 .pdv-punto--inactivo {
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 .pdv-punto__numero {
@@ -2550,7 +2550,7 @@
 .pdv-accion:hover,
 .pdv-accion:focus-visible {
   color: var(--ink-900);
-  background: var(--bg);
+  background: var(--bg-soft);
   border-color: var(--line);
 }
 
