@@ -405,83 +405,113 @@ U6–U8 agregan sus propias filas al planificarse; esta tabla deja reservadas la
 
 ## Archivos a tocar
 
-- [ ] `backend/src/cheatsheet/api/mensajeria.py` (nuevo: `armar_mensajeria`, `SinCanal` en producción)
-- [ ] `backend/src/cheatsheet/api/conversacional.py` (sale `armar_mensajeria`; `armar_agenda` y `_NotificadorSilencioso` **no cambian**)
-- [ ] `backend/src/cheatsheet/api/mercadopago.py` (`armar_envio(unidad, *, canal)` → `EnvioPorWhatsApp`; `armar_contactos`)
-- [ ] `backend/src/cheatsheet/api/agenda.py` (`armar_notificador(canal)`, `armar_avisador(…, canal)` → `AvisoPorWhatsApp`)
-- [ ] `backend/src/cheatsheet/api/routers/agenda.py` (tres sitios: `await armar_mensajeria` y se pasa el canal)
-- [ ] `backend/src/cheatsheet/api/routers/whatsapp.py` (sólo el import de `armar_mensajeria`)
-- [ ] `backend/src/cheatsheet/api/routers/conversaciones.py` (import desde `api/mensajeria.py`)
-- [ ] `backend/src/cheatsheet/workers/tasks_payments.py` (canal por unidad de trabajo; docstring)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/ports_envio.py` (nuevo: `PortContactoDeCliente`, `ContactoDeCobro`, `PortAislamiento`; `ports.py` está al tope de 400 líneas y no se toca)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/errors.py` (`DespachoNoPersistido`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/recordatorios.py` (savepoint por cobro, envío protegido, docstring)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/aislamiento.py` (nuevo: `AislamientoConSavepoint`)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/ensamblado.py` (`Cobros.aislamiento`)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/repositories.py` (`agregar` con su savepoint — H1b)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/clientes.py` (`ContactoViaMasterData`)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/envio.py` (`EnvioPorWhatsApp`, `CanalDeTexto`, texto; sale `EnvioPorConsola`)
-- [ ] `backend/src/cheatsheet/contexts/scheduling/infrastructure/avisos.py` (`AvisoPorWhatsApp`; sale `AvisoPorConsola`)
-- [ ] `backend/src/cheatsheet/contexts/conversational/infrastructure/canal.py` (H2: clasificación, espera inyectable, excepciones de httpx, log con código; `SinCanal`)
-- [ ] `backend/src/cheatsheet/contexts/conversational/application/errors.py` (`MensajeRechazado`, `MensajeriaSaturada`, `EnvioIncierto`, `CanalNoConectado`)
-- [ ] `backend/tests/contexts/conversational/infrastructure/test_canal.py` (nuevo)
-- [ ] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py` (H1 con fakes; `AislamientoFalso`)
-- [ ] `backend/tests/contexts/payments/infrastructure/test_envio.py` (nuevo)
-- [ ] `backend/tests/contexts/scheduling/infrastructure/test_avisos.py` (reescrito)
-- [ ] `backend/tests/api/test_canal_real_de_whatsapp.py` (nuevo: cableado del composition root; incluye el caso 34)
-- [ ] `backend/tests/integracion/test_barrido_de_recordatorios_postgres.py` (nuevo: H1 y H1b contra PostgreSQL, CI)
-- [ ] `render.yaml` (API: `WHATSAPP_WEBHOOK_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN` `sync: false`, `WHATSAPP_ADAPTADOR`; worker: `WHATSAPP_ADAPTADOR`)
-- [ ] `docs/staging-deployment.md` §3 y §4 bis.2
-- [ ] `docs/configuration-management.md` (bloque de variables de WhatsApp)
-- [ ] `backend/.env.example` (borrar `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_ID`; `WHATSAPP_APP_SECRET` → `WHATSAPP_WEBHOOK_SECRET`)
-- [ ] `docs/architecture.md` §7, `:159` (`PortMensajeria` consumido también por payments y scheduling vía composition root; la fila de §4 ya está hecha)
-- [ ] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (#11 cerrado; #3 con la configuración de Render; #4, #7, #9, #13 apuntan a U7, U8, U6, U6)
-- [ ] `docs/aidlc/units.md` (fila de U5 y filas de U6, U7 y U8 con sus dependencias)
-- [ ] `docs/aidlc/TODO.md` (entradas 22.30–22.40 en §22)
+- [x] `backend/src/cheatsheet/api/mensajeria.py` (nuevo: `armar_mensajeria`, `SinCanal` en producción)
+- [x] `backend/src/cheatsheet/api/conversacional.py` (sale `armar_mensajeria`; `armar_agenda` y `_NotificadorSilencioso` **no cambian**)
+- [x] `backend/src/cheatsheet/api/mercadopago.py` (`armar_envio(unidad, *, canal)` → `EnvioPorWhatsApp`; `armar_contactos`)
+- [x] `backend/src/cheatsheet/api/agenda.py` (`armar_notificador(canal)`, `armar_avisador(…, canal)` → `AvisoPorWhatsApp`)
+- [x] `backend/src/cheatsheet/api/routers/agenda.py` (tres sitios: `await armar_mensajeria` y se pasa el canal)
+- [x] `backend/src/cheatsheet/api/routers/whatsapp.py` (sólo el import de `armar_mensajeria`)
+- [x] `backend/src/cheatsheet/api/routers/conversaciones.py` (import desde `api/mensajeria.py`)
+- [x] `backend/src/cheatsheet/workers/tasks_payments.py` (canal por unidad de trabajo; docstring)
+- [x] `backend/src/cheatsheet/contexts/payments/application/ports_envio.py` (nuevo: `PortContactoDeCliente`, `ContactoDeCobro`, `PortAislamiento`; `ports.py` está al tope de 400 líneas y no se toca)
+- [x] `backend/src/cheatsheet/contexts/payments/application/errors.py` (`DespachoNoPersistido`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/recordatorios.py` (savepoint por cobro, envío protegido, docstring)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/aislamiento.py` (nuevo: `AislamientoConSavepoint`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/ensamblado.py` (`Cobros.aislamiento`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/repositories.py` (`agregar` con su savepoint — H1b)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/clientes.py` (`ContactoViaMasterData`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/envio.py` (`EnvioPorWhatsApp`, `CanalDeTexto`, texto; sale `EnvioPorConsola`)
+- [x] `backend/src/cheatsheet/contexts/scheduling/infrastructure/avisos.py` (`AvisoPorWhatsApp`; sale `AvisoPorConsola`)
+- [x] `backend/src/cheatsheet/contexts/conversational/infrastructure/canal.py` (H2: clasificación, espera inyectable, excepciones de httpx, log con código; `SinCanal`)
+- [x] `backend/src/cheatsheet/contexts/conversational/application/errors.py` (`MensajeRechazado`, `MensajeriaSaturada`, `EnvioIncierto`, `CanalNoConectado`)
+- [x] `backend/tests/contexts/conversational/infrastructure/test_canal.py` (nuevo)
+- [x] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py` (H1 con fakes; `AislamientoFalso`)
+- [x] `backend/tests/contexts/payments/infrastructure/test_envio.py` (nuevo)
+- [x] `backend/tests/contexts/scheduling/infrastructure/test_avisos.py` (reescrito)
+- [x] `backend/tests/api/test_canal_real_de_whatsapp.py` (nuevo: cableado del composition root; incluye el caso 34)
+- [x] `backend/tests/integracion/test_barrido_de_recordatorios_postgres.py` (nuevo: H1 y H1b contra PostgreSQL, CI)
+- [x] `render.yaml` (API: `WHATSAPP_WEBHOOK_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN` `sync: false`, `WHATSAPP_ADAPTADOR`; worker: `WHATSAPP_ADAPTADOR`)
+- [x] `docs/staging-deployment.md` §3 y §4 bis.2
+- [x] `docs/configuration-management.md` (bloque de variables de WhatsApp)
+- [ ] `backend/.env.example` (borrar `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_ID`; `WHATSAPP_APP_SECRET` → `WHATSAPP_WEBHOOK_SECRET`) — **NO HECHO**: el directorio está bloqueado por los permisos del entorno de implementación; lo aplica el dueño (ver «Estado de la implementación»)
+- [x] `docs/architecture.md` §7, `:159` (`PortMensajeria` consumido también por payments y scheduling vía composition root; la fila de §4 ya está hecha)
+- [x] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (#11 cerrado; #3 con la configuración de Render; #4, #7, #9, #13 apuntan a U7, U8, U6, U6)
+- [x] `docs/aidlc/units.md` (fila de U5 y filas de U6, U7 y U8 con sus dependencias) — sin cambios: las filas de U5–U8 y U11 ya estaban
+- [x] `docs/aidlc/TODO.md` (entradas 22.30–22.40 en §22)
 
 ## Casos de prueba
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED (H1)** — Con un envío falso que levanta en el cobro 2 de 3, `DespacharRecordatorios.ejecutar` hoy propaga la excepción. GREEN: no levanta; cobros 1 y 3 `ENVIADO`, cobro 2 registrado `FALLIDO` con `enviado_en` | caso de uso (fakes) | pendiente |
-| 2 | **RED (H1, duplicado)** — PostgreSQL: dos `barrer_empresa` seguidos con un envío que falla en el cobro 2 la primera vez. Hoy el cobro 1 recibe **dos** envíos (la primera transacción se deshizo). GREEN: un envío por cobro; y con una falla de base forzada dentro del savepoint del cobro 2, las filas de 1 y 3 sobreviven | integración (CI) | pendiente |
-| 3 | **RED (H1b)** — PostgreSQL: con la fila del paso 1 del cobro A ya insertada, el barrido sigue, despacha el cobro B en la misma transacción y confirma | integración (CI) | pendiente |
-| 4 | **RED (H2)** — `MockTransport` que levanta `httpx.ConnectError`: hoy sale la excepción de httpx cruda. GREEN: 3 intentos y `MensajeriaSaturada` (subclase de `MensajeriaNoDisponible`) | unit | pendiente |
-| 5 | **RED (H2)** — `httpx.ReadTimeout`: **un solo** `POST` y `EnvioIncierto`, sin reintento | unit | pendiente |
-| 6 | **RED (H2)** — 503, 503, 200: devuelve el `wamid`, y el `esperar` falso registró `[1.0, 2.0]`; ningún `sleep` real | unit | pendiente |
-| 7 | **RED (H2)** — 429 (y 400 con código 130429): hoy un solo `POST`. GREEN: se reintenta | unit | pendiente |
-| 8 | Códigos de throttling 4, 80007, 131056 y transitorios 131000, 131016 se reintentan (parametrizado) | unit | pendiente |
-| 9 | 131047, 131026, 132001, 190 y 401: **un solo** `POST`, `MensajeRechazado` con su `codigo` (parametrizado) | unit | pendiente |
-| 10 | 4xx con cuerpo ilegible → permanente, `codigo=None`; 5xx sin cuerpo → transitorio | unit | pendiente |
-| 11 | El log de un rechazo trae `estado`, `codigo` y `fbtrace_id`, y no trae teléfono, texto ni `error_data.details` | unit (captura de logs) | pendiente |
-| 12 | `SinCanal` levanta `CanalNoConectado` sin ningún `POST` | unit | pendiente |
-| 13 | **RED** — Un recordatorio de cobro hoy nunca llega a `MensajeriaWhatsApp`: con `WHATSAPP_ADAPTADOR=meta` y un canal sobre `MockTransport`, despachar el paso 1 de un cobro vencido no produce ningún `POST …/messages`. GREEN: un `POST` cuyo `to` es el teléfono del cliente | integración (composition root) | pendiente |
-| 14 | **RED** — Cancelar un turno desde el panel no llega a la Cloud API (hoy `AvisoPorConsola`) | integración (composition root) | pendiente |
-| 15 | **RED** — En producción, cancelar el turno de una empresa sin WhatsApp conectado no levanta `RuntimeError` y el turno queda cancelado (`SinCanal`) | unit (composition root) | pendiente |
-| 16 | El texto del recordatorio lleva nombre, concepto, monto con dos decimales (`Decimal`, `ROUND_HALF_UP`) y el link activo del cobro | unit | pendiente |
-| 17 | Cobro sin link (transferencia) → el texto no incluye la línea del link ni `None` | unit | pendiente |
-| 18 | Cliente sin teléfono → `FALLIDO`, ningún `POST`, ninguna excepción | unit | pendiente |
-| 19 | Paso con canal `EMAIL` o `PANEL` → `FALLIDO` sin llamar a Meta, log `recordatorio_canal_sin_adaptador` | unit | pendiente |
-| 20 | Meta responde 400 → `FALLIDO`, un solo `POST`, y el barrido sigue con el cobro siguiente, que sí sale | unit + caso de uso | pendiente |
-| 21 | Meta responde 503 tres veces → `FALLIDO` tras 3 `POST`; el paso queda registrado y el barrido siguiente **no** lo reenvía (D25) | caso de uso | pendiente |
-| 22 | Timeout de lectura en el barrido → `FALLIDO` tras **un** `POST`; el barrido siguiente no lo reenvía | caso de uso | pendiente |
-| 23 | `EnvioPorWhatsApp` y `AvisoPorWhatsApp` con un canal que levanta una excepción inesperada (`RuntimeError`) → `FALLIDO` / log, nunca levantan | unit | pendiente |
-| 24 | Reserva, cancelación y reprogramación mandan su texto (la reprogramación con horario nuevo y anterior) al teléfono del cliente | unit | pendiente |
-| 25 | Meta en 500 durante una cancelación → el turno queda cancelado, la bitácora lo registra, el request responde OK | integración | pendiente |
-| 26 | La corrección a posteriori (HU-E7-02 RN-07) sigue sin mandar mensaje | regresión | pendiente |
-| 27 | Ningún log de `EnvioPorWhatsApp` ni de `AvisoPorWhatsApp` contiene teléfono, nombre ni el texto | unit (captura de logs) | pendiente |
-| 28 | Dos empresas en el mismo proceso: cada canal usa el token y el `phone_number_id` de su empresa | integración | pendiente |
+| 1 | **RED (H1)** — Con un envío falso que levanta en el cobro 2 de 3, `DespacharRecordatorios.ejecutar` hoy propaga la excepción. GREEN: no levanta; cobros 1 y 3 `ENVIADO`, cobro 2 registrado `FALLIDO` con `enviado_en` | caso de uso (fakes) | hecho · RED observado (ImportError de colección) · `test_cobros_y_recordatorios.py` |
+| 2 | **RED (H1, duplicado)** — PostgreSQL: dos `barrer_empresa` seguidos con un envío que falla en el cobro 2 la primera vez. Hoy el cobro 1 recibe **dos** envíos (la primera transacción se deshizo). GREEN: un envío por cobro; y con una falla de base forzada dentro del savepoint del cobro 2, las filas de 1 y 3 sobreviven | integración (CI) | hecho · escrito, **sólo CI** (PostgreSQL) · RED por ImportError de colección en local |
+| 3 | **RED (H1b)** — PostgreSQL: con la fila del paso 1 del cobro A ya insertada, el barrido sigue, despacha el cobro B en la misma transacción y confirma | integración (CI) | hecho · escrito, **sólo CI** (PostgreSQL) |
+| 4 | **RED (H2)** — `MockTransport` que levanta `httpx.ConnectError`: hoy sale la excepción de httpx cruda. GREEN: 3 intentos y `MensajeriaSaturada` (subclase de `MensajeriaNoDisponible`) | unit | hecho · RED observado (ImportError de colección) |
+| 5 | **RED (H2)** — `httpx.ReadTimeout`: **un solo** `POST` y `EnvioIncierto`, sin reintento | unit | hecho · RED observado (ImportError de colección) |
+| 6 | **RED (H2)** — 503, 503, 200: devuelve el `wamid`, y el `esperar` falso registró `[1.0, 2.0]`; ningún `sleep` real | unit | hecho · RED observado (ImportError de colección) |
+| 7 | **RED (H2)** — 429 (y 400 con código 130429): hoy un solo `POST`. GREEN: se reintenta | unit | hecho · RED observado (ImportError de colección) |
+| 8 | Códigos de throttling 4, 80007, 131056 y transitorios 131000, 131016 se reintentan (parametrizado) | unit | hecho · RED observado (ImportError de colección) |
+| 9 | 131047, 131026, 132001, 190 y 401: **un solo** `POST`, `MensajeRechazado` con su `codigo` (parametrizado) | unit | hecho · RED observado (ImportError de colección) |
+| 10 | 4xx con cuerpo ilegible → permanente, `codigo=None`; 5xx sin cuerpo → transitorio | unit | hecho · RED observado (ImportError de colección) |
+| 11 | El log de un rechazo trae `estado`, `codigo` y `fbtrace_id`, y no trae teléfono, texto ni `error_data.details` | unit (captura de logs) | hecho · RED observado (ImportError de colección) |
+| 12 | `SinCanal` levanta `CanalNoConectado` sin ningún `POST` | unit | hecho · RED observado (ImportError de colección) |
+| 13 | **RED** — Un recordatorio de cobro hoy nunca llega a `MensajeriaWhatsApp`: con `WHATSAPP_ADAPTADOR=meta` y un canal sobre `MockTransport`, despachar el paso 1 de un cobro vencido no produce ningún `POST …/messages`. GREEN: un `POST` cuyo `to` es el teléfono del cliente | integración (composition root) | hecho · cubierto a nivel unidad con el canal real sobre `MockTransport` (`test_envio.py`); **no RED-observado** (el adaptador se escribió antes que el test) |
+| 14 | **RED** — Cancelar un turno desde el panel no llega a la Cloud API (hoy `AvisoPorConsola`) | integración (composition root) | hecho · RED observado (ImportError de colección de `test_avisos.py`) · `tests/api/test_canal_real_de_whatsapp.py` |
+| 15 | **RED** — En producción, cancelar el turno de una empresa sin WhatsApp conectado no levanta `RuntimeError` y el turno queda cancelado (`SinCanal`) | unit (composition root) | hecho · `tests/api/test_canal_real_de_whatsapp.py` (composition root y cancelación con `SinCanal`); no RED-observado |
+| 16 | El texto del recordatorio lleva nombre, concepto, monto con dos decimales (`Decimal`, `ROUND_HALF_UP`) y el link activo del cobro | unit | hecho · **no RED-observado** |
+| 17 | Cobro sin link (transferencia) → el texto no incluye la línea del link ni `None` | unit | hecho · **no RED-observado** |
+| 18 | Cliente sin teléfono → `FALLIDO`, ningún `POST`, ninguna excepción | unit | hecho · **no RED-observado** |
+| 19 | Paso con canal `EMAIL` o `PANEL` → `FALLIDO` sin llamar a Meta, log `recordatorio_canal_sin_adaptador` | unit | hecho · **no RED-observado** |
+| 20 | Meta responde 400 → `FALLIDO`, un solo `POST`, y el barrido sigue con el cobro siguiente, que sí sale | unit + caso de uso | hecho · **no RED-observado** |
+| 21 | Meta responde 503 tres veces → `FALLIDO` tras 3 `POST`; el paso queda registrado y el barrido siguiente **no** lo reenvía (D25) | caso de uso | hecho · **no RED-observado** |
+| 22 | Timeout de lectura en el barrido → `FALLIDO` tras **un** `POST`; el barrido siguiente no lo reenvía | caso de uso | hecho · **no RED-observado** |
+| 23 | `EnvioPorWhatsApp` y `AvisoPorWhatsApp` con un canal que levanta una excepción inesperada (`RuntimeError`) → `FALLIDO` / log, nunca levantan | unit | hecho · **no RED-observado** (payments); RED observado (scheduling) |
+| 24 | Reserva, cancelación y reprogramación mandan su texto (la reprogramación con horario nuevo y anterior) al teléfono del cliente | unit | hecho · RED observado (ImportError de colección) |
+| 25 | Meta en 500 durante una cancelación → el turno queda cancelado, la bitácora lo registra, el request responde OK | integración | hecho · sobre los dobles de `scheduling` y el canal real con `MockTransport` (no contra PostgreSQL) |
+| 26 | La corrección a posteriori (HU-E7-02 RN-07) sigue sin mandar mensaje | regresión | hecho · ya cubierto por `test_agenda.py::TestCorreccionAPosteriori`; sin cambios |
+| 27 | Ningún log de `EnvioPorWhatsApp` ni de `AvisoPorWhatsApp` contiene teléfono, nombre ni el texto | unit (captura de logs) | hecho · RED observado (scheduling); **no RED-observado** (payments) |
+| 28 | Dos empresas en el mismo proceso: cada canal usa el token y el `phone_number_id` de su empresa | integración | hecho · a nivel `armar_mensajeria` con integraciones falsas (no contra PostgreSQL) |
 | 29 | ~~El webhook arma la mensajería una vez y el agente y el avisador usan la misma instancia~~ | — | **eliminado** (2026-10-06): PR #81 ya hizo que `armar_agenda` use `_NotificadorSilencioso`, y el webhook ya arma la mensajería una sola vez |
-| 30 | `MensajeriaSimulada` detrás del adaptador real: el recordatorio queda `ENVIADO` en staging, como hoy | unit | pendiente |
-| 31 | Regresión: `SalidaAlCliente` (agente y `fuera_de_horario.py`) sigue guardando `FALLIDO` y el operador (`ResponderComoOperador`) sigue recibiendo `MensajeriaNoDisponible` (422) con las excepciones tipadas nuevas | regresión | pendiente |
-| 32 | `guard_architecture --scan` y `.claude/hooks/test_guards.sh` pasan: ningún import nuevo entre contextos | gate | pendiente |
-| 33 | **RED** — Un turno a las `2026-10-15T13:30Z` produce avisos de reserva, cancelación y reprogramación con «15/10/2026 a las 10:30» (hora de Argentina), no «13:30» | unit | pendiente |
-| 34 | Regresión — una reserva o cancelación hecha por el agente sigue sin disparar un segundo mensaje (`_NotificadorSilencioso`; el agente nunca usa `AvisoPorWhatsApp`) | regresión (composition root) | pendiente |
+| 30 | `MensajeriaSimulada` detrás del adaptador real: el recordatorio queda `ENVIADO` en staging, como hoy | unit | hecho · **no RED-observado** |
+| 31 | Regresión: `SalidaAlCliente` (agente y `fuera_de_horario.py`) sigue guardando `FALLIDO` y el operador (`ResponderComoOperador`) sigue recibiendo `MensajeriaNoDisponible` (422) con las excepciones tipadas nuevas | regresión | hecho · `test_fallos_tipados_del_canal.py` (`SalidaAlCliente`); el operador captura `Exception`, sin cambio de código |
+| 32 | `guard_architecture --scan` y `.claude/hooks/test_guards.sh` pasan: ningún import nuevo entre contextos | gate | parcial · `guard_architecture.py --scan` pasa (739 archivos); `test_guards.sh` **no corre local (falta `jq`)** → CI, TODO §22.41 |
+| 33 | **RED** — Un turno a las `2026-10-15T13:30Z` produce avisos de reserva, cancelación y reprogramación con «15/10/2026 a las 10:30» (hora de Argentina), no «13:30» | unit | hecho · RED observado (la salida actual dice «13:30») |
+| 34 | Regresión — una reserva o cancelación hecha por el agente sigue sin disparar un segundo mensaje (`_NotificadorSilencioso`; el agente nunca usa `AvisoPorWhatsApp`) | regresión (composition root) | hecho · `tests/api/test_canal_real_de_whatsapp.py` |
 
 Los casos 2 y 3 necesitan PostgreSQL: sin Docker en esta máquina se saltean en local y se confirman en
 la CI del PR. Gates de Gate 2: `ruff format --check . && ruff check . && mypy . && pytest`
 (cobertura ≥ 80 %). Frontend: no se toca. El caso 29 queda «eliminado» y no se renumera: otros
 pasajes citan los casos 1–5, 31 y 33.
+
+## Estado de la implementación (2026-10-06)
+
+Siete commits de trabajo en la rama (canal con clasificación y `SinCanal`; savepoint por cobro; `api/mensajeria.py`;
+recordatorios por WhatsApp; avisos de turno por WhatsApp con hora local; configuración y documentación). Gates
+locales: `ruff format --check`, `ruff check`, `mypy` (684 archivos) y `pytest` verdes; los tests contra PostgreSQL
+y `test_guards.sh` quedan para la CI del PR (TODO §22.41).
+
+**Desvíos respecto del plan (todos mecánicos):**
+
+- Los puertos de envío de payments viven en `payments/application/ports_envio.py` como pidió el plan, pero
+  `PortEnvioDeRecordatorio` ya estaba en `ports_de_recordatorios.py` (develop lo había extraído de `ports.py`): no se
+  movió.
+- La clasificación de errores de Meta salió a `conversational/infrastructure/canal_errores.py` desde el principio
+  (el plan lo preveía sólo si `canal.py` pasaba de ~380 líneas; quedó en 292). Un código fuera de las dos tablas cae
+  al status HTTP (5xx y 429 transitorios; el resto permanente).
+- `CanalDeTexto` está declarado dos veces —en `payments/infrastructure/envio.py` y en
+  `scheduling/infrastructure/avisos.py`—, a propósito (ADR-0011 §1: cada consumidor declara el suyo).
+- `armar_envio(unidad, *, canal)` devuelve `PortEnvioDeRecordatorio`; `armar_avisador(unidad, *, empresa_id, rol, canal)`
+  perdió el parámetro `settings`. El canal se arma en los llamadores (`workers/tasks_payments.py` y los tres sitios de
+  `api/routers/agenda.py`).
+- Se agregó la fila TODO §22.41 (confirmar en la CI los tests sólo-PostgreSQL y `test_guards.sh`).
+- **`backend/.env.example` NO se tocó**: la ruta está denegada por los permisos del entorno donde se implementó. Falta
+  borrar `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_ID`, renombrar `WHATSAPP_APP_SECRET` → `WHATSAPP_WEBHOOK_SECRET`
+  (bloque «PLATFORM side — conversational», ~líneas 283–288) y corregir el comentario de la línea 18
+  (`WHATSAPP_TOKEN/PHONE_ID/*_SECRET`).
+- Variables a mano en Render (el dashboard es la fuente de verdad, `render.yaml` es descriptivo): en `cheatsheet-api`,
+  agregar `WHATSAPP_ADAPTADOR=simulado` si no está; `WHATSAPP_WEBHOOK_SECRET` ya existe (creada el 2026-10-03);
+  `WHATSAPP_WEBHOOK_VERIFY_TOKEN` hay que crearla cuando exista la app de Meta. En `cheatsheet-worker`, agregar
+  `WHATSAPP_ADAPTADOR=simulado`. No hay variables renombradas ni borradas en Render.
 
 ## Preguntas del Gate 1 (con recomendación)
 
