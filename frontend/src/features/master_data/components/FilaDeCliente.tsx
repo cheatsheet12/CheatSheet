@@ -39,9 +39,9 @@ import type { ItemDeMenu } from "./MenuDeAcciones";
  * Operador.
  */
 const DESTINOS = [
-  { etiqueta: "Facturar", ruta: "/facturacion/nueva", icono: <IconoDeFactura /> },
-  { etiqueta: "Cobrar", ruta: "/cobros/nuevo", icono: <IconoDeCobro /> },
-  { etiqueta: "Agendar", ruta: "/agenda/nuevo", icono: <IconoDeTurno /> },
+  { etiqueta: "Facturar", ruta: "/facturacion/nueva", icono: <IconoDeFactura />, tono: "menta" },
+  { etiqueta: "Cobrar", ruta: "/cobros/nuevo", icono: <IconoDeCobro />, tono: "ambar" },
+  { etiqueta: "Agendar", ruta: "/agenda/nuevo", icono: <IconoDeTurno />, tono: "tinta" },
 ] as const;
 
 /** Las iniciales: la primera letra de las dos primeras palabras, o las dos primeras de una. */
@@ -113,15 +113,18 @@ export function AccionesDeCliente({
   return (
     <span className="mae-acciones">
       {cliente.activo ? (
-        DESTINOS.map(({ etiqueta, ruta, icono }) => (
+        DESTINOS.map(({ etiqueta, ruta, icono, tono }) => (
           <Link
             key={ruta}
-            className="mae-icono-accion"
+            className="mae-accion"
+            data-tono={tono}
             href={`${ruta}?cliente=${encodeURIComponent(cliente.id)}`}
             aria-label={etiqueta}
-            data-tip={etiqueta}
           >
-            {icono}
+            <span className="mae-accion__ico">{icono}</span>
+            <span className="mae-accion__texto" aria-hidden="true">
+              {etiqueta}
+            </span>
           </Link>
         ))
       ) : (

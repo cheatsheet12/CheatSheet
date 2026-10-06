@@ -191,7 +191,12 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
       celda: (fila) => (
         <span className="mae-persona">
           <AvatarDeCliente nombre={fila.nombre} />
-          <span className="mae-nombre">{fila.nombre}</span>
+          <span className="mae-persona__datos">
+            <span className="mae-nombre">{fila.nombre}</span>
+            <span className="mae-persona__sub">
+              {fila.contacto_email ?? "Sin email de contacto"}
+            </span>
+          </span>
         </span>
       ),
     },

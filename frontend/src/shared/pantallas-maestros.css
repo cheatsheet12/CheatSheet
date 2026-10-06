@@ -1424,3 +1424,142 @@
     transition: none;
   }
 }
+
+/* ── Acciones de fila con nombre y color ─────────────────────────────────────────────────
+ *
+ * Tres iconos grises de 16 px no se distinguen entre sí: había que pasar el mouse para saber cuál
+ * era «Facturar» y cuál «Cobrar». Ahora cada acción es una pastilla con su icono en un azulejo de
+ * color (verde para facturar, ámbar para cobrar, índigo para agendar) y su nombre al lado. Donde
+ * la pantalla es angosta el nombre se esconde y queda el azulejo de color, que ya se reconoce. */
+.mae-accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px 0 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  text-decoration: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.mae-accion__ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--tono-fondo);
+  color: var(--tono-color);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mae-accion__ico svg {
+  width: 15px;
+  height: 15px;
+}
+
+.mae-accion[data-tono="menta"] {
+  --tono-fondo: var(--accent-050);
+  --tono-color: var(--accent-700);
+  --tono-borde: var(--accent-100);
+}
+
+.mae-accion[data-tono="ambar"] {
+  --tono-fondo: var(--alert-050);
+  --tono-color: var(--warn);
+  --tono-borde: #f7e3b3;
+}
+
+.mae-accion[data-tono="tinta"] {
+  --tono-fondo: #ececfa;
+  --tono-color: #4a4ab0;
+  --tono-borde: #d9d9f2;
+}
+
+.mae-accion:hover {
+  text-decoration: none;
+  background: var(--tono-fondo);
+  border-color: var(--tono-borde);
+  color: var(--ink-900);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgb(30 30 46 / 8%);
+}
+
+.mae-accion:hover .mae-accion__ico {
+  transform: scale(1.1) rotate(-6deg);
+  background: var(--card);
+}
+
+.mae-accion:active {
+  transform: scale(0.97);
+}
+
+.mae-accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mae-acciones {
+  gap: 6px;
+}
+
+/* Pantalla angosta: sólo el azulejo de color, con el nombre en el `aria-label`. */
+@media (width <= 1560px) {
+  .mae-accion {
+    padding: 0 5px;
+  }
+
+  .mae-accion__texto {
+    display: none;
+  }
+}
+
+/* ── La persona: avatar más grande y una línea de contexto ──────────────────────────────── */
+.mae-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  font-size: 13px;
+}
+
+.mae-persona__datos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mae-persona__sub {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mae-accion,
+  .mae-accion__ico {
+    transition: none;
+  }
+
+  .mae-accion:hover,
+  .mae-accion:active,
+  .mae-accion:hover .mae-accion__ico {
+    transform: none;
+  }
+}
