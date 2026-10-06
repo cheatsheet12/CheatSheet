@@ -32,6 +32,32 @@ con la participación de la FAQ antes y después de su última edición.
   para todo lo que hace el agente, y la trata el canal real (U5, ADR-0011).
 - B5 y B7 (intención del entrante, pedido de persona): unidad `ajustes-menores-del-agente`.
 
+## Revalidación contra develop (2026-10-06)
+
+El plan se aprobó el 2026-10-04 sobre un `develop` anterior. Antes de implementar se revalidó contra
+`develop` actual (merge `a89be8a`); son actualizaciones mecánicas, no cambios de alcance:
+
+1. **`shared/zona_horaria.py` ya existe** con `ZONA_ARGENTINA` (lo agregó `reserva-y-cancelacion-por-whatsapp`).
+   Esta unidad agrega `MesCalendario` ahí y amplía su `__all__`; no recrea la constante.
+2. **Migración**: la cabeza actual es `0032_dialogo_de_conversacion`; esta unidad es `0033_usos_de_faq.py`
+   con `down_revision = "0032"`.
+3. **`application/agente.py` estaba en 399 de 400 líneas** y el cambio de B7 que debía dejar margen no
+   llegó. Se extrajo el flujo de respuesta por FAQ a `application/respuesta_por_faq.py`
+   (`RespuestaPorFAQ`), con el mismo patrón que `fuera_de_horario.py` y los pasos de turnos. Como el
+   envío ya vivía en `SalidaAlCliente` (`application/salida.py`), la partición `_enviar`/`_responder`
+   del diseño quedó como `SalidaAlCliente.enviar(...) -> Mensaje` (envía, guarda y devuelve el saliente)
+   y `responder` (devuelve `texto | None`, sin cambio para los demás llamadores). `agente.py` queda en
+   386 líneas.
+4. **`api/routers/conversaciones.py` tenía 486 líneas**: las rutas y esquemas de FAQ pasaron a
+   `api/routers/respuestas_frecuentes.py` (mismo prefijo `/faqs`), y `conversaciones.crear_router` las
+   monta. Quedó en 373 líneas.
+5. **La sección «Coordinación con `ajustes-menores-del-agente` (U3)» quedó obsoleta**: U3 ya está
+   mergeada. Además, `docs/aidlc/inputs/der.md`, `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md`
+   y `docs/aidlc/TODO.md` §22 **no** los cambió el PR del ADR-0012 (sí lo hizo con
+   `historias-de-usuario.md`), así que esta unidad los cambia, como dice la tabla del ADR.
+6. **La verificación en navegador se hace en staging de Render después del merge**, no levantando la
+   app en local (ver «Verificaciones que no se pueden hacer acá» y `TODO.md` §22.24).
+
 ## Lo que se encontró (evidencia)
 
 | Dónde | Qué |
@@ -87,15 +113,14 @@ con la participación de la FAQ antes y después de su última edición.
       de la empresa (incluye las de FAQ borradas).
     - `PortRepositorioFAQ.listar` deja de ordenar por `usos` (ordena por `created_at`); el orden por
       «Este mes» lo pone el caso de uso.
-  - `agente.py`:
-    - `ProcesarMensajeEntrante.__init__` recibe `usos: PortUsosDeFAQ`.
-    - `_responder` se parte en `_enviar(...) -> Mensaje` (envía y guarda el saliente, como hoy) y
-      `_responder`, que llama a `_enviar` y devuelve `texto | None` igual que ahora (los demás
-      llamadores no cambian).
-    - `_responder_faq`: sin `registrar_uso` ni `guardar`. Llama a `_enviar`; **si el saliente quedó
-      `ENVIADO`**, `await self._usos.registrar(UsoDeFAQ(id=uuid4(), empresa_id=…, faq_id=
-      mejor.faq.id, mensaje_id=saliente.id, usado_en=ahora))`. `usado_en = ahora` del reloj
-      inyectado (el mismo instante que el `momento` del saliente).
+  - `salida.py`: `SalidaAlCliente.enviar(...) -> Mensaje` (envía, guarda el saliente y lo devuelve,
+    `ENVIADO` o `FALLIDO`); `responder` lo llama y devuelve `texto | None` como antes.
+  - `respuesta_por_faq.py` (nuevo, extraído de `agente.py`): `RespuestaPorFAQ.responder(contexto,
+    texto)`: busca por significado, aplica el umbral, llama a `SalidaAlCliente.enviar` y **si el
+    saliente quedó `ENVIADO`** registra `UsoDeFAQ(id=uuid4(), empresa_id, faq_id, mensaje_id=
+    saliente.id, usado_en=contexto.ahora)`. No llama a `PortRepositorioFAQ.guardar`.
+  - `agente.py`: `ProcesarMensajeEntrante.__init__` recibe `usos: PortUsosDeFAQ`, arma
+    `RespuestaPorFAQ` y delega en él; `_responder_faq` desaparece del agente.
   - `faqs.py`:
     - `ListarFAQs.ejecutar(*, ahora) -> list[FAQConUsos]` (modelo de lectura: `faq` + `conteo`),
       ordenado por `este_mes` desc, después total desc, después `created_at`.
@@ -120,6 +145,7 @@ con la participación de la FAQ antes y después de su última edición.
     `agregar`). Nadie más que la migración escribe la línea de base.
   - `ensamblado.py`: `Conversaciones` suma `usos=RepositorioUsosDeFAQPostgres(unidad.sesion)`.
   - `api/routers/whatsapp.py`: pasa `usos=piezas.usos` a `ProcesarMensajeEntrante`.
+  - `repositories.py` queda en 400 líneas (el límite): los usos viven en `usos_de_faq.py`.
 - **Otros contextos**: ninguno. `shared/` no es un contexto; conversational importa
   `shared.zona_horaria`, que R1–R4 permiten. No hay arista nueva en el Context Map.
 - **API** (`api/routers/respuestas_frecuentes.py`, nuevo; `conversaciones.py` deja de tener las rutas
@@ -153,9 +179,8 @@ con la participación de la FAQ antes y después de su última edición.
 
 ## Infraestructura
 
-- **Migraciones**: una, con el **número libre al momento del merge**, encadenada al head de
-  `develop` (hoy `0030`; `0031` reservada por `tipos-de-comprobante-por-receptor`). SQL literal,
-  como 0027.
+- **Migraciones**: una, `0033_usos_de_faq.py`, encadenada a la cabeza actual de `develop`
+  (`0032`). SQL literal, como 0027.
   1. `CREATE TABLE faq_uso (id uuid PRIMARY KEY, empresa_id uuid NOT NULL REFERENCES empresa (id) ON
      DELETE CASCADE, faq_id uuid NULL REFERENCES faq (id) ON DELETE SET NULL, mensaje_id uuid NOT
      NULL REFERENCES mensaje (id), usado_en timestamptz NOT NULL, CONSTRAINT uq_faq_uso_mensaje
@@ -213,44 +238,52 @@ con la participación de la FAQ antes y después de su última edición.
   general del agente y la cubre U5 (ADR-0011).
 
 ## Archivos a tocar
-- [ ] `backend/src/cheatsheet/shared/zona_horaria.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/conversational/domain/uso_de_faq.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/conversational/domain/faq.py`
-- [ ] `backend/src/cheatsheet/contexts/conversational/application/ports.py`
-- [ ] `backend/src/cheatsheet/contexts/conversational/application/agente.py`
-- [ ] `backend/src/cheatsheet/contexts/conversational/application/faqs.py`
-- [ ] `backend/src/cheatsheet/contexts/conversational/infrastructure/models.py`
-- [ ] `backend/src/cheatsheet/contexts/conversational/infrastructure/repositories.py` (`listar`,
+- [x] `backend/src/cheatsheet/shared/zona_horaria.py` (`MesCalendario`; `ZONA_ARGENTINA` ya existía)
+- [x] `backend/src/cheatsheet/contexts/conversational/domain/uso_de_faq.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/conversational/domain/faq.py`
+- [x] `backend/src/cheatsheet/contexts/conversational/application/ports.py`
+- [x] `backend/src/cheatsheet/contexts/conversational/application/salida.py` (`enviar`)
+- [x] `backend/src/cheatsheet/contexts/conversational/application/respuesta_por_faq.py` (nuevo,
+      extraído de `agente.py`)
+- [x] `backend/src/cheatsheet/contexts/conversational/application/agente.py`
+- [x] `backend/src/cheatsheet/contexts/conversational/application/faqs.py`
+- [x] `backend/src/cheatsheet/contexts/conversational/infrastructure/models.py`
+- [x] `backend/src/cheatsheet/contexts/conversational/infrastructure/repositories.py` (`listar`,
       `_faq_a_fila`, `_faq_a_dominio`)
-- [ ] `backend/src/cheatsheet/contexts/conversational/infrastructure/usos_de_faq.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/conversational/infrastructure/ensamblado.py`
-- [ ] `backend/src/cheatsheet/api/routers/respuestas_frecuentes.py` (nuevo: rutas y esquemas de FAQ)
-- [ ] `backend/src/cheatsheet/api/routers/conversaciones.py` (salen las rutas de FAQ; se montan desde
+- [x] `backend/src/cheatsheet/contexts/conversational/infrastructure/usos_de_faq.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/conversational/infrastructure/ensamblado.py`
+- [x] `backend/src/cheatsheet/api/routers/respuestas_frecuentes.py` (nuevo: rutas y esquemas de FAQ)
+- [x] `backend/src/cheatsheet/api/routers/conversaciones.py` (salen las rutas de FAQ; se montan desde
       el módulo nuevo)
-- [ ] `backend/src/cheatsheet/api/routers/whatsapp.py` (un argumento)
-- [ ] `backend/migrations/versions/00NN_usos_de_faq.py` (nuevo; número libre al mergear)
-- [ ] `backend/tests/shared/test_zona_horaria.py` (nuevo)
-- [ ] `backend/tests/contexts/conversational/domain/test_uso_de_faq.py` (nuevo)
-- [ ] `backend/tests/contexts/conversational/domain/test_agregados.py` (`registrar_uso` → `editar`
+- [x] `backend/src/cheatsheet/api/routers/whatsapp.py` (un argumento)
+- [x] `backend/migrations/versions/0033_usos_de_faq.py` (nuevo)
+- [x] `backend/tests/shared/test_zona_horaria.py` (nuevo)
+- [x] `backend/tests/contexts/conversational/domain/test_uso_de_faq.py` (nuevo)
+- [x] `backend/tests/contexts/conversational/domain/test_agregados.py` (`registrar_uso` → `editar`
       y `editada_en`)
-- [ ] `backend/tests/contexts/conversational/application/dobles.py` (`UsosDeFAQEnMemoria`;
-      `MensajeriaEnMemoria` ya tiene `caida=True`)
-- [ ] `backend/tests/contexts/conversational/application/test_agente.py`
-- [ ] `backend/tests/contexts/conversational/application/test_faqs.py` (nuevo)
-- [ ] `backend/tests/integracion/test_conversacional_postgres.py`
-- [ ] `backend/tests/integracion/test_api_conversacional.py`
-- [ ] `frontend/src/features/conversational/api/faq.ts`
-- [ ] `frontend/src/features/conversational/components/RespuestasFrecuentes.tsx`
-- [ ] `frontend/src/features/conversational/components/DetalleDeUsoDeFaq.tsx` (nuevo)
-- [ ] `frontend/src/app/api/faqs/[faqId]/uso/route.ts` (nuevo)
-- [ ] `frontend/src/features/conversational/components/__tests__/pantallas.test.tsx`
-- [ ] `frontend/src/features/conversational/api/__tests__/clientes.test.ts`
-- [ ] `frontend/src/app/(panel)/conversaciones/__tests__/pagina.test.tsx` (fixture `FAQ` con los
+- [x] `backend/tests/contexts/conversational/application/dobles.py` (`UsosDeFAQEnMemoria`;
+      `RepositorioFAQEnMemoria.guardados`) y `escena.py` (`usos`)
+- [x] `backend/tests/contexts/conversational/application/test_agente.py`
+- [x] `backend/tests/contexts/conversational/application/test_faqs.py` (nuevo)
+- [x] `backend/tests/integracion/test_usos_de_faq_postgres.py` (nuevo: casos 11, 12, 15, 16, 17, 18, 19;
+      en archivo propio porque `test_conversacional_postgres.py` ya pasa las 400 líneas)
+- [x] `backend/tests/integracion/test_api_usos_de_faq.py` (nuevo: casos 13, 14, 15 y 21) y
+      `test_api_conversacional.py` (`usos` → `usos_total`)
+- [x] `backend/tests/integracion/test_migracion_0033.py` (nuevo: caso 20)
+- [x] `frontend/src/features/conversational/api/faq.ts`
+- [x] `frontend/src/features/conversational/index.ts` (exporta `verUsoDeFaq`, los mensajes y los tipos
+      nuevos: la regla R5 del lint obliga a que los tests importen del punto de entrada)
+- [x] `frontend/src/features/conversational/components/RespuestasFrecuentes.tsx`
+- [x] `frontend/src/features/conversational/components/DetalleDeUsoDeFaq.tsx` (nuevo)
+- [x] `frontend/src/app/api/faqs/[faqId]/uso/route.ts` (nuevo)
+- [x] `frontend/src/features/conversational/components/__tests__/pantallas.test.tsx`
+- [x] `frontend/src/features/conversational/api/__tests__/clientes.test.ts`
+- [x] `frontend/src/app/api/conversaciones/__tests__/rutas.test.ts` (la ruta nueva)
+- [x] `frontend/src/app/(panel)/conversaciones/__tests__/pagina.test.tsx` (fixture `FAQ` con los
       campos nuevos)
-- [ ] `docs/aidlc/inputs/der.md`, `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md`,
-      `docs/aidlc/TODO.md` §22 — **solo si el PR del ADR-0012 no los cambió ya** (el ADR los lista;
-      lo normal es que vayan con él)
-- [ ] `docs/aidlc/units.md` (estado de la unidad)
+- [x] `docs/aidlc/inputs/der.md`, `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (#24),
+      `docs/aidlc/TODO.md` §22 (22.5, 22.6 y 22.23 a 22.26)
+- [x] `docs/aidlc/units.md` (la unidad ya figuraba «en curso»)
 
 ## Casos de prueba
 
@@ -258,16 +291,16 @@ Test primero: los marcados **RED** fallan hoy y se escriben y se ven fallar ante
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED** `MesCalendario.del_instante(2026-10-31T23:30-03:00)` → inicio `2026-10-01T03:00Z`, fin `2026-11-01T03:00Z`; el mismo instante en UTC (`2026-11-01T02:30Z`) **no** cae en noviembre | unit (shared) | pendiente |
-| 2 | **RED** Borde exacto: `2026-11-01T00:00-03:00` pertenece a noviembre; `2026-10-31T23:59:59.999999-03:00` a octubre. `anterior()` de enero es diciembre del año anterior | unit (shared) | pendiente |
-| 3 | **RED** Un uso a las 22:00 ART del 31/10 cuenta en «Este mes» si `ahora` es 31/10 23:00 ART y en «Mes anterior» si `ahora` es 01/11 00:30 ART (fake de usos + `ListarFAQs`) | unit (aplicación) | pendiente |
-| 4 | **RED** `ventana_de_comparacion`: sin edición → `SIN_EDICIONES`; editada hace 10 h → `EDICION_RECIENTE`; editada a las 6 h del seguimiento → `SIN_HISTORIA_PREVIA`; editada hace 10 días con 40 de historia → `L = 10`; hace 50 días → `L = 30`; hace 10 días con 3 de historia → `L = 3` | unit (dominio) | pendiente |
-| 5 | **RED** `Participacion`: 1/3 → `33.3`; 1/6 → `16.7` (half up); 0/5 → `0.0`; 0/0 → `None` | unit (dominio) | pendiente |
-| 6 | **RED** `FAQ.editar` con el mismo texto (incluso con espacios alrededor) no mueve `editada_en`; cambiar solo la respuesta sí; `marcar_indexada` no la mueve | unit (dominio) | pendiente |
-| 7 | **RED** Respuesta con FAQ y canal sano → el fake de usos tiene **una** fila con `faq_id`, `mensaje_id` del saliente `ENVIADO` y `usado_en = ahora`; el repositorio de FAQ **no recibió `guardar`** | unit (aplicación) | pendiente |
-| 8 | **RED** Respuesta con FAQ y `MensajeriaEnMemoria(caida=True)` → saliente `FALLIDO` y **cero** usos. Hoy falla: `usos == 1` | unit (aplicación) | pendiente |
-| 9 | FAQ por debajo del umbral → ofrece asesor y cero usos (el actual `test_sin_faq_por_encima_del_umbral…` reescrito sobre el fake de usos) | unit (aplicación) | pendiente |
-| 10 | `VerUsoDeFAQ`: FAQ editada hace 10 días; 2 de 8 respuestas antes y 6 de 12 después → `25.0` y `50.0`, `dias = 10`; ventana posterior sin respuestas de la empresa → `despues.participacion is None`; FAQ inexistente → `FAQInexistente` | unit (aplicación) | pendiente |
+| 1 | **RED** `MesCalendario.del_instante(2026-10-31T23:30-03:00)` → inicio `2026-10-01T03:00Z`, fin `2026-11-01T03:00Z`; el mismo instante en UTC (`2026-11-01T02:30Z`) **no** cae en noviembre | unit (shared) | hecho |
+| 2 | **RED** Borde exacto: `2026-11-01T00:00-03:00` pertenece a noviembre; `2026-10-31T23:59:59.999999-03:00` a octubre. `anterior()` de enero es diciembre del año anterior | unit (shared) | hecho |
+| 3 | **RED** Un uso a las 22:00 ART del 31/10 cuenta en «Este mes» si `ahora` es 31/10 23:00 ART y en «Mes anterior» si `ahora` es 01/11 00:30 ART (fake de usos + `ListarFAQs`) | unit (aplicación) | hecho |
+| 4 | **RED** `ventana_de_comparacion`: sin edición → `SIN_EDICIONES`; editada hace 10 h → `EDICION_RECIENTE`; editada a las 6 h del seguimiento → `SIN_HISTORIA_PREVIA`; editada hace 10 días con 40 de historia → `L = 10`; hace 50 días → `L = 30`; hace 10 días con 3 de historia → `L = 3` | unit (dominio) | hecho |
+| 5 | **RED** `Participacion`: 1/3 → `33.3`; 1/6 → `16.7` (half up); 0/5 → `0.0`; 0/0 → `None` | unit (dominio) | hecho |
+| 6 | **RED** `FAQ.editar` con el mismo texto (incluso con espacios alrededor) no mueve `editada_en`; cambiar solo la respuesta sí; `marcar_indexada` no la mueve | unit (dominio) | hecho |
+| 7 | **RED** Respuesta con FAQ y canal sano → el fake de usos tiene **una** fila con `faq_id`, `mensaje_id` del saliente `ENVIADO` y `usado_en = ahora`; el repositorio de FAQ **no recibió `guardar`** | unit (aplicación) | hecho |
+| 8 | **RED** Respuesta con FAQ y `MensajeriaEnMemoria(caida=True)` → saliente `FALLIDO` y **cero** usos. Hoy falla: `usos == 1` | unit (aplicación) | hecho |
+| 9 | FAQ por debajo del umbral → ofrece asesor y cero usos (el actual `test_sin_faq_por_encima_del_umbral…` reescrito sobre el fake de usos) | unit (aplicación) | hecho |
+| 10 | `VerUsoDeFAQ`: FAQ editada hace 10 días; 2 de 8 respuestas antes y 6 de 12 después → `25.0` y `50.0`, `dias = 10`; ventana posterior sin respuestas de la empresa → `despues.participacion is None`; FAQ inexistente → `FAQInexistente` | unit (aplicación) | hecho |
 | 11 | **RED** Responder con una FAQ no escribe la fila `faq`: se edita la pregunta en otra sesión y se confirma entre la búsqueda y el `COMMIT` del agente → la pregunta editada queda. Hoy falla: el `guardar` del agente la revierte | integración (PostgreSQL) | CI |
 | 12 | **RED** Dos sesiones registran a la vez un uso de la misma FAQ (`asyncio.gather`, dos mensajes distintos) → `conteos` da 2. Hoy el equivalente con `guardar` da 1 | integración (PostgreSQL) | CI |
 | 13 | Webhook firmado repetido (mismo `externo_id`, dos veces seguidas) → 200 las dos, **un** uso | integración (API + PostgreSQL) | CI |
@@ -275,15 +308,15 @@ Test primero: los marcados **RED** fallan hoy y se escriben y se ven fallar ante
 | 15 | **RLS**: con la empresa B en `app.current_empresa`, `faq_uso` de A no se lee (`count = 0`) y un `INSERT` con `empresa_id` de A falla (`WITH CHECK`); `GET /faqs` de B no ve conteos de A | integración (PostgreSQL) | CI |
 | 16 | Borrar una FAQ con usos como `cheatsheet_app` funciona (la acción `SET NULL` corre como dueño) y el total de la empresa en la ventana no cambia: la participación de otra FAQ es la misma antes y después del borrado | integración (PostgreSQL) | CI |
 | 17 | `conteos` en PostgreSQL con usos a las `02:59Z` y `03:00Z` del 1/11 → uno en octubre, uno en noviembre (la frontera ART llega bien a SQL) | integración (PostgreSQL) | CI |
-| 18 | Mes vacío: FAQ con usos solo el mes pasado → `usos_este_mes = 0`, `usos_mes_anterior = n`; empresa sin ningún uso → todos en cero, sin error | unit (aplicación) + integración | pendiente / CI |
+| 18 | Mes vacío: FAQ con usos solo el mes pasado → `usos_este_mes = 0`, `usos_mes_anterior = n`; empresa sin ningún uso → todos en cero, sin error | unit (aplicación) + integración | hecho / CI |
 | 19 | Total = `usos_anteriores` + eventos: FAQ migrada con `usos_anteriores = 47` y 3 eventos → `usos_total = 50`, `usos_este_mes = 3` | integración (PostgreSQL) | CI |
 | 20 | Migración: `upgrade` sobre una base con `faq.usos = 47` → `usos_anteriores = 47`, `editada_en NULL`, `seguimiento_desde` no nulo; `downgrade` con 3 eventos → `usos = 50`; `upgrade` otra vez limpio. `verify_rls.py` verde con la tabla nueva | integración (migraciones) | CI |
 | 21 | API: `GET /faqs` trae `usos_este_mes`, `usos_mes_anterior`, `usos_total`, `editada_en` y **no** `usos`; ordenado por «Este mes»; `POST` responde con los tres en cero (primer criterio enmendado); `GET /faqs/{id}/uso` de una FAQ nunca editada → `comparacion: null`, `motivo_sin_comparacion: "SIN_EDICIONES"`; FAQ inexistente → 404; un rol `SOLO_LECTURA` lee el detalle | integración (API) | CI |
-| 22 | **RED** Pantalla: columnas «Este mes», «Mes anterior» y «Total» con sus números; la barra dice «N usos este mes»; ya no aparece «en el período» | unit (frontend, Vitest) | pendiente |
-| 23 | **RED** Pantalla: «Ver uso» abre el detalle con «Respondida 47 veces este mes» y «Participación: 25,0 % … 50,0 %» con los días y la fecha de edición; con `motivo_sin_comparacion` muestra el texto del motivo y ningún porcentaje; con `participacion: null` muestra «Sin consultas respondidas por FAQ» | unit (frontend, Vitest) | pendiente |
-| 24 | Pantalla con `puedeEditar={false}`: «Ver uso» está, «Editar» y «Eliminar» no | unit (frontend, Vitest) | pendiente |
-| 25 | `verUsoDeFaq` llama `GET /api/faqs/{id}/uso` y propaga `ErrorDeFaq` con el `detalle` del backend; el BFF reenvía al backend | unit (frontend, Vitest) | pendiente |
-| 26 | El resto de `test_agente.py`, `test_api_conversacional.py`, `pantallas.test.tsx` y `pagina.test.tsx` sigue verde con los fixtures actualizados | unit + integración (existente) | pendiente |
+| 22 | **RED** Pantalla: columnas «Este mes», «Mes anterior» y «Total» con sus números; la barra dice «N usos este mes»; ya no aparece «en el período» | unit (frontend, Vitest) | hecho |
+| 23 | **RED** Pantalla: «Ver uso» abre el detalle con «Respondida 47 veces este mes» y «Participación: 25,0 % … 50,0 %» con los días y la fecha de edición; con `motivo_sin_comparacion` muestra el texto del motivo y ningún porcentaje; con `participacion: null` muestra «Sin consultas respondidas por FAQ» | unit (frontend, Vitest) | hecho |
+| 24 | Pantalla con `puedeEditar={false}`: «Ver uso» está, «Editar» y «Eliminar» no | unit (frontend, Vitest) | hecho |
+| 25 | `verUsoDeFaq` llama `GET /api/faqs/{id}/uso` y propaga `ErrorDeFaq` con el `detalle` del backend; el BFF reenvía al backend | unit (frontend, Vitest) | hecho |
+| 26 | El resto de `test_agente.py`, `test_api_conversacional.py`, `pantallas.test.tsx` y `pagina.test.tsx` sigue verde con los fixtures actualizados | unit + integración (existente) | hecho |
 
 Gates de §7 al cerrar: `ruff format --check . && ruff check .`, `mypy .`, `pytest` (cobertura de
 conversational sin bajar), `npm run lint`, `npm run typecheck`, `npm test` en `frontend/`, y
@@ -292,34 +325,23 @@ conversational sin bajar), `npm run lint`, `npm run typecheck`, `npm test` en `f
 ## Verificaciones que no se pueden hacer acá
 
 - **PostgreSQL**: casos 11–17, 19–21 y la ejecución real de `verify_rls.py` necesitan PostgreSQL
-  (sin Docker en esta máquina): se saltean localmente y se confirman en la CI del PR. Se dice así en
-  el Gate 2, con la salida real de la CI.
+  (sin Docker en esta máquina): se saltean localmente y se confirman en la CI del PR (`TODO.md`
+  §22.25). Se dice así en el Gate 2, con la salida real de la CI.
 - **WhatsApp real**: que un mensaje con FAQ enviado por un número de prueba de Meta sume un uso y
-  uno fallido no. Va a `docs/aidlc/TODO.md` §25 «WhatsApp (sandbox)» y depende de U5.
-- **La pantalla en el navegador** (columnas y tarjeta de detalle en escritorio y celular): va a
-  `docs/aidlc/TODO.md` §22 con la unidad como dueña, verificable con `run-local`.
+  uno fallido no. Va a `docs/aidlc/TODO.md` §22.26 y depende de U5 (`canal-real-de-whatsapp`).
+- **La pantalla en el navegador** (columnas y tarjeta de detalle en escritorio y celular): **se
+  verifica en staging de Render después del merge**, no levantando la app en local. Va a
+  `docs/aidlc/TODO.md` §22.24 con la unidad como dueña.
 
 ## Coordinación con `ajustes-menores-del-agente` (U3)
 
-U3 (`fix/conversational-ajustes-menores-del-agente`, ya con su test RED de B5 en `d05970f`) toca el
-mismo `agente.py` y el mismo `test_agente.py`:
-- B5 cambia `_guardar_entrante` (devuelve el `Mensaje`) y el flujo de `ejecutar` alrededor de
-  `self._interprete.leer`; B7 saca `PEDIDOS_DE_HUMANO` y `_pide_una_persona` a
-  `domain/pedido_de_persona.py`.
-- Esta unidad toca `__init__` (un argumento), `_responder_faq` y `_responder` (se parte en
-  `_enviar`). Son bloques distintos: no se espera conflicto de texto en `agente.py`. En
-  `test_agente.py` las dos agregan tests, y esta además agrega `usos` a `Escena`: conflicto probable
-  pero mecánico.
-- **Orden de merge: primero U3, después esta.** U3 está más adelante (Gate 1 aprobado) y, al sacar
-  B7, deja `agente.py` con margen para las ~10 líneas de esta unidad. Esta rama se rebasa sobre
-  `develop` después del merge de U3 y antes de su PR. Si esta llegara primero, U3 rebasa: el
-  conflicto sigue siendo mecánico.
-- La migración no choca: U3 no tiene migración.
+**Obsoleta**: U3 ya está mergeada en `develop` y esta rama se integró sobre ella (`a89be8a`). Su efecto
+sobre esta unidad —`agente.py` sin margen— está resuelto en la «Revalidación contra develop».
 
 ## Registro
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las tres preguntas. **Cierra cuando el equipo acepte el ADR-0012**; hasta entonces no se escribe código |
+| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las tres preguntas. **Cierra el 2026-10-05**: Luciano aceptó el ADR-0012 (#80, commit `292f3f6`) |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
