@@ -126,7 +126,7 @@ El plan se aprobó el 2026-10-04 sobre un `develop` anterior. Antes de implement
       ordenado por `este_mes` desc, después total desc, después `created_at`.
     - `VerUsoDeFAQ.ejecutar(*, faq_id, ahora) -> DetalleDeUso` (nuevo): conteo, `editada_en`, y la
       comparación (`dias`, `antes: Participacion`, `despues: Participacion`) o el motivo. Cuatro
-      `contar` (FAQ y empresa, por ventana). `FAQInexistente` si no está (mismo 404 que hoy).
+      `contar` (FAQ y empresa, por ventana). `FAQInexistente` si no está (422, como hoy: `FAQInexistente` es una `EntradaInvalida` y las rutas de FAQ existentes ya responden 422).
     - `EditarFAQ` devuelve también su conteo (la respuesta HTTP lo lleva).
     - Todos los roles leen, como hoy `ListarFAQs` (sin cambio de autorización).
 - **Puertos y adaptadores** (`contexts/conversational/infrastructure/`):
@@ -311,7 +311,7 @@ Test primero: los marcados **RED** fallan hoy y se escriben y se ven fallar ante
 | 18 | Mes vacío: FAQ con usos solo el mes pasado → `usos_este_mes = 0`, `usos_mes_anterior = n`; empresa sin ningún uso → todos en cero, sin error | unit (aplicación) + integración | hecho / CI |
 | 19 | Total = `usos_anteriores` + eventos: FAQ migrada con `usos_anteriores = 47` y 3 eventos → `usos_total = 50`, `usos_este_mes = 3` | integración (PostgreSQL) | CI |
 | 20 | Migración: `upgrade` sobre una base con `faq.usos = 47` → `usos_anteriores = 47`, `editada_en NULL`, `seguimiento_desde` no nulo; `downgrade` con 3 eventos → `usos = 50`; `upgrade` otra vez limpio. `verify_rls.py` verde con la tabla nueva | integración (migraciones) | CI |
-| 21 | API: `GET /faqs` trae `usos_este_mes`, `usos_mes_anterior`, `usos_total`, `editada_en` y **no** `usos`; ordenado por «Este mes»; `POST` responde con los tres en cero (primer criterio enmendado); `GET /faqs/{id}/uso` de una FAQ nunca editada → `comparacion: null`, `motivo_sin_comparacion: "SIN_EDICIONES"`; FAQ inexistente → 404; un rol `SOLO_LECTURA` lee el detalle | integración (API) | CI |
+| 21 | API: `GET /faqs` trae `usos_este_mes`, `usos_mes_anterior`, `usos_total`, `editada_en` y **no** `usos`; ordenado por «Este mes»; `POST` responde con los tres en cero (primer criterio enmendado); `GET /faqs/{id}/uso` de una FAQ nunca editada → `comparacion: null`, `motivo_sin_comparacion: "SIN_EDICIONES"`; FAQ inexistente → 422 (`FAQInexistente` es una `EntradaInvalida`); un rol `SOLO_LECTURA` lee el detalle | integración (API) | CI |
 | 22 | **RED** Pantalla: columnas «Este mes», «Mes anterior» y «Total» con sus números; la barra dice «N usos este mes»; ya no aparece «en el período» | unit (frontend, Vitest) | hecho |
 | 23 | **RED** Pantalla: «Ver uso» abre el detalle con «Respondida 47 veces este mes» y «Participación: 25,0 % … 50,0 %» con los días y la fecha de edición; con `motivo_sin_comparacion` muestra el texto del motivo y ningún porcentaje; con `participacion: null` muestra «Sin consultas respondidas por FAQ» | unit (frontend, Vitest) | hecho |
 | 24 | Pantalla con `puedeEditar={false}`: «Ver uso» está, «Editar» y «Eliminar» no | unit (frontend, Vitest) | hecho |
@@ -350,6 +350,7 @@ sobre esta unidad —`agente.py` sin margen— está resuelto en la «Revalidaci
 - Gate 1 (2026-10-04): Pregunta 1 → la participación compara como máximo 30 días antes y después de la edición.
 - Gate 1 (2026-10-04): Pregunta 2 → los usos de una FAQ borrada siguen contando en el total de la empresa (RN-08).
 - Gate 1 (2026-10-04): Pregunta 3 → el contador previo a la unidad suma al «Total» como base sin fecha, sin asignarse a ningún mes.
+- Corrección (revisión independiente): una FAQ inexistente responde 422, no 404, porque `FAQInexistente` es una `EntradaInvalida` y las rutas de FAQ existentes ya contestan 422; la fecha de edición se muestra con el `formatearFecha` corto existente (es-AR).
 
 ## Preguntas del Gate 1
 
