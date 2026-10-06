@@ -55,16 +55,11 @@
 }
 
 .acc-marca__simbolo {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-control);
-  background: var(--primary);
-  color: var(--color-text-on-dark);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: var(--text-caption);
-  letter-spacing: -0.02em;
+  background: #fff;
+  object-fit: contain;
   flex: none;
 }
 

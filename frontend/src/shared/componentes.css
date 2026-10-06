@@ -785,12 +785,10 @@ a:focus-visible {
   width: 38px;
   height: 38px;
   border-radius: var(--radius-control);
-  background: var(--accent);
-  color: var(--primary);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 14px;
+  /* El logo es un PNG con fondo blanco: sobre la barra oscura va en su propio azulejo. */
+  background: #fff;
+  object-fit: contain;
+  padding: 2px;
   flex: none;
 }
 

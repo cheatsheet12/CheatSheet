@@ -28,6 +28,7 @@
  * be filed.
  */
 
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
@@ -132,9 +133,14 @@ export default async function PanelLayout({
       <RenovadorDeSesion />
       <aside className="sidebar">
         <div className="sidebar__brand">
-          <span className="sidebar__logo" aria-hidden="true">
-            CS
-          </span>
+          <Image
+            className="sidebar__logo"
+            src="/logo-simbolo.png"
+            alt=""
+            width={38}
+            height={38}
+            priority
+          />
           <span>
             <b className="sidebar__nombre">CheatSheet</b>
             <small className="sidebar__version">iPaaS</small>
