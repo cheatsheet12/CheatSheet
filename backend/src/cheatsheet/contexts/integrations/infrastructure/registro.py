@@ -255,7 +255,6 @@ def _par_de_mercadopago(settings: Settings, reloj: Reloj) -> ParDeAdaptadores:
         client_id=settings.mercadopago_client_id,
         client_secret=settings.mercadopago_client_secret,
         redirect_uri=settings.mercadopago_redirect_uri,
-        credenciales_de_prueba=not settings.es_produccion,
         auth_url=settings.mercadopago_auth_url,
         api_url=settings.mercadopago_api_url,
         timeout_segundos=float(settings.mercadopago_timeout_segundos),
