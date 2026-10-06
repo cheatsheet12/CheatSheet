@@ -56,6 +56,7 @@ from cheatsheet.contexts.payments.application.recordatorios import (
 )
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDePago
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
+from cheatsheet.shared.auditoria import EventoAuditable, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.roles import RolUsuario
@@ -881,13 +882,62 @@ async def test_un_envio_que_levanta_en_el_cobro_2_no_voltea_el_barrido() -> None
     )
 
     por_cobro = {r.cobro_id: r for r in recordatorios.guardados}
-    assert resultado.procesados == 3
+    # Los que salieron son 2: el fallido se cuenta aparte (hallazgo de revisión).
+    assert resultado.procesados == 2
+    assert resultado.fallidos == 1
     assert por_cobro[uno.id].estado_entrega is EstadoEntrega.ENVIADO
     assert por_cobro[tres.id].estado_entrega is EstadoEntrega.ENVIADO
     # El del medio queda registrado `FALLIDO` **con fecha**, para que el índice único
     # `(cobro_id, paso)` no lo deje salir de nuevo en la corrida siguiente.
     assert por_cobro[dos.id].estado_entrega is EstadoEntrega.FALLIDO
     assert por_cobro[dos.id].enviado_en == AHORA + timedelta(days=4)
+
+
+async def test_un_recordatorio_fallido_se_audita_como_error_y_no_cuenta_como_despachado(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hallazgo de revisión: `enviar_recordatorio` decía `COMPLETADO` aunque el envío hubiera
+    terminado `FALLIDO`, y el contador `procesados` lo sumaba como si hubiera salido."""
+    llamadas: list[tuple[str, dict[str, object]]] = []
+
+    class LoggerGrabador:
+        # El nivel del logger lo fija la configuración global de structlog, que otros tests
+        # cambian: se graba la llamada y no se depende de ese filtro.
+        def info(self, evento: str, **datos: object) -> None:
+            llamadas.append((evento, datos))
+
+        def warning(self, evento: str, **datos: object) -> None:
+            llamadas.append((evento, datos))
+
+    monkeypatch.setattr(
+        "cheatsheet.contexts.payments.application.recordatorios.logger", LoggerGrabador()
+    )
+    cobros, recordatorios = CobrosFalsos(), RecordatoriosFalsos()
+    publicador = PublicadorFalso()
+    uno, dos, tres = await _tres_cobros_vencidos(cobros)
+    barrido = DespacharRecordatorios(
+        cobros=cobros,
+        recordatorios=recordatorios,
+        envio=EnvioQueFallaEn(2),
+        cadena=CadenaFalsa(),
+        publicador=publicador,
+        aislamiento=AislamientoFalso(),
+    )
+
+    resultado = await barrido.ejecutar(empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4))
+
+    resultados = {
+        e.entidad_afectada: e.resultado
+        for e in publicador.eventos
+        if isinstance(e, EventoAuditable) and e.accion == "enviar_recordatorio"
+    }
+    assert resultados[f"Cobro:{uno.id}"] is Resultado.COMPLETADO
+    assert resultados[f"Cobro:{dos.id}"] is Resultado.ERROR
+    assert resultados[f"Cobro:{tres.id}"] is Resultado.COMPLETADO
+    assert (resultado.procesados, resultado.fallidos) == (2, 1)
+    despachados = [datos for evento, datos in llamadas if evento == "recordatorios_despachados"]
+    assert despachados[0]["cantidad"] == 2
+    assert despachados[0]["fallidos"] == 1
 
 
 async def test_el_cobro_que_fallo_no_se_reenvia_en_el_barrido_siguiente() -> None:

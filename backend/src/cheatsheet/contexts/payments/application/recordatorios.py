@@ -55,6 +55,10 @@ class ResultadoDeBarrido:
     #: procesa cero puede estar bien (nada vencía hoy) o puede estar roto, y la única forma de
     #: distinguirlo desde un log es saber cuántos evaluó.
     evaluados: int = 0
+    #: Recordatorios cuyo envío terminó `FALLIDO`. Quedan registrados (con fecha, para que el
+    #: índice único no los reenvíe) pero **no** cuentan como `procesados`: un barrido que
+    #: «despachó» lo que nunca salió esconde justo el incidente que hay que mirar.
+    fallidos: int = 0
 
 
 class VencerCobros:
@@ -152,6 +156,7 @@ class DespacharRecordatorios:
         por_cobro = await self._recordatorios.de_cobros([cobro.id for cobro in abiertos])
 
         despachados = 0
+        fallidos = 0
         for cobro in abiertos:
             try:
                 async with self._aislamiento.aislar():
@@ -167,14 +172,21 @@ class DespacharRecordatorios:
                 # cobro; los anteriores siguen confirmados y el barrido sigue.
                 logger.warning("recordatorio_no_persistido", cobro_id=str(cobro.id))
                 continue
-            if salio:
+            if salio is EstadoEntrega.FALLIDO:
+                fallidos += 1
+            elif salio is not None:
                 despachados += 1
 
-        if despachados:
+        if despachados or fallidos:
             logger.info(
-                "recordatorios_despachados", empresa_id=str(empresa_id), cantidad=despachados
+                "recordatorios_despachados",
+                empresa_id=str(empresa_id),
+                cantidad=despachados,
+                fallidos=fallidos,
             )
-        return ResultadoDeBarrido(procesados=despachados, evaluados=len(abiertos))
+        return ResultadoDeBarrido(
+            procesados=despachados, evaluados=len(abiertos), fallidos=fallidos
+        )
 
     async def _despachar_uno(
         self,
@@ -184,10 +196,13 @@ class DespacharRecordatorios:
         previos: list[Recordatorio],
         cadena: tuple[PasoDeCadena, ...],
         ahora: datetime,
-    ) -> bool:
-        """Devuelve si mandó algo. Nunca levanta: un cobro roto no frena a los demás."""
+    ) -> EstadoEntrega | None:
+        """Devuelve cómo terminó el envío, o `None` si no intentó ninguno.
+
+        Nunca levanta: un cobro roto no frena a los demás.
+        """
         if not cobro.recibe_recordatorios:  # pragma: no cover - `abiertos` ya los filtra
-            return False
+            return None
 
         # Contando desde 1: `paso` es una columna que alguien va a leer en una consulta, y
         # «paso 0» no significa nada para quien la mire.
@@ -196,12 +211,12 @@ class DespacharRecordatorios:
         if paso is None:
             # La cadena se terminó. No es un error: hay un tope de pasos a propósito, y una
             # deuda que sigue impaga después del último recordatorio es un problema humano.
-            return False
+            return None
 
         # **El día cero es el vencimiento**, no la creación del cobro. Es lo que hace legible
         # una cadena de «a los 3, a los 7, a los 15» y lo que la historia describe.
         if (ahora - cobro.vence_el).days < paso.dias:
-            return False
+            return None
 
         recordatorio = Recordatorio(id=uuid4(), cobro_id=cobro.id, paso=numero, canal=paso.canal)
         try:
@@ -210,7 +225,7 @@ class DespacharRecordatorios:
             # Otro barrido llegó primero. **No es un error**: significa «esto ya salió», que
             # es exactamente lo que RN-05 pide garantizar.
             logger.info("recordatorio_ya_despachado", cobro_id=str(cobro.id), paso=numero)
-            return False
+            return None
 
         try:
             estado = await self._envio.enviar(
@@ -242,10 +257,14 @@ class DespacharRecordatorios:
                 modulo=Modulo.PAYMENTS,
                 accion="enviar_recordatorio",
                 entidad_afectada=f"Cobro:{cobro.id}",
-                resultado=Resultado.COMPLETADO,
+                # El envío fallido igual deja la fila (el índice único la necesita), pero la
+                # bitácora no puede decir que salió.
+                resultado=(
+                    Resultado.ERROR if estado is EstadoEntrega.FALLIDO else Resultado.COMPLETADO
+                ),
             )
         )
-        return True
+        return estado
 
 
 class VerRecordatorios:

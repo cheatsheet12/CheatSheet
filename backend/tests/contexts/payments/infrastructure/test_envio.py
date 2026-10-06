@@ -322,7 +322,8 @@ async def test_tres_503_dejan_fallido_tras_tres_posts_y_el_barrido_siguiente_no_
     barrido = _barrido(meta, cobros, recordatorios)
     ahora = AHORA + timedelta(days=4)
 
-    await barrido.ejecutar(empresa_id=EMPRESA, ahora=ahora)
+    primero = await barrido.ejecutar(empresa_id=EMPRESA, ahora=ahora)
+    assert (primero.procesados, primero.fallidos) == (0, 1)
     assert len(meta.pedidos) == 3
     assert recordatorios.guardados[0].estado_entrega is EstadoEntrega.FALLIDO
 

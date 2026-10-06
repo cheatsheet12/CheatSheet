@@ -92,12 +92,13 @@ async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
         ).ejecutar(empresa_id=empresa_id, ahora=ahora)
         despachados = resultado.procesados
 
-        if vencidos.procesados or despachados:
+        if vencidos.procesados or despachados or resultado.fallidos:
             logger.info(
                 "barrido_de_cobros",
                 empresa_id=str(empresa_id),
                 vencidos=vencidos.procesados,
                 recordatorios=despachados,
+                recordatorios_fallidos=resultado.fallidos,
             )
     return despachados
 
