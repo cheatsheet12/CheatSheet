@@ -26,7 +26,6 @@ from uuid import UUID, uuid4
 from cheatsheet.contexts.business_config.application.ports import PortRepositorioPlantillas
 from cheatsheet.contexts.business_config.domain.plantilla import (
     VARIABLES_POR_CODIGO,
-    EstadoDeAprobacion,
     PlantillaDeNotificacion,
 )
 from cheatsheet.contexts.business_config.domain.regla import CanalNotificacion
@@ -66,11 +65,12 @@ DE_FABRICA: dict[str, tuple[CanalNotificacion, str]] = {
     "recordatorio_de_cobro": (
         CanalNotificacion.WHATSAPP,
         "Hola {{nombre}}, te recordamos el pago de {{concepto}} por $ {{monto}}. "
-        "Podés pagarlo acá: {{link}}",
+        "Podés pagarlo acá: {{link}} Gracias.",
     ),
     "cobro_generado": (
         CanalNotificacion.WHATSAPP,
-        "Hola {{nombre}}, te dejamos el link para pagar {{concepto}} por $ {{monto}}: {{link}}",
+        "Hola {{nombre}}, te dejamos el link para pagar {{concepto}} por $ {{monto}}: "
+        "{{link}} Gracias.",
     ),
 }
 
@@ -100,22 +100,16 @@ class ListarPlantillas:
         existentes = await self._plantillas.listar()
         conocidos = {una.codigo for una in existentes}
         faltantes = [
-            PlantillaDeNotificacion(
+            # `SIN_ENVIAR` y no `PENDIENTE` ni `APROBADA`: nadie se la mandó todavía a Meta, y
+            # decir otra cosa sería afirmar algo que sólo el proveedor puede afirmar.
+            PlantillaDeNotificacion.nueva(
                 id=uuid4(),
                 empresa_id=empresa_id,
                 codigo=codigo,
                 canal=canal,
                 idioma=IDIOMA_POR_DEFECTO,
                 cuerpo=cuerpo,
-                # `PENDIENTE` y no `APROBADA`: nadie le preguntó todavía a Meta, y decir que
-                # está aprobada sería afirmar algo que sólo el proveedor puede afirmar.
-                estado_aprobacion=(
-                    EstadoDeAprobacion.PENDIENTE
-                    if canal is CanalNotificacion.WHATSAPP
-                    else EstadoDeAprobacion.NO_APLICA
-                ),
-                created_at=ahora,
-                updated_at=ahora,
+                ahora=ahora,
             )
             for codigo, (canal, cuerpo) in DE_FABRICA.items()
             if codigo not in conocidos

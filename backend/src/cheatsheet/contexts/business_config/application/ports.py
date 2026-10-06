@@ -64,4 +64,14 @@ class PortRepositorioPlantillas(Protocol):
         """
         ...
 
+    async def buscar_por_meta_id(self, meta_plantilla_id: str) -> PlantillaDeNotificacion | None:
+        """La plantilla de esta empresa con ese id de Meta: lo que trae el webhook."""
+        ...
+
+    async def buscar_por_nombre_en_meta(
+        self, nombre: str, idioma: str
+    ) -> PlantillaDeNotificacion | None:
+        """La que se llama así en Meta. La conciliación la usa para no crear una dos veces."""
+        ...
+
     async def listar(self) -> list[PlantillaDeNotificacion]: ...
