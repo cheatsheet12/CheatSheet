@@ -210,6 +210,32 @@ async def empresas_con_integracion_de_arca(sesion: AsyncSession) -> list[Empresa
     return [EmpresaId(valor) for (valor,) in filas.all()]
 
 
+async def empresas_con_whatsapp_conectado(sesion: AsyncSession) -> list[EmpresaId]:
+    """Which companies have WhatsApp connected, with a WABA. The fourth cross-tenant read.
+
+    Feeds the reconciliation of WhatsApp templates (`plantillas-de-whatsapp-en-meta`). Its own
+    function, for the reason migration 0006 states: one question, no arguments, company ids and
+    nothing else — not the token, not the WABA id.
+    """
+    filas = await sesion.execute(text("SELECT empresa_id FROM empresas_con_whatsapp_conectado()"))
+    return [EmpresaId(valor) for (valor,) in filas.all()]
+
+
+async def empresas_de_la_cuenta_de_whatsapp(sesion: AsyncSession, waba_id: str) -> list[EmpresaId]:
+    """The company that owns a WABA id: the template webhook arrives at the app, not a company.
+
+    Meta does not allow a callback override for template status updates, so the event is routed
+    by the `entry[].id` it carries (the WABA id) and never by URL. It returns **only** company ids,
+    and **a list**: two companies claiming the same WABA is a configuration error the caller must
+    refuse to guess about.
+    """
+    filas = await sesion.execute(
+        text("SELECT empresa_id FROM empresa_de_la_cuenta_de_whatsapp(:waba_id)"),
+        {"waba_id": waba_id},
+    )
+    return [EmpresaId(valor) for (valor,) in filas.all()]
+
+
 async def empresas_con_integracion_de_mercadopago(sesion: AsyncSession) -> list[EmpresaId]:
     """Which companies have MercadoPago connected. The third cross-tenant read.
 
