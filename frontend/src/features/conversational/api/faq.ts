@@ -17,8 +17,15 @@ export interface Faq {
   readonly id: string;
   readonly pregunta: string;
   readonly respuesta: string;
-  /** HU-E9-04 RN-02: cuántas veces se usó en el período. */
-  readonly usos: number;
+  /**
+   * HU-E9-04 RN-02 (ADR-0012): cuántas veces se usó «Este mes», el «Mes anterior» y en «Total»,
+   * con los meses en hora de Argentina. El backend los calcula; la pantalla no suma nada.
+   */
+  readonly usos_este_mes: number;
+  readonly usos_mes_anterior: number;
+  readonly usos_total: number;
+  /** La última vez que cambió el texto (no cuenta guardar lo mismo ni reindexar). */
+  readonly editada_en: string | null;
   /**
    * `true` mientras el vector no se haya calculado. La FAQ existe, se lee y se edita — lo
    * único que no puede es encontrarse por significado. La pantalla lo dice en vez de fingir
@@ -29,6 +36,32 @@ export interface Faq {
 
 export interface ListadoDeFaqs {
   readonly faqs: readonly Faq[];
+}
+
+/** Por qué no hay comparación antes/después de la edición (HU-E9-04 RN-07). */
+export type MotivoSinComparacion = "SIN_EDICIONES" | "EDICION_RECIENTE" | "SIN_HISTORIA_PREVIA";
+
+export interface ParticipacionDeFaq {
+  readonly usos: number;
+  /** Todas las respuestas con FAQ de la empresa en el lapso. */
+  readonly total: number;
+  /** Porcentaje con un decimal, como texto (`"12.5"`); `null` si no hubo consultas con FAQ. */
+  readonly participacion: string | null;
+}
+
+export interface Comparacion {
+  readonly dias: number;
+  readonly antes: ParticipacionDeFaq;
+  readonly despues: ParticipacionDeFaq;
+}
+
+export interface DetalleDeUso {
+  readonly usos_este_mes: number;
+  readonly usos_mes_anterior: number;
+  readonly usos_total: number;
+  readonly editada_en: string | null;
+  readonly comparacion: Comparacion | null;
+  readonly motivo_sin_comparacion: MotivoSinComparacion | null;
 }
 
 export interface Plantilla {
@@ -54,6 +87,15 @@ export const MENSAJE_SIN_FAQS =
   "Todavía no configuraste ninguna respuesta frecuente. El agente deriva a un asesor cada consulta que no puede responder.";
 export const MENSAJE_CONFIRMAR_BAJA =
   "El agente va a dejar de usar esta respuesta de inmediato. ¿Seguro?";
+
+/** HU-E9-04 RN-07: lo que el detalle dice cuando no puede comparar. */
+export const MENSAJE_SIN_EDICIONES =
+  "Esta respuesta nunca se editó: no hay una edición con la cual comparar.";
+export const MENSAJE_EDICION_RECIENTE =
+  "Se editó hace menos de un día: todavía no hay datos para comparar.";
+export const MENSAJE_SIN_HISTORIA_PREVIA =
+  "Se editó durante su primer día: no hay historia previa con la cual comparar.";
+export const MENSAJE_SIN_CONSULTAS = "Sin consultas respondidas por FAQ";
 
 /**
  * Cómo se lee cada código de plantilla.
@@ -133,6 +175,15 @@ export async function listarFaqs(): Promise<ListadoDeFaqs> {
     await fallar(respuesta);
   }
   return (await respuesta.json()) as ListadoDeFaqs;
+}
+
+/** El detalle de PAN-WA-02: los conteos y la participación antes y después de la edición. */
+export async function verUsoDeFaq(faqId: string): Promise<DetalleDeUso> {
+  const respuesta = await fetch(`/api/faqs/${faqId}/uso`, { cache: "no-store" });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as DetalleDeUso;
 }
 
 export async function crearFaq(pregunta: string, respuesta: string): Promise<Faq> {

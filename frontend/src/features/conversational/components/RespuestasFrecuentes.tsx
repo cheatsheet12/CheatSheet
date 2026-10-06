@@ -1,8 +1,9 @@
 /**
  * PAN-WA-02 — Agente WhatsApp · Configuración (HU-E9-04).
  *
- * Los cuatro criterios de la historia: el alta con contador en cero, el rechazo de los campos
- * vacíos con su frase, la baja con confirmación, y el contador de usos por FAQ.
+ * Los cuatro criterios de la historia: el alta con contadores en cero, el rechazo de los campos
+ * vacíos con su frase, la baja con confirmación, y los usos por FAQ («Este mes», «Mes anterior»
+ * y «Total»; ADR-0012) con un detalle de su participación antes y después de editarla.
  *
  * **El encabezado lo dibuja este componente y no la página.** El CTA depende del rol y abre el
  * formulario, así que necesita estado; dejar el título en el server component y el botón acá
@@ -35,8 +36,10 @@ import {
   editarFaq,
   eliminarFaq,
   listarFaqs,
+  verUsoDeFaq,
 } from "../api/faq";
-import type { Faq, ListadoDeFaqs } from "../api/faq";
+import type { DetalleDeUso, Faq, ListadoDeFaqs } from "../api/faq";
+import { DetalleDeUsoDeFaq } from "./DetalleDeUsoDeFaq";
 
 export interface PropsDeRespuestasFrecuentes {
   readonly inicial: ListadoDeFaqs;
@@ -62,10 +65,11 @@ export function RespuestasFrecuentes({
   const [pregunta, setPregunta] = useState("");
   const [respuesta, setRespuesta] = useState("");
   const [aConfirmar, setAConfirmar] = useState<Faq | null>(null);
+  const [viendoUso, setViendoUso] = useState<{ faq: Faq; detalle: DetalleDeUso } | null>(null);
 
   const incompleta = pregunta.trim() === "" || respuesta.trim() === "";
   const faqs = listado.faqs;
-  const usos = faqs.reduce((total, una) => total + una.usos, 0);
+  const usos = faqs.reduce((total, una) => total + una.usos_este_mes, 0);
   const sinIndexar = faqs.filter((una) => una.sin_indexar).length;
 
   async function correr(accion: () => Promise<unknown>, porDefecto: string): Promise<void> {
@@ -78,6 +82,15 @@ export function RespuestasFrecuentes({
       setError(fallo instanceof ErrorDeFaq ? fallo.message : porDefecto);
     } finally {
       setTrabajando(false);
+    }
+  }
+
+  async function abrirUso(faq: Faq): Promise<void> {
+    setError(null);
+    try {
+      setViendoUso({ faq, detalle: await verUsoDeFaq(faq.id) });
+    } catch (fallo) {
+      setError(fallo instanceof ErrorDeFaq ? fallo.message : "No se pudo cargar el uso.");
     }
   }
 
@@ -95,25 +108,32 @@ export function RespuestasFrecuentes({
     setCreando(true);
   }
 
-  // La columna de acciones no existe para quien no puede editar. Dejarla con el encabezado
-  // puesto y las celdas en blanco dibuja una columna rota, y el rol no cambia mientras la
-  // pantalla está abierta: no hay nada que aparezca después.
+  // «Ver uso» es de todos los roles (la historia deja leer el uso a quien lee el listado);
+  // «Editar» y «Eliminar» solo se dibujan para quien puede editar, así que nadie ve una celda
+  // con botones que no puede usar.
   const acciones: Columna<Faq> = {
     clave: "acciones",
     titulo: "Acciones",
     alDerecha: true,
     celda: (fila) => (
       <span className="tabla__acciones">
-        <button type="button" className="faq-accion" onClick={() => abrirEdicion(fila)}>
-          Editar
+        <button type="button" className="faq-accion" onClick={() => void abrirUso(fila)}>
+          Ver uso
         </button>
-        <button
-          type="button"
-          className="faq-accion faq-accion--baja"
-          onClick={() => setAConfirmar(fila)}
-        >
-          Eliminar
-        </button>
+        {puedeEditar && (
+          <>
+            <button type="button" className="faq-accion" onClick={() => abrirEdicion(fila)}>
+              Editar
+            </button>
+            <button
+              type="button"
+              className="faq-accion faq-accion--baja"
+              onClick={() => setAConfirmar(fila)}
+            >
+              Eliminar
+            </button>
+          </>
+        )}
       </span>
     ),
   };
@@ -151,12 +171,24 @@ export function RespuestasFrecuentes({
         ),
     },
     {
-      clave: "usos",
-      titulo: "Usos en el período",
+      clave: "usos_este_mes",
+      titulo: "Este mes",
       alDerecha: true,
-      celda: (fila) => <span className="faq-usos">{fila.usos}</span>,
+      celda: (fila) => <span className="faq-usos">{fila.usos_este_mes}</span>,
     },
-    ...(puedeEditar ? [acciones] : []),
+    {
+      clave: "usos_mes_anterior",
+      titulo: "Mes anterior",
+      alDerecha: true,
+      celda: (fila) => <span className="faq-usos">{fila.usos_mes_anterior}</span>,
+    },
+    {
+      clave: "usos_total",
+      titulo: "Total",
+      alDerecha: true,
+      celda: (fila) => <span className="faq-usos">{fila.usos_total}</span>,
+    },
+    acciones,
   ];
 
   return (
@@ -258,10 +290,18 @@ export function RespuestasFrecuentes({
         </section>
       )}
 
+      {viendoUso !== null && (
+        <DetalleDeUsoDeFaq
+          faq={viendoUso.faq}
+          detalle={viendoUso.detalle}
+          onCerrar={() => setViendoUso(null)}
+        />
+      )}
+
       <div className="faq-barra">
         <p className="faq-barra__cuenta">
           <b>{faqs.length}</b> {palabra(faqs.length, "respuesta", "respuestas")} · <b>{usos}</b>{" "}
-          {palabra(usos, "uso", "usos")} en el período
+          {palabra(usos, "uso", "usos")} este mes
         </p>
       </div>
 
