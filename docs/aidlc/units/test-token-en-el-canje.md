@@ -72,6 +72,11 @@ pytest                       2162 passed, 485 skipped (los que necesitan Postgre
 integrations, cobertura      86 % (mercadopago/cliente.py 88 %)
 ```
 
-Los 485 tests salteados no ejercitan el cliente HTTP de MercadoPago; los corre CI, que levanta
-PostgreSQL y Redis. La prueba de punta a punta es conectar el vendedor de prueba en staging después
-del merge.
+Segunda corrida, el mismo día, con PostgreSQL y Redis levantados en Docker:
+
+```
+pytest --cov                 2647 passed in 190.70s
+cobertura total              87.82 % (umbral 80 %)
+```
+
+La prueba de punta a punta es conectar el vendedor de prueba en staging después del merge.
