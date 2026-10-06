@@ -18,6 +18,7 @@ from typing import Annotated, TypeVar
 from uuid import UUID
 
 from cheatsheet.api.conversacional import (
+    armar_directorio,
     armar_embeddings,
     armar_interprete,
     armar_mensajeria,
@@ -60,9 +61,6 @@ _T = TypeVar("_T")
 
 class RespuestaEntrada(BaseModel):
     texto: str
-    #: A qué número escribirle. Lo sabe la pantalla porque lo trae el detalle del hilo; el
-    #: backend no lo re-deriva para no consultar `master_data` en cada mensaje enviado.
-    telefono: str
 
 
 class CierreEntrada(BaseModel):
@@ -284,6 +282,9 @@ def _rutas_de_conversaciones(recursos: Recursos) -> APIRouter:
                 conversaciones=piezas.conversaciones,
                 mensajes=piezas.mensajes,
                 escalamientos=piezas.escalamientos,
+                directorio=armar_directorio(
+                    unidad, recursos.settings, empresa_id=empresa_id, usuario_id=usuario_id
+                ),
                 mensajeria=await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id),
                 publicador=unidad.publicador,
             ).ejecutar(
@@ -292,7 +293,6 @@ def _rutas_de_conversaciones(recursos: Recursos) -> APIRouter:
                 rol=rol,
                 conversacion_id=conversacion_id,
                 texto=entrada.texto,
-                telefono=entrada.telefono,
                 ahora=unidad.reloj.ahora(),
             )
             salida = _a_mensaje(mensaje)

@@ -54,7 +54,6 @@ class TokensDeMercadoPago:
     refresco: str
     expira_en: datetime
     usuario: str | None
-    cuenta_real: bool
 
 
 def empaquetar(acceso: str, refresco: str) -> bytes:
@@ -91,7 +90,6 @@ def leer_tokens(datos: dict[str, Any], ahora: datetime) -> TokensDeMercadoPago:
         refresco=refresco,
         expira_en=ahora + _duracion(datos.get("expires_in")),
         usuario=_texto(datos.get("user_id")),
-        cuenta_real=bool(datos.get("live_mode")),
     )
 
 
@@ -104,15 +102,30 @@ def parametros_de(
     MercadoPago and epic 6 needs it to build payment links — and the expiry is what the
     daily renewal reads.
     """
-    parametros: dict[str, Any] = {
-        CLAVE_CUENTA_REAL: tokens.cuenta_real,
-        CLAVE_VENCIMIENTO: tokens.expira_en.isoformat(),
-    }
+    parametros: dict[str, Any] = {CLAVE_VENCIMIENTO: tokens.expira_en.isoformat()}
     if tokens.usuario:
         parametros[CLAVE_USUARIO] = tokens.usuario
     if cuenta is not None:
+        # Only when the account was read. A renewal does not read it and must not
+        # overwrite what the connection recorded.
+        parametros[CLAVE_CUENTA_REAL] = es_cuenta_real(cuenta)
         parametros.update(parametros_de_cuenta(cuenta))
     return parametros
+
+
+#: The tag `/users/me` carries on every account created under "Cuentas de prueba".
+ETIQUETA_DE_PRUEBA = "test_user"
+
+
+def es_cuenta_real(cuenta: dict[str, Any]) -> bool:
+    """Whether the account is a real one, read off `/users/me`.
+
+    **Not `live_mode`.** That field says which credentials minted the token, and a test
+    account authorizes with production credentials like any other: its token comes back
+    `live_mode: true`. The account's own tags are what say it is a test one.
+    """
+    etiquetas = cuenta.get("tags")
+    return not (isinstance(etiquetas, list) and ETIQUETA_DE_PRUEBA in etiquetas)
 
 
 def parametros_de_cuenta(cuenta: dict[str, Any]) -> dict[str, Any]:

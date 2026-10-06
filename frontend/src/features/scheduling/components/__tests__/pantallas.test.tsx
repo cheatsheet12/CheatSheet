@@ -25,7 +25,6 @@ const reservarTurno = vi.fn();
 const cancelarTurno = vi.fn();
 const reprogramarTurno = vi.fn();
 const registrarAsistencia = vi.fn();
-const push = vi.fn();
 
 vi.mock("@/features/scheduling/api/turno", async () => {
   const real = await vi.importActual<typeof import("@/features/scheduling/api/turno")>(
@@ -42,7 +41,10 @@ vi.mock("@/features/scheduling/api/turno", async () => {
   };
 });
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
+});
 
 import {
   ETIQUETAS_DE_ESTADO,
@@ -56,6 +58,10 @@ import type { ListadoDeTurnos, Recurso, ServicioAgendable, Turno } from "@/featu
 const { AgendaDelDia } = await import("@/features/scheduling/components/AgendaDelDia");
 const { DetalleDeTurno } = await import("@/features/scheduling/components/DetalleDeTurno");
 const { NuevoTurno } = await import("@/features/scheduling/components/NuevoTurno");
+const { ArnesDeRouter, reiniciarRouter, resolverNavegacion, routerQueSuspende } = await import(
+  "@/shared/__tests__/router-que-suspende"
+);
+const push = routerQueSuspende.push;
 
 const CORTE: ServicioAgendable = { id: "s1", nombre: "Corte", duracion_estandar_min: 30 };
 
@@ -106,6 +112,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  reiniciarRouter();
 });
 
 describe("PAN-AGE-01 — agenda", () => {
@@ -538,5 +545,40 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
 
     expect(await screen.findByText(MENSAJE_REPROGRAMAR_AL_PASADO)).toBeTruthy();
     expect(reprogramarTurno).toHaveBeenCalledWith("t1", expect.any(String), false);
+  });
+});
+
+describe("PAN-AGE-02 — nuevo turno, mientras la navegación tarda", () => {
+  it("un segundo clic después de la respuesta y antes del detalle no reserva otra vez", async () => {
+    // El backend rechazaría el solape, y la pantalla diría «no disponible» sobre un turno que
+    // sí se creó mientras la página de destino todavía carga.
+    verDisponibilidad.mockResolvedValue({
+      fecha: "2027-09-07",
+      horarios: [{ inicio: "2027-09-07T19:00:00+00:00", ocupado: false }],
+    });
+    reservarTurno.mockResolvedValue(RESERVADO);
+    render(
+      <ArnesDeRouter>
+        <NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />
+      </ArnesDeRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
+    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
+    fireEvent.change(await screen.findByLabelText("Horario"), {
+      target: { value: "2027-09-07T19:00:00+00:00" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reservar turno" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/agenda/t1"));
+
+    const boton = screen.getByRole("button", { name: "Reservar turno" });
+    expect((boton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(boton);
+    fireEvent.submit(boton.closest("form") as HTMLFormElement);
+    expect(reservarTurno).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(reservarTurno).toHaveBeenCalledTimes(1);
   });
 });

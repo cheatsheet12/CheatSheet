@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from cheatsheet.contexts.conversational.domain.conversacion import (
@@ -29,11 +29,23 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
     Mensaje,
     TipoContenido,
 )
+from cheatsheet.contexts.conversational.domain.dialogo import (
+    Dialogo,
+    OpcionDeHorario,
+    PasoDelDialogo,
+)
 from cheatsheet.contexts.conversational.domain.escalamiento import (
     MOTIVO_BAJA_CONFIANZA,
     Escalamiento,
 )
 from cheatsheet.contexts.conversational.domain.faq import FAQ
+from cheatsheet.contexts.conversational.domain.pedido_de_turno import (
+    AccionDeTurno,
+    Cuando,
+    MomentoDelDia,
+    PedidoDeTurno,
+    ReferenciaDeDia,
+)
 from cheatsheet.contexts.conversational.infrastructure.canal import EmbeddingsSimulados
 from cheatsheet.contexts.conversational.infrastructure.repositories import (
     RepositorioConversacionPostgres,
@@ -340,3 +352,159 @@ class TestAislamiento:
         assert despues is None
         # Y el hilo deja de estar en la bandeja **sin que nadie le haya tocado un estado**.
         assert hilos == []
+
+
+def un_dialogo() -> Dialogo:
+    servicio_id = uuid.uuid4()
+    return Dialogo.nuevo(
+        PasoDelDialogo.ELEGIR_HORARIO,
+        AHORA,
+        opciones=(
+            OpcionDeHorario(
+                inicio=AHORA + timedelta(days=1),
+                servicio_id=servicio_id,
+                recursos=(uuid.uuid4(), uuid.uuid4()),
+            ),
+        ),
+        servicio_id=servicio_id,
+        pedido=PedidoDeTurno(
+            accion=AccionDeTurno.RESERVAR,
+            cuandos=(Cuando(ReferenciaDeDia.MANANA),),
+            momento=MomentoDelDia.TARDE,
+        ),
+    )
+
+
+class TestElDialogoEnLaBase:
+    """T2, casos 31 y 35: el `Dialogo` viaja a una columna `jsonb` y vuelve igual."""
+
+    async def test_el_dialogo_se_guarda_y_se_lee_igual(
+        self, sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+    ) -> None:
+        escenario = await _escenario(engine_dueno, sesiones)
+        dialogo = un_dialogo()
+
+        async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+            repositorio = RepositorioConversacionPostgres(sesion)
+            hilo = await repositorio.buscar_por_id(escenario.conversacion_id)
+            assert hilo is not None
+            hilo.abrir_dialogo(dialogo)
+            await repositorio.guardar(hilo)
+
+        async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+            leido = await RepositorioConversacionPostgres(sesion).buscar_por_id(
+                escenario.conversacion_id
+            )
+
+        assert leido is not None
+        assert leido.dialogo == dialogo
+
+    async def test_cerrar_el_dialogo_lo_deja_en_null(
+        self, sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+    ) -> None:
+        escenario = await _escenario(engine_dueno, sesiones)
+        async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+            repositorio = RepositorioConversacionPostgres(sesion)
+            hilo = await repositorio.buscar_por_id(escenario.conversacion_id)
+            assert hilo is not None
+            hilo.abrir_dialogo(un_dialogo())
+            await repositorio.guardar(hilo)
+            hilo.cerrar_dialogo()
+            await repositorio.guardar(hilo)
+
+        async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+            crudo = await sesion.execute(text("SELECT dialogo FROM conversacion"))
+
+        assert crudo.scalar_one() is None
+
+    async def test_un_json_de_version_desconocida_se_lee_como_sin_dialogo(
+        self, sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+    ) -> None:
+        """Caso 35: nunca se reserva sobre algo que no se pudo leer."""
+        escenario = await _escenario(engine_dueno, sesiones)
+        async with engine_dueno.begin() as conexion:
+            await conexion.execute(
+                text("UPDATE conversacion SET dialogo = CAST(:json AS jsonb) WHERE id = :id"),
+                {
+                    "json": '{"version": 99, "paso": "ELEGIR_HORARIO"}',
+                    "id": escenario.conversacion_id,
+                },
+            )
+
+        async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+            leido = await RepositorioConversacionPostgres(sesion).buscar_por_id(
+                escenario.conversacion_id
+            )
+
+        assert leido is not None
+        assert leido.dialogo is None
+
+    async def test_el_dialogo_de_una_empresa_no_lo_ve_otra(
+        self, sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+    ) -> None:
+        """Caso 31: el diálogo vive bajo la RLS de `conversacion`."""
+        una = await _escenario(engine_dueno, sesiones)
+        otra = await _escenario(engine_dueno, sesiones)
+        async with sesion_de_empresa(sesiones, una.empresa_id) as sesion:
+            repositorio = RepositorioConversacionPostgres(sesion)
+            hilo = await repositorio.buscar_por_id(una.conversacion_id)
+            assert hilo is not None
+            hilo.abrir_dialogo(un_dialogo())
+            await repositorio.guardar(hilo)
+
+        async with sesion_de_empresa(sesiones, otra.empresa_id) as sesion:
+            ajeno = await RepositorioConversacionPostgres(sesion).buscar_por_id(una.conversacion_id)
+            filas = await sesion.execute(text("SELECT count(dialogo) FROM conversacion"))
+
+        assert ajeno is None
+        assert filas.scalar_one() == 0
+
+
+class TestUnMensajePorVez:
+    async def test_el_segundo_pedido_del_hilo_espera_al_primero(
+        self, sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+    ) -> None:
+        """T10: `abierta_de(bloquear=True)` es un `SELECT … FOR UPDATE` de la conversación.
+
+        Con la fila tomada por una transacción, la segunda **espera** hasta que la primera termina
+        y entonces lee lo que la primera dejó. Es lo que hace que «1» y «2», casi simultáneos, no
+        reserven dos turnos: el segundo lee el diálogo ya consumido.
+        """
+        escenario = await _escenario(engine_dueno, sesiones)
+        primera_tomo_el_hilo = asyncio.Event()
+        puede_terminar = asyncio.Event()
+        orden: list[str] = []
+
+        async def primera() -> None:
+            async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+                repositorio = RepositorioConversacionPostgres(sesion)
+                hilo = await repositorio.abierta_de(escenario.cliente_id, bloquear=True)
+                assert hilo is not None
+                hilo.abrir_dialogo(un_dialogo())
+                await repositorio.guardar(hilo)
+                primera_tomo_el_hilo.set()
+                await puede_terminar.wait()
+                orden.append("primera termina")
+
+        async def segunda() -> Dialogo | None:
+            await primera_tomo_el_hilo.wait()
+            async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+                hilo = await RepositorioConversacionPostgres(sesion).abierta_de(
+                    escenario.cliente_id, bloquear=True
+                )
+                orden.append("segunda lee")
+                assert hilo is not None
+                return hilo.dialogo
+
+        tarea_primera = asyncio.create_task(primera())
+        tarea_segunda = asyncio.create_task(segunda())
+        await primera_tomo_el_hilo.wait()
+        await asyncio.sleep(0.5)
+        # La segunda sigue esperando: la fila está tomada.
+        assert not tarea_segunda.done()
+        puede_terminar.set()
+        dialogo_que_leyo = await asyncio.wait_for(tarea_segunda, timeout=10)
+        await tarea_primera
+
+        assert orden == ["primera termina", "segunda lee"]
+        assert dialogo_que_leyo is not None  # lo que la primera dejó, ya confirmado

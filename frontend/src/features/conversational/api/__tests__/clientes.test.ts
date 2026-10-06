@@ -120,14 +120,14 @@ describe("las conversaciones", () => {
     expect(cuerpos[1]).toBe(JSON.stringify({ devolver_al_agente: false, clasificacion: null }));
   });
 
-  it("responder manda el texto y el telefono", async () => {
+  it("responder manda sólo el texto: el destino lo resuelve el backend", async () => {
     const espia = espiarFetch(respuesta({ id: "m1" }));
 
-    await responder("c1", "Hola!", "5491112345678");
+    await responder("c1", "Hola!");
 
     const [ruta, opciones] = espia.mock.calls[0] as [string, RequestInit];
     expect(ruta).toBe("/api/conversaciones/c1/mensajes");
-    expect(opciones.body).toBe(JSON.stringify({ texto: "Hola!", telefono: "5491112345678" }));
+    expect(opciones.body).toBe(JSON.stringify({ texto: "Hola!" }));
   });
 });
 
