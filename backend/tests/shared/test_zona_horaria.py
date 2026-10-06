@@ -38,5 +38,6 @@ class TestMesCalendario:
     def test_los_limites_son_instantes_con_zona(self) -> None:
         mes = MesCalendario.del_instante(datetime(2026, 3, 10, 12, 0, tzinfo=UTC))
 
-        assert mes.inicio.tzinfo is not None and mes.fin.tzinfo is not None
+        assert mes.inicio.tzinfo is not None
+        assert mes.fin.tzinfo is not None
         assert mes.inicio.astimezone(ZONA_ARGENTINA).day == 1
