@@ -87,14 +87,15 @@ escaneo. Con las decenas de FAQ que tiene una PyME, el escaneo gana.
 
 El día que una empresa tenga miles, el índice es una migración de dos líneas.
 
-### 9. Editar una plantilla no la vuelve a poner `PENDIENTE` ante Meta
+### 9. ~~Editar una plantilla no la vuelve a poner `PENDIENTE` ante Meta~~ · **cerrado por `plantillas-de-whatsapp-en-meta` (U6)**
 
 Editar el cuerpo de una plantilla aprobada la invalida en la práctica, pero **quien lo decide es
 Meta y no nosotros**. Ponerla en `PENDIENTE` acá sería inventar una respuesta del proveedor.
 
-Lo que falta es el cliente de la API de plantillas de Meta (**unidad `plantillas-de-whatsapp-en-meta`, U6**): enviar la plantilla editada,
-recibir su estado, y guardarlo. Hasta entonces, `estado_aprobacion_meta` refleja lo que alguien
-haya cargado.
+**Cerrado por U6.** Editar una plantilla de WhatsApp la manda a Meta **antes de guardarla**: si Meta la
+refuta (422 con su texto) o no contesta (503), no se guarda nada; si la acepta, el estado lo escribe
+solo lo que Meta contesta (webhook `message_template_status_update` y conciliación periódica).
+El agregado no inventa ningún estado.
 
 ### 10. El listado de conversaciones no pagina
 
@@ -118,7 +119,8 @@ adentro como un `Protocol` local (ningún contexto importa a otro). `EnvioPorCon
 
 **Lo que queda, y de quién es:** fuera de la ventana de 24 h Meta sólo acepta plantillas
 (error 131047), así que **hasta U6, en producción, un recordatorio o un aviso iniciado por la
-empresa fuera de la ventana queda `FALLIDO`** (visible en PAN-COB-02). Las verificaciones con un
+empresa fuera de la ventana queda `FALLIDO`** (visible en PAN-COB-02). **U6 lo cierra** para cobros y
+turnos cuando la empresa tiene la plantilla aprobada; sin ella, sigue igual. Las verificaciones con un
 número de prueba real están en `TODO.md` §22.30–22.40.
 
 ### 12. `iniciador` está en la bitácora y nadie lo filtra todavía · **épico 10**
@@ -126,7 +128,7 @@ número de prueba real están en `TODO.md` §22.30–22.40.
 La columna existe, se escribe, y `RegistroDeAuditoria.fue_de_la_ia` la lee. HU-E12-01 pide
 filtrar la bitácora por iniciador, y eso es el panel de auditoría del épico 10.
 
-### 13. Las plantillas están y los adaptadores no las usan
+### 13. ~~Las plantillas están y los adaptadores no las usan~~ · **cerrado con nota por `plantillas-de-whatsapp-en-meta` (U6)**
 
 `ResolverPlantilla` funciona y `armar_plantillas` la cablea, pero los tres adaptadores que
 mandan mensajes —el del agente, el de turnos y el de cobros— siguen con su texto escrito
@@ -136,6 +138,12 @@ adentro.
 tiene que recibir mensajes), y conectar la plantilla es un cambio en cada adaptador que conviene
 hacer junto con U6 (`plantillas-de-whatsapp-en-meta`). U5 dejó los adaptadores de cobros y de turnos
 con su texto de fábrica y sin cambiar su forma, a propósito.
+
+**Cerrado con nota por U6:** los adaptadores de **cobros y turnos** usan la plantilla aprobada de Meta
+(`ConsultarPlantillaParaEnviar`, por la raíz de composición) y caen al texto de fábrica si no hay una
+aprobada. **El agente sigue con su texto por diseño**: contesta siempre dentro de la ventana de 24 h,
+donde el texto libre es válido y gratuito. `armar_plantillas` y `PortPlantillas` se retiraron (código
+muerto).
 
 ---
 

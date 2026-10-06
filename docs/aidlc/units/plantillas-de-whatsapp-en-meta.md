@@ -428,70 +428,71 @@ usa la misma escala (`WHATSAPP_SONDEO_MINUTOS`).
 
 ## Archivos a tocar
 
-- [ ] `backend/src/cheatsheet/contexts/business_config/domain/plantilla.py` (estados, campos, invariante de bordes, `aplicar_respuesta_de_meta`, `ejemplos_de`, docstring de `editar`)
-- [ ] `backend/src/cheatsheet/contexts/business_config/application/plantillas.py` (`ConsultarPlantillaParaEnviar`, `ActualizarEstadoDesdeMeta`, `DE_FABRICA`) y `application/revision_de_meta.py` (nuevo: `EditarPlantilla` con Meta y `EnviarPlantillaAMeta`)
-- [ ] `backend/src/cheatsheet/contexts/business_config/application/conciliacion.py` (nuevo: `ConciliarPlantillasConMeta`)
-- [ ] `backend/src/cheatsheet/contexts/business_config/application/ports.py` (`PortRevisionDeMeta`, `RespuestaDeMeta`, `EstadoEnMeta`)
-- [ ] `backend/src/cheatsheet/contexts/business_config/application/errors.py` (`MetaRechazoLaPlantilla`, `MetaNoDisponible(incierto)`, `MetaNoConectada`, `PlantillaNoEditable`)
-- [ ] `backend/src/cheatsheet/contexts/business_config/infrastructure/models.py` y `repositories.py` (columnas, `buscar_por_meta_id`, `buscar_por_nombre_en_meta`)
-- [ ] `backend/src/cheatsheet/contexts/conversational/application/ports.py` (`PortMensajeria.enviar_plantilla`) y los dobles de tests de conversational que implementan `PortMensajeria`
-- [ ] `backend/src/cheatsheet/contexts/conversational/infrastructure/canal.py` (`enviar_plantilla` en los tres canales) y `canal_errores.py` (códigos 132000/132012/132015/132016, `mensaje_para_el_usuario`, bucle de reintento compartido)
-- [ ] `backend/src/cheatsheet/contexts/conversational/infrastructure/plantillas_meta.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/envio.py` (plantilla si aprobada; `PlantillasAprobadas` local; texto de fábrica alineado)
-- [ ] `backend/src/cheatsheet/contexts/scheduling/infrastructure/avisos.py` (ídem para los tres avisos; `_dia`/`_hora`)
-- [ ] `backend/src/cheatsheet/api/mensajeria.py` (`armar_revision_de_meta`, `_RevisionViaMeta`, `_credencial_de`)
-- [ ] `backend/src/cheatsheet/api/mercadopago.py`, `backend/src/cheatsheet/api/agenda.py` (`armar_notificador(unidad, *, canal)`; plantillas a los adaptadores) y `backend/tests/api/test_canal_real_de_whatsapp.py`
-- [ ] `backend/src/cheatsheet/api/conversacional.py` (sale `armar_plantillas`; `PortPlantillas` se borra)
-- [ ] `backend/src/cheatsheet/api/routers/plantillas.py` (nuevo) · `api/routers/conversaciones.py` (salen las rutas y sus modelos) · `api/main.py` (router)
-- [ ] `backend/src/cheatsheet/api/routers/whatsapp.py` (ruta de la app, rama de plantillas) y `api/whatsapp_notificaciones.py` (nuevo: parser defensivo de `changes[]` por `field`)
-- [ ] `backend/src/cheatsheet/contexts/integrations/application/…` (consulta `EmpresaDeLaCuentaDeWhatsApp`, `EmpresasConWhatsApp`) y su repositorio
-- [ ] `backend/src/cheatsheet/workers/tasks_business_config.py` (nuevo) · `workers/beat.py` · `workers/main.py`
-- [ ] `backend/src/cheatsheet/platform/settings.py` · `backend/.env.example` (lo aplica el dueño) · `render.yaml` (sin cambio: se avisa)
-- [ ] `backend/migrations/versions/0035_plantillas_en_meta.py` (`down_revision = "0034"`)
-- [ ] `backend/tests/contexts/business_config/domain/test_plantilla.py`, `…/application/test_plantillas.py`, `…/application/test_revision_de_meta.py`, `…/application/test_conciliacion.py`
-- [ ] `backend/tests/contexts/conversational/infrastructure/test_plantillas_meta.py`, `test_canal_plantillas.py` (nuevo; `test_canal.py` ya tiene 319 líneas)
-- [ ] `backend/tests/contexts/payments/infrastructure/test_envio_con_plantilla.py`, `backend/tests/contexts/scheduling/infrastructure/test_avisos_con_plantilla.py` (nuevos: `test_envio.py` 346 y `test_avisos.py` 180 pasarían el tope)
-- [ ] `backend/tests/api/test_webhook_plantillas.py`, `backend/tests/api/test_rutas_de_plantillas.py`, `backend/tests/workers/test_conciliacion_de_plantillas.py`, `backend/tests/migrations/…` (backfill)
-- [ ] `frontend/src/features/conversational/api/faq.ts`, `components/PlantillasDeNotificacion.tsx`, `components/EstadoDePlantilla.tsx` y `motivosDeMeta.ts` (nuevos) y sus tests
-- [ ] `frontend/src/app/api/plantillas/[plantillaId]/envio/route.ts`
-- [ ] `docs/staging-deployment.md` (URL de la app vs URL por empresa; campo `message_template_status_update`; `WHATSAPP_PLANTILLAS_MINUTOS` en el worker) · `docs/architecture.md` §7 (fila `PortRevisionDeMeta`, consumidor `business_config`, adaptador en la raíz)
-- [ ] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (#9 cerrado; #13 cerrado con nota: cobros y turnos usan la plantilla aprobada, el agente sigue con su texto por diseño) · `docs/aidlc/units.md` (U6 «en progreso» con su rama; U5 «mergeada») · `docs/aidlc/TODO.md` §22.43–22.50
+- [x] `backend/src/cheatsheet/contexts/business_config/domain/plantilla.py` (estados, campos, invariante de bordes, `aplicar_respuesta_de_meta`, `ejemplos_de`, docstring de `editar`)
+- [x] `backend/src/cheatsheet/contexts/business_config/application/plantillas.py` (`ConsultarPlantillaParaEnviar`, `ActualizarEstadoDesdeMeta`, `DE_FABRICA`) y `application/revision_de_meta.py` (nuevo: `EditarPlantilla` con Meta y `EnviarPlantillaAMeta`)
+- [x] `backend/src/cheatsheet/contexts/business_config/application/conciliacion.py` (nuevo: `ConciliarPlantillasConMeta`)
+- [x] `backend/src/cheatsheet/contexts/business_config/application/ports.py` (`PortRevisionDeMeta`, `RespuestaDeMeta`, `EstadoEnMeta`)
+- [x] `backend/src/cheatsheet/contexts/business_config/application/errors.py` (`MetaRechazoLaPlantilla`, `MetaNoDisponible(incierto)`, `MetaNoConectada`, `PlantillaNoEditable`)
+- [x] `backend/src/cheatsheet/contexts/business_config/infrastructure/models.py` y `repositories.py` (columnas, `buscar_por_meta_id`, `buscar_por_nombre_en_meta`)
+- [x] `backend/src/cheatsheet/contexts/conversational/application/ports.py` (`PortMensajeria.enviar_plantilla`) y los dobles de tests de conversational que implementan `PortMensajeria`
+- [x] `backend/src/cheatsheet/contexts/conversational/infrastructure/canal.py` (`enviar_plantilla` en los tres canales) y `canal_errores.py` (códigos 132000/132012/132015/132016, `mensaje_para_el_usuario`, bucle de reintento compartido)
+- [x] `backend/src/cheatsheet/contexts/conversational/infrastructure/plantillas_meta.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/envio.py` (plantilla si aprobada; `PlantillasAprobadas` local; texto de fábrica alineado)
+- [x] `backend/src/cheatsheet/contexts/scheduling/infrastructure/avisos.py` (ídem para los tres avisos; `_dia`/`_hora`)
+- [x] `backend/src/cheatsheet/api/mensajeria.py` (`armar_revision_de_meta`, `_RevisionViaMeta`, `_credencial_de`)
+- [x] `backend/src/cheatsheet/api/mercadopago.py`, `backend/src/cheatsheet/api/agenda.py` (`armar_notificador(unidad, *, canal)`; plantillas a los adaptadores) y `backend/tests/api/test_canal_real_de_whatsapp.py`
+- [x] `backend/src/cheatsheet/api/conversacional.py` (sale `armar_plantillas`; `PortPlantillas` se borra)
+- [x] `backend/src/cheatsheet/api/routers/plantillas.py` (nuevo) · `api/routers/conversaciones.py` (salen las rutas y sus modelos) · `api/main.py` (router)
+- [x] `backend/src/cheatsheet/api/routers/whatsapp.py` (ruta de la app, rama de plantillas) y `api/whatsapp_notificaciones.py` (nuevo: parser defensivo de `changes[]` por `field`)
+- [x] `backend/src/cheatsheet/contexts/integrations/application/…` (consulta `EmpresaDeLaCuentaDeWhatsApp`, `EmpresasConWhatsApp`) y su repositorio
+- [x] `backend/src/cheatsheet/workers/tasks_business_config.py` (nuevo) · `workers/beat.py` · `workers/main.py`
+- [x] `backend/src/cheatsheet/platform/settings.py` (+4 líneas, 664 en total) · `render.yaml` (sin cambio: se avisa)
+- [ ] `backend/.env.example`: **lo aplica el dueño** (el archivo está protegido): `WHATSAPP_PLANTILLAS_MINUTOS=30` junto a `WHATSAPP_SONDEO_*`
+- [x] `backend/migrations/versions/0035_plantillas_en_meta.py` (`down_revision = "0034"`)
+- [x] `backend/tests/contexts/business_config/domain/test_plantilla.py`, `…/application/test_plantillas.py`, `…/application/test_revision_de_meta.py`, `…/application/test_conciliacion.py`
+- [x] `backend/tests/contexts/conversational/infrastructure/test_plantillas_meta.py`, `test_canal_plantillas.py` (nuevo; `test_canal.py` ya tiene 319 líneas)
+- [x] `backend/tests/contexts/payments/infrastructure/test_envio_con_plantilla.py`, `backend/tests/contexts/scheduling/infrastructure/test_avisos_con_plantilla.py` (nuevos: `test_envio.py` 346 y `test_avisos.py` 180 pasarían el tope)
+- [x] `backend/tests/api/test_webhook_plantillas.py`, `backend/tests/api/test_rutas_de_plantillas.py`, `backend/tests/workers/test_conciliacion_de_plantillas.py`, `backend/tests/migrations/…` (backfill)
+- [x] `frontend/src/features/conversational/api/faq.ts`, `components/PlantillasDeNotificacion.tsx`, `components/EstadoDePlantilla.tsx` y `motivosDeMeta.ts` (nuevos) y sus tests
+- [x] `frontend/src/app/api/plantillas/[plantillaId]/envio/route.ts`
+- [x] `docs/staging-deployment.md` (URL de la app vs URL por empresa; campo `message_template_status_update`; `WHATSAPP_PLANTILLAS_MINUTOS` en el worker) · `docs/architecture.md` §7 (fila `PortRevisionDeMeta`, consumidor `business_config`, adaptador en la raíz)
+- [x] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (#9 cerrado; #13 cerrado con nota: cobros y turnos usan la plantilla aprobada, el agente sigue con su texto por diseño) · `docs/aidlc/units.md` (U6 «en progreso» con su rama; U5 «mergeada») · `docs/aidlc/TODO.md` §22.43–22.50
 
 ## Casos de prueba
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED** — Guardar una plantilla de WhatsApp en PAN-CFG-NOT no produce ningún `POST …/message_templates` (hoy solo actualiza la fila). GREEN: un `POST` con `name`, `language=es_AR`, `category=UTILITY`, `parameter_format=named` y `body_text_named_params` con un ejemplo por variable usada | integración (MockTransport) | pendiente |
-| 2 | **RED** — Un recordatorio de cobro con la plantilla `APROBADA` sale como `type: text` (hoy). GREEN: `type: template`, `name = nombre_en_meta`, `language.code = es_AR`, un `parameter_name` por variable usada | unit (adaptador) | pendiente |
-| 3 | **RED** — `DE_FABRICA` de `recordatorio_de_cobro` y `cobro_generado` terminan en variable: la invariante nueva los rechaza (falla hasta corregir el texto) | unit (dominio) | pendiente |
-| 4 | Cuerpo de WhatsApp que empieza o termina con `{{variable}}` → `EntradaInvalida` con la frase; uno de email no se valida así | unit | pendiente |
-| 5 | Editar una `PENDIENTE` → rechazo en casa, ninguna llamada a Meta | unit | pendiente |
-| 6 | Editar una `APROBADA` enviada hace 3 h → rechazo con la hora; hace 25 h → `POST /{template_id}` con los componentes completos | unit + contrato | pendiente |
-| 7 | Meta refuta la creación (400 con `error_user_msg`) → 422 con ese texto y **la fila no cambió** (cuerpo viejo en la base) | integración | pendiente |
-| 8 | Timeout de lectura al editar → 503, nada guardado, **un solo** `POST`; la conciliación siguiente detecta texto divergente y deja el `detalle_meta` | integración | pendiente |
-| 9 | «Nombre en uso» al crear → reintenta con `<codigo>_v2` una vez y guarda ese nombre | unit | pendiente |
-| 10 | Plantilla `DESHABILITADA` o `DELETED` en Meta → `SIN_ENVIAR`; reenviarla crea con nombre versionado (nunca `POST /{id}`) | unit | pendiente |
-| 11 | Webhook `APPROVED` por `entry[].id` = WABA de A → plantilla de A `APROBADA`, `puede_usarse` | integración (API) | pendiente |
-| 12 | Webhook `REJECTED` con `reason=PROMOTIONAL` y `rejection_info.recommendation` → `RECHAZADA`, `motivo_meta`, `detalle_meta` | integración | pendiente |
-| 13 | El mismo evento dos veces → un efecto; un `PENDING` con `entry[].time` anterior al `APPROVED` aplicado → se ignora | integración | pendiente |
-| 14 | Evento con WABA de A que entra por `/webhooks/whatsapp/{B}` → actualiza A, nunca B; WABA desconocida → 200 sin efecto | integración (multi-tenant) | pendiente |
-| 15 | Firma inválida en `/webhooks/whatsapp` → 200 sin efecto (D22); `GET` de verificación de la ruta de la app con `compare_digest` | integración | pendiente |
-| 16 | Conciliación: empresa sin plantillas → siembra las seis, crea las de WhatsApp en Meta y aplica `estados()`; con paginación de 2 páginas | unit + contrato | pendiente |
-| 17 | Conciliación con Meta en 503 → ninguna fila cambia, la tarea termina sin excepción; la siguiente corrida recupera | unit | pendiente |
-| 18 | Mapeo completo de los 14 eventos y los 9 estados del nodo; uno desconocido no cambia nada y deja log | unit (tabla) | pendiente |
-| 19 | `simulado` fuera de producción: guardar → `APROBADA` sin red; en producción `PlantillasSimuladas` se niega a construirse | unit | pendiente |
-| 20 | Producción sin WhatsApp conectado, o credencial ilegible en cualquier entorno → `SIN_ENVIAR` con «WhatsApp no está conectado» (`MetaNoConectada`), ninguna excepción | unit (raíz) | pendiente |
-| 21 | Adaptador de cobros sin plantilla aprobada → texto **de fábrica del adaptador** (no el cuerpo editado). (Meta 131047 → `FALLIDO` ya está cubierto por U5; el código queda en el log del canal) | unit | pendiente |
-| 22 | Adaptador de turnos: los tres avisos usan su código; `fecha` y `hora` salen por separado y en hora argentina (`2026-10-15T13:30Z` → «15/10/2026», «10:30»; la conversión ya la prueba el caso 33 de U5) | unit | pendiente |
-| 23 | Solo se mandan los parámetros que el cuerpo usa (un cuerpo editado sin `{{recurso}}` no lo manda: 132000) | unit | pendiente |
-| 24 | Monto `1234.5` → «1.234,50» (ver «Pregunta abierta Q1»); cobro sin link → parámetro no vacío | unit | pendiente |
-| 25 | Valor con salto de línea → espacio | unit | pendiente |
-| 26 | `enviar_plantilla`: forma del `POST` (`type: template`, `parameter_name`); un caso por clase de error usando el bucle compartido (503 ×3, 132001, timeout incierto: ya probados en `test_canal.py`); 132000/132012/132015/132016 parametrizados como permanentes | contrato | pendiente |
-| 27 | Ningún log de los módulos nuevos contiene teléfono, cuerpo, parámetros, token ni `error_user_msg` (patrón de captura de logs de U5) | unit (captura de logs) | pendiente |
-| 28 | Backfill: `PENDIENTE` de WhatsApp → `SIN_ENVIAR`; texto de fábrica viejo → nuevo; uno editado queda igual | migración (CI) | pendiente |
-| 29 | Las dos funciones `SECURITY DEFINER` devuelven solo `empresa_id` y `cheatsheet_app` puede ejecutarlas | migración (CI) | pendiente |
-| 30 | PAN-CFG-NOT: badge por estado, motivo traducido, «Enviar a revisión» visible solo en Sin enviar/Rechazada y solo para Administrador, edición bloqueada con explicación en revisión / 24 h | unit (Vitest) | pendiente |
-| 31 | `guard_architecture --scan` y `.claude/hooks/test_guards.sh`: ningún import de business_config, payments o scheduling hacia conversational | gate | pendiente |
+| 1 | **RED** — Guardar una plantilla de WhatsApp en PAN-CFG-NOT no produce ningún `POST …/message_templates` (hoy solo actualiza la fila). GREEN: un `POST` con `name`, `language=es_AR`, `category=UTILITY`, `parameter_format=named` y `body_text_named_params` con un ejemplo por variable usada | integración (MockTransport) | verde, RED observado (`test_revision_de_meta.py`, `test_rutas_de_plantillas.py`, `test_plantillas_meta.py`) |
+| 2 | **RED** — Un recordatorio de cobro con la plantilla `APROBADA` sale como `type: text` (hoy). GREEN: `type: template`, `name = nombre_en_meta`, `language.code = es_AR`, un `parameter_name` por variable usada | unit (adaptador) | verde, RED observado (`test_envio_con_plantilla.py`) |
+| 3 | **RED** — `DE_FABRICA` de `recordatorio_de_cobro` y `cobro_generado` terminan en variable: la invariante nueva los rechaza (falla hasta corregir el texto) | unit (dominio) | verde, RED observado (`test_plantillas.py` con el texto viejo) |
+| 4 | Cuerpo de WhatsApp que empieza o termina con `{{variable}}` → `EntradaInvalida` con la frase; uno de email no se valida así | unit | verde, RED observado (`test_plantilla.py`) |
+| 5 | Editar una `PENDIENTE` → rechazo en casa, ninguna llamada a Meta | unit | verde, RED observado (`test_revision_de_meta.py`, `test_plantilla.py`) |
+| 6 | Editar una `APROBADA` enviada hace 3 h → rechazo con la hora; hace 25 h → `POST /{template_id}` con los componentes completos | unit + contrato | verde, RED observado (`test_revision_de_meta.py`, `test_plantilla.py`) |
+| 7 | Meta refuta la creación (400 con `error_user_msg`) → 422 con ese texto y **la fila no cambió** (cuerpo viejo en la base) | integración | verde (`test_rutas_de_plantillas.py`, `test_revision_de_meta.py`); sin variante PostgreSQL: ningún efecto se escribe antes de Meta |
+| 8 | Timeout de lectura al editar → 503, nada guardado, **un solo** `POST`; la conciliación siguiente detecta texto divergente y deja el `detalle_meta` | integración | verde (`test_rutas_de_plantillas.py`, `test_conciliacion.py`) |
+| 9 | «Nombre en uso» al crear → reintenta con `<codigo>_v2` una vez y guarda ese nombre | unit | verde (`test_revision_de_meta.py`) |
+| 10 | Plantilla `DESHABILITADA` o `DELETED` en Meta → `SIN_ENVIAR`; reenviarla crea con nombre versionado (nunca `POST /{id}`) | unit | verde (`test_revision_de_meta.py`); `DISABLED` queda `DESHABILITADA` (tabla de D-U6-2) y se recrea al editar |
+| 11 | Webhook `APPROVED` por `entry[].id` = WABA de A → plantilla de A `APROBADA`, `puede_usarse` | integración (API) | verde, RED observado (`test_webhook_plantillas.py`) |
+| 12 | Webhook `REJECTED` con `reason=PROMOTIONAL` y `rejection_info.recommendation` → `RECHAZADA`, `motivo_meta`, `detalle_meta` | integración | verde, RED observado (`test_webhook_plantillas.py`) |
+| 13 | El mismo evento dos veces → un efecto; un `PENDING` con `entry[].time` anterior al `APPROVED` aplicado → se ignora | integración | verde, RED observado (`test_webhook_plantillas.py`, `test_consulta_y_estado.py`) |
+| 14 | Evento con WABA de A que entra por `/webhooks/whatsapp/{B}` → actualiza A, nunca B; WABA desconocida → 200 sin efecto | integración (multi-tenant) | verde, RED observado (`test_webhook_plantillas.py`); RLS en PostgreSQL: CI (`test_plantillas_en_meta_postgres.py`) |
+| 15 | Firma inválida en `/webhooks/whatsapp` → 200 sin efecto (D22); `GET` de verificación de la ruta de la app con `compare_digest` | integración | verde, RED observado (`test_webhook_plantillas.py`, `test_webhook_plantillas_robustez.py`) |
+| 16 | Conciliación: empresa sin plantillas → siembra las seis, crea las de WhatsApp en Meta y aplica `estados()`; con paginación de 2 páginas | unit + contrato | verde, RED observado (`test_conciliacion.py`, `test_plantillas_meta.py` para las 2 páginas); PostgreSQL: CI |
+| 17 | Conciliación con Meta en 503 → ninguna fila cambia, la tarea termina sin excepción; la siguiente corrida recupera | unit | verde, RED observado (`test_conciliacion.py`) |
+| 18 | Mapeo completo de los 14 eventos y los 9 estados del nodo; uno desconocido no cambia nada y deja log | unit (tabla) | verde (`test_estados_de_meta.py`, `test_consulta_y_estado.py`, `test_conciliacion.py`); sin RED separado |
+| 19 | `simulado` fuera de producción: guardar → `APROBADA` sin red; en producción `PlantillasSimuladas` se niega a construirse | unit | verde (`test_plantillas_meta.py`, `test_revision_de_meta_en_la_raiz.py`) |
+| 20 | Producción sin WhatsApp conectado, o credencial ilegible en cualquier entorno → `SIN_ENVIAR` con «WhatsApp no está conectado» (`MetaNoConectada`), ninguna excepción | unit (raíz) | verde (`test_revision_de_meta_en_la_raiz.py`, `test_revision_de_meta.py`) |
+| 21 | Adaptador de cobros sin plantilla aprobada → texto **de fábrica del adaptador** (no el cuerpo editado). (Meta 131047 → `FALLIDO` ya está cubierto por U5; el código queda en el log del canal) | unit | verde, RED observado (`test_envio_con_plantilla.py`) |
+| 22 | Adaptador de turnos: los tres avisos usan su código; `fecha` y `hora` salen por separado y en hora argentina (`2026-10-15T13:30Z` → «15/10/2026», «10:30»; la conversión ya la prueba el caso 33 de U5) | unit | verde (`test_avisos_con_plantilla.py`); sin RED separado |
+| 23 | Solo se mandan los parámetros que el cuerpo usa (un cuerpo editado sin `{{recurso}}` no lo manda: 132000) | unit | verde (`test_consulta_y_estado.py`, `test_plantillas_salientes.py`) |
+| 24 | Monto `1234.5` → «1.234,50» (ver «Pregunta abierta Q1»); cobro sin link → parámetro no vacío | unit | verde (`test_envio_con_plantilla.py`); Q1 sigue abierta |
+| 25 | Valor con salto de línea → espacio | unit | verde (`test_consulta_y_estado.py`): el saneo vive en `ConsultarPlantillaParaEnviar`, un solo lugar |
+| 26 | `enviar_plantilla`: forma del `POST` (`type: template`, `parameter_name`); un caso por clase de error usando el bucle compartido (503 ×3, 132001, timeout incierto: ya probados en `test_canal.py`); 132000/132012/132015/132016 parametrizados como permanentes | contrato | verde, RED observado (`test_canal_plantillas.py`) |
+| 27 | Ningún log de los módulos nuevos contiene teléfono, cuerpo, parámetros, token ni `error_user_msg` (patrón de captura de logs de U5) | unit (captura de logs) | verde (`test_canal_plantillas.py`, `test_plantillas_meta.py`, `test_envio_con_plantilla.py`) |
+| 28 | Backfill: `PENDIENTE` de WhatsApp → `SIN_ENVIAR`; texto de fábrica viejo → nuevo; uno editado queda igual | migración (CI) | escrito (`test_migracion_0035.py`); **solo CI** (no hay Docker local) |
+| 29 | Las dos funciones `SECURITY DEFINER` devuelven solo `empresa_id` y `cheatsheet_app` puede ejecutarlas | migración (CI) | escrito (`test_migracion_0035.py`, `test_plantillas_en_meta_postgres.py`); **solo CI** |
+| 30 | PAN-CFG-NOT: badge por estado, motivo traducido, «Enviar a revisión» visible solo en Sin enviar/Rechazada y solo para Administrador, edición bloqueada con explicación en revisión / 24 h | unit (Vitest) | verde (`plantillas.test.tsx`, `motivosDeMeta.test.ts`, `clientes.test.ts`, `rutas.test.ts`); RED observado solo en estos tres últimos |
+| 31 | `guard_architecture --scan` y `.claude/hooks/test_guards.sh`: ningún import de business_config, payments o scheduling hacia conversational | gate | `guard_architecture --scan` verde; `test_guards.sh` **solo CI** (falta `jq`) |
 
 Gates de Gate 2: `ruff format --check . && ruff check . && mypy . && pytest` (cobertura ≥ 80 %) y
 `cd frontend && npm run format:check && npm run lint && npm run typecheck && npm run test:coverage`.
@@ -570,6 +571,38 @@ decidido y esta unidad no toca el texto ni el caso 16 de U5.** Recomendación: u
 (« $ 1.234,50») para ambos caminos; es el formato que lee un cliente argentino y el cambio es un
 formateador más el test 16 de U5. Lo decide Luciano; si se acepta, se hace en un cambio aparte.
 
+## Estado de la implementación (2026-10-06)
+
+Rama `feature/business_config-plantillas-de-whatsapp-en-meta`, un commit por unidad de trabajo, cada uno
+verde por sí solo (`ruff`, `mypy`, `pytest`):
+
+| Commit | Qué entrega |
+|---|---|
+| `docs(business_config): revalidate…` | La revalidación de este plan contra develop; cierra el Gate 1 |
+| `feat(conversational): send approved WhatsApp templates and share the Meta retry loop` | `PortMensajeria.enviar_plantilla`, `canal_http.py` (bucle compartido), códigos 132000/132012/132015/132016, `error_user_msg` solo para plantillas |
+| `feat(conversational): add the Meta message templates client` | `plantillas_meta.py`: `PlantillasDeMeta`, `PlantillasSimuladas`, `SinCuentaDeMeta` |
+| `feat(business_config): track WhatsApp template state from Meta and seed templates unsent` | Agregado (7 estados, 7 campos, bordes, edición admisible), migración 0035, `DE_FABRICA` corregido |
+| `feat(business_config): send templates to Meta on edit, reconcile their state and expose it` | `revision_de_meta.py`, `conciliacion.py`, `ConsultarPlantillaParaEnviar`, `ActualizarEstadoDesdeMeta`, `_RevisionViaMeta`, `routers/plantillas.py` (503 / 422 con el texto de Meta) |
+| `feat(payments): send approved WhatsApp templates for payment reminders and turn notices` | Adaptadores de cobros y turnos, `plantillas_salientes.py`, `armar_notificador(unidad, *, canal)` |
+| `feat(business_config): reconcile WhatsApp templates with Meta from Beat` | `tasks_business_config.py`, Beat, `WHATSAPP_PLANTILLAS_MINUTOS`, consultas `SECURITY DEFINER` desde `integrations` |
+| `feat(conversational): receive WhatsApp template status updates at the app webhook` | `POST/GET /webhooks/whatsapp`, `whatsapp_notificaciones.py`, ruteo por WABA |
+| `test(business_config): cover WhatsApp template state against PostgreSQL` | Tests de PostgreSQL (solo CI) |
+| `feat(frontend): show the Meta state of WhatsApp templates and send them to review` | PAN-CFG-NOT: estados, motivo traducido, «Enviar a revisión», bloqueo de edición, BFF `envio` |
+| `test(business_config): keep the WhatsApp template tests under the file size limit` | Tests partidos por debajo de 400 líneas |
+
+**Gates locales:** `ruff format --check`, `ruff check`, `mypy` (718 archivos) y `pytest` (2570 pasan, 532 se
+saltean por falta de PostgreSQL/Redis) verdes; `guard_architecture --scan` verde; frontend `lint`,
+`typecheck`, `format:check` y `test:coverage` (1040 tests) verdes. Gate 2 (verificación real) y Gate 3 (PR)
+siguen sin llenar.
+
+**Solo CI:** `test_migracion_0035.py`, `test_plantillas_en_meta_postgres.py`, el `PUT /plantillas` de
+`test_api_conversacional.py` (ahora con un cuerpo que no empieza con variable) y `test_guards.sh`.
+
+**Para el dueño:** agregar `WHATSAPP_PLANTILLAS_MINUTOS=30` a `backend/.env.example` (junto a
+`WHATSAPP_SONDEO_*`). `render.yaml` no cambia: el worker usa el default 30 y el dashboard de Render es la fuente
+de verdad si se quiere otro valor. Registrar en la app de Meta la URL `/webhooks/whatsapp` y suscribir el campo
+`message_template_status_update` (`TODO.md` §22.45); sin eso funciona igual, con la demora de la conciliación.
+
 ## Registro
 
 | Gate | Fecha | Resultado |
@@ -582,3 +615,11 @@ formateador más el test 16 de U5. Lo decide Luciano; si se acepta, se hace en u
 
 - Gate 1 (2026-10-04): Pregunta 1 → automático: cuando la empresa tiene WhatsApp conectado, las plantillas de fábrica se siembran y se envían a Meta sin esperar a un administrador.
 - Gate 1 (2026-10-04): Pregunta 2 → sí: los textos de fábrica de `recordatorio_de_cobro` y `cobro_generado` terminan en « Gracias.» para que no terminen en una variable; se corrigen las filas no editadas.
+- Implementación (2026-10-06): **el borde del texto se exige en `editar` y en `PlantillaDeNotificacion.nueva`, no en `__post_init__`.** Una fila editada antes de que Meta pidiera esta regla tiene que poder leerse: si el constructor levantara, listar las plantillas daría un error en vez de mostrarle al administrador el rechazo de Meta. Las variables sí se siguen validando siempre. No se creó `PlantillaNoEditable`: el dominio levanta `EntradaInvalida` con las frases del plan, que es lo que la API ya mapea a 422.
+- Implementación: **el saneo de saltos de línea (caso 25) vive en `ConsultarPlantillaParaEnviar`** (`limpiar_valor`), no en cada adaptador: un solo lugar para los dos contextos que mandan.
+- Implementación: **no se alineó el texto de fábrica de cobros con `DE_FABRICA`** (punto 16 de la revalidación). Hacerlo cambia el texto de U5 y su caso 16 (monto «$ 1234.50» y « Gracias.»), que es justo la **Pregunta abierta Q1**: se registra en `TODO.md` §22.52 para decidirla junto con ella. Los tres textos de turnos **ya coinciden** con `DE_FABRICA` y tienen un test que lo afirma (`test_plantillas_salientes.py`).
+- Implementación: el 503 lo emite un manejador propio de `MetaNoDisponible` (`routers/plantillas.manejar_meta_no_disponible`), registrado en `main.py`; el BFF no reenvía el detalle de un 503, así que el cliente web muestra un texto fijo («No se guardó nada: volvé a intentarlo en un rato»).
+- Implementación: `ActualizarEstadoDesdeMeta` no vincula una fila por **nombre e idioma** cuando el evento trae un id de Meta distinto del que la fila ya tiene (es otra plantilla de Meta con el mismo nombre); lo encontró el test de aislamiento por WABA.
+- Implementación: la conciliación **no reintenta en cada corrida** una plantilla que Meta ya refutó (`SIN_ENVIAR` con el texto de Meta como detalle) ni una cuyo texto viejo termina en variable: esperan al administrador. Sí reintenta la que quedó `SIN_ENVIAR` por «WhatsApp no está conectado».
+- Implementación: `EnviarPlantillaAMeta` acepta `SIN_ENVIAR` y `RECHAZADA`, como dice la pantalla; una `DESHABILITADA` se recrea al editar su texto (con nombre versionado). `plantillas_meta.py` quedó en 308 líneas (el plan estimaba ≤ 250; sigue bajo el tope de 400). `ResolverPlantilla` quedó sin llamadores (el plan la dejaba sin cambios): se anota, no se borra.
+- Implementación: los mensajes entrantes (`messages`) que lleguen a la URL de la app se registran y se ignoran con 200: no hay empresa a quién atribuirlos desde esa URL.
