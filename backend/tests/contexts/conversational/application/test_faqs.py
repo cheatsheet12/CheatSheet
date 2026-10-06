@@ -8,12 +8,24 @@ from uuid import UUID, uuid4
 
 import pytest
 from cheatsheet.contexts.conversational.application.errors import FAQInexistente
-from cheatsheet.contexts.conversational.application.faqs import ListarFAQs, VerUsoDeFAQ
+from cheatsheet.contexts.conversational.application.faqs import (
+    MOTIVO_SOLO_ADMIN,
+    CrearFAQ,
+    EditarFAQ,
+    EliminarFAQ,
+    FAQConUsos,
+    ListarFAQs,
+    VerUsoDeFAQ,
+)
 from cheatsheet.contexts.conversational.domain.faq import FAQ
 from cheatsheet.contexts.conversational.domain.uso_de_faq import MotivoSinComparacion, UsoDeFAQ
-from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.conversational.application.dobles import (
+    EmbeddingsEnMemoria,
+    PublicadorEnMemoria,
     RepositorioFAQEnMemoria,
     UsosDeFAQEnMemoria,
 )
@@ -22,6 +34,8 @@ pytestmark = pytest.mark.asyncio
 
 ART = timezone(timedelta(hours=-3))
 EMPRESA = EmpresaId(uuid4())
+USUARIO = UsuarioId(uuid4())
+ADMIN = RolUsuario.ADMINISTRADOR
 AHORA = datetime(2026, 10, 15, 15, 0, tzinfo=UTC)
 
 
@@ -138,3 +152,231 @@ class TestVerUsoDeFAQ:
             await VerUsoDeFAQ(RepositorioFAQEnMemoria(), UsosDeFAQEnMemoria()).ejecutar(
                 faq_id=uuid4(), ahora=AHORA
             )
+
+
+class TestCrearFAQ:
+    async def test_crea_con_los_tres_conteos_en_cero_y_la_deja_indexada(self) -> None:
+        faqs, embeddings = RepositorioFAQEnMemoria(), EmbeddingsEnMemoria()
+        publicador = PublicadorEnMemoria()
+
+        faq = await CrearFAQ(faqs, embeddings, publicador).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=ADMIN,
+            pregunta="  ¿Abren feriados?  ",
+            respuesta=" No. ",
+            ahora=AHORA,
+        )
+
+        assert (faq.pregunta, faq.respuesta) == ("¿Abren feriados?", "No.")
+        assert faq.usos_anteriores == 0
+        assert faq.editada_en is None
+        vista = (await ListarFAQs(faqs, UsosDeFAQEnMemoria()).ejecutar(ahora=AHORA))[0]
+        assert (vista.conteo.este_mes, vista.conteo.mes_anterior, vista.usos_total) == (0, 0, 0)
+        assert embeddings.pedidos == ["¿Abren feriados?"]
+        assert faq.id in faqs.vectores
+        assert publicador.acciones == ["crear_faq"]
+
+    @pytest.mark.parametrize("rol", [RolUsuario.OPERADOR, RolUsuario.SOLO_LECTURA])
+    async def test_un_rol_que_no_es_administrador_no_crea_nada(self, rol: RolUsuario) -> None:
+        faqs, publicador = RepositorioFAQEnMemoria(), PublicadorEnMemoria()
+
+        with pytest.raises(EntradaInvalida, match=MOTIVO_SOLO_ADMIN):
+            await CrearFAQ(faqs, EmbeddingsEnMemoria(), publicador).ejecutar(
+                empresa_id=EMPRESA,
+                usuario_id=USUARIO,
+                rol=rol,
+                pregunta="¿Hola?",
+                respuesta="Hola.",
+                ahora=AHORA,
+            )
+
+        assert faqs.faqs == {}
+        assert publicador.eventos == []
+
+    async def test_si_el_proveedor_de_embeddings_cae_la_guarda_sin_indexar(self) -> None:
+        faqs = RepositorioFAQEnMemoria()
+
+        faq = await CrearFAQ(faqs, EmbeddingsEnMemoria(cae=True), PublicadorEnMemoria()).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=ADMIN,
+            pregunta="¿Hola?",
+            respuesta="Hola.",
+            ahora=AHORA,
+        )
+
+        assert faqs.faqs[faq.id].embedding_obsoleto is True
+        assert faq.id not in faqs.vectores
+
+
+async def editar(
+    faq_id: UUID,
+    *,
+    pregunta: str,
+    respuesta: str,
+    faqs: RepositorioFAQEnMemoria,
+    usos: UsosDeFAQEnMemoria | None = None,
+    publicador: PublicadorEnMemoria | None = None,
+    embeddings: EmbeddingsEnMemoria | None = None,
+    rol: RolUsuario = ADMIN,
+) -> FAQConUsos:
+    caso = EditarFAQ(
+        faqs,
+        embeddings or EmbeddingsEnMemoria(),
+        publicador or PublicadorEnMemoria(),
+        usos or UsosDeFAQEnMemoria(),
+    )
+    return await caso.ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=rol,
+        faq_id=faq_id,
+        pregunta=pregunta,
+        respuesta=respuesta,
+        ahora=AHORA,
+    )
+
+
+class TestEditarFAQ:
+    async def test_el_mismo_texto_con_espacios_no_mueve_editada_en_ni_reindexa(self) -> None:
+        faq = una_faq()
+        faq.marcar_indexada("doble-v1", AHORA)  # ya indexada: nada pendiente
+        faqs, embeddings = RepositorioFAQEnMemoria(faq), EmbeddingsEnMemoria()
+
+        vista = await editar(
+            faq.id,
+            pregunta=f"  {faq.pregunta} ",
+            respuesta=f" {faq.respuesta}  ",
+            faqs=faqs,
+            embeddings=embeddings,
+        )
+
+        assert vista.faq.editada_en is None
+        assert embeddings.pedidos == []
+
+    async def test_cambiar_solo_la_respuesta_mueve_editada_en_y_trae_los_conteos(self) -> None:
+        faq = una_faq()
+        faq.marcar_indexada("doble-v1", AHORA)  # ya indexada: nada pendiente
+        faqs, usos, embeddings = (
+            RepositorioFAQEnMemoria(faq),
+            UsosDeFAQEnMemoria(),
+            EmbeddingsEnMemoria(),
+        )
+        await usar(usos, faq.id, AHORA - timedelta(days=1), veces=3)
+        await usar(usos, faq.id, AHORA - timedelta(days=40), veces=2)
+
+        vista = await editar(
+            faq.id,
+            pregunta=faq.pregunta,
+            respuesta="Ahora sale $9000.",
+            faqs=faqs,
+            usos=usos,
+            embeddings=embeddings,
+        )
+
+        assert vista.faq.editada_en == AHORA
+        assert vista.faq.respuesta == "Ahora sale $9000."
+        assert (vista.conteo.este_mes, vista.conteo.mes_anterior, vista.usos_total) == (3, 2, 5)
+        assert embeddings.pedidos == []  # el vector se calcula sobre la pregunta
+
+    async def test_cambiar_la_pregunta_reindexa_y_audita(self) -> None:
+        faq = una_faq()
+        faq.marcar_indexada("doble-v1", AHORA)  # ya indexada: nada pendiente
+        faqs, publicador, embeddings = (
+            RepositorioFAQEnMemoria(faq),
+            PublicadorEnMemoria(),
+            EmbeddingsEnMemoria(),
+        )
+
+        vista = await editar(
+            faq.id,
+            pregunta="¿Y un corte con barba?",
+            respuesta=faq.respuesta,
+            faqs=faqs,
+            publicador=publicador,
+            embeddings=embeddings,
+        )
+
+        assert embeddings.pedidos == ["¿Y un corte con barba?"]
+        assert vista.faq.embedding_obsoleto is False
+        assert faq.id in faqs.vectores
+        assert publicador.acciones == ["editar_faq"]
+        assert vista.conteo.este_mes == 0
+
+    async def test_una_faq_inexistente_falla_sin_auditar(self) -> None:
+        publicador = PublicadorEnMemoria()
+
+        with pytest.raises(FAQInexistente):
+            await editar(
+                uuid4(),
+                pregunta="¿Hola?",
+                respuesta="Hola.",
+                faqs=RepositorioFAQEnMemoria(),
+                publicador=publicador,
+            )
+
+        assert publicador.eventos == []
+
+    async def test_un_operador_no_edita_y_la_faq_queda_igual(self) -> None:
+        faq = una_faq()
+        faqs = RepositorioFAQEnMemoria(faq)
+
+        with pytest.raises(EntradaInvalida, match=MOTIVO_SOLO_ADMIN):
+            await editar(
+                faq.id,
+                pregunta="Otra",
+                respuesta="Otra.",
+                faqs=faqs,
+                rol=RolUsuario.OPERADOR,
+            )
+
+        assert faqs.guardados == 0
+        assert faq.respuesta == "Un corte sale $8000."
+
+    async def test_un_texto_vacio_se_rechaza_sin_guardar(self) -> None:
+        faq = una_faq()
+        faqs = RepositorioFAQEnMemoria(faq)
+
+        with pytest.raises(EntradaInvalida):
+            await editar(faq.id, pregunta="   ", respuesta="x", faqs=faqs)
+
+        assert faqs.guardados == 0
+
+
+class TestEliminarFAQ:
+    async def test_la_baja_es_real_e_inmediata_y_queda_auditada(self) -> None:
+        faq = una_faq()
+        faqs, publicador = RepositorioFAQEnMemoria(faq), PublicadorEnMemoria()
+        faqs.vectores[faq.id] = [0.1]
+
+        await EliminarFAQ(faqs, publicador).ejecutar(
+            empresa_id=EMPRESA, usuario_id=USUARIO, rol=ADMIN, faq_id=faq.id, ahora=AHORA
+        )
+
+        assert await faqs.buscar_por_id(faq.id) is None
+        assert faq.id not in faqs.vectores
+        (evento,) = publicador.de_la_accion("eliminar_faq")
+        assert evento.entidad_afectada == f"FAQ:{faq.id}"
+
+    async def test_una_faq_inexistente_falla_sin_auditar(self) -> None:
+        publicador = PublicadorEnMemoria()
+
+        with pytest.raises(FAQInexistente):
+            await EliminarFAQ(RepositorioFAQEnMemoria(), publicador).ejecutar(
+                empresa_id=EMPRESA, usuario_id=USUARIO, rol=ADMIN, faq_id=uuid4(), ahora=AHORA
+            )
+
+        assert publicador.eventos == []
+
+    @pytest.mark.parametrize("rol", [RolUsuario.OPERADOR, RolUsuario.SOLO_LECTURA])
+    async def test_un_rol_que_no_es_administrador_no_borra(self, rol: RolUsuario) -> None:
+        faq = una_faq()
+        faqs = RepositorioFAQEnMemoria(faq)
+
+        with pytest.raises(EntradaInvalida, match=MOTIVO_SOLO_ADMIN):
+            await EliminarFAQ(faqs, PublicadorEnMemoria()).ejecutar(
+                empresa_id=EMPRESA, usuario_id=USUARIO, rol=rol, faq_id=faq.id, ahora=AHORA
+            )
+
+        assert await faqs.buscar_por_id(faq.id) is faq
