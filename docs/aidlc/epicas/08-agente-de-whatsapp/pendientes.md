@@ -130,7 +130,7 @@ filtrar la bitácora por iniciador, y eso es el panel de auditoría del épico 1
 
 ### 13. ~~Las plantillas están y los adaptadores no las usan~~ · **cerrado con nota por `plantillas-de-whatsapp-en-meta` (U6)**
 
-`ResolverPlantilla` funciona y `armar_plantillas` la cablea, pero los tres adaptadores que
+`ConsultarPlantillaParaEnviar` funciona y `armar_plantillas` la cablea, pero los tres adaptadores que
 mandan mensajes —el del agente, el de turnos y el de cobros— siguen con su texto escrito
 adentro.
 
