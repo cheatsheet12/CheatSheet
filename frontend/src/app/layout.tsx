@@ -26,6 +26,7 @@ import "@/shared/pantallas-agente.css";
 // propias sobre él, y un import antes las dejaría perdiendo la cascada por orden de carga.
 import "@/shared/pantallas-cobros.css";
 import "@/shared/pantallas-identidad.css";
+import "@/shared/pantalla-de-ingreso.css";
 import "@/shared/pantallas-ingesta.css";
 // Reportería va después de `componentes.css` a propósito: ahí sobrevive un `.rep-…` viejo del
 // catálogo compartido (la barra horizontal, el filtro, la previsualización) que estas tres
