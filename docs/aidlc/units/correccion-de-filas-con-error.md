@@ -32,9 +32,9 @@ un import que ya escribió en `master_data`. Borrar el error de una fila corregi
 historia de que falló. Se agrega a `error_de_fila` una columna **`corregida_en`** (`timestamptz`,
 nullable); un error con valor ahí es historia y no cuenta como pendiente.
 
-**Migración 0033**, reversible, sin backfill (todos los errores existentes quedan pendientes). El
+**Migración 0035**, reversible, sin backfill (todos los errores existentes quedan pendientes). El
 `GRANT UPDATE` de `error_de_fila` ya existe desde 0014, así que no hay política nueva.
-**Número reservado**: se renumera al integrar en `develop` si otra unidad tomó 0033.
+**Renumerada** de 0033 a 0035 al integrar con `develop`.
 
 ### 2. Los contadores
 
@@ -85,7 +85,7 @@ cuerpo levanta, una corrección rechazada no deja nada escrito.
 ### Infraestructura
 - `models.py` y `repositories.py`: la columna y el `actualizar` que ahora también persiste
   `corregida_en` de los errores ya guardados.
-- Migración `0033_correccion_de_fila_con_error.py`.
+- Migración `0035_correccion_de_fila_con_error.py`.
 
 ### API — `api/routers/planillas.py`
 - `GET /planillas/cargas/{id}/filas/{numero}` → la vista para editar.

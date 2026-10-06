@@ -1,7 +1,7 @@
 """Una fila corregida, contra el motor que guarda sus errores (unidad correccion-de-filas-con-error).
 
 Lo que un doble no puede probar: que `corregida_en` **sobreviva a la ida y vuelta** por la columna
-que la migración 0033 agregó, que corregir **no borre** el error (el procesamiento es el registro
+que la migración 0035 agregó, que corregir **no borre** el error (el procesamiento es el registro
 de un import), y que una empresa no vea los errores de otra.
 """
 

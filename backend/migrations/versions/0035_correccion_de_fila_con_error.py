@@ -13,11 +13,11 @@ procesamiento (`filas_error`, `filas_ok`) los mueve el dominio.
 - **Sin política nueva.** La RLS y el `GRANT SELECT, INSERT, UPDATE` de `0014` ya cubren la columna.
 - **Reversible.** `downgrade` borra la columna.
 
-**Número reservado.** Se renumera al integrar en `develop` si otra unidad tomó 0033, y su
+**Renumerada** de 0033 a 0035 al integrar con `develop` (0033 y 0034 ya estaban tomadas).
 `down_revision` se re-apunta a la cabeza de `develop`, para que quede una sola cabeza.
 
-Revision ID: 0033
-Revises: 0032
+Revision ID: 0035
+Revises: 0034
 """
 
 from __future__ import annotations
@@ -26,9 +26,9 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0033"
-# Re-apuntar al integrar en `develop`: ver «Número reservado» en el docstring.
-down_revision: str | None = "0032"
+revision: str = "0035"
+# Re-apuntada a la cabeza de `develop` (0034) al integrar.
+down_revision: str | None = "0034"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
