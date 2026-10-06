@@ -16,6 +16,7 @@ export { FormularioDeEmpresa } from "./components/FormularioDeEmpresa";
 export { FormularioDeIngreso } from "./components/FormularioDeIngreso";
 export { FormularioDePreferencias } from "./components/FormularioDePreferencias";
 export { ModalDeInvitacion } from "./components/ModalDeInvitacion";
+export { RenovadorDeSesion } from "./components/RenovadorDeSesion";
 export { TablaDeUsuarios } from "./components/TablaDeUsuarios";
 export type {
   ConsultaDePadron,
