@@ -103,9 +103,10 @@ async def _cobro_pagado(
     transferencia: bool = False,
 ) -> str:
     """Un cobro creado por la API (así el doble aprende su preferencia) y luego pagado."""
+    # ADR-0013: `POST /cobros` exige su clave de idempotencia, una por cobro.
     creado = await http.post(
         "/cobros",
-        headers=cabeceras,
+        headers={**cabeceras, "X-Idempotency-Key": str(uuid.uuid4())},
         json={"cliente_id": str(cliente_id), "monto": "1000.00", "descripcion": descripcion},
     )
     assert creado.status_code == 201, creado.text

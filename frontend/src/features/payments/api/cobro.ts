@@ -184,10 +184,17 @@ export const ETIQUETAS_DE_ORIGEN: Readonly<Record<OrigenDeReembolso, string>> = 
 export const MENSAJE_NOTA_DE_CREDITO =
   "Este cobro está asociado a un comprobante. Corresponde emitir una nota de crédito por lo reembolsado: el sistema no la emite solo.";
 
+/** El código con que el backend rechaza una clave de pedido ya usada con otros datos (ADR-0013). */
+export const CODIGO_CLAVE_REUSADA = "ClaveDeIdempotenciaReusada";
+
 export class ErrorDeCobro extends Error {
-  constructor(mensaje: string) {
+  /** El código del error del backend, si lo trajo: lo que permite a la pantalla ofrecer una salida. */
+  readonly codigo: string | undefined;
+
+  constructor(mensaje: string, codigo?: string) {
     super(mensaje);
     this.name = "ErrorDeCobro";
+    this.codigo = codigo;
   }
 }
 
@@ -200,7 +207,10 @@ async function fallar(respuesta: Response): Promise<never> {
   const cuerpo = (await respuesta.json().catch(() => ({}))) as CuerpoDeError;
   // `detalle` primero: en un 422 la frase del backend es la que escribió la historia, y es
   // más específica que cualquier cosa que este archivo pudiera inventar.
-  throw new ErrorDeCobro(cuerpo.detalle ?? cuerpo.error ?? "No se pudo completar la operacion");
+  throw new ErrorDeCobro(
+    cuerpo.detalle ?? cuerpo.error ?? "No se pudo completar la operacion",
+    cuerpo.error,
+  );
 }
 
 function consultaDe(filtros: FiltrosDeCobro): string {
@@ -230,10 +240,14 @@ export async function verCobro(cobroId: string): Promise<DetalleDeCobro> {
   return (await respuesta.json()) as DetalleDeCobro;
 }
 
-export async function generarCobro(datos: CobroNuevo): Promise<Cobro> {
+/**
+ * **La clave identifica el pedido, no el cobro** (ADR-0013): el formulario la genera una vez y
+ * la manda en cada envío o reintento, y el backend contesta el cobro ya creado si la repite.
+ */
+export async function generarCobro(datos: CobroNuevo, clave: string): Promise<Cobro> {
   const respuesta = await fetch("/api/cobros", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Idempotency-Key": clave },
     body: JSON.stringify(datos),
   });
   if (!respuesta.ok) {

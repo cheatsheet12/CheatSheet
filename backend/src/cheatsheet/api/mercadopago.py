@@ -39,10 +39,12 @@ from cheatsheet.contexts.master_data.infrastructure.repositories import (
 )
 from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
 from cheatsheet.contexts.payments.application.ports import (
-    PortCadenaDeEscalamiento,
     PortClienteDeCobro,
     PortPasarelaDePago,
     PortSaldoDeComprobante,
+)
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    PortCadenaDeEscalamiento,
 )
 from cheatsheet.contexts.payments.infrastructure.cadena import CadenaViaConfiguracion
 from cheatsheet.contexts.payments.infrastructure.clientes import ClienteViaMasterData

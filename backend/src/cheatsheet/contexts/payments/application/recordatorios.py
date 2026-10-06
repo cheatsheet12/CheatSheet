@@ -20,11 +20,13 @@ from uuid import UUID, uuid4
 
 from cheatsheet.contexts.payments.application.errors import RecordatorioDuplicado
 from cheatsheet.contexts.payments.application.ports import (
+    PortRepositorioCobro,
+    PortRepositorioRecordatorios,
+)
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     PasoDeCadena,
     PortCadenaDeEscalamiento,
     PortEnvioDeRecordatorio,
-    PortRepositorioCobro,
-    PortRepositorioRecordatorios,
 )
 from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.recordatorio import Recordatorio, proximo_paso
