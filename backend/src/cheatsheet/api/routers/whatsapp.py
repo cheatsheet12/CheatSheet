@@ -39,10 +39,10 @@ from cheatsheet.api.conversacional import (
     armar_embeddings,
     armar_horario_de_atencion,
     armar_interprete,
-    armar_mensajeria,
     armar_transcriptor,
 )
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.contexts.conversational.application.agente import ProcesarMensajeEntrante
 from cheatsheet.contexts.conversational.application.errors import MensajeYaProcesado
 from cheatsheet.contexts.conversational.application.ports import MensajeEntrante
@@ -140,6 +140,7 @@ async def _procesar(recursos: Recursos, empresa: EmpresaId, entrante: MensajeEnt
             mensajes=piezas.mensajes,
             escalamientos=piezas.escalamientos,
             faqs=piezas.faqs,
+            usos=piezas.usos,
             clientes=armar_directorio(
                 unidad,
                 recursos.settings,

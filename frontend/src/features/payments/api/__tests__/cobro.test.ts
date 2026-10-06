@@ -138,7 +138,10 @@ describe("generarCobro", () => {
   it("manda el monto tal como se escribio, sin pasar por un numero", async () => {
     const espia = espiarFetch(respuesta(COBRO));
 
-    await generarCobro({ cliente_id: "cl1", monto: "12500.10", descripcion: "Consulta" });
+    await generarCobro(
+      { cliente_id: "cl1", monto: "12500.10", descripcion: "Consulta" },
+      "clave-1",
+    );
 
     const [, opciones] = espia.mock.calls[0] as [string, RequestInit];
     // Caracter por caracter: `12500.1` seria la prueba de que un `Number()` se metio en el
@@ -154,8 +157,39 @@ describe("generarCobro", () => {
     );
 
     await expect(
-      generarCobro({ cliente_id: "cl1", monto: "100", descripcion: "x" }),
+      generarCobro({ cliente_id: "cl1", monto: "100", descripcion: "x" }, "clave-1"),
     ).rejects.toThrow(MENSAJE_MP_CAIDO);
+  });
+
+  it("manda la clave del pedido en X-Idempotency-Key (ADR-0013)", async () => {
+    const espia = espiarFetch(respuesta(COBRO));
+
+    await generarCobro({ cliente_id: "cl1", monto: "100", descripcion: "x" }, "una-clave");
+
+    const [, opciones] = espia.mock.calls[0] as [string, RequestInit];
+    expect(opciones.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-Idempotency-Key": "una-clave",
+    });
+  });
+
+  it("conserva el codigo del error para que la pantalla ofrezca una salida", async () => {
+    espiarFetch(
+      respuesta(
+        { error: "ClaveDeIdempotenciaReusada", detalle: "Esta clave ya se uso." },
+        false,
+        422,
+      ),
+    );
+
+    const fallo = await generarCobro(
+      { cliente_id: "cl1", monto: "100", descripcion: "x" },
+      "una-clave",
+    ).catch((error: unknown) => error);
+
+    expect(fallo).toBeInstanceOf(ErrorDeCobro);
+    expect((fallo as ErrorDeCobro).codigo).toBe("ClaveDeIdempotenciaReusada");
+    expect((fallo as ErrorDeCobro).message).toBe("Esta clave ya se uso.");
   });
 });
 

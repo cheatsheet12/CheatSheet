@@ -105,6 +105,18 @@ services:
         sync: false
       - key: R2_SECRET_ACCESS_KEY
         sync: false
+      # WhatsApp. The adapter is `simulado` on staging: there are no real Meta credentials
+      # yet (docs/staging-deployment.md §8), so messages go to a log and reminders are
+      # recorded as sent. Production must be `meta`; `simulado` is refused there.
+      - key: WHATSAPP_ADAPTADOR
+        value: simulado
+      # The Meta app's App Secret, which signs `X-Hub-Signature-256` on every inbound
+      # notification. **Without it every notification is discarded with a 200** (D49).
+      - key: WHATSAPP_WEBHOOK_SECRET
+        sync: false
+      # The token typed when the webhook URL is registered in the Meta app.
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false
       - key: REDIS_URL
         fromService:
           name: cheatsheet-redis
@@ -193,6 +205,10 @@ services:
         sync: false
       - key: R2_SECRET_ACCESS_KEY
         sync: false
+      # The reminder sweep runs here and must pick the same channel as the API.
+      # Per-company token and number come from `integrations`, not from the environment.
+      - key: WHATSAPP_ADAPTADOR
+        value: simulado
       - key: REDIS_URL
         fromService:
           name: cheatsheet-redis

@@ -211,7 +211,7 @@ class RepositorioFAQPostgres:
         self._sesion = sesion
 
     async def agregar(self, faq: FAQ) -> None:
-        self._sesion.add(_faq_a_fila(faq, FAQORM()))
+        self._sesion.add(_faq_a_fila(faq, FAQORM(), nueva=True))
         await self._sesion.flush()
 
     async def guardar(self, faq: FAQ) -> None:
@@ -235,7 +235,7 @@ class RepositorioFAQPostgres:
         return _faq_a_dominio(fila) if fila is not None else None
 
     async def listar(self) -> list[FAQ]:
-        sentencia = select(FAQORM).order_by(FAQORM.usos.desc(), FAQORM.created_at)
+        sentencia = select(FAQORM).order_by(FAQORM.created_at)
         filas = (await self._sesion.execute(sentencia)).scalars().all()
         return [_faq_a_dominio(fila) for fila in filas]
 
@@ -357,13 +357,15 @@ def _faq_a_dominio(fila: FAQORM) -> FAQ:
         categoria_id=fila.categoria_id,
         embedding_modelo_version=fila.embedding_modelo_version,
         embedding_obsoleto=fila.embedding_obsoleto,
-        usos=fila.usos,
+        usos_anteriores=fila.usos_anteriores,
         created_at=fila.created_at,
         updated_at=fila.updated_at,
+        editada_en=fila.editada_en,
+        seguimiento_desde=fila.seguimiento_desde,
     )
 
 
-def _faq_a_fila(faq: FAQ, fila: FAQORM) -> FAQORM:
+def _faq_a_fila(faq: FAQ, fila: FAQORM, *, nueva: bool = False) -> FAQORM:
     fila.id = faq.id
     fila.empresa_id = faq.empresa_id
     fila.categoria_id = faq.categoria_id
@@ -371,9 +373,12 @@ def _faq_a_fila(faq: FAQ, fila: FAQORM) -> FAQORM:
     fila.respuesta = faq.respuesta
     fila.embedding_modelo_version = faq.embedding_modelo_version
     fila.embedding_obsoleto = faq.embedding_obsoleto
-    fila.usos = faq.usos
+    fila.editada_en = faq.editada_en
     fila.created_at = faq.created_at or _ahora(faq.updated_at)
     fila.updated_at = faq.updated_at or fila.created_at
+    if nueva:  # la línea de base y el seguimiento solo los escribe el alta (ADR-0012)
+        fila.usos_anteriores = faq.usos_anteriores
+        fila.seguimiento_desde = faq.seguimiento_desde or fila.created_at
     return fila
 
 

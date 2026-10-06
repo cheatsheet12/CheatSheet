@@ -39,14 +39,21 @@ from cheatsheet.contexts.master_data.infrastructure.repositories import (
 )
 from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
 from cheatsheet.contexts.payments.application.ports import (
-    PortCadenaDeEscalamiento,
     PortClienteDeCobro,
     PortPasarelaDePago,
     PortSaldoDeComprobante,
 )
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    PortCadenaDeEscalamiento,
+    PortEnvioDeRecordatorio,
+)
+from cheatsheet.contexts.payments.application.ports_envio import PortContactoDeCliente
 from cheatsheet.contexts.payments.infrastructure.cadena import CadenaViaConfiguracion
-from cheatsheet.contexts.payments.infrastructure.clientes import ClienteViaMasterData
-from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorConsola
+from cheatsheet.contexts.payments.infrastructure.clientes import (
+    ClienteViaMasterData,
+    ContactoViaMasterData,
+)
+from cheatsheet.contexts.payments.infrastructure.envio import CanalDeTexto, EnvioPorWhatsApp
 from cheatsheet.contexts.payments.infrastructure.pasarela import (
     PasarelaMercadoPago,
     PasarelaSimulada,
@@ -141,21 +148,30 @@ def armar_cadena(unidad: UnidadDeTrabajo) -> PortCadenaDeEscalamiento:
     return CadenaViaConfiguracion(ConsultarReglasVigentes(piezas.reglas))
 
 
-def armar_envio(settings: Settings) -> EnvioPorConsola:
-    """Por dónde sale un recordatorio.
+def armar_contactos(unidad: UnidadDeTrabajo) -> PortContactoDeCliente:
+    """El contacto de un cliente, **sólo para el envío del recordatorio** (U5).
 
-    **Hoy siempre es la consola**, y decirlo es más honesto que esconderlo detrás de un
-    switch que tiene una sola posición: el canal real es WhatsApp y lo construye el épico 8.
-    El adaptador se niega a arrancar en producción, así que este pendiente no se puede
-    desplegar sin que alguien se entere.
+    Aparte de `armar_clientes` a propósito: ese puerto no expone el contacto (D92).
     """
-    return EnvioPorConsola(settings.entorno)
+    return ContactoViaMasterData(RepositorioClientePostgres(unidad.sesion))
+
+
+def armar_envio(unidad: UnidadDeTrabajo, *, canal: CanalDeTexto) -> PortEnvioDeRecordatorio:
+    """Por dónde sale un recordatorio: WhatsApp, por el canal que el llamador ya armó.
+
+    **El canal llega armado** (ADR-0011 §2): `api/mensajeria.armar_mensajeria` lo arma una vez
+    por unidad de trabajo, y este módulo no depende de `conversational`. Fuera de producción el
+    canal puede ser el simulado, y entonces el recordatorio queda `ENVIADO` sin salir de la
+    máquina; en producción sin WhatsApp conectado es `SinCanal` y queda `FALLIDO`.
+    """
+    return EnvioPorWhatsApp(canal, armar_contactos(unidad))
 
 
 __all__ = [
     "TokenDesdeIntegraciones",
     "armar_cadena",
     "armar_clientes",
+    "armar_contactos",
     "armar_envio",
     "armar_pasarela",
     "armar_saldos",

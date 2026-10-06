@@ -33,7 +33,10 @@ transcripción.
 
 `/webhooks/whatsapp/{empresa}` está implementado y probado con firma real (HMAC-SHA256), pero
 Meta necesita alcanzarlo. En `staging` eso significa registrar la URL en la app de Meta y
-configurar `WHATSAPP_WEBHOOK_SECRET` y `WHATSAPP_WEBHOOK_VERIFY_TOKEN`.
+configurar `WHATSAPP_WEBHOOK_SECRET` y `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. Desde `canal-real-de-whatsapp`
+(U5) las dos variables están declaradas en `render.yaml` (API, `sync: false`) y en
+`docs/staging-deployment.md` §3; falta cargar sus valores cuando exista la app de Meta
+(`TODO.md` §22.30 y §22.39).
 
 **Sin el secreto configurado, ninguna firma valida** y todo se descarta (con 200, decisión
 D49). Es lo contrario de lo cómodo y es a propósito, igual que en el épico 6.
@@ -45,7 +48,8 @@ D49). Es lo contrario de lo cómodo y es a propósito, igual que en el épico 6.
 ### 4. Los callbacks de entrega llegan y no se procesan
 
 `Mensaje.marcar_entrega` existe, avanza sin retroceder y está probado; `estado_entrega` se
-guarda. Lo que falta es leer los `statuses` de la notificación de Meta y llamarlo.
+guarda. Lo que falta es leer los `statuses` de la notificación de Meta y llamarlo. **Lo hace la
+unidad `entregas-de-whatsapp` (U7)**, que también reintenta entre barridos los transitorios agotados.
 
 **Es lo que cierra el pendiente #3 del épico 6** («el estado de entrega nunca se actualiza
 después del envío»). El parser del webhook ya los distingue de los mensajes —los ignora
@@ -72,7 +76,8 @@ la aplica.
 ### 7. `AGENDA_DE_NOTIFICACION` tampoco
 
 El tercer `TipoRegla`, que gobernaría «recordale al cliente el turno de mañana» (HU-E8-04
-RN-02). El canal ya existe ahora, así que el barrido es posible; falta la regla que diga cuándo.
+RN-02). El canal ya existe ahora (U5), así que el barrido es posible; falta la regla que diga cuándo.
+**Lo hace la unidad `recordatorio-de-turno` (U8)**, que depende de U6 (plantillas).
 
 ### 8. No hay índice `ivfflat` sobre `faq.embedding_vector`
 
@@ -87,7 +92,7 @@ El día que una empresa tenga miles, el índice es una migración de dos líneas
 Editar el cuerpo de una plantilla aprobada la invalida en la práctica, pero **quien lo decide es
 Meta y no nosotros**. Ponerla en `PENDIENTE` acá sería inventar una respuesta del proveedor.
 
-Lo que falta es el cliente de la API de plantillas de Meta: enviar la plantilla editada,
+Lo que falta es el cliente de la API de plantillas de Meta (**unidad `plantillas-de-whatsapp-en-meta`, U6**): enviar la plantilla editada,
 recibir su estado, y guardarlo. Hasta entonces, `estado_aprobacion_meta` refleja lo que alguien
 haya cargado.
 
@@ -101,20 +106,20 @@ diario no muerde.
 
 ## Lo que este épico dejó preparado para otros
 
-### 11. El canal real de WhatsApp ya existe · **cierra pendientes del 6 y del 7**
+### 11. ~~El canal real de WhatsApp ya existe~~ · **cerrado por `canal-real-de-whatsapp` (U5, ADR-0011)**
 
-`MensajeriaWhatsApp` es el cliente de la Cloud API que los épicos 6 y 7 anotaron como
-pendiente. Lo que **todavía no se hizo** es reemplazar sus adaptadores de consola por éste:
+Resuelto: `payments.EnvioPorWhatsApp` (recordatorios de cobro, HS-T3) y
+`scheduling.AvisoPorWhatsApp` (avisos de turno, HU-E7-02 RN-03/RN-04) mandan **texto** por
+`MensajeriaWhatsApp`, armado una vez por unidad de trabajo en `api/mensajeria.py` y pasado hacia
+adentro como un `Protocol` local (ningún contexto importa a otro). `EnvioPorConsola` y
+`AvisoPorConsola` salieron de `src/`. En producción, una empresa sin WhatsApp conectado usa
+`SinCanal` (levanta `CanalNoConectado`): el turno se cancela igual y el recordatorio queda
+`FALLIDO`. Un fallo de Meta nunca voltea la operación ni reenvía lo que ya salió.
 
-- `payments.EnvioPorConsola` (recordatorios de cobro, HS-T3);
-- `scheduling.AvisoPorConsola` (avisos de turno, HU-E7-02 RN-03/RN-04).
-
-Los dos siguen negándose a arrancar en producción, así que el pendiente no muerde en silencio.
-El cambio es de composition root: armar `MensajeriaWhatsApp` en `api/mercadopago.py` y
-`api/agenda.py` en lugar de los dobles, y adaptar la firma de sus puertos, que hoy son distintas
-—cada contexto declaró la suya, que es lo correcto bajo R3—. **Es una unidad chica y merece
-serlo**, porque toca el camino de los mensajes que salen a clientes reales de tres contextos a
-la vez.
+**Lo que queda, y de quién es:** fuera de la ventana de 24 h Meta sólo acepta plantillas
+(error 131047), así que **hasta U6, en producción, un recordatorio o un aviso iniciado por la
+empresa fuera de la ventana queda `FALLIDO`** (visible en PAN-COB-02). Las verificaciones con un
+número de prueba real están en `TODO.md` §22.30–22.40.
 
 ### 12. `iniciador` está en la bitácora y nadie lo filtra todavía · **épico 10**
 
@@ -129,7 +134,8 @@ adentro.
 
 **Es deliberado:** el texto de fábrica tiene que existir igual (una empresa que no editó nada
 tiene que recibir mensajes), y conectar la plantilla es un cambio en cada adaptador que conviene
-hacer junto con el #11, cuando esos adaptadores se toquen de todas formas.
+hacer junto con U6 (`plantillas-de-whatsapp-en-meta`). U5 dejó los adaptadores de cobros y de turnos
+con su texto de fábrica y sin cambiar su forma, a propósito.
 
 ---
 
@@ -226,3 +232,22 @@ menciona. Ninguna regla ni criterio dice qué hace un agente pausado (¿silencio
 bandeja del operador?): sólo aparece como precondición de HS-T2 y de HU-E9-04. Decidirlo es una pregunta de
 producto. Mientras tanto, la política (b) cubre el caso más pedido —que el agente no conteste con el negocio
 cerrado— y desactivar la regla en PAN-CFG-RN vuelve al comportamiento de siempre (D100).
+
+## Lo que dejó `usos-de-faq-por-periodo`
+
+### 24. ~~El contador de usos de FAQ no tenía período~~ · **cerrado por `usos-de-faq-por-periodo` (ADR-0012)**
+
+`faq.usos` era un entero sin fecha: la pantalla decía «Usos en el período» y mostraba el total desde
+que la FAQ existe, el agente lo contaba antes de mandar el WhatsApp (un envío fallido sumaba) y lo
+incrementaba con una lectura-modificación-escritura de toda la fila (dos respuestas simultáneas
+perdían un uso, y una respuesta que se cruzaba con una edición del administrador se la pisaba).
+
+Ahora cada respuesta enviada con una FAQ es una fila de `faq_uso` (solo inserción, única por
+mensaje), la pantalla muestra «Este mes», «Mes anterior» y «Total» con los meses en hora de
+Argentina, y el detalle de cada FAQ muestra su participación antes y después de su última edición.
+El contador viejo quedó como línea de base (`usos_anteriores`) y entra solo en el total.
+
+**Lo que queda, y es deliberado:** un fallo de entrega que Meta informe después no descuenta el uso
+(ADR-0012, punto 1; depende de los callbacks de estado, pendiente #4); `faq_uso` no se poda (si se
+poda, se pliega en `usos_anteriores` en la misma transacción); y las FAQ existentes muestran «sin
+ediciones» hasta su próxima edición real, porque no hay forma honesta de saber la anterior.

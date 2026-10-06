@@ -12,8 +12,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 from cheatsheet.contexts.payments.domain.cobro import Cobro, LinkDePago
+from cheatsheet.contexts.payments.infrastructure.mapeo_de_cobro import a_dominio, a_fila
 from cheatsheet.contexts.payments.infrastructure.models import CobroORM
-from cheatsheet.contexts.payments.infrastructure.repositories import _a_dominio, _a_fila
 from cheatsheet.shared.empresa import EmpresaId
 
 AHORA = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)
@@ -42,13 +42,13 @@ def _cobro_con_reembolso_en_vuelo() -> Cobro:
 def test_la_clave_y_el_reembolso_en_vuelo_hacen_el_viaje_de_ida_y_vuelta() -> None:
     cobro = _cobro_con_reembolso_en_vuelo()
 
-    fila = _a_fila(cobro, CobroORM())
+    fila = a_fila(cobro, CobroORM())
 
     assert fila.reembolso_clave_idempotencia == cobro.reembolso_clave_idempotencia
     assert fila.reembolso_solicitado_monto == Decimal("250.00")
     assert fila.reembolso_solicitado_en == AHORA
     assert fila.reembolso_mp_refund_id == "refund-9"
-    leido = _a_dominio(fila)
+    leido = a_dominio(fila)
     assert leido.reembolso_clave_idempotencia == cobro.reembolso_clave_idempotencia
     assert leido.reembolso_solicitado_monto == cobro.reembolso_solicitado_monto
     assert leido.reembolso_solicitado_en == cobro.reembolso_solicitado_en
@@ -63,7 +63,20 @@ def test_sin_reembolso_en_vuelo_las_cuatro_columnas_quedan_vacias() -> None:
     cobro.reembolso_clave_idempotencia = None
     cobro.reembolso_mp_refund_id = None
 
-    leido = _a_dominio(_a_fila(cobro, CobroORM()))
+    leido = a_dominio(a_fila(cobro, CobroORM()))
 
     assert leido.reembolso_clave_idempotencia is None
     assert leido.reembolso_solicitado_en is None
+
+
+def test_la_clave_del_pedido_hace_el_viaje_de_ida_y_vuelta_y_puede_faltar() -> None:
+    """ADR-0013: la clave que mandó el cliente vive en la fila; los cobros viejos no la tienen."""
+    cobro = _cobro_con_reembolso_en_vuelo()
+    cobro.clave_idempotencia = uuid4()
+
+    fila = a_fila(cobro, CobroORM())
+
+    assert fila.clave_idempotencia == cobro.clave_idempotencia
+    assert a_dominio(fila).clave_idempotencia == cobro.clave_idempotencia
+    cobro.clave_idempotencia = None
+    assert a_dominio(a_fila(cobro, CobroORM())).clave_idempotencia is None

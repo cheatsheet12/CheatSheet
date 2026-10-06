@@ -60,6 +60,38 @@ class MensajeriaNoDisponible(EntradaInvalida):
     """
 
 
+class _FalloDeCanal(MensajeriaNoDisponible):
+    """Base de los fallos tipados del canal: lleva el `error.code` de Meta, si vino.
+
+    Hereda de `MensajeriaNoDisponible` a propósito: el agente (`SalidaAlCliente`) y el operador
+    (`ResponderComoOperador`) ya tratan esa clase, y las subclases no les cambian nada.
+    """
+
+    def __init__(self, mensaje: str, *, codigo: int | None = None) -> None:
+        super().__init__(mensaje)
+        self.codigo = codigo
+
+
+class MensajeRechazado(_FalloDeCanal):
+    """Permanente: Meta contestó y no lo va a aceptar aunque se reintente."""
+
+
+class MensajeriaSaturada(_FalloDeCanal):
+    """Transitorio agotado: 5xx, 429 o throttling tras los intentos, o sin conexión."""
+
+
+class EnvioIncierto(_FalloDeCanal):
+    """El pedido pudo haber llegado y no se sabe (timeout de lectura, conexión cortada).
+
+    **No se reintenta**: la Cloud API no ofrece clave de idempotencia y un duplicado es peor que
+    un mensaje que falta.
+    """
+
+
+class CanalNoConectado(_FalloDeCanal):
+    """La empresa no conectó WhatsApp (producción). No se tocó la red."""
+
+
 class HorarioNoDisponible(EntradaInvalida):
     """El motor de `scheduling` no aceptó el horario (HU-E8-01 CA4 y CA3).
 
@@ -87,14 +119,18 @@ class ClienteSinWhatsApp(EntradaInvalida):
 
 __all__ = [
     "AgenteNoDisponible",
+    "CanalNoConectado",
     "ClienteSinWhatsApp",
     "ConversacionInexistente",
+    "EnvioIncierto",
     "EscalamientoInexistente",
     "EscalamientoNoReabrible",
     "FAQInexistente",
     "HorarioEnElPasado",
     "HorarioNoDisponible",
+    "MensajeRechazado",
     "MensajeYaProcesado",
     "MensajeriaNoDisponible",
+    "MensajeriaSaturada",
     "TurnoNoCancelable",
 ]
