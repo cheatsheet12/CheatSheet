@@ -14,9 +14,11 @@ import {
   ArrowRight,
   Check,
   CloudUpload,
+  Database,
   Download,
   FileText,
   FileUp,
+  History,
   Lock,
   ListChecks,
   type LucideIcon,
@@ -40,7 +42,9 @@ export type NombreDeIcono =
   | "papelera"
   | "flecha"
   | "descargar"
-  | "lista";
+  | "lista"
+  | "base"
+  | "historial";
 
 const ICONOS: Readonly<Record<NombreDeIcono, LucideIcon>> = {
   nube: CloudUpload,
@@ -56,6 +60,8 @@ const ICONOS: Readonly<Record<NombreDeIcono, LucideIcon>> = {
   flecha: ArrowRight,
   descargar: Download,
   lista: ListChecks,
+  base: Database,
+  historial: History,
 };
 
 export function Icono({ nombre }: { readonly nombre: NombreDeIcono }): JSX.Element {
