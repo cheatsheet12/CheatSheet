@@ -36,6 +36,8 @@ MOTIVO_BAJA_CONFIANZA = "El agente no interpretó la intención con confianza su
 MOTIVO_PEDIDO_POR_EL_CLIENTE = "El cliente pidió hablar con una persona"
 MOTIVO_TRANSCRIPCION_POBRE = "La transcripción de la nota de voz no alcanzó calidad suficiente"
 MOTIVO_SIN_FAQ = "Ninguna respuesta frecuente cubre la consulta"
+#: Cancelar un turno con seña depende de una política que el sistema no conoce (pendiente #6).
+MOTIVO_CANCELACION_CON_SENA = "Cancelación de turno con seña"
 
 
 class EstadoEscalamiento(StrEnum):

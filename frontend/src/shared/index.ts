@@ -34,3 +34,9 @@ export {
   PREFERENCIAS_POR_DEFECTO,
 } from "@/shared/formato";
 export type { PreferenciasDeFormato } from "@/shared/formato";
+export { useAccionConNavegacion } from "@/shared/navegacion";
+export type {
+  AccionConNavegacion,
+  OpcionesDeEjecucion,
+  RouterDeNavegacion,
+} from "@/shared/navegacion";

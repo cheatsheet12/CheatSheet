@@ -25,7 +25,6 @@ const reembolsarCobro = vi.fn();
 const actualizarReembolso = vi.fn();
 const registrarReembolso = vi.fn();
 const corregirReembolso = vi.fn();
-const push = vi.fn();
 
 vi.mock("@/features/payments/api/cobro", async () => {
   const real = await vi.importActual<typeof import("@/features/payments/api/cobro")>(
@@ -44,7 +43,10 @@ vi.mock("@/features/payments/api/cobro", async () => {
   };
 });
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
+});
 
 import {
   ErrorDeCobro,
@@ -64,6 +66,10 @@ import type {
 const { ListadoDeCobros } = await import("@/features/payments/components/ListadoDeCobros");
 const { DetalleDeCobro } = await import("@/features/payments/components/DetalleDeCobro");
 const { NuevoCobro } = await import("@/features/payments/components/NuevoCobro");
+const { ArnesDeRouter, reiniciarRouter, resolverNavegacion, routerQueSuspende } = await import(
+  "@/shared/__tests__/router-que-suspende"
+);
+const push = routerQueSuspende.push;
 
 const PENDIENTE: Cobro = {
   id: "co1",
@@ -141,6 +147,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  reiniciarRouter();
 });
 
 /** La tarjeta de metrica que lleva ese titulo. `Card` es un `<section>` con un `<h2>`. */
@@ -836,5 +843,31 @@ describe("PAN-COB-02 — reembolsos parciales y manuales (HU-E6-05)", () => {
     await waitFor(() => {
       expect(listarCobros).toHaveBeenCalledWith({ estado: "REEMBOLSADO_PARCIAL" });
     });
+  });
+});
+
+describe("PAN-COB-03 — nuevo cobro, mientras la navegación tarda", () => {
+  it("un segundo clic después de la respuesta y antes del detalle no genera otro cobro", async () => {
+    // Un segundo cobro es un segundo link de pago, y la plata se cobra dos veces.
+    generarCobro.mockResolvedValue(PENDIENTE);
+    render(
+      <ArnesDeRouter>
+        <NuevoCobro clienteId="cl1" comprobantes={[]} />
+      </ArnesDeRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "12500.10" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/cobros/co1"));
+
+    const boton = screen.getByRole("button", { name: "Generar link de pago" });
+    expect((boton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(boton);
+    fireEvent.submit(boton.closest("form") as HTMLFormElement);
+    expect(generarCobro).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(generarCobro).toHaveBeenCalledTimes(1);
   });
 });

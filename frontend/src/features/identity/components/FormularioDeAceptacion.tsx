@@ -13,10 +13,9 @@
 
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo } from "@/shared";
+import { Alert, Button, Campo, useAccionConNavegacion } from "@/shared";
 
 import { ErrorDeFormulario, aceptarInvitacion } from "../api/cliente";
 
@@ -34,12 +33,11 @@ export interface PropsDeFormularioDeAceptacion {
 }
 
 export function FormularioDeAceptacion({ token }: PropsDeFormularioDeAceptacion): JSX.Element {
-  const router = useRouter();
   const [nombre, setNombre] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [confirmacion, setConfirmacion] = useState("");
   const [errores, setErrores] = useState<Errores>({});
-  const [enviando, setEnviando] = useState(false);
+  const { pendiente: enviando, ejecutar } = useAccionConNavegacion();
 
   const validar = (): Errores => {
     if (nombre.trim() === "") {
@@ -62,12 +60,14 @@ export function FormularioDeAceptacion({ token }: PropsDeFormularioDeAceptacion)
       return;
     }
 
-    setEnviando(true);
     try {
-      const resultado = await aceptarInvitacion({ token, nombre: nombre.trim(), contrasena });
-      // Whoever accepts is already signed in. Where they land depends on whether the
-      // company finished its onboarding, exactly as it does after signing in.
-      router.push(resultado.onboarding_completo ? "/panel" : "/onboarding/empresa");
+      await ejecutar(
+        () => aceptarInvitacion({ token, nombre: nombre.trim(), contrasena }),
+        // Whoever accepts is already signed in. Where they land depends on whether the
+        // company finished its onboarding, exactly as it does after signing in.
+        (resultado, router) =>
+          router.push(resultado.onboarding_completo ? "/panel" : "/onboarding/empresa"),
+      );
     } catch (fallo) {
       setErrores({
         general:
@@ -75,8 +75,6 @@ export function FormularioDeAceptacion({ token }: PropsDeFormularioDeAceptacion)
             ? fallo.detalle
             : "No pudimos completar la operación. Probá de nuevo en unos minutos.",
       });
-    } finally {
-      setEnviando(false);
     }
   };
 

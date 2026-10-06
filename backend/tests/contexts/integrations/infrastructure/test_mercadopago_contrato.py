@@ -82,7 +82,9 @@ TOKENS: dict[str, Any] = {
     "refresh_token": REFRESCO,
     "expires_in": 15552000,
     "user_id": 123456789,
-    "live_mode": False,
+    # MercadoPago answers `live_mode: true` for a test user too, once the token is a
+    # production one: the field says which credentials minted it, not whose account it is.
+    "live_mode": True,
     "scope": "offline_access read write",
 }
 
@@ -91,7 +93,11 @@ CUENTA: dict[str, Any] = {
     "nickname": "PANADERIA-ROSA",
     "email": "rosa@example.invalid",
     "site_id": "MLA",
+    "tags": ["test_user", "normal"],
 }
+
+#: The same seller, but a real account: no `test_user` tag.
+CUENTA_REAL: dict[str, Any] = {**CUENTA, "tags": ["normal"]}
 
 
 class Grabadora:
@@ -175,6 +181,26 @@ async def test_el_canje_manda_el_verificador_y_la_misma_redirect_uri() -> None:
     assert cuerpo["code_verifier"] == VERIFICADOR
     assert cuerpo["redirect_uri"] == RETORNO
     assert cuerpo["client_id"] == "app-de-prueba"
+
+
+async def test_el_canje_no_pide_credenciales_de_sandbox() -> None:
+    """Con `test_token`, el token es de sandbox y el checkout de sandbox falla al pagar
+    («Oh, no, algo anduvo mal»). Las cuentas de prueba usan credenciales productivas."""
+    grabadora = Grabadora([_ok(TOKENS), _ok(CUENTA)])
+
+    await _conector(grabadora).conectar(_material())
+
+    assert "test_token" not in json.loads(grabadora.pedidos[0].content)
+
+
+async def test_una_cuenta_de_prueba_con_token_productivo_conecta_en_staging() -> None:
+    """El caso de staging: `live_mode` en `true`, y aun así es una cuenta de prueba."""
+    grabadora = Grabadora([_ok(TOKENS), _ok(CUENTA)])
+
+    resultado = await _conector(grabadora, es_produccion=False).conectar(_material())
+
+    assert resultado.estado is EstadoDeConexion.CONECTADO
+    assert resultado.parametros[CLAVE_CUENTA_REAL] is False
 
 
 async def test_la_cuenta_se_lee_antes_de_dar_por_conectada_la_integracion() -> None:
@@ -302,13 +328,18 @@ async def test_una_respuesta_sin_los_dos_tokens_no_se_guarda() -> None:
 
 async def test_una_cuenta_real_en_homologacion_se_rechaza() -> None:
     """Caso 13. Es el caso que cobra plata de verdad desde un entorno de pruebas."""
-    grabadora = Grabadora([_ok({**TOKENS, "live_mode": True})])
+    grabadora = Grabadora([_ok(TOKENS), _ok(CUENTA_REAL)])
 
     with pytest.raises(ConexionRechazada, match="cuenta de prueba"):
         await _conector(grabadora, es_produccion=False).conectar(_material())
 
-    # Y no se llegó a preguntar por la cuenta: se corta antes.
-    assert len(grabadora.pedidos) == 1
+
+async def test_sin_la_etiqueta_de_prueba_se_rechaza_aunque_live_mode_sea_false() -> None:
+    """La cuenta se juzga por quién es, no por qué credenciales firmaron el token."""
+    grabadora = Grabadora([_ok({**TOKENS, "live_mode": False}), _ok(CUENTA_REAL)])
+
+    with pytest.raises(ConexionRechazada, match="cuenta de prueba"):
+        await _conector(grabadora, es_produccion=False).conectar(_material())
 
 
 async def test_una_cuenta_de_prueba_en_produccion_conecta_en_atencion() -> None:
@@ -323,7 +354,7 @@ async def test_una_cuenta_de_prueba_en_produccion_conecta_en_atencion() -> None:
 
 
 async def test_una_cuenta_real_en_produccion_conecta_normal() -> None:
-    grabadora = Grabadora([_ok({**TOKENS, "live_mode": True}), _ok(CUENTA)])
+    grabadora = Grabadora([_ok(TOKENS), _ok(CUENTA_REAL)])
 
     resultado = await _conector(grabadora, es_produccion=True).conectar(_material())
 
@@ -344,6 +375,14 @@ async def test_la_renovacion_manda_el_refresh_token_guardado() -> None:
     assert cuerpo["refresh_token"] == "refresco-viejo"
 
 
+async def test_la_renovacion_tampoco_pide_credenciales_de_sandbox() -> None:
+    grabadora = Grabadora([_ok(TOKENS)])
+
+    await _conector(grabadora).renovar(empaquetar(ACCESO, REFRESCO))
+
+    assert "test_token" not in json.loads(grabadora.pedidos[0].content)
+
+
 async def test_la_renovacion_no_vuelve_a_leer_la_cuenta() -> None:
     """Un canje que funciona ya prueba que el token sirve. Preguntar de nuevo no agrega."""
     grabadora = Grabadora([_ok(TOKENS)])
@@ -353,15 +392,17 @@ async def test_la_renovacion_no_vuelve_a_leer_la_cuenta() -> None:
     assert len(grabadora.pedidos) == 1
 
 
-async def test_un_desajuste_de_ambiente_en_la_renovacion_no_desconecta() -> None:
-    """Rechazar acá sería tirar abajo una conexión que venía funcionando."""
-    grabadora = Grabadora([_ok({**TOKENS, "live_mode": True})])
+async def test_la_renovacion_no_vuelve_a_juzgar_el_tipo_de_cuenta() -> None:
+    """Un refresh no cambia de quién es la cuenta: eso se decidió al conectar y queda en los
+    parámetros guardados, que la renovación no pisa. `live_mode` no dice nada sobre eso."""
+    grabadora = Grabadora([_ok(TOKENS)])
 
     resultado = await _conector(grabadora, es_produccion=False).renovar(
         empaquetar(ACCESO, REFRESCO)
     )
 
-    assert resultado.estado is EstadoDeConexion.ATENCION
+    assert resultado.estado is EstadoDeConexion.CONECTADO
+    assert CLAVE_CUENTA_REAL not in resultado.parametros
 
 
 async def test_una_credencial_guardada_rota_se_reporta_como_tal() -> None:
@@ -446,7 +487,9 @@ async def test_sin_expires_in_se_asume_la_duracion_habitual() -> None:
 
 async def test_una_cuenta_sin_email_igual_tiene_etiqueta() -> None:
     """MercadoPago no siempre devuelve el mail; la tarjeta necesita decir algo igual."""
-    grabadora = Grabadora([_ok(TOKENS), _ok({"id": 1, "nickname": "PANADERIA-ROSA"})])
+    grabadora = Grabadora(
+        [_ok(TOKENS), _ok({"id": 1, "nickname": "PANADERIA-ROSA", "tags": ["test_user"]})]
+    )
 
     resultado = await _conector(grabadora).conectar(_material())
 

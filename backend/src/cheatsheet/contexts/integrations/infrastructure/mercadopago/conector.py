@@ -23,6 +23,7 @@ from cheatsheet.contexts.integrations.infrastructure.mercadopago.cliente import 
 from cheatsheet.contexts.integrations.infrastructure.mercadopago.mapeo import (
     desempaquetar,
     empaquetar,
+    es_cuenta_real,
     estado_por_ambiente,
     leer_tokens,
     parametros_de,
@@ -50,11 +51,12 @@ class ConectorMercadoPago:
 
         datos = await self._cliente.canjear(codigo=codigo, verificador=verificador)
         tokens = leer_tokens(datos, self._reloj.ahora())
-        estado, detalle = estado_por_ambiente(tokens.cuenta_real, self._es_produccion)
+        # The account is read before judging it: whether it is a test one is on the
+        # account (`/users/me` tags), not on the token.
+        cuenta = await self._cliente.cuenta(acceso=tokens.acceso)
+        estado, detalle = estado_por_ambiente(es_cuenta_real(cuenta), self._es_produccion)
         if estado is EstadoDeConexion.NO_CONECTADO:
             raise ConexionRechazada(detalle or "La cuenta de MercadoPago no corresponde")
-
-        cuenta = await self._cliente.cuenta(acceso=tokens.acceso)
         return ResultadoDeConexion(
             credencial=empaquetar(tokens.acceso, tokens.refresco),
             estado=estado,
@@ -65,21 +67,15 @@ class ConectorMercadoPago:
     async def renovar(self, credencial: bytes) -> ResultadoDeConexion:
         """Trade the stored refresh token for a fresh pair.
 
-        **A mismatch found here never disconnects.** `estado_por_ambiente` refuses a real
-        account outside production, which is right when somebody is connecting one; at
-        renewal time that same finding would mean the deployment moved underneath an
-        integration that has been working, and dropping a working connection over it would
-        be the wrong call. It becomes `ATENCION` — visible, and still usable.
+        **It does not judge the account again.** Whose account it is was decided when it
+        connected, from `/users/me`, and a refresh cannot change it; the token response
+        says nothing about it either. The stored kind stays as it was, because the renewal
+        merges its parameters over the stored ones, and the status check re-reads it.
         """
         _, refresco = desempaquetar(credencial)
         datos = await self._cliente.refrescar(refresco=refresco)
         tokens = leer_tokens(datos, self._reloj.ahora())
-        estado, detalle = estado_por_ambiente(tokens.cuenta_real, self._es_produccion)
-        if estado is EstadoDeConexion.NO_CONECTADO:
-            estado = EstadoDeConexion.ATENCION
         return ResultadoDeConexion(
             credencial=empaquetar(tokens.acceso, tokens.refresco),
-            estado=estado,
-            detalle=detalle,
             parametros=parametros_de(tokens),
         )

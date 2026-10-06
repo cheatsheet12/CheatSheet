@@ -49,7 +49,8 @@ No ADR needed for: naming a function, adding a test, fixing a bug.
 | [0006](0006-staging-hosting-render.md) | Host staging on Render, and let CI — not the push — release it | Proposed | 2026-08-24 |
 | [0009](0009-review-adjustments-scope-change.md) | Amend the story catalogue after the 2026-09 review, and register its units in the existing epics | Proposed | 2026-09-29 |
 | [0010](0010-payment-date-method-and-refunds.md) | Record how and when a payment was made, and model refunds as dated, append-only records | Accepted | 2026-09-30 |
-| [0012](0012-faq-uses-per-month-and-share.md) | Count FAQ uses per calendar month in Argentina time, and show each FAQ's share before and after its last edit | Proposed | 2026-10-04 |
+| [0011](0011-outbound-whatsapp-channel-via-composition-root.md) | Share the outbound WhatsApp channel through the composition root | Accepted | 2026-10-05 |
+| [0012](0012-faq-uses-per-month-and-share.md) | Count FAQ uses per calendar month in Argentina time, and show each FAQ's share before and after its last edit | Accepted | 2026-10-05 |
 
 > The architecture itself (modular monolith, hexagonal, multi-tenancy, sync model,
 > ACLs, processing guarantees, security) was decided during Etapa 5 and is recorded as

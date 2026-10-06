@@ -11,32 +11,49 @@ para que esa frase sea segura.
    interpretar una transcripción rota es adivinar dos veces seguidas.
 3. **Registrar el mensaje entrante.** Antes de interpretarlo: si el modelo se cae, el mensaje
    igual quedó, y un operador puede leerlo.
-4. **Interpretar.** El modelo devuelve una intención y una confianza, y **nada más**.
-5. **Encaminar.** Por debajo del umbral, o agotados los intentos, se escala.
+4. **Responder a lo que el agente ofreció.** Si hay un diálogo pendiente («elegí un horario»,
+   «¿confirmás?») y el mensaje es la respuesta, lo lee un analizador **determinista** y se actúa
+   **sin llamar al modelo** (`TurnosPorWhatsApp.continuar`).
+5. **Interpretar.** El modelo devuelve una intención, una confianza y, si es un turno, qué quiere
+   hacer y para cuándo — y **nada más**. Antes de salir, el texto y el historial pasan por
+   `ocultar_datos_personales` (`CLAUDE.md` §3.6).
+6. **Encaminar.** Por debajo del umbral, o agotados los intentos, se escala.
 
 **Lo que el modelo no puede hacer** (decisión **D38**): reservar, cancelar, cobrar, ni mandar
 un mensaje que él haya redactado sobre datos que él haya elegido. Las acciones son llamadas a
 `PortAgenda`, que del otro lado son los casos de uso deterministas de `scheduling` con su
-restricción de exclusión. Un prompt injection que logre convencer al modelo de que el cliente
-quiere reservar produce, como mucho, que el agente ofrezca horarios reales de esa empresa.
+restricción de exclusión, y los ids que se reservan o cancelan salen del `Dialogo` que armó el
+sistema. Un prompt injection que logre convencer al modelo de que el cliente quiere cancelar
+produce, como mucho, una pregunta de confirmación sobre un turno de ese cliente.
 
 **Si hay un escalamiento abierto, el agente no contesta** (HU-E9-01 RN-02). El mensaje se
 registra igual —el operador lo tiene que ver— pero no se interpreta ni se responde.
+
+**Fuera de horario**, con la política de mensaje fijo, tampoco se interpreta: lo resuelve
+`AtencionFueraDeHorario` (HS-T2 RN-04). Con la política por defecto el agente sigue como de día y
+sólo cambia el aviso de derivación.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from dataclasses import dataclass, replace
+from datetime import datetime
 from uuid import UUID, uuid4
 
+from cheatsheet.contexts.conversational.application.contexto import (
+    ContextoDelMensaje,
+    Desenlace,
+    evento_del_agente,
+)
 from cheatsheet.contexts.conversational.application.errors import MensajeYaProcesado
+from cheatsheet.contexts.conversational.application.fuera_de_horario import AtencionFueraDeHorario
 from cheatsheet.contexts.conversational.application.ports import (
     Lectura,
     MensajeEntrante,
     PortAgenda,
     PortDirectorio,
     PortEmbeddings,
+    PortHorarioDeAtencion,
     PortInterprete,
     PortMensajeria,
     PortRepositorioConversacion,
@@ -45,16 +62,19 @@ from cheatsheet.contexts.conversational.application.ports import (
     PortRepositorioMensaje,
     PortTranscriptor,
 )
+from cheatsheet.contexts.conversational.application.salida import SalidaAlCliente
+from cheatsheet.contexts.conversational.application.turnos_por_whatsapp import TurnosPorWhatsApp
 from cheatsheet.contexts.conversational.domain.conversacion import (
-    MENSAJE_DERIVACION,
     MENSAJE_OFRECER_ASESOR,
     Conversacion,
     DireccionMensaje,
-    EstadoEntrega,
     Intencion,
     Mensaje,
-    OrigenDelMensaje,
     TipoContenido,
+)
+from cheatsheet.contexts.conversational.domain.datos_personales import (
+    historial_para_el_interprete,
+    ocultar_datos_personales,
 )
 from cheatsheet.contexts.conversational.domain.escalamiento import (
     MOTIVO_BAJA_CONFIANZA,
@@ -63,7 +83,8 @@ from cheatsheet.contexts.conversational.domain.escalamiento import (
     Escalamiento,
 )
 from cheatsheet.contexts.conversational.domain.faq import UMBRAL_DE_SIMILITUD
-from cheatsheet.shared.auditoria import EventoAuditable, Iniciador, Modulo, Resultado
+from cheatsheet.contexts.conversational.domain.pedido_de_persona import pide_una_persona
+from cheatsheet.shared.auditoria import Resultado
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import PublicadorDeEventos
 
@@ -77,23 +98,6 @@ UMBRAL_DE_CONFIANZA = 0.6
 
 #: Debajo de esto, una transcripción no se interpreta: se escala (HS-T7 RN-04).
 UMBRAL_DE_TRANSCRIPCION = 0.5
-
-#: Cuántos horarios se ofrecen de una. Más de tres en un mensaje de WhatsApp es una lista que
-#: nadie lee; el ejemplo de la historia ofrece dos.
-HORARIOS_A_OFRECER = 3
-
-#: Las palabras con las que alguien pide una persona (HU-E8-05 RN-01: «cuando el cliente la
-#: solicita explícitamente»). Se comprueban **antes** de llamar al modelo: es la única
-#: intención cuya interpretación no puede depender de un modelo que quizá no entienda.
-PEDIDOS_DE_HUMANO = (
-    "hablar con una persona",
-    "hablar con alguien",
-    "un humano",
-    "una persona",
-    "un asesor",
-    "atencion humana",
-    "atención humana",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +126,7 @@ class ProcesarMensajeEntrante:
         mensajeria: PortMensajeria,
         embeddings: PortEmbeddings,
         agenda: PortAgenda,
+        horario: PortHorarioDeAtencion,
         publicador: PublicadorDeEventos,
     ) -> None:
         self._conversaciones = conversaciones
@@ -131,10 +136,20 @@ class ProcesarMensajeEntrante:
         self._clientes = clientes
         self._interprete = interprete
         self._transcriptor = transcriptor
-        self._mensajeria = mensajeria
         self._embeddings = embeddings
-        self._agenda = agenda
         self._publicador = publicador
+        self._salida = SalidaAlCliente(mensajes=mensajes, mensajeria=mensajeria)
+        self._turnos = TurnosPorWhatsApp(
+            conversaciones=conversaciones, salida=self._salida, agenda=agenda, publicador=publicador
+        )
+        self._fuera_de_horario = AtencionFueraDeHorario(
+            horario=horario,
+            conversaciones=conversaciones,
+            mensajes=mensajes,
+            mensajeria=mensajeria,
+            agenda=agenda,
+            publicador=publicador,
+        )
 
     async def ejecutar(
         self, *, empresa_id: EmpresaId, entrante: MensajeEntrante, ahora: datetime
@@ -145,55 +160,77 @@ class ProcesarMensajeEntrante:
 
         cliente_id = await self._resolver_cliente(entrante)
         conversacion = await self._hilo_de(empresa_id, cliente_id, ahora)
+        contexto = ContextoDelMensaje(
+            empresa_id, conversacion, cliente_id, entrante.telefono, ahora
+        )
 
         # 2. Transcribir si hace falta.
         texto, tipo, transcripcion_pobre = await self._texto_de(entrante)
 
         # 3. Registrar. **Antes** de interpretar: si el modelo se cae, el mensaje quedó.
-        await self._guardar_entrante(empresa_id, conversacion, entrante, texto, tipo, ahora)
+        guardado = await self._guardar_entrante(
+            empresa_id, conversacion, entrante, texto, tipo, ahora
+        )
         conversacion.registrar_actividad(ahora)
 
         # Si un operador está atendiendo, el agente calla (HU-E9-01 RN-02).
-        abierto = await self._escalamientos.abierto_de(conversacion.id)
-        if abierto is not None:
+        if await self._escalamientos.abierto_de(conversacion.id) is not None:
             await self._conversaciones.guardar(conversacion)
             return Respuesta(
                 conversacion.id, Intencion.DESCONOCIDA, escalado=True, texto_enviado=None
             )
 
+        # Fuera de horario con mensaje fijo: no se interpreta ni se escala (HS-T2 RN-04).
+        cerrado = await self._fuera_de_horario.atender_cerrado(contexto, guardado, texto)
+        if cerrado is not None:
+            await self._conversaciones.guardar(conversacion)
+            return await self._terminar(contexto, cerrado, guardado.intencion)
+
         if transcripcion_pobre:
-            return await self._escalar(
-                empresa_id, conversacion, entrante.telefono, MOTIVO_TRANSCRIPCION_POBRE, ahora
-            )
+            return await self._escalar(contexto, MOTIVO_TRANSCRIPCION_POBRE)
 
-        # El pedido explícito de una persona no pasa por el modelo: ver `PEDIDOS_DE_HUMANO`.
-        if _pide_una_persona(texto):
-            return await self._escalar(
-                empresa_id, conversacion, entrante.telefono, MOTIVO_PEDIDO_POR_EL_CLIENTE, ahora
-            )
+        # El pedido explícito de una persona no pasa por el modelo: ver `pide_una_persona`.
+        if pide_una_persona(texto):
+            return await self._escalar(contexto, MOTIVO_PEDIDO_POR_EL_CLIENTE)
 
-        # 4. Interpretar.
-        historial = [uno.contenido for uno in await self._mensajes.del_hilo(conversacion.id)]
-        lectura = await self._interprete.leer(texto, historial=historial[-6:])
-        await self._auditar(empresa_id, conversacion, lectura, ahora)
+        # 4. Una respuesta a lo que el agente ofreció se lee sin el modelo (T3).
+        desenlace = await self._turnos.continuar(contexto, texto)
+        if desenlace is not None:
+            await self._anotar_intencion(guardado, Intencion.TURNO)
+            return await self._terminar(contexto, desenlace)
 
-        # 5. Encaminar.
+        return await self._interpretar_y_encaminar(contexto, guardado, texto)
+
+    async def _interpretar_y_encaminar(
+        self, contexto: ContextoDelMensaje, guardado: Mensaje, texto: str
+    ) -> Respuesta:
+        """Los pasos 5 y 6: lo que sí necesita al modelo."""
+        conversacion = contexto.conversacion
+        # 5. Interpretar: con los datos personales ocultos (`CLAUDE.md` §3.6).
+        historial = historial_para_el_interprete(await self._mensajes.del_hilo(conversacion.id))
+        lectura = await self._interprete.leer(ocultar_datos_personales(texto), historial=historial)
+        await self._auditar(contexto, lectura)
+        if self._turnos.completa_un_pedido_en_curso(contexto, lectura):
+            # T8: «el jueves a la tarde» completa la reserva que pidió el día, aunque venga floja.
+            confianza = max(lectura.confianza, UMBRAL_DE_CONFIANZA)
+            lectura = replace(lectura, intencion=Intencion.TURNO, confianza=confianza)
+
+        # 6. Encaminar.
         if lectura.confianza < UMBRAL_DE_CONFIANZA:
+            await self._anotar_intencion(guardado, Intencion.DESCONOCIDA)
             conversacion.anotar_intento_fallido()
             if conversacion.agoto_los_intentos:
-                return await self._escalar(
-                    empresa_id, conversacion, entrante.telefono, MOTIVO_BAJA_CONFIANZA, ahora
-                )
+                return await self._escalar(contexto, MOTIVO_BAJA_CONFIANZA)
             await self._conversaciones.guardar(conversacion)
-            texto_enviado = await self._responder(
-                empresa_id, conversacion, entrante.telefono, MENSAJE_OFRECER_ASESOR, ahora
-            )
+            texto_enviado = await self._decir(contexto, MENSAJE_OFRECER_ASESOR)
             return Respuesta(conversacion.id, Intencion.DESCONOCIDA, False, texto_enviado)
 
+        await self._anotar_intencion(guardado, lectura.intencion)
         conversacion.anotar_intento_entendido()
+        if lectura.intencion is not Intencion.TURNO:
+            conversacion.cerrar_dialogo()  # cambió de tema: la oferta pendiente ya no vale
         await self._conversaciones.guardar(conversacion)
-        salida = await self._encaminar(empresa_id, conversacion, entrante, lectura, texto, ahora)
-        return Respuesta(conversacion.id, lectura.intencion, False, salida)
+        return await self._encaminar(contexto, lectura, texto)
 
     # -- pasos ------------------------------------------------------------------------
 
@@ -209,7 +246,9 @@ class ProcesarMensajeEntrante:
     async def _hilo_de(
         self, empresa_id: EmpresaId, cliente_id: UUID, ahora: datetime
     ) -> Conversacion:
-        abierta = await self._conversaciones.abierta_de(cliente_id)
+        # Bloqueado (T10): dos mensajes casi simultáneos del mismo cliente se procesan de a uno,
+        # y el segundo lee el diálogo ya consumido. Sin esto, «1» y «2» podrían reservar dos turnos.
+        abierta = await self._conversaciones.abierta_de(cliente_id, bloquear=True)
         if abierta is not None:
             return abierta
         nueva = Conversacion(
@@ -237,79 +276,55 @@ class ProcesarMensajeEntrante:
         texto: str,
         tipo: TipoContenido,
         ahora: datetime,
-    ) -> None:
-        await self._mensajes.agregar(
-            Mensaje(
-                id=uuid4(),
-                conversacion_id=conversacion.id,
-                empresa_id=empresa_id,
-                direccion=DireccionMensaje.ENTRANTE,
-                tipo_contenido=tipo,
-                contenido=texto,
-                momento=entrante.momento or ahora,
-                externo_id=entrante.externo_id,
-            )
+    ) -> Mensaje:
+        mensaje = Mensaje(
+            id=uuid4(),
+            conversacion_id=conversacion.id,
+            empresa_id=empresa_id,
+            direccion=DireccionMensaje.ENTRANTE,
+            tipo_contenido=tipo,
+            contenido=texto,
+            momento=entrante.momento or ahora,
+            externo_id=entrante.externo_id,
         )
+        await self._mensajes.agregar(mensaje)
+        return mensaje
+
+    async def _anotar_intencion(self, mensaje: Mensaje, intencion: Intencion) -> None:
+        """HS-T2 RN-02: el mensaje interpretado queda con la intención que el agente aplicó.
+
+        Los caminos que no interpretan no pasan por acá y la dejan en `None` («no se clasificó»).
+        """
+        mensaje.intencion = intencion
+        await self._mensajes.guardar(mensaje)
 
     async def _encaminar(
-        self,
-        empresa_id: EmpresaId,
-        conversacion: Conversacion,
-        entrante: MensajeEntrante,
-        lectura: Lectura,
-        texto: str,
-        ahora: datetime,
-    ) -> str | None:
+        self, contexto: ContextoDelMensaje, lectura: Lectura, texto: str
+    ) -> Respuesta:
         if lectura.intencion is Intencion.TURNO:
-            return await self._ofrecer_horarios(empresa_id, conversacion, entrante, ahora)
+            return await self._terminar(contexto, await self._turnos.atender(contexto, lectura))
         if lectura.intencion is Intencion.FAQ or lectura.intencion is Intencion.CONSULTA:
-            return await self._responder_faq(empresa_id, conversacion, entrante, texto, ahora)
-        # `PAGO` no tiene flujo automático en este épico: el cobro lo genera una persona
-        # (HU-E6-03), así que lo honesto es derivar en vez de improvisar una respuesta.
-        return await self._responder(
-            empresa_id, conversacion, entrante.telefono, MENSAJE_OFRECER_ASESOR, ahora
+            salida = await self._responder_faq(contexto, texto)
+        else:
+            # `PAGO` no tiene flujo automático en este épico: el cobro lo genera una persona
+            # (HU-E6-03), así que lo honesto es derivar en vez de improvisar una respuesta.
+            salida = await self._decir(contexto, MENSAJE_OFRECER_ASESOR)
+        return Respuesta(contexto.conversacion.id, lectura.intencion, False, salida)
+
+    async def _terminar(
+        self,
+        contexto: ContextoDelMensaje,
+        desenlace: Desenlace,
+        intencion: Intencion | None = Intencion.TURNO,
+    ) -> Respuesta:
+        """Cierra un paso: si pide una persona, se escala; si no, ya contestó (o calló)."""
+        if desenlace.escalar_por is not None:
+            return await self._escalar(contexto, desenlace.escalar_por)
+        return Respuesta(
+            contexto.conversacion.id, intencion or Intencion.DESCONOCIDA, False, desenlace.texto
         )
 
-    async def _ofrecer_horarios(
-        self,
-        empresa_id: EmpresaId,
-        conversacion: Conversacion,
-        entrante: MensajeEntrante,
-        ahora: datetime,
-    ) -> str | None:
-        """HU-E8-01 RN-01 y RN-02: **la disponibilidad real, no la que el modelo imagine.**
-
-        Los horarios salen de `scheduling`, ya cruzados contra los turnos tomados. El agente no
-        elige ninguno: los ofrece, y la reserva la confirma el motor determinista cuando el
-        cliente responde.
-        """
-        manana = (ahora + timedelta(days=1)).date()
-        horarios = await self._agenda.horarios_ofrecibles(dia=manana, limite=HORARIOS_A_OFRECER)
-        if not horarios:
-            return await self._responder(
-                empresa_id,
-                conversacion,
-                entrante.telefono,
-                "No tengo horarios disponibles para mañana. ¿Querés que te derive con un asesor?",
-                ahora,
-            )
-        listado = " o ".join(uno.inicio.strftime("%H:%M") for uno in horarios)
-        return await self._responder(
-            empresa_id,
-            conversacion,
-            entrante.telefono,
-            f"Tengo disponible mañana a las {listado}. ¿Cuál preferís?",
-            ahora,
-        )
-
-    async def _responder_faq(
-        self,
-        empresa_id: EmpresaId,
-        conversacion: Conversacion,
-        entrante: MensajeEntrante,
-        texto: str,
-        ahora: datetime,
-    ) -> str | None:
+    async def _responder_faq(self, contexto: ContextoDelMensaje, texto: str) -> str | None:
         """HU-E8-03. Por significado (RN-02), y con umbral (RN-03).
 
         **La respuesta es la que escribió la empresa, palabra por palabra.** El modelo no la
@@ -321,133 +336,61 @@ class ProcesarMensajeEntrante:
         mejor = candidatas[0] if candidatas else None
         if mejor is None or not mejor.alcanza:
             # RN-03: ninguna FAQ alcanza, se ofrece derivar.
-            return await self._responder(
-                empresa_id, conversacion, entrante.telefono, MENSAJE_OFRECER_ASESOR, ahora
-            )
+            return await self._decir(contexto, MENSAJE_OFRECER_ASESOR)
         mejor.faq.registrar_uso()
         await self._faqs.guardar(mejor.faq)
-        return await self._responder(
-            empresa_id, conversacion, entrante.telefono, mejor.faq.respuesta, ahora
-        )
+        return await self._decir(contexto, mejor.faq.respuesta)
 
-    async def _escalar(
-        self,
-        empresa_id: EmpresaId,
-        conversacion: Conversacion,
-        telefono: str,
-        motivo: str,
-        ahora: datetime,
-    ) -> Respuesta:
+    async def _escalar(self, contexto: ContextoDelMensaje, motivo: str) -> Respuesta:
         """HU-E8-05. Se registra el motivo, se avisa al cliente, y el agente calla."""
+        conversacion, ahora = contexto.conversacion, contexto.ahora
         await self._escalamientos.agregar(
             Escalamiento(
                 id=uuid4(),
                 conversacion_id=conversacion.id,
-                empresa_id=empresa_id,
+                empresa_id=contexto.empresa_id,
                 motivo=motivo,
                 created_at=ahora,
                 updated_at=ahora,
             )
         )
         conversacion.anotar_intento_entendido()
+        conversacion.cerrar_dialogo()  # escalar deja sin efecto lo que se había ofrecido
         await self._conversaciones.guardar(conversacion)
-        texto = await self._responder(empresa_id, conversacion, telefono, MENSAJE_DERIVACION, ahora)
-        await self._publicador.publicar(
-            EventoAuditable(
-                evento_id=uuid4(),
-                empresa_id=empresa_id,
-                ocurrido_en=ahora,
-                modulo=Modulo.CONVERSATIONAL,
-                accion="escalar_conversacion",
-                entidad_afectada=f"Conversacion:{conversacion.id}",
-                resultado=Resultado.COMPLETADO,
-                iniciador=Iniciador.IA,
-            )
+        texto = await self._decir(
+            contexto, await self._fuera_de_horario.aviso_de_derivacion(contexto)
         )
+        await self._publicar(contexto, "escalar_conversacion")
         return Respuesta(conversacion.id, Intencion.DESCONOCIDA, escalado=True, texto_enviado=texto)
 
-    async def _responder(
-        self,
-        empresa_id: EmpresaId,
-        conversacion: Conversacion,
-        telefono: str,
-        texto: str,
-        ahora: datetime,
-    ) -> str | None:
-        """Manda el mensaje y lo guarda. **Un fallo de WhatsApp no voltea lo que ya pasó.**
-
-        Un turno reservado sigue reservado aunque la confirmación no salga; lo contrario
-        dejaría al negocio sin poder operar cuando Meta tiene un problema. Es la misma decisión
-        D33 del épico 7.
-        """
-        externo_id: str | None = None
-        estado = EstadoEntrega.FALLIDO
-        try:
-            externo_id = await self._mensajeria.enviar(telefono=telefono, texto=texto)
-            estado = EstadoEntrega.ENVIADO
-        except Exception as fallo:  # noqa: BLE001 — ver abajo
-            # `Exception` es lo que `CLAUDE.md` §5 prohíbe en general, y acá está acotado por
-            # el motivo: **ningún fallo del canal puede revertir la operación**. El puerto lo
-            # implementan adaptadores que pueden levantar lo que el SDK de turno levante, y
-            # enumerarlos acá acoplaría este caso de uso a su infraestructura.
-            estado = EstadoEntrega.FALLIDO
-            del fallo
-        await self._mensajes.agregar(
-            Mensaje(
-                id=uuid4(),
-                conversacion_id=conversacion.id,
-                empresa_id=empresa_id,
-                direccion=DireccionMensaje.SALIENTE,
-                tipo_contenido=TipoContenido.TEXTO,
-                contenido=texto,
-                momento=ahora,
-                origen=OrigenDelMensaje.AGENTE,
-                estado_entrega=estado,
-                externo_id=externo_id,
-            )
+    async def _decir(self, contexto: ContextoDelMensaje, texto: str) -> str | None:
+        return await self._salida.responder(
+            contexto.empresa_id,
+            contexto.conversacion,
+            contexto.telefono,
+            texto,
+            contexto.ahora,
         )
-        return texto if estado is EstadoEntrega.ENVIADO else None
 
-    async def _auditar(
-        self,
-        empresa_id: EmpresaId,
-        conversacion: Conversacion,
-        lectura: Lectura,
-        ahora: datetime,
-    ) -> None:
+    async def _auditar(self, contexto: ContextoDelMensaje, lectura: Lectura) -> None:
         """HS-T2 RN-05: **iniciador IA**.
 
         Es la marca que hace que el panel de auditoría del épico 10 pueda contestar «qué hizo
         el agente solo», que es la pregunta que alguien se hace la primera vez que un cliente
         se queja de algo que nadie recuerda haber hecho.
         """
+        await self._publicar(contexto, f"interpretar_mensaje:{lectura.intencion.value}")
+
+    async def _publicar(self, contexto: ContextoDelMensaje, accion: str) -> None:
+        entidad = f"Conversacion:{contexto.conversacion.id}"
         await self._publicador.publicar(
-            EventoAuditable(
-                evento_id=uuid4(),
-                empresa_id=empresa_id,
-                ocurrido_en=ahora,
-                modulo=Modulo.CONVERSATIONAL,
-                accion=f"interpretar_mensaje:{lectura.intencion.value}",
-                entidad_afectada=f"Conversacion:{conversacion.id}",
-                resultado=Resultado.COMPLETADO,
-                iniciador=Iniciador.IA,
+            evento_del_agente(
+                contexto, accion=accion, entidad=entidad, resultado=Resultado.COMPLETADO
             )
         )
 
 
-def _pide_una_persona(texto: str) -> bool:
-    """HU-E8-05 RN-01, sin pasar por el modelo.
-
-    Es una comprobación de subcadenas y es a propósito: la única intención que **no puede**
-    depender de que un modelo la entienda es justamente la de alguien que ya se cansó del
-    modelo.
-    """
-    normalizado = texto.lower()
-    return any(frase in normalizado for frase in PEDIDOS_DE_HUMANO)
-
-
 __all__ = [
-    "HORARIOS_A_OFRECER",
     "UMBRAL_DE_CONFIANZA",
     "UMBRAL_DE_SIMILITUD",
     "UMBRAL_DE_TRANSCRIPCION",

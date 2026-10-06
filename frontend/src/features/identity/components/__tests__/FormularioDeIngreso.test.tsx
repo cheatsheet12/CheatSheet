@@ -11,8 +11,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const empujar = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: empujar }) }));
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
+});
 
 const registrar = vi.fn();
 const ingresar = vi.fn();
@@ -25,10 +27,14 @@ vi.mock("@/features/identity/api/cliente", async () => {
 
 const { FormularioDeIngreso } = await import("@/features/identity/components/FormularioDeIngreso");
 const { ErrorDeFormulario } = await import("@/features/identity/api/cliente");
+const { ArnesDeRouter, reiniciarRouter, resolverNavegacion, routerQueSuspende } = await import(
+  "@/shared/__tests__/router-que-suspende"
+);
+const empujar = routerQueSuspende.push;
 
 afterEach(() => {
   cleanup();
-  empujar.mockReset();
+  reiniciarRouter();
   registrar.mockReset();
   ingresar.mockReset();
 });
@@ -91,6 +97,52 @@ describe("PAN-ONB-01 — ingreso", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ingresar" }));
 
     await waitFor(() => expect(screen.getByText("Email o contraseña incorrectos.")).toBeDefined());
+  });
+});
+
+describe("PAN-ONB-01 — ingreso, mientras la navegación tarda", () => {
+  function entrar(): void {
+    escribir(/Email/, "ana@empresa.com");
+    escribir(/Contraseña/, "una-contrasena");
+    fireEvent.click(screen.getByRole("button", { name: "Ingresar" }));
+  }
+
+  it("el botón sigue ocupado hasta que se muestra la página de destino y un segundo envío no repite el login", async () => {
+    ingresar.mockResolvedValue({ onboarding_completo: true });
+    render(
+      <ArnesDeRouter>
+        <FormularioDeIngreso />
+      </ArnesDeRouter>,
+    );
+
+    entrar();
+    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/panel"));
+
+    // The login already answered; the destination has not arrived yet.
+    const boton = screen.getByRole("button", { name: "Ingresar" });
+    expect(boton.hasAttribute("disabled")).toBe(true);
+    expect(boton.getAttribute("aria-busy")).toBe("true");
+    fireEvent.submit(boton.closest("form") as HTMLFormElement);
+    expect(ingresar).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(ingresar).toHaveBeenCalledTimes(1);
+  });
+
+  it("si el login falla el botón se libera y se muestra el error", async () => {
+    ingresar.mockRejectedValue(new ErrorDeFormulario("Email o contraseña incorrectos."));
+    render(
+      <ArnesDeRouter>
+        <FormularioDeIngreso />
+      </ArnesDeRouter>,
+    );
+
+    entrar();
+
+    await waitFor(() => expect(screen.getByText("Email o contraseña incorrectos.")).toBeDefined());
+    const boton = screen.getByRole("button", { name: "Ingresar" });
+    expect(boton.hasAttribute("disabled")).toBe(false);
+    expect(empujar).not.toHaveBeenCalled();
   });
 });
 

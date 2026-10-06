@@ -1,9 +1,9 @@
 # ADR-0012 — Count FAQ uses per calendar month in Argentina time, from an append-only event table, and show each FAQ's share before and after its last edit
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-10-05, by the owner of the conversational module)
 - **Date:** 2026-10-04
-- **Decided by:** Product owners and the development team (pending approval)
-- **Modules affected:** conversational, frontend (plus one constant in the Shared Kernel, `shared/`)
+- **Decided by:** Luciano Oro, owner of Atención y Escalamiento (HU-E9-04) in the Etapa 6 split
+- **Modules affected:** conversational, frontend (reads one existing constant of the Shared Kernel, `shared/`)
 
 ---
 
@@ -22,9 +22,9 @@ What the code does today does not answer either rule:
   since the FAQ was created. The DER (`docs/aidlc/inputs/der.md`, table `faq`) does not even have
   that column; the code added it.
 - The agent increments the counter **before** sending the WhatsApp message
-  (`application/agente.py:327-329`), so a use is counted even when the send fails and the customer
+  (`application/agente.py:340-341`), so a use is counted even when the send fails and the customer
   received nothing.
-- The increment is a read-modify-write of the whole row (`infrastructure/repositories.py:207-212`,
+- The increment is a read-modify-write of the whole row (`infrastructure/repositories.py:217-222`,
   `_faq_a_fila` copies every column). Two concurrent answers lose one increment, and an agent answer
   that overlaps an administrator's edit writes the old question and answer back over the new ones.
 - The administrator has no way to know whether editing an FAQ helped. The business question behind
@@ -39,7 +39,9 @@ Constraints that frame the answer:
   month (21:00–24:00 Argentina time) into the next one; that bug already exists twice in the
   repository (`docs/aidlc/TODO.md` §22.5 and §22.6).
 - Dependency rule R3 forbids `conversational` from importing `reporting`, where the zone constant
-  `ZONA_DEL_REPORTE` lives today (`reporting/infrastructure/acl.py:69`).
+  `ZONA_DEL_REPORTE` lives (`reporting/infrastructure/acl.py:69`). The Shared Kernel already
+  publishes the same zone as `ZONA_ARGENTINA` (`shared/zona_horaria.py`, added with the unit
+  `reserva-y-cancelacion-por-whatsapp`), and `conversational` already uses it.
 - Meta retries webhooks. Whatever records a use must not record it twice for one inbound message.
 - An FAQ is the only entity in the system that is really deleted (HU-E9-04 RN-03).
 
@@ -69,8 +71,8 @@ The detail needed to implement it:
 4. **Months.** Month boundaries are computed from the injected clock in
    `America/Argentina/Buenos_Aires` and converted to UTC instants before querying. «This month» is
    `[first day of the current month 00:00 ART, first day of next month 00:00 ART)`; «previous
-   month» is the month before it. The zone constant moves to the Shared Kernel (`shared/`) so that
-   `conversational` can use it without breaking R3.
+   month» is the month before it. The zone is the Shared Kernel's `ZONA_ARGENTINA`
+   (`shared/zona_horaria.py`); no new constant is created.
 5. **Total since creation.** Uses recorded before this decision cannot be dated. The existing
    counter is frozen as a baseline (`faq.usos_anteriores`, never written again) and the total is
    `usos_anteriores + rows in faq_uso`. The baseline is honest about what it is: it includes the
@@ -98,17 +100,18 @@ The detail needed to implement it:
 ### Amended story
 
 HU-E9-04 is amended in place and carries the marker `> Modificada por ADR-0012 (2026-10-04).`
-under its heading, as ADR-0009 did. The exact text is in the appendix.
+under its heading, as ADR-0009 did. The exact text is in the appendix. That amendment is part of the
+PR that accepts this ADR; the documents below change with the unit, together with the migration
+and the code they describe.
 
-### Other documents that change in the same PR as this ADR
+### Other documents that change with the unit `usos-de-faq-por-periodo`
 
 | Document | Change |
 | --- | --- |
-| `docs/aidlc/inputs/historias-de-usuario.md` | HU-E9-04 replaced by the appendix block |
 | `docs/aidlc/inputs/der.md` | Table `faq`: add `usos_anteriores`, `editada_en`, `seguimiento_desde`. New table `faq_uso` (BC9 section), with a note on append-only and `ON DELETE SET NULL` |
 | `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` | New item: «El contador de usos de FAQ no tenía período» → resolved by unit `usos-de-faq-por-periodo` (ADR-0012) |
 | `docs/aidlc/units.md` | The unit `usos-de-faq-por-periodo` (state `pendiente`), in the epic «Agente de WhatsApp y atención humana» |
-| `docs/aidlc/TODO.md` §22 | New finding without a unit: the Argentina zone is declared three times (`reporting/infrastructure/acl.py:69`, `scheduling/domain/recurso.py:46`, `identity/domain/usuario.py:30`); after this ADR the Shared Kernel holds it and the other two can point to it. §22.5 and §22.6 gain the note that the constant they need is now importable from `payments` |
+| `docs/aidlc/TODO.md` §22 | New finding without a unit: besides the Shared Kernel's `ZONA_ARGENTINA`, the Argentina zone is still declared three more times (`reporting/infrastructure/acl.py:69`, `scheduling/domain/recurso.py:46`, `identity/domain/usuario.py:30`); those can point to the Shared Kernel. §22.5 and §22.6 gain the note that the constant they need is importable from `payments` |
 
 The prototype (`docs/aidlc/inputs/prototipos/agente-whatsapp.html`) is an Etapa 5 input and is not
 edited. It stays the source of «este mes»; the previous-month and total columns and the share
@@ -132,8 +135,8 @@ detail are an extension it does not draw, and the amended story is what describe
 - Concurrent answers never lose a count, and an agent answer can no longer overwrite an
   administrator's edit.
 - The administrator can see whether an edit changed how often the agent picks that answer.
-- The Argentina zone becomes a Shared Kernel constant, which also unblocks the fixes of TODO §22.5
-  (payments cannot import reporting either).
+- Months are computed with the Shared Kernel's `ZONA_ARGENTINA`, the same constant the fixes of
+  TODO §22.5 and §22.6 can use (payments cannot import reporting either).
 
 **Negative / cost we accept**
 - Uses before the deployment are a baseline without dates: they appear in the total and never in a
