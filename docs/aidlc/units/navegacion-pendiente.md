@@ -207,7 +207,7 @@ Ningún test existente afirma hoy que el botón se rehabilita tras el éxito; lo
 |---|---|---|
 | 1 · Plan | 2026-10-05 | Aprobado por Luciano: P1, P2, P3 y P4 según la recomendación |
 | 2 · Verificación | 2026-10-05 | Aprobado por Luciano: lint, typecheck, prettier y 965 tests en verde (88,02 %); revisión independiente sin bloqueantes. La prueba en Render (TODO §22.21-22.22) queda para después del merge y condiciona el cierre |
-| 3 · PR | | |
+| 3 · PR | 2026-10-05 | [#90](https://github.com/cheatsheet12/CheatSheet/pull/90) contra `develop`. **Mergeado el 2026-10-05** (`c348f80`) con la CI en verde, tras integrar `develop` (conflicto con #93 en `FormularioDeEmpresa.tsx`, resuelto conservando el destino `/configuracion/integraciones` dentro del hook, `7ce0294`). Desplegado en staging. **Verificado en Render** por Luciano el 2026-10-05 (TODO §22.21 y §22.22): login con un clic, un solo `POST` por clic en cobro, turno y emisión, y «Cerrar sesión» + «atrás» pide login |
 
 ## Decisiones tomadas durante la unidad
 - **Gate 1 (2026-10-05), respuestas de Luciano:**
