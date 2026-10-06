@@ -19,9 +19,11 @@ Las cuatro tablas del DER. Tres cosas valen leerse dos veces:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,6 +49,15 @@ class ConversacionORM(Base):
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: Lo que el agente le ofreció al cliente y espera que conteste (T2): un solo diálogo pendiente
+    #: por conversación, con su vencimiento adentro. El formato lo define `dialogo_json.py`; el DER
+    #: no tiene esta columna y la decisión D99 explica por qué. `none_as_null`: sin diálogo es
+    #: `NULL` de SQL y no el JSON `null`, que `IS NULL` no vería.
+    #: El constructor de `JSONB` no está tipado en SQLAlchemy: de ahí el `ignore`, acotado a esa llamada.
+    dialogo: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True),  # type: ignore[no-untyped-call]
+        nullable=True,
+    )
 
     __table_args__ = (
         # Cómo un mensaje entrante encuentra su hilo: el activo de ese cliente.

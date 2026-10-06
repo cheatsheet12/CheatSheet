@@ -13,6 +13,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ETIQUETAS_DE_TIPO,
   ErrorDeRegla,
   cambiarEstadoDeRegla,
   configurarEscalamiento,
@@ -42,6 +43,12 @@ function conConfiguracion(configuracion: Record<string, unknown>): ReglaDeNegoci
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+});
+
+describe("ETIQUETAS_DE_TIPO", () => {
+  it("rotula el horario de atención para que PAN-CFG-RN lo liste", () => {
+    expect(ETIQUETAS_DE_TIPO.HORARIO_DE_ATENCION).toBe("Horario de atención");
+  });
 });
 
 describe("listarReglas", () => {

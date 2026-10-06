@@ -286,14 +286,30 @@ Una lista de cambios sobre el documento de Drive, no el documento entero:
 
 | Dato | Valor |
 |---|---|
-| Empresa | **Estudio Ejemplo SRL** · CUIT `30-00000000-0` (inválido a propósito) · Responsable Inscripto |
-| Segunda empresa (pruebas de aislamiento) | **Taller Muestra SA** · CUIT `30-11111111-1` |
-| Administrador | `admin@estudio-ejemplo.test` |
-| Operador | `operador@estudio-ejemplo.test` |
-| Solo Lectura | `lectura@estudio-ejemplo.test` |
-| Clientes | Ana Prueba · Bruno Ficticio · Carla Demo, CUIT `20-22222222-2` y siguientes |
+| Empresa | **Estudio Ejemplo SRL** · Responsable Inscripto · CUIT según la tabla de abajo |
+| Segunda empresa (pruebas de aislamiento) | **Taller Muestra SA** · CUIT `30-11111111-8` |
+| Administrador | `admin.<apellido>@estudio-ejemplo.test` (por ejemplo, `admin.ferreira@estudio-ejemplo.test`) |
+| Operador | `operador.<apellido>@estudio-ejemplo.test` |
+| Solo Lectura | `lectura.<apellido>@estudio-ejemplo.test` |
+| Clientes | Ana Prueba · Bruno Ficticio · Carla Demo, CUIT `20-22222222-3`, `20-22222223-1` y `20-22222224-9` |
 | Teléfono WhatsApp | `+54 9 11 0000-0000` y siguientes |
 | Servicios | Consulta general ($ 15.000,00, IVA 21 %), Sesión de seguimiento ($ 9.500,00, IVA 21 %) |
+
+**Staging es compartido y el sistema no admite dos empresas con el mismo CUIT ni dos cuentas con
+el mismo email.** Por eso cada integrante registra **su propia** Estudio Ejemplo SRL, con su CUIT y
+sus correos:
+
+| Integrante | CUIT de su Estudio Ejemplo SRL |
+|---|---|
+| Cristian Suarez | `30-00000001-5` (ya registrada el 05/10/2026) |
+| Juan Caballero | `30-00000002-3` |
+| Vincenzo Dallape | `30-00000003-1` |
+| Paula Ferreira | `30-00000004-9` |
+| Emanuel Gomez | `30-00000005-8` |
+| Luciano Oro | `30-00000006-6` |
+
+Todos los CUIT de esta sección tienen el dígito verificador correcto: el panel y la API rechazan
+uno inválido y el onboarding no avanza. `30-00000000-7` ya está tomado en staging: no se usa.
 
 El dominio `.test` está reservado y nunca resuelve: un correo de prueba no le llega a nadie.
 

@@ -37,6 +37,7 @@ from cheatsheet.api.conversacional import (
     armar_agenda,
     armar_directorio,
     armar_embeddings,
+    armar_horario_de_atencion,
     armar_interprete,
     armar_mensajeria,
     armar_transcriptor,
@@ -149,12 +150,8 @@ async def _procesar(recursos: Recursos, empresa: EmpresaId, entrante: MensajeEnt
             transcriptor=armar_transcriptor(recursos.settings),
             mensajeria=await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa),
             embeddings=armar_embeddings(),
-            agenda=armar_agenda(
-                unidad,
-                recursos.settings,
-                empresa_id=empresa,
-                usuario_id=USUARIO_DEL_AGENTE,
-            ),
+            agenda=armar_agenda(unidad, empresa_id=empresa, usuario_id=USUARIO_DEL_AGENTE),
+            horario=armar_horario_de_atencion(unidad, empresa_id=empresa),
             publicador=unidad.publicador,
         )
         try:

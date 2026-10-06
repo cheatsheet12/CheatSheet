@@ -88,6 +88,11 @@ services:
       # character or the exchange fails with `invalid_grant`.
       - key: APP_BASE_URL
         sync: false
+      # This service's own public URL. Every MercadoPago link carries
+      # {API_URL_PUBLICA}/webhooks/mercadopago/{empresa_id} as notification_url;
+      # required when MERCADOPAGO_ADAPTADOR=mercadopago.
+      - key: API_URL_PUBLICA
+        sync: false
       # Same four values as the worker: both processes read and write the same
       # objects, and two different buckets would be two halves of one flow.
       - key: ALMACENAMIENTO_ADAPTADOR
@@ -169,6 +174,10 @@ services:
       - key: SECRETS_ENCRYPTION_KEY
         sync: false
       - key: APP_BASE_URL
+        sync: false
+      # Same value as on the API. The worker loads the same Settings, which refuse to
+      # boot without it when MERCADOPAGO_ADAPTADOR=mercadopago.
+      - key: API_URL_PUBLICA
         sync: false
       # Object storage, and it stops being optional the day this service exists.
       # `GenerarPaqueteContable` runs BOTH here and in the API; with the in-memory

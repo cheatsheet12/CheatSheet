@@ -14,8 +14,12 @@ from __future__ import annotations
 from enum import StrEnum
 
 from celery import Celery
+from celery.signals import setup_logging
 
 from cheatsheet.platform.settings import Settings
+
+#: Lets `conservar_el_logging_propio` connect its receiver once, however often it is called.
+IDENTIFICADOR_DEL_LOGGING = "cheatsheet.workers.logging_propio"
 
 
 class Cola(StrEnum):
@@ -51,3 +55,21 @@ def crear_celery(settings: Settings | None = None) -> Celery:
     )
     app.autodiscover_tasks(["cheatsheet.workers"])
     return app
+
+
+def conservar_el_logging_propio() -> None:
+    """Keep the pipeline `configurar_logging` installed when a worker starts.
+
+    A booting worker reconfigures the root logger unless some receiver answers Celery's
+    `setup_logging` signal: it sets the level of its `-l` option (WARNING when absent) and
+    adds its own handler, and `worker_hijack_root_logger=False` does not prevent either.
+    Every `logger.info` of every task disappeared that way. Answering the signal is how
+    Celery documents opting out, and it leaves `LOG_LEVEL` in charge, as it is in the API.
+    """
+    setup_logging.connect(
+        _logging_ya_configurado, weak=False, dispatch_uid=IDENTIFICADOR_DEL_LOGGING
+    )
+
+
+def _logging_ya_configurado(**_: object) -> None:
+    """Nothing to do: `workers/main.py` ran `configurar_logging` before the worker started."""
