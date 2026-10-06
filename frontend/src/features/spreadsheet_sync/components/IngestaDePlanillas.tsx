@@ -264,7 +264,7 @@ export function IngestaDePlanillas({
     try {
       await desvincularPlanilla(vinculo.id);
       await refrescar();
-      setAviso("Se desvinculo la planilla. Los datos que ya se importaron siguen en el sistema.");
+      setAviso("Se desvinculó la planilla. Los datos que ya se importaron siguen en el sistema.");
     } catch (problema) {
       reportar(problema);
     }
@@ -288,7 +288,7 @@ export function IngestaDePlanillas({
         </span>
       ),
     },
-    { clave: "tamano", titulo: "Tamano", celda: (v) => tamanoLegible(v.tamano_bytes) },
+    { clave: "tamano", titulo: "Tamaño", celda: (v) => tamanoLegible(v.tamano_bytes) },
     {
       clave: "estado",
       titulo: "Estado",
@@ -311,7 +311,7 @@ export function IngestaDePlanillas({
     titulo: "Acciones",
     alDerecha: true,
     celda: (vinculo) => (
-      <>
+      <span className="ing-acciones-fila">
         {/* El estado «Falta mapear» tiene que llevar a algún lado: sin este enlace la fila
             sólo ofrecía desvincular, que es lo contrario de lo que quiere alguien que acaba
             de subir el archivo.
@@ -337,14 +337,14 @@ export function IngestaDePlanillas({
         )}
         <Button
           variante="destructivo"
-          confirmacion="Vas a desvincular esta planilla. Los datos que ya se importaron se quedan; solo se corta la conexion."
+          confirmacion="Vas a desvincular esta planilla. Los datos que ya se importaron se quedan; solo se corta la conexión."
           onClick={() => {
             void desvincular(vinculo);
           }}
         >
           Desvincular
         </Button>
-      </>
+      </span>
     ),
   };
 
@@ -375,10 +375,20 @@ export function IngestaDePlanillas({
             <span className="ing-dz-ico">
               <Icono nombre="nube" />
             </span>
-            <p className="ing-dz-titulo">Arrastrá tu planilla acá</p>
+            <p className="ing-dz-titulo">
+              {arrastrando ? "Soltá la planilla para subirla" : "Arrastrá tu planilla acá"}
+            </p>
             <p className="ing-dz-sub">
-              Formatos aceptados: {EXTENSIONES_ACEPTADAS.join(", ")} · tamaño máximo{" "}
-              {LIMITE_TAMANO_MB} MB
+              {/* Los formatos y el tope, dichos una sola vez y como etiquetas: es lo que se
+                  mira de un vistazo antes de elegir un archivo. */}
+              <span className="ing-dz-formatos">
+                {EXTENSIONES_ACEPTADAS.map((extension) => (
+                  <span key={extension} className="ing-dz-formato">
+                    {extension}
+                  </span>
+                ))}
+              </span>
+              <span className="ing-dz-limite">Hasta {LIMITE_TAMANO_MB} MB</span>
             </p>
             <div className="ing-dz-acciones">
               {/* El label es el botón y el input de verdad vive adentro: un solo control,
@@ -406,6 +416,7 @@ export function IngestaDePlanillas({
                   setPidiendoEnlace(true);
                 }}
               >
+                <Icono nombre="planilla" />
                 Vincular Google Sheets
               </Button>
             </div>
@@ -433,6 +444,7 @@ export function IngestaDePlanillas({
             <ul className="ing-chips">
               {ATRIBUTOS_DE_CLIENTE.map((atributo) => (
                 <li key={atributo} className="ing-chip">
+                  <Icono nombre="tilde" />
                   {ETIQUETAS_DE_ATRIBUTO[atributo] ?? atributo}
                 </li>
               ))}
@@ -487,37 +499,39 @@ export function IngestaDePlanillas({
       {/* Las dos tablas van en tarjeta y con encabezado visible: `Tabla` pone su título en un
           `<caption>` oculto, así que sin esto quien mira la pantalla ve dos rejillas seguidas y
           tiene que deducir dónde termina una. */}
-      <Card>
-        <div className="ing-seccion">
-          <div>
-            <h2 className="ing-seccion__titulo">Planillas vinculadas</h2>
-            <p className="ing-seccion__sub">Las fuentes desde las que entran tus datos</p>
+      <div className="ing-tarjetas">
+        <Card>
+          <div className="ing-seccion">
+            <div>
+              <h2 className="ing-seccion__titulo">Planillas vinculadas</h2>
+              <p className="ing-seccion__sub">Las fuentes desde las que entran tus datos</p>
+            </div>
           </div>
-        </div>
-        <Tabla
-          titulo="Planillas vinculadas"
-          columnas={columnas}
-          filas={listado.vinculos}
-          claveDeFila={(vinculo) => vinculo.id}
-          vacia="Todavia no vinculaste ninguna planilla."
-        />
-      </Card>
+          <Tabla
+            titulo="Planillas vinculadas"
+            columnas={columnas}
+            filas={listado.vinculos}
+            claveDeFila={(vinculo) => vinculo.id}
+            vacia="Todavía no vinculaste ninguna planilla."
+          />
+        </Card>
 
-      <Card>
-        <div className="ing-seccion">
-          <div>
-            <h2 className="ing-seccion__titulo">Cargas recientes</h2>
-            <p className="ing-seccion__sub">Tus últimas ingestas de datos</p>
+        <Card>
+          <div className="ing-seccion">
+            <div>
+              <h2 className="ing-seccion__titulo">Cargas recientes</h2>
+              <p className="ing-seccion__sub">Tus últimas ingestas de datos</p>
+            </div>
           </div>
-        </div>
-        <Tabla
-          titulo="Cargas recientes"
-          columnas={COLUMNAS_DE_CARGA}
-          filas={cargas}
-          claveDeFila={(carga) => carga.id}
-          vacia="Todavia no procesaste ninguna planilla."
-        />
-      </Card>
+          <Tabla
+            titulo="Cargas recientes"
+            columnas={COLUMNAS_DE_CARGA}
+            filas={cargas}
+            claveDeFila={(carga) => carga.id}
+            vacia="Todavía no procesaste ninguna planilla."
+          />
+        </Card>
+      </div>
     </>
   );
 }

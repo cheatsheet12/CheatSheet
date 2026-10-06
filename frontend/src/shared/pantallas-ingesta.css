@@ -745,50 +745,107 @@
 
 /* ── PAN-ING-01 · zona de carga ───────────────────────────────────────────── */
 .ing-dropzone {
-  border: 1.5px dashed var(--line);
-  border-radius: var(--radius-card);
-  background: var(--card);
-  padding: 44px var(--space-6);
+  position: relative;
+  border: 1.5px dashed var(--ink-300);
+  border-radius: 20px;
+  /* Un degradado apenas perceptible hacia el tinte: una zona de carga blanca y plana no se
+     distingue de una tarjeta cualquiera, y es lo primero que hay que reconocer en la pantalla. */
+  background: linear-gradient(180deg, var(--card) 0%, var(--bg-soft) 100%);
+  padding: 40px var(--space-6) 30px;
   text-align: center;
-  box-shadow: var(--shadow);
   transition:
-    border-color 0.14s ease,
-    background-color 0.14s ease;
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.ing-dropzone:hover {
+  border-color: var(--accent);
 }
 
 /* El único aviso de que el navegador va a aceptar el `drop`. Sin esto, arrastrar es fe. */
 .ing-dropzone--activa {
+  border-style: solid;
   border-color: var(--accent);
   background: var(--accent-050);
+  box-shadow:
+    0 0 0 5px rgb(0 196 140 / 12%),
+    0 18px 40px rgb(0 168 121 / 12%);
+  transform: scale(1.005);
 }
 
 .ing-dz-ico {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-card);
-  background: var(--accent-050);
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  background: linear-gradient(145deg, var(--accent-050), var(--accent-100));
   color: var(--accent-700);
   display: grid;
   place-items: center;
   margin: 0 auto var(--space-4);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 168 121 / 14%),
+    0 10px 24px rgb(0 168 121 / 14%);
+  animation: ing-flota 3.2s ease-in-out infinite;
+}
+
+.ing-dropzone--activa .ing-dz-ico {
+  animation: none;
+  transform: translateY(-4px) scale(1.1);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes ing-flota {
+  50% {
+    transform: translateY(-5px);
+  }
 }
 
 .ing-dz-ico svg {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
 }
 
 .ing-dz-titulo {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
+  letter-spacing: -0.015em;
   margin: 0;
   color: var(--ink-900);
 }
 
+/* Los formatos y el tope, como etiquetas: se leen de un vistazo, no como una oración. */
 .ing-dz-sub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 22px;
+}
+
+.ing-dz-formatos {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.ing-dz-formato {
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-600);
+}
+
+.ing-dz-limite {
+  margin-left: 4px;
   font-size: 12.5px;
   color: var(--ink-400);
-  margin: 6px 0 20px;
 }
 
 .ing-dz-acciones {
@@ -799,8 +856,25 @@
   flex-wrap: wrap;
 }
 
+.ing-dz-acciones .boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding-inline: 18px;
+  border-radius: 12px;
+}
+
+.ing-dz-acciones .boton svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: var(--accent-700);
+}
+
 .ing-dz-o {
-  color: var(--ink-400);
+  color: var(--ink-300);
+  font-size: 13px;
   margin: 0;
 }
 
@@ -816,22 +890,37 @@
  * El input se oculta recortándolo, nunca con `display: none`: eso lo sacaría del árbol de
  * accesibilidad y del foco, que es exactamente lo que no queremos. */
 .ing-archivo {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  border-radius: var(--radius-control);
-  padding: 10px 16px;
+  gap: 9px;
+  height: 44px;
+  border-radius: 12px;
+  padding: 0 20px 0 16px;
   font-size: 13.5px;
   font-weight: 600;
-  background: var(--accent);
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
   color: var(--primary);
   cursor: pointer;
-  transition: background-color 0.14s ease;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
 }
 
 .ing-archivo:hover {
-  background: var(--accent-700);
-  color: var(--color-text-on-dark);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 30%);
+}
+
+.ing-archivo:active {
+  transform: scale(0.97);
 }
 
 /* El foco vive en el input recortado, así que el anillo lo dibuja el label por él. */
@@ -841,8 +930,8 @@
 }
 
 .ing-archivo svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .ing-archivo input {
@@ -861,9 +950,9 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ink-400);
-  margin: 18px 0 0;
+  margin: 22px 0 0;
 }
 
 .ing-candado svg {
@@ -872,50 +961,54 @@
   flex: none;
 }
 
-/* La banda que anuncia qué campos reconoce el modelo, con un chip por campo. */
+/* La banda que anuncia qué campos reconoce el modelo, con una etiqueta por campo. Es una
+   tarjeta sobria con un azulejo oscuro: antes era una franja verde que competía con el botón
+   principal por la atención. */
 .ing-detect {
   display: flex;
   align-items: center;
   gap: var(--space-4);
   flex-wrap: wrap;
-  padding: var(--space-4) 20px;
-  margin-top: 18px;
-  background: var(--accent-050);
-  border: 1px solid var(--accent-100);
+  padding: 16px 20px;
+  margin: 18px 0;
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
 }
 
 .ing-detect__ico {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--color-text-on-dark);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--ink-900), var(--color-mid));
+  color: #5fe0bb;
   display: grid;
   place-items: center;
   flex: none;
+  box-shadow: 0 6px 14px rgb(30 30 46 / 22%);
 }
 
 .ing-detect__ico svg {
-  width: 18px;
-  height: 18px;
+  width: 19px;
+  height: 19px;
 }
 
 .ing-detect__titulo {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   display: block;
   color: var(--ink-900);
 }
 
 .ing-detect__sub {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--ink-500);
 }
 
 .ing-chips {
   display: flex;
-  gap: 7px;
+  gap: 8px;
   flex-wrap: wrap;
   margin: 0;
   padding: 0;
@@ -925,31 +1018,46 @@
 }
 
 .ing-chip {
-  font-family: var(--mono);
-  font-size: 11px;
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px 5px 8px;
   border-radius: 999px;
-  background: var(--card);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   color: var(--ink-700);
+}
+
+.ing-chip svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--accent-700);
 }
 
 /* Celda de una carga en «Cargas recientes»: el estado también entra por el icono. */
 .ing-carga {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 14px;
 }
 
 .ing-carga__ico {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
   background: var(--info-bg);
   color: var(--info);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tabla tr:hover .ing-carga__ico {
+  transform: scale(1.08) rotate(-4deg);
 }
 
 .ing-carga__ico--ok {
@@ -968,8 +1076,8 @@
 }
 
 .ing-carga__ico svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
 }
 
 .ing-carga__nombre {
@@ -980,16 +1088,72 @@
 }
 
 .ing-carga__ref {
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--ink-400);
   display: block;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .ing-filas {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Las dos tablas de la pantalla, una debajo de la otra y con aire entre sí: antes las tarjetas
+   se tocaban y se leían como una sola. */
+.ing-tarjetas {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Las acciones de una fila de «Planillas vinculadas»: en línea y alineadas, con «Desvincular»
+   discreto. Un recuadro rojo por fila se lee como una alarma, y no lo es: es una acción rara y
+   ya pide confirmación antes de hacer nada. */
+.ing-acciones-fila {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ing-acciones-fila .boton {
+  height: 36px;
+  padding-inline: 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+}
+
+.ing-acciones-fila .boton--destructivo {
+  background: transparent;
+  border-color: transparent;
+  color: var(--err);
+  box-shadow: none;
+}
+
+.ing-acciones-fila .boton--destructivo:hover:not(:disabled) {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-dz-ico {
+    animation: none;
+  }
+
+  .ing-dropzone,
+  .ing-archivo,
+  .ing-carga__ico {
+    transition: none;
+  }
+
+  .ing-dropzone--activa,
+  .ing-dropzone--activa .ing-dz-ico,
+  .ing-archivo:hover,
+  .ing-archivo:active,
+  .tabla tr:hover .ing-carga__ico {
+    transform: none;
+  }
 }
 
 /* ── PAN-ING-02 · revisión del mapeo ─────────────────────────────────────── */
@@ -1529,4 +1693,22 @@
   .dsh-entidad__ir {
     transition: none;
   }
+}
+
+/* «Revisar mapeo» es el paso que sigue a «Falta mapear»: dentro de la fila toma el relieve de
+   una acción principal discreta, y no el de un enlace de texto más. */
+.ing-acciones-fila .ing-accion {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+  color: var(--accent-700);
+}
+
+.ing-acciones-fila .ing-accion:hover {
+  background: var(--accent-100);
+  border-color: var(--accent-100);
 }
