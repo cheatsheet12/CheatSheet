@@ -51,26 +51,23 @@ guarda. Lo que falta es leer los `statuses` de la notificación de Meta y llamar
 después del envío»). El parser del webhook ya los distingue de los mensajes —los ignora
 explícitamente y contesta 200— así que lo que falta es una rama, no una estructura.
 
-### 5. El agente ofrece horarios pero todavía no confirma la reserva
+### 5. ~~El agente ofrece horarios pero todavía no confirma la reserva~~ · **cerrado por `reserva-y-cancelacion-por-whatsapp`**
 
-`ProcesarMensajeEntrante` cubre el primer criterio de HU-E8-01 —«ofrece horarios disponibles
-reales»— y el ACL tiene `reservar`, que es el motor determinista. Lo que no existe es el **paso
-intermedio**: recordar qué horarios se ofrecieron para poder entender «el jueves a las 10:30».
-
-Eso es estado de conversación, y necesita una decisión que no se tomó: dónde vive. Las opciones
-razonables son una columna JSONB en `conversacion` o releer los últimos mensajes salientes. **No
-se improvisó** porque la mitad peligrosa —que la reserva la haga el motor y no el modelo— ya
-está resuelta y probada; lo que falta es la parte fácil, y hacerla mal significaría que el
-agente reserve algo que el cliente no eligió.
-
-Lo mismo aplica a HU-E8-02 (cancelar por WhatsApp): `turnos_de` y `cancelar` están en el ACL, y
-falta el paso de «cuál de los dos».
+Resuelto: el estado de la conversación vive en `conversacion.dialogo` (decisión **D99**). El agente guarda
+lo que ofreció, lee la respuesta del cliente con un analizador determinista y reserva o cancela por los casos
+de uso de `scheduling`. Cubre HU-E8-01 (CA1 a CA4, CA6, CA7) y HU-E8-02. Queda a la vista lo que sólo se
+prueba contra PostgreSQL y el modelo real: ver `TODO.md` §22 y §25.
 
 ### 6. `POLITICA_DE_TURNO` sigue sin configuración tipada · **cuando haga falta**
 
 Es el pendiente #9 del épico 7. `TipoRegla` tiene el valor desde el épico 6; lo que va a
 contener —anticipación mínima, hasta cuándo se puede cancelar— es política que el agente va a
-consumir cuando complete el flujo del pendiente #5.
+consumir.
+
+**Lo que decidió `reserva-y-cancelacion-por-whatsapp` mientras no exista:** el agente **no cancela un turno
+con seña** —avisa que lo deriva y escala con el motivo «Cancelación de turno con seña»— y los turnos sin
+seña se cancelan sin anticipación mínima, como desde el panel. Cuando exista la política tipada, el agente
+la aplica.
 
 ### 7. `AGENDA_DE_NOTIFICACION` tampoco
 
@@ -171,26 +168,80 @@ necesita —reservar y cancelar turnos— y nada de lo que no.
 correcta a futuro es un permiso propio; hoy el sistema no tiene granularidad más fina que el rol,
 y agregarla por este caso sería un cambio en los siete épicos anteriores.
 
-### 17. `AgendaViaScheduling.horarios_ofrecibles` elige el primer servicio del recurso
+### 17. ~~`AgendaViaScheduling.horarios_ofrecibles` elige el primer servicio del recurso~~ · **cerrado por `reserva-y-cancelacion-por-whatsapp`**
 
-Cuando un recurso presta varios servicios, el ACL toma el de id más bajo para armar el horario
-ofrecible. Es arbitrario y está a la vista.
+Resuelto: el servicio sale de lo que pidió el cliente. Con un solo servicio agendable con recurso activo no
+se pregunta; con varios, el texto se compara de forma determinista con el catálogo y, si no hay una
+coincidencia única, el agente pregunta con una lista numerada. `horarios_ofrecibles` se reemplazó por
+`servicios_ofrecibles` y `horarios_libres(servicio_id, dia)`.
 
-No muerde todavía porque el agente **no confirma reservas** (pendiente #5): los horarios que
-ofrece son del recurso, y el servicio se decide cuando se reserve de verdad. El día que se cierre
-ese flujo, el servicio tiene que salir de lo que el cliente pidió — que es parte de la misma
-decisión pendiente.
+### 18. ~~El diálogo de «ese horario ya pasó, te ofrezco otros» no existe~~ · **cerrado por `reserva-y-cancelacion-por-whatsapp`**
 
+Resuelto: ante una fecha u hora que ya pasó, o un horario que se venció mientras el cliente dudaba, el agente
+lo dice y ofrece alternativas vigentes; el motor vuelve a verificar al confirmar (`HorarioEnElPasado`).
 
-### 18. El diálogo de «ese horario ya pasó, te ofrezco otros» no existe · **cierra con el #5**
+---
 
-HU-E8-01 RN-06 pide que el agente, ante una fecha u hora que ya pasó, lo indique y ofrezca
-alternativas futuras. **El diálogo no se agregó porque el flujo conversacional todavía no llama a
-`reservar`** (pendiente #5): no hay un paso donde un horario elegido se confirme, así que no hay
-dónde atrapar el rechazo.
+## Lo que dejó `reserva-y-cancelacion-por-whatsapp`
 
-Lo que sí quedó listo con la unidad `turnos-no-en-el-pasado` (D95): `horarios_ofrecibles` ya
-filtra los horarios pasados con el reloj inyectado, y `PortAgenda.reservar` puede levantar
-`TurnoEnElPasado` —el motor vuelve a verificar al confirmar— sin excepción a posteriori en este
-canal. Cuando se cierre el #5, el diálogo es atrapar ese error y volver a llamar a
-`horarios_ofrecibles`.
+### 19. Reprogramar un turno por WhatsApp no tiene historia
+
+Ninguna HU lo pide. Si el cliente pide mover un turno, el agente ofrece un asesor (como con `PAGO`) y no toca
+la agenda. Si se quiere automatizar, hace falta primero la historia: qué pasa con la seña, qué anticipación
+mínima rige (pendiente #6) y si se reprograma sobre la misma oferta de horarios.
+
+### 20. ~~El historial que se le manda al intérprete incluye los textos del agente~~ · **cerrado por `reserva-y-cancelacion-por-whatsapp`**
+
+Resuelto (decisión de Luciano, 2026-10-05): al intérprete sólo le llega lo que escribió el cliente, con los
+datos personales ocultos. **Todo** saliente se reemplaza por el descriptor de quien lo escribió, también los
+del agente (`[Respuesta del agente]`), y no sólo los que listan turnos. Los textos del agente los arma el
+sistema con datos de la agenda y del directorio («tu turno de Psicología del jueves 14/10», «Hola Ana»):
+marcar únicamente los que hablan de turnos obligaba a guardar una marca que `mensaje` no tiene y a que cada
+texto nuevo se acordara de marcarse. Lo que se pierde es poco: las respuestas a una oferta o a una
+confirmación ya no pasan por el modelo (las lee el analizador determinista), y un mensaje que queda ambiguo
+sin ese contexto vuelve con baja confianza, que repregunta o escala. Ver D99, punto 5.
+
+### 21. La extracción real del modelo no se probó
+
+Los tests no tocan la red: `pedido_de_turno` se prueba contra el esquema y contra el intérprete simulado.
+Hay que verificar en staging con `LLM_ADAPTADOR=anthropic` que la API acepta el esquema anidado con
+`pattern` y `maxItems` en `output_config.format`, que `max_tokens` alcanza, y cómo extrae frases reales
+(«el jueves que viene a la tarde», «no llego mañana»). Ver `TODO.md` §22.
+
+---
+
+## Lo que dejó `politica-fuera-de-horario`
+
+### 22. No hay calendario automático de feriados nacionales · **depende de un tercero**
+
+La empresa carga a mano sus fechas sin atención (feriados, vacaciones). Un calendario automático necesita una
+fuente oficial o un servicio que publique los feriados nacionales y sus traslados, y decidir qué hace el sistema
+cuando el calendario y la carga manual discrepan. Mientras tanto, la tarjeta «Fechas sin atención» de PAN-WA-02
+es el único camino. Ver D100, punto 4.
+
+### 23. El interruptor «Agente activo» del prototipo no existe
+
+PAN-WA-01 y PAN-WA-02 lo muestran en el encabezado («Enciende o pausa el agente»), y el issue #71 también lo
+menciona. Ninguna regla ni criterio dice qué hace un agente pausado (¿silencio total?, ¿mensaje fijo?, ¿todo a la
+bandeja del operador?): sólo aparece como precondición de HS-T2 y de HU-E9-04. Decidirlo es una pregunta de
+producto. Mientras tanto, la política (b) cubre el caso más pedido —que el agente no conteste con el negocio
+cerrado— y desactivar la regla en PAN-CFG-RN vuelve al comportamiento de siempre (D100).
+
+## Lo que dejó `usos-de-faq-por-periodo`
+
+### 24. ~~El contador de usos de FAQ no tenía período~~ · **cerrado por `usos-de-faq-por-periodo` (ADR-0012)**
+
+`faq.usos` era un entero sin fecha: la pantalla decía «Usos en el período» y mostraba el total desde
+que la FAQ existe, el agente lo contaba antes de mandar el WhatsApp (un envío fallido sumaba) y lo
+incrementaba con una lectura-modificación-escritura de toda la fila (dos respuestas simultáneas
+perdían un uso, y una respuesta que se cruzaba con una edición del administrador se la pisaba).
+
+Ahora cada respuesta enviada con una FAQ es una fila de `faq_uso` (solo inserción, única por
+mensaje), la pantalla muestra «Este mes», «Mes anterior» y «Total» con los meses en hora de
+Argentina, y el detalle de cada FAQ muestra su participación antes y después de su última edición.
+El contador viejo quedó como línea de base (`usos_anteriores`) y entra solo en el total.
+
+**Lo que queda, y es deliberado:** un fallo de entrega que Meta informe después no descuenta el uso
+(ADR-0012, punto 1; depende de los callbacks de estado, pendiente #4); `faq_uso` no se poda (si se
+poda, se pliega en `usos_anteriores` en la misma transacción); y las FAQ existentes muestran «sin
+ediciones» hasta su próxima edición real, porque no hay forma honesta de saber la anterior.

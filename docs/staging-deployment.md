@@ -170,6 +170,13 @@ schedule is rebuilt from `workers/beat.py` at every start, so an ephemeral `/tmp
 Starter's 512 MB with room. Four children do not, and the failure is an out-of-memory kill in the
 middle of a task.
 
+**No `-l`: `LOG_LEVEL` sets the worker's log level**, as it does the API's. The worker answers
+Celery's `setup_logging` signal (`workers/celery_app.py`, `conservar_el_logging_propio`), so Celery
+leaves the logging that `configurar_logging` installed alone, and `-l` has no effect. Before that,
+a worker without `-l` dropped every `info` line. That includes `invitacion_no_enviada_modo_consola`,
+the line that carries the invitation link while `EMAIL_ADAPTADOR` is unset (console mode). **That
+line is in the worker's logs, not the API's**, because the worker sends the invitations.
+
 ---
 
 ## 5. Cross-wire the two URLs

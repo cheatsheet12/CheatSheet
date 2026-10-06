@@ -17,7 +17,6 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 const listarComprobantes = vi.fn();
 const validarReceptor = vi.fn();
 const emitirComprobante = vi.fn();
-const push = vi.fn();
 
 vi.mock("@/features/billing/api/comprobante", async () => {
   const real = await vi.importActual<typeof import("@/features/billing/api/comprobante")>(
@@ -31,7 +30,10 @@ vi.mock("@/features/billing/api/comprobante", async () => {
   };
 });
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
+});
 
 import { ErrorDeComprobante, MENSAJE_SIN_RESULTADOS } from "@/features/billing";
 import type { Comprobante, PuntoDeVenta, ReceptorValidado } from "@/features/billing";
@@ -41,6 +43,10 @@ const { ListadoDeComprobantes } = await import(
 );
 const { DetalleDeComprobante } = await import("@/features/billing/components/DetalleDeComprobante");
 const { NuevaEmision } = await import("@/features/billing/components/NuevaEmision");
+const { ArnesDeRouter, reiniciarRouter, resolverNavegacion, routerQueSuspende } = await import(
+  "@/shared/__tests__/router-que-suspende"
+);
+const push = routerQueSuspende.push;
 
 const AUTORIZADO: Comprobante = {
   id: "c1",
@@ -99,6 +105,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  reiniciarRouter();
 });
 
 // ------------------------------------------------------------------ PAN-FAC-01
@@ -299,5 +306,42 @@ describe("la nueva emision", () => {
     };
     expect(typeof enviado.items[0]?.precio_unitario).toBe("string");
     await waitFor(() => expect(push).toHaveBeenCalledWith("/facturacion/c1"));
+  });
+});
+
+describe("la nueva emision, mientras la navegacion tarda", () => {
+  it("un segundo clic despues de la respuesta y antes del detalle no emite otro comprobante", async () => {
+    // Un segundo comprobante con CAE es irreversible: es el caso que obliga a esta prueba.
+    validarReceptor.mockResolvedValue(RECEPTOR);
+    emitirComprobante.mockResolvedValue(AUTORIZADO);
+    render(
+      <ArnesDeRouter>
+        <NuevaEmision puntos={[PUNTO]} clienteId="cl1" />
+      </ArnesDeRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("CUIT del receptor"), {
+      target: { value: "30712345671" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Validar" }));
+    await screen.findByText(/Acme SA/);
+    fireEvent.change(screen.getByLabelText("Tipo de comprobante"), {
+      target: { value: "FACTURA_A" },
+    });
+    fireEvent.change(screen.getByLabelText("Descripción 1"), {
+      target: { value: "Corte de pelo" },
+    });
+    fireEvent.change(screen.getByLabelText("Precio unitario"), { target: { value: "1000.00" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Emitir" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/facturacion/c1"));
+
+    const boton = screen.getByRole("button", { name: "Emitir" }) as HTMLButtonElement;
+    expect(boton.disabled).toBe(true);
+    fireEvent.click(boton);
+    fireEvent.submit(boton.closest("form") as HTMLFormElement);
+    expect(emitirComprobante).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(emitirComprobante).toHaveBeenCalledTimes(1);
   });
 });

@@ -32,7 +32,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { BotonDeSalida } from "@/features/identity";
+import { BotonDeSalida, RenovadorDeSesion } from "@/features/identity";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion, leerClaims } from "@/lib/session";
 
@@ -110,7 +110,9 @@ export default async function PanelLayout({
   readonly children: ReactNode;
 }): Promise<JSX.Element> {
   if (!haySesion()) {
-    redirect("/");
+    // The access cookie lasts fifteen minutes; the refresh cookie, thirty days. Renewing
+    // here is what keeps somebody who comes back after a pause from landing on the login.
+    redirect("/api/auth/renovar");
   }
 
   const empresa = await estadoDeEmpresa();
@@ -127,6 +129,7 @@ export default async function PanelLayout({
 
   return (
     <div className="app">
+      <RenovadorDeSesion />
       <aside className="sidebar">
         <div className="sidebar__brand">
           <span className="sidebar__logo" aria-hidden="true">

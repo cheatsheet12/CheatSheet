@@ -43,6 +43,7 @@ vi.mock("@/features/conversational/api/conversacion", async () => {
 const listarFaqs = vi.fn();
 const crearFaq = vi.fn();
 const eliminarFaq = vi.fn();
+const verUsoDeFaq = vi.fn();
 const listarPlantillas = vi.fn();
 const editarPlantilla = vi.fn();
 
@@ -55,6 +56,7 @@ vi.mock("@/features/conversational/api/faq", async () => {
     listarFaqs: (...args: unknown[]) => listarFaqs(...args),
     crearFaq: (...args: unknown[]) => crearFaq(...args),
     eliminarFaq: (...args: unknown[]) => eliminarFaq(...args),
+    verUsoDeFaq: (...args: unknown[]) => verUsoDeFaq(...args),
     listarPlantillas: (...args: unknown[]) => listarPlantillas(...args),
     editarPlantilla: (...args: unknown[]) => editarPlantilla(...args),
   };
@@ -63,12 +65,16 @@ vi.mock("@/features/conversational/api/faq", async () => {
 import {
   ErrorDeConversacion,
   MENSAJE_CAMPOS_OBLIGATORIOS,
+  MENSAJE_SIN_CONSULTAS,
+  MENSAJE_SIN_EDICIONES,
   MENSAJE_SIN_ESCALADAS,
   MENSAJE_VARIABLE_INVALIDA,
 } from "@/features/conversational";
+import { formatearFecha } from "@/shared";
 import type {
   Conversacion,
   DetalleDeConversacion,
+  DetalleDeUso,
   Faq,
   ListadoDeConversaciones,
   ListadoDeFaqs,
@@ -143,8 +149,26 @@ const FAQ_LISTA: Faq = {
   id: "f1",
   pregunta: "¿Cuánto sale un corte?",
   respuesta: "Sale $8000.",
-  usos: 12,
+  usos_este_mes: 12,
+  usos_mes_anterior: 30,
+  usos_total: 142,
+  editada_en: null,
   sin_indexar: false,
+};
+
+const EDITADA_EN = "2026-09-26T15:00:00+00:00";
+
+const DETALLE_COMPARABLE: DetalleDeUso = {
+  usos_este_mes: 47,
+  usos_mes_anterior: 30,
+  usos_total: 142,
+  editada_en: EDITADA_EN,
+  comparacion: {
+    dias: 10,
+    antes: { usos: 2, total: 8, participacion: "25.0" },
+    despues: { usos: 6, total: 12, participacion: "50.0" },
+  },
+  motivo_sin_comparacion: null,
 };
 
 const FAQ_SIN_INDEXAR: Faq = {
@@ -233,13 +257,7 @@ describe("PAN-WA-01 — bandeja", () => {
 
 describe("PAN-WA-01 — hilo", () => {
   it("muestra el historial completo, que es el contexto previo de RN-03", () => {
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE, DEL_AGENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE, DEL_AGENTE)} puedeAtender />);
 
     expect(screen.getByText("hola, quiero un turno")).toBeTruthy();
     expect(screen.getByText("Lo derivo con un asesor.")).toBeTruthy();
@@ -249,7 +267,6 @@ describe("PAN-WA-01 — hilo", () => {
     render(
       <HiloDeConversacion
         inicial={hilo(ATENDIDA, DEL_CLIENTE, DEL_AGENTE, DEL_OPERADOR)}
-        telefono="5491112345678"
         puedeAtender
       />,
     );
@@ -259,42 +276,51 @@ describe("PAN-WA-01 — hilo", () => {
     expect(screen.getByText(/^Cliente ·/)).toBeTruthy();
   });
 
-  it("no ofrece el campo de respuesta hasta tomar el escalamiento", () => {
+  it("muestra la intención del mensaje del cliente y nada cuando no se clasificó (HS-T2 RN-02)", () => {
+    const sinClasificar: Mensaje = { ...DEL_CLIENTE, id: "m4", contenido: "hola", intencion: null };
     render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
+      <HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE, sinClasificar)} puedeAtender />,
     );
+
+    const autores = screen.getAllByText(/^Cliente ·/).map((nodo) => nodo.textContent ?? "");
+    expect(autores).toHaveLength(2);
+    expect(autores[0]).toContain("· Turno");
+    expect(autores[1]).not.toContain("· Turno");
+  });
+
+  it("no ofrece el campo de respuesta hasta tomar el escalamiento", () => {
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE)} puedeAtender />);
 
     expect(screen.queryByLabelText("Mensaje")).toBeNull();
     expect(screen.getByRole("button", { name: "Tomar la conversación" })).toBeTruthy();
   });
 
   it("con el escalamiento tomado aparece el campo y dice que el agente esta callado", () => {
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ATENDIDA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
 
     expect(screen.getByLabelText("Mensaje")).toBeTruthy();
     expect(screen.getByText(/no está contestando/)).toBeTruthy();
   });
 
+  it("enviar llama a responder con el hilo y el texto, sin teléfono", async () => {
+    responder.mockResolvedValue(DEL_OPERADOR);
+    // After sending, the thread reloads itself from the API.
+    verConversacion.mockResolvedValue(hilo(ATENDIDA, DEL_CLIENTE, DEL_OPERADOR));
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
+
+    fireEvent.change(screen.getByLabelText("Mensaje"), { target: { value: "Hola, soy Ana" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+
+    await waitFor(() => {
+      expect(responder).toHaveBeenCalledWith("c1", "Hola, soy Ana");
+    });
+    expect(await screen.findByText("Hola!")).toBeTruthy();
+  });
+
   it("tomar el escalamiento recarga el hilo", async () => {
     tomarEscalamiento.mockResolvedValue(ATENDIDA);
     verConversacion.mockResolvedValue(hilo(ATENDIDA, DEL_CLIENTE));
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE)} puedeAtender />);
 
     fireEvent.click(screen.getByRole("button", { name: "Tomar la conversación" }));
 
@@ -307,13 +333,7 @@ describe("PAN-WA-01 — hilo", () => {
   it("devolver al agente manda la clasificacion elegida (RN-05)", async () => {
     cerrarEscalamiento.mockResolvedValue(RESUELTA);
     verConversacion.mockResolvedValue(hilo(RESUELTA, DEL_CLIENTE));
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ATENDIDA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
 
     fireEvent.change(screen.getByLabelText("Clasificación al devolver"), {
       target: { value: "PAGO" },
@@ -328,13 +348,7 @@ describe("PAN-WA-01 — hilo", () => {
   it("sin clasificacion elegida deja que reevalue el agente", async () => {
     cerrarEscalamiento.mockResolvedValue(RESUELTA);
     verConversacion.mockResolvedValue(hilo(RESUELTA, DEL_CLIENTE));
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ATENDIDA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
 
     fireEvent.click(screen.getByRole("button", { name: "Devolver al agente" }));
 
@@ -349,13 +363,7 @@ describe("PAN-WA-01 — hilo", () => {
         "Un escalamiento cerrado no se reabre. Un nuevo pedido del cliente genera uno nuevo.",
       ),
     );
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ATENDIDA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ATENDIDA, DEL_CLIENTE)} puedeAtender />);
 
     fireEvent.click(screen.getByRole("button", { name: "Dar por finalizada" }));
 
@@ -363,13 +371,7 @@ describe("PAN-WA-01 — hilo", () => {
   });
 
   it("le esconde todas las acciones a Solo Lectura pero le muestra el hilo", () => {
-    render(
-      <HiloDeConversacion
-        inicial={hilo(ESCALADA, DEL_CLIENTE)}
-        telefono="5491112345678"
-        puedeAtender={false}
-      />,
-    );
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, DEL_CLIENTE)} puedeAtender={false} />);
 
     expect(screen.getByText("hola, quiero un turno")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Tomar la conversación" })).toBeNull();
@@ -377,20 +379,87 @@ describe("PAN-WA-01 — hilo", () => {
 
   it("marca las notas de voz como transcriptas", () => {
     const audio: Mensaje = { ...DEL_CLIENTE, tipo_contenido: "AUDIO" };
-    render(<HiloDeConversacion inicial={hilo(ESCALADA, audio)} telefono="549111" puedeAtender />);
+    render(<HiloDeConversacion inicial={hilo(ESCALADA, audio)} puedeAtender />);
 
     expect(screen.getByText(/nota de voz transcripta/)).toBeTruthy();
   });
 });
 
 describe("PAN-WA-02 — respuestas frecuentes", () => {
-  it("lista pregunta, respuesta y contador de usos (RN-02)", () => {
+  it("lista pregunta, respuesta y los tres conteos de uso (RN-02)", () => {
     const listado: ListadoDeFaqs = { faqs: [FAQ_LISTA] };
     render(<RespuestasFrecuentes inicial={listado} puedeEditar />);
 
     const tabla = within(screen.getByRole("table"));
     expect(tabla.getByText("¿Cuánto sale un corte?")).toBeTruthy();
+    for (const titulo of ["Este mes", "Mes anterior", "Total"]) {
+      expect(tabla.getByRole("columnheader", { name: titulo })).toBeTruthy();
+    }
     expect(tabla.getByText("12")).toBeTruthy();
+    expect(tabla.getByText("30")).toBeTruthy();
+    expect(tabla.getByText("142")).toBeTruthy();
+  });
+
+  it("la barra suma los usos de este mes y ya no habla del período", () => {
+    render(<RespuestasFrecuentes inicial={{ faqs: [FAQ_LISTA] }} puedeEditar />);
+
+    expect(screen.getByText(/12/, { selector: "b" })).toBeTruthy();
+    expect(screen.getByText(/usos este mes/)).toBeTruthy();
+    expect(screen.queryByText(/en el período/)).toBeNull();
+    expect(screen.queryByText("Usos en el período")).toBeNull();
+  });
+
+  it("«Ver uso» abre el detalle con la frase del prototipo y las dos participaciones", async () => {
+    verUsoDeFaq.mockResolvedValue(DETALLE_COMPARABLE);
+    render(<RespuestasFrecuentes inicial={{ faqs: [FAQ_LISTA] }} puedeEditar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver uso" }));
+
+    expect(await screen.findByText("Respondida 47 veces este mes")).toBeTruthy();
+    expect(verUsoDeFaq).toHaveBeenCalledWith("f1");
+    const fecha = formatearFecha(EDITADA_EN);
+    expect(
+      screen.getByText(
+        `Participación: 25,0 % en los 10 días antes de la edición del ${fecha} · 50,0 % en los 10 días después`,
+      ),
+    ).toBeTruthy();
+  });
+
+  it("sin comparación posible muestra el motivo y ningún porcentaje", async () => {
+    verUsoDeFaq.mockResolvedValue({
+      ...DETALLE_COMPARABLE,
+      editada_en: null,
+      comparacion: null,
+      motivo_sin_comparacion: "SIN_EDICIONES",
+    } satisfies DetalleDeUso);
+    render(<RespuestasFrecuentes inicial={{ faqs: [FAQ_LISTA] }} puedeEditar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver uso" }));
+
+    expect(await screen.findByText(MENSAJE_SIN_EDICIONES)).toBeTruthy();
+    expect(screen.queryByText(/Participación:/)).toBeNull();
+    expect(screen.queryByText(/%/)).toBeNull();
+  });
+
+  it("un lapso sin consultas respondidas por FAQ no es un 0 %", async () => {
+    verUsoDeFaq.mockResolvedValue({
+      ...DETALLE_COMPARABLE,
+      comparacion: {
+        dias: 1,
+        antes: { usos: 0, total: 0, participacion: null },
+        despues: { usos: 1, total: 4, participacion: "25.0" },
+      },
+    } satisfies DetalleDeUso);
+    render(<RespuestasFrecuentes inicial={{ faqs: [FAQ_LISTA] }} puedeEditar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver uso" }));
+
+    const fecha = formatearFecha(EDITADA_EN);
+    expect(
+      await screen.findByText(
+        `Participación: ${MENSAJE_SIN_CONSULTAS} en el día antes de la edición del ${fecha} · 25,0 % en el día después`,
+      ),
+    ).toBeTruthy();
   });
 
   it("dice cuando una respuesta todavia no es buscable", () => {
@@ -454,6 +523,14 @@ describe("PAN-WA-02 — respuestas frecuentes", () => {
 
     expect(screen.getByText("¿Cuánto sale un corte?")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Agregar respuesta" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Eliminar" })).toBeNull();
+  });
+
+  it("Solo Lectura puede «Ver uso» pero no «Editar» ni «Eliminar»", () => {
+    render(<RespuestasFrecuentes inicial={{ faqs: [FAQ_LISTA] }} puedeEditar={false} />);
+
+    expect(screen.getByRole("button", { name: "Ver uso" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Eliminar" })).toBeNull();
   });
 });

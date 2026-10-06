@@ -48,10 +48,13 @@ DIMENSION_DEL_VECTOR = 1536
 class FAQ:
     """Una pregunta disparadora y su respuesta.
 
-    `usos` es el contador de HU-E9-04 RN-02 («cuántas veces fue usada en el período») y de
-    HU-E8-03 RN-04 («el sistema registra el uso de cada FAQ»). Es un contador y no una tabla
-    de eventos porque las dos reglas piden un número, y una tabla de usos sería un dato que
-    crece sin techo para contestar una pregunta que un entero contesta.
+    Los usos **no se guardan acá**: cada respuesta enviada con la FAQ es una fila inmutable de
+    `faq_uso` (`uso_de_faq.py`, ADR-0012). Un contador en la FAQ obligaba a reescribir la fila
+    entera cada vez que el agente contestaba —y pisaba una edición del administrador— y no
+    sabe de períodos.
+
+    `usos_anteriores` es la línea de base: lo que el contador viejo tenía cuando se desplegó el
+    ADR-0012. Nadie la incrementa; entra en el total y no en ningún mes.
     """
 
     id: UUID
@@ -63,9 +66,14 @@ class FAQ:
     #: `True` cuando el vector se calculó con un modelo que ya no es el vigente, o cuando la
     #: pregunta cambió y todavía no se recalculó. Ver el docstring del módulo.
     embedding_obsoleto: bool = True
-    usos: int = 0
+    usos_anteriores: int = 0
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    #: La última vez que cambió el texto de la pregunta o de la respuesta. **No es
+    #: `updated_at`**: ese también lo mueve el barrido de embeddings (`marcar_indexada`).
+    editada_en: datetime | None = None
+    #: Desde cuándo hay eventos de uso de esta FAQ (su creación, o el despliegue del ADR-0012).
+    seguimiento_desde: datetime | None = None
 
     def __post_init__(self) -> None:
         if not self.pregunta.strip() or not self.respuesta.strip():
@@ -83,6 +91,8 @@ class FAQ:
             raise EntradaInvalida(MENSAJE_CAMPOS_OBLIGATORIOS)
         if pregunta.strip() != self.pregunta:
             self.embedding_obsoleto = True
+        if pregunta.strip() != self.pregunta or respuesta.strip() != self.respuesta:
+            self.editada_en = momento
         self.pregunta = pregunta.strip()
         self.respuesta = respuesta.strip()
         self.updated_at = momento
@@ -91,15 +101,6 @@ class FAQ:
         self.embedding_modelo_version = version
         self.embedding_obsoleto = False
         self.updated_at = momento
-
-    def registrar_uso(self) -> None:
-        """HU-E8-03 RN-04. Se llama cuando el agente **contestó** con esta FAQ.
-
-        No cuando la encontró: una FAQ que quedó por debajo del umbral no se usó, y contarla
-        haría que el número de HU-E9-04 RN-02 dijera algo distinto de lo que la pantalla
-        promete.
-        """
-        self.usos += 1
 
 
 @dataclass(frozen=True, slots=True)

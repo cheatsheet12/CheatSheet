@@ -56,7 +56,15 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agenda y recursos | turnos-no-en-el-pasado | scheduling | HU-E7-06, HU-E7-02, HU-E8-01 | — | Luciano | feature/scheduling-turnos-no-en-el-pasado | mergeada |
 | Agenda y recursos | limites-e-intervalo-de-turnos | scheduling | HU-E7-04, HU-E7-06 | turnos-no-en-el-pasado | Luciano | feature/scheduling-limites-e-intervalo-de-turnos | mergeada |
 | Agente de WhatsApp y atención humana | comprobante-por-whatsapp | conversational | HU-E8-06, HU-E8-05 | cobro-por-transferencia | — | — | pendiente |
+| Agente de WhatsApp y atención humana | usos-de-faq-por-periodo | conversational | HU-E9-04 | ADR-0012 | Luciano | feature/conversational-usos-de-faq-por-periodo | en revisión |
+| Agente de WhatsApp y atención humana | reserva-y-cancelacion-por-whatsapp | conversational | HU-E8-01, HU-E8-02, HS-T2 | ajustes-menores-del-agente | Luciano | feature/conversational-reserva-y-cancelacion-por-whatsapp | mergeada |
 | Reportería y paquete contable | indicadores-de-cobranza | reporting | HU-E10-01 | fecha-de-pago | Luciano | feature/reporting-indicadores-de-cobranza | mergeada |
+| Agente de WhatsApp y atención humana | telefono-del-operador | conversational | HU-E9-01 | — | Luciano | fix/conversational-telefono-del-operador | mergeada |
+| Agente de WhatsApp y atención humana | borrado-sin-cuerpo | frontend (`lib/`, transversal) | HU-E9-04, HU-E4-03, HU-E1-04, HU-E2-04, HU-E10-05 | — | Luciano | fix/frontend-borrado-sin-cuerpo | mergeada |
+| Agente de WhatsApp y atención humana | ajustes-menores-del-agente | conversational | HS-T2, HU-E8-05 | — | Luciano | fix/conversational-ajustes-menores-del-agente | mergeada |
+| Agente de WhatsApp y atención humana | politica-fuera-de-horario | business_config (conversational aplica la política por su ACL) | HS-T2, HU-E11-01, HU-E8-05 | reserva-y-cancelacion-por-whatsapp | Luciano | feature/business_config-politica-fuera-de-horario | mergeada |
+| Cimientos, identidad y bitácora | navegacion-pendiente | frontend (`shared/`, transversal) | HU-E1-01, HU-E1-02, HU-E1-04, HU-E2-04, HU-E5-03, HU-E5-04, HU-E6-03, HU-E7-06 | — | Luciano | fix/frontend-navegacion-pendiente | mergeada |
+| Cobros y recordatorios | cobro-con-clave-de-idempotencia | payments | HU-E6-03 | navegacion-pendiente | Luciano | — | pendiente |
 | Agente de WhatsApp y atención humana | canal-real-de-whatsapp | conversational | HS-T3, HU-E7-02, HU-E7-06, HU-E8-04 | — | Luciano | feature/conversational-canal-real-de-whatsapp | en curso |
 | Agente de WhatsApp y atención humana | plantillas-de-whatsapp-en-meta | business_config | HU-E11-02, HU-E8-04, HS-T3, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp (ADR-0011 aceptado) | Luciano | — | pendiente |
 | Agente de WhatsApp y atención humana | entregas-de-whatsapp | conversational | HU-E8-04, HS-T3, HU-E6-02, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp, plantillas-de-whatsapp-en-meta | Luciano | — | pendiente |

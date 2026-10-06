@@ -356,6 +356,17 @@ def _adaptador_de_arca(entorno: Entorno) -> AdaptadorDeArca:
     return adaptador
 
 
+def _url_de_notificaciones(adaptador: AdaptadorDeMercadoPago) -> str:
+    """`API_URL_PUBLICA`, required as soon as MercadoPago is real.
+
+    Every payment link carries it as `notification_url`. The application-level webhook in
+    MercadoPago cannot replace it: it is a single URL, and ours needs the company in the path.
+    """
+    if adaptador is AdaptadorDeMercadoPago.MERCADOPAGO:
+        return _requerida("API_URL_PUBLICA").rstrip("/")
+    return _opcional("API_URL_PUBLICA", "").rstrip("/")
+
+
 def _adaptador_de_mercadopago(entorno: Entorno) -> AdaptadorDeMercadoPago:
     """Defaults to the simulator outside production, and is forbidden inside it."""
     crudo = _opcional("MERCADOPAGO_ADAPTADOR", "")
@@ -490,6 +501,9 @@ class Settings:
     mercadopago_webhook_secret: str
     #: A dónde vuelve el cliente después de pagar (HU-E6-03). Es el panel, no la API.
     mercadopago_url_de_retorno: str
+    #: HS-T1. La raíz pública de **la API**, a la que MercadoPago avisa cada pago. Vacía sólo
+    #: con el simulador: con MercadoPago real, un link sin ella cobra y nunca avisa.
+    mercadopago_url_de_notificaciones: str
     mercadopago_autorizacion_ttl_minutos: int
 
     @property
@@ -500,6 +514,7 @@ class Settings:
     def desde_entorno(cls) -> Settings:
         entorno = Entorno(_opcional("APP_ENV", Entorno.LOCAL.value))
         redis_url = _requerida("REDIS_URL")
+        mercadopago = _adaptador_de_mercadopago(entorno)
         return cls(
             entorno=entorno,
             database_url=_requerida("DATABASE_URL"),
@@ -600,7 +615,8 @@ class Settings:
             # Renewing a certificate at ARCA takes days, so finding out on the day it
             # expired means not being able to invoice.
             arca_aviso_vencimiento_dias=_entero("ARCA_AVISO_VENCIMIENTO_DIAS", 30),
-            mercadopago_adaptador=_adaptador_de_mercadopago(entorno),
+            mercadopago_adaptador=mercadopago,
+            mercadopago_url_de_notificaciones=_url_de_notificaciones(mercadopago),
             # Our application's credentials, not a company's — the same shape as the
             # Google OAuth client. What is per company are the tokens the flow returns,
             # and those live encrypted in the database.

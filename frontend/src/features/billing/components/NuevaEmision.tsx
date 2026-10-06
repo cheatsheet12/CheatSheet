@@ -24,10 +24,9 @@
 
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Alert, Button, Campo, Select } from "@/shared";
+import { Alert, Button, Campo, Select, useAccionConNavegacion } from "@/shared";
 
 import {
   ALICUOTAS,
@@ -86,7 +85,6 @@ export function NuevaEmision({
   clienteId,
   cuitDelCliente = null,
 }: PropsDeNuevaEmision): JSX.Element {
-  const router = useRouter();
   const [cuit, setCuit] = useState((cuitDelCliente ?? "").replace(/-/g, ""));
   const [receptor, setReceptor] = useState<ReceptorValidado | null>(null);
   const [errorDeCuit, setErrorDeCuit] = useState<string | null>(null);
@@ -97,7 +95,7 @@ export function NuevaEmision({
   const [domicilio, setDomicilio] = useState("");
   const [lineas, setLineas] = useState<readonly Linea[]>([lineaVacia()]);
   const [error, setError] = useState<string | null>(null);
-  const [emitiendo, setEmitiendo] = useState(false);
+  const { pendiente: emitiendo, ejecutar } = useAccionConNavegacion();
 
   async function validar(): Promise<void> {
     setErrorDeCuit(null);
@@ -151,23 +149,24 @@ export function NuevaEmision({
       return;
     }
     setError(null);
-    setEmitiendo(true);
     try {
-      const emitido = await emitirComprobante({
-        cliente_id: clienteId,
-        punto_de_venta_id: puntoId,
-        tipo: tipo as TipoComprobante,
-        receptor_cuit: receptor.cuit,
-        receptor_domicilio: domicilio.trim() === "" ? null : domicilio.trim(),
-        items: lineasCargadas.map(({ clave: _clave, ...resto }) => resto),
-      });
-      // Straight to the detail: the document is Pendiente and this is the page that will
-      // show the CAE or ARCA's rejection when the answer arrives.
-      router.push(`/facturacion/${emitido.id}`);
+      await ejecutar(
+        () =>
+          emitirComprobante({
+            cliente_id: clienteId,
+            punto_de_venta_id: puntoId,
+            tipo: tipo as TipoComprobante,
+            receptor_cuit: receptor.cuit,
+            receptor_domicilio: domicilio.trim() === "" ? null : domicilio.trim(),
+            items: lineasCargadas.map(({ clave: _clave, ...resto }) => resto),
+          }),
+        // Straight to the detail: the document is Pendiente and this is the page that will
+        // show the CAE or ARCA's rejection when the answer arrives. The button stays busy
+        // until it does: a second click here would issue a second document with its own CAE.
+        (emitido, router) => router.push(`/facturacion/${emitido.id}`),
+      );
     } catch (fallo) {
       setError(mensajeDe(fallo, "No se pudo emitir el comprobante."));
-    } finally {
-      setEmitiendo(false);
     }
   }
 
