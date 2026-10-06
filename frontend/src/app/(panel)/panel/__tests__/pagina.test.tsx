@@ -109,7 +109,10 @@ describe("PAN-DSH-01 · el selector de período en la URL", () => {
       <SelectorDePeriodoEnUrl desde="2026-03-01" hasta="2026-03-31" resumen="1/3/26 – 31/3/26" />,
     );
 
-    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-02-01" } });
+    // El campo es un calendario: se abre, se va al mes anterior y se elige el 1.º de febrero.
+    fireEvent.click(screen.getByLabelText("Desde"));
+    fireEvent.click(screen.getByRole("button", { name: "Mes anterior" }));
+    fireEvent.click(screen.getByRole("button", { name: "1 de febrero de 2026" }));
 
     expect(replace).toHaveBeenCalledWith("/panel?desde=2026-02-01&hasta=2026-03-31");
   });
@@ -119,7 +122,8 @@ describe("PAN-DSH-01 · el selector de período en la URL", () => {
       <SelectorDePeriodoEnUrl desde="2026-03-01" hasta="2026-03-31" resumen="1/3/26 – 31/3/26" />,
     );
 
-    fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: "" } });
+    fireEvent.click(screen.getByLabelText("Hasta"));
+    fireEvent.click(screen.getByRole("button", { name: "Borrar" }));
 
     expect(replace).not.toHaveBeenCalled();
   });

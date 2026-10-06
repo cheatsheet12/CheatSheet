@@ -20,6 +20,8 @@ export type { PropsDeCampo, PropsDeCasilla } from "@/shared/ui/Campo";
 export { Card } from "@/shared/ui/Card";
 export type { PropsDeCard } from "@/shared/ui/Card";
 export { Desplegable } from "@/shared/ui/Desplegable";
+export { SelectorDeFecha } from "@/shared/ui/SelectorDeFecha";
+export type { PropsDeSelectorDeFecha } from "@/shared/ui/SelectorDeFecha";
 export type {
   PropsDeDesplegable,
   PropsDeGrupo,

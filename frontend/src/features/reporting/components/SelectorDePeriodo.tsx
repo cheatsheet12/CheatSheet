@@ -8,7 +8,7 @@
 
 "use client";
 
-import { Campo } from "@/shared";
+import { SelectorDeFecha } from "@/shared";
 
 import type { RangoDePeriodo } from "../api/reporte";
 
@@ -81,22 +81,22 @@ export function SelectorDePeriodo({
       </div>
       <div className="rep-periodo__cuerpo">
         <div className="rep-filtros">
-          <Campo
+          <SelectorDeFecha
             id="rep-desde"
             etiqueta="Desde"
-            type="date"
             value={rango.desde ?? ""}
-            onChange={(evento) => alCambiar({ desde: evento.target.value })}
+            max={rango.hasta || undefined}
+            alCambiar={(valor) => alCambiar({ desde: valor })}
           />
           <span className="rep-periodo__flecha" aria-hidden="true">
             →
           </span>
-          <Campo
+          <SelectorDeFecha
             id="rep-hasta"
             etiqueta="Hasta"
-            type="date"
             value={rango.hasta ?? ""}
-            onChange={(evento) => alCambiar({ hasta: evento.target.value })}
+            min={rango.desde || undefined}
+            alCambiar={(valor) => alCambiar({ hasta: valor })}
           />
         </div>
         <div className="rep-periodo__atajos" role="group" aria-label="Atajos de período">

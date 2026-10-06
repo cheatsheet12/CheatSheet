@@ -1,0 +1,270 @@
+/*
+ * Selector de fecha: el botón que muestra la fecha y el calendario que se abre debajo.
+ *
+ * El botón reutiliza `.campo__control`, así que hereda el borde, el radio, el foco y la altura
+ * mínima de los demás campos del panel. Acá sólo va lo propio del calendario.
+ */
+
+.selector-fecha {
+  position: relative;
+}
+
+.selector-fecha__boton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 158px;
+  text-align: left;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.selector-fecha__boton svg {
+  flex: none;
+  color: var(--ink-400);
+  transition: color 0.16s ease;
+}
+
+.selector-fecha__boton:hover:not(:focus) {
+  border-color: var(--ink-300);
+}
+
+.selector-fecha__boton[data-abierto="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.selector-fecha__boton[data-abierto="true"] svg {
+  color: var(--accent-700);
+}
+
+.selector-fecha__vacio {
+  color: var(--ink-300);
+}
+
+/* ── El panel ─────────────────────────────────────────────────────────────────────────── */
+.selector-fecha__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  width: 304px;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow:
+    0 2px 6px rgb(30 30 46 / 6%),
+    0 18px 48px rgb(30 30 46 / 16%);
+  transform-origin: top left;
+  animation: selector-fecha-entra 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.selector-fecha__panel[data-alinear="derecha"] {
+  left: auto;
+  right: 0;
+  transform-origin: top right;
+}
+
+@keyframes selector-fecha-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+
+.selector-fecha__cabecera {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.selector-fecha__titulo {
+  flex: 1;
+  margin: 0;
+  padding-left: 6px;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+}
+
+.selector-fecha__nav {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-500);
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    transform 0.12s ease;
+}
+
+.selector-fecha__nav:hover {
+  background: var(--line-2);
+  color: var(--ink-900);
+}
+
+.selector-fecha__nav:active {
+  transform: scale(0.9);
+}
+
+.selector-fecha__nav:focus-visible,
+.selector-fecha__dia:focus-visible,
+.selector-fecha__accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.selector-fecha__semana,
+.selector-fecha__grilla {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.selector-fecha__semana {
+  margin-bottom: 4px;
+}
+
+.selector-fecha__semana span {
+  display: grid;
+  place-items: center;
+  height: 26px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-400);
+}
+
+.selector-fecha__grilla {
+  gap: 2px;
+  animation: selector-fecha-mes 0.16s ease;
+}
+
+@keyframes selector-fecha-mes {
+  from {
+    opacity: 0.35;
+  }
+}
+
+.selector-fecha__dia {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 38px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-900);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    transform 0.12s ease;
+}
+
+.selector-fecha__dia:hover:not(:disabled, [data-elegida="true"]) {
+  background: var(--line-2);
+}
+
+.selector-fecha__dia:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+/* Los días del mes anterior y del siguiente completan la grilla: se ven, pero atenuados. */
+.selector-fecha__dia[data-afuera="true"] {
+  color: var(--ink-300);
+}
+
+/* Hoy: un aro de acento, no un relleno, para que no se confunda con la fecha elegida. */
+.selector-fecha__dia[data-hoy="true"] {
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.selector-fecha__dia[data-elegida="true"] {
+  background: var(--ink-900);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgb(30 30 46 / 28%);
+}
+
+.selector-fecha__dia:disabled {
+  color: var(--ink-300);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.selector-fecha__pie {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-2);
+}
+
+.selector-fecha__accion {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.selector-fecha__accion:hover:not(:disabled) {
+  background: var(--line-2);
+  color: var(--ink-900);
+}
+
+.selector-fecha__accion--principal {
+  color: var(--accent-700);
+}
+
+.selector-fecha__accion--principal:hover:not(:disabled) {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.selector-fecha__accion:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .selector-fecha__panel {
+    width: min(304px, calc(100vw - 32px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selector-fecha__panel,
+  .selector-fecha__grilla {
+    animation: none;
+  }
+
+  .selector-fecha__dia,
+  .selector-fecha__nav {
+    transition: none;
+  }
+}
