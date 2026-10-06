@@ -30,15 +30,7 @@ import { ETIQUETAS_DE_MODULO, ETIQUETAS_DE_RESULTADO } from "@/features/observab
 import type { ListadoDeOperaciones, Operacion } from "@/features/observability";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
-import {
-  Alert,
-  Badge,
-  Card,
-  Tabla,
-  formatearFecha,
-  formatearFechaHora,
-  formatearNumero,
-} from "@/shared";
+import { Badge, Card, Tabla, formatearFecha, formatearFechaHora, formatearNumero } from "@/shared";
 import type { Columna } from "@/shared";
 
 import { Icono } from "./iconos";
@@ -122,9 +114,15 @@ export default async function PanelHome({
       />
 
       {tablero.sin_actividad && (
-        <Alert tono="neutral" titulo="Sin actividad">
-          {MENSAJE_SIN_ACTIVIDAD}
-        </Alert>
+        <div className="dsh-aviso" role="status">
+          <span className="dsh-aviso__ico" aria-hidden="true">
+            <Icono nombre="barras" />
+          </span>
+          <div>
+            <p className="dsh-aviso__titulo">Sin actividad</p>
+            <p className="dsh-aviso__texto">{MENSAJE_SIN_ACTIVIDAD}</p>
+          </div>
+        </div>
       )}
 
       <div className="dsh-stats dsh-stats--tres">
@@ -145,7 +143,7 @@ export default async function PanelHome({
           pie={`Período anterior · ${formatearNumero(tablero.turnos.anterior, undefined, 0)}`}
         />
         <TarjetaDeMetrica
-          icono="reloj"
+          icono="actividad"
           tono="ambar"
           etiqueta="Operaciones registradas"
           valor={cantidad(tablero.operaciones)}
@@ -267,7 +265,9 @@ function TarjetaDeMetrica({
         <span className={`dsh-stat__ico dsh-stat__ico--${tono}`}>
           <Icono nombre={icono} />
         </span>
-        <span className="dsh-stat__tag">{textoDeVariacion(variacion)}</span>
+        <span className="dsh-stat__tag" data-sentido={sentidoDeVariacion(variacion)}>
+          {textoDeVariacion(variacion)}
+        </span>
       </div>
       <p className="dsh-stat__label">{etiqueta}</p>
       <p className="dsh-stat__valor">{valor}</p>
@@ -287,6 +287,14 @@ function textoDeVariacion(variacion: string | null): string {
     return "—";
   }
   return Number(variacion) >= 0 ? `↗ +${variacion}%` : `↘ ${variacion}%`;
+}
+
+/** Hacia dónde fue la cifra, para pintar la etiqueta: sin período anterior no hay sentido. */
+function sentidoDeVariacion(variacion: string | null): "sube" | "baja" | "neutro" {
+  if (variacion === null) {
+    return "neutro";
+  }
+  return Number(variacion) >= 0 ? "sube" : "baja";
 }
 
 const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [

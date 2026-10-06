@@ -131,12 +131,94 @@
   margin-bottom: 26px;
 }
 
+/* El aviso de «sin actividad»: una franja suave con su icono. Antes era una alerta pegada a
+   las tarjetas de abajo, sin aire, y se leía como un error y no como un estado vacío. */
+.dsh-aviso {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  background: linear-gradient(90deg, var(--info-bg), var(--card) 60%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  animation: dsh-entra 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
+.dsh-aviso__ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--info);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 2px 6px rgb(30 30 46 / 6%);
+}
+
+.dsh-aviso__ico svg {
+  width: 19px;
+  height: 19px;
+}
+
+.dsh-aviso__titulo {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.dsh-aviso__texto {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ink-500);
+}
+
 .dsh-stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  padding: 20px 22px;
+  padding: 20px 22px 18px;
   box-shadow: var(--shadow);
+  animation: dsh-entra 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* Entran de a una, de izquierda a derecha. */
+.dsh-stats > .dsh-stat:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.dsh-stats > .dsh-stat:nth-child(3) {
+  animation-delay: 0.12s;
+}
+
+.dsh-stats > .dsh-stat:nth-child(4) {
+  animation-delay: 0.18s;
+}
+
+.dsh-stat:hover {
+  transform: translateY(-2px);
+  border-color: var(--ink-300);
+  box-shadow:
+    0 2px 4px rgb(30 30 46 / 5%),
+    0 14px 32px rgb(30 30 46 / 9%);
+}
+
+@keyframes dsh-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 
 .dsh-stat__top {
@@ -144,21 +226,26 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-bottom: 26px;
+  margin-bottom: 22px;
 }
 
 .dsh-stat__ico {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-control);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dsh-stat:hover .dsh-stat__ico {
+  transform: scale(1.08) rotate(-4deg);
 }
 
 .dsh-stat__ico svg {
-  width: 19px;
-  height: 19px;
+  width: 20px;
+  height: 20px;
 }
 
 .dsh-stat__ico--menta {
@@ -176,15 +263,33 @@
   color: var(--info);
 }
 
+/* La variación es una pastilla que dice hacia dónde fue: verde si subió, ámbar si bajó, gris si
+   no hay con qué comparar. Era un texto gris en monoespaciada que no distinguía nada. */
 .dsh-stat__tag {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-400);
-  text-align: right;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--line-2);
+  color: var(--ink-500);
+}
+
+.dsh-stat__tag[data-sentido="sube"] {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.dsh-stat__tag[data-sentido="baja"] {
+  background: var(--warn-bg);
+  color: var(--warn);
 }
 
 .dsh-stat__label {
   font-size: 13px;
+  font-weight: 500;
   color: var(--ink-500);
   margin: 0;
 }
@@ -193,18 +298,38 @@
  * `tabular-nums` no es coquetería: cuatro importes uno al lado del otro con anchos de dígito
  * distintos se leen como cuatro escalas distintas. */
 .dsh-stat__valor {
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 800;
-  letter-spacing: -1px;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
-  margin: var(--space-1) 0 6px;
+  margin: 6px 0 16px;
   color: var(--ink-900);
 }
 
 .dsh-stat__pie {
+  margin: auto 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-2);
   font-size: 12px;
   color: var(--ink-400);
-  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsh-aviso,
+  .dsh-stat {
+    animation: none;
+  }
+
+  .dsh-stat,
+  .dsh-stat__ico {
+    transition: none;
+  }
+
+  .dsh-stat:hover,
+  .dsh-stat:hover .dsh-stat__ico {
+    transform: none;
+  }
 }
 
 /* ── Cuerpo del inicio: actividad + accesos ───────────────────────────────── */

@@ -258,41 +258,51 @@
 }
 
 .rep-kpi {
+  display: flex;
+  flex-direction: column;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow);
   padding: 18px 20px 16px;
   transition:
-    border-color 0.14s ease-out,
-    box-shadow 0.14s ease-out,
-    transform 0.14s ease-out;
+    border-color 0.2s ease-out,
+    box-shadow 0.2s ease-out,
+    transform 0.2s ease-out;
 }
 
 .rep-kpi:hover {
   border-color: var(--ink-300);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 4px rgb(30 30 46 / 5%),
+    0 14px 32px rgb(30 30 46 / 9%);
 }
 
 .rep-kpi__top {
   display: flex;
   align-items: center;
-  gap: 9px;
-  margin-bottom: var(--space-3);
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .rep-kpi__icono {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius);
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.rep-kpi:hover .rep-kpi__icono {
+  transform: scale(1.08) rotate(-4deg);
 }
 
 .rep-kpi__icono svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
 }
 
 .rep-kpi__icono--menta {
@@ -310,7 +320,7 @@
   color: var(--info);
 }
 
-/* El rótulo es texto de apoyo y la cifra es el dato: 13 px en gris medio contra 28 px a
+/* El rótulo es texto de apoyo y la cifra es el dato: 13 px en gris medio contra 30 px a
  * peso 800 es lo que hace que el ojo aterrice en el número y no en la palabra. */
 .rep-kpi__titulo {
   font-size: 13px;
@@ -321,37 +331,52 @@
 }
 
 .rep-kpi__valor {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 800;
-  letter-spacing: -1px;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
   color: var(--ink-900);
   font-variant-numeric: tabular-nums;
-  margin: 0 0 4px;
+  margin: 0 0 14px;
 }
 
+/* El pie va abajo y separado por una línea: con tarjetas de alto desparejo (un pie de dos
+ * renglones al lado de uno de uno) las cifras siguen alineadas entre sí. */
 .rep-kpi__pie {
   font-size: 12px;
   color: var(--ink-400);
-  margin: 0;
+  margin: auto 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-2);
 }
 
-/* La variación cambia de color, y el color cambia con una transición: pasar de verde a
+/* La variación es una pastilla, igual que en las tarjetas de Inicio: verde si subió, ámbar si
+ * bajó, gris si no hay con qué comparar. El color cambia con una transición: pasar de verde a
  * ámbar de golpe al filtrar otro período se lee como un parpadeo de error. */
 .rep-variacion {
   margin-left: auto;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ink-300);
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--line-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-400);
   flex: none;
-  transition: color 0.14s ease-out;
+  transition:
+    color 0.14s ease-out,
+    background 0.14s ease-out;
 }
 
 .rep-variacion--sube {
-  color: var(--accent-700);
+  background: var(--ok-bg);
+  color: var(--ok);
 }
 
 .rep-variacion--baja {
+  background: var(--warn-bg);
   color: var(--warn);
 }
 
@@ -1799,4 +1824,9 @@ main:has(> * > .rep-publico) > * {
   .rep-periodo__flecha {
     display: none;
   }
+}
+
+/* El título de «Cobros del período» separa de las tarjetas, que antes quedaban pegadas. */
+section[aria-labelledby="resumen-de-cobros"] > .dsh-seccion__titulo {
+  margin: 0 0 14px;
 }
