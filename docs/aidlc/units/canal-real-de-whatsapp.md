@@ -103,7 +103,7 @@ callbacks de plantilla por `waba_id` (§5 del ADR) son de U6/U7.
   que lo convierte en `MensajeriaNoDisponible` (`application/atencion.py:233-240`; ahora resuelve el
   teléfono por `PortDirectorio` y levanta `ClienteSinWhatsApp`). Las excepciones tipadas nuevas
   **heredan de `MensajeriaNoDisponible`** (`errors.py:55`), así que ninguno de los dos cambia.
-  **`agente.py` está en 399/400 líneas y U5 no lo edita.**
+  **`agente.py` está en 386/400 líneas (después de #99) y U5 no lo edita.**
 - Firmas distintas, cada una correcta bajo R3: `PortEnvioDeRecordatorio.enviar(empresa_id, cobro,
   canal, paso) -> EstadoEntrega` (`payments/application/ports.py:303-311`) no trae teléfono ni texto;
   `PortNotificadorDeTurnos` (`scheduling/application/ports.py:145-158`) recibe `DatosDeAviso`
@@ -262,7 +262,7 @@ callbacks de plantilla por `waba_id` (§5 del ADR) son de U6/U7.
     reciben el canal ya armado: coincide con este diseño.)*
   - `api/routers/whatsapp.py` y `api/routers/conversaciones.py` sólo cambian el import de
     `armar_mensajeria` (`:42` y `:24`) hacia `api/mensajeria.py`.
-  - **`agente.py` (399/400 líneas) no se edita en U5.** Si algo lo exigiera, primero se extrae código
+  - **`agente.py` (386/400 líneas) no se edita en U5.** Si algo lo exigiera, primero se extrae código
     a un módulo hermano, como hizo #81 con `salida.py` y `reserva_por_whatsapp.py`. Hoy el diseño no lo
     necesita; si U7 (mensajes `SISTEMA`) lo toca, es problema de U7.
   - **Tamaños**: `api/routers/agenda.py` (684), `api/routers/conversaciones.py` (486) y
@@ -534,7 +534,7 @@ reducción de alcance.
 |---|---|---|
 | El agente deja de ser llamador de `armar_notificador`; se quita el cambio de `armar_agenda(…, mensajeria)`, la reutilización de la mensajería del webhook y el caso 29 (eliminado); `_NotificadorSilencioso` se queda como excepción deliberada; se agrega el caso 34 | PR #81 ya hizo que `armar_agenda` use `_NotificadorSilencioso` y que el agente confirme en la conversación; `armar_notificador` sólo lo llama `api/routers/agenda.py` | Reducción de alcance |
 | Los puertos nuevos de payments van a `payments/application/ports_envio.py` | `ports.py` está en 400/400 (tope de CLAUDE.md §5) | Estructura, sin cambio de comportamiento |
-| El `except` amplio se cita en `application/salida.py:48-59` y `atencion.py:233-240`; el caso 31 apunta a `SalidaAlCliente`; se declara que U5 **no edita `agente.py`** (399/400) | El `except` se extrajo de `agente.py` (PR #81, #84) | Mecánico |
+| El `except` amplio se cita en `application/salida.py:48-59` y `atencion.py:233-240`; el caso 31 apunta a `SalidaAlCliente`; se declara que U5 **no edita `agente.py`** (386/400) | El `except` se extrajo de `agente.py` (PR #81, #84) | Mecánico |
 | La justificación de `api/mensajeria.py` pasa a «para que `agenda.py`, `mercadopago.py` y `workers/` no dependan de `conversacional.py`» | Con el diseño del plan no había ciclo que evitar; la mudanza sigue siendo la del ADR §2 | Mecánico |
 | `.env.example`: borrar `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_ID`, `WHATSAPP_APP_SECRET` → `WHATSAPP_WEBHOOK_SECRET`, dejar `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | Ahora se pudo leer el archivo; el secreto real es `WHATSAPP_WEBHOOK_SECRET` (`settings.py:563`) | Mecánico |
 | `docs/architecture.md`: sólo §7 (la fila de §4 ya está en `:91`) | La hizo el PR del ADR-0011 | Mecánico |
