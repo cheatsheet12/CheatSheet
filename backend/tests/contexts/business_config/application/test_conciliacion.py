@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
+from cheatsheet.contexts.business_config.application import conciliacion as modulo_conciliacion
 from cheatsheet.contexts.business_config.application.conciliacion import (
     DETALLE_DIVERGENTE,
     ConciliarPlantillasConMeta,
@@ -30,6 +31,8 @@ from cheatsheet.contexts.business_config.domain.plantilla import (
 from cheatsheet.contexts.business_config.domain.regla import CanalNotificacion
 from cheatsheet.shared.empresa import EmpresaId
 from structlog.testing import capture_logs
+
+from tests.logs import logger_nuevo
 
 from .dobles_plantillas import RepositorioPlantillasEnMemoria, RevisionDeMetaFalsa
 
@@ -308,7 +311,10 @@ async def test_una_plantilla_con_id_que_meta_ya_no_lista_queda_como_esta() -> No
     assert repositorio.filas[plantilla.id].estado_aprobacion is EstadoDeAprobacion.APROBADA
 
 
-async def test_un_estado_desconocido_no_cambia_nada_y_deja_un_log() -> None:
+async def test_un_estado_desconocido_no_cambia_nada_y_deja_un_log(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger_nuevo(monkeypatch, modulo_conciliacion)
     plantilla = _plantilla(EstadoDeAprobacion.PENDIENTE, meta_plantilla_id="1")
     repositorio = RepositorioPlantillasEnMemoria(plantilla)
 

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from cheatsheet.contexts.business_config.application import plantillas as modulo_plantillas
 from cheatsheet.contexts.business_config.application.plantillas import (
     ActualizarEstadoDesdeMeta,
     ConsultarPlantillaParaEnviar,
@@ -17,6 +18,8 @@ from cheatsheet.contexts.business_config.domain.plantilla import (
 from cheatsheet.contexts.business_config.domain.regla import CanalNotificacion
 from cheatsheet.shared.empresa import EmpresaId
 from structlog.testing import capture_logs
+
+from tests.logs import logger_nuevo
 
 from .dobles_plantillas import RepositorioPlantillasEnMemoria
 
@@ -248,8 +251,11 @@ async def test_una_plantilla_que_no_es_nuestra_no_cambia_nada() -> None:
     assert repositorio.guardados == 0
 
 
-async def test_un_valor_desconocido_no_cambia_nada_y_deja_un_log() -> None:
+async def test_un_valor_desconocido_no_cambia_nada_y_deja_un_log(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Caso 18."""
+    logger_nuevo(monkeypatch, modulo_plantillas)
     plantilla = _plantilla(EstadoDeAprobacion.PENDIENTE, meta_plantilla_id="meta-9")
     repositorio, caso = _con(plantilla)
 

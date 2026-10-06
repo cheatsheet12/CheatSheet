@@ -19,6 +19,7 @@ from cheatsheet.contexts.conversational.application.errors import (
     MensajeRechazado,
     MensajeriaSaturada,
 )
+from cheatsheet.contexts.conversational.infrastructure import canal_http
 from cheatsheet.contexts.conversational.infrastructure.canal_errores import (
     SUBCODIGOS_NOMBRE_EN_USO,
     leer_error,
@@ -30,6 +31,8 @@ from cheatsheet.contexts.conversational.infrastructure.plantillas_meta import (
 )
 from cheatsheet.platform.settings import Entorno
 from structlog.testing import capture_logs
+
+from tests.logs import logger_nuevo
 
 pytestmark = pytest.mark.asyncio
 
@@ -162,13 +165,15 @@ async def test_un_rechazo_lleva_el_texto_de_meta_y_el_subcodigo() -> None:
     assert len(servidor.pedidos) == 1
 
 
-async def test_el_texto_de_meta_no_aparece_en_ningun_log() -> None:
+async def test_el_texto_de_meta_no_aparece_en_ningun_log(monkeypatch: pytest.MonkeyPatch) -> None:
+    logger_nuevo(monkeypatch, canal_http)
     servidor = Servidor(_error(400, 100, error_user_msg="Texto secreto de Meta"))
 
     with capture_logs() as registros, pytest.raises(MensajeRechazado):
         await _cliente(servidor).crear(nombre="x", idioma="es_AR", cuerpo=CUERPO, ejemplos=EJEMPLOS)
 
     volcado = json.dumps(registros, default=str)
+    assert registros  # el test no pasa por no haber registrado nada
     assert "Texto secreto de Meta" not in volcado
     assert "fake-token-for-tests" not in volcado
     assert "Cuota de octubre" not in volcado

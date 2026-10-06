@@ -19,6 +19,7 @@ from cheatsheet.contexts.conversational.application.errors import (
     MensajeRechazado,
     MensajeriaSaturada,
 )
+from cheatsheet.contexts.conversational.infrastructure import canal_http
 from cheatsheet.contexts.conversational.infrastructure.canal import (
     ConfiguracionDeMensajeria,
     MensajeriaSimulada,
@@ -27,6 +28,8 @@ from cheatsheet.contexts.conversational.infrastructure.canal import (
 )
 from cheatsheet.platform.settings import Entorno
 from structlog.testing import capture_logs
+
+from tests.logs import logger_nuevo
 
 pytestmark = pytest.mark.asyncio
 
@@ -165,13 +168,17 @@ async def test_un_timeout_de_lectura_es_incierto_y_no_se_reintenta() -> None:
     assert esperas.segundos == []
 
 
-async def test_el_log_de_una_plantilla_rechazada_no_lleva_datos_personales() -> None:
+async def test_el_log_de_una_plantilla_rechazada_no_lleva_datos_personales(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger_nuevo(monkeypatch, canal_http)
     servidor = Servidor(_error(400, 132000))
 
     with capture_logs() as registros, pytest.raises(MensajeRechazado):
         await _enviar(_canal(servidor, Esperas()))
 
     volcado = json.dumps(registros, default=str)
+    assert registros  # el test no pasa por no haber registrado nada
     assert TELEFONO not in volcado
     assert "Ana" not in volcado
     assert "Cuota de octubre" not in volcado

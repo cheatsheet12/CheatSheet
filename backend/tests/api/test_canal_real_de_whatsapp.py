@@ -8,6 +8,7 @@ enviado lo que no salió). Todo corre sin red: la integración y el cifrado son 
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from types import SimpleNamespace
 from typing import Any
@@ -52,6 +53,25 @@ from tests.contexts.scheduling.application.test_agenda import Escena, un_recurso
 pytestmark = pytest.mark.asyncio
 
 
+class _SinPlantillas:
+    """Sin plantilla aprobada: los adaptadores mandan su texto de fábrica (U5)."""
+
+    async def para(self, codigo: str, variables: object) -> None:
+        del codigo, variables
+        return
+
+
+@pytest.fixture(autouse=True)
+def _sin_plantillas_aprobadas(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`armar_plantillas_aprobadas` lee `business_config`: acá no hay base, y U5 no usa plantillas."""
+    monkeypatch.setattr(
+        "cheatsheet.api.agenda.armar_plantillas_aprobadas", lambda _u: _SinPlantillas()
+    )
+    monkeypatch.setattr(
+        "cheatsheet.api.mercadopago.armar_plantillas_aprobadas", lambda _u: _SinPlantillas()
+    )
+
+
 @dataclass
 class _Configuracion:
     credencial: bytes
@@ -86,6 +106,12 @@ class _CanalGrabador:
 
     async def enviar(self, *, telefono: str, texto: str) -> str:  # pragma: no cover
         del telefono, texto
+        raise AssertionError("este doble no envía")
+
+    async def enviar_plantilla(  # pragma: no cover
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, nombre, idioma, parametros
         raise AssertionError("este doble no envía")
 
 
@@ -296,7 +322,7 @@ def armar_avisador_con(escena: Escena, canal: PortMensajeria) -> Avisador:
     return Avisador(
         clientes=escena.directorio,
         servicios=escena.catalogo,
-        notificador=armar_notificador(canal),
+        notificador=armar_notificador(_unidad(), canal=canal),
     )
 
 
