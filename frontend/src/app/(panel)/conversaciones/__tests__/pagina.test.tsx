@@ -82,7 +82,10 @@ const FAQ = {
   id: "f1",
   pregunta: "¿Cuánto sale un corte?",
   respuesta: "Sale $8000.",
-  usos: 3,
+  usos_este_mes: 3,
+  usos_mes_anterior: 1,
+  usos_total: 10,
+  editada_en: null,
   sin_indexar: false,
 };
 

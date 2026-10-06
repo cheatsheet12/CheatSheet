@@ -37,6 +37,8 @@ from cheatsheet.contexts.conversational.domain.faq import FAQ, CoincidenciaDeFAQ
 from cheatsheet.contexts.conversational.domain.fuera_de_horario import AtencionDelNegocio
 from cheatsheet.contexts.conversational.domain.pedido_de_turno import PedidoDeTurno
 from cheatsheet.contexts.conversational.domain.seleccion_de_horarios import HorarioOfrecible
+from cheatsheet.contexts.conversational.domain.uso_de_faq import ConteoDeUsos, UsoDeFAQ
+from cheatsheet.shared.zona_horaria import MesCalendario
 
 
 @dataclass(frozen=True, slots=True)
@@ -216,6 +218,27 @@ class PortRepositorioFAQ(Protocol):
     async def pendientes_de_indexar(self) -> list[FAQ]: ...
 
 
+class PortUsosDeFAQ(Protocol):
+    """Los usos de las FAQ: una fila inmutable por respuesta enviada (ADR-0012).
+
+    Es **solo de alta y consulta**: no hay `guardar` ni `eliminar`. Registrar un uso no toca la
+    fila de la FAQ, que es lo que impide que el agente pise una edición del administrador.
+    """
+
+    async def registrar(self, uso: UsoDeFAQ) -> None:
+        """Idempotente por `mensaje_id`: un mensaje es a lo sumo un uso."""
+        ...
+
+    async def conteos(self, mes: MesCalendario) -> dict[UUID, ConteoDeUsos]:
+        """Los conteos de **todas** las FAQ con usos, en una sola consulta."""
+        ...
+
+    async def contar(self, *, desde: datetime, hasta: datetime, faq_id: UUID | None) -> int:
+        """Usos en `[desde, hasta)`. `faq_id=None`: todas las respuestas con FAQ de la empresa,
+        incluidas las de FAQ ya borradas."""
+        ...
+
+
 class PortEmbeddings(Protocol):
     """Convierte texto en un vector. Un solo método, y una versión que lo identifica."""
 
@@ -353,6 +376,7 @@ __all__ = [
     "PortRepositorioFAQ",
     "PortRepositorioMensaje",
     "PortTranscriptor",
+    "PortUsosDeFAQ",
     "ServicioOfrecible",
     "Transcripcion",
     "TurnoDelCliente",

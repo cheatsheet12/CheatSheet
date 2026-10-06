@@ -44,8 +44,9 @@ from cheatsheet.contexts.conversational.domain.escalamiento import (
 )
 from cheatsheet.contexts.conversational.domain.faq import FAQ, CoincidenciaDeFAQ
 from cheatsheet.contexts.conversational.domain.seleccion_de_horarios import HorarioOfrecible
+from cheatsheet.contexts.conversational.domain.uso_de_faq import ConteoDeUsos, UsoDeFAQ
 from cheatsheet.shared.auditoria import EventoAuditable
-from cheatsheet.shared.zona_horaria import ZONA_ARGENTINA
+from cheatsheet.shared.zona_horaria import ZONA_ARGENTINA, MesCalendario
 
 
 class RepositorioConversacionEnMemoria:
@@ -140,11 +141,14 @@ class RepositorioFAQEnMemoria:
         self.faqs: dict[UUID, FAQ] = {una.id: una for una in faqs}
         self.coincidencias: list[CoincidenciaDeFAQ] = []
         self.vectores: dict[UUID, list[float]] = {}
+        #: Cuántas veces se pidió `guardar`: el agente no debe escribir la fila de la FAQ.
+        self.guardados = 0
 
     async def agregar(self, faq: FAQ) -> None:
         self.faqs[faq.id] = faq
 
     async def guardar(self, faq: FAQ) -> None:
+        self.guardados += 1
         self.faqs[faq.id] = faq
 
     async def guardar_vector(self, faq: FAQ, vector: Sequence[float]) -> None:
@@ -169,6 +173,37 @@ class RepositorioFAQEnMemoria:
 
     async def pendientes_de_indexar(self) -> list[FAQ]:
         return [una for una in self.faqs.values() if una.embedding_obsoleto]
+
+
+class UsosDeFAQEnMemoria:
+    """Los usos de FAQ en una lista, con la misma idempotencia por mensaje que la tabla."""
+
+    def __init__(self) -> None:
+        self.usos: list[UsoDeFAQ] = []
+
+    async def registrar(self, uso: UsoDeFAQ) -> None:
+        if all(otro.mensaje_id != uso.mensaje_id for otro in self.usos):
+            self.usos.append(uso)
+
+    async def conteos(self, mes: MesCalendario) -> dict[UUID, ConteoDeUsos]:
+        anterior = mes.anterior()
+        por_faq: dict[UUID, list[UsoDeFAQ]] = {}
+        for uso in self.usos:
+            por_faq.setdefault(uso.faq_id, []).append(uso)
+        return {
+            faq_id: ConteoDeUsos(
+                este_mes=sum(mes.inicio <= u.usado_en < mes.fin for u in usos),
+                mes_anterior=sum(anterior.inicio <= u.usado_en < anterior.fin for u in usos),
+                desde_el_seguimiento=len(usos),
+            )
+            for faq_id, usos in por_faq.items()
+        }
+
+    async def contar(self, *, desde: datetime, hasta: datetime, faq_id: UUID | None) -> int:
+        return sum(
+            desde <= uso.usado_en < hasta and (faq_id is None or uso.faq_id == faq_id)
+            for uso in self.usos
+        )
 
 
 class InterpreteProgramado:
@@ -401,6 +436,7 @@ __all__ = [
     "RepositorioFAQEnMemoria",
     "RepositorioMensajeEnMemoria",
     "TranscriptorProgramado",
+    "UsosDeFAQEnMemoria",
     "grilla_de",
     "un_horario",
 ]

@@ -226,3 +226,22 @@ menciona. Ninguna regla ni criterio dice qué hace un agente pausado (¿silencio
 bandeja del operador?): sólo aparece como precondición de HS-T2 y de HU-E9-04. Decidirlo es una pregunta de
 producto. Mientras tanto, la política (b) cubre el caso más pedido —que el agente no conteste con el negocio
 cerrado— y desactivar la regla en PAN-CFG-RN vuelve al comportamiento de siempre (D100).
+
+## Lo que dejó `usos-de-faq-por-periodo`
+
+### 24. ~~El contador de usos de FAQ no tenía período~~ · **cerrado por `usos-de-faq-por-periodo` (ADR-0012)**
+
+`faq.usos` era un entero sin fecha: la pantalla decía «Usos en el período» y mostraba el total desde
+que la FAQ existe, el agente lo contaba antes de mandar el WhatsApp (un envío fallido sumaba) y lo
+incrementaba con una lectura-modificación-escritura de toda la fila (dos respuestas simultáneas
+perdían un uso, y una respuesta que se cruzaba con una edición del administrador se la pisaba).
+
+Ahora cada respuesta enviada con una FAQ es una fila de `faq_uso` (solo inserción, única por
+mensaje), la pantalla muestra «Este mes», «Mes anterior» y «Total» con los meses en hora de
+Argentina, y el detalle de cada FAQ muestra su participación antes y después de su última edición.
+El contador viejo quedó como línea de base (`usos_anteriores`) y entra solo en el total.
+
+**Lo que queda, y es deliberado:** un fallo de entrega que Meta informe después no descuenta el uso
+(ADR-0012, punto 1; depende de los callbacks de estado, pendiente #4); `faq_uso` no se poda (si se
+poda, se pliega en `usos_anteriores` en la misma transacción); y las FAQ existentes muestran «sin
+ediciones» hasta su próxima edición real, porque no hay forma honesta de saber la anterior.
