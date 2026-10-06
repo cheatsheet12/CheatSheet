@@ -9,7 +9,7 @@
  * Se cierra con Escape (devolviendo el foco al botón), con un clic afuera y al navegar.
  */
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, LifeBuoy, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -79,9 +79,11 @@ export function MenuDeUsuario({ nombre, rol, iniciales, salida }: PropiedadesDel
           <small>{rol === "" ? "Sesión iniciada" : rol}</small>
         </div>
         <Link className="cuenta__enlace" href="/configuracion/preferencias">
+          <SlidersHorizontal size={16} strokeWidth={1.9} aria-hidden="true" />
           Mis preferencias
         </Link>
         <Link className="cuenta__enlace" href="/soporte">
+          <LifeBuoy size={16} strokeWidth={1.9} aria-hidden="true" />
           Ayuda y soporte
         </Link>
         <div className="cuenta__salida">{salida}</div>

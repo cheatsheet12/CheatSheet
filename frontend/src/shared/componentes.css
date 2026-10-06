@@ -2630,3 +2630,130 @@ input[type="checkbox"]:not([role="switch"]) + label {
     }
   }
 }
+
+/* ── Menú de la cuenta: hover con vida ───────────────────────────────────────────────────
+ *
+ * Las opciones entran escalonadas al abrirse, el icono de cada una toma el color de la marca
+ * al pasar el mouse y la fila se corre un poco. «Cerrar sesión» se pone roja: es la única acción
+ * que saca a la persona de donde está, y el color se lo dice antes del clic. */
+.cuenta__enlace {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    padding-left 0.16s ease;
+}
+
+.cuenta__enlace svg {
+  flex: none;
+  color: var(--ink-400);
+  transition:
+    color 0.16s ease,
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.cuenta__enlace:hover svg,
+.cuenta__enlace:focus-visible svg {
+  color: var(--accent-700);
+  transform: scale(1.15) rotate(-6deg);
+}
+
+.cuenta__enlace:hover,
+.cuenta__enlace:focus-visible {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.cuenta__enlace:active {
+  transform: scale(0.98);
+}
+
+/* La entrada en cascada: cada fila aparece un instante después de la anterior. */
+.cuenta__panel[data-abierto="true"] .cuenta__cabecera,
+.cuenta__panel[data-abierto="true"] .cuenta__enlace,
+.cuenta__panel[data-abierto="true"] .cuenta__salida {
+  animation: cuenta-fila 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.cuenta__panel[data-abierto="true"] .cuenta__enlace:nth-of-type(1) {
+  animation-delay: 0.04s;
+}
+
+.cuenta__panel[data-abierto="true"] .cuenta__enlace:nth-of-type(2) {
+  animation-delay: 0.08s;
+}
+
+.cuenta__panel[data-abierto="true"] .cuenta__salida {
+  animation-delay: 0.12s;
+}
+
+@keyframes cuenta-fila {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+.cuenta__salida .panel__salir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  border-radius: 12px;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.panel__salir-icono {
+  flex: none;
+  transition: transform 0.22s ease;
+}
+
+.cuenta__salida .panel__salir:hover:not(:disabled),
+.cuenta__salida .panel__salir:focus-visible {
+  background: var(--err-bg);
+  border-color: var(--err);
+  color: var(--err);
+  box-shadow: 0 6px 16px rgb(220 43 58 / 16%);
+}
+
+.cuenta__salida .panel__salir:hover:not(:disabled) .panel__salir-icono,
+.cuenta__salida .panel__salir:focus-visible .panel__salir-icono {
+  transform: translateX(3px);
+}
+
+.cuenta__salida .panel__salir:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.cuenta__salida .panel__salir:focus-visible {
+  outline: 2px solid var(--err);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cuenta__panel[data-abierto="true"] .cuenta__cabecera,
+  .cuenta__panel[data-abierto="true"] .cuenta__enlace,
+  .cuenta__panel[data-abierto="true"] .cuenta__salida {
+    animation: none;
+  }
+
+  .cuenta__enlace,
+  .cuenta__enlace svg,
+  .panel__salir-icono,
+  .cuenta__salida .panel__salir {
+    transition: none;
+  }
+
+  .cuenta__enlace:hover svg,
+  .cuenta__salida .panel__salir:hover .panel__salir-icono {
+    transform: none;
+  }
+}
