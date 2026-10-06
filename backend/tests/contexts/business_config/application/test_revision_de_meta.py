@@ -1,13 +1,12 @@
-"""Editar y enviar a revisión una plantilla de WhatsApp (U6, casos 1 y 5 a 10, 20 y 23).
+"""Editar una plantilla de WhatsApp: se manda a Meta antes de guardarla (U6, casos 1, 5 a 10, 20 y 23).
 
 La respuesta de Meta decide si la edición existe: se llama dentro del caso de uso y, si Meta
-refuta o no contesta, **no se guarda nada**. Sin red: el puerto es un doble programable.
+refuta o no responde, **no se guarda nada**. Sin red: el puerto es un doble programable.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from datetime import timedelta
 
 import pytest
 from cheatsheet.contexts.business_config.application.errors import (
@@ -16,100 +15,35 @@ from cheatsheet.contexts.business_config.application.errors import (
     MetaRechazoLaPlantilla,
 )
 from cheatsheet.contexts.business_config.application.plantillas import MOTIVO_SOLO_ADMIN
-from cheatsheet.contexts.business_config.application.ports import RespuestaDeMeta
-from cheatsheet.contexts.business_config.application.revision_de_meta import (
-    DETALLE_SIN_CONECTAR,
-    EditarPlantilla,
-    EnviarPlantillaAMeta,
-)
+from cheatsheet.contexts.business_config.application.revision_de_meta import DETALLE_SIN_CONECTAR
 from cheatsheet.contexts.business_config.domain.plantilla import (
     MENSAJE_BORDE_CON_VARIABLE,
     MENSAJE_EN_REVISION,
     MENSAJE_VARIABLE_INVALIDA,
     EstadoDeAprobacion,
-    PlantillaDeNotificacion,
 )
 from cheatsheet.contexts.business_config.domain.regla import CanalNotificacion
-from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.roles import RolUsuario
 
-from .dobles_plantillas import PublicadorFalso, RepositorioPlantillasEnMemoria, RevisionDeMetaFalsa
+from .dobles_plantillas import RevisionDeMetaFalsa
+from .escena_revision import (
+    AHORA,
+    APROBADA,
+    CUERPO_NUEVO,
+    CUERPO_VIEJO,
+    PENDIENTE,
+    Escena,
+    una_plantilla,
+)
 
 pytestmark = pytest.mark.asyncio
-
-EMPRESA = EmpresaId(uuid4())
-USUARIO = UsuarioId(uuid4())
-AHORA = datetime(2026, 10, 15, 13, 0, tzinfo=UTC)
-CUERPO_VIEJO = "Hola {{nombre}}, te recordamos tu turno el {{fecha}} a las {{hora}}."
-CUERPO_NUEVO = "Hola {{nombre}}, te esperamos el {{fecha}} a las {{hora}} en {{recurso}}. Gracias."
-
-APROBADA = RespuestaDeMeta(meta_plantilla_id="meta-9", estado="APPROVED", categoria="UTILITY")
-PENDIENTE = RespuestaDeMeta(meta_plantilla_id="meta-9", estado="PENDING", categoria="UTILITY")
-
-
-def _plantilla(
-    estado: EstadoDeAprobacion = EstadoDeAprobacion.SIN_ENVIAR,
-    *,
-    canal: CanalNotificacion = CanalNotificacion.WHATSAPP,
-    cuerpo: str = CUERPO_VIEJO,
-    **extra: object,
-) -> PlantillaDeNotificacion:
-    return PlantillaDeNotificacion(
-        id=uuid4(),
-        empresa_id=EMPRESA,
-        codigo="turno_confirmado",
-        canal=canal,
-        idioma="es_AR",
-        cuerpo=cuerpo,
-        estado_aprobacion=estado,
-        nombre_en_meta="turno_confirmado" if canal is CanalNotificacion.WHATSAPP else None,
-        **extra,  # type: ignore[arg-type]
-    )
-
-
-class Escena:
-    def __init__(
-        self, plantilla: PlantillaDeNotificacion, revision: RevisionDeMetaFalsa | None = None
-    ) -> None:
-        self.plantilla = plantilla
-        self.repositorio = RepositorioPlantillasEnMemoria(plantilla)
-        self.revision = revision or RevisionDeMetaFalsa()
-        self.publicador = PublicadorFalso()
-
-    async def editar(
-        self, cuerpo: str = CUERPO_NUEVO, rol: RolUsuario = RolUsuario.ADMINISTRADOR
-    ) -> PlantillaDeNotificacion:
-        return await EditarPlantilla(self.repositorio, self.publicador, self.revision).ejecutar(
-            empresa_id=EMPRESA,
-            usuario_id=USUARIO,
-            rol=rol,
-            plantilla_id=self.plantilla.id,
-            cuerpo=cuerpo,
-            ahora=AHORA,
-        )
-
-    async def enviar(self) -> PlantillaDeNotificacion:
-        return await EnviarPlantillaAMeta(
-            self.repositorio, self.publicador, self.revision
-        ).ejecutar(
-            empresa_id=EMPRESA,
-            usuario_id=USUARIO,
-            rol=RolUsuario.ADMINISTRADOR,
-            plantilla_id=self.plantilla.id,
-            ahora=AHORA,
-        )
-
-    @property
-    def guardada(self) -> PlantillaDeNotificacion:
-        return self.repositorio.filas[self.plantilla.id]
-
 
 # --- Caso 1: guardar manda la plantilla a Meta --------------------------------------------------
 
 
 async def test_guardar_una_sin_enviar_la_crea_en_meta_con_un_ejemplo_por_variable_usada() -> None:
-    escena = Escena(_plantilla(), RevisionDeMetaFalsa(respuestas=[PENDIENTE]))
+    escena = Escena(una_plantilla(), RevisionDeMetaFalsa(respuestas=[PENDIENTE]))
 
     resultado = await escena.editar()
 
@@ -126,7 +60,7 @@ async def test_guardar_una_sin_enviar_la_crea_en_meta_con_un_ejemplo_por_variabl
 
 
 async def test_si_meta_aprueba_en_el_acto_queda_aprobada() -> None:
-    escena = Escena(_plantilla(), RevisionDeMetaFalsa(respuestas=[APROBADA]))
+    escena = Escena(una_plantilla(), RevisionDeMetaFalsa(respuestas=[APROBADA]))
 
     resultado = await escena.editar()
 
@@ -138,7 +72,7 @@ async def test_si_meta_aprueba_en_el_acto_queda_aprobada() -> None:
 
 
 async def test_los_ejemplos_son_solo_los_de_las_variables_que_el_cuerpo_usa() -> None:
-    escena = Escena(_plantilla(), RevisionDeMetaFalsa(respuestas=[PENDIENTE]))
+    escena = Escena(una_plantilla(), RevisionDeMetaFalsa(respuestas=[PENDIENTE]))
 
     await escena.editar("Hola {{nombre}}, te esperamos. Gracias.")
 
@@ -149,7 +83,7 @@ async def test_los_ejemplos_son_solo_los_de_las_variables_que_el_cuerpo_usa() ->
 
 
 async def test_editar_una_pendiente_se_rechaza_sin_llamar_a_meta() -> None:
-    escena = Escena(_plantilla(EstadoDeAprobacion.PENDIENTE, meta_plantilla_id="meta-9"))
+    escena = Escena(una_plantilla(EstadoDeAprobacion.PENDIENTE, meta_plantilla_id="meta-9"))
 
     with pytest.raises(EntradaInvalida) as salida:
         await escena.editar()
@@ -162,7 +96,7 @@ async def test_editar_una_pendiente_se_rechaza_sin_llamar_a_meta() -> None:
 
 async def test_editar_una_aprobada_enviada_hace_tres_horas_no_llama_a_meta() -> None:
     escena = Escena(
-        _plantilla(
+        una_plantilla(
             EstadoDeAprobacion.APROBADA,
             meta_plantilla_id="meta-9",
             enviada_a_meta_en=AHORA - timedelta(hours=3),
@@ -179,7 +113,7 @@ async def test_editar_una_aprobada_enviada_hace_veinticinco_horas_manda_los_comp
     None
 ):
     escena = Escena(
-        _plantilla(
+        una_plantilla(
             EstadoDeAprobacion.APROBADA,
             meta_plantilla_id="meta-9",
             enviada_a_meta_en=AHORA - timedelta(hours=25),
@@ -202,7 +136,7 @@ async def test_editar_una_aprobada_enviada_hace_veinticinco_horas_manda_los_comp
 
 async def test_si_meta_refuta_no_se_guarda_nada_y_el_error_lleva_su_texto() -> None:
     escena = Escena(
-        _plantilla(),
+        una_plantilla(),
         RevisionDeMetaFalsa(respuestas=[MetaRechazoLaPlantilla("Texto de Meta sobre el cuerpo")]),
     )
 
@@ -218,7 +152,7 @@ async def test_si_meta_refuta_no_se_guarda_nada_y_el_error_lleva_su_texto() -> N
 
 async def test_si_meta_no_responde_no_se_guarda_nada_y_hay_un_solo_pedido() -> None:
     escena = Escena(
-        _plantilla(), RevisionDeMetaFalsa(respuestas=[MetaNoDisponible("lento", incierto=True)])
+        una_plantilla(), RevisionDeMetaFalsa(respuestas=[MetaNoDisponible("lento", incierto=True)])
     )
 
     with pytest.raises(MetaNoDisponible) as salida:
@@ -234,7 +168,7 @@ async def test_si_meta_no_responde_no_se_guarda_nada_y_hay_un_solo_pedido() -> N
 
 async def test_nombre_en_uso_reintenta_una_vez_con_el_nombre_versionado_y_lo_guarda() -> None:
     escena = Escena(
-        _plantilla(),
+        una_plantilla(),
         RevisionDeMetaFalsa(
             respuestas=[MetaRechazoLaPlantilla("ya existe", nombre_en_uso=True), PENDIENTE]
         ),
@@ -251,7 +185,7 @@ async def test_nombre_en_uso_reintenta_una_vez_con_el_nombre_versionado_y_lo_gua
 
 async def test_nombre_en_uso_dos_veces_se_rinde_y_no_guarda() -> None:
     escena = Escena(
-        _plantilla(),
+        una_plantilla(),
         RevisionDeMetaFalsa(
             respuestas=[
                 MetaRechazoLaPlantilla("ya existe", nombre_en_uso=True),
@@ -272,7 +206,7 @@ async def test_nombre_en_uso_dos_veces_se_rinde_y_no_guarda() -> None:
 
 async def test_una_deshabilitada_se_crea_de_nuevo_con_nombre_versionado_y_nunca_se_edita() -> None:
     escena = Escena(
-        _plantilla(EstadoDeAprobacion.DESHABILITADA, meta_plantilla_id="meta-viejo"),
+        una_plantilla(EstadoDeAprobacion.DESHABILITADA, meta_plantilla_id="meta-viejo"),
         RevisionDeMetaFalsa(respuestas=[PENDIENTE]),
     )
 
@@ -286,7 +220,7 @@ async def test_una_deshabilitada_se_crea_de_nuevo_con_nombre_versionado_y_nunca_
 async def test_una_borrada_en_meta_queda_sin_enviar_y_reenviarla_crea_con_nombre_versionado() -> (
     None
 ):
-    plantilla = _plantilla(
+    plantilla = una_plantilla(
         EstadoDeAprobacion.APROBADA,
         meta_plantilla_id="meta-viejo",
         enviada_a_meta_en=AHORA - timedelta(days=5),
@@ -307,7 +241,7 @@ async def test_una_borrada_en_meta_queda_sin_enviar_y_reenviarla_crea_con_nombre
 
 async def test_sin_whatsapp_conectado_guarda_el_texto_y_queda_sin_enviar_con_el_detalle() -> None:
     escena = Escena(
-        _plantilla(EstadoDeAprobacion.RECHAZADA, motivo_meta="SCAM"),
+        una_plantilla(EstadoDeAprobacion.RECHAZADA, motivo_meta="SCAM"),
         RevisionDeMetaFalsa(respuestas=[MetaNoConectada("sin cuenta")]),
     )
 
@@ -323,7 +257,7 @@ async def test_sin_whatsapp_conectado_guarda_el_texto_y_queda_sin_enviar_con_el_
 
 
 async def test_una_variable_desconocida_se_rechaza_antes_de_llamar_a_meta() -> None:
-    escena = Escena(_plantilla())
+    escena = Escena(una_plantilla())
 
     with pytest.raises(EntradaInvalida) as salida:
         await escena.editar("Hola {{nombre}}, tu saldo es {{saldo}}. Gracias.")
@@ -333,7 +267,7 @@ async def test_una_variable_desconocida_se_rechaza_antes_de_llamar_a_meta() -> N
 
 
 async def test_un_cuerpo_que_termina_en_variable_se_rechaza_antes_de_llamar_a_meta() -> None:
-    escena = Escena(_plantilla())
+    escena = Escena(una_plantilla())
 
     with pytest.raises(EntradaInvalida) as salida:
         await escena.editar("Hola, tu turno es el {{fecha}}")
@@ -343,7 +277,7 @@ async def test_un_cuerpo_que_termina_en_variable_se_rechaza_antes_de_llamar_a_me
 
 
 async def test_una_plantilla_de_email_se_guarda_sin_tocar_meta() -> None:
-    escena = Escena(_plantilla(EstadoDeAprobacion.NO_APLICA, canal=CanalNotificacion.EMAIL))
+    escena = Escena(una_plantilla(EstadoDeAprobacion.NO_APLICA, canal=CanalNotificacion.EMAIL))
 
     resultado = await escena.editar("{{nombre}}, te esperamos el {{fecha}}")
 
@@ -354,7 +288,7 @@ async def test_una_plantilla_de_email_se_guarda_sin_tocar_meta() -> None:
 
 
 async def test_solo_el_administrador_edita() -> None:
-    escena = Escena(_plantilla())
+    escena = Escena(una_plantilla())
 
     with pytest.raises(EntradaInvalida) as salida:
         await escena.editar(rol=RolUsuario.OPERADOR)
@@ -364,64 +298,8 @@ async def test_solo_el_administrador_edita() -> None:
 
 
 async def test_una_plantilla_inexistente_se_rechaza() -> None:
-    escena = Escena(_plantilla())
-    escena.plantilla = _plantilla()  # otro id: no está en el repositorio
+    escena = Escena(una_plantilla())
+    escena.plantilla = una_plantilla()  # otro id: no está en el repositorio
 
     with pytest.raises(EntradaInvalida, match="no existe"):
         await escena.editar()
-
-
-# --- Enviar a revisión sin editar el texto ----------------------------------------------------------------------
-
-
-async def test_enviar_a_revision_una_sin_enviar_la_crea_con_su_cuerpo_actual() -> None:
-    escena = Escena(_plantilla(), RevisionDeMetaFalsa(respuestas=[PENDIENTE]))
-
-    resultado = await escena.enviar()
-
-    assert escena.revision.creaciones[0][2] == CUERPO_VIEJO
-    assert resultado.estado_aprobacion is EstadoDeAprobacion.PENDIENTE
-    assert [e.accion for e in escena.publicador.eventos] == ["enviar_plantilla_a_meta"]  # type: ignore[attr-defined]
-
-
-async def test_enviar_a_revision_una_rechazada_con_id_la_edita_en_meta() -> None:
-    escena = Escena(
-        _plantilla(EstadoDeAprobacion.RECHAZADA, meta_plantilla_id="meta-9", motivo_meta="SCAM"),
-        RevisionDeMetaFalsa(respuestas=[PENDIENTE]),
-    )
-
-    resultado = await escena.enviar()
-
-    assert escena.revision.ediciones[0][0] == "meta-9"
-    assert resultado.estado_aprobacion is EstadoDeAprobacion.PENDIENTE
-    assert resultado.motivo_meta is None
-
-
-@pytest.mark.parametrize(
-    "estado",
-    [
-        EstadoDeAprobacion.PENDIENTE,
-        EstadoDeAprobacion.APROBADA,
-        EstadoDeAprobacion.PAUSADA,
-    ],
-)
-async def test_enviar_a_revision_solo_corresponde_a_sin_enviar_o_rechazada(
-    estado: EstadoDeAprobacion,
-) -> None:
-    escena = Escena(_plantilla(estado, meta_plantilla_id="meta-9"))
-
-    with pytest.raises(EntradaInvalida, match="no necesita reenviarse"):
-        await escena.enviar()
-
-    assert escena.revision.creaciones == []
-    assert escena.revision.ediciones == []
-
-
-async def test_enviar_a_revision_un_cuerpo_viejo_que_termina_en_variable_se_rechaza() -> None:
-    escena = Escena(_plantilla(cuerpo="Pagá acá: {{fecha}}"))
-
-    with pytest.raises(EntradaInvalida) as salida:
-        await escena.enviar()
-
-    assert str(salida.value) == MENSAJE_BORDE_CON_VARIABLE
-    assert escena.revision.creaciones == []
