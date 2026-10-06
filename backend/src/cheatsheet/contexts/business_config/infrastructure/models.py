@@ -81,7 +81,7 @@ class PlantillaDeNotificacionORM(Base):
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        # `ResolverPlantilla` busca por codigo dentro de la empresa, que es la consulta del
+        # `ConsultarPlantillaParaEnviar` busca por codigo dentro de la empresa, que es la consulta del
         # camino caliente: cada mensaje saliente pasa por ella.
         Index("ix_plantilla_empresa_codigo", "empresa_id", "codigo"),
         # Una plantilla de Meta es de una sola fila nuestra (el webhook la busca por este id).

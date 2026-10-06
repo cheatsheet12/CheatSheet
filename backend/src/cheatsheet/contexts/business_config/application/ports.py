@@ -106,7 +106,7 @@ class PortRepositorioPlantillas(Protocol):
         """La plantilla vigente para ese codigo, o `None`.
 
         `None` es un camino previsto y no un error: el adaptador que la pedia usa su texto de
-        fabrica. Ver `ResolverPlantilla`.
+        fabrica. Ver `ConsultarPlantillaParaEnviar`.
         """
         ...
 

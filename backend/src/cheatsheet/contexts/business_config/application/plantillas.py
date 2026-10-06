@@ -13,8 +13,8 @@ Dos cosas del archivo:
   las que faltan con el texto de fábrica. Sembrarlas en el alta de la empresa habría atado un
   épico a otro y habría dejado sin plantillas a las empresas creadas antes de este épico.
 
-- **`ResolverPlantilla` devuelve `None` cuando no hay nada configurado**, y el llamador usa su
-  texto por defecto. Un canal que se queda mudo porque falta una fila es peor que uno que
+- **`ConsultarPlantillaParaEnviar` dice qué hacer cuando no hay nada usable**, y el llamador usa
+  su texto por defecto. Un canal que se queda mudo porque falta una fila es peor que uno que
   manda el texto de fábrica.
 """
 
@@ -126,27 +126,6 @@ class ListarPlantillas:
         for plantilla in faltantes:
             await self._plantillas.agregar(plantilla)
         return sorted([*existentes, *faltantes], key=lambda una: una.codigo)
-
-
-class ResolverPlantilla:
-    """El texto listo para mandar, o `None` si no hay plantilla usable.
-
-    `None` cubre los tres casos que para el llamador significan lo mismo: no existe, no está
-    aprobada, o el código no está configurado. En los tres, el adaptador manda su texto de
-    fábrica — ver el docstring del módulo.
-    """
-
-    def __init__(self, plantillas: PortRepositorioPlantillas) -> None:
-        self._plantillas = plantillas
-
-    async def ejecutar(self, codigo: str, variables: dict[str, str]) -> str | None:
-        plantilla = await self._plantillas.buscar_por_codigo(codigo)
-        if plantilla is None or not plantilla.puede_usarse:
-            return None
-        try:
-            return plantilla.resolver(variables)
-        except EntradaInvalida:
-            return None
 
 
 #: Meta no acepta saltos de línea ni tabulaciones dentro de un valor de parámetro (regla conocida,
@@ -277,7 +256,6 @@ __all__ = [
     "ConsultarPlantillaParaEnviar",
     "ListarPlantillas",
     "PlantillaParaEnviar",
-    "ResolverPlantilla",
     "exigir_administrador",
     "limpiar_valor",
     "variables_conocidas",
