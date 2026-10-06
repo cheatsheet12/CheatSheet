@@ -31,7 +31,15 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Alert, Button, Campo, Casilla, Select, useAccionConNavegacion } from "@/shared";
+import {
+  Alert,
+  Button,
+  Campo,
+  Casilla,
+  Select,
+  SelectorDeFecha,
+  useAccionConNavegacion,
+} from "@/shared";
 
 import {
   ErrorDeTurno,
@@ -208,15 +216,14 @@ export function NuevoTurno({
             onChange={(evento) => setInicioPasado(evento.target.value)}
           />
         ) : (
-          <Campo
+          <SelectorDeFecha
             id="turno-fecha"
             etiqueta="Fecha"
-            type="date"
             min={limites?.hoy}
             value={fecha}
-            onChange={(evento) => {
-              setFecha(evento.target.value);
-              void buscar(recursoId, servicioId, evento.target.value);
+            alCambiar={(valor) => {
+              setFecha(valor);
+              void buscar(recursoId, servicioId, valor);
             }}
           />
         )}
