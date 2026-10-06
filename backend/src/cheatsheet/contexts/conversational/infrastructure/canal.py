@@ -26,36 +26,20 @@ import asyncio
 import hashlib
 import math
 import struct
-from collections.abc import Awaitable, Callable
+from collections.abc import Mapping
 from dataclasses import dataclass
 from uuid import uuid4
 
 import httpx
 
-from cheatsheet.contexts.conversational.application.errors import (
-    CanalNoConectado,
-    EnvioIncierto,
-    MensajeRechazado,
-    MensajeriaSaturada,
-)
+from cheatsheet.contexts.conversational.application.errors import CanalNoConectado
 from cheatsheet.contexts.conversational.application.ports import Transcripcion
 from cheatsheet.contexts.conversational.domain.faq import DIMENSION_DEL_VECTOR
-from cheatsheet.contexts.conversational.infrastructure.canal_errores import (
-    FALLAS_SIN_SALIDA,
-    ErrorDeMeta,
-    leer_error,
-)
+from cheatsheet.contexts.conversational.infrastructure.canal_http import Esperar, pedir_a_meta
 from cheatsheet.platform.settings import Entorno
 from cheatsheet.platform.telemetry import obtener_logger
 
 logger = obtener_logger(__name__)
-
-#: Cuántas veces se reintenta un envío. Dos reintentos sobre un 5xx alcanzan para un blip;
-#: más sería tenerle a alguien el request abierto mientras Meta se recupera.
-INTENTOS = 3
-
-#: Segundos de espera antes del 2.º y del 3.er intento (exponencial, sin variable de entorno).
-ESPERAS = (1.0, 2.0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +68,15 @@ class MensajeriaSimulada:
                 "en un log y ningún cliente los recibiría"
             )
         self.enviados: list[str] = []
+        self.plantillas_enviadas: list[tuple[str, Mapping[str, str]]] = []
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, idioma
+        self.plantillas_enviadas.append((nombre, dict(parametros)))
+        logger.info("plantilla_simulada", nombre=nombre, parametros=len(parametros))
+        return f"simulado-{uuid4()}"
 
     async def enviar(self, *, telefono: str, texto: str) -> str:
         del telefono
@@ -101,20 +94,13 @@ class MensajeriaWhatsApp:
     """El cliente real de la Cloud API de Meta.
 
     Timeout explícito, reintento con espera y manejo del fallo, como pide `CLAUDE.md` §5 para
-    toda llamada externa. Los errores se clasifican en `canal_errores.py`:
-
-    - **Transitorio** (sin conexión, 5xx, 429, límites de tasa): hasta `INTENTOS` intentos con
-      `ESPERAS` entre uno y otro; agotados, `MensajeriaSaturada`.
-    - **Permanente** (un 4xx, o un código que Meta no va a aceptar): un solo intento y
-      `MensajeRechazado`. Reintentarlo es gastar el rate limit de la empresa contra un error
-      propio.
-    - **Incierto** (timeout de lectura, conexión cortada): un solo intento y `EnvioIncierto`.
-      El pedido pudo haber llegado y no hay clave de idempotencia: **un duplicado es peor que
-      un mensaje que falta**.
+    toda llamada externa. La política (transitorio / permanente / incierto) vive en
+    `canal_http.py` y es la misma para el mensaje de texto, la plantilla y el cliente de
+    plantillas.
 
     `esperar` se inyecta para que los tests no duerman. Las excepciones llevan el `error.code`
     de Meta; el log, `estado`, `codigo` y `fbtrace_id` y **nunca** `error.message`,
-    `error_data`, el teléfono ni el texto.
+    `error_data`, el teléfono, el texto ni los parámetros.
     """
 
     def __init__(
@@ -122,71 +108,66 @@ class MensajeriaWhatsApp:
         configuracion: ConfiguracionDeMensajeria,
         *,
         transporte: httpx.AsyncBaseTransport | None = None,
-        esperar: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        esperar: Esperar = asyncio.sleep,
     ) -> None:
         self._config = configuracion
         self._transporte = transporte
         self._esperar = esperar
 
     async def enviar(self, *, telefono: str, texto: str) -> str:
-        cuerpo: dict[str, object] = {
-            "messaging_product": "whatsapp",
-            "to": telefono,
-            "type": "text",
-            "text": {"body": texto},
-        }
+        return await self._publicar(
+            {
+                "messaging_product": "whatsapp",
+                "to": telefono,
+                "type": "text",
+                "text": {"body": texto},
+            },
+            objeto="el mensaje",
+        )
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        """Una plantilla aprobada, con los parámetros **por nombre** (`parameter_name`)."""
+        plantilla: dict[str, object] = {"name": nombre, "language": {"code": idioma}}
+        if parametros:
+            plantilla["components"] = [
+                {
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "parameter_name": clave, "text": valor}
+                        for clave, valor in parametros.items()
+                    ],
+                }
+            ]
+        return await self._publicar(
+            {
+                "messaging_product": "whatsapp",
+                "to": telefono,
+                "type": "template",
+                "template": plantilla,
+            },
+            objeto="la plantilla",
+        )
+
+    async def _publicar(self, cuerpo: Mapping[str, object], *, objeto: str) -> str:
         ruta = (
             f"{self._config.graph_url.rstrip('/')}/{self._config.graph_version}/"
             f"{self._config.phone_number_id}/messages"
         )
-        codigo: int | None = None
         async with httpx.AsyncClient(
             timeout=self._config.timeout_segundos, transport=self._transporte
         ) as cliente:
-            for intento in range(INTENTOS):
-                resultado = await self._intentar(cliente, ruta, cuerpo)
-                if isinstance(resultado, str):
-                    return resultado
-                codigo = resultado.codigo
-                if intento < INTENTOS - 1:
-                    logger.info("whatsapp_reintenta", intento=intento + 1)
-                    await self._esperar(ESPERAS[intento])
-        raise MensajeriaSaturada("WhatsApp no respondió", codigo=codigo)
-
-    async def _intentar(
-        self, cliente: httpx.AsyncClient, ruta: str, cuerpo: dict[str, object]
-    ) -> str | ErrorDeMeta:
-        """Un intento: el `wamid` si salió, el error transitorio si conviene reintentar.
-
-        Un error permanente o incierto sale como excepción y corta el bucle.
-        """
-        try:
-            respuesta = await cliente.post(
-                ruta, json=cuerpo, headers={"Authorization": f"Bearer {self._config.token}"}
+            respuesta = await pedir_a_meta(
+                cliente,
+                "POST",
+                ruta,
+                token=self._config.token,
+                objeto=objeto,
+                cuerpo=cuerpo,
+                esperar=self._esperar,
             )
-        except FALLAS_SIN_SALIDA:
-            # El pedido no salió: reintentar no puede duplicar nada.
-            logger.warning("whatsapp_sin_conexion")
-            return ErrorDeMeta(estado=0, codigo=None, fbtrace_id=None)
-        except httpx.HTTPError as exc:
-            logger.warning("whatsapp_envio_incierto", causa=type(exc).__name__)
-            raise EnvioIncierto(f"WhatsApp: resultado incierto ({type(exc).__name__})") from exc
-
-        if respuesta.status_code < 300:
-            return _id_del_mensaje(respuesta)
-        error = leer_error(respuesta)
-        logger.warning(
-            "whatsapp_rechazo_el_mensaje",
-            estado=error.estado,
-            codigo=error.codigo,
-            fbtrace_id=error.fbtrace_id,
-        )
-        if error.es_transitorio:
-            return error
-        raise MensajeRechazado(
-            f"WhatsApp rechazó el mensaje (HTTP {error.estado}, código {error.codigo})",
-            codigo=error.codigo,
-        )
+        return _id_del_mensaje(respuesta)
 
 
 class SinCanal:
@@ -199,6 +180,13 @@ class SinCanal:
 
     async def enviar(self, *, telefono: str, texto: str) -> str:
         del telefono, texto
+        logger.info("whatsapp_sin_conectar_no_se_envia")
+        raise CanalNoConectado("La empresa no conectó WhatsApp: el mensaje no se envió")
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, nombre, idioma, parametros
         logger.info("whatsapp_sin_conectar_no_se_envia")
         raise CanalNoConectado("La empresa no conectó WhatsApp: el mensaje no se envió")
 
