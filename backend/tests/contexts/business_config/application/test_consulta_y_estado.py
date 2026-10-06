@@ -299,3 +299,22 @@ async def test_un_estado_del_nodo_se_traduce_con_su_propio_vocabulario() -> None
     await caso.ejecutar(estado="PAUSED", momento=AHORA, es_evento=False, meta_plantilla_id="meta-9")
 
     assert repositorio.filas[plantilla.id].estado_aprobacion is EstadoDeAprobacion.PAUSADA
+
+
+async def test_mismo_nombre_pero_otro_id_de_meta_no_es_nuestra_plantilla() -> None:
+    """Una plantilla de Meta con el mismo nombre e idioma y otro id no se confunde con la vinculada."""
+    plantilla = _plantilla(EstadoDeAprobacion.PENDIENTE, meta_plantilla_id="meta-9")
+    repositorio, caso = _con(plantilla)
+
+    cambio = await caso.ejecutar(
+        estado="APPROVED",
+        momento=AHORA,
+        es_evento=True,
+        meta_plantilla_id="otro-id",
+        nombre="turno_confirmado",
+        idioma="es_AR",
+    )
+
+    assert cambio is False
+    assert repositorio.filas[plantilla.id].meta_plantilla_id == "meta-9"
+    assert repositorio.filas[plantilla.id].estado_aprobacion is EstadoDeAprobacion.PENDIENTE

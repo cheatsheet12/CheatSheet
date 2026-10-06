@@ -251,7 +251,16 @@ class ActualizarEstadoDesdeMeta:
             if plantilla is not None:
                 return plantilla
         if nombre and idioma:
-            return await self._plantillas.buscar_por_nombre_en_meta(nombre, idioma)
+            plantilla = await self._plantillas.buscar_por_nombre_en_meta(nombre, idioma)
+            if (
+                plantilla is not None
+                and meta_plantilla_id
+                and plantilla.meta_plantilla_id not in (None, meta_plantilla_id)
+            ):
+                # Mismo nombre, otro id: es otra plantilla de Meta, no la que tenemos vinculada.
+                logger.warning("plantilla_de_meta_con_otro_id")
+                return None
+            return plantilla
         return None
 
 
