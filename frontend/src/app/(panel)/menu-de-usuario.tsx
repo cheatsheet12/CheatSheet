@@ -9,6 +9,7 @@
  * Se cierra con Escape (devolviendo el foco al botón), con un clic afuera y al navegar.
  */
 
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -70,20 +71,7 @@ export function MenuDeUsuario({ nombre, rol, iniciales, salida }: PropiedadesDel
           <b>{nombre}</b>
           <small>{rol}</small>
         </span>
-        <svg
-          className="cuenta__chevron"
-          viewBox="0 0 24 24"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <ChevronDown className="cuenta__chevron" size={14} strokeWidth={2} aria-hidden="true" />
       </button>
       <div id="menu-de-cuenta" className="cuenta__panel" data-abierto={abierto}>
         <div className="cuenta__cabecera">

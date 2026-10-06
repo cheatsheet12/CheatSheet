@@ -767,14 +767,20 @@ a:focus-visible {
   position: fixed;
   inset: 0 auto 0 0;
   width: var(--sidebar-w);
-  /* Un degradado apenas perceptible: una barra de un solo color plano parece un bloque. */
-  background: radial-gradient(120% 60% at 0% 0%, rgb(0 168 121 / 10%), transparent 55%),
-    linear-gradient(180deg, #212134 0%, var(--primary) 38%);
+  /* Sobrio: tinta oscura, un poco más clara arriba y más cerrada abajo. El único brillo es
+     un velo neutro en la esquina superior que le da volumen sin teñirla de ningún color: el
+     verde de la marca queda reservado para lo que está activo. */
+  background: radial-gradient(120% 34% at 0% 0%, rgb(255 255 255 / 4.5%), transparent 70%),
+    linear-gradient(180deg, #21212f 0%, #1b1b28 50%, #151520 100%);
   color: #cfcfdd;
   display: flex;
   flex-direction: column;
   z-index: 40;
-  border-right: 1px solid rgb(255 255 255 / 5%);
+  /* El filo derecho: una línea de luz fina en vez de un borde plano, y una sombra larga que
+     la separa del contenido. */
+  box-shadow:
+    inset -1px 0 0 rgb(255 255 255 / 7%),
+    8px 0 32px rgb(20 20 40 / 10%);
   transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -800,7 +806,7 @@ a:focus-visible {
   flex: none;
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 14%),
-    0 0 0 5px rgb(0 168 121 / 10%),
+    0 0 0 5px rgb(255 255 255 / 5%),
     0 8px 20px rgb(0 0 0 / 32%);
   transition:
     transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -811,8 +817,8 @@ a:focus-visible {
   transform: rotate(-8deg) scale(1.07);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 18%),
-    0 0 0 6px rgb(0 168 121 / 22%),
-    0 10px 26px rgb(0 168 121 / 35%);
+    0 0 0 6px rgb(255 255 255 / 9%),
+    0 10px 26px rgb(0 0 0 / 40%);
 }
 
 .sidebar__marca {
@@ -883,9 +889,18 @@ a:focus-visible {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  /* La barra de desplazamiento del sistema es gris claro sobre fondo oscuro: se afina. */
-  scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 14%) transparent;
+}
+
+/* La barra de desplazamiento del sistema es gris claro sobre fondo oscuro: se afina.
+   **Una API u otra, nunca las dos.** Chrome desde la 121 ignora `::-webkit-scrollbar` si el
+   elemento declara `scrollbar-width` o `scrollbar-color`, y vuelve a dibujar las flechas de
+   los extremos que acá se quitan. Por eso la estándar sólo la usan los motores sin la
+   seudoclase de WebKit (Firefox). */
+@supports not selector(::-webkit-scrollbar) {
+  .nav {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 14%) transparent;
+  }
 }
 
 .nav::-webkit-scrollbar {
@@ -2145,4 +2160,48 @@ a:focus-visible {
   border-radius: var(--radius);
   padding: var(--space-3);
   margin: var(--space-3) 0;
+}
+
+/* ── La barra reducida a iconos ───────────────────────────────────────────────────────── */
+@media (min-width: 901px) {
+  /* Reducida no hay a dónde mirar una barra de scroll: la lista se desplaza igual con la
+     rueda, y el carril de seis píxeles sólo le come ancho a los iconos. */
+  .app[data-colapsada="true"] .nav {
+    scrollbar-width: none;
+  }
+
+  .app[data-colapsada="true"] .nav::-webkit-scrollbar {
+    width: 0;
+  }
+
+  .app[data-colapsada="true"] .nav__item {
+    border-radius: 13px;
+    padding-block: 12px;
+  }
+
+  .app[data-colapsada="true"] .nav__icono {
+    width: 20px;
+    height: 20px;
+  }
+
+  .app[data-colapsada="true"] .nav__item:hover {
+    background: rgb(255 255 255 / 7%);
+  }
+
+  .app[data-colapsada="true"] .nav__pildora {
+    border-radius: 13px;
+    box-shadow: inset 0 0 0 1px rgb(0 168 121 / 26%);
+  }
+
+  /* El pie reducido es una tarjeta vertical: avatar arriba, botón abajo. */
+  .app[data-colapsada="true"] .sidebar__pie {
+    gap: 8px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 3%));
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
+  }
+
+  .app[data-colapsada="true"] .sidebar__colapsar {
+    width: 100%;
+  }
 }

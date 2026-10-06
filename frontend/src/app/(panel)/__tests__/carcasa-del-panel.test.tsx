@@ -99,4 +99,17 @@ describe("CarcasaDelPanel", () => {
     expect(screen.getAllByText("Operaciones").length).toBeGreaterThan(1);
     expect(screen.getAllByText("Cobros").length).toBeGreaterThan(0);
   });
+
+  it("los botones de icono muestran el icono y ningún texto suelto", () => {
+    // Un ternario fuera de las llaves de JSX compila y se pinta como texto: «colapsada ? (…».
+    // TypeScript no lo ve, así que se comprueba lo que llega al DOM.
+    montar();
+
+    for (const nombre of ["Reducir la barra lateral", "Abrir el menú", "Cerrar el menú"]) {
+      const boton = screen.queryByRole("button", { name: nombre });
+      if (boton === null) continue;
+      expect(boton.querySelector("svg")).not.toBeNull();
+      expect(boton.textContent).toBe("");
+    }
+  });
 });

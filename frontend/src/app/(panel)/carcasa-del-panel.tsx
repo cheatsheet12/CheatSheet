@@ -17,6 +17,7 @@
  * un botón de hamburguesa en el encabezado. Escape lo cierra y navegar también.
  */
 
+import { ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -43,24 +44,6 @@ function iniciales(nombre: string): string {
     .map((palabra) => palabra[0])
     .join("")
     .toUpperCase();
-}
-
-function Icono({ trazo }: { readonly trazo: string }): JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d={trazo} />
-    </svg>
-  );
 }
 
 export function CarcasaDelPanel({
@@ -146,7 +129,7 @@ export function CarcasaDelPanel({
             aria-label="Cerrar el menú"
             onClick={() => setCajonAbierto(false)}
           >
-            <Icono trazo="M6 6l12 12M18 6 6 18" />
+            <X size={18} strokeWidth={1.9} aria-hidden="true" />
           </button>
         </div>
 
@@ -170,7 +153,11 @@ export function CarcasaDelPanel({
             title={colapsada ? "Expandir la barra lateral" : "Reducir la barra lateral"}
             onClick={alternarColapso}
           >
-            <Icono trazo={colapsada ? "m9 6 6 6-6 6" : "m15 6-6 6 6 6"} />
+            {colapsada ? (
+              <ChevronRight size={18} strokeWidth={1.9} aria-hidden="true" />
+            ) : (
+              <ChevronLeft size={18} strokeWidth={1.9} aria-hidden="true" />
+            )}
           </button>
         </div>
       </aside>
@@ -195,7 +182,7 @@ export function CarcasaDelPanel({
             aria-controls="barra-lateral"
             onClick={() => setCajonAbierto(true)}
           >
-            <Icono trazo="M4 6.5h16M4 12h16M4 17.5h16" />
+            <Menu size={18} strokeWidth={1.9} aria-hidden="true" />
           </button>
           {ubicacion === null ? null : (
             <p className="topbar__migas">

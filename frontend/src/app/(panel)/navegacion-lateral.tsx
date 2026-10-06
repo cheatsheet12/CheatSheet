@@ -9,11 +9,38 @@
  * textos, los iconos— es datos. Antes la barra era una lista de enlaces idénticos y quien
  * entraba a una pantalla profunda no tenía forma de ubicarse en el mapa.
  *
- * **Los iconos son marcado y no una dependencia**, por la misma razón que los del
- * dashboard (`panel/iconos.tsx`): veintitrés paths de 24×24 no justifican un árbol de
- * dependencias. Todos son `aria-hidden`; el texto de al lado dice lo mismo.
+ * **Los iconos vienen de `lucide-react`**, que se importa glifo por glifo: el bundle
+ * lleva sólo los veintitrés que se usan acá y no la librería. Todos son `aria-hidden`; el
+ * texto de al lado dice lo mismo.
  */
 
+import {
+  Bell,
+  BriefcaseBusiness,
+  Boxes,
+  Building2,
+  CalendarDays,
+  ChartColumn,
+  ChevronDown,
+  CloudUpload,
+  History,
+  House,
+  Layers,
+  LayoutTemplate,
+  LifeBuoy,
+  type LucideIcon,
+  MessageCircleMore,
+  MessageSquareQuote,
+  Package,
+  Plug,
+  ReceiptText,
+  Settings,
+  SlidersHorizontal,
+  Store,
+  UserRound,
+  Users,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
@@ -134,185 +161,42 @@ export function ubicacionDe(ruta: string): { grupo: string; etiqueta: string } |
 
 const HREFS = NAVEGACION.flatMap((grupo) => grupo.entradas.map((entrada) => entrada.href));
 
-const TRAZOS: Readonly<Record<NombreDeIcono, JSX.Element>> = {
-  inicio: (
-    <>
-      <path d="M3 10.5 12 3l9 7.5" />
-      <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5" />
-    </>
-  ),
-  ingesta: (
-    <>
-      <path d="M12 16V4" />
-      <path d="m7 9 5-5 5 5" />
-      <path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />
-    </>
-  ),
-  clientes: (
-    <>
-      <circle cx="9" cy="8" r="3.5" />
-      <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
-      <path d="M16 4.7a3.5 3.5 0 0 1 0 6.6M18 14.2a6.5 6.5 0 0 1 3.5 5.8" />
-    </>
-  ),
-  servicios: (
-    <>
-      <rect x="3" y="7" width="18" height="13" rx="2" />
-      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18" />
-    </>
-  ),
-  categorias: (
-    <>
-      <path d="m12 3 9 5-9 5-9-5 9-5Z" />
-      <path d="m3 13 9 5 9-5" />
-    </>
-  ),
-  facturacion: (
-    <>
-      <path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" />
-      <path d="M14 2v5h5M8.5 13h7M8.5 17h5" />
-    </>
-  ),
-  cobros: (
-    <>
-      <rect x="2.5" y="5.5" width="19" height="13" rx="2" />
-      <path d="M2.5 9.5h19M6 15h3" />
-    </>
-  ),
-  agenda: (
-    <>
-      <rect x="3" y="4.5" width="18" height="16" rx="2" />
-      <path d="M3 9h18M8 2.5v4M16 2.5v4" />
-    </>
-  ),
-  recursos: (
-    <>
-      <path d="m12 3 8.5 4.5v9L12 21l-8.5-4.5v-9L12 3Z" />
-      <path d="M12 12 3.8 7.7M12 12l8.2-4.3M12 12v9" />
-    </>
-  ),
-  whatsapp: (
-    <>
-      <path d="M4 20l1.3-4.2A8.5 8.5 0 1 1 8.3 18.8L4 20Z" />
-      <path d="M9 10c.4 2 2 3.6 4 4l1.4-1.2 2 .9c-.3 1.2-1.4 1.8-2.4 1.6-3-.6-5.4-3-6-6-.2-1 .5-2.1 1.7-2.4l.9 2L9 10Z" />
-    </>
-  ),
-  reportes: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
-  log: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </>
-  ),
-  empresa: (
-    <>
-      <path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M14 10h5a1 1 0 0 1 1 1v10M2 21h20" />
-      <path d="M8 8h2M8 12h2M8 16h2" />
-    </>
-  ),
-  usuarios: (
-    <>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21a8 8 0 0 1 16 0" />
-    </>
-  ),
-  integraciones: (
-    <>
-      <path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8Z" />
-      <path d="M12 17v4" />
-    </>
-  ),
-  puntos: (
-    <>
-      <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z" />
-      <circle cx="12" cy="9.5" r="2.5" />
-    </>
-  ),
-  reglas: (
-    <>
-      <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
-      <circle cx="16" cy="7" r="2" />
-      <circle cx="8" cy="17" r="2" />
-    </>
-  ),
-  respuestas: (
-    <>
-      <path d="M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4V5Z" />
-      <path d="M8 9h8M8 12h5" />
-    </>
-  ),
-  plantillas: (
-    <>
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M3 9h18M9 9v12" />
-    </>
-  ),
-  paquete: (
-    <>
-      <path d="m12 3 8.5 4.5v9L12 21l-8.5-4.5v-9L12 3Z" />
-      <path d="m7.5 5.5 8.5 4.7M3.5 7.5 12 12l8.5-4.5" />
-    </>
-  ),
-  notificaciones: (
-    <>
-      <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16Z" />
-      <path d="M10 21h4" />
-    </>
-  ),
-  preferencias: (
-    <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1" />
-    </>
-  ),
-  soporte: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="3.5" />
-      <path d="m5.6 5.6 3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9" />
-    </>
-  ),
+const ICONOS: Readonly<Record<NombreDeIcono, LucideIcon>> = {
+  inicio: House,
+  ingesta: CloudUpload,
+  clientes: Users,
+  servicios: BriefcaseBusiness,
+  categorias: Layers,
+  facturacion: ReceiptText,
+  cobros: Wallet,
+  agenda: CalendarDays,
+  recursos: Boxes,
+  whatsapp: MessageCircleMore,
+  reportes: ChartColumn,
+  log: History,
+  empresa: Building2,
+  usuarios: UserRound,
+  integraciones: Plug,
+  puntos: Store,
+  reglas: SlidersHorizontal,
+  respuestas: MessageSquareQuote,
+  plantillas: LayoutTemplate,
+  paquete: Package,
+  notificaciones: Bell,
+  preferencias: Settings,
+  soporte: LifeBuoy,
 };
 
 function Icono({ nombre }: { readonly nombre: NombreDeIcono }): JSX.Element {
-  return (
-    <svg
-      className="nav__icono"
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {TRAZOS[nombre]}
-    </svg>
-  );
+  const Glifo = ICONOS[nombre];
+  return <Glifo className="nav__icono" size={18} strokeWidth={1.75} aria-hidden="true" />;
 }
 
 /** Los grupos que arrancan cerrados: los de uso ocasional, para que lo diario quepa sin scroll. */
 const CERRADOS_AL_INICIO: ReadonlySet<string> = new Set(["Sistema"]);
 
 function Chevron(): JSX.Element {
-  return (
-    <svg
-      className="nav__chevron"
-      viewBox="0 0 24 24"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
+  return <ChevronDown className="nav__chevron" size={14} strokeWidth={2} aria-hidden="true" />;
 }
 
 interface PropiedadesDeNavegacion {
@@ -402,7 +286,7 @@ export function NavegacionLateral({ colapsada = false }: PropiedadesDeNavegacion
     nav.current
       ?.querySelector<HTMLElement>(".nav__item--activo")
       ?.scrollIntoView({ block: "nearest" });
-  }, [activo, cerrados]);
+  }, [activo, cerrados, colapsada]);
 
   // Un grupo que recién se abre mide cero hasta que termina de desplegarse: se repite la
   // maniobra cuando acaba la animación, para que la entrada activa quede a la vista.
@@ -414,7 +298,7 @@ export function NavegacionLateral({ colapsada = false }: PropiedadesDeNavegacion
       ubicarPildora();
     }, 360);
     return () => window.clearTimeout(espera);
-  }, [activo, cerrados, ubicarPildora]);
+  }, [activo, cerrados, colapsada, ubicarPildora]);
 
   useEffect(() => {
     ubicarPildora();
