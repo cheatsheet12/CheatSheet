@@ -62,6 +62,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | borrado-sin-cuerpo | frontend (`lib/`, transversal) | HU-E9-04, HU-E4-03, HU-E1-04, HU-E2-04, HU-E10-05 | — | Luciano | fix/frontend-borrado-sin-cuerpo | mergeada |
 | Agente de WhatsApp y atención humana | ajustes-menores-del-agente | conversational | HS-T2, HU-E8-05 | — | Luciano | fix/conversational-ajustes-menores-del-agente | mergeada |
 | Agente de WhatsApp y atención humana | politica-fuera-de-horario | business_config (conversational aplica la política por su ACL) | HS-T2, HU-E11-01, HU-E8-05 | reserva-y-cancelacion-por-whatsapp | Luciano | feature/business_config-politica-fuera-de-horario | mergeada |
+| Cimientos, identidad y bitácora | navegacion-pendiente | frontend (`shared/`, transversal) | HU-E1-01, HU-E1-02, HU-E1-04, HU-E2-04, HU-E5-03, HU-E5-04, HU-E6-03, HU-E7-06 | — | Luciano | fix/frontend-navegacion-pendiente | en curso |
 
 
 ---

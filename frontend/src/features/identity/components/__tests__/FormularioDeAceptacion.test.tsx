@@ -7,8 +7,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const empujar = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: empujar }) }));
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
+});
 
 const aceptarInvitacion = vi.fn();
 vi.mock("@/features/identity/api/cliente", async () => {
@@ -22,12 +24,17 @@ const { FormularioDeAceptacion } = await import(
   "@/features/identity/components/FormularioDeAceptacion"
 );
 const { ErrorDeFormulario } = await import("@/features/identity/api/cliente");
+const { ArnesDeRouter, reiniciarRouter, resolverNavegacion, routerQueSuspende } = await import(
+  "@/shared/__tests__/router-que-suspende"
+);
+const empujar = routerQueSuspende.push;
 
 const TOKEN = "un-token-de-invitacion";
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  reiniciarRouter();
 });
 
 function completar(nombre: string, contrasena: string, confirmacion: string): void {
@@ -111,5 +118,29 @@ describe("FormularioDeAceptacion", () => {
       expect(screen.getByText("Esta invitación no es válida o ya fue utilizada.")).toBeDefined();
     });
     expect(empujar).not.toHaveBeenCalled();
+  });
+});
+
+describe("FormularioDeAceptacion, mientras la navegación tarda", () => {
+  it("un segundo envío después de la respuesta y antes del destino no acepta la invitación otra vez", async () => {
+    aceptarInvitacion.mockResolvedValue({ onboarding_completo: true });
+    render(
+      <ArnesDeRouter>
+        <FormularioDeAceptacion token={TOKEN} />
+      </ArnesDeRouter>,
+    );
+    completar("Beto Gomez", "una-contrasena-larga", "una-contrasena-larga");
+
+    fireEvent.click(screen.getByRole("button", { name: "Activar mi cuenta" }));
+    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/panel"));
+
+    const boton = screen.getByRole("button", { name: "Activar mi cuenta" });
+    expect((boton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(boton);
+    fireEvent.submit(boton.closest("form") as HTMLFormElement);
+    expect(aceptarInvitacion).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(aceptarInvitacion).toHaveBeenCalledTimes(1);
   });
 });
