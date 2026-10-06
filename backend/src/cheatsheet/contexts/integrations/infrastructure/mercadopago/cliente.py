@@ -59,11 +59,17 @@ class ConfiguracionMercadoPago:
     `client_id` and `client_secret` identify **our application**, not a company — the same
     shape as the platform's Google OAuth client. What is per-company are the tokens the
     flow returns, and those live encrypted in the database.
+
+    `credenciales_de_prueba` sends `test_token` on every token request. Without it
+    MercadoPago answers with a live token even when a test user authorized, and the
+    environment cross-check then refuses every account outside production. It has no
+    default on purpose: getting it wrong in either direction is silent until money moves.
     """
 
     client_id: str
     client_secret: str
     redirect_uri: str
+    credenciales_de_prueba: bool
     auth_url: str = AUTH_URL_POR_DEFECTO
     api_url: str = API_URL_POR_DEFECTO
     timeout_segundos: float = TIMEOUT_POR_DEFECTO
@@ -109,11 +115,13 @@ class ClienteMercadoPago:
         url = f"{self._config.api_url.rstrip('/')}{RUTA_DE_CANJE}"
         # The credentials of our application go in the body, as MercadoPago's OAuth
         # documents it. They are never logged, here or anywhere else.
-        payload = {
+        payload: dict[str, str | bool] = {
             **cuerpo,
             "client_id": self._config.client_id,
             "client_secret": self._config.client_secret,
         }
+        if self._config.credenciales_de_prueba:
+            payload["test_token"] = True
         ultimo: Exception | None = None
 
         for intento in range(1, self._config.max_intentos + 1):

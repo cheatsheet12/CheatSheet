@@ -14,6 +14,7 @@ que el pedido nunca llegó.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
@@ -71,11 +72,13 @@ CONFIG = ConfiguracionMercadoPago(
     client_id="app-de-prueba",
     client_secret="secreto-de-prueba",
     redirect_uri=RETORNO,
+    credenciales_de_prueba=True,
     auth_url="https://auth.test",
     api_url="https://api.test",
     timeout_segundos=1.0,
     espera_base=0.0,
 )
+CONFIG_PRODUCCION = replace(CONFIG, credenciales_de_prueba=False)
 
 TOKENS: dict[str, Any] = {
     "access_token": ACCESO,
@@ -175,6 +178,27 @@ async def test_el_canje_manda_el_verificador_y_la_misma_redirect_uri() -> None:
     assert cuerpo["code_verifier"] == VERIFICADOR
     assert cuerpo["redirect_uri"] == RETORNO
     assert cuerpo["client_id"] == "app-de-prueba"
+
+
+async def test_fuera_de_produccion_el_canje_pide_credenciales_de_prueba() -> None:
+    """Sin `test_token`, MercadoPago entrega un token productivo aunque autorice un usuario de
+    prueba, y el cruce de ambiente lo rechaza: en staging no conectaba ninguna cuenta."""
+    grabadora = Grabadora([_ok(TOKENS), _ok(CUENTA)])
+
+    await _conector(grabadora).conectar(_material())
+
+    assert json.loads(grabadora.pedidos[0].content)["test_token"] is True
+
+
+async def test_en_produccion_el_canje_no_pide_credenciales_de_prueba() -> None:
+    """Un `test_token` en producción dejaría a la empresa cobrando con dinero ficticio."""
+    grabadora = Grabadora([_ok({**TOKENS, "live_mode": True}), _ok(CUENTA)])
+    cliente = ClienteMercadoPago(CONFIG_PRODUCCION, grabadora.transporte())
+    conector = ConectorMercadoPago(cliente, RelojFijo(INSTANTE_FIJO), es_produccion=True)
+
+    await conector.conectar(_material())
+
+    assert "test_token" not in json.loads(grabadora.pedidos[0].content)
 
 
 async def test_la_cuenta_se_lee_antes_de_dar_por_conectada_la_integracion() -> None:
@@ -342,6 +366,15 @@ async def test_la_renovacion_manda_el_refresh_token_guardado() -> None:
     cuerpo = json.loads(grabadora.pedidos[0].content)
     assert cuerpo["grant_type"] == "refresh_token"
     assert cuerpo["refresh_token"] == "refresco-viejo"
+
+
+async def test_fuera_de_produccion_la_renovacion_tambien_pide_credenciales_de_prueba() -> None:
+    """Una renovación sin `test_token` cambiaría el par de prueba por uno productivo."""
+    grabadora = Grabadora([_ok(TOKENS)])
+
+    await _conector(grabadora).renovar(empaquetar(ACCESO, REFRESCO))
+
+    assert json.loads(grabadora.pedidos[0].content)["test_token"] is True
 
 
 async def test_la_renovacion_no_vuelve_a_leer_la_cuenta() -> None:
