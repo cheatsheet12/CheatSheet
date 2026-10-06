@@ -2362,8 +2362,8 @@ select.campo__control:focus {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2300805c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
 }
 
-/* ── Casilla (todas, dentro o fuera de `Casilla`) ─────────────────────────────────────────────────────────────────────────── */
-input[type="checkbox"] {
+/* ── Casilla (todas, salvo los interruptores `role="switch"`, que dibujan los suyos) ─────────────────────────────────────────────────────────────────────────── */
+input[type="checkbox"]:not([role="switch"]) {
   appearance: none;
   display: grid;
   place-items: center;
@@ -2380,11 +2380,11 @@ input[type="checkbox"] {
     transform 0.12s ease;
 }
 
-input[type="checkbox"]:hover:not(:disabled) {
+input[type="checkbox"]:not([role="switch"]):hover:not(:disabled) {
   border-color: var(--accent);
 }
 
-input[type="checkbox"]:checked {
+input[type="checkbox"]:not([role="switch"]):checked {
   background-color: var(--accent);
   border-color: var(--accent);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e1e2e' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>");
@@ -2393,22 +2393,22 @@ input[type="checkbox"]:checked {
   background-repeat: no-repeat;
 }
 
-input[type="checkbox"]:active:not(:disabled) {
+input[type="checkbox"]:not([role="switch"]):active:not(:disabled) {
   transform: scale(0.88);
 }
 
-input[type="checkbox"]:focus-visible {
+input[type="checkbox"]:not([role="switch"]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-input[type="checkbox"]:disabled {
+input[type="checkbox"]:not([role="switch"]):disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
 .campo--casilla label,
-input[type="checkbox"] + label {
+input[type="checkbox"]:not([role="switch"]) + label {
   cursor: pointer;
   user-select: none;
 }
@@ -2489,7 +2489,7 @@ input[type="checkbox"] + label {
 @media (prefers-reduced-motion: reduce) {
   .boton,
   .campo__control,
-  input[type="checkbox"],
+  input[type="checkbox"]:not([role="switch"]),
   .modal__cerrar {
     transition: none;
   }
