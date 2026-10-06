@@ -140,6 +140,7 @@ async def _procesar(recursos: Recursos, empresa: EmpresaId, entrante: MensajeEnt
             mensajes=piezas.mensajes,
             escalamientos=piezas.escalamientos,
             faqs=piezas.faqs,
+            usos=piezas.usos,
             clientes=armar_directorio(
                 unidad,
                 recursos.settings,
