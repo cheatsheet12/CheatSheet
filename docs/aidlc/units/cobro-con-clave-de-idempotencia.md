@@ -207,7 +207,7 @@ y API no corren en la máquina local (sin Docker): se escriben y los confirma la
 | 5 | Repetición cuando el cliente ya está inactivo → devuelve el cobro original (la búsqueda va antes de validar el cliente) | unit | hecho (verde en local) |
 | 6 | Solo Lectura con clave → rechazado por rol **antes** de buscar la clave (el fake no recibe consultas) | unit | hecho (verde en local) |
 | 7 | Si la pasarela falla en el primer pedido, nada queda guardado y un segundo pedido con la misma clave crea el cobro | unit | hecho (verde en local) |
-| 8 | RED: `POST /cobros` sin `X-Idempotency-Key` → 422 con el texto de la tabla; con un valor que no es UUID → 422 | integración (API) | hecho (verde en local) |
+| 8 | RED: `POST /cobros` sin `X-Idempotency-Key` → 422 con el texto de la tabla; con un valor que no es UUID → 422 | integración (API) | hecho: RED observado el 2026-10-06 en `tests/api/test_clave_de_pedido.py` (sin la validación, 5 fallos; restaurada, 5 verdes) |
 | 9 | RED: dos `POST /cobros` secuenciales con la misma clave → los dos 201 con el mismo `id`; MercadoPago (mock) recibió **una** preferencia | integración (API) | escrito; lo confirma la CI (sin Docker) |
 | 10 | RED: misma clave con otro cuerpo → 422 `ClaveDeIdempotenciaReusada` | integración (API) | escrito; lo confirma la CI (sin Docker) |
 | 11 | Los `POST /cobros` existentes de `test_api_mercadopago.py` siguen pasando mandando una clave | integración (API) | escrito; lo confirma la CI (sin Docker) |
