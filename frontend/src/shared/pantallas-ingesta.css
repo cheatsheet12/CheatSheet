@@ -1158,24 +1158,37 @@
 
 /* ── PAN-ING-02 · revisión del mapeo ─────────────────────────────────────── */
 
+@keyframes ing-map-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Barra de contexto: qué archivo se está mapeando y quién lo interpretó. */
 .ing-resumen {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
   flex-wrap: wrap;
-  padding: var(--space-4) 20px;
+  padding: 16px 20px;
   margin-bottom: 18px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow);
+  animation: ing-map-entra 0.4s ease both;
 }
 
 .ing-resumen__ico {
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-control);
+  border-radius: 12px;
   background: var(--accent-050);
   color: var(--accent-700);
   display: grid;
@@ -1194,15 +1207,15 @@
 }
 
 .ing-resumen__nombre {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
+  letter-spacing: -0.1px;
   color: var(--ink-900);
 }
 
 .ing-resumen__detalle {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-400);
+  font-size: 12.5px;
+  color: var(--ink-500);
   display: block;
   margin-top: 3px;
 }
@@ -1213,18 +1226,79 @@
   gap: 7px;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--ink-500);
-  padding: 7px 13px;
+  color: var(--ink-600);
+  padding: 7px 13px 7px 11px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: var(--card);
+  background: var(--bg-soft);
   flex: none;
 }
 
 .ing-marca-ia svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   color: var(--accent-700);
+}
+
+/* La tabla: las filas entran escalonadas, la que se mira se destaca con una barra de acento. */
+.ing-map-tabla .tabla th {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.ing-map-tabla .tabla td {
+  padding: 13px 18px;
+}
+
+.ing-map-tabla .tabla tbody tr {
+  animation: ing-map-entra 0.38s ease both;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(1) {
+  animation-delay: 0.04s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(3) {
+  animation-delay: 0.12s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(4) {
+  animation-delay: 0.16s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(5) {
+  animation-delay: 0.2s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(6) {
+  animation-delay: 0.24s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(n + 7) {
+  animation-delay: 0.28s;
+}
+
+.ing-map-tabla .tabla tbody tr:hover td,
+.ing-map-tabla .tabla tbody tr:focus-within td {
+  background: var(--bg-soft);
+}
+
+.ing-map-tabla .tabla tbody tr td:first-child {
+  box-shadow: inset 3px 0 0 transparent;
+  transition: box-shadow 0.18s ease;
+}
+
+.ing-map-tabla .tabla tbody tr:hover td:first-child,
+.ing-map-tabla .tabla tbody tr:focus-within td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.ing-map-tabla .tabla th.tabla__celda--derecha {
+  text-align: right;
 }
 
 /* Columna de origen: el número de orden ancla la fila cuando alguien la nombra en voz alta. */
@@ -1237,8 +1311,14 @@
 .ing-map-n {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--ink-300);
-  width: 18px;
+  color: var(--ink-400);
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
   flex: none;
 }
 
@@ -1246,8 +1326,8 @@
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 700;
-  display: block;
   color: var(--ink-900);
+  overflow-wrap: anywhere;
 }
 
 .ing-map-destino {
@@ -1256,10 +1336,69 @@
   gap: var(--space-3);
 }
 
+.ing-map-destino .campo {
+  margin: 0;
+}
+
 .ing-map-flecha {
-  color: var(--accent-700);
-  font-size: 16px;
+  color: var(--ink-300);
   flex: none;
+  display: grid;
+  transition:
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.ing-map-flecha svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ing-map-tabla .tabla tbody tr:hover .ing-map-flecha,
+.ing-map-tabla .tabla tbody tr:focus-within .ing-map-flecha {
+  color: var(--accent-700);
+  transform: translateX(3px);
+}
+
+/* El selector de destino: más aire, una flecha propia y un foco que se nota. */
+.ing-map-destino .campo__control {
+  min-width: 15rem;
+  padding: 9px 36px 9px 13px;
+  appearance: none;
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238a8a9c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.ing-map-destino .campo__control:hover:not(:disabled) {
+  border-color: var(--ink-300);
+}
+
+.ing-map-destino .campo__control:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* Sin asignar (select en el valor vacío): borde punteado ámbar, sin gritar. */
+.ing-map-destino .campo__control:has(option[value=""]:checked) {
+  border-style: dashed;
+  border-color: var(--warn);
+  background-color: var(--alert-050);
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.ing-map-destino .campo__control:has(option[value=""]:checked):focus {
+  border-style: solid;
+  border-color: var(--accent);
+  background-color: var(--card);
+  color: var(--ink-900);
 }
 
 .ing-map-campo {
@@ -1269,16 +1408,16 @@
 }
 
 /*
- * «Sin asignar» se dibuja en rojo y con borde porque es lo único de la tabla que **frena** el
- * paso siguiente (HU-E3-02 RN-02). El resto de la fila puede leerse de reojo; ésta no. */
+ * «Sin asignar» en solo lectura es lo único de la tabla que frena el paso siguiente
+ * (HU-E3-02 RN-02): lleva icono, tinte y borde punteado para no perderse. */
 .ing-map-sin-asignar {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--err);
-  border: 1px solid var(--err);
+  border: 1px dashed var(--err);
   border-radius: var(--radius-control);
   padding: 7px 12px;
   background: var(--err-bg);
@@ -1292,29 +1431,42 @@
 .ing-map-ejemplo {
   font-family: var(--mono);
   font-size: 12.5px;
-  color: var(--ink-400);
+  color: var(--ink-500);
+  display: inline-block;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 /*
- * La píldora de confianza. Baja 11 px como el badge del sistema de diseño y por la misma
- * razón: el punto de color lleva el significado al lado de la palabra. */
+ * Confianza: palabra, punto de color y un medidor de tres tramos que se llena según el nivel.
+ * El significado lo lleva la palabra; el medidor sólo ayuda a comparar filas de un vistazo. */
 .ing-conf {
-  font-size: 11.5px;
+  --ing-conf-llenos: 3;
+
+  font-size: 12px;
   font-weight: 700;
-  padding: 4px 10px;
+  padding: 4px 11px 4px 10px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   white-space: nowrap;
 }
 
 .ing-conf::before {
   content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentcolor;
+  width: 22px;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    currentcolor calc(var(--ing-conf-llenos) * 33.34%),
+    rgb(0 0 0 / 12%) 0
+  );
+  flex: none;
 }
 
 .ing-conf--alta {
@@ -1323,11 +1475,15 @@
 }
 
 .ing-conf--media {
+  --ing-conf-llenos: 2;
+
   background: var(--warn-bg);
   color: var(--warn);
 }
 
 .ing-conf--baja {
+  --ing-conf-llenos: 1;
+
   background: var(--err-bg);
   color: var(--err);
 }
@@ -1337,14 +1493,14 @@
   color: var(--info);
 }
 
-/* Pie del mapeo: el recuento y las dos acciones, en la misma línea que el prototipo. */
+/* Pie del mapeo: el recuento y la acción principal. */
 .ing-pie {
   display: flex;
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
-  padding: var(--space-4) 0 0;
-  margin-top: var(--space-4);
+  padding: var(--space-4) 18px 0;
+  margin-top: var(--space-2);
   border-top: 1px solid var(--line);
 }
 
@@ -1352,44 +1508,108 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--ink-600);
 }
 
 .ing-pie__dato b {
   color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
 }
 
 .ing-pie__ic {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   flex: none;
-  font-size: 12px;
-  font-weight: 800;
 }
 
 .ing-pie__ic--ok {
-  background: var(--accent);
-  color: var(--color-text-on-dark);
+  background: var(--accent-050);
+  color: var(--accent-700);
 }
 
-.ing-pie__ic--ok svg {
-  width: 12px;
-  height: 12px;
+.ing-pie__ic svg {
+  width: 13px;
+  height: 13px;
 }
 
 .ing-pie__ic--atencion {
-  background: var(--alert);
-  color: var(--primary);
+  background: var(--alert-050);
+  color: var(--warn);
 }
 
 .ing-pie__acciones {
   margin-left: auto;
   display: flex;
   gap: var(--space-3);
+}
+
+/* Botones de confirmar y procesar: el CTA de marca de la pantalla de ingesta. */
+.ing-pie__acciones .boton--primario,
+.ing-acciones .boton--primario {
+  min-height: 44px;
+  border-radius: 12px;
+  padding: 0 20px;
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.16s ease,
+    background-color 0.14s ease,
+    color 0.14s ease;
+}
+
+.ing-pie__acciones .boton--primario:hover:not(:disabled),
+.ing-acciones .boton--primario:hover:not(:disabled) {
+  background: linear-gradient(180deg, #0fb98a 0%, var(--accent-700) 100%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 20%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 28%);
+}
+
+.ing-pie__acciones .boton--primario:disabled,
+.ing-acciones .boton--primario:disabled {
+  box-shadow: none;
+}
+
+.ing-pie__acciones .boton svg,
+.ing-acciones .boton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ing-acciones .boton--secundario {
+  min-height: 44px;
+  border-radius: 12px;
+  padding: 0 18px;
+  transition:
+    border-color 0.14s ease,
+    transform 0.16s ease,
+    box-shadow 0.2s ease;
+}
+
+.ing-acciones .boton--secundario:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/* Barra de acciones del mapeo ya confirmado: «qué sigue», encima de la tabla. */
+.ing-acciones--barra {
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 14px 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: ing-map-entra 0.4s ease both;
 }
 
 /* ── PAN-ING-03 · detalle de un procesamiento ────────────────────────────── */
@@ -1400,44 +1620,91 @@
 .ing-proc-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: var(--space-6) 0;
+  gap: var(--space-4);
+  margin: 20px 0 0;
 }
 
 .ing-proc-stat {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 10px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  padding: var(--space-4);
-  text-align: center;
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+  animation: ing-map-entra 0.4s ease both;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.ing-proc-stat:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.ing-proc-stat:nth-child(3) {
+  animation-delay: 0.12s;
+}
+
+.ing-proc-stat:hover {
+  transform: translateY(-2px);
+  border-color: var(--ink-300);
+  box-shadow: var(--shadow);
+}
+
+.ing-proc-stat__l {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-600);
+}
+
+.ing-proc-stat__ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink-600);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.ing-proc-stat__ico svg {
+  width: 18px;
+  height: 18px;
 }
 
 .ing-proc-stat__n {
-  font-size: 26px;
+  grid-row: 2;
+  margin: 0;
+  font-size: 32px;
   font-weight: 800;
-  letter-spacing: -0.5px;
+  line-height: 1;
+  letter-spacing: -0.8px;
   font-variant-numeric: tabular-nums;
   color: var(--ink-900);
 }
 
-.ing-proc-stat__l {
-  font-size: 12px;
-  color: var(--ink-500);
-  margin-top: 2px;
-}
-
-.ing-proc-stat--ok {
-  background: var(--accent-050);
+.ing-proc-stat--ok .ing-proc-stat__ico {
   border-color: var(--accent-100);
+  background: var(--accent-050);
+  color: var(--accent-700);
 }
 
 .ing-proc-stat--ok .ing-proc-stat__n {
   color: var(--accent-700);
 }
 
-.ing-proc-stat--error {
-  background: var(--err-bg);
+.ing-proc-stat--error .ing-proc-stat__ico {
   border-color: var(--err-bg);
+  background: var(--err-bg);
+  color: var(--err);
 }
 
 .ing-proc-stat--error .ing-proc-stat__n {
@@ -1452,11 +1719,147 @@
   margin: 0;
 }
 
+/* Errores por fila: el número de fila como ficha, el motivo como texto legible. */
+.ing-proc-errores .tabla th {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.ing-proc-errores .tabla td {
+  padding: 12px 18px;
+}
+
+.ing-proc-errores .tabla td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.ing-proc-errores .tabla tbody tr {
+  animation: ing-map-entra 0.36s ease both;
+}
+
+.ing-proc-errores .tabla tbody tr:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+.ing-proc-errores .tabla tbody tr:nth-child(3) {
+  animation-delay: 0.08s;
+}
+
+.ing-proc-errores .tabla tbody tr:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.ing-proc-errores .tabla tbody tr:nth-child(n + 5) {
+  animation-delay: 0.16s;
+}
+
+.ing-proc-errores .tabla tbody tr:hover td {
+  background: var(--bg-soft);
+}
+
+.ing-proc-fila {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: var(--err-bg);
+  color: var(--err);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ing-proc-motivo {
+  color: var(--ink-700);
+  overflow-wrap: anywhere;
+}
+
 .ing-acciones {
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
   margin-top: var(--space-6);
+}
+
+@media (width <= 640px) {
+  /* La tabla del mapeo scrollea de costado dentro de su caja en lugar de partir las palabras. */
+  .ing-map-tabla .tabla {
+    min-width: 600px;
+  }
+
+  .ing-map-columna {
+    white-space: nowrap;
+  }
+
+  /* Los tres totales siguen en una fila, compactos, para compararlos de un vistazo. */
+  .tarjeta .ing-proc-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .ing-proc-stat {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .ing-proc-stat__ico {
+    display: none;
+  }
+
+  .ing-proc-stat__n {
+    font-size: 26px;
+  }
+
+  .ing-map-destino .campo__control {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ing-map-destino .campo {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ing-pie__acciones {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .ing-pie__acciones .boton {
+    width: 100%;
+  }
+
+  .ing-acciones .boton {
+    flex: 1 1 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-resumen,
+  .ing-map-tabla .tabla tbody tr,
+  .ing-proc-errores .tabla tbody tr,
+  .ing-proc-stat,
+  .ing-acciones--barra {
+    animation: none;
+  }
+
+  .ing-proc-stat,
+  .ing-map-flecha,
+  .ing-pie__acciones .boton--primario,
+  .ing-acciones .boton {
+    transition: none;
+  }
+
+  .ing-proc-stat:hover,
+  .ing-pie__acciones .boton--primario:hover:not(:disabled),
+  .ing-acciones .boton:hover:not(:disabled),
+  .ing-map-tabla .tabla tbody tr:hover .ing-map-flecha {
+    transform: none;
+  }
 }
 
 /*
@@ -1552,18 +1955,7 @@
   margin-top: var(--space-6);
 }
 
-/* ── Detalles de interacción: tarjetas de totales y estado vacío ─────────── */
-
-.ing-proc-stat {
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.ing-proc-stat:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
-}
+/* ── Estado vacío ─────────────────────────────────────────────────────── */
 
 .ing-seccion + .tabla__contenedor .tabla__vacia,
 .tarjeta .tabla__vacia {
@@ -1711,4 +2103,13 @@
 .ing-acciones-fila .ing-accion:hover {
   background: var(--accent-100);
   border-color: var(--accent-100);
+}
+
+/* Detalle de una carga: la etiqueta de estado se separa de los totales (antes se tocaban). */
+.ing-estado-carga {
+  margin-bottom: 18px;
+}
+
+.ing-estado-carga + .ing-proc-stats {
+  margin-top: 0;
 }

@@ -3,7 +3,7 @@
  *
  * Vienen de `lucide-react`, la misma librería que usa el resto del panel, así que un mismo
  * concepto se dibuja igual en todas las pantallas. Se importa glifo por glifo: el bundle lleva
- * sólo estos nueve. La tabla `ICONOS` es la única que sabe qué glifo es cada nombre; las
+ * sólo los de esta tabla. La tabla `ICONOS` es la única que sabe qué glifo es cada nombre; las
  * pantallas hablan de «nube» o «planilla» y no de un componente de la librería.
  *
  * **Todos son `aria-hidden`.** Ninguno dice algo que su texto de al lado no diga; anunciarlos
@@ -11,11 +11,14 @@
  */
 
 import {
+  ArrowRight,
   Check,
   CloudUpload,
+  Download,
   FileText,
   FileUp,
   Lock,
+  ListChecks,
   type LucideIcon,
   RefreshCw,
   Sheet,
@@ -32,7 +35,10 @@ export type NombreDeIcono =
   | "refrescar"
   | "documento"
   | "alerta"
-  | "tilde";
+  | "tilde"
+  | "flecha"
+  | "descargar"
+  | "lista";
 
 const ICONOS: Readonly<Record<NombreDeIcono, LucideIcon>> = {
   nube: CloudUpload,
@@ -44,6 +50,9 @@ const ICONOS: Readonly<Record<NombreDeIcono, LucideIcon>> = {
   documento: FileText,
   alerta: TriangleAlert,
   tilde: Check,
+  flecha: ArrowRight,
+  descargar: Download,
+  lista: ListChecks,
 };
 
 export function Icono({ nombre }: { readonly nombre: NombreDeIcono }): JSX.Element {
