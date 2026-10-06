@@ -15,7 +15,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Card, Select } from "@/shared";
+import { Alert, Button, Campo, Card, Select, useAccionConNavegacion } from "@/shared";
 
 import {
   ErrorDeCobro,
@@ -46,7 +46,7 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
   // El error recuerda de que cliente era: un rechazo del backend («el comprobante no
   // corresponde al cliente elegido») no debe quedar colgado cuando se elige otro cliente.
   const [fallido, setFallido] = useState<{ mensaje: string; clienteId: string } | null>(null);
-  const [generando, setGenerando] = useState(false);
+  const { pendiente: generando, ejecutar } = useAccionConNavegacion();
 
   const error = fallido !== null && fallido.clienteId === clienteId ? fallido.mensaje : null;
   const sinCliente = clienteId === null;
@@ -65,16 +65,19 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
       return;
     }
     setFallido(null);
-    setGenerando(true);
     try {
-      const cobro = await generarCobro({
-        cliente_id: clienteId,
-        monto,
-        descripcion,
-        comprobante_id: comprobanteVigente === "" ? null : comprobanteVigente,
-      });
-      // Derecho al detalle: es la pantalla que muestra el link recién generado.
-      router.push(`/cobros/${cobro.id}`);
+      await ejecutar(
+        () =>
+          generarCobro({
+            cliente_id: clienteId,
+            monto,
+            descripcion,
+            comprobante_id: comprobanteVigente === "" ? null : comprobanteVigente,
+          }),
+        // Derecho al detalle: es la pantalla que muestra el link recién generado. El botón
+        // sigue ocupado hasta que se muestra: un segundo clic generaría un segundo cobro.
+        (cobro, destino) => destino.push(`/cobros/${cobro.id}`),
+      );
     } catch (fallo) {
       // «No se pudo generar el link de pago. Intente nuevamente.» y «El monto no puede superar
       // el saldo pendiente del comprobante.» llegan por acá, con el texto del backend.
@@ -82,8 +85,6 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
         mensaje: fallo instanceof ErrorDeCobro ? fallo.message : "No se pudo generar el cobro.",
         clienteId,
       });
-    } finally {
-      setGenerando(false);
     }
   }
 

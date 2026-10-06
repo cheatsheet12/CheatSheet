@@ -25,7 +25,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Badge, Button, Campo, Select, formatearNumero } from "@/shared";
+import {
+  Alert,
+  Badge,
+  Button,
+  Campo,
+  Select,
+  formatearNumero,
+  useAccionConNavegacion,
+} from "@/shared";
 
 import {
   ALICUOTAS,
@@ -82,7 +90,7 @@ export function AnularComprobante({ original, anulacion }: PropsDeAnularComproba
   const router = useRouter();
   const [lineas, setLineas] = useState<readonly Linea[]>(() => lineasDe(original));
   const [error, setError] = useState<string | null>(null);
-  const [emitiendo, setEmitiendo] = useState(false);
+  const { pendiente: emitiendo, ejecutar } = useAccionConNavegacion();
 
   const disponible = Number(anulacion.disponible);
   const excede = totalAproximado(lineas) > disponible + 0.005;
@@ -95,22 +103,24 @@ export function AnularComprobante({ original, anulacion }: PropsDeAnularComproba
 
   async function anular(): Promise<void> {
     setError(null);
-    setEmitiendo(true);
     try {
-      await emitirNotaDeCredito(
-        original.id,
-        lineas.map(({ clave: _clave, ...resto }) => resto),
+      await ejecutar(
+        () =>
+          emitirNotaDeCredito(
+            original.id,
+            lineas.map(({ clave: _clave, ...resto }) => resto),
+          ),
+        // Back to the original: this is the page that shows how much of it is now reversed.
+        // The button stays busy until it does: with balance left, a second click would
+        // issue a second credit note.
+        (_nota, destino) => destino.push(`/facturacion/${original.id}`),
       );
-      // Back to the original: this is the page that shows how much of it is now reversed.
-      router.push(`/facturacion/${original.id}`);
     } catch (fallo) {
       setError(
         fallo instanceof ErrorDeComprobante
           ? fallo.message
           : "No se pudo emitir la nota de crédito.",
       );
-    } finally {
-      setEmitiendo(false);
     }
   }
 

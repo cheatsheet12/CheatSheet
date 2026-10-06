@@ -32,7 +32,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Select, Stepper } from "@/shared";
+import { Alert, Button, Campo, Select, Stepper, useAccionConNavegacion } from "@/shared";
 
 import type { ConsultaDePadron, EmpresaActual } from "../api/cliente";
 import { ErrorDeFormulario, consultarPadron, guardarEmpresa } from "../api/cliente";
@@ -84,7 +84,7 @@ export function FormularioDeEmpresa({
   const [emailContacto, setEmailContacto] = useState(iniciales?.email_contacto ?? "");
   const [general, setGeneral] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
-  const [enviando, setEnviando] = useState(false);
+  const { pendiente: enviando, ejecutar } = useAccionConNavegacion();
   const [consulta, setConsulta] = useState<ConsultaDePadron | null>(null);
   const [consultando, setConsultando] = useState(false);
   const [sugerencia, setSugerencia] = useState<Sugerencia | null>(null);
@@ -166,31 +166,31 @@ export function FormularioDeEmpresa({
 
   const enviar = async (evento: React.FormEvent): Promise<void> => {
     evento.preventDefault();
-    setEnviando(true);
     setGeneral(null);
     setGuardado(false);
     try {
-      await guardarEmpresa({
-        razon_social: razonSocial,
-        cuit: normalizarCuit(cuit),
-        condicion_iva: condicionIva,
-        nombre_responsable: nombreResponsable,
-        email_contacto: emailContacto,
-      });
-      if (enOnboarding) {
-        router.push("/panel");
-        return;
-      }
-      setGuardado(true);
-      router.refresh();
+      await ejecutar(
+        async () => {
+          await guardarEmpresa({
+            razon_social: razonSocial,
+            cuit: normalizarCuit(cuit),
+            condicion_iva: condicionIva,
+            nombre_responsable: nombreResponsable,
+            email_contacto: emailContacto,
+          });
+          // Edición: la confirmación se muestra ya, sin esperar el refresco de la página.
+          if (!enOnboarding) {
+            setGuardado(true);
+          }
+        },
+        (_resultado, router) => (enOnboarding ? router.push("/panel") : router.refresh()),
+      );
     } catch (error) {
       setGeneral(
         error instanceof ErrorDeFormulario
           ? error.detalle
           : "No pudimos completar la operación. Probá de nuevo en unos minutos.",
       );
-    } finally {
-      setEnviando(false);
     }
   };
 
