@@ -178,7 +178,10 @@ export function FormularioDeEmpresa({
         email_contacto: emailContacto,
       });
       if (enOnboarding) {
-        router.push("/panel");
+        // Step 3 of the onboarding is the integrations screen, which lives in
+        // configuración (D7) and already presents itself as "paso 3". The side menu is
+        // there, so a company without credentials at hand moves on without connecting.
+        router.push("/configuracion/integraciones");
         return;
       }
       setGuardado(true);
