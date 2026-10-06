@@ -8,7 +8,7 @@
 >
 > | # | Unidad | Qué agrega | Depende de |
 > |---|---|---|---|
-> | **U5** | `canal-real-de-whatsapp` (esta) | Recordatorios de cobro y avisos de turno como **texto** por el cliente real; `SinCanal` en producción; H1 y H2; configuración y docs | ADR-0011 aceptado |
+> | **U5** | `canal-real-de-whatsapp` (esta) | Recordatorios de cobro y avisos de turno como **texto** por el cliente real; `SinCanal` en producción; H1 y H2; configuración y docs | ADR-0011 aceptado (2026-10-05) |
 > | U6 | `plantillas-de-whatsapp-en-meta` | Envío de plantillas a Meta y lectura de su estado; mensajes `type: template` fuera de la ventana de 24 h (pendientes #9 y #13) | U5 |
 > | U7 | `entregas-de-whatsapp` | Callbacks `statuses[]` para mensajes, recordatorios y avisos de turno; reintento acotado de transitorios (pendiente #4) | U5 (U6 para plantillas) |
 > | U8 | `recordatorio-de-turno` | Regla `AGENDA_DE_NOTIFICACION` tipada, barrido de scheduling con Beat (pendiente #7) | U6 |
@@ -16,8 +16,9 @@
 > Cierra el pendiente #11 del épico 8
 > ([`../epicas/08-agente-de-whatsapp/pendientes.md`](../epicas/08-agente-de-whatsapp/pendientes.md)) y
 > deja la configuración del #3. Requiere el
-> [ADR-0011](../../adr/0011-outbound-whatsapp-channel-via-composition-root.md) (PR #62, «Proposed»):
-> **este Gate 1 no puede cerrarse hasta que el equipo lo acepte.**
+> [ADR-0011](../../adr/0011-outbound-whatsapp-channel-via-composition-root.md), **aceptado el
+> 2026-10-05** (PR #62, merge `bd100e5`): su Decisión §2 y sus Consecuencias coinciden con este diseño.
+> Revalidado contra develop el 2026-10-06 (ver «Revalidación contra develop»).
 
 ## Qué hace
 
@@ -32,7 +33,7 @@ Además arregla dos defectos del camino de envío que, con un canal real, mandar
 duplicados o dejarían escapar errores crudos:
 
 - **H1 — un fallo en el cobro K deshace los cobros 1..K-1 que ya salieron.** El barrido vence y
-  despacha en **una sola transacción por empresa** (`workers/tasks_payments.py:62-94`) y
+  despacha en **una sola transacción por empresa** (`workers/tasks_payments.py:62-110`) y
   `_despachar_uno` llama a `envio.enviar` sin `try` (`payments/application/recordatorios.py:185-187`).
   Si algo falla en el cobro K, la excepción sale del cuerpo del `async for` y la unidad de trabajo
   descarta todo (la trampa documentada en `api/dependencies.py:114-119`): las filas de los cobros
@@ -40,7 +41,7 @@ duplicados o dejarían escapar errores crudos:
   mandar — un duplicado por hora**. El docstring de la clase (`recordatorios.py:102-104`) promete
   justo lo contrario.
 - **H1b — un `RecordatorioDuplicado` envenena la transacción del barrido.**
-  `RepositorioRecordatoriosPostgres.agregar` (`payments/infrastructure/repositories.py:285-306`)
+  `RepositorioRecordatoriosPostgres.agregar` (`payments/infrastructure/repositories.py:285-306`, clase en `:279`)
   atrapa el `IntegrityError` del índice `(cobro_id, paso)` **sin savepoint**: en PostgreSQL la
   transacción queda abortada y SQLAlchemy exige `rollback`, así que el «no es un error, seguí»
   de `recordatorios.py:179-183` en la práctica tira el barrido entero. El test actual
@@ -61,44 +62,52 @@ duplicados o dejarían escapar errores crudos:
 | Un fallo del canal nunca voltea un turno ni un barrido, y nunca reenvía lo que ya salió (H1, H1b) | El estado de entrega real (`delivered`, `read`, `failed` asíncrono) — **U7** |
 | Errores clasificados en transitorios (reintentados dentro de la llamada, con espera) y permanentes (no reintentados), con el código de Meta en el log (H2) | El reintento **entre barridos** de un transitorio agotado — **U7** (decisión G4f) |
 | Producción sin WhatsApp conectado: `SinCanal`, el turno se cancela y el recordatorio queda `FALLIDO`; nunca un 500 | El recordatorio de turno — **U8** |
-| Render, documentación de configuración, `.env.example`, `TODO.md` §25 | Los textos configurables de PAN-CFG-NOT en los adaptadores (pendiente #13) — **U6** |
+| Render, documentación de configuración, `.env.example`, `TODO.md` §22.30–22.40 | Los textos configurables de PAN-CFG-NOT en los adaptadores (pendiente #13) — **U6** |
 
 HS-T3 (RN-02 y RN-04), HU-E7-02 RN-03/RN-04, HU-E7-06 RN-04 y HU-E8-04 quedan **cerradas de punta a
 punta con U5–U8**, no con U5 sola (mensaje M6 al equipo). No es un recorte por tiempo: es el orden de
 dependencias del canal.
 
-## Lo que existe hoy (relevado sobre develop, 2026-10-04)
+**Fuera de alcance (anotado en la revalidación del 2026-10-06):** el ADR-0011 §6 (avisos y recordatorios
+se registran como `Mensaje` `SISTEMA` en la conversación del cliente) lo hace U7; por eso
+`AvisoPorWhatsApp` y `EnvioPorWhatsApp` reciben sólo el canal de texto y U7 ampliará su constructor. Los
+callbacks de plantilla por `waba_id` (§5 del ADR) son de U6/U7.
 
-- `api/mercadopago.py:143-151` — `armar_envio(settings)` devuelve siempre `EnvioPorConsola`. Lo usa
-  únicamente el barrido `workers/tasks_payments.py:81` (`barrer_empresa`, `:62-94`).
+## Lo que existe hoy (relevado sobre develop el 2026-10-04 y revalidado el 2026-10-06)
+
+- `api/mercadopago.py:144-152` — `armar_envio(settings)` devuelve siempre `EnvioPorConsola` (import en
+  `:49`). Lo usa únicamente el barrido `workers/tasks_payments.py:81` (`barrer_empresa`, `:62-110`).
 - `api/agenda.py:61-69` — `armar_notificador(settings)` devuelve siempre `AvisoPorConsola`;
-  `armar_avisador` (`:72-84`) lo usa, y lo llaman `api/routers/agenda.py:582, 621, 645` y el agente
-  (`api/conversacional.py:174`, dentro de `armar_agenda`, `:157-179`).
-- `api/conversacional.py:97-131` — `armar_mensajeria` (async) elige entre `MensajeriaSimulada`
-  (`WHATSAPP_ADAPTADOR=simulado` `:108-109`, empresa sin WhatsApp conectado `:113-115`, o sin
-  `phone_number_id` `:119-121`) y `MensajeriaWhatsApp` con token y `phone_number_id` leídos de
-  `integrations` por unidad de trabajo. La importan `api/routers/whatsapp.py:41` (usada en `:150`) y
-  `api/routers/conversaciones.py:23` (usada en `:287`). `armar_agenda` la llama **un solo** router:
-  `api/routers/whatsapp.py:152`, en el mismo `_procesar` que ya armó la mensajería (`:150`).
-  *(El plan anterior listaba también `conversaciones.py` como llamador de `armar_agenda`: no lo es.)*
-  `armar_plantillas` (`:182-189`) está definida y **nadie la llama** (pendiente #13, va a U6).
+  `armar_avisador` (`:72-85`) lo usa, y lo llaman **sólo** `api/routers/agenda.py:582, 621, 645`.
+  **El agente no lo llama** (PR #81): `armar_agenda(unidad, *, empresa_id, usuario_id)`
+  (`api/conversacional.py:183-216`) arma su `Avisador` con `_NotificadorSilencioso` (mismo archivo,
+  `~:152-181`), porque el agente confirma en la conversación y no manda un aviso aparte.
+- `api/conversacional.py:103-137` — `armar_mensajeria` (async) elige entre `MensajeriaSimulada`
+  (`WHATSAPP_ADAPTADOR=simulado`, empresa sin WhatsApp conectado, o sin `phone_number_id`) y `MensajeriaWhatsApp` con token y `phone_number_id` leídos de
+  `integrations` por unidad de trabajo. La importan `api/routers/whatsapp.py:42` (usada en `:151`, una sola vez por request, para el
+  agente) y `api/routers/conversaciones.py:24` (usada en `:288`). `armar_agenda` la llama **un solo**
+  router, `api/routers/whatsapp.py:153`, y ya no recibe mensajería ni `settings`.
+  `armar_plantillas` (`:230-`) está definida y **nadie la llama** (pendiente #13, va a U6).
 - `contexts/conversational/infrastructure/canal.py:85-133` — `MensajeriaWhatsApp`: timeout
   explícito, `INTENTOS = 3` (`:43`), transporte `httpx` inyectable, sólo `type: text`. Ver H2.
 - **No existe ningún test de `MensajeriaWhatsApp`**: no hay `tests/.../test_canal.py` (el plan
   anterior lo daba por existente). Sólo `MensajeriaSimulada` aparece en
   `tests/contexts/conversational/infrastructure/test_interprete.py:168-178`.
-- **Hallazgo:** `MensajeriaSimulada(Entorno.PRODUCTION)` levanta `RuntimeError` (`canal.py:65-70`).
+- **Hallazgo:** `MensajeriaSimulada(Entorno.PRODUCTION)` levanta `RuntimeError` (`canal.py:65-70`, intacto, 221 líneas).
   Como `armar_mensajeria` la devuelve para una empresa **sin WhatsApp conectado**, en producción
   cancelar un turno de esa empresa daría 500 apenas el aviso deje de ser la consola — lo contrario de
-  lo que dice su propio docstring (`conversacional.py:103-106`).
-- Quien ya atrapa los fallos del canal en `conversational`: el agente con un `except Exception`
-  acotado y justificado (`application/agente.py:384-394`, `noqa: BLE001`) y el operador, que lo
-  convierte en `MensajeriaNoDisponible` (`application/atencion.py:220-227`). Las excepciones
-  tipadas nuevas **heredan de `MensajeriaNoDisponible`**, así que ninguno de los dos cambia.
+  lo que dice su propio docstring (`conversacional.py:103-114`).
+- Quien ya atrapa los fallos del canal en `conversational`: `SalidaAlCliente.responder`, con un
+  `except Exception` acotado y justificado (`application/salida.py:48-59`, `noqa: BLE001`; antes vivía
+  en `agente.py`, PR #81; también lo usan `fuera_de_horario.py`, PR #84, y el agente) y el operador,
+  que lo convierte en `MensajeriaNoDisponible` (`application/atencion.py:233-240`; ahora resuelve el
+  teléfono por `PortDirectorio` y levanta `ClienteSinWhatsApp`). Las excepciones tipadas nuevas
+  **heredan de `MensajeriaNoDisponible`** (`errors.py:55`), así que ninguno de los dos cambia.
+  **`agente.py` está en 399/400 líneas y U5 no lo edita.**
 - Firmas distintas, cada una correcta bajo R3: `PortEnvioDeRecordatorio.enviar(empresa_id, cobro,
   canal, paso) -> EstadoEntrega` (`payments/application/ports.py:303-311`) no trae teléfono ni texto;
   `PortNotificadorDeTurnos` (`scheduling/application/ports.py:145-158`) recibe `DatosDeAviso`
-  (`:57-70`) con `telefono`.
+  (`:58-70`) con `telefono`.
 - `PortClienteDeCobro` (`payments/application/ports.py:344-357`) **no expone el contacto a
   propósito** (D92); su ACL es `ClienteViaMasterData` (`payments/infrastructure/clientes.py:19-27`).
   `scheduling` ya resolvió lo mismo con `PortDirectorioDeClientes.contacto_de`
@@ -112,26 +121,33 @@ dependencias del canal.
   capa `application/` tiene hoy un puerto transaccional.
 - La cadena de escalamiento admite pasos `WHATSAPP`, `EMAIL` y `PANEL`
   (`business_config/domain/regla.py:51-61`); HS-T3 RN-02 dice «por el canal configurado».
-- Context Map (`docs/architecture.md` §4, tabla en `:79-92`): no hay arista `conversational →
-  payments/scheduling`. La agrega el PR del ADR-0011 al aceptarse, **no esta unidad**. §7
-  (`:158`) lista `PortMensajeria` sólo para `conversational`.
+- Context Map (`docs/architecture.md` §4): la fila de `conversational → payments/scheduling` **ya
+  está** (`:91`, la agregó el PR del ADR-0011). Falta §7 (`:159`, tabla de puertos), que todavía lista
+  `PortMensajeria` sólo para `conversational`: ese cambio **sí es de esta unidad**.
 - `render.yaml` no declara **ninguna** variable `WHATSAPP_*` (ni API ni worker); el 2026-10-03
   `WHATSAPP_WEBHOOK_SECRET` se creó a mano en Render. `docs/staging-deployment.md` §3 (`:62`) y
-  §4 bis.2 (`:135`) no las mencionan. `docs/configuration-management.md:121-124` todavía lista
+  §4 bis.2 (`:135`) no las mencionan. `docs/configuration-management.md:122-124` todavía lista
   `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_ID`, que ya no existen (son por empresa, en `integrations`).
-- `platform/settings.py:313-333` — `WHATSAPP_ADAPTADOR` obligatorio en producción y `simulado`
-  prohibido ahí; `:539-549` — `WHATSAPP_GRAPH_URL`, `WHATSAPP_GRAPH_VERSION` (`v21.0`),
-  `WHATSAPP_TIMEOUT_SEGUNDOS` (10), `WHATSAPP_WEBHOOK_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`.
-- `backend/.env.example` **no se pudo leer** en este relevamiento (permiso denegado). Se verifica al
-  implementar que documente `WHATSAPP_ADAPTADOR`, `WHATSAPP_WEBHOOK_SECRET` y
+- `platform/settings.py:315-330` — `WHATSAPP_ADAPTADOR` obligatorio en producción y `simulado`
+  prohibido ahí; `:555-564` — `WHATSAPP_GRAPH_URL`, `WHATSAPP_GRAPH_VERSION` (`v21.0`),
+  `WHATSAPP_TIMEOUT_SEGUNDOS` (10), `WHATSAPP_SONDEO_MINUTOS` (30), `WHATSAPP_SONDEO_MAXIMO_DIAS` (7;
+  las dos últimas, de `conexion-whatsapp`), `WHATSAPP_WEBHOOK_SECRET` (`:563`) y
   `WHATSAPP_WEBHOOK_VERIFY_TOKEN`.
+- `backend/.env.example` declara `WHATSAPP_ADAPTADOR`, `_GRAPH_URL`, `_GRAPH_VERSION`,
+  `_TIMEOUT_SEGUNDOS`, `_SONDEO_MINUTOS` y `_SONDEO_MAXIMO_DIAS` (`:147-158`). El bloque «PLATFORM
+  side — conversational. Forward-declared» (`~:279-288`) todavía trae `WHATSAPP_TOKEN` y
+  `WHATSAPP_PHONE_ID` (no existen: son por empresa), `WHATSAPP_APP_SECRET` (el secreto real es
+  `WHATSAPP_WEBHOOK_SECRET`, que no está declarado) y `WHATSAPP_WEBHOOK_VERIFY_TOKEN`.
 
 ## Diseño
 
 - **Dominio**: sin cambios. `EstadoEntrega` y `Recordatorio` ya tienen `ENVIADO` y `FALLIDO`;
   `DatosDeAviso` no cambia.
 - **Aplicación**:
-  - `payments/application/ports.py`:
+  - `payments/application/ports_envio.py` (**módulo nuevo**: `payments/application/ports.py` está en
+    exactamente 400 líneas, el tope de CLAUDE.md §5, verificado el 2026-10-06 sobre develop, y **no
+    crece**. Otra unidad lo reduce a 366 en una rama aún sin mergear: este plan no depende de ese
+    margen. Re-exporta desde `ports.py` sólo si hace falta):
     - `PortContactoDeCliente.contacto_de(cliente_id) -> ContactoDeCobro | None` (nombre y teléfono).
       **Puerto aparte y no un método más en `PortClienteDeCobro`**, para no deshacer D92: el caso de
       uso de cobros sigue sin ver el contacto; sólo el adaptador de envío lo recibe. Mismo patrón que
@@ -141,7 +157,7 @@ dependencias del canal.
       savepoint sin que `application/` importe SQLAlchemy (R2).
   - `payments/application/errors.py`: `DespachoNoPersistido` — lo que el adaptador del aislamiento
     levanta cuando la base rechazó algo dentro del savepoint.
-  - `DespacharRecordatorios` (`recordatorios.py:95-204`), **arreglo de H1**:
+  - `DespacharRecordatorios` (`recordatorios.py:95-204`; docstring `:96-105`; archivo de 222 líneas), **arreglo de H1**:
     - Recibe `aislamiento: PortAislamiento`. Cada cobro de `ejecutar` corre en
       `async with self._aislamiento.aislar():` y un `DespachoNoPersistido` se registra
       (`recordatorio_no_persistido`, `cobro_id`, sin datos personales) y el bucle sigue: sólo se
@@ -149,7 +165,7 @@ dependencias del canal.
     - `_despachar_uno` **protege el envío**: `enviar` va en `try`; ante cualquier excepción el estado
       es `FALLIDO` y la fila se guarda igual con `enviado_en`, para que el índice `(cobro_id, paso)`
       no lo deje salir de nuevo. Es un `except Exception` con `noqa: BLE001` justificado en el
-      comentario, igual que `agente.py:388`: el puerto lo implementan adaptadores que podrían
+      comentario, igual que `salida.py:53-58`: el puerto lo implementan adaptadores que podrían
       levantar cualquier cosa, y el contrato ya dice que no deben. Es defensa en profundidad; el
       adaptador real nunca levanta.
     - Se reescribe el docstring de la clase para que diga lo que el código hace: savepoint por
@@ -190,7 +206,13 @@ dependencias del canal.
     - El cuerpo del bucle se parte en funciones chicas (`_intentar`, `_clasificar`) para respetar ≤ 50
       líneas y complejidad ≤ 10. `canal.py` pasa de 221 a ≈ 320 líneas, bajo el tope de 400.
     - `SinCanal`: el adaptador de producción para una empresa sin WhatsApp conectado; levanta
-      `CanalNoConectado` sin tocar la red.
+      `CanalNoConectado` sin tocar la red. **Decisión C1 (2026-10-06):** así se cumple el ADR-0011 §3
+      («reports the message as not sent»): `SinCanal` no puede devolver un id (el puerto devuelve
+      `str`), así que levanta, y los consumidores (los adaptadores de payments y scheduling, que nunca
+      levantan hacia arriba; el agente y el operador, que ya lo tratan como `MensajeriaNoDisponible`)
+      registran el mensaje como **no enviado** en lugar de darlo por enviado.
+    - Vigilar el tamaño: si `canal.py` pasa de ~380 líneas, extraer `SinCanal` y la tabla de códigos a
+      un módulo hermano (p. ej. `canal_errores.py`); U6 agrega `enviar_plantilla` al mismo archivo.
   - `payments/infrastructure/envio.py`: `EnvioPorWhatsApp(canal, contactos)` implementa
     `PortEnvioDeRecordatorio`. Arma el texto de fábrica de `recordatorio_de_cobro` (nombre, concepto
     —`Cobro.descripcion`—, monto con `Decimal` cuantizado a 2 decimales con `ROUND_HALF_UP`, link si
@@ -223,25 +245,32 @@ dependencias del canal.
     `MensajeriaSimulada` detrás del adaptador real. `tests/.../test_avisos.py` se reescribe contra
     `AvisoPorWhatsApp` con un canal falso.
 - **Composition root** (`backend/src/cheatsheet/api/`):
-  - `api/mensajeria.py` (nuevo): `armar_mensajeria` se muda acá desde `api/conversacional.py` para no
-    crear el ciclo `conversacional → agenda → conversacional`. Con `meta` en producción y sin
+  - `api/mensajeria.py` (nuevo): `armar_mensajeria` se muda acá desde `api/conversacional.py` (ADR-0011
+    §2) para que `api/agenda.py`, `api/mercadopago.py` y `workers/` lo importen sin depender de
+    `api/conversacional.py`, que ya importa `api/agenda.py` (`armar_catalogo`, `armar_directorio`). Con `meta` en producción y sin
     integración o sin `phone_number_id`, devuelve `SinCanal` en lugar de `MensajeriaSimulada`. Fuera
     de producción el comportamiento no cambia.
   - **El canal se arma una vez por unidad de trabajo** (ADR-0011 Decisión §2) y se pasa hacia
     adentro: `armar_envio(unidad, *, canal)` en `api/mercadopago.py`,
     `armar_notificador(canal)` y `armar_avisador(unidad, *, empresa_id, rol, canal)` en
-    `api/agenda.py`, `armar_agenda(…, mensajeria)` en `api/conversacional.py`. El único `await` es
-    `armar_mensajeria`, en los llamadores: `workers/tasks_payments.py:81`,
-    `api/routers/agenda.py:582/621/645`, y `api/routers/whatsapp.py:150-152`, que **reusa** la
-    mensajería que ya arma para el agente en lugar de leer la integración dos veces.
-    *(Cambio respecto del plan anterior, que volvía `async` a cada builder y hacía que cada uno
-    llamara a `armar_mensajeria` por su cuenta: en el webhook eso leía y descifraba la credencial dos
-    veces en la misma transacción. El ADR-0011 dice en Consecuencias «three builders become async»;
-    hay que alinear esa frase en el PR #62 antes de aceptarlo — ver Riesgos.)*
-  - `api/routers/conversaciones.py:23` importa `armar_mensajeria` del módulo nuevo.
+    `api/agenda.py`. El único `await` es `armar_mensajeria`, en los llamadores:
+    `workers/tasks_payments.py:81` y `api/routers/agenda.py:582/621/645`. **El agente queda fuera**:
+    `armar_agenda` sigue con `_NotificadorSilencioso` (excepción deliberada: el agente nunca manda el
+    aviso por `AvisoPorWhatsApp`, confirma en la conversación) y no se toca. En el webhook,
+    `armar_mensajeria` ya se arma una sola vez (`routers/whatsapp.py:151`).
+    *(El ADR-0011 aceptado ya dice que el builder del canal es `async` y que los de los adaptadores
+    reciben el canal ya armado: coincide con este diseño.)*
+  - `api/routers/whatsapp.py` y `api/routers/conversaciones.py` sólo cambian el import de
+    `armar_mensajeria` (`:42` y `:24`) hacia `api/mensajeria.py`.
+  - **`agente.py` (399/400 líneas) no se edita en U5.** Si algo lo exigiera, primero se extrae código
+    a un módulo hermano, como hizo #81 con `salida.py` y `reserva_por_whatsapp.py`. Hoy el diseño no lo
+    necesita; si U7 (mensajes `SISTEMA`) lo toca, es problema de U7.
+  - **Tamaños**: `api/routers/agenda.py` (684), `api/routers/conversaciones.py` (486) y
+    `platform/settings.py` (660) ya superan o rozan el tope; U5 agrega 1–3 líneas a los routers y
+    nada a `settings.py`.
 - **Otros contextos**: `payments` y `scheduling` reciben el canal de `conversational` **sólo por el
   composition root**; ningún import nuevo entre contextos (R1–R5 intactas, `guard_architecture`
-  sin cambios). La fila del Context Map llega con el PR del ADR-0011.
+  sin cambios). La fila del Context Map ya está en develop.
 - **Frontend**: No aplica. PAN-COB-02 ya muestra `estado_entrega` de cada recordatorio.
 
 ### H3 — La hora de los avisos de turno sale en UTC
@@ -254,7 +283,8 @@ unidad, porque es la que hace reales los avisos: los textos convierten a `ZONA_D
 
 ## Infraestructura
 
-- **Migraciones**: No aplica. (U7 agrega `recordatorio.externo_id`; número libre al mergear.)
+- **Migraciones**: **ninguna en U5.** (U7 agrega `recordatorio.externo_id`; el número se toma libre al
+  mergear: la cabeza de develop hoy es `0032`.)
 - **Trabajo asíncrono**: el barrido de cobros (`tasks_payments.barrer_empresa`, cola
   `notifications`, Beat) no cambia de forma: sigue siendo una transacción por empresa, ahora con un
   savepoint por cobro. La idempotencia sigue siendo el índice único `(cobro_id, paso)` (D25). **Los
@@ -266,13 +296,17 @@ unidad, porque es la que hace reales los avisos: los textos convierten a `ZONA_D
     (staging no tiene credenciales reales de Meta, `docs/staging-deployment.md` §8).
   - `render.yaml`, servicio `cheatsheet-worker`: `WHATSAPP_ADAPTADOR` con el mismo valor — el barrido
     de recordatorios corre en el worker y tiene que elegir el mismo canal que la API.
-  - `docs/staging-deployment.md` §3: dos filas (`WHATSAPP_WEBHOOK_SECRET` = el **App Secret** de la
+  - `docs/staging-deployment.md` §3 (`:62`): dos filas (`WHATSAPP_WEBHOOK_SECRET` = el **App Secret** de la
     app de Meta, con el que firma `X-Hub-Signature-256`; `WHATSAPP_WEBHOOK_VERIFY_TOKEN` = el token que
     se escribe al registrar la URL) y la advertencia de que sin el secreto toda notificación se
-    descarta con 200 (D49, pendiente #3). §4 bis.2: `WHATSAPP_ADAPTADOR` en el worker.
-  - `docs/configuration-management.md:121-124`: reemplazar `WHATSAPP_TOKEN`/`WHATSAPP_PHONE_ID` por las
+    descarta con 200 (D49, pendiente #3). §4 bis.2 (`:135`): `WHATSAPP_ADAPTADOR` en el worker. `render.yaml` hoy no declara
+    `WHATSAPP_SONDEO_MINUTOS` ni `WHATSAPP_SONDEO_MAXIMO_DIAS` (de `conexion-whatsapp`); no son de U5,
+    pero se decide al editar si se declaran para no dejar la tabla de Render a medias.
+  - `docs/configuration-management.md:122-124`: reemplazar `WHATSAPP_TOKEN`/`WHATSAPP_PHONE_ID` por las
     variables reales y una línea que diga que el token y el número son por empresa (HU-E2-03).
-  - `backend/.env.example`: verificar (no se pudo leer) y completar si falta.
+  - `backend/.env.example`: **borrar** `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_ID`; **renombrar**
+    `WHATSAPP_APP_SECRET` → `WHATSAPP_WEBHOOK_SECRET`; **dejar** `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. La nota
+    de Render y la de `docs/configuration-management.md` se alinean igual.
 - **Integraciones externas**: Meta WhatsApp Cloud API, el mismo cliente. Timeout
   `WHATSAPP_TIMEOUT_SEGUNDOS`; 3 intentos con espera sobre transitorios; ninguno sobre permanentes ni
   sobre inciertos (tabla de Diseño).
@@ -284,7 +318,7 @@ unidad, porque es la que hace reales los avisos: los textos convierten a `ZONA_D
 > cada código de la tabla de Diseño, y la forma del error (`error.code`, `error.error_data.details`,
 > `error.error_subcode` deprecado, `fbtrace_id`). La página recomienda **manejar los errores por
 > `code` y no por status HTTP**, y **no dice con qué status HTTP llega cada código** → eso pasa a
-> `TODO.md` §25. Lo que sigue sin verificar dice **«a confirmar»**.
+> `TODO.md` §22.31. Lo que sigue sin verificar dice **«a confirmar»**.
 
 | Operación | Endpoint | Auth |
 |---|---|---|
@@ -301,8 +335,8 @@ de desarrollo contra el mismo `graph.facebook.com`.
 |---|---|---|---|
 | Tests (CI y local) | — | `httpx.MockTransport` inyectado, `esperar` falso | **Nunca hay red ni esperas reales** |
 | Local / staging hoy | `simulado` | `MensajeriaSimulada` | El mensaje queda en un log sin datos personales; el recordatorio se registra `ENVIADO` (igual que hoy) |
-| Staging con número de prueba (TODO §25) | `meta` | `MensajeriaWhatsApp` contra el número de prueba | Sólo llega a los destinatarios dados de alta en la app de prueba (cantidad: **a confirmar**) |
-| Producción | `meta` (obligatorio, `settings.py:316-332`) | `MensajeriaWhatsApp`, o `SinCanal` si la empresa no conectó WhatsApp | `simulado` está prohibido |
+| Staging con número de prueba (TODO §22.30) | `meta` | `MensajeriaWhatsApp` contra el número de prueba | Sólo llega a los destinatarios dados de alta en la app de prueba (cantidad: **a confirmar**) |
+| Producción | `meta` (obligatorio, `settings.py:315-330`) | `MensajeriaWhatsApp`, o `SinCanal` si la empresa no conectó WhatsApp | `simulado` está prohibido |
 
 **Modos de falla y qué hace el sistema.**
 
@@ -322,21 +356,23 @@ de desarrollo contra el mismo `graph.facebook.com`.
 Nada del código de U5 depende de Meta ni de otra persona: todo se prueba con `httpx.MockTransport` y
 canales falsos (decisión G4d). Lo que **sólo** se puede verificar con un número de prueba real —la app
 de Meta que tiene que crear Cristian (integraciones), mensaje M3— va a `docs/aidlc/TODO.md`, sección
-nueva **§25. WhatsApp (sandbox)**, con el formato de §20–21:
+en la **§22** (la §25 no existe: la última sección de develop es la §24, y la §22 recoge las
+verificaciones manuales; **§22.23–22.29 ya están tomadas**, así que las filas de esta unidad son
+**22.30 a 22.40**), con el formato de §20–22:
 
 | # | Qué verificar | Unidad | Qué pasa si falla |
 |---|---|---|---|
-| 25.1 | Conseguir la app de Meta con número de prueba y cargar sus credenciales en staging (`integrations`, `WHATSAPP_ADAPTADOR=meta`) — responsable Cristian | U5–U8 | Nada de §25 se puede verificar; el código queda probado sólo contra contratos grabados |
-| 25.2 | Un texto libre iniciado por la empresa fuera de la ventana de 24 h vuelve con `error.code` 131047 y **qué status HTTP** | U5 | Si el código llega distinto, se ajusta la tabla de clasificación |
-| 25.3 | Formato del número argentino que acepta `to`: con o sin `+`, con o sin el `9` de celular (`549…` vs `54…`) contra lo que guarda `master_data` | U5 | Todos los envíos a celulares argentinos fallan: hay que normalizar en el adaptador |
-| 25.4 | Status HTTP con que llegan los códigos de throttling (4, 80007, 130429, 131056) y si traen `Retry-After` | U5 | La clasificación por código los cubre igual; si traen espera sugerida, se evalúa usarla |
-| 25.5 | Un `ReadTimeout` provocado (proxy lento) no produce dos mensajes y deja el recordatorio `FALLIDO` | U5 | Riesgo de duplicado no cubierto |
-| 25.6 | `messages[0].id` del envío coincide con el `id` de `statuses[]` del callback | U7 | No se pueden atar los callbacks al mensaje |
-| 25.7 | Forma del envío `type: template` (posicionales vs `parameter_name`, idioma `es_AR`), respuesta ante plantilla no aprobada (132001) | U6 | Ninguna plantilla sale |
-| 25.8 | `GET /{waba_id}/message_templates` y webhook `message_template_status_update` | U6 | El estado de aprobación no se puede leer |
-| 25.9 | Un `failed` trae `errors[]` con código legible | U7 | PAN-COB-02 muestra `FALLIDO` sin motivo |
-| 25.10 | Punta a punta en staging: registrar `/webhooks/whatsapp/{empresa}` con `WHATSAPP_WEBHOOK_SECRET` y `WHATSAPP_WEBHOOK_VERIFY_TOKEN` cargados (pendiente #3) | U5 (config) / U7 | Toda notificación se descarta con 200 (D49) |
-| 25.11 | Cantidad de destinatarios que admite el número de prueba | U5–U8 | Se planifica la prueba con menos clientes |
+| 22.30 | Conseguir la app de Meta con número de prueba y cargar sus credenciales en staging (`integrations`, `WHATSAPP_ADAPTADOR=meta`) — responsable Cristian | U5–U8 | Nada de 22.30–22.40 se puede verificar; el código queda probado sólo contra contratos grabados |
+| 22.31 | Un texto libre iniciado por la empresa fuera de la ventana de 24 h vuelve con `error.code` 131047 y **qué status HTTP** | U5 | Si el código llega distinto, se ajusta la tabla de clasificación |
+| 22.32 | Formato del número argentino que acepta `to`: con o sin `+`, con o sin el `9` de celular (`549…` vs `54…`) contra lo que guarda `master_data` | U5 | Todos los envíos a celulares argentinos fallan: hay que normalizar en el adaptador |
+| 22.33 | Status HTTP con que llegan los códigos de throttling (4, 80007, 130429, 131056) y si traen `Retry-After` | U5 | La clasificación por código los cubre igual; si traen espera sugerida, se evalúa usarla |
+| 22.34 | Un `ReadTimeout` provocado (proxy lento) no produce dos mensajes y deja el recordatorio `FALLIDO` | U5 | Riesgo de duplicado no cubierto |
+| 22.35 | `messages[0].id` del envío coincide con el `id` de `statuses[]` del callback | U7 | No se pueden atar los callbacks al mensaje |
+| 22.36 | Forma del envío `type: template` (posicionales vs `parameter_name`, idioma `es_AR`), respuesta ante plantilla no aprobada (132001) | U6 | Ninguna plantilla sale |
+| 22.37 | `GET /{waba_id}/message_templates` y webhook `message_template_status_update` | U6 | El estado de aprobación no se puede leer |
+| 22.38 | Un `failed` trae `errors[]` con código legible | U7 | PAN-COB-02 muestra `FALLIDO` sin motivo |
+| 22.39 | Punta a punta en staging: registrar `/webhooks/whatsapp/{empresa}` con `WHATSAPP_WEBHOOK_SECRET` y `WHATSAPP_WEBHOOK_VERIFY_TOKEN` cargados (pendiente #3) | U5 (config) / U7 | Toda notificación se descarta con 200 (D49) |
+| 22.40 | Cantidad de destinatarios que admite el número de prueba | U5–U8 | Se planifica la prueba con menos clientes |
 
 U6–U8 agregan sus propias filas al planificarse; esta tabla deja reservadas las que ya se conocen.
 
@@ -366,21 +402,18 @@ U6–U8 agregan sus propias filas al planificarse; esta tabla deja reservadas la
   de esa corrida y se reenvía. Es la consecuencia de la decisión G4f (savepoint por cobro dentro de la
   transacción de la empresa); un `COMMIT` que falla después de flushes válidos en READ COMMITTED sólo
   ocurre por caída de la conexión. No se cambia sin decisión del dueño.
-- La frase de Consecuencias del ADR-0011 «three builders become async» deja de ser exacta con este
-  diseño (sólo `armar_mensajeria` es async; el canal se pasa hacia adentro). Hay que corregirla en el
-  PR #62 antes de que el equipo lo acepte, o el plan se adapta a la frase si el equipo la prefiere.
 
 ## Archivos a tocar
 
 - [ ] `backend/src/cheatsheet/api/mensajeria.py` (nuevo: `armar_mensajeria`, `SinCanal` en producción)
-- [ ] `backend/src/cheatsheet/api/conversacional.py` (sale `armar_mensajeria`; `armar_agenda` recibe la mensajería)
+- [ ] `backend/src/cheatsheet/api/conversacional.py` (sale `armar_mensajeria`; `armar_agenda` y `_NotificadorSilencioso` **no cambian**)
 - [ ] `backend/src/cheatsheet/api/mercadopago.py` (`armar_envio(unidad, *, canal)` → `EnvioPorWhatsApp`; `armar_contactos`)
 - [ ] `backend/src/cheatsheet/api/agenda.py` (`armar_notificador(canal)`, `armar_avisador(…, canal)` → `AvisoPorWhatsApp`)
 - [ ] `backend/src/cheatsheet/api/routers/agenda.py` (tres sitios: `await armar_mensajeria` y se pasa el canal)
-- [ ] `backend/src/cheatsheet/api/routers/whatsapp.py` (reusa la mensajería en `armar_agenda`)
+- [ ] `backend/src/cheatsheet/api/routers/whatsapp.py` (sólo el import de `armar_mensajeria`)
 - [ ] `backend/src/cheatsheet/api/routers/conversaciones.py` (import desde `api/mensajeria.py`)
 - [ ] `backend/src/cheatsheet/workers/tasks_payments.py` (canal por unidad de trabajo; docstring)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/ports.py` (`PortContactoDeCliente`, `ContactoDeCobro`, `PortAislamiento`)
+- [ ] `backend/src/cheatsheet/contexts/payments/application/ports_envio.py` (nuevo: `PortContactoDeCliente`, `ContactoDeCobro`, `PortAislamiento`; `ports.py` está al tope de 400 líneas y no se toca)
 - [ ] `backend/src/cheatsheet/contexts/payments/application/errors.py` (`DespachoNoPersistido`)
 - [ ] `backend/src/cheatsheet/contexts/payments/application/recordatorios.py` (savepoint por cobro, envío protegido, docstring)
 - [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/aislamiento.py` (nuevo: `AislamientoConSavepoint`)
@@ -395,16 +428,16 @@ U6–U8 agregan sus propias filas al planificarse; esta tabla deja reservadas la
 - [ ] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py` (H1 con fakes; `AislamientoFalso`)
 - [ ] `backend/tests/contexts/payments/infrastructure/test_envio.py` (nuevo)
 - [ ] `backend/tests/contexts/scheduling/infrastructure/test_avisos.py` (reescrito)
-- [ ] `backend/tests/api/test_canal_real_de_whatsapp.py` (nuevo: cableado del composition root)
+- [ ] `backend/tests/api/test_canal_real_de_whatsapp.py` (nuevo: cableado del composition root; incluye el caso 34)
 - [ ] `backend/tests/integracion/test_barrido_de_recordatorios_postgres.py` (nuevo: H1 y H1b contra PostgreSQL, CI)
 - [ ] `render.yaml` (API: `WHATSAPP_WEBHOOK_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN` `sync: false`, `WHATSAPP_ADAPTADOR`; worker: `WHATSAPP_ADAPTADOR`)
 - [ ] `docs/staging-deployment.md` §3 y §4 bis.2
 - [ ] `docs/configuration-management.md` (bloque de variables de WhatsApp)
-- [ ] `backend/.env.example` (verificar y completar)
-- [ ] `docs/architecture.md` §7 (`PortMensajeria` consumido también por payments y scheduling vía composition root)
+- [ ] `backend/.env.example` (borrar `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_ID`; `WHATSAPP_APP_SECRET` → `WHATSAPP_WEBHOOK_SECRET`)
+- [ ] `docs/architecture.md` §7, `:159` (`PortMensajeria` consumido también por payments y scheduling vía composition root; la fila de §4 ya está hecha)
 - [ ] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (#11 cerrado; #3 con la configuración de Render; #4, #7, #9, #13 apuntan a U7, U8, U6, U6)
 - [ ] `docs/aidlc/units.md` (fila de U5 y filas de U6, U7 y U8 con sus dependencias)
-- [ ] `docs/aidlc/TODO.md` (sección nueva §25)
+- [ ] `docs/aidlc/TODO.md` (entradas 22.30–22.40 en §22)
 
 ## Casos de prueba
 
@@ -438,31 +471,33 @@ U6–U8 agregan sus propias filas al planificarse; esta tabla deja reservadas la
 | 26 | La corrección a posteriori (HU-E7-02 RN-07) sigue sin mandar mensaje | regresión | pendiente |
 | 27 | Ningún log de `EnvioPorWhatsApp` ni de `AvisoPorWhatsApp` contiene teléfono, nombre ni el texto | unit (captura de logs) | pendiente |
 | 28 | Dos empresas en el mismo proceso: cada canal usa el token y el `phone_number_id` de su empresa | integración | pendiente |
-| 29 | El webhook arma la mensajería **una vez** y el agente y el avisador usan la misma instancia | unit (composition root) | pendiente |
+| 29 | ~~El webhook arma la mensajería una vez y el agente y el avisador usan la misma instancia~~ | — | **eliminado** (2026-10-06): PR #81 ya hizo que `armar_agenda` use `_NotificadorSilencioso`, y el webhook ya arma la mensajería una sola vez |
 | 30 | `MensajeriaSimulada` detrás del adaptador real: el recordatorio queda `ENVIADO` en staging, como hoy | unit | pendiente |
-| 31 | Regresión: el agente sigue guardando `FALLIDO` y el operador sigue recibiendo `MensajeriaNoDisponible` (422) con las excepciones tipadas nuevas | regresión | pendiente |
+| 31 | Regresión: `SalidaAlCliente` (agente y `fuera_de_horario.py`) sigue guardando `FALLIDO` y el operador (`ResponderComoOperador`) sigue recibiendo `MensajeriaNoDisponible` (422) con las excepciones tipadas nuevas | regresión | pendiente |
 | 32 | `guard_architecture --scan` y `.claude/hooks/test_guards.sh` pasan: ningún import nuevo entre contextos | gate | pendiente |
 | 33 | **RED** — Un turno a las `2026-10-15T13:30Z` produce avisos de reserva, cancelación y reprogramación con «15/10/2026 a las 10:30» (hora de Argentina), no «13:30» | unit | pendiente |
+| 34 | Regresión — una reserva o cancelación hecha por el agente sigue sin disparar un segundo mensaje (`_NotificadorSilencioso`; el agente nunca usa `AvisoPorWhatsApp`) | regresión (composition root) | pendiente |
 
 Los casos 2 y 3 necesitan PostgreSQL: sin Docker en esta máquina se saltean en local y se confirman en
 la CI del PR. Gates de Gate 2: `ruff format --check . && ruff check . && mypy . && pytest`
-(cobertura ≥ 80 %). Frontend: no se toca.
+(cobertura ≥ 80 %). Frontend: no se toca. El caso 29 queda «eliminado» y no se renumera: otros
+pasajes citan los casos 1–5, 31 y 33.
 
 ## Preguntas del Gate 1 (con recomendación)
 
 | # | Pregunta | Recomendación |
 |---|---|---|
-| 1 | La cadena de escalamiento admite pasos `EMAIL` y `PANEL` (`regla.py:51-61`) y HS-T3 RN-02 pide despachar «por el canal configurado». U5 sólo construye WhatsApp: un paso `EMAIL` o `PANEL` queda `FALLIDO` con log. ¿Se registra el recordatorio por email como **unidad propia** (payments, sobre `platform/email.py`, que ya existe) y el de panel en el centro de notificaciones del épico 10? | **Sí, unidad propia `recordatorio-por-email` después de U8, y `PANEL` al épico 10**, anotadas en `units.md` y en los pendientes del épico. No depende de terceros, así que por el principio de solución definitiva no puede quedar sin plan; meterla en U5 mezclaría dos canales en una revisión que ya es grande. Mientras tanto el `FALLIDO` es honesto y visible en PAN-COB-02 |
+| 1 | La cadena de escalamiento admite pasos `EMAIL` y `PANEL` (`regla.py:51-61`) y HS-T3 RN-02 pide despachar «por el canal configurado». U5 sólo construye WhatsApp: un paso `EMAIL` o `PANEL` queda `FALLIDO` con log. ¿Se registra el recordatorio por email como **unidad propia** (payments, sobre `platform/email.py`, que ya existe) y el de panel en el centro de notificaciones del épico 10? | **Sí, unidad propia `recordatorio-por-email` (U11), que depende de U5 como dice `units.md` y puede ir en paralelo con U6–U8, y `PANEL` al épico 10**, anotadas en `units.md` y en los pendientes del épico. No depende de terceros, así que por el principio de solución definitiva no puede quedar sin plan; meterla en U5 mezclaría dos canales en una revisión que ya es grande. Mientras tanto el `FALLIDO` es honesto y visible en PAN-COB-02 |
 
 ## Registro
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. **Cierra cuando el equipo acepte el ADR-0011** ([#62](https://github.com/cheatsheet12/CheatSheet/pull/62)); hasta entonces no se escribe código |
+| 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. **Cerrado el 2026-10-06**: el ADR-0011 fue aceptado el 2026-10-05 ([#62](https://github.com/cheatsheet12/CheatSheet/pull/62), merge `bd100e5`) y el plan se revalidó contra develop el 2026-10-06 (ver «Revalidación contra develop»); Luciano confirmó C1 y C2. Ya se puede escribir código |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
-> El Gate 1 no puede cerrarse hasta que el equipo acepte el ADR-0011 (PR #62).
+> Condición del Gate 1 (ADR-0011 aceptado): cumplida el 2026-10-05.
 
 ## Decisiones tomadas durante la unidad
 
@@ -472,9 +507,44 @@ Decididas por el dueño del producto el 2026-10-04, antes del Gate 1 (ya no son 
 - Las plantillas se mandan a Meta por API y su estado se lee de Meta; con `simulado`, fuera de
   producción, se tratan como aprobadas (G4b, G4e) — U6.
 - Callbacks de entrega y recordatorio de turno entran (G4c) — U7 y U8.
-- Sin número de prueba se cierra con `httpx.MockTransport`; lo real va a `TODO.md` §25 (G4d).
+- Sin número de prueba se cierra con `httpx.MockTransport`; lo real va a `TODO.md` §22, entradas 22.30–22.40 (G4d).
 - Un fallo de Meta deja `FALLIDO`; errores separados en transitorios y permanentes; H1 y H2 se
   arreglan acá; un timeout de lectura no se reintenta; el reintento entre barridos va en U7 (G4f).
 - Si Meta está caída tras 3 intentos, el paso queda `FALLIDO` y la cadena sigue con el próximo paso
   (ex P6, aprobada).
-- Gate 1 (2026-10-04): Pregunta 1 → sí: el recordatorio por email es una unidad propia, `recordatorio-por-email` (payments, sobre `platform/email.py`), después de `recordatorio-de-turno`; el paso `PANEL` va al centro de notificaciones del épico 10. Mientras tanto esos pasos quedan `FALLIDO`, visibles en PAN-COB-02.
+- Gate 1 (2026-10-04): Pregunta 1 → sí: el recordatorio por email es una unidad propia, `recordatorio-por-email` (U11; payments, sobre `platform/email.py`), que depende de U5 (`units.md`) y no espera a `recordatorio-de-turno`; el paso `PANEL` va al centro de notificaciones del épico 10. Mientras tanto esos pasos quedan `FALLIDO`, visibles en PAN-COB-02.
+
+Decididas por el dueño del producto el 2026-10-06, al revalidar el plan contra develop:
+
+- **C1 — `SinCanal` levanta `CanalNoConectado`.** Así quien llama registra el mensaje como no enviado
+  en lugar de darlo por enviado (ADR-0011 §3, «reports not sent»). Los adaptadores de payments y
+  scheduling lo capturan y nunca levantan hacia arriba (recordatorio `FALLIDO` / log); el agente y el
+  operador lo tratan como `MensajeriaNoDisponible`. Es una lectura del ADR, no un cambio de alcance.
+- **C2 — `recordatorio-por-email` (U11) depende de U5**, como dice `units.md`, y no de U8. Puede ir en
+  paralelo con U6–U8. Todavía no tiene plan ni rama: hay que escribirlo antes de empezarla.
+
+## Revalidación contra develop (2026-10-06)
+
+Develop avanzó 101 commits desde que se aprobó el Gate 1 (la rama sólo tiene este plan y las filas de
+`units.md`; no hay código). Se contrastó cada cita y cada premisa del plan con develop (`292f3f6`) y con
+el ADR-0011 aceptado. Resultado: **el Gate 1 aprobado sigue vigente**; todo cambio es mecánico o una
+reducción de alcance.
+
+| Qué cambió | Por qué | Tipo |
+|---|---|---|
+| El agente deja de ser llamador de `armar_notificador`; se quita el cambio de `armar_agenda(…, mensajeria)`, la reutilización de la mensajería del webhook y el caso 29 (eliminado); `_NotificadorSilencioso` se queda como excepción deliberada; se agrega el caso 34 | PR #81 ya hizo que `armar_agenda` use `_NotificadorSilencioso` y que el agente confirme en la conversación; `armar_notificador` sólo lo llama `api/routers/agenda.py` | Reducción de alcance |
+| Los puertos nuevos de payments van a `payments/application/ports_envio.py` | `ports.py` está en 400/400 (tope de CLAUDE.md §5) | Estructura, sin cambio de comportamiento |
+| El `except` amplio se cita en `application/salida.py:48-59` y `atencion.py:233-240`; el caso 31 apunta a `SalidaAlCliente`; se declara que U5 **no edita `agente.py`** (399/400) | El `except` se extrajo de `agente.py` (PR #81, #84) | Mecánico |
+| La justificación de `api/mensajeria.py` pasa a «para que `agenda.py`, `mercadopago.py` y `workers/` no dependan de `conversacional.py`» | Con el diseño del plan no había ciclo que evitar; la mudanza sigue siendo la del ADR §2 | Mecánico |
+| `.env.example`: borrar `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_ID`, `WHATSAPP_APP_SECRET` → `WHATSAPP_WEBHOOK_SECRET`, dejar `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | Ahora se pudo leer el archivo; el secreto real es `WHATSAPP_WEBHOOK_SECRET` (`settings.py:563`) | Mecánico |
+| `docs/architecture.md`: sólo §7 (la fila de §4 ya está en `:91`) | La hizo el PR del ADR-0011 | Mecánico |
+| El ADR-0011 está aceptado y su frase sobre los builders ya coincide con el diseño; se borran el riesgo residual y la condición de espera | Aceptado el 2026-10-05 (PR #62, `bd100e5`) | Mecánico |
+| Sin migración en U5 (cabeza de develop: `0032`) | Otra unidad toma el número siguiente | Aclaración |
+| Las entradas de TODO van a §22.30–22.40 | §25 no existe (la última sección es §24) y §22.23–22.29 están tomadas | Mecánico |
+| `SinCanal` levanta `CanalNoConectado` (C1); U11 depende de U5 (C2) | Decisiones de Luciano del 2026-10-06 | Confirmación |
+| Nota nueva en «Fuera de alcance»: el registro `SISTEMA` en la conversación (ADR-0011 §6) lo hace U7, que ampliará el constructor de `AvisoPorWhatsApp` y `EnvioPorWhatsApp`; los callbacks por `waba_id` (§5) son de U6/U7 | Decisiones agregadas al ADR después del plan | Sin código en U5 |
+| Citas de archivo y línea actualizadas (`mercadopago.py`, `tasks_payments.py`, `conversacional.py`, `routers/*`, `settings.py`, `staging-deployment.md`, etc.) | Las líneas se movieron | Mecánico |
+
+Los planes de U6, U7 y U8 (en sus ramas) asumen los nombres de este plan (`EnvioPorWhatsApp`,
+`AvisoPorWhatsApp`, `SinCanal`, `CanalNoConectado`, `api/mensajeria.py`) y que U5 crea las entradas de
+TODO: esas entradas son ahora §22.30–22.40, no §25; hay que propagarlo a esos planes al retomarlos.
