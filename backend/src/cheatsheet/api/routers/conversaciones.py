@@ -23,9 +23,9 @@ from uuid import UUID
 from cheatsheet.api.conversacional import (
     armar_directorio,
     armar_interprete,
-    armar_mensajeria,
 )
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.api.routers.respuestas_frecuentes import rutas_de_faqs
 from cheatsheet.contexts.business_config.application.plantillas import (
     EditarPlantilla,
