@@ -53,6 +53,7 @@ import type { Carga, EstadoProcesamiento, ListadoDeVinculos, Vinculo } from "../
 import { Icono } from "./iconos";
 import type { NombreDeIcono } from "./iconos";
 import { ResumenDeIngesta, cifrasDeIngesta } from "./ResumenDeIngesta";
+import { SeccionPlegable } from "./SeccionPlegable";
 import { TarjetaDePlanilla } from "./TarjetaDePlanilla";
 
 export interface PropsDeIngesta {
@@ -282,80 +283,86 @@ export function IngestaDePlanillas({
       <ResumenDeIngesta cifras={cifras} />
 
       {puedeEditar && (
-        <div className="ing-principal">
-          <div
-            className={arrastrando ? "ing-dropzone ing-dropzone--activa" : "ing-dropzone"}
-            onDragOver={(evento) => {
-              evento.preventDefault();
-              setArrastrando(true);
-            }}
-            onDragLeave={() => {
-              setArrastrando(false);
-            }}
-            onDrop={(evento) => {
-              evento.preventDefault();
-              setArrastrando(false);
-              void cargar(evento.dataTransfer.files[0]);
-            }}
-          >
-            <span className="ing-dz-ico">
-              <Icono nombre="nube" />
-            </span>
-            <p className="ing-dz-titulo">
-              {arrastrando ? "Soltá la planilla para subirla" : "Arrastrá tu planilla acá"}
-            </p>
-            <p className="ing-dz-sub">
-              {/* Los formatos y el tope, dichos una sola vez y como etiquetas: es lo que se
+        <SeccionPlegable
+          titulo="Subir una planilla"
+          subtitulo="Arrastrá un archivo o vinculá una hoja de Google"
+          icono="nube"
+        >
+          <div className="ing-principal">
+            <div
+              className={arrastrando ? "ing-dropzone ing-dropzone--activa" : "ing-dropzone"}
+              onDragOver={(evento) => {
+                evento.preventDefault();
+                setArrastrando(true);
+              }}
+              onDragLeave={() => {
+                setArrastrando(false);
+              }}
+              onDrop={(evento) => {
+                evento.preventDefault();
+                setArrastrando(false);
+                void cargar(evento.dataTransfer.files[0]);
+              }}
+            >
+              <span className="ing-dz-ico">
+                <Icono nombre="nube" />
+              </span>
+              <p className="ing-dz-titulo">
+                {arrastrando ? "Soltá la planilla para subirla" : "Arrastrá tu planilla acá"}
+              </p>
+              <p className="ing-dz-sub">
+                {/* Los formatos y el tope, dichos una sola vez y como etiquetas: es lo que se
                   mira de un vistazo antes de elegir un archivo. */}
-              <span className="ing-dz-formatos">
-                {EXTENSIONES_ACEPTADAS.map((extension) => (
-                  <span key={extension} className="ing-dz-formato">
-                    {extension}
-                  </span>
-                ))}
-              </span>
-              <span className="ing-dz-limite">Hasta {LIMITE_TAMANO_MB} MB</span>
-            </p>
-            <div className="ing-dz-acciones">
-              {/* El label es el botón y el input de verdad vive adentro: un solo control,
+                <span className="ing-dz-formatos">
+                  {EXTENSIONES_ACEPTADAS.map((extension) => (
+                    <span key={extension} className="ing-dz-formato">
+                      {extension}
+                    </span>
+                  ))}
+                </span>
+                <span className="ing-dz-limite">Hasta {LIMITE_TAMANO_MB} MB</span>
+              </p>
+              <div className="ing-dz-acciones">
+                {/* El label es el botón y el input de verdad vive adentro: un solo control,
                   nativo, que el teclado alcanza y el lector de pantalla anuncia. */}
-              <label className="ing-archivo">
-                <Icono nombre="archivo" />
-                Seleccionar archivo
-                <input
-                  ref={entrada}
-                  type="file"
-                  accept={EXTENSIONES_ACEPTADAS.join(",")}
-                  aria-label="Elegir una planilla"
+                <label className="ing-archivo">
+                  <Icono nombre="archivo" />
+                  Seleccionar archivo
+                  <input
+                    ref={entrada}
+                    type="file"
+                    accept={EXTENSIONES_ACEPTADAS.join(",")}
+                    aria-label="Elegir una planilla"
+                    disabled={subiendo}
+                    onChange={(evento) => {
+                      void cargar(evento.target.files?.[0]);
+                    }}
+                  />
+                </label>
+                <span className="ing-dz-o">o</span>
+                <Button
+                  variante="secundario"
                   disabled={subiendo}
-                  onChange={(evento) => {
-                    void cargar(evento.target.files?.[0]);
+                  onClick={() => {
+                    setErrorDelEnlace(null);
+                    setPidiendoEnlace(true);
                   }}
-                />
-              </label>
-              <span className="ing-dz-o">o</span>
-              <Button
-                variante="secundario"
-                disabled={subiendo}
-                onClick={() => {
-                  setErrorDelEnlace(null);
-                  setPidiendoEnlace(true);
-                }}
-              >
-                <Icono nombre="planilla" />
-                Vincular Google Sheets
-              </Button>
+                >
+                  <Icono nombre="planilla" />
+                  Vincular Google Sheets
+                </Button>
+              </div>
+              <p className="ing-candado">
+                <Icono nombre="candado" />
+                <span>
+                  Te vamos a pedir permiso de lectura <strong>sobre la planilla que elijas</strong>,
+                  no sobre todo tu Drive.
+                </span>
+              </p>
+              {subiendo && <p role="status">Subiendo la planilla…</p>}
             </div>
-            <p className="ing-candado">
-              <Icono nombre="candado" />
-              <span>
-                Te vamos a pedir permiso de lectura <strong>sobre la planilla que elijas</strong>,
-                no sobre todo tu Drive.
-              </span>
-            </p>
-            {subiendo && <p role="status">Subiendo la planilla…</p>}
           </div>
-        </div>
+        </SeccionPlegable>
       )}
 
       <Modal
@@ -401,15 +408,12 @@ export function IngestaDePlanillas({
         </div>
       </Modal>
 
-      <section className="ing-bloque" aria-labelledby="ing-planillas-titulo">
-        <div className="ing-seccion">
-          <div>
-            <h2 id="ing-planillas-titulo" className="ing-seccion__titulo">
-              Planillas vinculadas
-            </h2>
-            <p className="ing-seccion__sub">Las fuentes desde las que entran tus datos</p>
-          </div>
-        </div>
+      <SeccionPlegable
+        titulo="Planillas vinculadas"
+        subtitulo="Las fuentes desde las que entran tus datos"
+        icono="planilla"
+        cantidad={listado.vinculos.length}
+      >
         {listado.vinculos.length === 0 ? (
           <EstadoVacio icono="planilla">Todavía no vinculaste ninguna planilla.</EstadoVacio>
         ) : (
@@ -429,17 +433,14 @@ export function IngestaDePlanillas({
             ))}
           </ul>
         )}
-      </section>
+      </SeccionPlegable>
 
-      <section className="ing-bloque" aria-labelledby="ing-cargas-titulo">
-        <div className="ing-seccion">
-          <div>
-            <h2 id="ing-cargas-titulo" className="ing-seccion__titulo">
-              Cargas recientes
-            </h2>
-            <p className="ing-seccion__sub">Tus últimas ingestas de datos</p>
-          </div>
-        </div>
+      <SeccionPlegable
+        titulo="Cargas recientes"
+        subtitulo="Tus últimas ingestas de datos"
+        icono="historial"
+        cantidad={cargas.length}
+      >
         {cargas.length === 0 ? (
           <EstadoVacio icono="historial">Todavía no procesaste ninguna planilla.</EstadoVacio>
         ) : (
@@ -455,7 +456,7 @@ export function IngestaDePlanillas({
             </Card>
           </div>
         )}
-      </section>
+      </SeccionPlegable>
     </>
   );
 }
