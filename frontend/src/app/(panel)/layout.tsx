@@ -37,62 +37,12 @@ import { BotonDeSalida, RenovadorDeSesion } from "@/features/identity";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion, leerClaims } from "@/lib/session";
 
+import { NavegacionLateral } from "./navegacion-lateral";
+
 interface EstadoDeEmpresa {
   readonly razon_social: string | null;
   readonly onboarding_completo: boolean;
 }
-
-interface EntradaDeNavegacion {
-  readonly href: string;
-  readonly etiqueta: string;
-}
-
-interface GrupoDeNavegacion {
-  readonly titulo: string;
-  readonly entradas: readonly EntradaDeNavegacion[];
-}
-
-/** El mapa de `docs/aidlc/inputs/prototipos/mapa-navegacion-oficial.html`, en cuatro grupos. */
-const NAVEGACION: readonly GrupoDeNavegacion[] = [
-  { titulo: "General", entradas: [{ href: "/panel", etiqueta: "Inicio" }] },
-  {
-    titulo: "Operaciones",
-    entradas: [
-      { href: "/ingesta", etiqueta: "Ingesta de datos" },
-      { href: "/datos-maestros/clientes", etiqueta: "Clientes" },
-      { href: "/datos-maestros/servicios", etiqueta: "Servicios" },
-      { href: "/datos-maestros/categorias", etiqueta: "Categorías" },
-      { href: "/facturacion", etiqueta: "Facturación" },
-      { href: "/cobros", etiqueta: "Cobros" },
-      { href: "/agenda", etiqueta: "Agenda" },
-      { href: "/agenda/recursos", etiqueta: "Recursos" },
-      { href: "/conversaciones", etiqueta: "Agente WhatsApp" },
-    ],
-  },
-  {
-    titulo: "Análisis",
-    entradas: [
-      { href: "/reportes", etiqueta: "Reportes" },
-      { href: "/auditoria", etiqueta: "Log de operaciones" },
-    ],
-  },
-  {
-    titulo: "Sistema",
-    entradas: [
-      { href: "/configuracion/empresa", etiqueta: "Empresa" },
-      { href: "/configuracion/usuarios", etiqueta: "Usuarios" },
-      { href: "/configuracion/integraciones", etiqueta: "Integraciones" },
-      { href: "/facturacion/puntos-de-venta", etiqueta: "Puntos de venta" },
-      { href: "/configuracion/reglas", etiqueta: "Reglas de negocio" },
-      { href: "/configuracion/respuestas", etiqueta: "Respuestas frecuentes" },
-      { href: "/configuracion/plantillas", etiqueta: "Plantillas" },
-      { href: "/configuracion/paquete-contable", etiqueta: "Paquete contable" },
-      { href: "/configuracion/notificaciones", etiqueta: "Notificaciones" },
-      { href: "/configuracion/preferencias", etiqueta: "Mis preferencias" },
-      { href: "/soporte", etiqueta: "Soporte" },
-    ],
-  },
-];
 
 /** Las dos iniciales de la empresa, para el avatar del encabezado. */
 function iniciales(nombre: string): string {
@@ -147,18 +97,7 @@ export default async function PanelLayout({
           </span>
         </div>
 
-        <nav aria-label="Secciones" className="nav">
-          {NAVEGACION.map((grupo) => (
-            <div key={grupo.titulo} className="nav__group">
-              <p className="nav__label">{grupo.titulo}</p>
-              {grupo.entradas.map((entrada) => (
-                <Link key={entrada.href} className="nav__item" href={entrada.href}>
-                  {entrada.etiqueta}
-                </Link>
-              ))}
-            </div>
-          ))}
-        </nav>
+        <NavegacionLateral />
 
         <div className="sidebar__help">
           <b>¿Necesitás ayuda?</b>
