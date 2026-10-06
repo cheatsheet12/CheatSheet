@@ -2816,3 +2816,58 @@
     transform: none;
   }
 }
+
+/* ── Corrección de una fila en el sistema ─────────────────────────────────────────────── */
+.ing-correccion {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Por qué falló, arriba y a la vista: es lo que hay que leer para corregir. */
+.ing-correccion__motivo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--err-bg);
+  color: var(--err);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.ing-correccion__motivo span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.ing-correccion__ayuda {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.ing-correccion__campos {
+  display: grid;
+  gap: 12px;
+}
+
+/* Una fila ya corregida queda como historia: atenuada y con su marca, no tachada ni oculta. */
+.ing-proc-fila--corregida {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.ing-proc-motivo--corregida {
+  color: var(--ink-400);
+}
+
+/* Si la pantalla muestra un aviso arriba, las tarjetas no se le pegan. */
+.ing-tarjetas:not(:first-child) {
+  margin-top: 16px;
+}

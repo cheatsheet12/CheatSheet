@@ -20,6 +20,7 @@ import {
   FileUp,
   History,
   Lock,
+  Pencil,
   ListChecks,
   type LucideIcon,
   RefreshCw,
@@ -40,6 +41,7 @@ export type NombreDeIcono =
   | "alerta"
   | "tilde"
   | "papelera"
+  | "editar"
   | "flecha"
   | "descargar"
   | "lista"
@@ -57,6 +59,7 @@ const ICONOS: Readonly<Record<NombreDeIcono, LucideIcon>> = {
   alerta: TriangleAlert,
   tilde: Check,
   papelera: Trash2,
+  editar: Pencil,
   flecha: ArrowRight,
   descargar: Download,
   lista: ListChecks,

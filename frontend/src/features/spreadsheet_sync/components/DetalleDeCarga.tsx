@@ -32,6 +32,7 @@ import {
   reprocesarCarga,
   verCarga,
 } from "../api/planilla";
+import { CorreccionDeFila } from "./CorreccionDeFila";
 import { Icono } from "./iconos";
 import type { DetalleDeCarga as Detalle, ErrorDeFila, EstadoProcesamiento } from "../api/planilla";
 
@@ -46,24 +47,63 @@ const TONO: Readonly<Record<EstadoProcesamiento, EstadoDeBadge>> = {
   FALLIDO: "error",
 };
 
-const COLUMNAS: readonly Columna<ErrorDeFila>[] = [
-  {
-    clave: "fila",
-    titulo: "Fila",
-    celda: (e) => <span className="ing-proc-fila">{e.numero_fila}</span>,
-  },
-  {
-    clave: "motivo",
-    titulo: "Motivo",
-    celda: (e) => <span className="ing-proc-motivo">{e.motivo}</span>,
-  },
-];
+/**
+ * Las columnas de «Filas con error». Una fila **corregida** no desaparece: queda como historia,
+ * con su marca, porque el detalle de una carga es el registro de lo que pasó con ella.
+ */
+function columnasDeErrores(
+  puedeCorregir: boolean,
+  alCorregir: (numeroFila: number) => void,
+): readonly Columna<ErrorDeFila>[] {
+  return [
+    {
+      clave: "fila",
+      titulo: "Fila",
+      celda: (e) => (
+        <span className={e.corregida ? "ing-proc-fila ing-proc-fila--corregida" : "ing-proc-fila"}>
+          {e.numero_fila}
+        </span>
+      ),
+    },
+    {
+      clave: "motivo",
+      titulo: "Motivo",
+      celda: (e) => (
+        <span
+          className={e.corregida ? "ing-proc-motivo ing-proc-motivo--corregida" : "ing-proc-motivo"}
+        >
+          {e.motivo}
+        </span>
+      ),
+    },
+    {
+      clave: "accion",
+      titulo: "",
+      alDerecha: true,
+      celda: (e) =>
+        e.corregida ? (
+          <Badge estado="ok">Corregida</Badge>
+        ) : puedeCorregir ? (
+          <Button
+            variante="secundario"
+            onClick={() => {
+              alCorregir(e.numero_fila);
+            }}
+          >
+            <Icono nombre="editar" />
+            Corregir
+          </Button>
+        ) : null,
+    },
+  ];
+}
 
 export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
   const [detalle, setDetalle] = useState<Detalle>(inicial);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
+  const [editando, setEditando] = useState<number | null>(null);
 
   async function reprocesar(): Promise<void> {
     setError(null);
@@ -87,7 +127,7 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
   }
 
   function descargar(): void {
-    const blob = new Blob([csvDeErrores(detalle.errores)], {
+    const blob = new Blob([csvDeErrores(detalle.errores.filter((e) => !e.corregida))], {
       type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
@@ -101,6 +141,14 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
   }
 
   const { carga } = detalle;
+  const hayPendientes = detalle.errores.some((e) => !e.corregida);
+
+  function alCorregir(nuevo: Detalle, numeroFila: number): void {
+    setDetalle(nuevo);
+    setEditando(null);
+    setError(null);
+    setAviso(`Se corrigió la fila ${numeroFila} y se importó.`);
+  }
 
   return (
     <>
@@ -163,7 +211,7 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
           <div className="ing-proc-errores">
             <Tabla
               titulo="Filas con error"
-              columnas={COLUMNAS}
+              columnas={columnasDeErrores(detalle.puede_reprocesar, setEditando)}
               filas={detalle.errores}
               claveDeFila={(e) => String(e.numero_fila)}
               vacia="Esta carga no dejó ninguna fila con error."
@@ -175,8 +223,9 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
             // «reprocesar» se lee como «volver a subir todo» y nadie lo toca por miedo a duplicar
             // (HU-E3-06 RN-01 y RN-02).
             <Desplegable titulo="Qué hace reprocesar" variante="simple">
-              Corregí los datos en la fuente y reprocesá: el sistema reutiliza el mapeo confirmado e
-              incorpora sólo las filas corregidas, sin duplicar las ya procesadas.
+              Podés corregir cada fila desde acá, o arreglar los datos en tu planilla y reprocesar:
+              el sistema reutiliza el mapeo confirmado e incorpora sólo las filas pendientes, sin
+              duplicar las ya procesadas ni las que corregiste.
             </Desplegable>
           )}
 
@@ -193,7 +242,7 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
                 Reprocesar las filas con error
               </Button>
             )}
-            {detalle.errores.length > 0 && (
+            {hayPendientes && (
               <Button variante="secundario" onClick={descargar}>
                 <Icono nombre="descargar" />
                 Descargar el listado de errores
@@ -202,6 +251,15 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
           </div>
         </Card>
       </div>
+
+      <CorreccionDeFila
+        cargaId={detalle.carga.id}
+        numeroFila={editando}
+        alCerrar={() => {
+          setEditando(null);
+        }}
+        alCorregir={alCorregir}
+      />
     </>
   );
 }
