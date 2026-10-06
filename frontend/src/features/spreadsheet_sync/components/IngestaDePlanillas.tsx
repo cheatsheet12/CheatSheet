@@ -50,7 +50,6 @@ import {
   subirPlanilla,
 } from "../api/planilla";
 import type { Carga, EstadoProcesamiento, ListadoDeVinculos, Vinculo } from "../api/planilla";
-import { ComoFunciona } from "./ComoFunciona";
 import { Icono } from "./iconos";
 import type { NombreDeIcono } from "./iconos";
 import { ResumenDeIngesta, cifrasDeIngesta } from "./ResumenDeIngesta";
@@ -356,8 +355,6 @@ export function IngestaDePlanillas({
             </p>
             {subiendo && <p role="status">Subiendo la planilla…</p>}
           </div>
-
-          <ComoFunciona />
         </div>
       )}
 
