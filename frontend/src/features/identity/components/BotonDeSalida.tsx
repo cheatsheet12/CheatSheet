@@ -6,37 +6,43 @@
  * clear the cookies by hand. A panel that issues tax documents and cannot be left is not
  * a panel anybody should be asked to use on a shared machine.
  *
- * `router.refresh()` before navigating throws away the cached server render: without it
- * Next can serve the panel shell it already had, and the person sees their own data for
- * a moment after signing out.
+ * `router.refresh()` throws away the cached server render: without it Next can serve the
+ * panel shell it already had, and the person sees their own data for a moment after
+ * signing out.
+ *
+ * **The order is `push` and then `refresh`, and it is not cosmetic.** Next's action queue
+ * marks a navigation that arrives while another action is pending as discarded, and its
+ * state is never applied. `refresh` first and `push` second therefore dropped the
+ * refresh — and the cache clean-up it exists for. A `refresh` issued after the `push`
+ * queues behind the navigation and is applied.
  */
 
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useAccionConNavegacion } from "@/shared";
 
 export function BotonDeSalida(): JSX.Element {
-  const router = useRouter();
-  const [saliendo, setSaliendo] = useState(false);
+  const { pendiente: saliendo, ejecutar } = useAccionConNavegacion();
 
-  const salir = async (): Promise<void> => {
-    setSaliendo(true);
+  const cerrarSesion = async (): Promise<void> => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
       // Swallowed deliberately: leaving is what the person asked for, and a failed
       // request is no reason to trap them in the panel.
       //
-      // `finally` on its own was not enough. It runs on the way out and then lets the
-      // rejection keep going, straight into `void salir()`, where nothing is left to
-      // catch it — an unhandled rejection in every browser console, and a failed CI
-      // run, while both tests still reported green.
-    } finally {
-      // Whatever happened above, this browser is done with the session.
-      router.refresh();
-      router.push("/");
+      // Letting it propagate was not an option. It would keep going into `void salir()`,
+      // where nothing is left to catch it — an unhandled rejection in every browser
+      // console, and a failed CI run, while both tests still reported green.
     }
+  };
+
+  const salir = async (): Promise<void> => {
+    // Whatever happened above, this browser is done with the session.
+    await ejecutar(cerrarSesion, (_resultado, router) => {
+      router.push("/");
+      router.refresh();
+    });
   };
 
   return (

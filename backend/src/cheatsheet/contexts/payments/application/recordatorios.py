@@ -18,16 +18,26 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from cheatsheet.contexts.payments.application.errors import RecordatorioDuplicado
+from cheatsheet.contexts.payments.application.errors import (
+    DespachoNoPersistido,
+    RecordatorioDuplicado,
+)
 from cheatsheet.contexts.payments.application.ports import (
-    PasoDeCadena,
-    PortCadenaDeEscalamiento,
-    PortEnvioDeRecordatorio,
     PortRepositorioCobro,
     PortRepositorioRecordatorios,
 )
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    PasoDeCadena,
+    PortCadenaDeEscalamiento,
+    PortEnvioDeRecordatorio,
+)
+from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
 from cheatsheet.contexts.payments.domain.cobro import Cobro
-from cheatsheet.contexts.payments.domain.recordatorio import Recordatorio, proximo_paso
+from cheatsheet.contexts.payments.domain.recordatorio import (
+    EstadoEntrega,
+    Recordatorio,
+    proximo_paso,
+)
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId
@@ -45,6 +55,10 @@ class ResultadoDeBarrido:
     #: procesa cero puede estar bien (nada vencía hoy) o puede estar roto, y la única forma de
     #: distinguirlo desde un log es saber cuántos evaluó.
     evaluados: int = 0
+    #: Recordatorios cuyo envío terminó `FALLIDO`. Quedan registrados (con fecha, para que el
+    #: índice único no los reenvíe) pero **no** cuentan como `procesados`: un barrido que
+    #: «despachó» lo que nunca salió esconde justo el incidente que hay que mirar.
+    fallidos: int = 0
 
 
 class VencerCobros:
@@ -99,9 +113,19 @@ class DespacharRecordatorios:
     dominio calcula cuál falta, y el índice único `(cobro_id, paso)` rechaza el segundo
     despacho del mismo. La segunda existe porque dos barridos solapados pasan la primera.
 
-    Un fallo de un cobro **no aborta el barrido**. Es el mismo criterio que el fan-out del
-    épico 4: perder un recordatorio cuesta una corrida de espera; dejar que la excepción se
-    escape cuesta todos los cobros que venían después en la lista.
+    **Un fallo de un cobro no aborta el barrido ni deshace a los demás** (U5, H1). El barrido
+    corre en una sola transacción por empresa, y si la excepción de un cobro la volteara, las
+    filas de los cobros anteriores —cuyos mensajes ya salieron— se perderían y la hora siguiente
+    los mandaría de nuevo. Por eso:
+
+    - cada cobro corre en su propio **savepoint** (`aislamiento`): si la base rechaza algo,
+      sólo se deshacen las filas de ese cobro;
+    - el envío va protegido: si el adaptador levanta (el contrato dice que no debe), el paso
+      queda registrado `FALLIDO` con fecha, y el índice único no lo deja salir de nuevo.
+
+    Un único caso residual de reenvío: si la base falla **después** de que el mensaje salió y
+    **antes** de liberar el savepoint de ese cobro, sus filas se deshacen y ese cobro (sólo ése)
+    se reenvía en el barrido siguiente.
     """
 
     def __init__(
@@ -112,12 +136,14 @@ class DespacharRecordatorios:
         envio: PortEnvioDeRecordatorio,
         cadena: PortCadenaDeEscalamiento,
         publicador: PublicadorDeEventos,
+        aislamiento: PortAislamiento,
     ) -> None:
         self._cobros = cobros
         self._recordatorios = recordatorios
         self._envio = envio
         self._cadena = cadena
         self._publicador = publicador
+        self._aislamiento = aislamiento
 
     async def ejecutar(self, *, empresa_id: EmpresaId, ahora: datetime) -> ResultadoDeBarrido:
         abiertos = await self._cobros.abiertos()
@@ -130,21 +156,37 @@ class DespacharRecordatorios:
         por_cobro = await self._recordatorios.de_cobros([cobro.id for cobro in abiertos])
 
         despachados = 0
+        fallidos = 0
         for cobro in abiertos:
-            if await self._despachar_uno(
-                empresa_id=empresa_id,
-                cobro=cobro,
-                previos=por_cobro.get(cobro.id, []),
-                cadena=cadena,
-                ahora=ahora,
-            ):
+            try:
+                async with self._aislamiento.aislar():
+                    salio = await self._despachar_uno(
+                        empresa_id=empresa_id,
+                        cobro=cobro,
+                        previos=por_cobro.get(cobro.id, []),
+                        cadena=cadena,
+                        ahora=ahora,
+                    )
+            except DespachoNoPersistido:
+                # Sin datos del cliente ni del error: sólo qué cobro. Se deshizo lo de este
+                # cobro; los anteriores siguen confirmados y el barrido sigue.
+                logger.warning("recordatorio_no_persistido", cobro_id=str(cobro.id))
+                continue
+            if salio is EstadoEntrega.FALLIDO:
+                fallidos += 1
+            elif salio is not None:
                 despachados += 1
 
-        if despachados:
+        if despachados or fallidos:
             logger.info(
-                "recordatorios_despachados", empresa_id=str(empresa_id), cantidad=despachados
+                "recordatorios_despachados",
+                empresa_id=str(empresa_id),
+                cantidad=despachados,
+                fallidos=fallidos,
             )
-        return ResultadoDeBarrido(procesados=despachados, evaluados=len(abiertos))
+        return ResultadoDeBarrido(
+            procesados=despachados, evaluados=len(abiertos), fallidos=fallidos
+        )
 
     async def _despachar_uno(
         self,
@@ -154,10 +196,13 @@ class DespacharRecordatorios:
         previos: list[Recordatorio],
         cadena: tuple[PasoDeCadena, ...],
         ahora: datetime,
-    ) -> bool:
-        """Devuelve si mandó algo. Nunca levanta: un cobro roto no frena a los demás."""
+    ) -> EstadoEntrega | None:
+        """Devuelve cómo terminó el envío, o `None` si no intentó ninguno.
+
+        Nunca levanta: un cobro roto no frena a los demás.
+        """
         if not cobro.recibe_recordatorios:  # pragma: no cover - `abiertos` ya los filtra
-            return False
+            return None
 
         # Contando desde 1: `paso` es una columna que alguien va a leer en una consulta, y
         # «paso 0» no significa nada para quien la mire.
@@ -166,12 +211,12 @@ class DespacharRecordatorios:
         if paso is None:
             # La cadena se terminó. No es un error: hay un tope de pasos a propósito, y una
             # deuda que sigue impaga después del último recordatorio es un problema humano.
-            return False
+            return None
 
         # **El día cero es el vencimiento**, no la creación del cobro. Es lo que hace legible
         # una cadena de «a los 3, a los 7, a los 15» y lo que la historia describe.
         if (ahora - cobro.vence_el).days < paso.dias:
-            return False
+            return None
 
         recordatorio = Recordatorio(id=uuid4(), cobro_id=cobro.id, paso=numero, canal=paso.canal)
         try:
@@ -180,11 +225,25 @@ class DespacharRecordatorios:
             # Otro barrido llegó primero. **No es un error**: significa «esto ya salió», que
             # es exactamente lo que RN-05 pide garantizar.
             logger.info("recordatorio_ya_despachado", cobro_id=str(cobro.id), paso=numero)
-            return False
+            return None
 
-        estado = await self._envio.enviar(
-            empresa_id=empresa_id, cobro=cobro, canal=paso.canal, paso=numero
-        )
+        try:
+            estado = await self._envio.enviar(
+                empresa_id=empresa_id, cobro=cobro, canal=paso.canal, paso=numero
+            )
+        except Exception as exc:  # noqa: BLE001 — ver abajo
+            # `Exception` es lo que `CLAUDE.md` §5 prohíbe en general, y acá está acotado por el
+            # motivo: el puerto lo implementan adaptadores que podrían levantar cualquier cosa,
+            # y su contrato dice que no deben. Es defensa en profundidad (igual que
+            # `SalidaAlCliente`): el paso queda `FALLIDO` con fecha y el índice `(cobro_id,
+            # paso)` no lo deja salir otra vez. Sólo la clase de la excepción, nunca su texto.
+            logger.warning(
+                "recordatorio_envio_fallido",
+                cobro_id=str(cobro.id),
+                paso=numero,
+                causa=type(exc).__name__,
+            )
+            estado = EstadoEntrega.FALLIDO
         recordatorio.marcar_enviado(ahora)
         recordatorio.marcar_entrega(estado)
         await self._recordatorios.guardar(recordatorio)
@@ -198,10 +257,14 @@ class DespacharRecordatorios:
                 modulo=Modulo.PAYMENTS,
                 accion="enviar_recordatorio",
                 entidad_afectada=f"Cobro:{cobro.id}",
-                resultado=Resultado.COMPLETADO,
+                # El envío fallido igual deja la fila (el índice único la necesita), pero la
+                # bitácora no puede decir que salió.
+                resultado=(
+                    Resultado.ERROR if estado is EstadoEntrega.FALLIDO else Resultado.COMPLETADO
+                ),
             )
         )
-        return True
+        return estado
 
 
 class VerRecordatorios:

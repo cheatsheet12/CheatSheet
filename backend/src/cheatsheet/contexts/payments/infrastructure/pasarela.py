@@ -25,6 +25,7 @@ nadie puede pagar y dando por saldadas deudas que nadie pagó.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -76,10 +77,12 @@ class PasarelaMercadoPago:
         self,
         *,
         tokens: PortTokenDeMercadoPago,
+        url_de_notificaciones: str,
         transporte: httpx.AsyncBaseTransport | None = None,
         url_base: str = URL_API,
     ) -> None:
         self._tokens = tokens
+        self._url_de_notificaciones = url_de_notificaciones.rstrip("/")
         # `transporte` es como se prueban todos los clientes HTTP de este repositorio:
         # `httpx.MockTransport` va donde iría el socket. Sin él, el parser de la respuesta
         # sólo sería alcanzable metiendo mano en un atributo privado.
@@ -89,27 +92,32 @@ class PasarelaMercadoPago:
     async def crear_link(
         self, *, empresa_id: EmpresaId, cobro: Cobro, url_de_retorno: str
     ) -> LinkDePago:
+        # El monto viaja como el literal exacto del `Decimal`, nunca como `float`
+        # (`TODO.md` §20.6): se serializa todo lo demás y después se pone el número en el
+        # lugar de una marca que ninguna descripción puede contener.
+        marca = f"monto-{uuid4().hex}"
         cuerpo: dict[str, Any] = {
             "items": [
                 {
                     "title": cobro.descripcion[:250],
                     "quantity": 1,
-                    # **Texto y no float.** MercadoPago acepta un número JSON y lo redondea a
-                    # su manera; mandar la cadena que el agregado ya redondeó (D15) es lo que
-                    # hace que el link cobre exactamente lo que la fila dice.
-                    "unit_price": float(cobro.monto),
+                    "unit_price": marca,
                     "currency_id": "ARS",
                 }
             ],
             # Lo que ata la notificación a una fila nuestra. Sin esto, el webhook llega con un
             # `payment_id` que no sabemos a quién corresponde.
             "external_reference": str(cobro.id),
+            # HS-T1. La URL de la preferencia tiene prioridad sobre la de la aplicación en
+            # MercadoPago, que es una sola y no puede llevar la empresa.
+            "notification_url": f"{self._url_de_notificaciones}/webhooks/mercadopago/{empresa_id}",
             "back_urls": {"success": url_de_retorno, "failure": url_de_retorno},
             "expires": True,
             "expiration_date_to": cobro.vence_el.isoformat(),
         }
+        texto = json.dumps(cuerpo).replace(json.dumps(marca), _numero_json(cobro.monto))
         datos = await self._pedir(
-            empresa_id, "POST", "/checkout/preferences", cuerpo, operacion="crear_link"
+            empresa_id, "POST", "/checkout/preferences", texto, operacion="crear_link"
         )
         preferencia = str(datos.get("id") or "")
         url = str(datos.get("init_point") or datos.get("sandbox_init_point") or "")
@@ -345,7 +353,7 @@ def _fecha_iso(valor: object) -> datetime | None:
 def _numero_json(monto: Decimal) -> str:
     """El `Decimal` como literal numérico JSON exacto (`1234.56`), sin pasar por `float`.
 
-    Lo reusa quien arregle el `float` de `crear_link` (`TODO.md` §20.6).
+    Lo usan el reembolso y el monto de `crear_link` (`TODO.md` §20.6).
     """
     if not monto.is_finite():
         raise ValueError("Un monto no finito no es un numero JSON")

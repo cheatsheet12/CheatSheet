@@ -22,7 +22,17 @@
 
 import { useRef, useState } from "react";
 
-import { Alert, Badge, Button, Campo, Card, Modal, Tabla, formatearFechaHora } from "@/shared";
+import {
+  Alert,
+  Badge,
+  Button,
+  Campo,
+  Card,
+  Modal,
+  Tabla,
+  formatearFechaHora,
+  useAccionConNavegacion,
+} from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import Link from "next/link";
@@ -166,6 +176,7 @@ export function IngestaDePlanillas({
   const [pidiendoEnlace, setPidiendoEnlace] = useState(false);
   const [enlace, setEnlace] = useState("");
   const [errorDelEnlace, setErrorDelEnlace] = useState<string | null>(null);
+  const { pendiente: vinculando, ejecutar } = useAccionConNavegacion();
   const entrada = useRef<HTMLInputElement>(null);
 
   async function refrescar(): Promise<void> {
@@ -233,7 +244,16 @@ export function IngestaDePlanillas({
     setErrorDelEnlace(null);
     setError(null);
     try {
-      window.location.href = await iniciarVinculacionConGoogle(identificador);
+      // A full-page navigation has no transition to wait on, so the button stays busy
+      // until the page is gone (`saleDeLaPagina`) and is released only on failure. Two
+      // requests would be two OAuth `state` values, and the cookie can keep the other one.
+      await ejecutar(
+        () => iniciarVinculacionConGoogle(identificador),
+        (direccion) => {
+          window.location.href = direccion;
+        },
+        { saleDeLaPagina: true },
+      );
     } catch (problema) {
       reportar(problema);
     }
@@ -454,6 +474,7 @@ export function IngestaDePlanillas({
             Cancelar
           </Button>
           <Button
+            cargando={vinculando}
             onClick={() => {
               void vincularConGoogle();
             }}

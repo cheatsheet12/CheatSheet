@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import pytest
 from cheatsheet.contexts.conversational.infrastructure.acl import DirectorioViaMasterData
+from cheatsheet.contexts.master_data.domain.cliente import Cliente
 from cheatsheet.contexts.master_data.domain.valores import OrigenDato
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
@@ -47,6 +48,32 @@ async def test_el_alta_rapida_guarda_el_nombre_normalizado_con_origen_agente() -
     guardado = clientes.clientes[cliente_id]
     assert guardado.nombre == "Maria Gomez"
     assert guardado.origen is OrigenDato.AGENTE
+
+
+async def test_telefono_de_devuelve_los_digitos_del_whatsapp_del_cliente() -> None:
+    clientes = RepositorioClienteEnMemoria()
+    directorio = _directorio(clientes)
+    cliente_id = await directorio.alta_rapida(telefono="+54 9 11 1234-5678", nombre="Maria")
+
+    assert await directorio.telefono_de(cliente_id) == TELEFONO
+
+
+async def test_telefono_de_es_none_si_el_cliente_no_tiene_whatsapp() -> None:
+    clientes = RepositorioClienteEnMemoria()
+    sin_whatsapp = Cliente.registrar(
+        id=uuid4(),
+        empresa_id=EMPRESA,
+        nombre="Pedro Lopez",
+        origen=OrigenDato.PANEL,
+        momento=INSTANTE_FIJO,
+    )
+    await clientes.agregar(sin_whatsapp)
+
+    assert await _directorio(clientes).telefono_de(sin_whatsapp.id) is None
+
+
+async def test_telefono_de_es_none_si_el_cliente_no_existe() -> None:
+    assert await _directorio(RepositorioClienteEnMemoria()).telefono_de(uuid4()) is None
 
 
 async def test_el_nombre_provisorio_del_agente_se_preserva() -> None:

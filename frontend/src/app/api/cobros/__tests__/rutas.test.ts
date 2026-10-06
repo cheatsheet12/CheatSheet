@@ -114,6 +114,34 @@ describe("los cobros", () => {
     expect(opciones.body.monto).toBe("12500.10");
   });
 
+  it("el POST reenvia la clave del pedido al backend (ADR-0013)", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue(COBRO);
+    const conClave = new Request("http://test/api/cobros", {
+      method: "POST",
+      headers: { "X-Idempotency-Key": "6f1c1b6e-0000-4000-8000-000000000001" },
+      body: JSON.stringify({ cliente_id: "cl1", monto: "100", descripcion: "x" }),
+    });
+
+    await rutaCobros.POST(conClave);
+
+    expect(llamarApi).toHaveBeenCalledWith("/cobros", {
+      method: "POST",
+      body: { cliente_id: "cl1", monto: "100", descripcion: "x" },
+      headers: { "X-Idempotency-Key": "6f1c1b6e-0000-4000-8000-000000000001" },
+    });
+  });
+
+  it("sin encabezado el POST no inventa una clave", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue(COBRO);
+
+    await rutaCobros.POST(pedido({ cliente_id: "cl1", monto: "100", descripcion: "x" }));
+
+    const [, opciones] = llamarApi.mock.calls[0] as [string, Record<string, unknown>];
+    expect("headers" in opciones).toBe(false);
+  });
+
   it("el detalle usa el id de la ruta", async () => {
     cookieDeSesion = "un-access-token";
     llamarApi.mockResolvedValue(COBRO);

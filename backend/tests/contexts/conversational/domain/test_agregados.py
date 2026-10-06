@@ -18,7 +18,7 @@ y que un refactor podría romper sin que nada más se queje:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -240,7 +240,8 @@ class TestFAQ:
         """Primer criterio de HU-E9-04, más lo que el vector todavía no tiene."""
         faq = una_faq()
 
-        assert faq.usos == 0
+        assert faq.usos_anteriores == 0
+        assert faq.editada_en is None
         assert faq.embedding_obsoleto
 
     def test_editar_la_pregunta_invalida_el_vector_y_editar_la_respuesta_no(self) -> None:
@@ -262,12 +263,28 @@ class TestFAQ:
             faq.editar(pregunta="", respuesta="algo", momento=AHORA)
         assert str(fallo.value) == MENSAJE_CAMPOS_OBLIGATORIOS
 
-    def test_el_uso_se_cuenta_de_a_uno(self) -> None:
+    def test_editar_con_el_mismo_texto_no_es_una_edicion(self) -> None:
+        """ADR-0012, punto 6: guardar lo mismo (aun con espacios) no mueve `editada_en`."""
         faq = una_faq()
-        faq.registrar_uso()
-        faq.registrar_uso()
 
-        assert faq.usos == 2
+        faq.editar(pregunta=f"  {faq.pregunta} ", respuesta=f" {faq.respuesta}  ", momento=AHORA)
+
+        assert faq.editada_en is None
+
+    def test_cambiar_solo_la_respuesta_es_una_edicion(self) -> None:
+        faq = una_faq()
+        despues = AHORA + timedelta(days=1)
+
+        faq.editar(pregunta=faq.pregunta, respuesta="Ahora sale $9000.", momento=despues)
+
+        assert faq.editada_en == despues
+
+    def test_reindexar_no_es_una_edicion(self) -> None:
+        faq = una_faq()
+
+        faq.marcar_indexada("modelo-v1", AHORA + timedelta(days=1))
+
+        assert faq.editada_en is None
 
     def test_el_umbral_decide_si_una_coincidencia_alcanza(self) -> None:
         """RN-03: por debajo, el agente ofrece un asesor en lugar de contestar cualquier cosa."""
