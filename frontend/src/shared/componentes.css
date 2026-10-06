@@ -309,11 +309,13 @@ a:focus-visible {
   color: var(--err);
 }
 
-/* El `.field-hint` del prototipo: monoespaciado, porque casi siempre describe un formato
-   («11 dígitos, sin guiones») y la mono hace que se lea como tal. */
+/* El `.field-hint` del prototipo era monoespaciado porque describía un formato («11 dígitos, sin
+   guiones»). Hoy la mayoría son frases completas —«Si validás un CUIT contra ARCA y dejás esto
+   vacío, se completa solo»— y una oración entera en mono pesa más que el campo que explica. La
+   monoespaciada queda para los datos (`.campo--mono`), no para el texto de ayuda. */
 .campo__ayuda {
-  font-family: var(--mono);
-  font-size: var(--text-caption);
+  font-size: 12.5px;
+  line-height: 1.45;
   color: var(--ink-400);
 }
 

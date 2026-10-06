@@ -18,18 +18,18 @@
  * acá los separaba en dos bloques, y el botón terminaba metido en la fila de filtros —que es
  * donde estaba— sin pertenecer a nada. Es lo mismo que hacen PAN-FAC-01 y PAN-WA-02.
  *
- * **Las acciones de fila son texto, no botones con caja.** Diez filas con un botón de borde
- * rojo cada una convierten el rojo en decoración justo donde tendría que ser una advertencia.
- * La advertencia la da la confirmación, que sigue siendo un diálogo modal y dice qué pasa si
- * se sigue adelante.
+ * **Las acciones de fila son iconos, y la baja está en el menú ⋯.** Facturar, Cobrar y Agendar se
+ * usan todos los días y van como botones de icono; Editar y Desactivar, dentro de «más acciones».
+ * Diez filas con un botón rojo cada una convierten el rojo en decoración justo donde tendría que
+ * ser una advertencia; la advertencia la da la confirmación, que sigue siendo un diálogo y dice
+ * qué pasa si se sigue adelante.
  */
 
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { Badge, Button, Campo, Modal, Select, Tabla } from "@/shared";
+import { Badge, Modal, Tabla } from "@/shared";
 import type { Columna } from "@/shared";
 
 import {
@@ -43,15 +43,11 @@ import type { Cliente, DatosDeCliente, ListadoDeClientes as Listado } from "../a
 import { categoriasDeCliente, clasificarCliente, listarCategorias } from "../api/categoria";
 import type { Categoria } from "../api/categoria";
 import { FormularioDeCliente } from "./FormularioDeCliente";
+import { AccionesDeCliente, AvatarDeCliente } from "./FilaDeCliente";
+import { HerramientasDeClientes } from "./HerramientasDeClientes";
 import { IconoDeMas } from "./iconos";
 import { SelectorDeCategorias } from "./SelectorDeCategorias";
-
-const ORIGENES: readonly { valor: string; etiqueta: string }[] = [
-  { valor: "", etiqueta: "Todos los orígenes" },
-  { valor: "PANEL", etiqueta: "Panel" },
-  { valor: "PLANILLA", etiqueta: "Planilla" },
-  { valor: "AGENTE", etiqueta: "Agente" },
-];
+import { VacioDeClientes } from "./VacioDeClientes";
 
 export interface PropsDeListado {
   readonly inicial: Listado;
@@ -61,29 +57,6 @@ export interface PropsDeListado {
 
 /** What the form is doing right now. `null` means it is closed. */
 type Edicion = { readonly cliente: Cliente | undefined } | null;
-
-/**
- * Las tres pantallas que sólo se pueden abrir con un cliente ya elegido.
- *
- * `/facturacion/nueva`, `/cobros/nuevo` y `/agenda/nuevo` leen `?cliente=` y, si no está,
- * responden «Elegí primero a quién…  Ir a Clientes». Hasta que estos enlaces existieron,
- * Clientes no tenía forma de volver: la fila no llevaba ningún enlace y los únicos accesos a
- * esas rutas eran los CTA de sus propios listados, que no pasan el parámetro. El resultado
- * era que emitir, cobrar y agendar **no se podían hacer desde la interfaz** — había que
- * escribir el id en la barra de direcciones. Encontrado en QA el 2026-09-13.
- *
- * Van sólo en las filas activas: un cliente dado de baja salió del catálogo, y ofrecerle
- * «Facturar» sería ofrecer algo que el catálogo ya decidió que no está disponible.
- *
- * El rol se controla con el mismo `puedeEditar` que gobierna Editar y Desactivar, porque las
- * tres pantallas destino exigen ADMINISTRADOR u OPERADOR y redirigen a cualquier otro: un
- * enlace visible para quien va a rebotar es peor que no tenerlo.
- */
-const DESTINOS = [
-  { etiqueta: "Facturar", ruta: "/facturacion/nueva" },
-  { etiqueta: "Cobrar", ruta: "/cobros/nuevo" },
-  { etiqueta: "Agendar", ruta: "/agenda/nuevo" },
-] as const;
 
 export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX.Element {
   const [listado, setListado] = useState<Listado>(inicial);
@@ -200,11 +173,27 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
     );
   }
 
+  /** Vuelve al catálogo entero: los cuatro filtros a su valor de origen, y una sola recarga. */
+  function limpiarFiltros(): void {
+    setTexto("");
+    setOrigen("");
+    setCategoria("");
+    setSoloActivos(false);
+    void recargar({ texto: "", origen: "", categoriaId: "", soloActivos: false });
+  }
+
+  const hayFiltros = texto !== "" || origen !== "" || categoria !== "" || soloActivos;
+
   const columnas: readonly Columna<Cliente>[] = [
     {
       clave: "nombre",
       titulo: "Nombre",
-      celda: (fila) => <span className="mae-nombre">{fila.nombre}</span>,
+      celda: (fila) => (
+        <span className="mae-persona">
+          <AvatarDeCliente nombre={fila.nombre} />
+          <span className="mae-nombre">{fila.nombre}</span>
+        </span>
+      ),
     },
     {
       clave: "cuit",
@@ -248,28 +237,11 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
       alDerecha: true,
       celda: (fila) =>
         puedeEditar ? (
-          <span className="tabla__acciones">
-            {fila.activo &&
-              DESTINOS.map(({ etiqueta, ruta }) => (
-                <Link
-                  key={ruta}
-                  className="mae-accion"
-                  href={`${ruta}?cliente=${encodeURIComponent(fila.id)}`}
-                >
-                  {etiqueta}
-                </Link>
-              ))}
-            <button type="button" className="mae-accion" onClick={() => void abrirEdicion(fila)}>
-              Editar
-            </button>
-            <button
-              type="button"
-              className={`mae-accion${fila.activo ? " mae-accion--baja" : ""}`}
-              onClick={() => void alternarEstado(fila)}
-            >
-              {fila.activo ? "Desactivar" : "Reactivar"}
-            </button>
-          </span>
+          <AccionesDeCliente
+            cliente={fila}
+            onEditar={(cliente) => void abrirEdicion(cliente)}
+            onAlternarEstado={(cliente) => void alternarEstado(cliente)}
+          />
         ) : null,
     },
   ];
@@ -287,78 +259,62 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
         </div>
         {puedeEditar && (
           <div className="mae-encabezado__acciones">
-            <Button onClick={() => setEdicion({ cliente: undefined })}>
+            <button
+              type="button"
+              className="mae-cta"
+              onClick={() => setEdicion({ cliente: undefined })}
+            >
               <span className="mae-cta__icono" aria-hidden="true">
                 <IconoDeMas />
               </span>
               Nuevo cliente
-            </Button>
+            </button>
           </div>
         )}
       </header>
 
-      <div className="mae-filtros">
-        <Campo
-          id="dm-buscador"
-          etiqueta="Buscar"
-          value={texto}
-          onChange={(evento) => {
-            setTexto(evento.target.value);
-            void recargar({ texto: evento.target.value });
-          }}
-          placeholder="Nombre o CUIT"
-        />
-        <Select
-          id="dm-origen"
-          etiqueta="Origen"
-          opciones={ORIGENES}
-          value={origen}
-          onChange={(evento) => {
-            setOrigen(evento.target.value);
-            void recargar({ origen: evento.target.value });
-          }}
-        />
-        <Select
-          id="dm-categoria"
-          etiqueta="Categoría"
-          opciones={[
-            { valor: "", etiqueta: "Todas las categorías" },
-            ...categoriasDisponibles.map((c) => ({ valor: c.id, etiqueta: c.nombre })),
-          ]}
-          value={categoria}
-          onChange={(evento) => {
-            setCategoria(evento.target.value);
-            void recargar({ categoriaId: evento.target.value });
-          }}
-        />
-        <label className="mae-casilla" htmlFor="dm-solo-activos">
-          <input
-            id="dm-solo-activos"
-            type="checkbox"
-            checked={soloActivos}
-            onChange={(evento) => {
-              setSoloActivos(evento.target.checked);
-              void recargar({ soloActivos: evento.target.checked });
-            }}
+      <HerramientasDeClientes
+        texto={texto}
+        origen={origen}
+        categoria={categoria}
+        soloActivos={soloActivos}
+        categorias={categoriasDisponibles}
+        total={listado.total}
+        onTexto={(valor) => {
+          setTexto(valor);
+          void recargar({ texto: valor });
+        }}
+        onOrigen={(valor) => {
+          setOrigen(valor);
+          void recargar({ origen: valor });
+        }}
+        onCategoria={(valor) => {
+          setCategoria(valor);
+          void recargar({ categoriaId: valor });
+        }}
+        onSoloActivos={(valor) => {
+          setSoloActivos(valor);
+          void recargar({ soloActivos: valor });
+        }}
+      />
+
+      <div className="mae-panel mae-panel--clientes">
+        {listado.clientes.length === 0 ? (
+          <VacioDeClientes
+            hayFiltros={hayFiltros}
+            puedeEditar={puedeEditar}
+            onNuevo={() => setEdicion({ cliente: undefined })}
+            onLimpiar={limpiarFiltros}
           />
-          Solo activos
-        </label>
-      </div>
-
-      <div className="mae-barra">
-        <p className="mae-barra__cuenta">
-          <b>{listado.total}</b> {listado.total === 1 ? "cliente" : "clientes"} en el catálogo
-        </p>
-      </div>
-
-      <div className="mae-panel">
-        <Tabla
-          titulo={`${listado.total} cliente${listado.total === 1 ? "" : "s"}`}
-          columnas={columnas}
-          filas={listado.clientes}
-          claveDeFila={(fila) => fila.id}
-          vacia="Todavía no hay clientes en el catálogo."
-        />
+        ) : (
+          <Tabla
+            titulo="Listado de clientes"
+            columnas={columnas}
+            filas={listado.clientes}
+            claveDeFila={(fila) => fila.id}
+            vacia="Todavía no hay clientes en el catálogo."
+          />
+        )}
       </div>
 
       <Modal
@@ -374,20 +330,17 @@ export function ListadoDeClientes({ inicial, puedeEditar }: PropsDeListado): JSX
             error={error}
             duplicadoId={duplicadoId}
             onVerDuplicado={verDuplicado}
+            categorias={
+              edicion.cliente !== undefined ? (
+                // Sólo al editar: una asignación necesita un elemento que ya tenga id.
+                <SelectorDeCategorias
+                  ambito="CLIENTE"
+                  asignadas={asignadas}
+                  onAlternar={alternarCategoria}
+                />
+              ) : undefined
+            }
           />
-        )}
-        {edicion?.cliente !== undefined && (
-          // Sólo al editar: una asignación necesita un elemento que ya tenga id. La línea
-          // separa lo que el cliente **es** de cómo está etiquetado; sin ella los dos bloques
-          // se leen como un único formulario largo.
-          <>
-            <hr className="mae-form__separador" />
-            <SelectorDeCategorias
-              ambito="CLIENTE"
-              asignadas={asignadas}
-              onAlternar={alternarCategoria}
-            />
-          </>
         )}
       </Modal>
     </>
