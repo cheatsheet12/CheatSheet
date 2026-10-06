@@ -133,14 +133,14 @@ describe("PAN-ONB-02", () => {
     );
   });
 
-  it("al guardar lleva al panel", async () => {
+  it("al guardar lleva al paso 3, las integraciones, y no salta al panel", async () => {
     guardar.mockResolvedValue({ onboarding_completo: true });
     render(<FormularioDeEmpresa />);
     completarTodo();
 
     fireEvent.click(botonContinuar());
 
-    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/panel"));
+    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/configuracion/integraciones"));
   });
 
   it("un CUIT ya registrado se muestra sin sacar al usuario del formulario", async () => {
