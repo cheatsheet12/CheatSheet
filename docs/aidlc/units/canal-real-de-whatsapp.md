@@ -553,6 +553,23 @@ Decididas por el dueño del producto el 2026-10-06, al revalidar el plan contra 
 - **C2 — `recordatorio-por-email` (U11) depende de U5**, como dice `units.md`, y no de U8. Puede ir en
   paralelo con U6–U8. Todavía no tiene plan ni rama: hay que escribirlo antes de empezarla.
 
+Hallazgos de la revisión independiente de la unidad (2026-10-06), corregidos en la misma rama:
+
+- **El recordatorio fallido se auditaba como completado.** `DespacharRecordatorios` publicaba
+  `enviar_recordatorio` con `Resultado.COMPLETADO` y sumaba a `procesados` también los envíos que
+  terminaban `FALLIDO`. Ahora la bitácora lo registra con `Resultado.ERROR`, `procesados` y el log
+  `recordatorios_despachados` cuentan sólo los que salieron, y `ResultadoDeBarrido.fallidos` los cuenta
+  aparte. La fila sigue con `enviado_en` y `estado_entrega=FALLIDO`: el índice único `(cobro_id, paso)`
+  la necesita para no reenviar.
+- **Una credencial ilegible volteaba la operación.** `armar_mensajeria` no protegía `descifrar` ni el
+  `decode`: una credencial corrupta o cifrada con otra clave daba 500 al reservar, cancelar o
+  reprogramar y abortaba el barrido de cobros de la empresa (incluido `VencerCobros`). Ahora se atrapan
+  `CredencialIlegible` y `UnicodeDecodeError`, se registra un aviso con sólo el `empresa_id` y la clase
+  de la excepción, y se devuelve `SinCanal`. Además se corrigió el docstring: nada refresca el token
+  en este punto; un token vencido produce el código permanente 190 de Meta y el mensaje queda `FALLIDO`.
+- **Hallazgo sin unidad:** `api/routers/agenda.py` tiene 688 líneas (límite 400), ya las superaba antes
+  de la unidad; se registró en `TODO.md` §22.42.
+
 ## Revalidación contra develop (2026-10-06)
 
 Develop avanzó 101 commits desde que se aprobó el Gate 1 (la rama sólo tiene este plan y las filas de
