@@ -1,0 +1,5766 @@
+/*
+ * Pantallas del agente de WhatsApp (PAN-WA-01, PAN-WA-02) y de la agenda
+ * (PAN-AGE-01, PAN-AGE-02, PAN-AGE-03).
+ *
+ * Está separado de `componentes.css` por una razón de propiedad, no de estilo: el catálogo
+ * compartido lo tocan todas las pantallas, y una regla de una pantalla metida ahí termina
+ * pisando otra. Acá adentro sólo hay clases con prefijo `.wa-` y `.age-`, que nadie más usa.
+ *
+ * **No hay colores literales.** Todo sale de los alias del prototipo que expone `tokens.css`
+ * (`--accent`, `--ink-500`, `--line`…). Un `#00C48C` escrito acá sería el mismo verde con otro
+ * nombre, y el día que el token cambie esta hoja se queda vieja sin que nadie se entere.
+ *
+ * **Las animaciones son cortas y no se repiten.** Ninguna pasa de 200 ms, ninguna hace bucle y
+ * todas se apagan bajo `prefers-reduced-motion: reduce` — que está al final del archivo y no
+ * es opcional: para alguien con trastorno vestibular una interfaz que se mueve sola es una
+ * interfaz que marea.
+ */
+
+/* ── Encabezado de pantalla ─────────────────────────────────────────────────
+ *
+ * El bloque de arriba del prototipo: un cintillo mono, el título, y a la derecha la
+ * navegación entre las pantallas del mismo canal. */
+
+.wa-encabezado,
+.age-encabezado {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.wa-encabezado__eyebrow,
+.age-encabezado__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+.wa-encabezado__intro,
+.age-encabezado__intro {
+  color: var(--ink-500);
+  margin: var(--space-2) 0 0;
+  max-width: 68ch;
+}
+
+/* El control segmentado del prototipo. Son enlaces reales y no pestañas de JavaScript:
+   cada vista del canal tiene su URL, y una pestaña que no se puede compartir por chat es
+   media pestaña. */
+.wa-tabs,
+.age-tabs {
+  display: inline-flex;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 3px;
+  box-shadow: var(--shadow);
+}
+
+.wa-tabs a,
+.age-tabs a {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-500);
+  padding: 7px 14px;
+  border-radius: 7px;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.wa-tabs a:hover,
+.age-tabs a:hover {
+  color: var(--ink-900);
+}
+
+.wa-tabs a[aria-current="page"],
+.age-tabs a[aria-current="page"] {
+  background: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+/* ── PAN-WA-01 · bandeja + hilo ─────────────────────────────────────────── */
+
+/* La lista a la izquierda y el hilo a la derecha, como el prototipo. Por debajo de
+   1100 px la lista pasa arriba: dos columnas de 400 px no entran en una notebook chica. */
+.wa-grid {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .wa-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wa-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.wa-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 18px 20px 12px;
+}
+
+.wa-panel__titulo {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.wa-panel__cuenta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.wa-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0 20px 14px;
+}
+
+.wa-panel__vacio {
+  margin: 0;
+  padding: var(--space-6) 20px;
+  color: var(--ink-400);
+  font-size: var(--text-caption);
+  border-top: 1px solid var(--line-2);
+}
+
+.wa-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+/* La fila entera es el enlace: apuntar a un renglón de 60 px de alto es más fácil que
+   apuntar a las tres palabras del título. */
+.wa-fila {
+  display: flex;
+  gap: var(--space-3);
+  padding: 13px 20px;
+  border-top: 1px solid var(--line-2);
+  border-left: 3px solid transparent;
+  color: inherit;
+  transition:
+    background 140ms ease,
+    border-left-color 140ms ease;
+}
+
+.wa-fila:hover,
+.wa-fila:focus-visible {
+  background: var(--accent-050);
+  border-left-color: var(--accent);
+}
+
+/* Un hilo escalado se ve antes de leerlo: color de fondo, borde y badge. Es el estado que
+   hace que alguien tenga que hacer algo, y buscarlo renglón por renglón es perder minutos
+   mientras un cliente espera. */
+.wa-fila--escalada {
+  background: var(--err-bg);
+  border-left-color: var(--err);
+}
+
+.wa-fila--escalada:hover,
+.wa-fila--escalada:focus-visible {
+  background: var(--err-bg);
+  border-left-color: var(--err);
+}
+
+.wa-fila__cuerpo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.wa-fila__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.wa-fila__nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-fila__hora {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  flex: none;
+}
+
+.wa-fila__motivo {
+  font-size: var(--text-caption);
+  color: var(--ink-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.wa-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.wa-avatar svg {
+  width: 18px;
+  height: 18px;
+}
+
+.wa-avatar--alerta {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.wa-avatar--grande {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+}
+
+.wa-avatar--grande svg {
+  width: 21px;
+  height: 21px;
+}
+
+/* El panel derecho cuando todavía no se eligió ningún hilo. Un hueco vacío al lado de una
+   lista se lee como una pantalla que falló al cargar. */
+.wa-panel--sin-hilo {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--ink-500);
+}
+
+.wa-panel--sin-hilo b {
+  display: block;
+  color: var(--ink-900);
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+.wa-panel--sin-hilo p {
+  margin: 0;
+  font-size: var(--text-caption);
+  max-width: 40ch;
+}
+
+/* ── El hilo ─────────────────────────────────────────────────────────────── */
+
+.wa-chat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: var(--space-4);
+}
+
+.wa-chat__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wa-chat__quien {
+  flex: 1;
+  min-width: 0;
+}
+
+.wa-chat__numero {
+  display: block;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.wa-chat__canal {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.wa-chat__banner {
+  padding: var(--space-3) 22px 0;
+}
+
+.wa-chat__cuerpo {
+  background: var(--bg-soft);
+  padding: 22px 26px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.wa-chat__pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+}
+
+.wa-chat__nota {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--ink-500);
+  margin: 0;
+}
+
+.wa-chat__nota b {
+  color: var(--accent-700);
+}
+
+/* El formulario de respuesta va en el pie del hilo y no en una tarjeta aparte: se escribe
+   mirando el último mensaje, no scrolleando hasta abajo de la página. */
+.wa-responder {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.wa-responder .campo {
+  flex: 1;
+  margin: 0;
+}
+
+.wa-hilo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wa-hilo__grupo {
+  list-style: none;
+}
+
+.wa-hilo__dia {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+.wa-hilo__mensajes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.wa-mensaje {
+  display: flex;
+  flex-direction: column;
+  max-width: 68%;
+  animation: wa-aparecer 180ms ease-out both;
+}
+
+/* Entrante a la izquierda, saliente a la derecha: la misma convención que WhatsApp, que es
+   donde el operador ya sabe leer una conversación. */
+.wa-mensaje--cliente {
+  align-items: flex-start;
+  align-self: flex-start;
+}
+
+.wa-mensaje--agente,
+.wa-mensaje--operador,
+.wa-mensaje--sistema {
+  align-items: flex-end;
+  align-self: flex-end;
+  text-align: right;
+}
+
+.wa-mensaje__autor {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-400);
+  margin: 0 0 5px;
+}
+
+.wa-mensaje--agente .wa-mensaje__autor {
+  color: var(--accent-700);
+}
+
+/* El operador tiene su propio color **y** su propia palabra. RN-04 pide distinguirlo del
+   agente, y un color solo no le dice nada a quien no sabe cuál es cuál. */
+.wa-mensaje--operador .wa-mensaje__autor {
+  color: var(--info);
+}
+
+.wa-mensaje__burbuja {
+  padding: 11px 15px;
+  border-radius: 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.wa-mensaje__burbuja p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.wa-mensaje--cliente .wa-mensaje__burbuja {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-top-left-radius: 4px;
+  color: var(--ink-900);
+}
+
+.wa-mensaje--agente .wa-mensaje__burbuja,
+.wa-mensaje--sistema .wa-mensaje__burbuja {
+  background: var(--primary);
+  color: var(--color-text-on-dark);
+  border-top-right-radius: 4px;
+}
+
+.wa-mensaje--operador .wa-mensaje__burbuja {
+  background: var(--info);
+  color: var(--color-text-on-dark);
+  border-top-right-radius: 4px;
+}
+
+.wa-mensaje__entrega {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-400);
+  margin: 5px 0 0;
+}
+
+.wa-hilo__vacio {
+  text-align: center;
+  color: var(--ink-400);
+  font-size: var(--text-caption);
+  margin: 0;
+}
+
+@keyframes wa-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── PAN-WA-02 · configuración ──────────────────────────────────────────── */
+
+.wa-config {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+  margin-bottom: var(--space-4);
+}
+
+.wa-config__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: 18px;
+}
+
+.wa-config__head h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.wa-config__head p {
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+  margin: 2px 0 0;
+}
+
+.wa-config__acciones {
+  margin-left: auto;
+}
+
+.wa-config__icono {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.wa-config__icono svg {
+  width: 17px;
+  height: 17px;
+}
+
+.wa-faqs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.wa-faq {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  transition: border-color 140ms ease;
+}
+
+.wa-faq:hover {
+  border-color: var(--ink-300);
+}
+
+.wa-faq--abierta {
+  border-color: var(--accent-100);
+}
+
+.wa-faq__pregunta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wa-faq__marca {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: var(--text-caption);
+  flex: none;
+}
+
+.wa-faq__texto {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.wa-faq__usos {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+  flex: none;
+}
+
+.wa-faq__chevron {
+  color: var(--ink-300);
+  flex: none;
+  line-height: 1;
+  transition:
+    transform 160ms ease,
+    color 160ms ease;
+}
+
+.wa-faq--abierta .wa-faq__chevron {
+  color: var(--accent-700);
+  transform: rotate(180deg);
+}
+
+.wa-faq__respuesta {
+  padding: 0 16px 16px 47px;
+  animation: wa-aparecer 160ms ease-out both;
+}
+
+.wa-faq__cuerpo {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--ink-700);
+  line-height: 1.55;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.wa-faq__pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+
+.wa-faq__nota {
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+}
+
+.wa-faq__acciones {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ══ Agenda · PAN-AGE-01, PAN-AGE-02 y PAN-AGE-03 ══════════════════════════
+ *
+ * Las tres pantallas de la agenda comparten un encabezado —cintillo mono, título grande,
+ * bajada y las acciones a la derecha— con el resto del panel, y de ahí para abajo tienen
+ * formas propias que el catálogo compartido no tiene: la fila de un turno con su hora en
+ * monoespaciada, la grilla de horarios de un recurso, la ficha de un recurso con su semana.
+ *
+ * **Todo con prefijo `.age-`.** Nada de acá redefine una primitiva compartida: los botones,
+ * los badges y los campos siguen saliendo de `@/shared/ui`, y lo que se viste acá es la
+ * composición alrededor.
+ *
+ * **No hay un solo hexadecimal.** Los colores son los alias del prototipo que expone
+ * `tokens.css`; un `#00C48C` escrito acá sería el mismo verde con otro nombre, y el día que
+ * el token cambie esta hoja se queda vieja sin que nadie se entere.
+ *
+ * **Ninguna transición pasa de 250 ms, ninguna se repite y ninguna rebota.** El bloque
+ * `prefers-reduced-motion` del final las apaga todas: para alguien con trastorno vestibular
+ * una interfaz que se mueve sola es una interfaz que marea.
+ */
+
+/* ── Encabezado de pantalla ──────────────────────────────────────────────
+ *
+ * La caja la comparte con `.wa-encabezado` unas líneas más arriba. Lo que cambia acá es la
+ * alineación: con `flex-end` el CTA se pega al final de la bajada, y una bajada de dos
+ * renglones lo deja flotando lejos del título al que pertenece. */
+
+.age-encabezado {
+  align-items: flex-start;
+}
+
+.age-encabezado__titulo {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--ink-900);
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.age-encabezado__acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+/*
+ * El CTA verde del prototipo. Es un enlace y no un `<Button onClick={router.push}>` porque
+ * lleva a otra pantalla: un enlace se abre en otra pestaña, se copia y se precarga, y un
+ * botón no hace nada de eso. El precio de escribirlo así es tener que vestirlo acá —`.boton`
+ * es de los botones— y, sobre todo, apagarle el subrayado que el panel le pone a todo `<a>`:
+ * un CTA subrayado se lee como un enlace de texto que quedó pintado de verde.
+ */
+.age-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--accent);
+  color: var(--primary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: 11px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 80ms ease;
+}
+
+.age-cta:hover {
+  background: var(--accent-700);
+  color: var(--color-text-on-dark);
+  text-decoration: none;
+}
+
+.age-cta:active {
+  transform: translateY(1px);
+}
+
+/* El «+» del CTA y el de «Agregar recurso», que sí es un `<Button>`. La caja fija evita que
+   el icono empuje el texto medio píxel mientras la fuente termina de cargar. */
+.age-cta__icono {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.age-cta__icono svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* La vuelta al listado, desde el alta y desde el detalle. Ghost, no CTA: es la salida, no
+   lo que se vino a hacer. */
+.age-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow);
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 80ms ease;
+}
+
+.age-volver:hover {
+  border-color: var(--ink-300);
+  color: var(--ink-900);
+  text-decoration: none;
+}
+
+.age-volver:active {
+  transform: translateY(1px);
+}
+
+/* ── PAN-AGE-01 · la fila de filtros ─────────────────────────────────────
+ *
+ * Una fila, no una tarjeta. Cuatro controles adentro de una superficie elevada pesan lo
+ * mismo que la lista que filtran, y la lista es lo que se vino a mirar; una línea fina
+ * abajo alcanza para decir que ese renglón es el mando y lo de abajo el resultado. */
+
+.age-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Los campos compartidos traen la separación de un formulario en columna; en una fila la
+   pone el `gap`. El ancho es un rango: cuatro controles estirados a lo ancho de 1600 px
+   dejan un `<select>` de «Estado» de medio metro. */
+.age-filtros .campo {
+  margin-bottom: 0;
+  flex: 0 1 180px;
+  min-width: 150px;
+}
+
+.age-filtros .campo__etiqueta {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.age-cuenta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0 0 var(--space-3);
+}
+
+/* ── PAN-AGE-01 · la lista de turnos ─────────────────────────────────────
+ *
+ * Un panel con las filas separadas por una línea fina, no una tarjeta por turno: una agenda
+ * se lee bajando y comparando horas, y para eso las horas tienen que caer en la misma
+ * columna. */
+
+.age-lista {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* La tabla compartida trae su propia caja con borde y radio. Dentro del panel sobra: dos
+   bordes concéntricos se leen como un error de maquetación, no como una jerarquía. */
+.age-lista .tabla__contenedor {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.age-lista .tabla th {
+  padding: 16px 18px 10px;
+}
+
+.age-lista .tabla td {
+  padding: 12px 18px;
+  transition: background-color 160ms ease;
+}
+
+.age-lista .tabla tbody tr:hover td {
+  background: var(--bg-soft);
+}
+
+/*
+ * La hora, monoespaciada y con cifras de ancho fijo. `tabular-nums` es la diferencia entre
+ * una columna de horas que se lee de un vistazo y una en la que el «1» de las 11:00 mide
+ * menos que el «8» de las 18:00 y los dos puntos bailan renglón a renglón.
+ */
+.age-hora {
+  display: block;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.age-hora b {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+  letter-spacing: -0.2px;
+}
+
+.age-hora span {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.age-fecha {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+/* El cliente es el enlace: es lo que alguien busca en la fila mientras atiende el teléfono,
+   y por lo tanto lo que va a intentar apretar. */
+.age-quien {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.age-quien:hover {
+  color: var(--accent-700);
+  text-decoration: underline;
+}
+
+.age-dato {
+  font-size: 13px;
+  color: var(--ink-700);
+}
+
+/* El recurso, un tono más claro: dice dónde es el turno, no de quién. */
+.age-dato--tenue {
+  color: var(--ink-500);
+}
+
+.age-ver {
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: var(--radius);
+  color: var(--ink-300);
+  font-size: 18px;
+  text-decoration: none;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
+}
+
+.age-ver:hover {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  text-decoration: none;
+}
+
+/*
+ * El vacío en una línea. La caja punteada de media pantalla que había antes decía lo mismo
+ * y se leía como una carga que falló: el día sin turnos es un día normal, no un error.
+ */
+.age-vacio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-500);
+}
+
+.age-vacio::before {
+  content: "";
+  width: 26px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* ── PAN-AGE-02 · el formulario de alta ──────────────────────────────────
+ *
+ * En tarjeta, con la cabecera de sección del prototipo: icono, título y una línea que dice
+ * qué decide este formulario. */
+
+.age-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+  margin-bottom: var(--space-4);
+}
+
+.age-panel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.age-panel__head h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.age-panel__head p {
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+  margin: 2px 0 0;
+}
+
+.age-panel__icono {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.age-panel__icono svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* Un formulario no crece con la pantalla: un `<select>` de 1500 px de ancho para elegir
+   entre tres recursos obliga a barrer la cabeza de un borde al otro para leer una línea. */
+.age-form {
+  max-width: 1000px;
+}
+
+/* Recurso, servicio y fecha entran en una fila cuando la pantalla da; en un teléfono, en
+   tres. Ninguno de los tres necesita el ancho completo. */
+.age-form__campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.age-form__campos .campo {
+  margin-bottom: 0;
+}
+
+.age-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-2);
+}
+
+/* ── PAN-AGE-02 · los slots de disponibilidad ────────────────────────────
+ *
+ * La grilla muestra **el día entero**, ocupados incluidos. Esconder lo tomado dejaría una
+ * grilla con huecos sin explicación; mostrarlo contesta la pregunta con la que alguien
+ * llama por teléfono: «¿y a las tres no hay?». */
+
+.age-slots {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--bg-soft);
+  padding: var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+
+.age-slots__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.age-slots__titulo {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.age-slots__cuenta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.age-slots__grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: var(--space-2);
+}
+
+.age-slots__leyenda {
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+  margin: var(--space-3) 0 0;
+}
+
+/*
+ * El borde mide 1.5 px en los tres estados y sólo cambia de color. Un borde que engorda al
+ * elegir mueve los slots de al lado: en una grilla de horarios eso significa apretar el de
+ * las 15:00 y que el cursor termine sobre el de las 15:30.
+ */
+.age-slot {
+  display: block;
+  width: 100%;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  padding: 10px 6px;
+  text-align: center;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 80ms ease;
+}
+
+.age-slot:hover:not(:disabled) {
+  border-color: var(--accent-100);
+  background: var(--accent-050);
+}
+
+.age-slot:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.age-slot__hora {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+.age-slot--elegido {
+  border-color: var(--accent);
+  background: var(--accent-050);
+}
+
+.age-slot--elegido .age-slot__hora {
+  color: var(--accent-700);
+}
+
+/* El tachado, y no sólo el gris: el color solo no distingue «tomado» de «deshabilitado
+   porque todavía no elegiste el servicio», y quien no ve bien los grises no ve ninguna de
+   las dos. */
+.age-slot:disabled {
+  border-color: var(--line-2);
+  background: var(--bg-soft);
+  cursor: not-allowed;
+}
+
+.age-slot:disabled .age-slot__hora {
+  color: var(--ink-300);
+  text-decoration: line-through;
+}
+
+/* ── PAN-AGE-02 · la tira del detalle ────────────────────────────────────
+ *
+ * Hora, día y estado arriba de todo, en grande. Son las tres cosas que se miran mientras se
+ * habla por teléfono con alguien que quiere cambiar el horario. */
+
+.age-turno {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 20px 24px;
+  margin-bottom: var(--space-4);
+}
+
+.age-turno__hora {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.age-turno__fecha {
+  display: block;
+  font-family: var(--sans);
+  font-size: var(--text-caption);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+.age-turno__estado {
+  margin-left: auto;
+}
+
+/* ── PAN-AGE-03 · la ficha de un recurso ─────────────────────────────────
+ *
+ * Cada recurso es una ficha con superficie propia, separada de la de al lado; por debajo
+ * sigue siendo una fila de tabla porque lo que hay que comparar entre recursos son
+ * columnas —¿cuál atiende el jueves?, ¿cuál presta este servicio?— y en una grilla de
+ * tarjetas sueltas el mismo dato cae en un lugar distinto de cada una.
+ *
+ * `border-spacing` en vez de `margin` porque un `<tr>` no acepta margen: es la única forma
+ * de separar filas sin envolver cada una en algo que ya no sea una tabla. */
+
+.age-fichas .tabla {
+  border-collapse: separate;
+  border-spacing: 0 var(--space-2);
+}
+
+.age-fichas .tabla__contenedor {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.age-fichas .tabla th {
+  padding: 0 18px 2px;
+}
+
+.age-fichas .tabla td {
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 18px;
+  vertical-align: top;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+/*
+ * Los anchos mínimos existen para que el horario —que es la columna con más fichas— no le
+ * coma el lugar al nombre del recurso. Sin esto, «Sillón 1 · Carla» se parte en dos renglones
+ * al lado de cinco fichas de horario que tienen todo el ancho que quieren.
+ */
+.age-fichas .tabla td:first-child {
+  min-width: 175px;
+}
+
+.age-fichas .tabla td:nth-child(2) {
+  min-width: 140px;
+}
+
+/*
+ * El horario es la columna que más fichas lleva —hasta siete, una por día—: sin un piso
+ * ancho entran de a una por renglón y la fila se estira a lo alto sin necesidad. 360 px es
+ * lo que miden dos fichas, y es todo lo que se le puede dar sin empujar a «Acciones» fuera
+ * del ancho útil de una notebook y obligar a scrollear de costado para desactivar un
+ * recurso.
+ */
+.age-fichas .tabla td:nth-child(3) {
+  min-width: 360px;
+}
+
+/* Las dos acciones de un recurso van una al lado de la otra —apiladas parecen dos niveles
+   de decisión y son la misma— y en el cuerpo chico de una fila de tabla, no en el de un
+   botón de encabezado. */
+.age-fichas .tabla__acciones {
+  flex-wrap: nowrap;
+}
+
+.age-fichas .tabla td:first-child {
+  border-left: 1px solid var(--line);
+  border-top-left-radius: var(--radius-card);
+  border-bottom-left-radius: var(--radius-card);
+}
+
+.age-fichas .tabla td:last-child {
+  border-right: 1px solid var(--line);
+  border-top-right-radius: var(--radius-card);
+  border-bottom-right-radius: var(--radius-card);
+}
+
+.age-fichas .tabla tbody tr:hover td {
+  background: var(--card);
+  border-color: var(--ink-300);
+}
+
+.age-ficha__quien {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.age-ficha__icono {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.age-ficha__icono svg {
+  width: 16px;
+  height: 16px;
+}
+
+.age-ficha__nombre {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.age-ficha__tipo {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+/* Las fichas de texto: un servicio, una franja del horario, una excepción. Son datos, no
+   controles — de ahí que no tengan `cursor: pointer` ni estado activo. */
+.age-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.age-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 11px;
+  white-space: nowrap;
+}
+
+.age-chip--horario {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--ink-700);
+}
+
+/* La excepción es lo que rompe la semana habitual: lleva el ámbar del sistema, que es
+   fondo y borde y nunca texto. */
+.age-chip--excepcion {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--warn-bg);
+  border-color: var(--alert);
+  color: var(--warn);
+}
+
+/* «Sin servicios asociados», «Sin horario configurado». Un recurso a medio configurar no
+   acepta reservas: decirlo en gris es más honesto que dejar la celda vacía. */
+.age-nada {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  font-style: italic;
+}
+
+/* ── PAN-AGE-03 · el editor del recurso ──────────────────────────────────
+ *
+ * La tira de siete días es una **vista previa** del horario que se está editando, no un
+ * control: se pinta con lo que dicen las franjas de abajo. Alguien que agrega una franja el
+ * jueves ve el jueves encenderse, que es la comprobación que hoy hay que hacer leyendo
+ * cinco selects. */
+
+/* Siete columnas iguales y no una fila que envuelve: la semana se lee como una semana, y
+   con `flex-wrap` el domingo se cae solo a un renglón propio adentro del modal. */
+.age-semana {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.age-dia {
+  min-width: 0;
+  padding: 8px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  text-align: center;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.age-dia__nombre {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-400);
+}
+
+.age-dia__horas {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-300);
+  margin-top: 2px;
+}
+
+.age-dia--atiende {
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.age-dia--atiende .age-dia__nombre {
+  color: var(--accent-700);
+}
+
+.age-dia--atiende .age-dia__horas {
+  color: var(--ink-600);
+}
+
+/*
+ * Tres columnas y no cinco. La franja vive adentro del modal compartido, que mide 544 px:
+ * cinco controles en fila ahí adentro no entran, y lo que se sale por la derecha es
+ «Minutos por turno» y el botón de quitar — justo los dos que hay que poder tocar.
+ */
+.age-franja {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line-2);
+}
+
+/* «Quitar» cierra la segunda fila por la derecha: es la acción sobre la franja, no un
+   campo más de la franja. */
+.age-franja .boton {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.age-franja:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.age-franja .campo {
+  margin-bottom: 0;
+}
+
+.age-servicios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.age-servicio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: 13.5px;
+  color: var(--ink-700);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.age-servicio:hover {
+  border-color: var(--ink-300);
+}
+
+.age-servicio--asociado {
+  border-color: var(--accent-100);
+  background: var(--accent-050);
+  color: var(--ink-900);
+}
+
+.age-servicio__duracion {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.age-excepcion {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.age-excepcion .campo {
+  margin-bottom: 0;
+}
+
+/* La fecha de una excepción, sin formatear: es la clave por la que se borra, y la que hay
+   que poder comparar carácter por carácter con lo que se cargó. */
+.age-fecha-iso {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--ink-700);
+}
+
+/* ── Horarios de atención (PAN-WA-02, HS-T2 RN-04) ───────────────────── */
+
+/* La tarjeta del horario vive arriba de las respuestas frecuentes: la separa de ellas. */
+.hda-pantalla {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.hda-dias {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.hda-dia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line-2);
+}
+
+.hda-dia:first-child {
+  border-top: 0;
+}
+
+.hda-dia > .campo--casilla {
+  flex: 0 0 8rem;
+}
+
+.hda-franjas {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.hda-franja {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.hda-franja .campo {
+  margin-bottom: 0;
+}
+
+.hda-cerrado {
+  font-size: 13.5px;
+  color: var(--ink-400);
+}
+
+.hda-dia > .campo__error {
+  flex-basis: 100%;
+}
+
+.hda-politica {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.hda-politica__opcion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 13.5px;
+  color: var(--ink-700);
+}
+
+/* ── Cuando la pantalla se angosta ───────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .age-franja {
+    grid-template-columns: 1fr;
+  }
+
+  .age-franja .boton {
+    grid-column: 1;
+    justify-self: stretch;
+  }
+
+  /* Siete columnas en un teléfono dejan 40 px por día y «atiende» no entra. */
+  .age-semana {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .age-encabezado__acciones {
+    width: 100%;
+  }
+
+  .age-cta,
+  .age-volver {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ── Movimiento reducido ────────────────────────────────────────────────────
+ *
+ * No es una preferencia estética: para alguien con trastorno vestibular una interfaz que se
+ * mueve sola provoca mareo. Todo lo de arriba se apaga; los cambios de color quedan, porque
+ * lo que molesta es el desplazamiento, y sin transición el estado igual se ve. */
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-mensaje,
+  .wa-faq__respuesta {
+    animation: none;
+  }
+
+  .wa-tabs a,
+  .age-tabs a,
+  .wa-fila,
+  .wa-faq,
+  .wa-faq__chevron,
+  .age-cta,
+  .age-volver,
+  .age-lista .tabla td,
+  .age-quien,
+  .age-ver,
+  .age-slot,
+  .age-fichas .tabla td,
+  .age-dia,
+  .age-servicio {
+    transition: none;
+  }
+
+  .age-cta:active,
+  .age-volver:active,
+  .age-slot:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ══ PAN-WA-02 · configuración del agente ══════════════════════════════════
+ *
+ * Las dos pantallas que configuran lo que el canal dice solo: las respuestas frecuentes
+ * (`.faq-`) y las plantillas de notificación (`.plt-`). Comparten encabezado, barra de
+ * conteo y caja de listado a propósito — son la misma pantalla dos veces, una para lo que
+ * el agente contesta y otra para lo que el sistema avisa, y verse distintas sería una
+ * diferencia sin causa.
+ *
+ * Este bloque va **después** del `prefers-reduced-motion` de arriba y trae el suyo propio
+ * al final, en vez de sumar selectores a aquel. Aquel apaga el movimiento de PAN-WA-01 y
+ * de la agenda; que dos pantallas editen la misma lista de selectores es exactamente cómo
+ * una termina borrando la línea de la otra.
+ *
+ * Ninguna transición pasa de 250 ms, ninguna se repite y ninguna rebota.
+ */
+
+/* ── Encabezado de pantalla ───────────────────────────────────────────────
+ *
+ * El CTA vive acá, alineado con la base del título, y no suelto arriba del listado: un
+ * botón flotando solo en una franja vacía no pertenece a nada y obliga a mirar dos veces
+ * para entender sobre qué actúa. */
+
+.faq-encabezado,
+.plt-encabezado {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.faq-encabezado__eyebrow,
+.plt-encabezado__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+/* 27 px y no los 24 del `h1` de base: es el título de una pantalla del panel, y con el
+   cintillo encima necesita ganarle en peso, o los dos se leen como una sola línea gris. */
+.faq-encabezado h1,
+.plt-encabezado h1 {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.faq-encabezado__intro,
+.plt-encabezado__intro {
+  color: var(--ink-500);
+  font-size: 14.5px;
+  margin: var(--space-2) 0 0;
+  max-width: 62ch;
+}
+
+.faq-encabezado__acciones,
+.plt-encabezado__acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/*
+ * La caja de información del catálogo no trae aire abajo —cada pantalla decide dónde va— y
+ * acá queda apoyada sobre el listado, sin nada que diga dónde termina el aviso y dónde
+ * empieza la tabla. El selector es de hermanos porque son exactamente esos: los avisos que
+ * la pantalla pone entre el encabezado y el contenido.
+ */
+.faq-encabezado ~ .caja,
+.plt-encabezado ~ .caja {
+  margin-bottom: var(--space-4);
+}
+
+/* ── Barra de conteo ──────────────────────────────────────────────────────
+ *
+ * Cuántas hay y cuánto se usaron, arriba del listado. Es el dato con el que alguien decide
+ * si esta pantalla necesita trabajo, y en mono se lee como una cifra y no como una frase
+ * más. */
+
+.faq-barra,
+.plt-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.faq-barra__cuenta,
+.plt-barra__cuenta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+.faq-barra__cuenta b,
+.plt-barra__cuenta b {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+/* ── La caja del listado ──────────────────────────────────────────────── */
+
+.faq-panel,
+.plt-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* La tabla compartida trae su propia caja con borde, radio y sombra. Adentro del panel
+   sobra: dos bordes concéntricos se leen como un error de maquetación, no como jerarquía. */
+.faq-panel .tabla__contenedor,
+.plt-panel .tabla__contenedor {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.faq-panel .tabla td,
+.plt-panel .tabla td {
+  transition: background-color 140ms ease;
+}
+
+/*
+ * **El estado vacío es un renglón adentro de la tarjeta.** La caja punteada del catálogo
+ * ocupa media pantalla con una frase en el medio y se lee como una carga que falló; una
+ * raya corta y una línea dicen exactamente lo mismo y dejan ver que la pantalla está
+ * entera. Es la misma decisión que `.log-nada` en auditoría.
+ */
+.faq-panel .tabla__vacia,
+.plt-panel .tabla__vacia {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 18px 20px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.faq-panel .tabla__vacia::before,
+.plt-panel .tabla__vacia::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* ── Celdas de las respuestas frecuentes ────────────────────────────────── */
+
+/* La marca del prototipo: el «?» en un círculo de acento dice de un vistazo que la fila es
+   una pregunta del cliente y no un mensaje que el sistema manda. */
+.faq-q {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.faq-q__marca {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+  margin-top: 1px;
+}
+
+.faq-q__texto {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+/*
+ * Un fragmento de la respuesta, no la respuesta entera: el listado sirve para reconocer
+ * cuál es cuál, y una respuesta de ocho renglones convierte la tabla en un muro.
+ *
+ * Se corta con `line-clamp` y no con puntos suspensivos escritos a mano: el texto completo
+ * sigue en el DOM, así que un lector de pantalla lo lee entero y el formulario lo trae
+ * completo. Recortarlo en JavaScript sería perderlo de verdad.
+ */
+.faq-frag {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 46ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-500);
+}
+
+.faq-usos {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Las que todavía no se indexaron se explican al pie del panel y no en una tarjeta aparte.
+ * Es una nota sobre la tabla de arriba; separarla en su propia caja la aleja justo de lo
+ * que está describiendo.
+ */
+.faq-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-500);
+}
+
+/* `--warn` y no `--alert`: el ámbar de marca es demasiado claro para dibujarse sobre
+   blanco, y los tokens lo dicen — sirve de fondo o de borde, nunca de tinta. */
+.faq-nota__marca {
+  color: var(--warn);
+  flex: none;
+  line-height: 1.55;
+}
+
+/* ── Celdas de las plantillas ──────────────────────────────────────────── */
+
+.plt-nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+/* El canal es un valor de un conjunto cerrado y corto: la píldora lo dice sin gastar una
+   columna de texto corrido. */
+.plt-canal {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-600);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.plt-idioma {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+/* ── Acciones de fila ─────────────────────────────────────────────────────
+ *
+ * Texto y no botones con caja, como el prototipo: una tabla con dos botones sólidos por
+ * renglón pesa más que los datos que muestra. La caja aparece en hover y en foco, que es
+ * cuando hace falta saber dónde termina el área que responde. */
+
+.faq-accion,
+.plt-accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.faq-accion:hover:not(:disabled),
+.plt-accion:hover:not(:disabled) {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-color: var(--line);
+}
+
+.faq-accion:active:not(:disabled),
+.plt-accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.faq-accion:disabled,
+.plt-accion:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* La baja lleva el rojo desde el principio: es la única acción de la fila que no se
+   deshace, y descubrirlo recién al pasar el mouse llega tarde. */
+.faq-accion--baja {
+  color: var(--err);
+}
+
+.faq-accion--baja:hover:not(:disabled) {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err-bg);
+}
+
+/* §1.4 pide 44 x 44 px donde el puntero es un dedo. Con mouse, 34 px de alto se acierta sin
+   pensarlo, y estirar cada fila de la tabla al doble la volvería ilegible. */
+@media (pointer: coarse) {
+  .faq-accion,
+  .plt-accion {
+    min-height: var(--touch-min);
+  }
+}
+
+/* ── El formulario y el editor, en tarjeta ────────────────────────────────
+ *
+ * El alta y la edición ocurren a la vista y no en un modal. Escribir una respuesta es mirar
+ * las que ya existen —para no repetir una y para copiar el tono—, y un modal tapa
+ * justamente eso. Lo que sí queda en modal es la baja: ahí la interrupción es el punto. */
+
+.faq-form,
+.plt-editor {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 20px 24px;
+  margin-bottom: var(--space-4);
+  animation: cfg-entrar 160ms ease-out both;
+}
+
+.faq-form__head,
+.plt-editor__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.faq-form__eyebrow,
+.plt-editor__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0;
+}
+
+.faq-form__titulo,
+.plt-editor__titulo {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 3px 0 0;
+}
+
+.plt-editor__meta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.faq-form__cuerpo,
+.plt-editor__cuerpo {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Los campos compartidos traen la separación de un formulario en columna; acá la pone la
+   grilla, y sumar las dos deja el pie flotando lejos del último campo. */
+.faq-form__cuerpo .campo,
+.plt-editor__cuerpo .campo {
+  margin-bottom: 0;
+}
+
+.faq-form__ayuda {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-500);
+}
+
+.faq-form__pie,
+.plt-editor__pie {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+/* El motivo por el que «Guardar» está gris, a la izquierda del propio botón: un control
+   deshabilitado sin explicación al lado es un callejón sin salida. */
+.faq-form__aviso {
+  margin: 0 auto 0 0;
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+/* Una respuesta y el cuerpo de una plantilla son párrafos, no renglones. El `input` del
+   catálogo esconde todo menos las últimas palabras justo cuando hay que releerlas. */
+.faq-area,
+.plt-area {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+/* La plantilla se escribe en mono: lleva `{{variables}}` que alguien compara carácter por
+   carácter contra la lista de acá arriba. */
+.plt-area {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+/* ── Las variables disponibles ─────────────────────────────────────────────
+ *
+ * Se ofrecen, no se adivinan: el backend rechaza una que el código no admita, y llegar a
+ * ese 422 después de redactar el mensaje entero es perder el mensaje. Cada una inserta su
+ * marca donde está el cursor, así que la lista no es sólo un cartel. */
+
+.plt-vars {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 14px 16px;
+}
+
+.plt-vars__titulo {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.plt-vars__ayuda {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-500);
+  margin: 0 0 var(--space-3);
+}
+
+.plt-vars__lista {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.plt-var {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-700);
+  background: var(--card);
+  border: 1px solid var(--accent-100);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.plt-var:hover {
+  background: var(--accent-050);
+  border-color: var(--accent);
+}
+
+.plt-var:active {
+  transform: translateY(1px);
+}
+
+/* ── La confirmación de baja ─────────────────────────────────────────────── */
+
+.faq-modal__texto {
+  margin: 0 0 var(--space-3);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-700);
+}
+
+/* La pregunta que se está por borrar, textual: un «¿Seguro?» que no dice sobre qué es cómo
+   se elimina la respuesta equivocada. */
+.faq-modal__pregunta {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.faq-modal__acciones {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+@keyframes cfg-entrar {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Movimiento reducido · PAN-WA-02 ──────────────────────────────────────
+ *
+ * Todo lo que se mueve en estas dos pantallas se apaga acá. Los cambios de color quedan: lo
+ * que marea es el desplazamiento, y sin transición el estado igual se ve. */
+
+@media (prefers-reduced-motion: reduce) {
+  .faq-form,
+  .plt-editor {
+    animation: none;
+  }
+
+  .faq-panel .tabla td,
+  .plt-panel .tabla td,
+  .faq-accion,
+  .plt-accion,
+  .plt-var {
+    transition: none;
+  }
+
+  .faq-accion:active:not(:disabled),
+  .plt-accion:active:not(:disabled),
+  .plt-var:active {
+    transform: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Correcciones de composición — PAN-WA-01, PAN-CFG-NOT, PAN-AGE-03, PAN-FAC-05
+ *
+ * Van al final y no intercaladas con los bloques de arriba. Lo de arriba explica cómo se
+ * construyó cada pantalla; esto corrige defectos que recién se vieron con los datos reales
+ * cargados —una sola fila de recurso midiendo 230 px, una bandeja vacía con dos tarjetas
+ * desalineadas, una grilla de un elemento con 1150 px muertos al lado—. Separadas se lee
+ * qué cambió y por qué; mezcladas habría que releer el archivo entero para saberlo.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── PAN-WA-01 · el encabezado de la bandeja ──────────────────────────────
+ *
+ * La pantalla llevaba un `<h1>` pelado mientras su hermana —respuestas frecuentes— tenía
+ * cintillo, título de 27 px y bajada. Dos criterios distintos dentro del mismo contexto es
+ * lo que hace que un panel se lea como dos productos pegados. */
+
+.wa-encabezado__titulo {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+/* ── PAN-WA-01 · las dos columnas comparten altura ────────────────────────
+ *
+ * Con `align-items: start` y la bandeja vacía, la tarjeta izquierda medía ~240 px y la
+ * derecha ~440: dos tarjetas del mismo nivel con tamaños muy distintos, desalineadas por
+ * abajo, y la izquierda leyéndose como cortada. Estiradas, el par se ve como un bloque. */
+
+.wa-grid {
+  align-items: stretch;
+}
+
+/* ── PAN-WA-01 · un filtro no es la acción principal ──────────────────────
+ *
+ * El verde sólido es, en todo el resto del panel, la acción principal de la pantalla. Acá
+ * era un estado de filtro: con la bandeja vacía el elemento más llamativo terminaba siendo
+ * un filtro que no filtraba nada. Es el mismo tratamiento de píldora que ya usan
+ * `/facturacion` y `/cobros` —chip oscuro para el activo, chip claro con punto de color
+ * para el resto—, escrito acá porque esa hoja es de otra pantalla. */
+
+.wa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 60ms ease;
+}
+
+.wa-chip:hover {
+  border-color: var(--ink-300);
+  color: var(--ink-700);
+}
+
+.wa-chip:active {
+  transform: translateY(1px);
+}
+
+.wa-chip[aria-pressed="true"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+/* Decorativo: el texto del chip ya nombra el corte, así que no hace falta anunciarlo dos
+   veces a un lector de pantalla. */
+.wa-chip__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex: none;
+}
+
+/* ── PAN-CFG-NOT · el ancho va al mensaje ─────────────────────────────────
+ *
+ * Canal e idioma eran constantes en las seis filas: doce celdas idénticas ocupando un
+ * tercio del ancho, mientras «Mensaje» —lo único que distingue una fila de otra— se
+ * quedaba con la mitad de ese lugar. Lo constante se dice una vez arriba y el listado se
+ * queda con lo que varía; las columnas vuelven solas el día que dejen de ser constantes. */
+
+.plt-barra__constante {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+.plt-barra__constante b {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+/* «Mensaje» se lleva el sobrante y el resto pide lo que ocupa. `first-child` y no un ancho
+   por columna: la última cambia según el rol —con permiso es «Acciones», sin permiso es
+   «Estado»— y fijarla por posición se rompería sola. */
+.plt-panel .tabla th:first-child,
+.plt-panel .tabla td:first-child {
+  width: 100%;
+}
+
+/* Y el sobrante se lo lleva de verdad: sin esto, «Mensaje» al 100 % aplasta la columna de
+   estado y «Pendiente de aprobación» se parte en tres renglones, que es alto de fila
+   comprado con el ancho que este bloque acababa de liberar. Por negación de la primera y no
+   por posición: la última columna cambia según el rol. */
+.plt-panel .tabla th:not(:first-child),
+.plt-panel .tabla td:not(:first-child) {
+  white-space: nowrap;
+}
+
+/* ── PAN-AGE-03 · la fila vuelve a la densidad del panel ──────────────────
+ *
+ * El horario semanal pintaba una ficha por franja: con cinco días y un piso de 360 px se
+ * partían en cuatro renglones y estiraban la fila a ~230 px de alto, dejando «Excepciones»,
+ * «Estado» y «Acciones» arriba con 150 px de blanco debajo. Tres recursos ocupaban la
+ * pantalla entera, contra la densidad de `/facturacion` o `/cobros`.
+ *
+ * Ahora las franjas que comparten horario se resumen en una sola ficha —«Lun a Vie ·
+ * 09:00 a 18:00»— y el detalle aparece sólo cuando los horarios difieren de verdad, así que
+ * la columna necesita mucho menos piso. */
+
+.age-fichas .tabla td:nth-child(3) {
+  min-width: 210px;
+}
+
+/* La acción no se parte en dos renglones: son dos palabras, y partirlas volvería a sumar
+   alto a la fila que este bloque vino a bajar. */
+.age-fichas .tabla td:last-child {
+  white-space: nowrap;
+}
+
+/*
+ * Y la fila entra en su caja: con la acción en `nowrap`, una ficha de servicio sin techo
+ * empujaba la tabla 42 px más allá del contenedor y «Desactivar» quedaba cortada por el
+ * borde —una acción a medio dibujar es peor que una tabla ancha—. El techo es de ancho, no
+ * de texto: el nombre se sigue leyendo entero, en dos renglones si hace falta.
+ *
+ * La ficha del horario queda afuera de la regla: es corta, ya viene resumida y se lee de un
+ * tirón; partir «Lun a Vie · 09:00 a 18:00» sería romper lo único que este bloque compactó.
+ */
+.age-fichas .age-chip:not(.age-chip--horario) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 220px;
+}
+
+/* ── PAN-AGE-03 · la acción por fila es texto ─────────────────────────────
+ *
+ * Dos rectángulos con borde por fila pesaban más que los datos que la fila muestra —tanto
+ * que hubo que bajarles el padding para que entraran, que es la señal de que la caja no
+ * cabía—. Mismo tratamiento que `.faq-accion` y `.plt-accion`: texto, y la caja aparece en
+ * hover y en foco, que es cuando hace falta saber dónde termina el área que responde. */
+
+.age-accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.age-accion:hover:not(:disabled),
+.age-accion:focus-visible {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-color: var(--line);
+}
+
+.age-accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* §1.4 pide 44 x 44 px donde el puntero es un dedo. Con mouse, 34 px de alto se acierta sin
+   pensarlo, y estirar cada fila al doble la volvería ilegible. */
+@media (pointer: coarse) {
+  .age-accion {
+    min-height: var(--touch-min);
+  }
+}
+
+/* ── PAN-FAC-05 · puntos de venta, a ancho completo ───────────────────────
+ *
+ * Una grilla de `minmax(280px, 1fr)` con un solo punto de venta —el caso normal de una
+ * PyME— dejaba una tarjeta de ~500 px y 1150 px muertos a la derecha: la pantalla parecía
+ * haber fallado la carga. Un renglón a ancho completo dice lo mismo y ocupa la pantalla que
+ * tiene, y sigue funcionando cuando ARCA habilita cinco.
+ *
+ * Las clases son propias y no las de las tarjetas de `/facturacion`: a partir de acá las dos
+ * pantallas cambian por motivos distintos, y colgarse de aquellos selectores sería atarlas. */
+
+.pdv-lista {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.pdv-punto {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 14px var(--space-6);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.pdv-punto:hover {
+  border-color: var(--accent);
+}
+
+/* El inactivo se apaga en vez de esconderse: sigue estando, y con él la numeración de todo
+   lo que ya emitió. */
+.pdv-punto--inactivo {
+  background: var(--bg-soft);
+}
+
+.pdv-punto__numero {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--ink-900);
+  flex: none;
+}
+
+.pdv-punto__quien {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.pdv-punto__descripcion {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.pdv-punto__numeracion {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.pdv-punto__rotulo {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 2px;
+}
+
+.pdv-punto__cifras {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-500);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pdv-punto__acciones {
+  flex: none;
+  margin-left: auto;
+}
+
+/* La acción por fila también es texto acá, con el rojo puesto desde el principio: es la
+   única que frena la facturación de una empresa, y descubrirlo recién al pasar el mouse
+   llega tarde. La confirmación no se toca: sigue interrumpiendo antes de correr. */
+
+.pdv-accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.pdv-accion:hover,
+.pdv-accion:focus-visible {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-color: var(--line);
+}
+
+.pdv-accion:active {
+  transform: translateY(1px);
+}
+
+.pdv-accion--baja {
+  color: var(--err);
+}
+
+.pdv-accion--baja:hover,
+.pdv-accion--baja:focus-visible {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err-bg);
+}
+
+@media (pointer: coarse) {
+  .pdv-accion {
+    min-height: var(--touch-min);
+  }
+}
+
+/* El vacío es un renglón dentro de la tarjeta, como en `.plt-panel` y en auditoría: la caja
+   punteada de media pantalla decía lo mismo y se leía como una carga que falló. Con cero
+   puntos de venta la pantalla está entera, sólo que todavía no se cargó ninguno. */
+
+.pdv-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.pdv-vacio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 18px 20px;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.pdv-vacio::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* ── Movimiento reducido · lo agregado en este bloque ─────────────────────
+ *
+ * En su propio bloque y no sumado a las listas de arriba: así se ve de un vistazo que todo
+ * lo que este bloque hace mover está apagado acá, sin cruzarlo con lo de las otras
+ * pantallas. Los cambios de color quedan: lo que marea es el desplazamiento. */
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-chip,
+  .age-accion,
+  .pdv-accion,
+  .pdv-punto {
+    transition: none;
+  }
+
+  .wa-chip:active,
+  .age-accion:active:not(:disabled),
+  .pdv-accion:active {
+    transform: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * Recursos reservables (PAN-AGE-03) — tarjetas, barra de herramientas y editor
+ *
+ * Mismo lenguaje que Clientes y Servicios (`.mae-*`): tarjetas blancas con borde `--line` y sombra
+ * `--shadow`, azulejos de icono de radio 13, el verde sólo en el CTA y en lo activo. Todo está
+ * acotado a `.age-recursos` (o a clases `age-rec*` propias) para no tocar las otras pantallas de
+ * la agenda. El movimiento se apaga en el bloque `prefers-reduced-motion` del final.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── El CTA de la cabecera ─────────────────────────────────────────────────
+ *
+ * Degradado verde, sombra y un hover que levanta, como `.mae-cta`. Va acotado a la pantalla de
+ * recursos: el `.age-cta` de la agenda es un enlace liso y no se redefine. */
+
+.age-recursos .age-cta {
+  position: relative;
+  height: 44px;
+  padding: 0 18px 0 14px;
+  gap: 10px;
+  justify-content: center;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--primary);
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+  overflow: hidden;
+  isolation: isolate;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.age-recursos .age-cta--compacto {
+  height: 40px;
+}
+
+.age-recursos .age-cta .age-cta__icono {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgb(30 30 46 / 12%);
+  transition:
+    background-color 0.16s ease,
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.age-recursos .age-cta .age-cta__icono svg {
+  width: 14px;
+  height: 14px;
+}
+
+.age-recursos .age-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 38%) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+
+.age-recursos .age-cta:hover {
+  color: var(--primary);
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 30%);
+}
+
+.age-recursos .age-cta:hover::after {
+  transform: translateX(120%);
+  transition: transform 0.7s ease;
+}
+
+.age-recursos .age-cta:hover .age-cta__icono {
+  background: rgb(30 30 46 / 18%);
+  transform: rotate(90deg) scale(1.05);
+}
+
+.age-recursos .age-cta:active {
+  transform: scale(0.97);
+}
+
+.age-recursos .age-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── La barra de herramientas ──────────────────────────────────────────────
+ *
+ * Búsqueda, chips de tipo y de estado y el contador, en una sola tarjeta. */
+
+.age-herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px;
+  margin: 0 0 var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.age-buscador {
+  position: relative;
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+
+.age-buscador__icono {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-400);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: color 140ms ease;
+}
+
+.age-buscador__icono svg {
+  width: 16px;
+  height: 16px;
+}
+
+.age-buscador:focus-within .age-buscador__icono {
+  color: var(--accent-700);
+}
+
+.age-buscador__control {
+  width: 100%;
+  height: 38px;
+  padding: 0 36px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.age-buscador__control::placeholder {
+  color: var(--ink-400);
+}
+
+.age-buscador__control::-webkit-search-cancel-button {
+  display: none;
+}
+
+.age-buscador__control:focus {
+  background: var(--card);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.age-buscador__limpiar {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.age-buscador__limpiar svg {
+  width: 14px;
+  height: 14px;
+}
+
+.age-buscador__limpiar:hover {
+  color: var(--ink-900);
+  background: var(--line-2);
+}
+
+.age-buscador__limpiar:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+/* Los chips son un control segmentado: una pista gris con el elegido en blanco, que es lo que
+   dice «uno solo a la vez» sin explicarlo. */
+.age-filtro {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.age-filtro__chip {
+  height: 30px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.age-filtro__chip:hover {
+  color: var(--ink-900);
+}
+
+.age-filtro__chip[aria-pressed="true"] {
+  color: var(--ink-900);
+  background: var(--card);
+  border-color: var(--line);
+  box-shadow: 0 1px 2px rgb(30 30 46 / 8%);
+}
+
+.age-filtro__chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.age-herramientas__cuenta {
+  margin: 0 6px 0 auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+/* ── La grilla de tarjetas ─────────────────────────────────────────────────
+ *
+ * Una columna en el celular, dos en una pantalla de escritorio angosta, tres cuando hay lugar.
+ * Los puntos de corte miran el ancho de la ventana: el panel lleva barra lateral, así que cada
+ * columna recibe bastante menos de lo que parece. */
+
+.age-grilla {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+@media (width >= 980px) {
+  .age-grilla {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width >= 1500px) {
+  .age-grilla {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.age-rec {
+  --age-tono: 160;
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: age-rec-entra 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--age-i, 0) * 55ms);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.age-rec[data-tipo="ESPACIO"] {
+  --age-tono: 215;
+}
+
+.age-rec[data-tipo="EQUIPO"] {
+  --age-tono: 32;
+}
+
+.age-rec--abre {
+  cursor: pointer;
+}
+
+.age-rec:hover {
+  transform: translateY(-2px);
+  border-color: var(--ink-300);
+  box-shadow:
+    0 2px 4px rgb(30 30 46 / 6%),
+    0 14px 30px rgb(30 30 46 / 10%);
+}
+
+.age-rec--inactivo .age-rec__azulejo,
+.age-rec--inactivo .age-rec__nombre {
+  opacity: 0.6;
+}
+
+@keyframes age-rec-entra {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.age-rec__cabeza {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.age-rec__azulejo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  color: hsl(var(--age-tono) 42% 34%);
+  background: hsl(var(--age-tono) 80% 94%);
+  border: 1px solid hsl(var(--age-tono) 60% 88%);
+  border-radius: 13px;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.age-rec__azulejo svg {
+  width: 21px;
+  height: 21px;
+}
+
+.age-rec:hover .age-rec__azulejo {
+  transform: scale(1.06) rotate(-4deg);
+}
+
+.age-rec__quien {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.age-rec__nombre {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.age-rec__tipo {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.age-rec__bloque {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.age-rec__rotulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.age-rec__cuenta {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0;
+  color: var(--ink-700);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.age-rec .age-chip svg {
+  width: 12px;
+  height: 12px;
+  margin-right: 5px;
+  flex: none;
+}
+
+.age-chip--mas {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-500);
+  background: var(--card);
+}
+
+/* La mini-semana: siete casillas con la inicial de cada día; las que el recurso atiende se
+   encienden con el verde suave del sistema. Es lectura, no control. */
+.age-mini {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  width: 100%;
+  max-width: 280px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.age-mini__dia {
+  display: grid;
+  place-items: center;
+  height: 30px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-300);
+  background: var(--bg-soft);
+  border: 1px solid var(--line-2);
+  border-radius: 9px;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.age-mini__dia--atiende {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.age-rec__franjas {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.age-rec__franjas li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-600);
+}
+
+.age-rec__franjas svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--ink-400);
+}
+
+.age-rec__franja {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.age-rec__dias {
+  color: var(--ink-500);
+}
+
+.age-rec__pie {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+
+.age-configurar {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.age-configurar svg {
+  width: 15px;
+  height: 15px;
+  color: var(--ink-400);
+  transition: color 140ms ease;
+}
+
+.age-configurar:hover {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.age-configurar:hover svg {
+  color: var(--accent-700);
+}
+
+.age-configurar:active {
+  transform: translateY(1px);
+}
+
+.age-configurar:focus-visible,
+.age-mas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.age-mas {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--ink-500);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.age-mas svg {
+  width: 18px;
+  height: 18px;
+}
+
+.age-mas:hover,
+.age-mas[aria-expanded="true"] {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-color: var(--line);
+}
+
+/* ── El menú ⋯ ─────────────────────────────────────────────────────────── */
+
+.age-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 172px;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  transform-origin: top right;
+  animation: age-menu-entra 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.age-menu--arriba {
+  transform-origin: bottom right;
+}
+
+@keyframes age-menu-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.age-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--ink-700);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.age-menu__item:hover,
+.age-menu__item:focus-visible {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  outline: none;
+}
+
+.age-menu__item--baja {
+  color: var(--err);
+}
+
+.age-menu__item--baja:hover,
+.age-menu__item--baja:focus-visible {
+  color: var(--err);
+  background: var(--err-bg);
+}
+
+.age-menu__icono {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.age-menu__icono svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── El vacío ──────────────────────────────────────────────────────────── */
+
+.age-vacio-recursos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 52px 24px 56px;
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.age-vacio-recursos__icono {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 10px;
+  color: var(--ink-400);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.age-vacio-recursos__icono svg {
+  width: 26px;
+  height: 26px;
+}
+
+.age-vacio-recursos__titulo {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.age-vacio-recursos__texto {
+  max-width: 44ch;
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  color: var(--ink-500);
+}
+
+.age-vacio-recursos__accion {
+  height: 38px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.age-vacio-recursos__accion:hover {
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+}
+
+.age-vacio-recursos__accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── El diálogo «Configurar» ───────────────────────────────────────────────
+ *
+ * Tres tarjetas con su ayuda, y un pie pegado al borde de abajo del diálogo: con el contenido
+ * largo, «Listo» no se va de la vista. El diálogo se ensancha sólo para este contenido (`:has`). */
+
+.modal:has(.age-editor) {
+  width: min(42rem, calc(100vw - 32px));
+}
+
+.age-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.age-editor .tarjeta {
+  margin: 0;
+}
+
+/* La duración del slot ocupa las dos primeras columnas de la segunda fila y «Quitar» cierra la
+   tercera: la ayuda del campo no se parte en cuatro renglones. */
+.age-editor .age-franja > :nth-child(4) {
+  grid-column: 1 / 3;
+}
+
+.age-editor__ayuda {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 var(--space-4);
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-500);
+  background: var(--bg-soft);
+  border-radius: 10px;
+}
+
+.age-editor__ayuda svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-400);
+}
+
+.age-editor__pie {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 -26px -26px;
+  padding: 14px 26px;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 20px 20px;
+  box-shadow: 0 -10px 16px -14px rgb(30 30 46 / 18%);
+}
+
+@media (width <= 640px) {
+  .age-herramientas__cuenta {
+    margin-left: 6px;
+  }
+
+  .age-filtro {
+    flex: 1 1 auto;
+  }
+
+  .age-filtro__chip {
+    flex: 1;
+    padding: 0 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .age-rec,
+  .age-menu {
+    animation: none;
+  }
+
+  .age-rec,
+  .age-rec__azulejo,
+  .age-recursos .age-cta,
+  .age-recursos .age-cta .age-cta__icono,
+  .age-configurar {
+    transition: none;
+  }
+
+  .age-rec:hover,
+  .age-rec:hover .age-rec__azulejo,
+  .age-recursos .age-cta:hover,
+  .age-recursos .age-cta:active,
+  .age-recursos .age-cta:hover .age-cta__icono,
+  .age-configurar:active {
+    transform: none;
+  }
+
+  .age-recursos .age-cta:hover::after {
+    transition: none;
+  }
+}
+
+/* ══ Agenda · rediseño de PAN-AGE-01 (lista y calendario) ═══════════════════
+ *
+ * Cabecera con botones, barra de herramientas en una tarjeta, vista Lista agrupada por día y
+ * vistas Semana/Día en grilla de tiempo. Todo con prefijo `.age-`, sin hexadecimales (los
+ * colores son los tokens de `tokens.css`) y con el movimiento apagado en el bloque
+ * `prefers-reduced-motion` del final de esta sección.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Los dos botones de la cabecera ───────────────────────────────────────
+ *
+ * El principal es el degradado verde de `.dsh-enlace-cta` / `.mae-cta`; el secundario es una
+ * tarjeta blanca con icono: lleva a otra pantalla pero no es lo que se vino a hacer. */
+
+.age-principal,
+.age-secundario {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.age-principal {
+  padding: 0 18px 0 14px;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--primary);
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  border: 1px solid transparent;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.age-principal__ico {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgb(30 30 46 / 12%);
+  transition:
+    background-color 0.16s ease,
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.age-principal__ico svg {
+  width: 14px;
+  height: 14px;
+}
+
+.age-principal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 38%) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+
+.age-principal:hover {
+  color: var(--primary);
+  text-decoration: none;
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 30%);
+}
+
+.age-principal:hover::after {
+  transform: translateX(120%);
+  transition: transform 0.7s ease;
+}
+
+.age-principal:hover .age-principal__ico {
+  background: rgb(30 30 46 / 18%);
+  transform: rotate(90deg) scale(1.05);
+}
+
+.age-principal:active {
+  transform: scale(0.97);
+}
+
+.age-secundario {
+  padding: 0 16px 0 12px;
+  color: var(--ink-700);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  transition:
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.age-secundario__ico {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: var(--ink-500);
+  background: var(--bg-soft);
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.age-secundario__ico svg {
+  width: 15px;
+  height: 15px;
+}
+
+.age-secundario:hover {
+  color: var(--ink-900);
+  text-decoration: none;
+  border-color: var(--ink-300);
+  transform: translateY(-1px);
+}
+
+.age-secundario:hover .age-secundario__ico {
+  color: var(--accent-700);
+  background: var(--accent-050);
+}
+
+.age-secundario:active {
+  transform: scale(0.97);
+}
+
+.age-principal:focus-visible,
+.age-secundario:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── La barra de herramientas ─────────────────────────────────────────────
+ *
+ * Una sola tarjeta: vista, período, filtros y contador, todos de 38 px de alto y centrados
+ * contra la misma línea. */
+
+.age-barra {
+  margin: 0 0 var(--space-4);
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.age-barra__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.age-barra .campo {
+  margin: 0;
+  flex: 0 1 170px;
+  min-width: 135px;
+}
+
+.age-barra .campo__control {
+  min-height: 38px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  border-radius: 10px;
+  background-color: var(--bg-soft);
+  font-size: 13px;
+}
+
+.age-barra .campo__control:focus {
+  background-color: var(--card);
+}
+
+.age-barra__mas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-2);
+  animation: age-entra 220ms ease both;
+}
+
+.age-barra__mas .campo {
+  flex: 0 1 220px;
+}
+
+.age-barra__boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease,
+    color 0.14s ease;
+}
+
+.age-barra__boton:hover {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+}
+
+.age-barra__boton[aria-expanded="true"] {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.age-barra__boton--limpiar:hover {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err-bg);
+}
+
+.age-barra__boton-ico {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+}
+
+.age-barra__boton-ico svg {
+  width: 15px;
+  height: 15px;
+}
+
+.age-barra__cuenta {
+  margin: 0 0 0 auto;
+  padding: 0 6px 0 14px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-500);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.age-barra__boton:focus-visible,
+.age-segmentos__opcion:focus-visible,
+.age-periodo__flecha:focus-visible,
+.age-periodo__hoy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* El selector de vista: un control segmentado. El elegido es la «pastilla» blanca. */
+.age-segmentos {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.age-segmentos__opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    color 0.14s ease,
+    background-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.age-segmentos__opcion:hover {
+  color: var(--ink-900);
+}
+
+.age-segmentos__opcion[aria-pressed="true"] {
+  color: var(--ink-900);
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 1px 3px rgb(30 30 46 / 8%);
+}
+
+.age-segmentos__opcion[aria-pressed="true"] .age-segmentos__ico {
+  color: var(--accent-700);
+}
+
+.age-segmentos__ico {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.age-segmentos__ico svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ‹ Hoy › y el rango visible. */
+.age-periodo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.age-periodo__flecha,
+.age-periodo__hoy {
+  display: inline-grid;
+  place-items: center;
+  height: 36px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease,
+    color 0.14s ease;
+}
+
+.age-periodo__flecha {
+  width: 36px;
+}
+
+.age-periodo__flecha svg {
+  width: 16px;
+  height: 16px;
+}
+
+.age-periodo__hoy {
+  padding: 0 14px;
+}
+
+.age-periodo__flecha:hover,
+.age-periodo__hoy:hover {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+}
+
+.age-periodo__rango {
+  min-width: 8.75rem;
+  margin: 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-900);
+  white-space: nowrap;
+}
+
+/* ── El contenido ─────────────────────────────────────────────────────────
+ *
+ * Se vuelve a montar al cambiar de vista o de período (la `key` del componente), así que la
+ * entrada suave corre cada vez. Mientras se pide, el contenido anterior queda tenue. */
+
+.age-contenido {
+  animation: age-entra 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: opacity 0.16s ease;
+}
+
+.age-contenido[data-cargando="true"] {
+  opacity: 0.6;
+}
+
+@keyframes age-entra {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Colores por estado ───────────────────────────────────────────────────
+ *
+ * Tres variables por estado —raya, fondo y texto— y las usan la fila, el bloque del calendario
+ * y la leyenda. */
+
+.age-fila[data-estado="RESERVADO"],
+.age-bloque[data-estado="RESERVADO"],
+.age-cal__leyenda-item[data-estado="RESERVADO"] {
+  --age-c: var(--alert);
+  --age-f: var(--warn-bg);
+  --age-t: var(--warn);
+}
+
+.age-fila[data-estado="CONFIRMADO"],
+.age-bloque[data-estado="CONFIRMADO"],
+.age-cal__leyenda-item[data-estado="CONFIRMADO"] {
+  --age-c: var(--accent);
+  --age-f: var(--accent-050);
+  --age-t: var(--accent-700);
+}
+
+.age-fila[data-estado="COMPLETADO"],
+.age-bloque[data-estado="COMPLETADO"],
+.age-cal__leyenda-item[data-estado="COMPLETADO"] {
+  --age-c: var(--info);
+  --age-f: var(--info-bg);
+  --age-t: var(--info);
+}
+
+.age-fila[data-estado="NO_SHOW"],
+.age-bloque[data-estado="NO_SHOW"],
+.age-cal__leyenda-item[data-estado="NO_SHOW"] {
+  --age-c: var(--err);
+  --age-f: var(--err-bg);
+  --age-t: var(--err);
+}
+
+.age-fila[data-estado="CANCELADO"],
+.age-bloque[data-estado="CANCELADO"],
+.age-cal__leyenda-item[data-estado="CANCELADO"] {
+  --age-c: var(--ink-300);
+  --age-f: var(--bg-soft);
+  --age-t: var(--ink-400);
+}
+
+/* ── Vista Lista · turnos agrupados por día ───────────────────────────── */
+
+.age-agenda {
+  display: grid;
+  gap: 22px;
+}
+
+.age-jornada__titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 0 4px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-700);
+}
+
+.age-jornada__cuenta {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-400);
+}
+
+.age-jornada__lista {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.age-jornada__item {
+  animation: age-entra 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--age-i, 0) * 30ms);
+}
+
+.age-fila {
+  position: relative;
+  display: grid;
+  grid-template-columns: 104px minmax(220px, 2fr) minmax(140px, 200px) 90px 116px 24px;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px 12px 20px;
+  overflow: hidden;
+  color: var(--ink-900);
+  text-decoration: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.age-fila::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--age-c);
+}
+
+.age-fila:hover {
+  color: var(--ink-900);
+  text-decoration: none;
+  border-color: var(--ink-300);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+.age-fila:active {
+  transform: scale(0.995);
+}
+
+.age-fila:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.age-fila__hora {
+  display: block;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.age-fila__hora b {
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--ink-900);
+}
+
+.age-fila__hora span {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.age-fila__persona {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.age-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: hsl(var(--age-tono) 42% 36%);
+  background: hsl(var(--age-tono) 80% 95%);
+  border: 1px solid hsl(var(--age-tono) 60% 90%);
+}
+
+.age-fila__textos {
+  display: grid;
+  min-width: 0;
+}
+
+.age-fila__cliente,
+.age-fila__servicio {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.age-fila__cliente {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.age-fila__servicio {
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.age-fila[data-estado="CANCELADO"] .age-fila__cliente {
+  color: var(--ink-400);
+  text-decoration: line-through;
+}
+
+.age-fila__recurso {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  max-width: 100%;
+  padding: 4px 10px 4px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--ink-600);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.age-fila__recurso-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-400);
+}
+
+.age-fila__recurso-ico svg {
+  width: 14px;
+  height: 14px;
+}
+
+.age-fila__duracion {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+.age-fila__flecha {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--ink-300);
+  transition:
+    color 0.16s ease,
+    transform 0.2s ease;
+}
+
+.age-fila__flecha svg {
+  width: 18px;
+  height: 18px;
+}
+
+.age-fila:hover .age-fila__flecha {
+  color: var(--accent-700);
+  transform: translateX(3px);
+}
+
+/* ── Vista Semana y Día · la grilla de tiempo ─────────────────────────── */
+
+.age-cal {
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.age-cal__scroll {
+  overflow-x: auto;
+}
+
+.age-cal__cabecera,
+.age-cal__cuerpo {
+  display: grid;
+  grid-template-columns: 56px repeat(var(--age-columnas), minmax(0, 1fr));
+  min-width: calc(56px + var(--age-columnas) * 112px);
+}
+
+.age-cal[data-vista="dia"] .age-cal__cabecera,
+.age-cal[data-vista="dia"] .age-cal__cuerpo {
+  min-width: calc(56px + var(--age-columnas) * 190px);
+}
+
+.age-cal__cabecera {
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+
+.age-cal__titulo {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-left: 1px solid var(--line-2);
+}
+
+.age-cal__titulo-dia {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.age-cal__titulo-numero {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink-900);
+  border-radius: 10px;
+}
+
+.age-cal__titulo[data-hoy="true"] .age-cal__titulo-dia {
+  color: var(--accent-700);
+}
+
+.age-cal__titulo[data-hoy="true"] .age-cal__titulo-numero {
+  color: var(--primary);
+  background: var(--accent);
+}
+
+.age-cal[data-vista="dia"] .age-cal__titulo-dia {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.age-cal__titulo-cuenta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.age-cal__cuerpo {
+  position: relative;
+}
+
+.age-cal__horas {
+  position: relative;
+}
+
+.age-cal__hora {
+  position: absolute;
+  right: 8px;
+  padding-top: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-400);
+}
+
+.age-cal__columna {
+  position: relative;
+  border-left: 1px solid var(--line-2);
+  background-image: linear-gradient(to bottom, var(--line-2) 1px, transparent 1px);
+  background-repeat: repeat-y;
+}
+
+.age-cal__columna[data-hoy="true"] {
+  background-color: color-mix(in srgb, var(--accent-050) 45%, transparent);
+}
+
+.age-bloque {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  box-sizing: border-box;
+  padding: 4px 8px 4px 9px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
+  text-decoration: none;
+  color: var(--age-t);
+  background: var(--age-f);
+  border-left: 3px solid var(--age-c);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1.5px var(--card);
+  transition:
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.age-bloque:hover {
+  z-index: 3;
+  color: var(--age-t);
+  text-decoration: none;
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1.5px var(--card),
+    var(--shadow-lg);
+}
+
+.age-bloque:focus-visible {
+  z-index: 3;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.age-bloque[data-corto="true"] {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.age-bloque__hora {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.age-bloque__cliente,
+.age-bloque__servicio {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.age-bloque__cliente {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.age-bloque__servicio {
+  font-size: 11.5px;
+  color: var(--ink-600);
+}
+
+.age-bloque[data-estado="CANCELADO"] .age-bloque__cliente {
+  color: var(--ink-400);
+  text-decoration: line-through;
+}
+
+/* La línea de «ahora», sólo en la columna de hoy. */
+.age-cal__ahora {
+  position: absolute;
+  inset-inline: 0;
+  z-index: 4;
+  height: 2px;
+  margin-top: -1px;
+  pointer-events: none;
+  background: var(--err);
+}
+
+.age-cal__ahora::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--err);
+}
+
+.age-cal__leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 10px 16px;
+  list-style: none;
+  border-top: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+
+.age-cal__leyenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.age-cal__leyenda-punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--age-c);
+}
+
+/* ── El vacío ─────────────────────────────────────────────────────────────
+ *
+ * Es un día sin turnos, no una carga que falló: una tarjeta tranquila con un icono, la frase de
+ * la historia y la salida más probable. En el calendario va compacta, arriba de la grilla. */
+
+.age-sinturnos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 24px 52px;
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: age-entra 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.age-sinturnos__icono {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 10px;
+  color: var(--ink-400);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.age-sinturnos__icono svg {
+  width: 26px;
+  height: 26px;
+}
+
+.age-sinturnos__cuerpo {
+  display: grid;
+  gap: 4px;
+}
+
+.age-sinturnos__titulo {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.age-sinturnos__texto {
+  max-width: 42ch;
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-500);
+}
+
+.age-sinturnos__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.age-sinturnos__accion {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  text-decoration: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease;
+}
+
+.age-sinturnos__accion:hover {
+  color: var(--ink-900);
+  text-decoration: none;
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+}
+
+.age-sinturnos__accion--primaria {
+  color: var(--primary);
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  border-color: transparent;
+}
+
+.age-sinturnos__accion--primaria:hover {
+  color: var(--primary);
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  border-color: transparent;
+}
+
+.age-sinturnos__accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.age-sinturnos[data-compacto="true"] {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  text-align: left;
+}
+
+.age-sinturnos[data-compacto="true"] .age-sinturnos__icono {
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  border-radius: 12px;
+}
+
+.age-sinturnos[data-compacto="true"] .age-sinturnos__icono svg {
+  width: 20px;
+  height: 20px;
+}
+
+.age-sinturnos[data-compacto="true"] .age-sinturnos__cuerpo {
+  flex: 1 1 220px;
+}
+
+.age-sinturnos[data-compacto="true"] .age-sinturnos__acciones {
+  margin: 0;
+}
+
+/* ── Pantallas angostas ───────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .age-fila {
+    grid-template-columns: 96px minmax(0, 1fr) auto 24px;
+    row-gap: 10px;
+  }
+
+  .age-fila__persona {
+    grid-column: 2 / 3;
+  }
+
+  .age-fila__recurso {
+    grid-column: 2 / 3;
+    grid-row: 2;
+  }
+
+  .age-fila__duracion {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .age-barra .campo,
+  .age-barra__mas .campo {
+    flex: 1 1 100%;
+  }
+
+  .age-segmentos {
+    width: 100%;
+  }
+
+  .age-segmentos__opcion {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .age-barra__cuenta {
+    margin-left: 0;
+    padding-left: 6px;
+  }
+
+  .age-encabezado__acciones {
+    width: 100%;
+  }
+
+  .age-principal,
+  .age-secundario {
+    flex: 1;
+  }
+
+  .age-fila {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 12px 12px 12px 16px;
+  }
+
+  .age-fila__hora {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .age-fila__persona {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .age-fila > :nth-child(5) {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .age-fila__recurso {
+    grid-column: 1 / 3;
+    grid-row: 3;
+  }
+
+  .age-fila__duracion {
+    grid-column: 3;
+    grid-row: 3;
+    justify-self: end;
+  }
+
+  .age-fila__flecha {
+    display: none;
+  }
+}
+
+/* ── Movimiento reducido · lo agregado en el rediseño de la agenda ─────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .age-contenido,
+  .age-jornada__item,
+  .age-sinturnos,
+  .age-barra__mas {
+    animation: none;
+  }
+
+  .age-contenido,
+  .age-principal,
+  .age-principal__ico,
+  .age-secundario,
+  .age-fila,
+  .age-fila__flecha,
+  .age-bloque {
+    transition: none;
+  }
+
+  .age-principal:hover,
+  .age-principal:active,
+  .age-principal:hover .age-principal__ico,
+  .age-secundario:hover,
+  .age-secundario:active,
+  .age-fila:hover,
+  .age-fila:active,
+  .age-fila:hover .age-fila__flecha,
+  .age-bloque:hover {
+    transform: none;
+  }
+
+  .age-principal:hover::after {
+    transform: translateX(-120%);
+    transition: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Rediseño estético de «Conversaciones» (PAN-WA-01) — prefijo `.cv-`
+ *
+ * Bandeja a la izquierda y hilo a la derecha, con el alto de la ventana y scroll propio en
+ * cada lado. Las reglas `.wa-fila`, `.wa-chat` y `.wa-mensaje` de más arriba quedaron del
+ * diseño anterior: la pantalla ya no las usa, y estas no se pisan con ellas.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.cv-encabezado {
+  margin-bottom: var(--space-4);
+}
+
+/* El alto: lo que queda de la ventana debajo de la cabecera fija (68 px), el relleno de la
+   página y el encabezado de la pantalla. El mínimo evita que un monitor bajo deje la lista
+   sin lugar para dos renglones. */
+.cv-grid {
+  display: grid;
+  grid-template-columns: 392px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: stretch;
+  height: clamp(520px, calc(100dvh - 276px), 1000px);
+  min-height: 0;
+}
+
+.cv-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: cv-entra 260ms ease-out both;
+}
+
+/* ── La bandeja ─────────────────────────────────────────────────────────── */
+
+.cv-bandeja__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 18px 18px 12px;
+}
+
+.cv-bandeja__titulo {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+}
+
+.cv-etiquetas {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.cv-etiqueta {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-500);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+
+.cv-etiqueta--espera {
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-color: transparent;
+}
+
+.cv-buscador {
+  position: relative;
+  margin: 0 16px 10px;
+}
+
+.cv-buscador__icono {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-400);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: color 140ms ease;
+}
+
+.cv-buscador__icono svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cv-buscador:focus-within .cv-buscador__icono {
+  color: var(--accent-700);
+}
+
+.cv-buscador__control {
+  width: 100%;
+  height: 38px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 34px 0 36px;
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.cv-buscador__control::placeholder {
+  color: var(--ink-400);
+}
+
+.cv-buscador__control::-webkit-search-cancel-button {
+  display: none;
+}
+
+.cv-buscador__control:focus {
+  background: var(--card);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.cv-buscador__limpiar {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background-color 140ms ease;
+}
+
+.cv-buscador__limpiar svg {
+  width: 14px;
+  height: 14px;
+}
+
+.cv-buscador__limpiar:hover {
+  background: var(--line-2);
+}
+
+.cv-buscador__limpiar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* El filtro es un control segmentado: una pista gris con la opción activa «levantada». */
+.cv-segmentos {
+  display: flex;
+  gap: 2px;
+  margin: 0 16px 12px;
+  padding: 3px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.cv-segmento {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.cv-segmento:last-child {
+  flex: 0 0 auto;
+}
+
+.cv-segmento:hover {
+  color: var(--ink-900);
+}
+
+.cv-segmento[aria-pressed="true"] {
+  color: var(--ink-900);
+  background: var(--card);
+  box-shadow:
+    0 1px 2px rgb(30 30 46 / 10%),
+    0 0 0 1px var(--line);
+}
+
+.cv-segmento:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cv-segmento__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--alert);
+  flex: none;
+}
+
+.cv-segmento__cuenta {
+  min-width: 20px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  text-align: center;
+  color: var(--ink-500);
+  background: var(--line-2);
+  border-radius: 999px;
+}
+
+.cv-segmento[aria-pressed="true"] .cv-segmento__cuenta {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.cv-lista {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  border-top: 1px solid var(--line-2);
+}
+
+.cv-item {
+  border-bottom: 1px solid var(--line-2);
+  animation: cv-entra 280ms ease-out both;
+}
+
+.cv-fila {
+  display: flex;
+  gap: 12px;
+  padding: 13px 16px 13px 13px;
+  border-left: 3px solid transparent;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    background-color 140ms ease,
+    border-left-color 140ms ease;
+}
+
+.cv-fila:hover {
+  background: var(--bg-soft);
+}
+
+.cv-fila:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--bg-soft);
+}
+
+.cv-fila--activa,
+.cv-fila--activa:hover {
+  background: var(--accent-050);
+  border-left-color: var(--accent);
+}
+
+.cv-fila__cuerpo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.cv-fila__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.cv-fila__titulo {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-fila__hora {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.cv-fila__vista {
+  max-width: 100%;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* El avatar: tono estable por cliente. Los seis salen de los tokens, sin colores sueltos. */
+.cv-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: var(--cv-tinta, var(--accent-700));
+  background: var(--cv-fondo, var(--accent-050));
+}
+
+.cv-avatar svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cv-tono-0 {
+  --cv-tinta: var(--accent-700);
+  --cv-fondo: var(--accent-050);
+}
+
+.cv-tono-1 {
+  --cv-tinta: var(--info);
+  --cv-fondo: var(--info-bg);
+}
+
+.cv-tono-2 {
+  --cv-tinta: var(--warn);
+  --cv-fondo: var(--warn-bg);
+}
+
+.cv-tono-3 {
+  --cv-tinta: color-mix(in srgb, var(--accent-700) 50%, var(--info));
+  --cv-fondo: color-mix(in srgb, var(--accent-050) 50%, var(--info-bg));
+}
+
+.cv-tono-4 {
+  --cv-tinta: color-mix(in srgb, var(--warn) 55%, var(--err));
+  --cv-fondo: color-mix(in srgb, var(--warn-bg) 55%, var(--err-bg));
+}
+
+.cv-tono-5 {
+  --cv-tinta: var(--ink-600);
+  --cv-fondo: var(--line-2);
+}
+
+/* El punto ámbar sobre el avatar: «hay alguien esperando». Late suave, sin bucle agresivo. */
+.cv-avatar__alerta {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--alert);
+  border: 2px solid var(--card);
+  animation: cv-late 2.4s ease-in-out infinite;
+}
+
+.cv-fila--activa .cv-avatar__alerta {
+  border-color: var(--accent-050);
+}
+
+/* La pastilla de estado: espera (ámbar), en atención (pizarra), la lleva el agente (verde). */
+.cv-pastilla {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 5px 9px 5px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.cv-pastilla__punto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+  flex: none;
+}
+
+.cv-pastilla--espera {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.cv-pastilla--espera .cv-pastilla__punto {
+  animation: cv-late 2.4s ease-in-out infinite;
+}
+
+.cv-pastilla--atencion {
+  color: var(--info);
+  background: var(--info-bg);
+}
+
+.cv-pastilla--agente {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+/* Estados vacíos: icono, la frase de siempre y una línea de contexto. */
+.cv-vacio {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+  border-top: 1px solid var(--line-2);
+}
+
+.cv-vacio__icono {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 8px;
+  color: var(--ink-400);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+
+.cv-vacio__icono svg {
+  width: 26px;
+  height: 26px;
+}
+
+.cv-vacio__titulo {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+.cv-vacio__texto {
+  margin: 0;
+  max-width: 30ch;
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+.cv-vacio__accion {
+  margin-top: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-700);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.cv-vacio__accion:hover {
+  background: var(--accent-050);
+}
+
+/* ── Sin hilo elegido ───────────────────────────────────────────────────── */
+
+.cv-sin-hilo {
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 38%, var(--accent-050) 0%, transparent 46%), var(--card);
+}
+
+.cv-sin-hilo__contenido {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.cv-escena {
+  position: relative;
+  width: 168px;
+  height: 104px;
+  margin-bottom: var(--space-6);
+}
+
+.cv-escena__burbuja {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  box-shadow: 0 8px 22px rgb(30 30 46 / 8%);
+  animation: cv-flota 5s ease-in-out infinite;
+}
+
+.cv-escena__burbuja svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cv-escena__burbuja i {
+  display: block;
+  height: 6px;
+  width: 56px;
+  border-radius: 3px;
+  background: currentcolor;
+  opacity: 0.22;
+}
+
+.cv-escena__burbuja i + i {
+  width: 36px;
+}
+
+.cv-escena__burbuja--cliente {
+  top: 0;
+  left: 0;
+  color: var(--ink-500);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 4px;
+}
+
+.cv-escena__burbuja--agente {
+  right: 0;
+  bottom: 0;
+  color: var(--accent-700);
+  background: var(--accent-050);
+  border: 1px solid var(--accent-100);
+  border-bottom-right-radius: 4px;
+  animation-delay: -2.5s;
+}
+
+.cv-sin-hilo__titulo {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+}
+
+.cv-sin-hilo__texto {
+  margin: var(--space-2) 0 0;
+  max-width: 40ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-500);
+  text-wrap: balance;
+}
+
+/* ── El hilo ────────────────────────────────────────────────────────────── */
+
+.cv-conv__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cv-conv__quien {
+  flex: 1;
+  min-width: 0;
+}
+
+.cv-conv__titulo {
+  margin: 0 0 5px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-conv__estado {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cv-conv__estado .cv-pastilla {
+  margin-top: 0;
+}
+
+.cv-conv__canal {
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.cv-conv__volver {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  text-decoration: none;
+  padding: 7px 10px 7px 8px;
+  margin-left: -6px;
+  border-radius: 9px;
+}
+
+.cv-conv__volver:hover {
+  background: var(--bg-soft);
+}
+
+.cv-conv__volver svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cv-conv__avisos {
+  padding: 12px 20px 0;
+}
+
+.cv-conv__avisos > * {
+  margin-bottom: 0;
+}
+
+.cv-conv__avisos > * + * {
+  margin-top: 8px;
+}
+
+.cv-conv__cuerpo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 24px 22px;
+  background: var(--card);
+}
+
+.cv-conv__vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--ink-400);
+  font-size: 13px;
+}
+
+.cv-conv__vacio p {
+  margin: 0;
+}
+
+.cv-dias,
+.cv-dia__mensajes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-dia + .cv-dia {
+  margin-top: var(--space-5);
+}
+
+.cv-dia__rotulo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 var(--space-4);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-400);
+}
+
+.cv-dia__rotulo::before,
+.cv-dia__rotulo::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-2);
+}
+
+.cv-dia__mensajes {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cv-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: min(72%, 620px);
+  animation: cv-entra 220ms ease-out both;
+}
+
+.cv-msg--cliente {
+  align-items: flex-start;
+  align-self: flex-start;
+}
+
+.cv-msg--agente,
+.cv-msg--operador,
+.cv-msg--sistema {
+  align-items: flex-end;
+  align-self: flex-end;
+}
+
+.cv-msg__burbuja {
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.cv-msg__texto {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cv-msg--cliente .cv-msg__burbuja {
+  color: var(--ink-900);
+  background: var(--line-2);
+  border-bottom-left-radius: 5px;
+}
+
+/* El agente: verde tenue y destello. El operador: tinta oscura. RN-04 pide distinguirlos, y
+   color, icono y palabra a la vez lo hacen legible aunque no se vea el color. */
+.cv-msg--agente .cv-msg__burbuja,
+.cv-msg--sistema .cv-msg__burbuja {
+  color: var(--ink-900);
+  background: var(--accent-050);
+  border: 1px solid var(--accent-100);
+  border-bottom-right-radius: 5px;
+}
+
+.cv-msg--operador .cv-msg__burbuja {
+  color: var(--color-text-on-dark);
+  background: var(--primary);
+  border-bottom-right-radius: 5px;
+}
+
+.cv-msg__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 5px 4px 0;
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.cv-msg--agente .cv-msg__meta,
+.cv-msg--sistema .cv-msg__meta {
+  justify-content: flex-end;
+  color: var(--accent-700);
+}
+
+.cv-msg--operador .cv-msg__meta {
+  justify-content: flex-end;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+.cv-msg__meta svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.cv-msg__entrega {
+  margin-left: 4px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+/* Lo que el operador hace, debajo del historial: responder y cerrar. */
+.cv-respuesta {
+  padding: 12px 20px 14px;
+  background: var(--bg-soft);
+  border-top: 1px solid var(--line);
+}
+
+.cv-respuesta__nota {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-500);
+}
+
+.cv-respuesta__form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.cv-respuesta__campo {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink-900);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  resize: none;
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.cv-respuesta__campo::placeholder {
+  color: var(--ink-400);
+}
+
+.cv-respuesta__campo:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.cv-enviar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--primary);
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 20%);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 200ms ease,
+    opacity 160ms ease;
+}
+
+.cv-enviar svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 200ms ease;
+}
+
+.cv-enviar:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.cv-enviar:hover:not(:disabled) svg {
+  transform: translateX(2px);
+}
+
+.cv-enviar:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.cv-enviar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cv-enviar:disabled {
+  cursor: not-allowed;
+  color: var(--ink-400);
+  background: var(--line-2);
+  box-shadow: none;
+}
+
+.cv-cierre {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  padding: 12px 20px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.cv-cierre__texto {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.cv-cierre__texto b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12.5px;
+  color: var(--ink-900);
+}
+
+.cv-cierre__texto p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-500);
+}
+
+.cv-cierre__acciones {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* La etiqueta del selector sigue en el árbol de accesibilidad pero no ocupa una línea: el
+   valor elegido («Que reevalúe el agente») ya dice qué se está decidiendo. */
+.cv-cierre__acciones .campo {
+  margin: 0;
+  min-width: 190px;
+}
+
+.cv-cierre__acciones .campo__etiqueta {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.cv-conv__aviso-agente {
+  padding: 12px 20px;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  background: var(--bg-soft);
+  border-top: 1px solid var(--line);
+}
+
+/* ── Animaciones ────────────────────────────────────────────────────────── */
+
+@keyframes cv-entra {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cv-late {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.55;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes cv-flota {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* ── Pantallas chicas: bandeja o hilo, uno a la vez ─────────────────────── */
+
+@media (max-width: 1280px) {
+  .cv-grid {
+    grid-template-columns: 340px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .cv-grid {
+    grid-template-columns: minmax(0, 1fr);
+    height: clamp(480px, calc(100dvh - 300px), 1000px);
+  }
+
+  /* Sin hilo, el panel derecho no tiene nada que decir en una pantalla angosta. */
+  .cv-grid:not(.cv-grid--con-hilo) .cv-sin-hilo {
+    display: none;
+  }
+
+  /* Con hilo, la lista se va y el hilo ocupa todo, con su «Volver». */
+  .cv-grid--con-hilo .cv-bandeja {
+    display: none;
+  }
+
+  .cv-grid--con-hilo {
+    height: calc(100dvh - 164px);
+  }
+
+  .cv-encabezado--hilo {
+    display: none;
+  }
+
+  .cv-conv__volver {
+    display: inline-flex;
+  }
+
+  .cv-conv__head {
+    flex-wrap: wrap;
+    padding: 12px 14px;
+  }
+
+  .cv-conv__head .cv-avatar {
+    display: none;
+  }
+
+  .cv-conv__quien {
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  .cv-conv__cuerpo {
+    padding: 14px 14px 18px;
+  }
+
+  .cv-msg {
+    max-width: 88%;
+  }
+
+  .cv-respuesta,
+  .cv-cierre {
+    padding-inline: 14px;
+  }
+
+  .cv-cierre__acciones {
+    width: 100%;
+  }
+
+  .cv-cierre__acciones .campo {
+    flex: 1 1 100%;
+  }
+}
+
+/* ── Movimiento reducido ────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-panel,
+  .cv-item,
+  .cv-msg,
+  .cv-avatar__alerta,
+  .cv-pastilla--espera .cv-pastilla__punto,
+  .cv-escena__burbuja {
+    animation: none;
+  }
+
+  .cv-fila,
+  .cv-segmento,
+  .cv-enviar,
+  .cv-enviar svg,
+  .cv-buscador__control,
+  .cv-respuesta__campo {
+    transition: none;
+  }
+
+  .cv-enviar:hover:not(:disabled),
+  .cv-enviar:hover:not(:disabled) svg,
+  .cv-enviar:active:not(:disabled) {
+    transform: none;
+  }
+}

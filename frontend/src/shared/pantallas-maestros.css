@@ -1,0 +1,1660 @@
+/*
+ * Datos Maestros — PAN-DM-01 (clientes), PAN-DM-02 (servicios) y PAN-DM-03 (categorías).
+ *
+ * Hoja propia, con prefijo `.mae-` y nada más adentro, por la misma razón de propiedad que
+ * separó `pantallas-agente.css` del catálogo compartido: una regla de estas tres pantallas
+ * metida en `componentes.css` termina pisando una tabla de otra unidad, y una metida en la
+ * hoja de otra pantalla se la lleva puesta el día que esa pantalla se rediseñe.
+ *
+ * **Estas tres pantallas se quedaron con el estilo genérico viejo.** El resto del panel ya
+ * pasó por el rediseño —auditoría (`.log-`), agente (`.faq-`, `.plt-`), agenda (`.age-`) y
+ * facturación (`.fac-nuevo-`)— y traían tres defectos que se ven de lejos:
+ *
+ * 1. **Las acciones de fila eran botones con caja**, y la baja con borde rojo. Con diez filas
+ *    la pantalla es una pared de rojo, y el rojo deja de significar nada. Acá son texto, como
+ *    en `.faq-accion`: la caja aparece en hover y en foco, que es cuando hace falta saber
+ *    dónde termina el área que responde. El aviso de que la baja no se deshace lo da la
+ *    confirmación, no el borde.
+ * 2. **El CTA vivía dentro de la fila de filtros**, con las bases de los controles a distinta
+ *    altura. Un botón que crea algo no es un filtro: va en el encabezado, alineado con el
+ *    título al que pertenece, igual que en agenda y en facturación.
+ * 3. **El vacío era una caja punteada de media pantalla.** Se lee como una carga que falló;
+ *    una raya corta y un renglón adentro de la tarjeta dicen lo mismo y dejan ver que la
+ *    pantalla está entera. Misma decisión que `.log-nada` y que `.faq-panel .tabla__vacia`.
+ *
+ * **No hay colores literales.** Todo sale de los alias de `tokens.css` (`--accent`,
+ * `--ink-500`, `--line`, `--err`…). Un `#00C48C` escrito acá sería el mismo verde con otro
+ * nombre, y el día que el token cambie esta hoja se queda vieja sin que nadie se entere.
+ *
+ * **El movimiento es corto y no se repite.** Ninguna transición pasa de 140 ms, el hundido
+ * del click dura 60 ms, la entrada del panel 220 ms y una sola vez. Todo se apaga en el
+ * bloque `prefers-reduced-motion` del final, que es de esta hoja y no toca los de las otras:
+ * dos pantallas editando la misma lista de selectores es exactamente cómo una termina
+ * borrando la línea de la otra.
+ */
+
+/* ── Encabezado de pantalla ──────────────────────────────────────────────────
+ *
+ * Cintillo mono en versalitas, título, bajada, y el CTA a la derecha alineado con la base
+ * del bloque de texto. `flex-end` y no `flex-start`: con una bajada de dos renglones el
+ * botón queda a la altura de lo último que se leyó, que es cuando se decide apretarlo. */
+
+.mae-encabezado {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.mae-encabezado__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+/* 27 px y no los 24 del `h1` de base: es el título de una pantalla del panel y lleva un
+   cintillo encima, así que necesita ganarle en peso o los dos se leen como una sola línea
+   gris. Es el mismo valor que usan `.faq-encabezado h1` y `.age-encabezado__titulo`. */
+.mae-encabezado h1 {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.mae-encabezado__intro {
+  color: var(--ink-500);
+  font-size: 14.5px;
+  margin: var(--space-2) 0 0;
+  max-width: 62ch;
+}
+
+.mae-encabezado__acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  flex: none;
+}
+
+/* El «+» del CTA. La caja fija evita que el icono empuje el texto medio píxel mientras la
+   fuente termina de cargar. */
+.mae-cta__icono {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.mae-cta__icono svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+/* La caja de información del catálogo no trae aire abajo —cada pantalla decide dónde va— y
+   acá queda apoyada sobre los filtros sin nada que diga dónde termina el aviso. */
+.mae-encabezado ~ .caja {
+  margin-bottom: var(--space-4);
+}
+
+/* ── La fila de filtros ──────────────────────────────────────────────────────
+ *
+ * Una fila con una línea fina abajo, no una tarjeta. Tres controles adentro de una
+ * superficie elevada pesan lo mismo que la lista que filtran, y la lista es lo que se vino a
+ * mirar; la línea alcanza para decir que ese renglón es el mando y lo de abajo el resultado.
+ *
+ * `align-items: flex-end` es lo que arregla el defecto visible: los campos llevan la etiqueta
+ * arriba y la casilla no, así que alineados por el tope quedaban con las bases a distinta
+ * altura. Alineados por la base, todos apoyan en la misma línea. */
+
+.mae-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+  margin: 0 0 var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Los campos compartidos traen la separación de un formulario en columna; en una fila la
+   pone el `gap`. El ancho es un rango: tres controles estirados a lo ancho de 1600 px dejan
+   un `<select>` de «Categoría» de medio metro. */
+.mae-filtros .campo {
+  margin-bottom: 0;
+  flex: 0 1 240px;
+  min-width: 200px;
+}
+
+.mae-filtros .campo__etiqueta {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+/* El primer control es el que más se usa —el buscador en clientes y servicios, el ámbito en
+   categorías— y en los dos primeros es además el único donde se escribe: se lleva más ancho.
+   Va por posición y no por una clase porque `Campo` no acepta `className`: el catálogo lo
+   omite a propósito para que ninguna pantalla le cambie el aspecto al control compartido. */
+.mae-filtros > .campo:first-child {
+  flex: 1 1 260px;
+  max-width: 340px;
+}
+
+.mae-filtros .campo__ayuda {
+  color: var(--ink-400);
+}
+
+/* ── La casilla de «Solo activos» ───────────────────────────────────────────
+ *
+ * Fuera de la fila de filtros —el formulario de servicio la usa para «agendable»— es una
+ * casilla común. Adentro, se apoya en la misma base que los campos con etiqueta arriba. */
+
+.mae-casilla {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-600);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mae-casilla input {
+  accent-color: var(--accent-700);
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.mae-filtros .mae-casilla {
+  flex: none;
+  /* Los campos vecinos miden 40 px de control; centra la casilla contra ese alto. */
+  min-height: 40px;
+}
+
+/* ── La barra de conteo ──────────────────────────────────────────────────────
+ *
+ * Cuántas hay, arriba de la tabla. En mono se lee como una cifra y no como una frase más, y
+ * es el dato con el que alguien decide si el filtro que acaba de tocar hizo algo. */
+
+.mae-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.mae-barra__cuenta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+.mae-barra__cuenta b {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+/* ── La caja del listado ─────────────────────────────────────────────────────
+ *
+ * La tarjeta elevada que usan el resto de las pantallas. La tabla compartida trae su propia
+ * caja con borde, radio y sombra: adentro del panel sobra, porque dos bordes concéntricos se
+ * leen como un error de maquetación y no como jerarquía. */
+
+.mae-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: mae-entra 220ms ease-out both;
+}
+
+.mae-panel .tabla__contenedor {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.mae-panel .tabla th {
+  padding: 16px 18px 10px;
+}
+
+/*
+ * El encabezado de una columna alineada a la derecha también va a la derecha.
+ *
+ * El catálogo compartido pone `text-align: left` en `.tabla th` y `text-align: right` en
+ * `.tabla__celda--derecha`; la primera gana por especificidad (0,1,1 contra 0,1,0), así que
+ * «PRECIO» y «ACCIONES» quedaban pegados a la izquierda de una columna cuyos valores están
+ * pegados a la derecha. Se arregla acá, dentro del panel, y no en `componentes.css`: esa hoja
+ * la comparten todas las pantallas y este es el rediseño de tres.
+ */
+.mae-panel .tabla th.tabla__celda--derecha {
+  text-align: right;
+}
+
+/* Las filas eran demasiado altas: 15 px arriba y abajo sobre un renglón de 13,5 px dejan
+   seis filas por pantalla en una notebook. Con 12 px entran diez y se siguen leyendo. */
+.mae-panel .tabla td {
+  padding: 12px 18px;
+  transition: background-color 140ms ease;
+}
+
+.mae-panel .tabla tbody tr:hover td {
+  background: var(--bg-soft);
+}
+
+/*
+ * **El vacío es un renglón adentro de la tarjeta.** La caja punteada del catálogo ocupa media
+ * pantalla con una frase en el medio y se lee como una carga que falló; un catálogo todavía
+ * sin cargar es una pantalla normal, no un error. Misma decisión que `.log-nada`.
+ */
+.mae-panel .tabla__vacia {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 18px 20px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.mae-panel .tabla__vacia::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* ── Celdas ──────────────────────────────────────────────────────────────────
+ *
+ * El nombre es lo que alguien busca cuando recorre la lista con el dedo en la pantalla: es
+ * lo único de la fila que va en tinta plena. */
+
+.mae-nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.mae-dato {
+  font-size: 13px;
+  color: var(--ink-700);
+}
+
+/* Lo que no está cargado, y el dato de contexto: un tono más claro para que la columna que
+   sí tiene información gane sin que ninguna desaparezca. */
+.mae-dato--tenue {
+  color: var(--ink-400);
+}
+
+/* El CUIT y el WhatsApp son números que se comparan de arriba abajo. `tabular-nums` es la
+   diferencia entre una columna que se lee de un vistazo y una donde el «1» mide menos que el
+   «8» y los guiones bailan renglón a renglón. */
+.mae-mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-600);
+  white-space: nowrap;
+}
+
+/*
+ * `origen` es un valor de un conjunto cerrado y corto —PANEL, PLANILLA, AGENTE— y dice de
+ * dónde vino la fila. La píldora lo separa del texto corrido de la columna vecina sin gastar
+ * un color de estado, que acá significaría algo que no significa: ninguno de los tres origenes
+ * es mejor ni peor que otro.
+ */
+.mae-origen {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-600);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+/* El precio, alineado a la derecha y monoespaciado: una columna de importes se compara por
+   la coma, y para eso las comas tienen que caer una debajo de la otra. */
+.mae-importe {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-900);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Acciones de fila ────────────────────────────────────────────────────────
+ *
+ * Texto y no botones con caja, como en `.faq-accion` y en el prototipo: una tabla con dos
+ * botones sólidos por renglón pesa más que los datos que muestra, y diez renglones con un
+ * borde rojo cada uno convierten el rojo en decoración.
+ *
+ * La caja aparece en hover y en foco, que es cuando hace falta saber dónde termina el área
+ * que responde. La confirmación de la baja sigue estando —es un diálogo modal del navegador,
+ * disparado por la acción— y es ahí donde se dice qué pasa si se sigue adelante. */
+
+.mae-accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  /* La clase la comparten `button` y `a`: sin esto los enlaces de fila salen subrayados y
+     dejan de parecerse a las acciones que tienen al lado. */
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.mae-accion:hover:not(:disabled) {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-color: var(--line);
+}
+
+.mae-accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.mae-accion:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/*
+ * La baja lleva el rojo en el texto y no en un borde. Es la diferencia entre una fila que
+ * avisa y una fila que grita: la palabra ya es roja, y el fondo tenue aparece recién cuando
+ * el puntero está encima de ella.
+ */
+.mae-accion--baja {
+  color: var(--err);
+}
+
+.mae-accion--baja:hover:not(:disabled) {
+  color: var(--err);
+  background: var(--err-bg);
+  border-color: var(--err-bg);
+}
+
+/* §1.4 pide 44 × 44 px donde el puntero es un dedo. Con mouse, 34 px de alto se acierta sin
+   pensarlo, y estirar cada fila de la tabla al doble la volvería ilegible. */
+@media (pointer: coarse) {
+  .mae-accion {
+    min-height: var(--touch-min);
+  }
+}
+
+/* ── Los tres formularios, adentro del modal ─────────────────────────────────
+ *
+ * La caja y la columna las pone `.dm-formulario`, que comparten media docena de pantallas.
+ * Acá va sólo lo que es de estas tres: la línea que dice qué decide el formulario, arriba de
+ * todo, para que quien lo abre no tenga que deducirlo de los nombres de los campos. */
+
+/*
+ * El CUIT y su botón «Validar contra ARCA», a la misma altura.
+ *
+ * `.dm-formulario__cuit` alinea por la base, y la ayuda del campo —«Opcional. Un cliente sin
+ * CUIT no puede recibir Factura A.»— ocupa dos renglones: la base del campo quedaba treinta
+ * píxeles por debajo del input y arrastraba el botón con ella, hasta dejarlo flotando debajo
+ * de la caja que valida. Alineado por el tope, y bajado exactamente lo que mide la etiqueta
+ * del campo vecino (13 px × 1,5 de interlínea, más los 7 px de `gap` de `.campo`), el botón
+ * apoya en la misma línea que el input sin importar cuántos renglones ocupe la ayuda.
+ *
+ * La regla vive acá, colgada de `.mae-form`, y no en la hoja donde está `.dm-formulario__cuit`:
+ * esa clase la comparten media docena de pantallas y este es el rediseño de tres.
+ */
+.mae-form .dm-formulario__cuit {
+  align-items: flex-start;
+}
+
+.mae-form .dm-formulario__cuit > .boton {
+  margin-top: calc(13px * 1.5 + 7px);
+}
+
+.mae-form__nota {
+  font-size: 13px;
+  color: var(--ink-500);
+  margin: 0 0 var(--space-1);
+}
+
+/* El separador entre los campos del elemento y las categorías que se le asignan: son dos
+   cosas distintas —lo que el elemento es y cómo está etiquetado— y sin una línea se leen
+   como un solo formulario largo. */
+.mae-form__separador {
+  margin: var(--space-4) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ── Movimiento ──────────────────────────────────────────────────────────────
+ *
+ * Una sola entrada, de una sola pasada, sobre el panel del listado. No hay bucles, no hay
+ * rebote y nada se mueve por su cuenta después del primer cuadro. */
+
+@keyframes mae-entra {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Todo lo que se mueve en estas tres pantallas se apaga acá. Los cambios de color quedan: lo
+ * que marea es el desplazamiento, y sin transición el estado igual se ve.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .mae-panel {
+    animation: none;
+  }
+
+  .mae-panel .tabla td,
+  .mae-accion {
+    transition: none;
+  }
+
+  .mae-accion:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * Clientes (PAN-DM-01) — rediseño de la composición
+ *
+ * Todo lo de abajo es de esa pantalla y de nadie más; servicios y categorías siguen con las
+ * reglas de arriba. Mismo lenguaje que el inicio y la ingesta: tarjetas blancas con borde
+ * `--line` y sombra `--shadow`, azulejos de icono de radio 12, el verde sólo en el CTA y en
+ * lo activo. Todo el movimiento se apaga en el bloque `prefers-reduced-motion` del final.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── El CTA de la cabecera ───────────────────────────────────────────────────
+ *
+ * Mismo botón principal que el del inicio (`.dsh-enlace-cta`): degradado verde, sombra, un
+ * destello que cruza al pasar el mouse y un hover que levanta. Es un botón y no un enlace, así
+ * que no necesita el reset del subrayado. */
+
+.mae-cta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 44px;
+  border-radius: 12px;
+  padding: 0 18px 0 14px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--primary);
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  border: 1px solid transparent;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+  white-space: nowrap;
+  overflow: hidden;
+  isolation: isolate;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.mae-cta--compacto {
+  height: 40px;
+}
+
+.mae-cta .mae-cta__icono {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgb(30 30 46 / 12%);
+  transition:
+    background-color 0.16s ease,
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mae-cta .mae-cta__icono svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mae-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 38%) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+
+.mae-cta:hover {
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 30%);
+}
+
+.mae-cta:hover::after {
+  transform: translateX(120%);
+  transition: transform 0.7s ease;
+}
+
+.mae-cta:hover .mae-cta__icono {
+  background: rgb(30 30 46 / 18%);
+  transform: rotate(90deg) scale(1.05);
+}
+
+.mae-cta:active {
+  transform: scale(0.97);
+}
+
+.mae-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── La barra de herramientas ────────────────────────────────────────────────
+ *
+ * Búsqueda, filtros y contador en una sola tarjeta. Todos los controles miden 38 px y se
+ * centran contra la misma línea; las etiquetas de los selectores están sólo para el lector
+ * de pantalla (el valor elegido ya dice qué se filtra). */
+
+.mae-herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  margin: 0 0 var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.mae-herramientas .campo {
+  margin: 0;
+  flex: 0 1 190px;
+  min-width: 150px;
+}
+
+.mae-herramientas .campo__control {
+  min-height: 38px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  border-radius: 10px;
+  background-color: var(--bg-soft);
+  font-size: 13px;
+}
+
+.mae-herramientas .campo__control:focus {
+  background-color: var(--card);
+}
+
+.mae-buscador {
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+
+.mae-buscador__icono {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-400);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: color 140ms ease;
+}
+
+.mae-buscador__icono svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mae-buscador:focus-within .mae-buscador__icono {
+  color: var(--accent-700);
+}
+
+.mae-buscador__control {
+  width: 100%;
+  height: 38px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 36px 0 36px;
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.mae-buscador__control::placeholder {
+  color: var(--ink-400);
+}
+
+.mae-buscador__control::-webkit-search-cancel-button {
+  display: none;
+}
+
+.mae-buscador__control:focus {
+  background: var(--card);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.mae-buscador__limpiar {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.mae-buscador__limpiar svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mae-buscador__limpiar:hover {
+  color: var(--ink-900);
+  background: var(--line-2);
+}
+
+.mae-buscador__limpiar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* «Solo activos» como interruptor dentro de una pastilla: apagado es un contorno neutro, y
+   encendido es lo único de la barra que se pinta de verde, porque es un filtro vivo. */
+.mae-interruptor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-600);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.mae-interruptor:hover {
+  border-color: var(--ink-300);
+}
+
+.mae-interruptor:has(:checked) {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.mae-interruptor:has(:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mae-interruptor__control {
+  position: relative;
+  flex: none;
+  width: 28px;
+  height: 16px;
+  margin: 0;
+  appearance: none;
+  background: var(--ink-300);
+  border-radius: 999px;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 160ms ease;
+}
+
+.mae-interruptor__control::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: var(--card);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 25%);
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mae-interruptor__control:checked {
+  background: var(--accent);
+}
+
+.mae-interruptor__control:checked::before {
+  transform: translateX(12px);
+}
+
+.mae-herramientas__cuenta {
+  margin: 0 0 0 auto;
+  padding: 0 6px 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-500);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── El listado ──────────────────────────────────────────────────────────────
+ *
+ * La entrada es de las filas, una tras otra y una sola vez, y no del panel entero. Doce
+ * retardos escalonados alcanzan: más abajo de la fila doce ya nadie está mirando. */
+
+.mae-panel--clientes {
+  animation: none;
+}
+
+.mae-panel--clientes .tabla tbody tr {
+  animation: mae-fila 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(3) {
+  animation-delay: 60ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(4) {
+  animation-delay: 90ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(5) {
+  animation-delay: 120ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(6) {
+  animation-delay: 150ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(7) {
+  animation-delay: 180ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(8) {
+  animation-delay: 210ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(9) {
+  animation-delay: 240ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(10) {
+  animation-delay: 270ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(11) {
+  animation-delay: 300ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(n + 12) {
+  animation-delay: 330ms;
+}
+
+.mae-panel--clientes .tabla td {
+  padding: 11px 18px;
+  vertical-align: middle;
+}
+
+.mae-persona .mae-nombre {
+  white-space: nowrap;
+}
+
+.mae-persona {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* El tono lo calcula el componente a partir del nombre (`--mae-tono`, en grados): mismo
+   cliente, mismo color, siempre. Saturación baja y fondo casi blanco: se reconoce, no grita. */
+.mae-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: hsl(var(--mae-tono) 42% 36%);
+  background: hsl(var(--mae-tono) 80% 95%);
+  border: 1px solid hsl(var(--mae-tono) 60% 90%);
+}
+
+/* ── Acciones de fila ────────────────────────────────────────────────────── */
+
+.mae-acciones {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.mae-icono-accion {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 60ms ease;
+}
+
+.mae-icono-accion svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mae-icono-accion:hover,
+.mae-icono-accion[aria-expanded="true"] {
+  color: var(--ink-900);
+  text-decoration: none;
+  background: var(--card);
+  border-color: var(--line);
+  box-shadow: 0 1px 2px rgb(30 30 46 / 8%);
+}
+
+.mae-icono-accion:active {
+  transform: translateY(1px);
+}
+
+.mae-icono-accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mae-icono-accion--texto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 0 11px 0 9px;
+  color: var(--ink-600);
+  border-color: var(--line);
+  background: var(--card);
+}
+
+/* El tooltip es del botón y no del navegador: aparece al instante, también con el teclado, y
+   se ve igual en todas las pantallas. El `aria-label` ya dice lo mismo para el lector. */
+.mae-icono-accion[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 5;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #fff;
+  background: var(--primary);
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 3px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.mae-icono-accion[data-tip]:hover::after,
+.mae-icono-accion[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (pointer: coarse) {
+  .mae-icono-accion {
+    min-width: var(--touch-min);
+    height: var(--touch-min);
+  }
+}
+
+/* ── El menú «más acciones» ──────────────────────────────────────────────── */
+
+.mae-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 172px;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  transform-origin: top right;
+  animation: mae-menu-entra 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.mae-menu--arriba {
+  transform-origin: bottom right;
+}
+
+.mae-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--ink-700);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.mae-menu__item:hover,
+.mae-menu__item:focus-visible {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  outline: none;
+}
+
+.mae-menu__item--baja {
+  color: var(--err);
+}
+
+.mae-menu__item--baja:hover,
+.mae-menu__item--baja:focus-visible {
+  color: var(--err);
+  background: var(--err-bg);
+}
+
+.mae-menu__icono {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.mae-menu__icono svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── El vacío ────────────────────────────────────────────────────────────── */
+
+.mae-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 24px 52px;
+  text-align: center;
+}
+
+.mae-vacio__icono {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 10px;
+  color: var(--ink-400);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.mae-vacio__icono svg {
+  width: 26px;
+  height: 26px;
+}
+
+.mae-vacio__titulo {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.mae-vacio__texto {
+  max-width: 42ch;
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  color: var(--ink-500);
+}
+
+.mae-vacio__accion {
+  height: 38px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.mae-vacio__accion:hover {
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+}
+
+.mae-vacio__accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── El formulario del alta y la edición ─────────────────────────────────────
+ *
+ * Tres secciones con título, dos columnas donde los campos son cortos, y un pie de acciones
+ * pegado al borde de abajo del diálogo: con el formulario largo, «Guardar» no se va de la
+ * vista. El diálogo se ensancha sólo para este formulario (`:has`), para que las dos columnas
+ * respiren. */
+
+.modal:has(.mae-form) {
+  width: min(40rem, calc(100vw - 32px));
+}
+
+.mae-form {
+  gap: var(--space-4);
+}
+
+.mae-form__intro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+  border-radius: 12px;
+}
+
+.mae-form__intro .mae-form__nota {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.mae-form__tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  color: var(--ink-500);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.mae-form__tile svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mae-seccion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.mae-seccion__titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.mae-seccion__titulo::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.mae-seccion__ayuda {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.mae-seccion .campo {
+  margin: 0;
+  min-width: 0;
+}
+
+.mae-form__columnas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+  align-items: start;
+}
+
+/* El selector de categorías trae su propia caja y su propio título: dentro de una sección
+   con título sobran los dos. La leyenda queda para el lector de pantalla. */
+.mae-seccion .dm-selector {
+  padding: 0;
+  border: 0;
+  margin: 0;
+}
+
+.mae-seccion .dm-selector legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.mae-form__pie {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: var(--space-2) -24px -24px;
+  padding: 14px 24px;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  box-shadow: 0 -10px 16px -14px rgb(30 30 46 / 18%);
+}
+
+@media (width <= 520px) {
+  .mae-form__columnas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* En una pantalla angosta el CUIT y su botón no caben en un renglón sin que la ayuda del
+     campo se parta en cuatro: el botón baja y ocupa el ancho. */
+  .mae-form .dm-formulario__cuit {
+    flex-wrap: wrap;
+  }
+
+  .mae-form .dm-formulario__cuit > * {
+    flex: 1 1 100%;
+  }
+
+  .mae-form .dm-formulario__cuit > .boton {
+    margin-top: 0;
+  }
+
+  .mae-herramientas__cuenta {
+    margin-left: 0;
+    padding-left: 6px;
+  }
+
+  .mae-herramientas .campo {
+    flex: 1 1 140px;
+  }
+}
+
+@keyframes mae-fila {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mae-menu-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mae-cta,
+  .mae-cta .mae-cta__icono,
+  .mae-interruptor,
+  .mae-interruptor__control,
+  .mae-interruptor__control::before,
+  .mae-icono-accion,
+  .mae-icono-accion[data-tip]::after,
+  .mae-menu__item {
+    transition: none;
+  }
+
+  .mae-cta::after {
+    display: none;
+  }
+
+  .mae-cta:hover,
+  .mae-cta:hover .mae-cta__icono,
+  .mae-cta:active,
+  .mae-icono-accion:active {
+    transform: none;
+  }
+
+  .mae-panel--clientes .tabla tbody tr,
+  .mae-menu {
+    animation: none;
+  }
+}
+
+/* --- El selector de clientes activos (PAN-COB-03; lo reusan facturación y agenda) ------- */
+
+.dm-clientes__elegido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  color: var(--ink-600);
+}
+
+.dm-clientes__rotulo {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+}
+
+.dm-clientes__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.dm-clientes__opcion {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  color: var(--ink-600);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.dm-clientes__opcion:hover {
+  border-color: var(--ink-300);
+}
+
+.dm-clientes__opcion[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.dm-clientes__cuit {
+  font-family: var(--mono);
+  font-size: var(--text-caption);
+  color: var(--ink-400);
+}
+
+.dm-clientes__vacio {
+  margin: 0;
+  color: var(--ink-400);
+  font-size: var(--text-caption);
+}
+
+.dm-clientes__enlace {
+  color: var(--accent-700);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-clientes__opcion {
+    transition: none;
+  }
+}
+
+/* ── Acciones de fila con nombre y color ─────────────────────────────────────────────────
+ *
+ * Tres iconos grises de 16 px no se distinguen entre sí: había que pasar el mouse para saber cuál
+ * era «Facturar» y cuál «Cobrar». Ahora cada acción es una pastilla con su icono en un azulejo de
+ * color (verde para facturar, ámbar para cobrar, índigo para agendar) y su nombre al lado. Donde
+ * la pantalla es angosta el nombre se esconde y queda el azulejo de color, que ya se reconoce. */
+.mae-accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px 0 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  text-decoration: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.mae-accion__ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--tono-fondo);
+  color: var(--tono-color);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mae-accion__ico svg {
+  width: 15px;
+  height: 15px;
+}
+
+.mae-accion[data-tono="menta"] {
+  --tono-fondo: var(--accent-050);
+  --tono-color: var(--accent-700);
+  --tono-borde: var(--accent-100);
+}
+
+.mae-accion[data-tono="ambar"] {
+  --tono-fondo: var(--alert-050);
+  --tono-color: var(--warn);
+  --tono-borde: #f7e3b3;
+}
+
+.mae-accion[data-tono="tinta"] {
+  --tono-fondo: #ececfa;
+  --tono-color: #4a4ab0;
+  --tono-borde: #d9d9f2;
+}
+
+.mae-accion:hover {
+  text-decoration: none;
+  background: var(--tono-fondo);
+  border-color: var(--tono-borde);
+  color: var(--ink-900);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgb(30 30 46 / 8%);
+}
+
+.mae-accion:hover .mae-accion__ico {
+  transform: scale(1.1) rotate(-6deg);
+  background: var(--card);
+}
+
+.mae-accion:active {
+  transform: scale(0.97);
+}
+
+.mae-accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mae-acciones {
+  gap: 6px;
+}
+
+/* Pantalla angosta: sólo el azulejo de color, con el nombre en el `aria-label`. */
+@media (width <= 1560px) {
+  .mae-accion {
+    padding: 0 5px;
+  }
+
+  .mae-accion__texto {
+    display: none;
+  }
+}
+
+/* ── La persona: avatar más grande y una línea de contexto ──────────────────────────────── */
+.mae-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  font-size: 13px;
+}
+
+.mae-persona__datos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mae-persona__sub {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mae-accion,
+  .mae-accion__ico {
+    transition: none;
+  }
+
+  .mae-accion:hover,
+  .mae-accion:active,
+  .mae-accion:hover .mae-accion__ico {
+    transform: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * Servicios (PAN-DM-02) y Categorías (PAN-DM-03) — mismo tratamiento que Clientes
+ *
+ * Reusan el CTA, la barra de herramientas, el menú ⋯, el vacío y el formulario de arriba. Lo que
+ * se agrega es lo que no tienen los clientes: el azulejo de icono (en lugar del avatar de
+ * iniciales) y las etiquetas de dato (IVA, duración, ámbito).
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* Mismo criterio de color que el avatar: tono estable por nombre, saturación baja. */
+.mae-azulejo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  color: hsl(var(--mae-tono) 42% 36%);
+  background: hsl(var(--mae-tono) 80% 95%);
+  border: 1px solid hsl(var(--mae-tono) 60% 90%);
+  border-radius: 13px;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mae-azulejo svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mae-panel--clientes .tabla tbody tr:hover .mae-azulejo {
+  transform: scale(1.06) rotate(-4deg);
+}
+
+/* Una etiqueta de dato: el IVA, la duración, el ámbito. Neutra, para que el estado y el verde
+   sigan siendo lo único que llama la atención. */
+.mae-etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-700);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.mae-etiqueta svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--ink-400);
+}
+
+.mae-etiqueta--mono,
+.mae-etiqueta--iva {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.mae-etiqueta--iva {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.mae-ambito svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-500);
+}
+
+.mae-panel--servicios .tabla td:nth-child(2) {
+  padding-right: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mae-azulejo {
+    transition: none;
+  }
+
+  .mae-panel--clientes .tabla tbody tr:hover .mae-azulejo {
+    transform: none;
+  }
+}
+
+/* «Agendables y no agendables» es la opción más larga de la barra: sin ancho propio se parte en
+   dos renglones y el selector queda más alto que sus vecinos. */
+.mae-herramientas:has(#dm-agendable) .campo:has(#dm-agendable) {
+  flex: 0 1 240px;
+  min-width: 220px;
+}

@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Mapa de Navegación</title>
+<style>
+  :root {
+    --primary:#1E1E2E; --accent:#00C48C; --accent-700:#00A879; --accent-050:#E4F8F1;
+    --alert:#FDCB6E; --bg:#F8F7FF; --card:#FFFFFF;
+    --ink-900:#1E1E2E; --ink-700:#3d3d52; --ink-600:#54546a; --ink-500:#6b6b80; --ink-400:#8a8a9c; --ink-300:#b6b6c4;
+    --line:#e7e6f0; --line-2:#eeedf6;
+    /* role colors */
+    --r-public:#8A8A9C; --r-all:#1E1E2E; --r-admin:#A23A46; --r-op:#00A879; --r-read:#4F6D8C; --r-acc:#7C5CDB;
+    --radius:14px; --radius-sm:10px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Roboto Mono",Menlo,monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #F0EEE6; font-family: var(--sans); color: var(--ink-900); -webkit-font-smoothing: antialiased; }
+
+  .sheet { width: 1300px; margin: 30px auto; background: #fff; padding: 52px 56px 64px; box-shadow: 0 2px 12px rgba(0,0,0,.08); border-radius: 3px; }
+
+  .doc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 30px; border-bottom: 2px solid var(--primary); padding-bottom: 22px; margin-bottom: 30px; }
+  .doc-head .mark { display: flex; align-items: center; gap: 12px; }
+  .doc-head .logo { width: 44px; height: 44px; border-radius: 12px; background: var(--accent); color: var(--primary); display: grid; place-items: center; font-weight: 800; font-size: 15px; }
+  .doc-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-700); font-weight: 700; }
+  .doc-head h1 { font-size: 27px; font-weight: 800; letter-spacing: -.6px; margin: 4px 0 0; }
+  .doc-head p { font-size: 13px; color: var(--ink-500); margin: 6px 0 0; max-width: 560px; line-height: 1.5; }
+  .doc-meta { text-align: right; font-size: 11.5px; color: var(--ink-400); line-height: 1.7; font-family: var(--mono); }
+
+  /* legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 14px 18px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: 32px; align-items: center; }
+  .legend__t { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-500); font-weight: 700; margin-right: 6px; }
+  .leg { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--ink-700); }
+  .leg i { width: 13px; height: 13px; border-radius: 4px; display: block; }
+
+  .band-label { display: flex; align-items: center; gap: 11px; margin: 0 0 18px; }
+  .band-label .n { width: 26px; height: 26px; border-radius: 7px; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 12px; flex: none; }
+  .band-label h2 { font-size: 16px; font-weight: 700; margin: 0; }
+  .band-label span { font-size: 12px; color: var(--ink-400); }
+
+  /* nodes */
+  .node { border: 1.5px solid var(--line); border-left-width: 4px; border-radius: var(--radius-sm); background: #fff; padding: 11px 14px; min-width: 150px; text-decoration: none; color: inherit; display: block; position: relative; }
+  a.node { transition: box-shadow .14s, transform .05s; }
+  a.node:hover { box-shadow: 0 6px 18px rgba(30,30,46,.12); }
+  .node .pan { font-family: var(--mono); font-size: 10px; color: var(--ink-400); letter-spacing: .03em; }
+  .node .nm { font-size: 13px; font-weight: 700; margin-top: 2px; letter-spacing: -.1px; }
+  .node--public { border-left-color: var(--r-public); }
+  .node--all    { border-left-color: var(--r-all); }
+  .node--admin  { border-left-color: var(--r-admin); }
+  .node--op     { border-left-color: var(--r-op); }
+  .node--read   { border-left-color: var(--r-read); }
+  .node--acc    { border-left-color: var(--r-acc); }
+  .node--todo { border-style: dashed; background: #fcfcfe; }
+  .node--todo .nm { color: var(--ink-500); }
+  .built-dot { position: absolute; top: 9px; right: 10px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+  .role-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; font-family: var(--mono); padding: 2px 7px; border-radius: 999px; margin-top: 7px; }
+  .role-pill.admin { background: #F7E9EB; color: var(--r-admin); }
+  .role-pill.op { background: var(--accent-050); color: var(--accent-700); }
+  .role-pill.read { background: #E9EEF4; color: var(--r-read); }
+  .role-pill.acc { background: #EFEAFB; color: var(--r-acc); }
+  .role-pill.all { background: #ECECF2; color: var(--ink-700); }
+  .role-pill.lock::before { content: "🔒"; font-size: 9px; }
+
+  /* access flow band */
+  .access-flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin-bottom: 12px; }
+  .arrow { display: inline-flex; flex-direction: column; align-items: center; color: var(--ink-300); padding: 0 4px; flex: none; }
+  .arrow svg { width: 30px; height: 14px; }
+  .arrow .lbl { font-size: 10px; color: var(--ink-500); font-weight: 600; white-space: nowrap; margin-bottom: 2px; font-family: var(--mono); }
+  .gate { display: inline-flex; align-items: center; gap: 9px; background: var(--primary); color: #fff; border-radius: 999px; padding: 11px 18px; font-size: 13px; font-weight: 700; flex: none; }
+  .gate svg { width: 15px; height: 15px; }
+  .gate small { font-weight: 500; color: #b7b7c8; font-size: 11px; }
+
+  .note-inline { font-size: 11.5px; color: var(--ink-500); margin: 6px 0 0 4px; padding-left: 14px; border-left: 2px solid var(--line); }
+  .note-inline b { color: var(--ink-700); }
+
+  .hub-row { display: flex; align-items: center; gap: 18px; margin: 6px 0 4px; }
+  .hub { border: 1.5px solid var(--primary); border-radius: var(--radius); background: var(--primary); color: #fff; padding: 14px 22px; min-width: 200px; }
+  .hub .pan { font-family: var(--mono); font-size: 10px; color: #9b9bb0; }
+  .hub .nm { font-size: 16px; font-weight: 800; margin-top: 2px; }
+  .hub .role-pill.all { background: rgba(255,255,255,.14); color: #fff; }
+  .rol-q { display: inline-flex; align-items: center; gap: 8px; background: var(--bg); border: 1.5px dashed var(--ink-300); border-radius: 999px; padding: 9px 16px; font-size: 12.5px; font-weight: 700; color: var(--ink-600); }
+
+  /* module grid */
+  .mod-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 8px; }
+  .mod { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #fff; }
+  .mod__head { padding: 12px 15px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 9px; background: var(--bg); }
+  .mod__head .ic { width: 26px; height: 26px; border-radius: 7px; background: var(--primary); color: #fff; display: grid; place-items: center; flex: none; }
+  .mod__head .ic svg { width: 15px; height: 15px; }
+  .mod__head b { font-size: 13px; font-weight: 700; }
+  .mod__head span { font-size: 10.5px; color: var(--ink-400); font-family: var(--mono); display: block; margin-top: 1px; }
+  .mod__body { padding: 13px; display: flex; flex-direction: column; gap: 0; }
+  .mini-arrow { height: 16px; width: 100%; display: flex; align-items: center; justify-content: center; color: var(--ink-300); }
+  .mini-arrow svg { width: 12px; height: 12px; }
+  .mini-arrow.branch { justify-content: flex-start; padding-left: 16px; font-size: 9.5px; color: var(--ink-400); gap: 5px; font-family: var(--mono); }
+
+  .accion-note { font-size: 11px; color: var(--ink-500); margin-top: 9px; padding: 9px 11px; background: #F7E9EB; border-radius: 8px; line-height: 1.45; }
+  .accion-note b { color: var(--r-admin); }
+
+  /* external accountant lane */
+  .ext-lane { margin-top: 30px; border: 1.5px dashed var(--r-acc); border-radius: var(--radius); padding: 18px 20px; background: #FBFAFF; }
+  .ext-lane__h { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
+  .ext-lane__h b { font-size: 14px; }
+  .ext-lane__h .tag { font-family: var(--mono); font-size: 10px; color: var(--r-acc); background: #EFEAFB; padding: 3px 9px; border-radius: 999px; font-weight: 700; }
+  .ext-flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+
+  /* roles matrix */
+  .matrix-wrap { margin-top: 34px; }
+  table.matrix { width: 100%; border-collapse: collapse; }
+  table.matrix th, table.matrix td { padding: 10px 12px; text-align: center; font-size: 12px; border: 1px solid var(--line); }
+  table.matrix thead th { background: var(--primary); color: #fff; font-weight: 600; font-size: 11.5px; }
+  table.matrix thead th:first-child { text-align: left; border-top-left-radius: 8px; }
+  table.matrix tbody td:first-child { text-align: left; font-weight: 600; background: var(--bg); }
+  table.matrix .yes { color: var(--accent-700); font-weight: 800; }
+  table.matrix .ro { color: var(--r-read); font-weight: 700; font-size: 10.5px; }
+  table.matrix .no { color: var(--ink-300); }
+  table.matrix tbody tr:hover td { background: #fbfbfe; }
+  table.matrix tbody tr:hover td:first-child { background: var(--line-2); }
+
+  .foot { margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10.5px; color: var(--ink-300); display: flex; justify-content: space-between; }
+
+  @media print {
+    body { background: #fff; }
+    .sheet { width: auto; margin: 0; padding: 0; box-shadow: none; }
+    @page { size: landscape; margin: 0.5in; }
+    .mod, .ext-lane, table.matrix tr, .access-flow, .band-label { break-inside: avoid; }
+    * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <div class="doc-head">
+    <div>
+      <div class="mark">
+        <div class="logo">CS</div>
+        <div>
+          <div class="doc-eyebrow">Arquitectura de navegación</div>
+          <h1>Mapa de Navegación entre Pantallas</h1>
+        </div>
+      </div>
+      <p>Recorrido entre las pantallas del sistema. Cada transición indica si requiere <b>autenticación</b> o un <b>rol específico</b>. El color del borde izquierdo señala el rol mínimo necesario para acceder a cada pantalla.</p>
+    </div>
+    <div class="doc-meta">CheatSheet iPaaS · v2.4<br>Junio 2026<br>Web · Escritorio</div>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <span class="legend__t">Rol requerido</span>
+    <span class="leg"><i style="background:var(--r-public)"></i> Sin autenticar</span>
+    <span class="leg"><i style="background:var(--r-all)"></i> Todos los roles</span>
+    <span class="leg"><i style="background:var(--r-admin)"></i> Administrador</span>
+    <span class="leg"><i style="background:var(--r-op)"></i> Operador</span>
+    <span class="leg"><i style="background:var(--r-read)"></i> Solo Lectura</span>
+    <span class="leg"><i style="background:var(--r-acc)"></i> Contador externo</span>
+    <span style="flex:1"></span>
+    <span class="leg" style="color:var(--ink-400); font-weight:500;"><span class="built-dot" style="position:static"></span> Pantalla construida · clickeable</span>
+  </div>
+
+  <!-- BAND 1 · ACCESO -->
+  <div class="band-label"><span class="n">1</span><div><h2>Acceso &amp; autenticación</h2><span>Sin sesión iniciada · alta de organización (RN-04: no se accede al panel sin completar el onboarding)</span></div></div>
+
+  <div class="access-flow">
+    <a href="onboarding.html" class="node node--public" style="min-width:160px;"><span class="built-dot"></span><div class="pan">PAN-ONB-01</div><div class="nm">Inicio de sesión</div><span class="role-pill all">Sin autenticar</span></a>
+    <span class="arrow"><span class="lbl">registro nuevo</span><svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7h24m0 0-5-4m5 4-5 4"/></svg></span>
+    <a href="onboarding.html" class="node node--public" style="min-width:160px;"><span class="built-dot"></span><div class="pan">PAN-ONB-02</div><div class="nm">Registro de empresa</div><span class="role-pill all">Alta · sin sesión</span></a>
+    <span class="arrow"><span class="lbl">CUIT validado</span><svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7h24m0 0-5-4m5 4-5 4"/></svg></span>
+    <a href="onboarding.html" class="node node--public" style="min-width:160px;"><span class="built-dot"></span><div class="pan">PAN-ONB-03</div><div class="nm">Integraciones</div><span class="role-pill all">Alta · sin sesión</span></a>
+    <span class="arrow"><span class="lbl">organización lista</span><svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7h24m0 0-5-4m5 4-5 4"/></svg></span>
+    <span class="gate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Autenticado <small>sesión + rol asignado</small></span>
+  </div>
+  <div class="note-inline"><b>Usuario existente:</b> desde PAN-ONB-01 con credenciales válidas (email/contraseña u OAuth Google) pasa directo al gate de autenticación, omitiendo el alta.</div>
+
+  <!-- BAND 2 · HUB -->
+  <div class="band-label" style="margin-top:30px;"><span class="n">2</span><div><h2>Panel autenticado</h2><span>Punto de entrada común a todos los roles · la barra lateral muestra solo los módulos permitidos por el rol</span></div></div>
+
+  <div class="hub-row">
+    <a href="dashboard.html" class="hub"><span class="built-dot" style="background:#fff"></span><div class="pan">PAN-DASH</div><div class="nm">Dashboard</div><span class="role-pill all">Todos los roles</span></a>
+    <span class="arrow"><span class="lbl">navega según permisos</span><svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7h24m0 0-5-4m5 4-5 4"/></svg></span>
+    <span class="rol-q"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3.5"/><circle cx="12" cy="17.5" r=".6" fill="currentColor"/><circle cx="12" cy="12" r="9"/></svg> ¿Qué rol tiene el usuario?</span>
+  </div>
+
+  <!-- BAND 3 · MODULES -->
+  <div class="band-label" style="margin-top:30px;"><span class="n">3</span><div><h2>Módulos &amp; pantallas</h2><span>El borde de cada pantalla indica el rol mínimo · los 🔒 marcan acciones restringidas a un rol superior</span></div></div>
+
+  <div class="mod-grid">
+
+    <!-- Ingesta -->
+    <div class="mod">
+      <div class="mod__head"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div><div><b>Ingesta de Datos</b><span>Épica 3</span></div></div>
+      <div class="mod__body">
+        <a href="ingesta.html" class="node node--op"><span class="built-dot"></span><div class="pan">PAN-ING-01</div><div class="nm">Carga de planilla</div><span class="role-pill op">Admin · Operador</span></a>
+        <div class="mini-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m0 0-5-5m5 5 5-5"/></svg></div>
+        <a href="ingesta.html" class="node node--op"><span class="built-dot"></span><div class="pan">PAN-ING-02</div><div class="nm">Mapeo IA</div><span class="role-pill op">Admin · Operador</span></a>
+        <div class="mini-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m0 0-5-5m5 5 5-5"/></svg></div>
+        <a href="ingesta.html" class="node node--op"><span class="built-dot"></span><div class="pan">PAN-ING-03</div><div class="nm">Detalle de procesamiento</div><span class="role-pill op">Admin · Operador</span></a>
+      </div>
+    </div>
+
+    <!-- Datos Maestros -->
+    <div class="mod">
+      <div class="mod__head"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 7a4 4 0 1 0-8 0 4 4 0 0 0 8 0Z"/><path d="M3 21v-1a6 6 0 0 1 12 0v1"/></svg></div><div><b>Datos Maestros</b><span>Épica 4</span></div></div>
+      <div class="mod__body">
+        <div class="node node--op node--todo"><div class="pan">PAN-DM-01</div><div class="nm">Clientes</div><span class="role-pill op">Admin · Operador</span></div>
+        <div class="mini-arrow branch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M5 12h14"/></svg> módulos hermanos</div>
+        <div class="node node--op node--todo"><div class="pan">PAN-DM-02</div><div class="nm">Servicios / Productos</div><span class="role-pill op">Admin · Operador</span></div>
+        <div class="mini-arrow"></div>
+        <div class="node node--op node--todo"><div class="pan">PAN-DM-03</div><div class="nm">Categorías</div><span class="role-pill op">Admin · Operador</span></div>
+      </div>
+    </div>
+
+    <!-- Facturación -->
+    <div class="mod">
+      <div class="mod__head"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M14 2v5h5"/></svg></div><div><b>Facturación</b><span>Épica 5</span></div></div>
+      <div class="mod__body">
+        <div class="node node--all node--todo"><div class="pan">PAN-FAC-01</div><div class="nm">Listado de comprobantes</div><span class="role-pill all">Todos · Solo Lectura ve</span></div>
+        <div class="mini-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m0 0-5-5m5 5 5-5"/></svg></div>
+        <div class="node node--all node--todo"><div class="pan">PAN-FAC-02</div><div class="nm">Detalle de comprobante</div><span class="role-pill all">Todos los roles</span></div>
+        <div class="mini-arrow branch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M5 12h14m0 0-5-5m5 5-5 5"/></svg> acciones</div>
+        <div class="node node--op node--todo"><div class="pan">PAN-FAC-03</div><div class="nm">Nueva emisión (CAE)</div><span class="role-pill op">Admin · Operador</span></div>
+        <div class="mini-arrow"></div>
+        <div class="node node--op node--todo"><div class="pan">PAN-FAC-04</div><div class="nm">Nota de crédito</div><span class="role-pill op">Admin · Operador</span></div>
+        <div class="mini-arrow"></div>
+        <div class="node node--admin node--todo"><div class="pan">PAN-FAC-05</div><div class="nm">Puntos de venta</div><span class="role-pill admin lock">Solo Admin</span></div>
+      </div>
+    </div>
+
+    <!-- Cobros -->
+    <div class="mod">
+      <div class="mod__head"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 9.5h19"/></svg></div><div><b>Cobros</b><span>Épica 6</span></div></div>
+      <div class="mod__body">
+        <a href="cobros.html" class="node node--op"><span class="built-dot"></span><div class="pan">PAN-COB-01</div><div class="nm">Listado de cobros</div><span class="role-pill op">Admin · Operador</span></a>
+        <div class="mini-arrow branch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M5 12h14m0 0-5-5m5 5-5 5"/></svg></div>
+        <a href="cobros.html" class="node node--op"><span class="built-dot"></span><div class="pan">PAN-COB-02</div><div class="nm">Detalle de cobro</div><span class="role-pill op">Admin · Operador</span></a>
+        <div class="mini-arrow"></div>
+        <div class="node node--op node--todo"><div class="pan">PAN-COB-03</div><div class="nm">Nuevo cobro</div><span class="role-pill op">Admin · Operador</span></div>
+        <div class="accion-note">🔒 <b>Reembolso</b> (HU-E6-05) restringido a <b>Administrador</b> · 🔒 Solo Lectura solo consulta el listado, sin ejecutar acciones.</div>
+      </div>
+    </div>
+
+    <!-- Agenda -->
+    <div class="mod">
+      <div class="mod__head"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></div><div><b>Agenda</b><span>Épica 7</span></div></div>
+      <div class="mod__body">
+        <div class="node node--op node--todo"><div class="pan">PAN-AGE-01</div><div class="nm">Vista de agenda</div><span class="role-pill op">Admin · Operador</span></div>
+        <div class="mini-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m0 0-5-5m5 5 5-5"/></svg></div>
+        <div class="node node--op node--todo"><div class="pan">PAN-AGE-02</div><div class="nm">Detalle de turno</div><span class="role-pill op">Admin · Operador</span></div>
+        <div class="mini-arrow"></div>
+        <div class="node node--admin node--todo"><div class="pan">PAN-AGE-03</div><div class="nm">Recursos &amp; disponibilidad</div><span class="role-pill admin lock">Solo Admin</span></div>
+      </div>
+    </div>
+
+    <!-- WhatsApp -->
+    <div class="mod">
+      <div class="mod__head"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg></div><div><b>Agente WhatsApp</b><span>Épicas 8 · 9</span></div></div>
+      <div class="mod__body">
+        <a href="agente-whatsapp.html" class="node node--op"><span class="built-dot"></span><div class="pan">PAN-WA-01</div><div class="nm">Conversaciones</div><span class="role-pill op">Operador · Admin</span></a>
+        <div class="mini-arrow branch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M5 12h14"/></svg> escalamiento</div>
+        <a href="agente-whatsapp.html" class="node node--admin"><span class="built-dot"></span><div class="pan">PAN-WA-02</div><div class="nm">Configuración &amp; FAQ</div><span class="role-pill admin lock">Solo Admin</span></a>
+        <div class="accion-note">El operador toma las conversaciones <b>escaladas</b> (HU-E9-01); la administración de FAQ y horarios es exclusiva del <b>Administrador</b>.</div>
+      </div>
+    </div>
+
+    <!-- Reportes -->
+    <div class="mod">
+      <div class="mod__head"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div><div><b>Reportes</b><span>Épica 10</span></div></div>
+      <div class="mod__body">
+        <a href="reportes.html" class="node node--acc"><span class="built-dot"></span><div class="pan">PAN-REP-01</div><div class="nm">Dashboard de reportes</div><span class="role-pill acc">Admin · Op · Contador</span></a>
+        <div class="mini-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m0 0-5-5m5 5 5-5"/></svg></div>
+        <a href="reporte-libro-iva.html" class="node node--acc"><span class="built-dot"></span><div class="pan">REP-IVA</div><div class="nm">Libro IVA Ventas</div><span class="role-pill acc">Admin · Op · Contador</span></a>
+        <div class="mini-arrow branch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M5 12h14"/></svg> configuración</div>
+        <a href="reportes.html" class="node node--admin"><span class="built-dot"></span><div class="pan">PAN-REP-02</div><div class="nm">Config. automática</div><span class="role-pill admin lock">Solo Admin</span></a>
+      </div>
+    </div>
+
+    <!-- Configuración + Logs -->
+    <div class="mod">
+      <div class="mod__head"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.5 7.5 0 0 0 .1-3l1.8-1.4-1.8-3.1-2.2.8a7.5 7.5 0 0 0-2.6-1.5L14 2h-3.6l-.5 2.3a7.5 7.5 0 0 0-2.6 1.5l-2.2-.8L2.3 8.1l1.8 1.4a7.5 7.5 0 0 0 0 3l-1.8 1.4 1.8 3.1 2.2-.8a7.5 7.5 0 0 0 2.6 1.5l.5 2.3H14l.5-2.3a7.5 7.5 0 0 0 2.6-1.5l2.2.8 1.8-3.1-1.7-1.4Z"/></svg></div><div><b>Sistema &amp; Configuración</b><span>Épicas 11 · 12</span></div></div>
+      <div class="mod__body">
+        <a href="logs.html" class="node node--admin"><span class="built-dot"></span><div class="pan">PAN-LOG-01</div><div class="nm">Bitácora de operaciones</div><span class="role-pill admin lock">Solo Admin</span></a>
+        <div class="mini-arrow branch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M5 12h14"/></svg> configuración</div>
+        <div class="node node--admin node--todo"><div class="pan">PAN-USR</div><div class="nm">Usuarios &amp; roles</div><span class="role-pill admin lock">Solo Admin</span></div>
+        <div class="mini-arrow"></div>
+        <div class="node node--admin node--todo"><div class="pan">PAN-CFG-RN</div><div class="nm">Reglas de negocio</div><span class="role-pill admin lock">Solo Admin</span></div>
+        <div class="mini-arrow"></div>
+        <div class="node node--admin node--todo"><div class="pan">PAN-SOP-01</div><div class="nm">Soporte</div><span class="role-pill admin lock">Solo Admin</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- EXTERNAL ACCOUNTANT -->
+  <div class="ext-lane">
+    <div class="ext-lane__h"><span class="tag">ACCESO EXTERNO</span><b>Contador externo</b><span style="font-size:12px; color:var(--ink-500);">— usuario invitado con permisos de solo lectura sobre reportes (HU-E10-05 / E10-06)</span></div>
+    <div class="ext-flow">
+      <div class="node node--acc" style="min-width:170px;"><div class="pan">EMAIL</div><div class="nm">Link de acceso limitado</div><span class="role-pill acc">Invitación · sin usuario</span></div>
+      <span class="arrow"><span class="lbl">rol Contador</span><svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7h24m0 0-5-4m5 4-5 4"/></svg></span>
+      <a href="reportes.html" class="node node--acc" style="min-width:170px;"><span class="built-dot"></span><div class="pan">PAN-REP-01</div><div class="nm">Reportes (solo lectura)</div><span class="role-pill acc">Contador externo</span></a>
+      <span class="arrow"><span class="lbl">descargar</span><svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7h24m0 0-5-4m5 4-5 4"/></svg></span>
+      <a href="reporte-libro-iva.html" class="node node--acc" style="min-width:170px;"><span class="built-dot"></span><div class="pan">REP-IVA / ZIP</div><div class="nm">Paquete contable</div><span class="role-pill acc">Contador externo</span></a>
+      <span class="arrow"><svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7h12"/></svg></span>
+      <div class="node node--read" style="min-width:140px; border-left-color:var(--r-read);"><div class="nm" style="color:var(--ink-400); font-weight:600; font-size:12px;">✕ Sin acceso a Facturación, Cobros, WhatsApp ni Configuración</div></div>
+    </div>
+  </div>
+
+  <!-- ROLES MATRIX -->
+  <div class="matrix-wrap">
+    <div class="band-label"><span class="n">4</span><div><h2>Matriz de acceso por rol</h2><span>Resumen de qué módulos alcanza cada rol — <b style="color:var(--accent-700)">●</b> acceso total · <b style="color:var(--r-read)">RO</b> solo lectura · — sin acceso</span></div></div>
+    <table class="matrix">
+      <thead>
+        <tr><th>Módulo / Pantalla</th><th>Administrador</th><th>Operador</th><th>Solo Lectura</th><th>Contador externo</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Dashboard</td><td class="yes">●</td><td class="yes">●</td><td class="ro">RO</td><td class="no">—</td></tr>
+        <tr><td>Ingesta de Datos</td><td class="yes">●</td><td class="yes">●</td><td class="no">—</td><td class="no">—</td></tr>
+        <tr><td>Datos Maestros</td><td class="yes">●</td><td class="yes">●</td><td class="ro">RO</td><td class="no">—</td></tr>
+        <tr><td>Facturación — consulta</td><td class="yes">●</td><td class="yes">●</td><td class="ro">RO</td><td class="no">—</td></tr>
+        <tr><td>Facturación — emitir / anular</td><td class="yes">●</td><td class="yes">●</td><td class="no">—</td><td class="no">—</td></tr>
+        <tr><td>Facturación — puntos de venta</td><td class="yes">●</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+        <tr><td>Cobros — listado / detalle</td><td class="yes">●</td><td class="yes">●</td><td class="ro">RO</td><td class="no">—</td></tr>
+        <tr><td>Cobros — reembolso</td><td class="yes">●</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+        <tr><td>Agenda</td><td class="yes">●</td><td class="yes">●</td><td class="ro">RO</td><td class="no">—</td></tr>
+        <tr><td>Agente WhatsApp — conversaciones</td><td class="yes">●</td><td class="yes">●</td><td class="no">—</td><td class="no">—</td></tr>
+        <tr><td>Agente WhatsApp — config / FAQ</td><td class="yes">●</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+        <tr><td>Reportes &amp; Libro IVA</td><td class="yes">●</td><td class="yes">●</td><td class="ro">RO</td><td class="ro">RO</td></tr>
+        <tr><td>Reportes — config. automática</td><td class="yes">●</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+        <tr><td>Log de Operaciones (auditoría)</td><td class="yes">●</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+        <tr><td>Configuración (usuarios, reglas, soporte)</td><td class="yes">●</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    <span>CheatSheet iPaaS · Mapa de Navegación · Documento de arquitectura</span>
+    <span>Roles: Administrador · Operador · Solo Lectura · Contador externo</span>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Guía Visual (formato documento)</title>
+<link rel="stylesheet" href="estilo-doc.css">
+</head>
+<body>
+
+<!-- ===== PÁGINA 1 ===== -->
+<div class="page">
+  <div class="doc-title">Guía Visual del Sistema</div>
+  <div class="doc-subtitle">CheatSheet — Plataforma iPaaS para PyMEs</div>
+  <hr class="doc-rule">
+  <p class="doc-meta"><b>Versión:</b> Design System 2.4 &nbsp;·&nbsp; <b>Fecha:</b> Junio 2026 &nbsp;·&nbsp; <b>Alcance:</b> Web — Escritorio 1440px</p>
+  <p class="intro">Este documento define el lenguaje visual de CheatSheet: la paleta de colores, la tipografía y los componentes reutilizables que garantizan consistencia entre todas las pantallas. Cada color se referencia por su <i>token</i> y nunca por su valor literal.</p>
+
+  <h1 class="h">1. Paleta de colores</h1>
+
+  <h2 class="h">1.1 Colores de marca</h2>
+  <table class="w">
+    <thead><tr><th>Token</th><th style="width:60px;">Muestra</th><th>Hex</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">--primary</td><td><span class="chip-lg" style="background:#1E1E2E;"></span></td><td class="mono">#1E1E2E</td><td>Barra lateral, encabezados, texto principal y botones primarios.</td></tr>
+      <tr><td class="mono">--accent</td><td><span class="chip-lg" style="background:#00C48C;"></span></td><td class="mono">#00C48C</td><td>Acción principal (CTA), éxito, selección y controles activos.</td></tr>
+      <tr><td class="mono">--alert</td><td><span class="chip-lg" style="background:#FDCB6E;"></span></td><td class="mono">#FDCB6E</td><td>Métricas a observar, pendientes y elementos de atención.</td></tr>
+      <tr><td class="mono">--bg</td><td><span class="chip-lg" style="background:#F8F7FF;"></span></td><td class="mono">#F8F7FF</td><td>Fondo del área de trabajo (blanco con leve tono lila frío).</td></tr>
+      <tr><td class="mono">--card</td><td><span class="chip-lg" style="background:#FFFFFF;"></span></td><td class="mono">#FFFFFF</td><td>Superficies elevadas: tarjetas, paneles y tablas.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="h">1.2 Escala neutra de grises</h2>
+  <p>Derivada del primario (tono frío). Se usa para texto, bordes y fondos sutiles.</p>
+  <table class="w">
+    <thead><tr><th>Token</th><th style="width:60px;">Muestra</th><th>Hex</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">--ink-900</td><td><span class="chip-lg" style="background:#1E1E2E;"></span></td><td class="mono">#1E1E2E</td><td>Títulos y texto de máximo contraste.</td></tr>
+      <tr><td class="mono">--ink-700</td><td><span class="chip-lg" style="background:#3d3d52;"></span></td><td class="mono">#3D3D52</td><td>Texto de cuerpo enfatizado.</td></tr>
+      <tr><td class="mono">--ink-500</td><td><span class="chip-lg" style="background:#6b6b80;"></span></td><td class="mono">#6B6B80</td><td>Texto secundario y descripciones.</td></tr>
+      <tr><td class="mono">--ink-400</td><td><span class="chip-lg" style="background:#8a8a9c;"></span></td><td class="mono">#8A8A9C</td><td>Texto terciario y placeholders.</td></tr>
+      <tr><td class="mono">--line</td><td><span class="chip-lg" style="background:#e7e6f0;"></span></td><td class="mono">#E7E6F0</td><td>Bordes y divisores.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="h">1.3 Colores semánticos de estado</h2>
+  <p>Cada estado usa texto saturado sobre un fondo tenue del mismo matiz, asegurando contraste legible sobre tarjetas blancas.</p>
+  <table class="w">
+    <thead><tr><th>Estado</th><th style="width:90px;">Muestra</th><th>Texto</th><th>Fondo</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td>Completado / Éxito</td><td><span class="badge badge--ok">Completado</span></td><td class="mono">#00A879</td><td class="mono">#E4F8F1</td><td>Operación exitosa, conectado, pagado.</td></tr>
+      <tr><td>Pendiente</td><td><span class="badge badge--warn">Pendiente</span></td><td class="mono">#B8860B</td><td class="mono">#FEF1D6</td><td>En espera de acción o confirmación.</td></tr>
+      <tr><td>En mora / Error</td><td><span class="badge badge--err">En mora</span></td><td class="mono">#DC2B3A</td><td class="mono">#FCE8EA</td><td>Vencido, rechazado o con error.</td></tr>
+      <tr><td>Informativo</td><td><span class="badge badge--info">Info</span></td><td class="mono">#3A3A5C</td><td class="mono">#ECECF4</td><td>Estado neutro o en proceso.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="page__foot">CheatSheet · Guía Visual</div>
+  <div class="page__num">1</div>
+</div>
+
+<!-- ===== PÁGINA 2 ===== -->
+<div class="page">
+  <h1 class="h">2. Tipografía</h1>
+  <p class="intro">Se emplean dos familias: <i>DM Sans</i> para toda la interfaz y una monoespaciada para datos e identificadores técnicos (CUIT, CAE, N.º de comprobante, montos, fechas).</p>
+
+  <h2 class="h">2.1 Familias</h2>
+  <table class="w">
+    <thead><tr><th style="width:130px;">Familia</th><th>Stack tipográfico</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td><b>DM Sans</b></td><td class="mono">"DM Sans", system-ui, sans-serif</td><td>Interfaz general: títulos, cuerpo, botones y etiquetas. Auto-hospedada con <code>next/font</code>; el stack del sistema es sólo el respaldo.</td></tr>
+      <tr><td><b>Monoespaciada</b></td><td class="mono">"JetBrains Mono", ui-monospace, monospace</td><td>Datos técnicos: CUIT, CAE, comprobantes, montos, tokens.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="h">2.2 Escala tipográfica</h2>
+  <table class="w">
+    <thead><tr><th>Estilo</th><th>Tamaño</th><th>Peso</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td>Título de página</td><td class="mono">30 px</td><td>800 — Extrabold</td><td>Encabezado principal de cada pantalla.</td></tr>
+      <tr><td>Encabezado de sección</td><td class="mono">20 px</td><td>800 — Extrabold</td><td>Divisiones dentro de una pantalla.</td></tr>
+      <tr><td>Subtítulo / título de tarjeta</td><td class="mono">16 px</td><td>700 — Bold</td><td>Títulos de tarjetas y paneles.</td></tr>
+      <tr><td>Cuerpo de texto</td><td class="mono">14 px</td><td>400 — Regular</td><td>Tamaño base de lectura.</td></tr>
+      <tr><td>Etiqueta de control / botón</td><td class="mono">13 px</td><td>600 — Semibold</td><td>Botones, campos y controles.</td></tr>
+      <tr><td>Texto secundario</td><td class="mono">12 px</td><td>400 — Regular</td><td>Descripciones y notas.</td></tr>
+      <tr><td>Eyebrow / encabezado de columna</td><td class="mono">10.5 px · mono</td><td>600 — Semibold</td><td>Etiquetas en mayúscula y encabezados de tabla.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="h">2.3 Pesos disponibles</h2>
+  <ul class="doc">
+    <li><b>Regular (400)</b> — texto de cuerpo y descripciones.</li>
+    <li><b>Semibold (600)</b> — etiquetas de controles y botones.</li>
+    <li><b>Bold (700)</b> — títulos de tarjeta y subtítulos.</li>
+    <li><b>Extrabold (800)</b> — títulos de página y cifras destacadas.</li>
+  </ul>
+
+  <div class="page__foot">CheatSheet · Guía Visual</div>
+  <div class="page__num">2</div>
+</div>
+
+<!-- ===== PÁGINA 3 ===== -->
+<div class="page">
+  <h1 class="h">3. Componentes reutilizables</h1>
+  <p class="intro">Catálogo de los componentes base. Todos comparten radios, sombras y tokens de color para garantizar coherencia entre módulos.</p>
+
+  <table class="w">
+    <thead><tr><th style="width:150px;">Componente</th><th>Variantes</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td><b>Botón</b></td><td>CTA (verde), Primario (oscuro), Secundario (ghost), Pequeño</td><td>El CTA verde marca la acción principal; el ghost, las secundarias. Radio 10 px.</td></tr>
+      <tr><td><b>Badge de estado</b></td><td>Completado, Pendiente, En mora, Informativo, Neutro</td><td>Comunica el estado de una entidad mediante color semántico.</td></tr>
+      <tr><td><b>Chip de filtro</b></td><td>Activo (primario) / inactivo (borde)</td><td>Filtra listados; el activo se rellena con el primario.</td></tr>
+      <tr><td><b>Campo de formulario</b></td><td>Normal, Válido (foco verde), Error (foco rojo)</td><td>Incluye etiqueta, ayuda y estados de validación.</td></tr>
+      <tr><td><b>Toggle</b></td><td>Activado (verde) / desactivado</td><td>Preferencias on/off: agente activo, envío automático, horarios.</td></tr>
+      <tr><td><b>Tarjeta de métrica</b></td><td>Ícono tonal + etiqueta + cifra</td><td>Unidad base de los dashboards.</td></tr>
+      <tr><td><b>Tabla de datos</b></td><td>Encabezado mono, identificadores y montos en mono</td><td>Listados de comprobantes, cobros y operaciones.</td></tr>
+      <tr><td><b>Tarjeta / contenedor</b></td><td>Estándar (blanca) / de acento (verde tenue)</td><td>Unidad de agrupación: borde 1 px, radio 14 px, sombra suave.</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="h">Muestras de referencia</h3>
+  <table class="w">
+    <tbody>
+      <tr><td style="width:170px;">Botones</td><td>
+        <span style="display:inline-block;background:#00C48C;color:#1E1E2E;font-weight:700;font-size:9.5pt;padding:7px 13px;border-radius:8px;margin-right:6px;">Acción principal</span>
+        <span style="display:inline-block;background:#1E1E2E;color:#fff;font-weight:700;font-size:9.5pt;padding:7px 13px;border-radius:8px;margin-right:6px;">Primario</span>
+        <span style="display:inline-block;background:#fff;border:1px solid #e7e6f0;color:#3d3d52;font-weight:700;font-size:9.5pt;padding:7px 13px;border-radius:8px;">Secundario</span>
+      </td></tr>
+      <tr><td>Estados (badges)</td><td>
+        <span class="badge badge--ok">Completado</span>&nbsp;
+        <span class="badge badge--warn">Pendiente</span>&nbsp;
+        <span class="badge badge--err">En mora</span>&nbsp;
+        <span class="badge badge--info">Informativo</span>
+      </td></tr>
+      <tr><td>Validación de campo</td><td>
+        <span class="s-ok">✓ Válido</span> — foco verde &nbsp;·&nbsp; <span class="s-err">✗ Inválido</span> — foco rojo
+      </td></tr>
+    </tbody>
+  </table>
+
+  <h1 class="h">4. Espaciado, radios y sombras</h1>
+  <table class="w">
+    <thead><tr><th>Token</th><th>Valor</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">--radius-xs</td><td class="mono">8 px</td><td>Chips e íconos.</td></tr>
+      <tr><td class="mono">--radius-sm</td><td class="mono">10 px</td><td>Botones e inputs.</td></tr>
+      <tr><td class="mono">--radius</td><td class="mono">14 px</td><td>Tarjetas y paneles.</td></tr>
+      <tr><td class="mono">--shadow</td><td class="mono">0 8px 24px rgba(30,30,46,.05)</td><td>Elevación sutil de tarjetas.</td></tr>
+      <tr><td>Grilla de espaciado</td><td class="mono">base 4 px → 12 · 16 · 18 · 22 · 30</td><td>Separaciones recurrentes (flex/grid con <i>gap</i>).</td></tr>
+      <tr><td>Padding de página</td><td class="mono">30 px 38 px</td><td>Márgenes del área de trabajo.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="page__foot">CheatSheet · Guía Visual · Fin del documento</div>
+  <div class="page__num">3</div>
+</div>
+
+</body>
+</html>

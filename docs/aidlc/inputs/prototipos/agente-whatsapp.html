@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Agente WhatsApp</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .wpp-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+  .wpp-head__l { display: flex; align-items: center; gap: 15px; }
+  .wpp-icon { width: 52px; height: 52px; border-radius: 13px; background: var(--accent); color: #fff; display: grid; place-items: center; flex: none; }
+  .wpp-icon svg { width: 26px; height: 26px; }
+  .wpp-head__r { display: flex; align-items: center; gap: 14px; }
+  .agent-status { display: flex; align-items: center; gap: 13px; border: 1.5px solid var(--accent); background: var(--accent-050); border-radius: var(--radius-sm); padding: 9px 15px; }
+  .agent-status b { color: var(--accent-700); font-size: 13px; display: block; }
+  .agent-status span { font-size: 11.5px; color: var(--ink-500); }
+
+  .wpp-grid { display: grid; grid-template-columns: 400px 1fr; gap: 18px; }
+  .conv-list { height: 600px; display: flex; flex-direction: column; }
+  .conv-list__head { padding: 18px 20px 12px; }
+  .conv-search { display: flex; align-items: center; gap: 9px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 13px; color: var(--ink-400); margin-top: 12px; }
+  .conv-search svg { width: 16px; height: 16px; }
+  .conv-search input { border: 0; background: transparent; outline: 0; font: inherit; font-size: 13px; flex: 1; }
+  .conv-filters { display: flex; gap: 7px; padding: 12px 20px; flex-wrap: wrap; }
+  .conv-scroll { overflow-y: auto; flex: 1; }
+  .thread { display: flex; gap: 12px; padding: 13px 20px; cursor: pointer; border-left: 3px solid transparent; }
+  .thread:hover { background: #fbfbfe; }
+  .thread.is-active { background: var(--accent-050); border-left-color: var(--accent); }
+  .thread--escalada { background: var(--err-bg); border-left-color: var(--err); }
+  .thread--escalada:hover { background: #fbeaec; }
+  .thread__body { flex: 1; min-width: 0; }
+  .thread__top { display: flex; justify-content: space-between; gap: 8px; }
+  .thread__top b { font-size: 13.5px; font-weight: 600; }
+  .thread__top time { font-size: 11px; color: var(--ink-400); flex: none; }
+  .thread__msg { font-size: 12.5px; color: var(--ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0 6px; }
+
+  .chat { height: 600px; display: flex; flex-direction: column; }
+  .chat__head { display: flex; align-items: center; gap: 12px; padding: 16px 22px; border-bottom: 1px solid var(--line); }
+  .chat__head b { font-size: 14.5px; font-weight: 700; }
+  .chat__head .ph { font-family: var(--mono); font-size: 11.5px; color: var(--ink-400); }
+  .online { color: var(--accent-700); }
+  .chat__body { flex: 1; overflow-y: auto; padding: 22px 26px; background: var(--bg); display: flex; flex-direction: column; gap: 4px; }
+  .day-sep { text-align: center; font-family: var(--mono); font-size: 11px; color: var(--ink-400); margin: 6px 0 14px; }
+  .bubble-row { display: flex; margin-bottom: 12px; }
+  .bubble-row.out { justify-content: flex-end; }
+  .bubble { max-width: 64%; padding: 11px 15px; border-radius: 16px; font-size: 13.5px; line-height: 1.5; }
+  .bubble .t { display: block; font-size: 10.5px; font-family: var(--mono); margin-top: 5px; opacity: .6; text-align: right; }
+  .bubble.in { background: var(--card); border: 1px solid var(--line); border-top-left-radius: 4px; }
+  .bubble.out { background: var(--primary); color: #fff; border-top-right-radius: 4px; }
+  .ai-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-700); font-weight: 600; text-align: right; margin-bottom: 5px; display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+  .ai-label svg { width: 13px; height: 13px; }
+  .chat__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--line); }
+  .ai-managed { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-500); }
+  .ai-managed b { color: var(--accent-700); display: inline-flex; align-items: center; gap: 6px; }
+  .ai-managed svg { width: 14px; height: 14px; }
+
+  .agenda { margin-top: 18px; padding: 22px 24px; }
+  .agenda__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 16px; }
+  .agenda__item { padding: 0 22px; border-left: 1px solid var(--line); }
+  .agenda__item:first-child { border-left: 0; padding-left: 0; }
+  .agenda__time { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 19px; font-weight: 700; }
+  .agenda__time svg { width: 16px; height: 16px; color: var(--ink-400); }
+  .agenda__client { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .agenda__client b { font-size: 13px; font-weight: 600; display: block; }
+  .agenda__client span { font-size: 12px; color: var(--ink-400); }
+
+  /* Configuración */
+  .cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .cfg-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .cfg-head h2 { font-size: 16px; font-weight: 700; margin: 0; }
+  .cfg-head p { font-size: 12px; color: var(--ink-400); margin: 2px 0 0; }
+  .cfg-ic { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-050); color: var(--accent-700); display: grid; place-items: center; flex: none; }
+  .cfg-ic svg { width: 17px; height: 17px; }
+  .hours { display: flex; flex-direction: column; }
+  .hour-row { display: flex; align-items: center; gap: 16px; padding: 12px 6px; border-top: 1px solid var(--line-2); }
+  .hour-row:first-child { border-top: 0; }
+  .hour-row .day { font-size: 13.5px; font-weight: 600; width: 86px; }
+  .hour-row.is-off .day { color: var(--ink-300); }
+  .time-in { font-family: var(--mono); font-size: 13px; font-weight: 600; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; }
+  .time-in.dis { color: var(--ink-300); background: transparent; }
+  .hour-row .sep { color: var(--ink-400); font-size: 12px; }
+  .faq { border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: 10px; overflow: hidden; }
+  .faq.is-open { border-color: var(--accent-100); }
+  .faq__q { display: flex; align-items: center; gap: 11px; padding: 14px 16px; cursor: pointer; }
+  .faq__q .qm { width: 20px; height: 20px; border-radius: 50%; background: var(--accent-050); color: var(--accent-700); display: grid; place-items: center; font-weight: 700; font-size: 12px; flex: none; }
+  .faq__q b { font-size: 13.5px; font-weight: 600; flex: 1; }
+  .faq__uses { font-family: var(--mono); font-size: 11px; color: var(--ink-400); }
+  .faq__chev { color: var(--ink-300); }
+  .faq.is-open .faq__chev { color: var(--accent-700); transform: rotate(180deg); }
+  .faq__a { padding: 0 16px 16px 47px; }
+  .faq__txt { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--ink-700); line-height: 1.55; }
+  .faq__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 12px; }
+  .faq__acts { display: flex; gap: 16px; }
+  .faq__acts a { font-size: 12.5px; font-weight: 600; color: var(--ink-600); cursor: pointer; }
+  .faq__acts a.del { color: var(--err); }
+  .welcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .welcome-text { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; font-size: 13px; line-height: 1.6; min-height: 150px; color: var(--ink-800); }
+  .wa-preview { background: #E5F5EC; border-radius: var(--radius-sm); padding: 16px; min-height: 150px; background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.01) 0 1px, transparent 1px 14px); }
+  .wa-tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; color: var(--accent-700); font-weight: 700; margin-bottom: 8px; }
+  .wa-bubble { background: #fff; border-radius: 4px 12px 12px 12px; padding: 11px 13px; font-size: 12.5px; line-height: 1.55; box-shadow: 0 1px 1px rgba(0,0,0,.08); }
+  .wa-time { display: block; text-align: right; font-size: 10px; color: var(--accent-700); margin-top: 5px; }
+  .num-row { display: flex; align-items: center; gap: 14px; }
+  .num-ic { width: 48px; height: 48px; border-radius: 12px; background: var(--accent); color: #fff; display: grid; place-items: center; flex: none; }
+  .num-ic svg { width: 24px; height: 24px; }
+  .warn-note { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; padding: 12px 14px; background: var(--alert-050); border-radius: var(--radius-sm); font-size: 12.5px; color: var(--ink-700); line-height: 1.5; }
+  .warn-note svg { width: 16px; height: 16px; color: var(--warn); flex: none; margin-top: 1px; }
+</style>
+</head>
+<body data-active="wpp">
+<div id="page" class="page" data-screen-label="Agente WhatsApp">
+
+  <div class="wpp-head">
+    <div class="wpp-head__l">
+      <div class="wpp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg></div>
+      <div>
+        <div class="eyebrow">Canal · WhatsApp Business</div>
+        <h1 class="page-title" style="font-size:26px; margin:4px 0 0;">Agente WhatsApp</h1>
+      </div>
+    </div>
+    <div class="wpp-head__r">
+      <div class="seg" id="wppTabs"><button class="is-active" data-tab="conversaciones">Conversaciones</button><button data-tab="config">Configuración</button></div>
+      <div class="agent-status">
+        <div><b>● Agente activo</b><span>Respondiendo automáticamente</span></div>
+        <div class="toggle is-on"></div>
+      </div>
+    </div>
+  </div>
+
+  <div data-view="conversaciones" class="is-shown">
+  <div class="wpp-grid">
+    <!-- conversations -->
+    <div class="card conv-list">
+      <div class="conv-list__head">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <h2 style="font-size:15px; font-weight:700; margin:0;">Conversaciones</h2>
+          <span class="muted mono" style="font-size:11px;">7 hilos · 3 sin leer</span>
+        </div>
+        <div class="conv-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="Buscar conversaciones..."></div>
+      </div>
+      <div class="conv-filters">
+        <span class="chip is-active" data-group="f">Todas</span>
+        <span class="chip" data-group="f">Escaladas <span style="background:var(--err);color:#fff;border-radius:999px;padding:0 5px;margin-left:2px;">1</span></span>
+        <span class="chip" data-group="f">Turno</span>
+        <span class="chip" data-group="f">Consulta</span>
+        <span class="chip" data-group="f">Pago</span>
+        <span class="chip" data-group="f">FAQ</span>
+      </div>
+      <div class="conv-scroll">
+        <div class="thread is-active">
+          <div class="avatar-sm" style="background:#F59E0B">SM</div>
+          <div class="thread__body">
+            <div class="thread__top"><b>Sofía Martínez</b><time>11:42</time></div>
+            <div class="thread__msg">Perfecto, te espero el jueves 14 a las 10:30. ¡Gracias!</div>
+            <span class="badge badge--warn">Turno</span>
+          </div>
+        </div>
+        <div class="thread">
+          <div class="avatar-sm" style="background:#2A6FDB">DC</div>
+          <div class="thread__body">
+            <div class="thread__top"><b>Almacén Don Carlos</b><time>11:28</time></div>
+            <div class="thread__msg">¿Cuánto sale el cajón de gaseosas Pretty 2.25L?</div>
+            <span class="badge badge--info">Consulta <span style="background:var(--info);color:#fff;border-radius:999px;padding:0 5px;margin-left:2px;">2</span></span>
+          </div>
+        </div>
+        <div class="thread">
+          <div class="avatar-sm" style="background:#DB4D6D">LF</div>
+          <div class="thread__body">
+            <div class="thread__top"><b>Lucía Fernández</b><time>10:54</time></div>
+            <div class="thread__msg">Ya transferí. Te paso comprobante 👇</div>
+            <span class="badge badge--ok">Pago</span>
+          </div>
+        </div>
+        <div class="thread">
+          <div class="avatar-sm" style="background:var(--accent-700)">LE</div>
+          <div class="thread__body">
+            <div class="thread__top"><b>Panadería La Espiga</b><time>10:31</time></div>
+            <div class="thread__msg">¿Hacen entregas en Villa Crespo los sábados?</div>
+            <span class="badge badge--plain">FAQ</span>
+          </div>
+        </div>
+        <div class="thread thread--escalada">
+          <div class="avatar-sm" style="background:#7C5CDB">MS</div>
+          <div class="thread__body">
+            <div class="thread__top"><b>Mateo Suárez</b><time>09:47</time></div>
+            <div class="thread__msg">Necesito reprogramar el turno del martes por favor</div>
+            <div style="display:flex; align-items:center; gap:6px;"><span class="badge badge--err">Escalada</span><span class="muted" style="font-size:11px;">esperando asesor</span></div>
+          </div>
+        </div>
+        <div class="thread">
+          <div class="avatar-sm" style="background:#C0392B">BC</div>
+          <div class="thread__body">
+            <div class="thread__top"><b>Carnicería El Buen Corte</b><time>Ayer</time></div>
+            <div class="thread__msg">Listo, confirmado. Te llega el resumen al mail.</div>
+            <span class="badge badge--plain">Turno</span>
+          </div>
+        </div>
+        <div class="thread">
+          <div class="avatar-sm" style="background:#8E44AD">VR</div>
+          <div class="thread__body">
+            <div class="thread__top"><b>Valentina Ruiz</b><time>Ayer</time></div>
+            <div class="thread__msg">¿Cuáles son los métodos de pago aceptados?</div>
+            <span class="badge badge--plain">FAQ</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- chat -->
+    <div class="card chat">
+      <div class="chat__head">
+        <div class="avatar-sm" style="background:#F59E0B">SM</div>
+        <div style="flex:1;">
+          <b>Sofía Martínez</b>
+          <div class="ph">+54 9 11 5234-8821 · <span class="online">● en línea</span></div>
+        </div>
+        <span class="badge badge--warn">Turno</span>
+        <span class="muted" style="font-size:18px; padding:0 6px;">⋮</span>
+      </div>
+      <div class="chat__body">
+        <div class="day-sep">Hoy · 10:14</div>
+        <div class="bubble-row"><div class="bubble in">Hola! Quería sacar un turno para corte y color<span class="t">10:14</span></div></div>
+        <div style="text-align:right;">
+          <div class="ai-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg> Agente IA · Bienvenida</div>
+          <div class="bubble-row out"><div class="bubble out">¡Hola Sofía! 👋 Por supuesto. ¿Para qué día te queda cómodo?<span class="t">10:14 ✓✓</span></div></div>
+        </div>
+        <div class="bubble-row"><div class="bubble in">Esta semana si se puede, jueves o viernes a la tarde<span class="t">10:15</span></div></div>
+        <div style="text-align:right;">
+          <div class="ai-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg> Agente IA · Disponibilidad</div>
+          <div class="bubble-row out"><div class="bubble out">Tengo estos horarios disponibles para vos:<br><br>• Jueves 14/05 — 10:30 hs<br>• Jueves 14/05 — 16:00 hs<br>• Viernes 15/05 — 11:00 hs<br>• Viernes 15/05 — 17:30 hs<br><br>¿Cuál preferís?<span class="t">10:15 ✓✓</span></div></div>
+        </div>
+      </div>
+      <div class="chat__foot">
+        <div class="ai-managed"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg> Gestionado por IA</b> · Motor determinista confirmó la reserva</div>
+        <button class="btn btn--ghost btn--sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 7a4 4 0 1 0-8 0M4 21v-1a6 6 0 0 1 12 0v1"/></svg> Tomar control manualmente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- agenda -->
+  <div class="card agenda">
+    <div class="section-head">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <div class="op-ico" style="width:38px;height:38px;background:var(--accent-050);color:var(--accent-700);border-radius:10px;display:grid;place-items:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:19px;height:19px;"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></div>
+        <div><h2 style="margin:0;">Agenda de hoy</h2><p style="margin:2px 0 0; font-size:12.5px; color:var(--ink-400);">4 próximos turnos · todos confirmados por el agente</p></div>
+      </div>
+      <a class="mono" style="color:var(--accent-700); font-size:12.5px; font-weight:600;">Ver agenda completa →</a>
+    </div>
+    <div class="agenda__grid">
+      <div class="agenda__item">
+        <div class="agenda__time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 14:30</div>
+        <div class="agenda__client"><div class="avatar-sm" style="background:#C0392B; width:30px; height:30px;">BC</div><div><b>Carnicería El Buen Corte</b><span>Entrega mercadería</span></div></div>
+      </div>
+      <div class="agenda__item">
+        <div class="agenda__time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 16:00</div>
+        <div class="agenda__client"><div class="avatar-sm" style="background:#F59E0B; width:30px; height:30px;">SM</div><div><b>Sofía Martínez</b><span>Corte y color</span></div></div>
+      </div>
+      <div class="agenda__item">
+        <div class="agenda__time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 17:15</div>
+        <div class="agenda__client"><div class="avatar-sm" style="background:#16A085; width:30px; height:30px;">KM</div><div><b>Kiosko Moreno</b><span>Reposición semanal</span></div></div>
+      </div>
+      <div class="agenda__item">
+        <div class="agenda__time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 18:30</div>
+        <div class="agenda__client"><div class="avatar-sm" style="background:#7C5CDB; width:30px; height:30px;">TI</div><div><b>Tomás Iglesias</b><span>Consulta presencial</span></div></div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ===================== CONFIGURACIÓN ===================== -->
+  <div data-view="config">
+    <div class="cfg-grid">
+      <!-- Horarios de atención -->
+      <div class="card card--pad">
+        <div class="cfg-head">
+          <div class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <div><h2>Horarios de atención</h2><p>Cuándo el agente responde automáticamente</p></div>
+          <span class="mono muted" style="margin-left:auto; font-size:11px;">Zona horaria: ART (GMT-3)</span>
+        </div>
+        <div class="hours">
+          <div class="hour-row"><div class="toggle is-on"></div><span class="day">Lunes</span><span class="time-in">09:00</span><span class="sep">a</span><span class="time-in">19:00</span></div>
+          <div class="hour-row"><div class="toggle is-on"></div><span class="day">Martes</span><span class="time-in">09:00</span><span class="sep">a</span><span class="time-in">19:00</span></div>
+          <div class="hour-row"><div class="toggle is-on"></div><span class="day">Miércoles</span><span class="time-in">09:00</span><span class="sep">a</span><span class="time-in">19:00</span></div>
+          <div class="hour-row"><div class="toggle is-on"></div><span class="day">Jueves</span><span class="time-in">09:00</span><span class="sep">a</span><span class="time-in">19:00</span></div>
+          <div class="hour-row"><div class="toggle is-on"></div><span class="day">Viernes</span><span class="time-in">09:00</span><span class="sep">a</span><span class="time-in">19:00</span></div>
+          <div class="hour-row"><div class="toggle is-on"></div><span class="day">Sábado</span><span class="time-in">09:00</span><span class="sep">a</span><span class="time-in">14:00</span></div>
+          <div class="hour-row is-off"><div class="toggle"></div><span class="day">Domingo</span><span class="time-in dis">—</span><span class="sep">a</span><span class="time-in dis">—</span></div>
+        </div>
+      </div>
+
+      <!-- Respuestas automáticas -->
+      <div class="card card--pad">
+        <div class="cfg-head">
+          <div class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg></div>
+          <div><h2>Respuestas automáticas</h2><p>4 FAQs configuradas · respondidas automáticamente</p></div>
+          <button class="btn btn--cta btn--sm" style="margin-left:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Agregar FAQ</button>
+        </div>
+        <div class="faq is-open">
+          <div class="faq__q"><span class="qm">?</span><b>¿Cuáles son los métodos de pago?</b><span class="faq__uses">47 usos</span><span class="faq__chev">⌄</span></div>
+          <div class="faq__a">
+            <div class="faq__txt">Aceptamos efectivo, transferencia bancaria, MercadoPago y todas las tarjetas de débito y crédito. Para transferencias podés pedir el alias por este chat.</div>
+            <div class="faq__foot"><span class="muted">Respondida 47 veces este mes</span><div class="faq__acts"><a>Editar</a><a class="del">Eliminar</a></div></div>
+          </div>
+        </div>
+        <div class="faq"><div class="faq__q"><span class="qm">?</span><b>¿Hacen entregas a domicilio?</b><span class="faq__uses">32 usos</span><span class="faq__chev">⌄</span></div></div>
+        <div class="faq"><div class="faq__q"><span class="qm">?</span><b>¿Cuál es el horario de atención?</b><span class="faq__uses">28 usos</span><span class="faq__chev">⌄</span></div></div>
+        <div class="faq"><div class="faq__q"><span class="qm">?</span><b>¿Cuánto tarda en llegar el pedido?</b><span class="faq__uses">21 usos</span><span class="faq__chev">⌄</span></div></div>
+      </div>
+
+      <!-- Mensaje de bienvenida -->
+      <div class="card card--pad">
+        <div class="cfg-head">
+          <div class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg></div>
+          <div><h2>Mensaje de bienvenida</h2><p>Lo primero que reciben tus clientes al escribir</p></div>
+        </div>
+        <div class="welcome-grid">
+          <div>
+            <div class="mono muted" style="font-size:10.5px; letter-spacing:.1em; margin-bottom:8px;">TEXTO EDITABLE</div>
+            <div class="welcome-text">Hola 👋 Soy el asistente virtual de Distribuidora La Esquina. Estoy disponible 24/7 para ayudarte con turnos, consultas de productos, formas de pago y entregas. ¿En qué puedo ayudarte hoy?</div>
+            <div class="mono muted" style="font-size:10.5px; margin-top:8px;">188 caracteres · máx. 1024</div>
+          </div>
+          <div>
+            <div class="mono muted" style="font-size:10.5px; letter-spacing:.1em; margin-bottom:8px;">VISTA PREVIA</div>
+            <div class="wa-preview">
+              <div class="wa-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg> AGENTE IA</div>
+              <div class="wa-bubble">Hola 👋 Soy el asistente virtual de Distribuidora La Esquina. Estoy disponible 24/7 para ayudarte con turnos, consultas de productos, formas de pago y entregas. ¿En qué puedo ayudarte hoy?<span class="wa-time">ahora ✓✓</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Número conectado -->
+      <div class="card card--pad">
+        <div class="cfg-head">
+          <div class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg></div>
+          <div><h2>Número de WhatsApp conectado</h2><p>Línea verificada por Meta · WhatsApp Business API</p></div>
+        </div>
+        <div class="num-row">
+          <div class="num-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/></svg></div>
+          <div style="flex:1;">
+            <div style="display:flex; align-items:center; gap:10px;"><b class="mono" style="font-size:18px; letter-spacing:.5px;">+54 9 11 4892-3340</b><span class="badge badge--ok" style="font-weight:600;">Verificado</span></div>
+            <div class="muted" style="font-size:12px; margin-top:4px;">Display name: <b style="color:var(--ink-700)">Distribuidora La Esquina</b> · Calidad: <b style="color:var(--accent-700)">Alta</b> · Conectado: <span class="mono">12/03/2026</span></div>
+          </div>
+          <button class="btn btn--ghost btn--sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.3M21 4v4h-4"/></svg> Cambiar número</button>
+        </div>
+        <div class="warn-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg> Cambiar el número requiere re-verificación de Meta y puede tomar entre <b>24 a 72 hs</b>. Durante ese período el agente queda pausado automáticamente.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Agente WhatsApp v1.8 · Latencia media: 1.4s · 94% resoluciones automáticas</div>
+
+</div>
+<script src="chrome.js"></script>
+<script>
+  document.getElementById('wppTabs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-tab]'); if (!b) return;
+    document.querySelectorAll('#wppTabs button').forEach(x => x.classList.toggle('is-active', x === b));
+    document.querySelectorAll('[data-view]').forEach(v => v.classList.toggle('is-shown', v.dataset.view === b.dataset.tab));
+  });
+  document.querySelectorAll('.faq').forEach(f => f.querySelector('.faq__q').addEventListener('click', () => {
+    const open = f.classList.contains('is-open');
+    document.querySelectorAll('.faq').forEach(x => x.classList.remove('is-open'));
+    if (!open) f.classList.add('is-open');
+  }));
+</script>
+</body>
+</html>

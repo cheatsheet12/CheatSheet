@@ -1,0 +1,262 @@
+/**
+ * PAN-FAC-04 — Facturación · Nueva nota de crédito (HU-E5-04).
+ *
+ * **Everything is preloaded.** The first acceptance criterion asks for it and it is not
+ * convenience: the type, the receptor and the ceiling all come from the original (RN-02,
+ * RN-03), and a form that let somebody type them would be a form that can produce a
+ * document ARCA rejects.
+ *
+ * The lines start as a copy of the original's, which is what a full reversal is. Editing
+ * them down is what a partial one is, and that is the only thing this screen really lets
+ * somebody do.
+ *
+ * **La pantalla arranca mostrando qué comprobante se está reversando**, con su número en
+ * monoespaciada y su estado. No es decoración: se llega acá desde un enlace, y quien abrió
+ * dos pestañas para comparar dos facturas necesita ver en cuál está antes de tocar un ítem.
+ *
+ * **The ceiling is checked here and enforced by the backend**, and the duplication is
+ * deliberate: showing it disabled is the difference between a form that explains itself and
+ * one that answers 422 after somebody typed everything. The backend's check is the
+ * guarantee, because two tabs can both pass this one.
+ */
+
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+import {
+  Alert,
+  Badge,
+  Button,
+  Campo,
+  Select,
+  formatearNumero,
+  useAccionConNavegacion,
+} from "@/shared";
+
+import {
+  ALICUOTAS,
+  ETIQUETAS_DE_ESTADO,
+  ErrorDeComprobante,
+  MENSAJE_MONTO_EXCEDIDO,
+  emitirNotaDeCredito,
+  tonoDeEstado,
+} from "../api/comprobante";
+import type { Anulacion, Comprobante, ItemNuevo } from "../api/comprobante";
+import { ETIQUETAS_DE_TIPO, notaDeCreditoDe } from "../api/puntoDeVenta";
+
+export interface PropsDeAnularComprobante {
+  readonly original: Comprobante;
+  readonly anulacion: Anulacion;
+}
+
+interface Linea extends ItemNuevo {
+  readonly clave: string;
+}
+
+/** The original's lines, which is what a full reversal is (RN-03's ceiling case). */
+function lineasDe(original: Comprobante): Linea[] {
+  return original.items.map((item) => ({
+    clave: item.id,
+    descripcion: item.descripcion,
+    cantidad: item.cantidad,
+    precio_unitario: item.precio_unitario,
+    alicuota_iva: item.alicuota_iva,
+  }));
+}
+
+/**
+ * The note's total, **for the disabled state only**.
+ *
+ * This is the one place in the frontend that multiplies money, and it is allowed for
+ * exactly one reason: it decides whether a button is grey. What the note actually reverses
+ * is computed by the backend, rounded per item (D15) and validated against ARCA — this
+ * number never travels and never appears as an amount owed.
+ */
+function totalAproximado(lineas: readonly Linea[]): number {
+  return lineas.reduce((suma, linea) => {
+    const cantidad = Number(linea.cantidad);
+    const precio = Number(linea.precio_unitario);
+    const tasa = Number(linea.alicuota_iva);
+    if (Number.isNaN(cantidad) || Number.isNaN(precio) || Number.isNaN(tasa)) {
+      return suma;
+    }
+    return suma + cantidad * precio * (1 + tasa);
+  }, 0);
+}
+
+export function AnularComprobante({ original, anulacion }: PropsDeAnularComprobante): JSX.Element {
+  const router = useRouter();
+  const [lineas, setLineas] = useState<readonly Linea[]>(() => lineasDe(original));
+  const [error, setError] = useState<string | null>(null);
+  const { pendiente: emitiendo, ejecutar } = useAccionConNavegacion();
+
+  const disponible = Number(anulacion.disponible);
+  const excede = totalAproximado(lineas) > disponible + 0.005;
+
+  function cambiar(clave: string, campo: keyof ItemNuevo, valor: string): void {
+    setLineas((previas) =>
+      previas.map((linea) => (linea.clave === clave ? { ...linea, [campo]: valor } : linea)),
+    );
+  }
+
+  async function anular(): Promise<void> {
+    setError(null);
+    try {
+      await ejecutar(
+        () =>
+          emitirNotaDeCredito(
+            original.id,
+            lineas.map(({ clave: _clave, ...resto }) => resto),
+          ),
+        // Back to the original: this is the page that shows how much of it is now reversed.
+        // The button stays busy until it does: with balance left, a second click would
+        // issue a second credit note.
+        (_nota, destino) => destino.push(`/facturacion/${original.id}`),
+      );
+    } catch (fallo) {
+      setError(
+        fallo instanceof ErrorDeComprobante
+          ? fallo.message
+          : "No se pudo emitir la nota de crédito.",
+      );
+    }
+  }
+
+  if (anulacion.es_total) {
+    return (
+      <>
+        <Original original={original} />
+        <Alert tono="neutral" titulo="Ya está anulado del todo">
+          Este comprobante fue anulado por el total de ${formatearNumero(anulacion.total_anulado)}.
+          No queda saldo para emitir otra nota de crédito.
+        </Alert>
+      </>
+    );
+  }
+
+  return (
+    <form
+      className="fac-nuevo-formulario"
+      onSubmit={(evento) => {
+        evento.preventDefault();
+        void anular();
+      }}
+    >
+      {error !== null && (
+        <Alert tono="error" titulo="No se pudo anular">
+          {error}
+        </Alert>
+      )}
+
+      <Original original={original} />
+
+      {/*
+        El tope, el receptor y el tipo que se va a emitir, en una sola frase y no en una lista
+        de pares: es lo que alguien tiene que leer entero antes de tocar un ítem, y partirlo en
+        celdas hace que se lea la mitad.
+      */}
+      <Alert tono="neutral" titulo={`Anulando ${ETIQUETAS_DE_TIPO[original.tipo]}`}>
+        Se emite una {ETIQUETAS_DE_TIPO[notaDeCreditoDe(original.tipo)]} a nombre de{" "}
+        {original.receptor_nombre}. Podés anular hasta $ {formatearNumero(anulacion.disponible)}
+        {anulacion.es_parcial
+          ? ` — ya anulaste $ ${formatearNumero(anulacion.total_anulado)} de $ ${formatearNumero(anulacion.total_original)}.`
+          : "."}
+      </Alert>
+
+      <fieldset className="fac-nuevo-paso fac-nuevo-paso--actual">
+        <legend>
+          <span className="fac-nuevo-paso__numero" aria-hidden>
+            1
+          </span>
+          Qué se anula
+        </legend>
+        <p className="fac-nuevo-paso__ayuda">
+          Vienen los ítems del original, que es lo que anula una nota de crédito total. Bajá las
+          cantidades o quitá líneas para anular sólo una parte.
+        </p>
+
+        {lineas.map((linea, indice) => (
+          <div className="fac-nuevo-item" key={linea.clave}>
+            <Campo
+              id={`anular-descripcion-${linea.clave}`}
+              etiqueta={`Descripción ${indice + 1}`}
+              value={linea.descripcion}
+              onChange={(evento) => cambiar(linea.clave, "descripcion", evento.target.value)}
+            />
+            <Campo
+              id={`anular-cantidad-${linea.clave}`}
+              etiqueta="Cantidad"
+              mono
+              value={linea.cantidad}
+              onChange={(evento) => cambiar(linea.clave, "cantidad", evento.target.value)}
+            />
+            <Campo
+              id={`anular-precio-${linea.clave}`}
+              etiqueta="Precio unitario"
+              mono
+              value={linea.precio_unitario}
+              onChange={(evento) => cambiar(linea.clave, "precio_unitario", evento.target.value)}
+            />
+            <Select
+              id={`anular-iva-${linea.clave}`}
+              etiqueta="IVA"
+              opciones={ALICUOTAS}
+              value={linea.alicuota_iva}
+              onChange={(evento) => cambiar(linea.clave, "alicuota_iva", evento.target.value)}
+            />
+            <Button
+              variante="secundario"
+              disabled={lineas.length === 1}
+              onClick={() =>
+                setLineas((previas) => previas.filter((otra) => otra.clave !== linea.clave))
+              }
+            >
+              Quitar
+            </Button>
+          </div>
+        ))}
+      </fieldset>
+
+      {excede && <Alert tono="error">{MENSAJE_MONTO_EXCEDIDO}</Alert>}
+
+      <div className="fac-nuevo-acciones">
+        <p className="fac-nuevo-inmutable">
+          La nota de crédito también va a ARCA y también queda: reversa la factura, no la borra.
+        </p>
+        <Button variante="secundario" onClick={() => router.push(`/facturacion/${original.id}`)}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={excede} cargando={emitiendo}>
+          Emitir nota de crédito
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * El comprobante que se está reversando.
+ *
+ * **Sin importes.** El tope y lo ya anulado se dicen una sola vez, en la caja de abajo:
+ * repetir un número que puede coincidir con otro haría que dos cajas muestren el mismo
+ * importe con dos significados distintos, que es la confusión que se paga con una nota de
+ * crédito emitida por el monto equivocado.
+ */
+function Original({ original }: { readonly original: Comprobante }): JSX.Element {
+  return (
+    <header className="fac-nuevo-documento">
+      <div>
+        <p className="fac-nuevo-documento__rotulo">Comprobante original</p>
+        <p className="fac-nuevo-documento__numero">
+          {original.numero === null ? "Sin numerar" : String(original.numero).padStart(8, "0")}
+        </p>
+        <p className="fac-nuevo-documento__tipo">{ETIQUETAS_DE_TIPO[original.tipo]}</p>
+      </div>
+      <div className="fac-nuevo-documento__estado">
+        <Badge estado={tonoDeEstado(original.estado)}>{ETIQUETAS_DE_ESTADO[original.estado]}</Badge>
+      </div>
+    </header>
+  );
+}

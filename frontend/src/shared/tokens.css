@@ -1,0 +1,210 @@
+/*
+ * Design tokens — transcribed from the Etapa 5 specification.
+ *
+ * Source: `docs/aidlc/inputs/prototipos/maquetacion-pantallas.pdf` §1.1 and §1.2. Where
+ * that document and the prototype's `styles.css` disagree (gaps P1–P8 of
+ * `docs/aidlc/inputs/prototipos.md`), **the document wins** — decided 2026-08-14. The
+ * consequence is deliberate and worth knowing: the panel will not look pixel-identical
+ * to the HTML prototype, and the delivery screenshots need regenerating.
+ *
+ * Two rules from §1.1 that are not preferences:
+ *
+ * - **Amber is never text on white.** `--color-warning` is a background or a border and
+ *   nothing else; its contrast against white is insufficient. The document says so, and
+ *   a warning nobody can read is worse than no warning.
+ * - **Nothing visible goes below 12 px.** Badges may use 11 px only when a colour
+ *   indicator carries the meaning alongside the text.
+ *
+ * Validated combinations, per §1.1: #00C48C on #1E1E2E is AAA · white on #1E1E2E is AAA
+ * · #1E1E2E on #F8F7FF is AA+.
+ */
+
+:root {
+  /* Brand — §1.1 */
+  --color-primary: #1e1e2e; /* sidebar, page titles, high-contrast text */
+  --color-mid: #3a3a5c; /* sidebar hover, highlighted sections */
+  --color-accent: #00c48c; /* CTA, success, "Conectado", progress */
+  --color-warning: #fdcb6e; /* background or border only, never text */
+  --color-bg: #ffffff; /* panel background: white, as the product owner asked */
+  /* The violet tint the page used to have, kept for surfaces *inside* the page (table headers,
+     chips, empty states) so they still read against white cards. */
+  --color-bg-soft: #f8f7ff;
+  --color-surface: #ffffff; /* cards, side panels, tables, modals */
+  --color-success-light: #e8faf5;
+  --color-error: #cc0000;
+
+  /* Text — §1.1 */
+  --color-text-body: #555555;
+  --color-text-secondary: #888888;
+  --color-text-on-dark: #ffffff;
+
+  /* Derived surfaces the component catalogue (§1.3) names explicitly */
+  --color-sidebar-hover: #2a2a3e;
+  --color-border: #dddddd;
+  --color-row-alt: #fafafa;
+  --color-warning-bg: #fef9e7;
+  --color-warning-text: #b8860b; /* the readable amber, for text */
+  --color-error-bg: #fdecea;
+  --color-pending-bg: #eef2ff;
+
+  /* Radii — §1.3 */
+  --radius: 8px; /* buttons, information boxes */
+  --radius-input: 6px; /* dropdowns, inputs */
+  --radius-pill: 6px; /* status badges */
+
+  /* Radios y sombras del prototipo, para las superficies grandes (tarjetas y paneles).
+   * El `--radius` de arriba sigue gobernando los controles: un botón con 14 px de radio
+   * al lado de un input con 6 px se ve como dos sistemas distintos. */
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --shadow: 0 1px 2px rgb(30 30 46 / 4%), 0 8px 24px rgb(30 30 46 / 5%);
+  --shadow-lg: 0 12px 48px rgb(30 30 46 / 14%);
+
+  /* Layout — §1.3, Navigation elements.
+   *
+   * Los dos valores son los del prototipo (`styles.css`) y no los del documento, y es un
+   * cambio deliberado del épico de rediseño: con 180 px la barra lateral corta los nombres
+   * de sección en dos líneas, y la captura de PRU-09 muestra exactamente eso. */
+  --sidebar-w: 244px;
+  --topbar-h: 68px;
+  --panel-lateral-w: 420px;
+
+  /* Type scale — §1.2. DM Sans is loaded by next/font in the root layout. */
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --text-h1: 24px;
+  --text-h2: 18px;
+  --text-h3: 14px;
+  --text-body: 14px;
+  --text-caption: 12px;
+  --text-mono: 13px;
+  --leading-body: 1.5;
+  --leading-title: 1.2;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* §1.4: minimum touch target is 44 x 44 px. */
+  --touch-min: 44px;
+
+  --shadow-card: 0 1px 2px rgba(30, 30, 46, 0.04), 0 8px 24px rgba(30, 30, 46, 0.05);
+  --shadow-panel: 0 12px 48px rgba(30, 30, 46, 0.14);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text-body);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--color-primary);
+  line-height: var(--leading-title);
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--text-h1);
+  font-weight: 700;
+}
+
+h2 {
+  font-size: var(--text-h2);
+  font-weight: 600;
+}
+
+h3 {
+  font-size: var(--text-h3);
+  font-weight: 600;
+}
+
+/*
+ * Keyboard focus stays visible everywhere. §1.4 requires basic accessibility, and the
+ * default outline is the one thing a design system most often removes and never
+ * replaces.
+ */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Alias del prototipo (`docs/aidlc/inputs/prototipos/styles.css`).
+ *
+ * Los nombres cortos son los que usan las hojas de estilo de cada pantalla, transcriptas del
+ * prototipo. **No son colores nuevos**: apuntan a los mismos tokens de arriba, con la escala
+ * neutra que el prototipo deriva del primario y que el documento no enumera.
+ *
+ * Existen para que una hoja copiada del prototipo funcione tal cual, en vez de reescribirse
+ * a mano token por token — que es donde un `--ink-500` se convierte en el gris equivocado.
+ */
+:root {
+  --primary: var(--color-primary);
+  --primary-soft: #2a2a3d;
+  --sidebar-active: var(--color-mid);
+  --accent: var(--color-accent);
+  /* Cuarto valor del prototipo que no se copia tal cual, por la misma razón que los tres
+   * anotados en `componentes.css`: la accesibilidad de §1.4 gana sobre el píxel.
+   *
+   * El prototipo lo fija en `#00a879`, que sobre blanco da **3,05:1** — por debajo del
+   * 4,5:1 que AA pide para texto normal. Y no es un tono decorativo: de sus 56 usos, 45
+   * son color de texto (toda acción de texto del panel y, vía `--ok`, la palabra de cada
+   * badge en verde). `#00805c` da **4,95:1** y es el paso «700» que el nombre promete.
+   *
+   * El verde de marca no cambia: `--accent` y `--primary` son el relleno de los CTA, donde
+   * el texto va en blanco encima y el contraste se mide al revés. */
+  --accent-700: #00805c;
+  --accent-050: #e4f8f1;
+  --accent-100: #c9f1e4;
+  --alert: var(--color-warning);
+  --alert-050: #fef6e4;
+  --bg: var(--color-bg);
+  --bg-soft: var(--color-bg-soft);
+  --card: var(--color-surface);
+
+  /* Escala neutra, de tono frío, derivada del primario. */
+  --ink-900: #1e1e2e;
+  --ink-700: #3d3d52;
+  --ink-600: #54546a;
+  --ink-500: #6b6b80;
+  --ink-400: #8a8a9c;
+  --ink-300: #b6b6c4;
+  --line: #e7e6f0;
+  --line-2: #eeedf6;
+
+  /* Estados: texto saturado sobre un fondo tenue del mismo matiz. El ámbar sigue sin ser
+   * texto sobre blanco — `--warn` es el ámbar legible, que es otro color. */
+  --ok: var(--accent-700);
+  --ok-bg: var(--accent-050);
+  --warn: var(--color-warning-text);
+  --warn-bg: #fef1d6;
+  --err: #dc2b3a;
+  --err-bg: #fce8ea;
+  --info: var(--color-mid);
+  --info-bg: #ececf4;
+
+  --sans: var(--font-sans);
+  --mono: var(--font-mono);
+}

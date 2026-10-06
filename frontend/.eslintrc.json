@@ -1,0 +1,37 @@
+{
+  "root": true,
+  "extends": ["next/core-web-vitals", "prettier"],
+  "rules": {
+    "no-console": ["error", { "allow": ["warn", "error"] }],
+    "eqeqeq": ["error", "always"],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "TSAnyKeyword",
+        "message": "`any` is forbidden (code-standards §3). Use `unknown` and validate it against a schema."
+      },
+      {
+        "selector": "TSTypeAssertion, TSAsExpression[typeAnnotation.type='TSAnyKeyword']",
+        "message": "Casting to `any` defeats the type checker. Narrow the type instead."
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["@/features/*/**"],
+            "message": "R5: import the feature's public entry point (@/features/<name>), not its internals. See docs/architecture.md §5. Genuinely shared code belongs in @/shared; generic HTTP plumbing belongs in @/lib."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": { "no-restricted-syntax": "off" }
+    }
+  ],
+  "ignorePatterns": ["node_modules/", ".next/", "coverage/", "next-env.d.ts"]
+}

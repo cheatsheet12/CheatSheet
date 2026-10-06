@@ -1,0 +1,87 @@
+# Backend package: distribution metadata and application dependencies.
+#
+# Deliberately WITHOUT a [tool.ruff] / [tool.mypy] / [tool.pytest] section.
+# Those configure every Python file in the repository — including the guards in
+# .claude/hooks/ — so they live in the root pyproject.toml. Ruff and mypy walk up
+# past this file to find them, which keeps one single set of rules for all Python.
+#
+# What belongs here: what makes `cheatsheet` an installable package, and what the
+# application needs at runtime. What belongs at the root: how the code is checked.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cheatsheet"
+version = "0.1.0"
+description = "CheatSheet backend — modular monolith with hexagonal bounded contexts"
+requires-python = ">=3.11"
+
+# Runtime dependencies are added as each bounded context needs them, pinned, in
+# the PR that introduces the use. The containers they correspond to are decided
+# (see docs/architecture.md §2): FastAPI/Uvicorn, SQLAlchemy + asyncpg, Alembic,
+# Celery + Redis, boto3 (Cloudflare R2), PyAfipWs (ADR-012).
+#
+# boto3 arrived in epic 4, not epic 9 as this comment used to predict: the first
+# caller of R2 turned out to be the uploaded spreadsheet of HU-E3-03, well before the
+# report generator. A dependency arrives with its first caller, and this is what that
+# looks like when the guess about which caller comes first is wrong.
+#
+# PyAfipWs was expected here for ARCA and did NOT arrive: WSAA needs one XML document
+# signed once as CMS, which `cryptography` already does in-process. See ADR-0004. The
+# Etapa 5 ADR-012 still names it for WSFEv1, which is epic 5's call to make.
+dependencies = [
+    "fastapi==0.115.4",
+    "uvicorn[standard]==0.32.0",
+    "sqlalchemy[asyncio]==2.0.36",
+    "asyncpg==0.30.0",
+    "alembic==1.14.0",
+    "celery[redis]==5.4.0",
+    "redis==5.2.0",
+    "structlog==24.4.0",
+    # identity: password hashing (ADR-011) and the short-lived access token.
+    "argon2-cffi==23.1.0",
+    "pyjwt==2.9.0",
+    # Outbound HTTP for the Google OAuth2 adapter. It is also a test dependency, but a
+    # runtime caller now exists, so it belongs here too.
+    "httpx==0.27.2",
+    # identity: the invitation email (HU-E1-04 RN-02). SMTP rather than a provider SDK,
+    # so the choice of transactional provider stays a deployment decision.
+    "aiosmtplib==3.0.2",
+    # integrations: AES-256-GCM for the credentials at rest (DER BC4, ADR-0003). The
+    # primitive comes from a library rather than from `hashlib` and a mode written here,
+    # because a hand-rolled AEAD is how a nonce gets reused.
+    "cryptography==43.0.3",
+    # Cloudflare R2, through `platform/almacenamiento.py`. Holds the uploaded workbooks
+    # (HU-E3-03, decision D10) and, from epic 5, the cached PDF of each `Comprobante`.
+    # Synchronous, so every call goes through `asyncio.to_thread`.
+    "boto3==1.35.54",
+    # spreadsheet_sync + conversational: the LLM (ADR-0007). First consumer is the header
+    # mapping of HU-E3-01; epic 8's WhatsApp agent inherits the same client.
+    "anthropic==1.4.0",
+    # spreadsheet_sync: reading .xlsx/.xls (HU-E3-03). CSV needs nothing beyond the
+    # standard library. Read in `read_only` mode -- see `infrastructure/lector.py`.
+    "openpyxl==3.1.5",
+    # billing: draws the printable representation of a `Comprobante` (HU-E5-02 RN-03).
+    # BSD-licensed and dependency-light, unlike the HTML-to-PDF engines, which want a
+    # browser or a GTK stack -- neither of which belongs in this image to lay out one page.
+    # Synchronous and CPU-bound, so `pdf.py` calls it through `asyncio.to_thread`.
+    "reportlab==5.0.1",
+    # integrations: parsing ARCA's SOAP responses (HU-E2-01). `xml.etree` expands internal
+    # entities — measured, not assumed: 300 bytes became 3 000 characters, ten times per
+    # nesting level — and a provider response is untrusted input by definition.
+    "defusedxml==0.7.1",
+]
+
+# NOT here, and deliberately: `pgvector`, the Python package. The PostgreSQL extension has
+# been installed since migration 0001 and epic 8 uses it — but the ORM mapping it provides
+# would buy about twenty lines of SQL. `faq.embedding_vector` is written and searched with
+# explicit statements and an explicit `::vector` cast, in one repository method each, and the
+# column stays out of the ORM model. One dependency fewer on the path of a Core context.
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cheatsheet"]
+# PEP 561: ship the marker so consumers (starting with the test suite) see the types
+# instead of silently degrading every import to Any.
+artifacts = ["src/cheatsheet/py.typed"]

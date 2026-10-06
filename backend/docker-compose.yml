@@ -1,0 +1,58 @@
+# Local development dependencies for the backend: PostgreSQL 16 and Redis 7.
+#
+# It lives in backend/ and not at the repository root because it brings up what ONE
+# process needs (CLAUDE.md §2.3). The frontend talks to the API over HTTP and needs
+# neither of these.
+#
+# Nothing here is a secret: these containers listen on localhost and hold throwaway
+# data. Staging and production are provisioned elsewhere, with real credentials that
+# never enter the repository.
+#
+#     docker compose -f backend/docker-compose.yml up -d
+#     cp backend/.env.example backend/.env   # then fill it in
+#     alembic -c backend/alembic.ini upgrade head
+
+services:
+  postgres:
+    # pgvector's image rather than the plain one: migration 0001 installs the `vector`
+    # extension, and CREATE EXTENSION fails if the server does not ship it.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: cheatsheet_owner
+      POSTGRES_PASSWORD: test-only-local-container
+      POSTGRES_DB: cheatsheet
+    ports:
+      # 5433 on the host, not 5432. A developer with PostgreSQL installed natively
+      # already owns 5432, and the failure is nasty: `localhost` resolves to the
+      # native server, which answers and then reports that the role does not exist —
+      # so it reads like a provisioning bug rather than a port collision.
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Runs once, when the data directory is first created.
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/10-init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cheatsheet_owner -d cheatsheet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      # Same reasoning as PostgreSQL above.
+      - "6380:6379"
+    # Celery's broker holds work that has not happened yet; losing it on restart means
+    # losing queued invoices. Append-only persistence is cheap insurance.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:

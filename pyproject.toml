@@ -1,20 +1,153 @@
-# Configuración de herramientas Python compartidas por los módulos del backend.
-# (No declara dependencias de aplicación; el proyecto aún no codifica lógica.)
+# Python tooling configuration shared by every backend module.
+# The rules this enforces are documented in docs/code-standards.md.
+# (No application dependencies here; the architecture is not defined yet.)
 
+# ---------------------------------------------------------------------------
+# ruff — single source of truth for style and linting. Style is not debated in PRs.
+# ---------------------------------------------------------------------------
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-exclude = [
-    ".venv",
-    "venv",
-    "node_modules",
-    "build",
-    "dist",
-]
+exclude = [".venv", "venv", "node_modules", "build", "dist", ".git"]
 
 [tool.ruff.lint]
-# E/F: pyflakes + estilo; I: imports ordenados; UP: modernizaciones; B: bugbear.
-select = ["E", "F", "I", "UP", "B"]
+select = [
+    "E", "W",   # pycodestyle: style
+    "F",        # pyflakes: unused imports, undefined names
+    "I",        # isort: import ordering
+    "UP",       # pyupgrade: outdated syntax
+    "B",        # bugbear: common bugs (mutable defaults, broad except)
+    "S",        # bandit: SECURITY — eval, shell=True, string-built SQL, secrets
+    "ANN",      # mandatory type annotations
+    "PT",       # pytest antipatterns
+    "C90",      # cyclomatic complexity
+    "SIM",      # simplifications
+    "RET",      # unnecessary / inconsistent returns
+    "ARG",      # unused arguments
+    "PTH",      # prefer pathlib over os.path
+    "DTZ",      # naive datetime (critical for tax documents)
+    "T20",      # no print()
+    "BLE",      # no blind `except Exception`
+    "RUF",      # ruff-specific rules
+]
+ignore = [
+    "ANN401",   # allow Any only at the system boundary (see code standards §2.2)
+    "E501",     # line length is handled by the formatter
+]
 
+[tool.ruff.lint.per-file-ignores]
+# Tests may use assert (S101) and need not annotate every fixture.
+#
+# The pattern is `**/tests/**` and not `tests/**`: the suite lives in backend/tests/,
+# so the anchored form matched nothing at all. It went unnoticed while the only test
+# files were named test_*.py — which the second pattern catches — and surfaced with the
+# first conftest.py that used `assert`.
+# S105/S106: a test has to pass a fake secret somewhere. The values are named
+# "fake-…-for-tests" and the guard in .claude/hooks/guard_edit.py still blocks a real
+# one, so the rule buys nothing here and costs a noqa on every auth test.
+"**/tests/**/*.py" = ["S101", "S105", "S106", "ANN201", "ANN001", "ARG001"]
+"**/test_*.py" = ["S101", "S105", "S106", "ANN201", "ANN001", "ARG001"]
+"**/*_test.py" = ["S101", "ANN201", "ANN001", "ARG001"]
+# Claude Code hooks are not application code: they talk to the harness by writing
+# JSON to stdout (T201) and invoke git from PATH on purpose (S603/S607), because
+# they cannot assume where it is installed on each member's machine.
+".claude/hooks/*.py" = ["T201", "S603", "S607"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------------------------------------------------------------------
+# mypy — strict typing. Breaks CI on failure.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+show_error_codes = true
+pretty = true
+exclude = ['^\.venv/', '^venv/', '^node_modules/', '^build/', '^dist/']
+
+# Third-party libraries without stubs must not break the build on their own,
+# but our own code is never left untyped.
+#
+# Celery ships no type information and has no stub package. Silencing the import is
+# the narrow fix; the broad one — `ignore_missing_imports` globally — would also hide
+# the day our own package stops being importable, which is a bug we want loudly.
+[[tool.mypy.overrides]]
+module = [
+    "celery.*",
+    "kombu.*",
+    "aiosmtplib.*",
+    "boto3.*",
+    "botocore.*",
+    "openpyxl.*",
+    # Draws the printable representation of a `Comprobante` (HU-E5-02 RN-03). Ships no
+    # stubs and has no stub package.
+    "reportlab.*",
+]
+ignore_missing_imports = true
+
+# Tests may leave `-> None` off a test function: the return value of a test is never
+# used, and the ceremony buys nothing. Everything they *call* is still fully checked.
+#
+# Both spellings are listed because how mypy names these modules depends on how it was
+# invoked: `mypy .` from the root sees `backend.tests.*`, while passing the files
+# explicitly (what the CI job does) sees `tests.*`. Matching only one makes the rule
+# apply locally and not in CI, or the reverse.
+[[tool.mypy.overrides]]
+module = ["tests.*", "backend.tests.*"]
+disallow_untyped_defs = false
+# A test that annotates its fixtures but not its return type is "incomplete" to mypy
+# and reports the same error code. Both flags are needed, or the rule above applies
+# only to tests that take no arguments at all.
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+
+# ---------------------------------------------------------------------------
+# pytest + coverage
+# ---------------------------------------------------------------------------
 [tool.pytest.ini_options]
 python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# The backend package lives under backend/src (installed with `pip install -e backend/`);
+# this makes the sibling `tests` package importable, so a test can reuse the fixtures
+# and fakes in tests/conftest.py by name.
+pythonpath = ["backend"]
+testpaths = ["backend/tests"]
+# Nearly everything below the API is async. Declaring the mode here rather than
+# decorating every module keeps the marker meaningful where it is written.
+asyncio_mode = "strict"
+addopts = [
+    "--strict-markers",   # an undeclared marker is an error, not a silent typo
+    "--strict-config",
+    "-ra",                # summary of everything that did not pass cleanly
+]
+markers = [
+    "integration: test spanning more than one module (still never touches the network)",
+    "slow: test taking more than a second",
+]
+
+[tool.coverage.run]
+branch = true
+omit = ["*/tests/*", "*/test_*.py", "*/__init__.py", ".venv/*"]
+
+[tool.coverage.report]
+# Project minimum. Lowering it is forbidden (see CLAUDE.md §8).
+fail_under = 80
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]

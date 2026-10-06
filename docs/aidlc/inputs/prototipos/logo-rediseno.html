@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Rediseño de logo</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { background: var(--bg); }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 46px 40px 90px; }
+  .head h1 { font-size: 30px; font-weight: 800; letter-spacing: -.6px; margin: 8px 0 6px; }
+  .head p { color: var(--ink-500); font-size: 14.5px; margin: 0; max-width: 660px; }
+
+  .ref { display: flex; align-items: center; gap: 18px; margin-top: 22px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+  .ref img { width: 70px; height: 70px; object-fit: contain; border-radius: 10px; background: #fff; border: 1px solid var(--line); }
+  .ref b { font-size: 13.5px; } .ref span { font-size: 12.5px; color: var(--ink-500); }
+
+  .concept { margin-top: 22px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .concept__bar { display: flex; align-items: center; gap: 12px; padding: 15px 22px; border-bottom: 1px solid var(--line); }
+  .concept__bar .n { width: 26px; height: 26px; border-radius: 7px; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+  .concept__bar h2 { font-size: 15.5px; font-weight: 700; margin: 0; }
+  .concept__bar p { font-size: 12px; color: var(--ink-400); margin: 1px 0 0; }
+  .concept__grid { display: grid; grid-template-columns: 1.1fr 1.4fr 1fr; }
+  .panel { padding: 38px 30px; display: flex; align-items: center; justify-content: center; gap: 26px; min-height: 180px; position: relative; border-left: 1px solid var(--line); }
+  .panel:first-child { border-left: 0; }
+  .panel--light { background: var(--bg); }
+  .panel--dark { background: var(--primary); }
+  .panel__tag { position: absolute; top: 12px; left: 16px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-300); }
+  .panel--dark .panel__tag { color: #5a5a72; }
+
+  .wm { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 32px; line-height: 1; letter-spacing: -.5px; }
+  .wm .a { color: var(--primary); } .wm .b { color: var(--accent); }
+  .panel--dark .wm .a { color: #fff; }
+  .lock { display: flex; align-items: center; gap: 13px; }
+
+  .sizes { display: flex; align-items: flex-end; gap: 20px; }
+  .sizes .item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .sizes .item span { font-family: var(--mono); font-size: 9.5px; color: #71718a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="eyebrow">Identidad de marca · rediseño</div>
+    <h1>CheatSheet — 4 direcciones nuevas</h1>
+    <p>Tomando las ideas de tu logo (la “S”, la planilla, la automatización) pero más limpias y con la paleta de las pantallas. Elegí una y la exporto en SVG + PNG.</p>
+  </div>
+
+  <div class="ref">
+    <img src="uploads/pasted-1780129349373-0.png" alt="logo actual">
+    <div><b>Tu logo actual (referencia)</b><br><span>“S” + grilla + engranajes con flechas. Buen concepto, pero muchos elementos compiten. Lo destilamos a su esencia.</span></div>
+  </div>
+
+  <!-- 1 — Sheet-grid S -->
+  <div class="concept">
+    <div class="concept__bar"><span class="n">1</span><div><h2>“S” sobre planilla</h2><p>La más cercana a tu logo · la S de Sheet sobre una grilla sutil, sin los engranajes</p></div><span class="badge badge--ok" style="margin-left:auto; font-weight:600;">Recomendada</span></div>
+    <div class="concept__grid">
+      <div class="panel panel--light"><span class="panel__tag">Símbolo</span>
+        <svg width="92" height="92" viewBox="0 0 100 100" fill="none">
+          <rect width="100" height="100" rx="26" fill="#1E1E2E"/>
+          <g stroke="#ffffff" stroke-opacity=".12" stroke-width="2">
+            <line x1="34" y1="16" x2="34" y2="84"/><line x1="50" y1="16" x2="50" y2="84"/><line x1="66" y1="16" x2="66" y2="84"/>
+            <line x1="16" y1="34" x2="84" y2="34"/><line x1="16" y1="50" x2="84" y2="50"/><line x1="16" y1="66" x2="84" y2="66"/>
+          </g>
+          <text x="50" y="54" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,sans-serif" font-weight="700" font-size="68" fill="#00C48C">S</text>
+        </svg>
+      </div>
+      <div class="panel panel--light"><span class="panel__tag">Lockup horizontal</span>
+        <div class="lock">
+          <svg width="54" height="54" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#1E1E2E"/><g stroke="#ffffff" stroke-opacity=".12" stroke-width="2"><line x1="34" y1="16" x2="34" y2="84"/><line x1="50" y1="16" x2="50" y2="84"/><line x1="66" y1="16" x2="66" y2="84"/><line x1="16" y1="34" x2="84" y2="34"/><line x1="16" y1="50" x2="84" y2="50"/><line x1="16" y1="66" x2="84" y2="66"/></g><text x="50" y="54" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,sans-serif" font-weight="700" font-size="68" fill="#00C48C">S</text></svg>
+          <span class="wm"><span class="a">cheat</span><span class="b">sheet</span></span>
+        </div>
+      </div>
+      <div class="panel panel--dark"><span class="panel__tag">Tamaños</span>
+        <div class="sizes">
+          <div class="item"><svg width="48" height="48" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><g stroke="#ffffff" stroke-opacity=".14" stroke-width="2"><line x1="34" y1="16" x2="34" y2="84"/><line x1="50" y1="16" x2="50" y2="84"/><line x1="66" y1="16" x2="66" y2="84"/><line x1="16" y1="34" x2="84" y2="34"/><line x1="16" y1="50" x2="84" y2="50"/><line x1="16" y1="66" x2="84" y2="66"/></g><text x="50" y="54" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,sans-serif" font-weight="700" font-size="68" fill="#00C48C">S</text></svg><span>48px</span></div>
+          <div class="item"><svg width="28" height="28" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><g stroke="#ffffff" stroke-opacity=".14" stroke-width="3"><line x1="50" y1="16" x2="50" y2="84"/><line x1="16" y1="50" x2="84" y2="50"/></g><text x="50" y="54" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,sans-serif" font-weight="700" font-size="70" fill="#00C48C">S</text></svg><span>16px</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 — Grid cells + check -->
+  <div class="concept">
+    <div class="concept__bar"><span class="n">2</span><div><h2>Celdas + check</h2><p>Planilla de cuatro celdas, una resuelta en verde · minimalista y muy legible en chico</p></div></div>
+    <div class="concept__grid">
+      <div class="panel panel--light"><span class="panel__tag">Símbolo</span>
+        <svg width="88" height="88" viewBox="0 0 100 100" fill="none">
+          <rect x="14" y="14" width="33" height="33" rx="9" fill="#1E1E2E"/>
+          <rect x="53" y="14" width="33" height="33" rx="9" fill="#3A3A5C"/>
+          <rect x="14" y="53" width="33" height="33" rx="9" fill="#3A3A5C"/>
+          <rect x="53" y="53" width="33" height="33" rx="9" fill="#00C48C"/>
+          <path d="M61 70l5.5 5.5 11-12" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="panel panel--light"><span class="panel__tag">Lockup horizontal</span>
+        <div class="lock">
+          <svg width="50" height="50" viewBox="0 0 100 100" fill="none"><rect x="14" y="14" width="33" height="33" rx="9" fill="#1E1E2E"/><rect x="53" y="14" width="33" height="33" rx="9" fill="#3A3A5C"/><rect x="14" y="53" width="33" height="33" rx="9" fill="#3A3A5C"/><rect x="53" y="53" width="33" height="33" rx="9" fill="#00C48C"/><path d="M61 70l5.5 5.5 11-12" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="wm"><span class="a">cheat</span><span class="b">sheet</span></span>
+        </div>
+      </div>
+      <div class="panel panel--dark"><span class="panel__tag">Tamaños</span>
+        <div class="sizes">
+          <div class="item"><svg width="46" height="46" viewBox="0 0 100 100" fill="none"><rect x="14" y="14" width="33" height="33" rx="9" fill="#F8F7FF"/><rect x="53" y="14" width="33" height="33" rx="9" fill="#5a5a72"/><rect x="14" y="53" width="33" height="33" rx="9" fill="#5a5a72"/><rect x="53" y="53" width="33" height="33" rx="9" fill="#00C48C"/><path d="M61 70l5.5 5.5 11-12" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>46px</span></div>
+          <div class="item"><svg width="26" height="26" viewBox="0 0 100 100" fill="none"><rect x="14" y="14" width="33" height="33" rx="9" fill="#F8F7FF"/><rect x="53" y="14" width="33" height="33" rx="9" fill="#5a5a72"/><rect x="14" y="53" width="33" height="33" rx="9" fill="#5a5a72"/><rect x="53" y="53" width="33" height="33" rx="9" fill="#00C48C"/><path d="M61 70l5.5 5.5 11-12" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>16px</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 — Sync loop S -->
+  <div class="concept">
+    <div class="concept__bar"><span class="n">3</span><div><h2>“S” de automatización</h2><p>La S formada por un bucle de sincronización · pone el foco en el iPaaS</p></div></div>
+    <div class="concept__grid">
+      <div class="panel panel--light"><span class="panel__tag">Símbolo</span>
+        <svg width="90" height="90" viewBox="0 0 100 100" fill="none">
+          <rect width="100" height="100" rx="26" fill="#1E1E2E"/>
+          <path d="M67 40a18 18 0 0 0-30-6" stroke="#00C48C" stroke-width="7" stroke-linecap="round" fill="none"/>
+          <path d="M33 60a18 18 0 0 0 30 6" stroke="#00C48C" stroke-width="7" stroke-linecap="round" fill="none"/>
+          <path d="M37 22l-3 13 13 2z" fill="#00C48C"/>
+          <path d="M63 78l3-13-13-2z" fill="#00C48C"/>
+        </svg>
+      </div>
+      <div class="panel panel--light"><span class="panel__tag">Lockup horizontal</span>
+        <div class="lock">
+          <svg width="52" height="52" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#1E1E2E"/><path d="M67 40a18 18 0 0 0-30-6" stroke="#00C48C" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M33 60a18 18 0 0 0 30 6" stroke="#00C48C" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M37 22l-3 13 13 2z" fill="#00C48C"/><path d="M63 78l3-13-13-2z" fill="#00C48C"/></svg>
+          <span class="wm"><span class="a">cheat</span><span class="b">sheet</span></span>
+        </div>
+      </div>
+      <div class="panel panel--dark"><span class="panel__tag">Tamaños</span>
+        <div class="sizes">
+          <div class="item"><svg width="46" height="46" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><path d="M67 40a18 18 0 0 0-30-6" stroke="#00C48C" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M33 60a18 18 0 0 0 30 6" stroke="#00C48C" stroke-width="7" stroke-linecap="round" fill="none"/><path d="M37 22l-3 13 13 2z" fill="#00C48C"/><path d="M63 78l3-13-13-2z" fill="#00C48C"/></svg><span>46px</span></div>
+          <div class="item"><svg width="26" height="26" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#2A2A3D"/><path d="M67 40a18 18 0 0 0-30-6" stroke="#00C48C" stroke-width="9" stroke-linecap="round" fill="none"/><path d="M33 60a18 18 0 0 0 30 6" stroke="#00C48C" stroke-width="9" stroke-linecap="round" fill="none"/><path d="M37 21l-4 14 14 2z" fill="#00C48C"/><path d="M63 79l4-14-14-2z" fill="#00C48C"/></svg><span>16px</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 — Monogram -->
+  <div class="concept">
+    <div class="concept__bar"><span class="n">4</span><div><h2>Monograma simple</h2><p>La opción más segura y atemporal · S sólida en la pastilla verde</p></div></div>
+    <div class="concept__grid">
+      <div class="panel panel--light"><span class="panel__tag">Símbolo</span>
+        <svg width="88" height="88" viewBox="0 0 100 100" fill="none">
+          <rect width="100" height="100" rx="26" fill="#00C48C"/>
+          <text x="50" y="55" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,sans-serif" font-weight="700" font-size="66" fill="#1E1E2E">s</text>
+        </svg>
+      </div>
+      <div class="panel panel--light"><span class="panel__tag">Lockup horizontal</span>
+        <div class="lock">
+          <svg width="50" height="50" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#00C48C"/><text x="50" y="55" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,sans-serif" font-weight="700" font-size="66" fill="#1E1E2E">s</text></svg>
+          <span class="wm"><span class="a">cheat</span><span class="b">sheet</span></span>
+        </div>
+      </div>
+      <div class="panel panel--dark"><span class="panel__tag">Tamaños</span>
+        <div class="sizes">
+          <div class="item"><svg width="46" height="46" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#00C48C"/><text x="50" y="55" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,sans-serif" font-weight="700" font-size="66" fill="#1E1E2E">s</text></svg><span>46px</span></div>
+          <div class="item"><svg width="26" height="26" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="26" fill="#00C48C"/><text x="50" y="55" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,sans-serif" font-weight="700" font-size="66" fill="#1E1E2E">s</text></svg><span>16px</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Rediseño de logo · Wordmark: Fredoka · Paleta de plataforma v2.4</div>
+
+</div>
+</body>
+</html>

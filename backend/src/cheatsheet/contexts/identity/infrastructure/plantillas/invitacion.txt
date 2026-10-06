@@ -1,0 +1,17 @@
+Te invitaron a $empresa en CheatSheet
+
+Hola,
+
+$invitado_por te invitó a trabajar en $empresa dentro de CheatSheet.
+
+Para entrar, elegí tu contraseña acá:
+
+$enlace
+
+El enlace vence el $vence. Después de esa fecha vas a necesitar que te
+inviten de nuevo.
+
+Si no esperabas esta invitación, ignorá este mensaje: sin abrir el enlace no
+se crea ninguna cuenta.
+
+— CheatSheet

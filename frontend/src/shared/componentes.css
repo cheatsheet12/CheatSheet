@@ -1,0 +1,2759 @@
+/*
+ * Las primitivas del sistema de diseño, transcriptas del prototipo oficial
+ * (`docs/aidlc/inputs/prototipos/styles.css`) y de la guía visual que lo documenta
+ * (`docs/aidlc/inputs/prototipos/guia-visual-oficial.html`).
+ *
+ * Es una hoja de estilos y no estilos en línea por lo mismo que el prototipo lo es: un
+ * sistema de diseño que vive en `style={{}}` no puede expresar `:hover`, `:disabled` ni
+ * `:focus-visible`, que es donde vive la mitad del comportamiento especificado.
+ *
+ * Los nombres de clase están en español y no se renombran: los usan las veinte pantallas
+ * y sus tests. Lo que cambia acá es el aspecto, no el contrato.
+ *
+ * Donde el prototipo y la guía difieren manda el prototipo, que es el código que se vio
+ * funcionando; la guía se usa donde el prototipo no dice nada (el título de tarjeta, por
+ * ejemplo, que la guía fija en 16 px / 700 y el prototipo nunca dibuja).
+ *
+ * Tres valores del prototipo no se copiaron tal cual, y en los tres gana la accesibilidad
+ * de §1.4 sobre el píxel:
+ *
+ * - `.field-hint` y `.eyebrow` miden 11 px en el prototipo. Acá miden 12 px, que es el
+ *   piso de texto visible. Las únicas excepciones declaradas son el badge (11.5 px, con
+ *   un punto de color al lado de la palabra) y el encabezado de tabla (10.5 px mono, en
+ *   mayúsculas, una o dos palabras por celda).
+ * - Los botones y los inputs del prototipo quedan en unos 38 px de alto. Acá miden 40 px
+ *   y suben a 44 px cuando el puntero es grueso: la guía declara su alcance en «Web —
+ *   Escritorio 1440 px», y el mínimo táctil hace falta donde se toca con el dedo, no
+ *   donde se apunta con un mouse.
+ */
+
+/* ── Enlaces ─────────────────────────────────────────────────────────────── */
+
+/*
+ * No había ninguna regla para `a`, así que todo enlace sin clase salía con el azul
+ * subrayado del navegador. En una pantalla donde el acento es verde, ese azul es el
+ * elemento más llamativo y no pertenece a la paleta.
+ *
+ * La regla es deliberadamente débil —un solo selector de tipo— para que cualquier clase
+ * de pantalla la pise sin necesidad de `!important`. El subrayado aparece al pasar por
+ * encima y no antes: el color ya dice que es un enlace, y un panel lleno de subrayados
+ * permanentes se lee como un documento, no como una herramienta.
+ */
+
+a {
+  color: var(--accent-700);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a {
+    transition: none;
+  }
+}
+
+/* ── Tipografía de página ────────────────────────────────────────────────── */
+
+/*
+ * El encabezado de una pantalla es siempre el mismo trío: eyebrow, título, subtítulo. Las
+ * clases viven acá y no en cada pantalla porque son cuatro reglas que veinte archivos
+ * copiarían mal.
+ */
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+}
+
+.page-title {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  color: var(--ink-900);
+  margin: 8px 0 6px;
+}
+
+.page-sub {
+  color: var(--ink-500);
+  font-size: 14.5px;
+  margin: 0;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+
+.section-head h2 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.section-head p {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  margin: 3px 0 0;
+}
+
+/* ── Elementos de acción ─────────────────────────────────────────────────── */
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: 10px 16px;
+  min-height: 40px;
+  cursor: pointer;
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.05s ease;
+}
+
+/*
+ * §1.4 pide un área tocable de 44 x 44 px. Con un mouse, 40 px se acierta sin pensarlo y
+ * la fila de acciones de una tabla no se estira; el mínimo se aplica donde el puntero es
+ * un dedo, que es donde el número significa algo.
+ */
+@media (pointer: coarse) {
+  .boton {
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
+  }
+}
+
+.boton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.boton:disabled {
+  /* §1.3: deshabilitado es 40% de opacidad y no interactivo. */
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/*
+ * El CTA del prototipo es verde con texto oscuro, no verde con texto blanco: #00C48C es
+ * demasiado claro para llevar blanco encima, y con el primario da AAA.
+ */
+.boton--primario {
+  background: var(--accent);
+  color: var(--primary);
+}
+
+.boton--primario:hover:not(:disabled) {
+  background: var(--accent-700);
+  color: var(--color-text-on-dark);
+}
+
+/* El «ghost» del prototipo: superficie de tarjeta, borde tenue y la misma sombra que una
+   tarjeta, que es lo que lo despega del fondo lila sin gritar. */
+.boton--secundario {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink-700);
+  box-shadow: var(--shadow);
+}
+
+.boton--secundario:hover:not(:disabled) {
+  border-color: var(--ink-300);
+}
+
+/*
+ * §1.3: la acción destructiva pide confirmación antes de correr. El color es el aviso; la
+ * confirmación es la baranda, y vive en el componente. El prototipo no dibuja esta
+ * variante, así que se arma con el ghost y el rojo de estado.
+ */
+.boton--destructivo {
+  background: var(--card);
+  border-color: var(--err);
+  color: var(--err);
+  box-shadow: var(--shadow);
+}
+
+.boton--destructivo:hover:not(:disabled) {
+  background: var(--err-bg);
+}
+
+.boton__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentcolor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: boton-girar 700ms linear infinite;
+  flex: none;
+}
+
+@keyframes boton-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Quien le pidió al sistema menos movimiento recibe un indicador quieto. */
+@media (prefers-reduced-motion: reduce) {
+  .boton {
+    transition: none;
+  }
+
+  .boton:active:not(:disabled) {
+    transform: none;
+  }
+
+  .boton__spinner {
+    animation: none;
+  }
+}
+
+/* ── Campos de formulario ────────────────────────────────────────────────── */
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 16px;
+}
+
+/* §1.4: todo campo lleva etiqueta visible. Un placeholder no es una etiqueta. */
+.campo__etiqueta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.campo__control {
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--ink-900);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 10px 13px;
+  min-height: 40px;
+  outline: none;
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+@media (pointer: coarse) {
+  .campo__control {
+    min-height: var(--touch-min);
+  }
+}
+
+.campo__control::placeholder {
+  color: var(--ink-300);
+}
+
+/*
+ * El foco del prototipo: borde de acento y halo tenue. El contorno se suma sólo para el
+ * teclado, porque el halo de --accent-050 casi no se distingue del blanco y sería una
+ * señal de posición que la mitad de la gente no ve.
+ */
+.campo__control:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.campo__control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.campo--con-error .campo__control {
+  border-color: var(--err);
+}
+
+.campo--con-error .campo__control:focus {
+  border-color: var(--err);
+  box-shadow: 0 0 0 3px var(--err-bg);
+}
+
+.campo--con-error .campo__control:focus-visible {
+  outline-color: var(--err);
+}
+
+.campo__error {
+  font-size: var(--text-caption);
+  color: var(--err);
+}
+
+/* El `.field-hint` del prototipo era monoespaciado porque describía un formato («11 dígitos, sin
+   guiones»). Hoy la mayoría son frases completas —«Si validás un CUIT contra ARCA y dejás esto
+   vacío, se completa solo»— y una oración entera en mono pesa más que el campo que explica. La
+   monoespaciada queda para los datos (`.campo--mono`), no para el texto de ayuda. */
+.campo__ayuda {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-400);
+}
+
+.campo--mono .campo__control {
+  font-family: var(--mono);
+  font-size: var(--text-mono);
+  letter-spacing: 0.02em;
+}
+
+.campo--casilla {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--ink-700);
+}
+
+.campo--casilla input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* El error de una casilla baja a su propia línea; al lado de la etiqueta empujaba el
+   texto fuera del campo. */
+.campo--casilla .campo__error {
+  flex-basis: 100%;
+}
+
+/* ── Elementos de estado ─────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 3px 9px;
+  /*
+   * 11.5 px queda debajo del piso de 12 px y se permite acá por una sola razón: el punto
+   * va siempre al lado de la palabra, así que el estado no depende de leer la letra chica.
+   */
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.badge--ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+/* No es --alert: el ámbar sobre un fondo claro no se lee (§1.1). --warn es el ámbar
+   oscurecido hasta ser legible. */
+.badge--atencion {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.badge--error {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+/*
+ * «Pendiente» toma el estado informativo del prototipo (--info sobre --info-bg): un
+ * trámite en curso no es un problema, y pintarlo de ámbar hacía que toda la pantalla
+ * pidiera atención.
+ */
+.badge--pendiente {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+/* §1.3: un borde izquierdo de 4 px, del color del tipo de aviso. El prototipo no dibuja
+   esta caja, así que conserva su forma y adopta los tintes de estado. */
+.caja {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--info);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  padding: 13px 16px;
+  font-size: 13.5px;
+  color: var(--ink-700);
+}
+
+.caja--exito {
+  border-color: var(--accent-100);
+  border-left-color: var(--ok);
+  background: var(--ok-bg);
+}
+
+/* El ámbar de marca sí puede ser borde; lo que no puede ser es texto. */
+.caja--advertencia {
+  border-color: var(--alert-050);
+  border-left-color: var(--alert);
+  background: var(--warn-bg);
+  color: var(--ink-900);
+}
+
+.caja--error {
+  border-color: var(--err-bg);
+  border-left-color: var(--err);
+  background: var(--err-bg);
+}
+
+.caja__titulo {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin-bottom: 4px;
+}
+
+/* ── Elementos de contenido ──────────────────────────────────────────────── */
+
+.tarjeta {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+}
+
+/* La guía fija el título de tarjeta en 16 px / 700; el prototipo nunca lo dibuja. */
+.tarjeta__titulo {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--ink-900);
+  margin: 0 0 16px;
+}
+
+/* ── Elementos de navegación ─────────────────────────────────────────────── */
+
+/*
+ * §1.3: completado es un círculo verde con tilde, activo es un círculo oscuro con su
+ * número, pendiente es gris. Lo usan el alta guiada y la ingesta.
+ */
+.stepper {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 0;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+}
+
+.stepper__paso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-400);
+}
+
+/*
+ * La barra que une un paso con el siguiente va como pseudo-elemento y no como marcado: no
+ * es contenido, y un lector de pantalla que anuncie algo entre cada paso alarga la lista
+ * sin aclarar nada.
+ */
+.stepper__paso:not(:last-child)::after {
+  content: "";
+  flex: 0 1 54px;
+  height: 2px;
+  background: var(--line);
+  margin: 0 14px 0 4px;
+}
+
+.stepper__marca {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--ink-400);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stepper__paso--activo,
+.stepper__paso--completado {
+  color: var(--ink-900);
+}
+
+.stepper__paso--activo .stepper__marca {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+.stepper__paso--completado .stepper__marca {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--color-text-on-dark);
+}
+
+/* El tramo que queda atrás ya se recorrió, y se ve. */
+.stepper__paso--completado:not(:last-child)::after {
+  background: var(--accent);
+}
+
+/* ── Tablas — §1.3, siguiendo el `.table` del prototipo ──────────────────── */
+
+.tabla__contenedor {
+  /* Una tabla que hace scrollear la página de costado rompe todo lo demás. Scrollea
+     dentro de su propia caja. */
+  overflow-x: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+/* Adentro de una tarjeta ya hay superficie elevada: repetir borde y sombra dibuja una
+   tarjeta dentro de otra. */
+.tarjeta .tabla__contenedor {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/*
+ * Presente para un lector de pantalla, invisible en la pantalla. Lo usan el caption de la
+ * tabla — la sección ya lleva su encabezado — y un select dentro de una celda, cuya
+ * columna dice lo mismo que diría la etiqueta.
+ *
+ * `display: none` sería lo obvio y lo incorrecto: también lo saca del árbol de
+ * accesibilidad, que es exactamente lo contrario de lo que se busca.
+ */
+.solo-lectores,
+.tabla__caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/*
+ * 10.5 px es la excepción del encabezado de columna: mono, mayúsculas y una o dos
+ * palabras por celda. No es texto de lectura, es una etiqueta.
+ *
+ * El prototipo no le pone aire arriba porque su tabla vive dentro de una tarjeta que ya
+ * lo aporta; acá el contenedor puede ser la tarjeta, así que el aire va en el `th` y se
+ * quita cuando efectivamente hay una tarjeta alrededor.
+ */
+.tabla th {
+  text-align: left;
+  /* Los rótulos de columna son texto del panel, no datos técnicos: la monoespaciada es para
+     CUIT, CAE y números de comprobante. */
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  padding: 18px 16px 12px;
+}
+
+.tarjeta .tabla th {
+  padding-top: 0;
+}
+
+.tabla td {
+  padding: 15px 16px;
+  border-top: 1px solid var(--line-2);
+  font-size: 13.5px;
+  color: var(--ink-700);
+  vertical-align: middle;
+}
+
+/* #fbfbfe es el blanco apenas teñido del prototipo para el hover de fila. No hay token
+   porque es el único lugar del sistema que lo usa. */
+.tabla tr:hover td {
+  background: #fbfbfe;
+}
+
+.tabla__celda--derecha {
+  text-align: right;
+}
+
+.tabla__acciones {
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.tabla__vacia {
+  padding: 32px 24px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--ink-500);
+  background: var(--bg-soft);
+  border: 1px dashed var(--ink-300);
+  border-radius: var(--radius-card);
+}
+
+/* ── Modal — hueco P9, armado con §1.3 y §1.4 ────────────────────────────── */
+
+.modal {
+  border: none;
+  border-radius: var(--radius-card);
+  padding: 0;
+  width: min(34rem, calc(100vw - 32px));
+  background: var(--card);
+  color: var(--ink-700);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal::backdrop {
+  background: rgb(30 30 46 / 45%);
+}
+
+.modal__encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal__titulo {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.modal__cerrar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink-500);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal__cerrar:hover {
+  border-color: var(--ink-300);
+}
+
+@media (pointer: coarse) {
+  .modal__cerrar {
+    width: var(--touch-min);
+    height: var(--touch-min);
+  }
+}
+
+.modal__cuerpo {
+  padding: 22px 24px 24px;
+}
+
+/* ── Subscription grid — HU-E1-07 RN-02 ──────────────────────────────────── */
+
+.suscripciones__grupo {
+  /* A `fieldset` carries a border and a legend with its own inline padding by default.
+     Both have to go, or the legend sits indented and flush against the first row. */
+  border: none;
+  padding: 0;
+  margin: var(--space-6) 0 var(--space-4);
+}
+
+.suscripciones__grupo legend {
+  padding-inline: 0;
+  margin-bottom: var(--space-3);
+}
+
+.suscripciones {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.suscripciones__fila {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.suscripciones__categoria {
+  min-width: 10rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* ── Panel shell ─────────────────────────────────────────────────────────── */
+
+/* --- El shell del panel ---------------------------------------------------------------
+ *
+ * Barra lateral fija de 244 px y encabezado pegajoso de 68 px, transcriptos del prototipo
+ * (`docs/aidlc/inputs/prototipos/styles.css`). La fila de enlaces que había antes se partía
+ * en tres líneas con veinte pantallas; una columna crece hacia abajo sin empujar nada.
+ */
+
+.app {
+  display: flex;
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+.app__main {
+  flex: 1;
+  min-width: 0;
+  margin-left: var(--sidebar-w);
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  padding: 30px 38px 56px;
+  max-width: 1640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-w);
+  /* Sobrio: tinta oscura, un poco más clara arriba y más cerrada abajo. El único brillo es
+     un velo neutro en la esquina superior que le da volumen sin teñirla de ningún color: el
+     verde de la marca queda reservado para lo que está activo. */
+  background: radial-gradient(120% 34% at 0% 0%, rgb(255 255 255 / 4.5%), transparent 70%),
+    linear-gradient(180deg, #21212f 0%, #1b1b28 50%, #151520 100%);
+  color: #cfcfdd;
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+  /* El filo derecho: una línea de luz fina en vez de un borde plano, y una sombra larga que
+     la separa del contenido. */
+  box-shadow:
+    inset -1px 0 0 rgb(255 255 255 / 7%),
+    8px 0 32px rgb(20 20 40 / 10%);
+  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar__brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 8px 20px;
+  margin: 0 16px;
+  min-height: 90px;
+  animation: barra-entra 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
+/* La línea que separa la marca del menú se desvanece en los extremos: un filo entero se lee
+   como un borde de caja, y esta se lee como un respiro. */
+.sidebar__brand::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 12%) 18%,
+    rgb(255 255 255 / 12%) 82%,
+    transparent
+  );
+}
+
+.sidebar__logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  /* El logo es un PNG con fondo blanco: sobre la barra oscura va en su propio azulejo, con un
+     reborde claro por dentro que lo asienta y una sombra que lo despega del fondo. */
+  background: #fff;
+  object-fit: contain;
+  padding: 4px;
+  flex: none;
+  box-shadow:
+    inset 0 0 0 1px rgb(20 20 40 / 6%),
+    0 0 0 1px rgb(255 255 255 / 16%),
+    0 0 0 5px rgb(255 255 255 / 5%),
+    0 10px 24px rgb(0 0 0 / 38%);
+  transition:
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease;
+}
+
+.sidebar__brand:hover .sidebar__logo {
+  transform: rotate(-8deg) scale(1.07);
+  box-shadow:
+    inset 0 0 0 1px rgb(20 20 40 / 6%),
+    0 0 0 1px rgb(255 255 255 / 22%),
+    0 0 0 6px rgb(255 255 255 / 9%),
+    0 12px 28px rgb(0 0 0 / 46%);
+}
+
+.sidebar__marca {
+  min-width: 0;
+  flex: 1;
+}
+
+/* El imagotipo de la guía visual: «Cheat» en blanco y «Sheet» en el acento, el mismo que lleva
+   la pantalla de ingreso. */
+.sidebar__nombre {
+  font-size: 19px;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  display: block;
+  line-height: 1.1;
+}
+
+.sidebar__nombre em {
+  font-style: normal;
+  color: #5fe0bb;
+}
+
+.sidebar__version {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #8f8fa8;
+  letter-spacing: 0.04em;
+}
+/* El marco de la lista: lleva los desvanecidos de arriba y abajo que avisan que hay más
+   entradas fuera de la vista. Son seudoelementos que no capturan el puntero. */
+.nav__marco {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav__marco::before,
+.nav__marco::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 26px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.nav__marco::before {
+  top: 0;
+  background: linear-gradient(rgb(14 14 26 / 70%), transparent);
+  border-top: 1px solid rgb(255 255 255 / 6%);
+}
+
+.nav__marco::after {
+  bottom: 0;
+  background: linear-gradient(transparent, rgb(14 14 26 / 80%));
+}
+
+.nav__marco[data-sombra-arriba="true"]::before,
+.nav__marco[data-sombra-abajo="true"]::after {
+  opacity: 1;
+}
+
+.nav {
+  padding: 6px 16px 14px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* La barra de desplazamiento del sistema es gris claro sobre fondo oscuro: se afina.
+   **Una API u otra, nunca las dos.** Chrome desde la 121 ignora `::-webkit-scrollbar` si el
+   elemento declara `scrollbar-width` o `scrollbar-color`, y vuelve a dibujar las flechas de
+   los extremos que acá se quitan. Por eso la estándar sólo la usan los motores sin la
+   seudoclase de WebKit (Firefox). */
+@supports not selector(::-webkit-scrollbar) {
+  .nav {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 14%) transparent;
+  }
+}
+
+.nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+/* Sin las flechas de los extremos: en una barra de seis píxeles son ruido. */
+.nav::-webkit-scrollbar-button {
+  display: none;
+}
+
+.nav::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 14%);
+  border-radius: 999px;
+}
+
+.nav::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 255 255 / 26%);
+}
+
+.nav__contenido {
+  position: relative;
+}
+
+/* La píldora de la entrada activa: un solo elemento que se desliza hasta la entrada actual
+   en lugar de aparecer de golpe. Su posición la fija el componente (`translateY` y altura). */
+.nav__pildora {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 0;
+  border-radius: 11px;
+  background: linear-gradient(90deg, rgb(0 168 121 / 24%), rgb(0 168 121 / 6%));
+  box-shadow: inset 0 0 0 1px rgb(0 168 121 / 20%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.34s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease;
+}
+
+.nav__pildora[data-visible="true"] {
+  opacity: 1;
+}
+
+.nav__pildora::before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgb(0 168 121 / 60%);
+}
+
+.nav__group {
+  margin-top: 14px;
+  animation: barra-entra 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms + 120ms);
+}
+
+.nav__group:first-child {
+  margin-top: 8px;
+}
+
+/* El título del grupo es un botón: pliega y despliega. Se ve como una etiqueta, no como un
+   botón, para que la barra siga leyéndose como un mapa y no como un menú de acciones. */
+.nav__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8383a0;
+  font-weight: 700;
+  padding: 6px 10px 8px;
+  margin: 0;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease;
+}
+
+.nav__label:hover {
+  color: #d0d0e2;
+  background: rgb(255 255 255 / 4%);
+}
+
+.nav__label:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.nav__titulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* El grupo está cerrado pero la pantalla actual está adentro: un punto de acento que late. */
+.nav__punto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgb(0 168 121 / 70%);
+  animation: punto-late 1.8s ease-in-out infinite;
+}
+
+.nav__chevron {
+  flex: none;
+  opacity: 0.7;
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nav__label[aria-expanded="false"] .nav__chevron {
+  transform: rotate(-90deg);
+}
+
+/* Plegar sin saltos: `grid-template-rows` anima de 1fr a 0fr, que `height: auto` no puede.
+   `visibility` saca del orden de foco lo que quedó escondido, pero recién cuando la
+   animación terminó, para que el cierre no parpadee. */
+.nav__lista {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav__lista[data-abierto="false"] {
+  grid-template-rows: 0fr;
+}
+
+.nav__lista-interior {
+  overflow: hidden;
+  min-height: 0;
+  padding: 2px 0 0 0;
+  margin-top: -2px;
+}
+
+.nav__lista[data-abierto="false"] > .nav__lista-interior {
+  visibility: hidden;
+  transition: visibility 0s linear 0.28s;
+}
+
+/* Al abrir un grupo las entradas entran en cascada, una tras otra. */
+.nav__lista[data-abierto="true"] .nav__item {
+  animation: item-entra 0.38s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--k, 0) * 28ms + 60ms);
+}
+
+.nav__item {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  color: #b7b7c8;
+  font-size: 13.5px;
+  font-weight: 500;
+  margin-bottom: 2px;
+  text-decoration: none;
+  transition:
+    color 0.16s ease,
+    transform 0.12s ease;
+}
+
+/* El fondo del hover entra con un barrido desde la izquierda. */
+.nav__item::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 7%);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.26s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.nav__item:hover::after,
+.nav__item:focus-visible::after {
+  transform: scaleX(1);
+}
+
+.nav__item--activo::after {
+  display: none;
+}
+
+.nav__item:active {
+  transform: scale(0.97);
+}
+
+.nav__texto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: transform 0.22s ease;
+}
+
+.nav__icono {
+  flex: none;
+  color: #8383a0;
+  transition: color 0.16s ease;
+}
+
+.nav__item:hover,
+.nav__item:focus-visible {
+  color: #fff;
+  text-decoration: none;
+}
+
+.nav__item:hover .nav__texto,
+.nav__item:focus-visible .nav__texto {
+  transform: translateX(3px);
+}
+
+.nav__item:hover .nav__icono,
+.nav__item:focus-visible .nav__icono {
+  color: #fff;
+  animation: icono-rebota 0.5s ease;
+}
+
+.nav__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* La pantalla donde está la persona: el fondo lo pone la píldora que se desliza; acá queda
+   el texto en blanco y el icono en el color de la marca. */
+.nav__item--activo,
+.nav__item--activo:hover {
+  color: #fff;
+  font-weight: 600;
+}
+
+.nav__item--activo .nav__icono,
+.nav__item--activo:hover .nav__icono {
+  color: var(--accent);
+}
+
+/* El pie: la empresa y el rol de quien está dentro, y el botón que reduce la barra. */
+.sidebar__pie {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 14px;
+  padding: 10px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 3%));
+  border: 1px solid rgb(255 255 255 / 7%);
+  animation: barra-entra 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 0.5s backwards;
+}
+
+.sidebar__empresa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar__avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e8e8f3;
+  letter-spacing: 0.02em;
+  background: linear-gradient(160deg, rgb(255 255 255 / 14%), rgb(255 255 255 / 6%));
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%);
+}
+
+.sidebar__empresa-datos {
+  min-width: 0;
+}
+
+.sidebar__empresa-datos b,
+.sidebar__empresa-datos small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar__empresa-datos b {
+  color: #fff;
+  font-size: 12.5px;
+}
+
+.sidebar__empresa-datos small {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #8a8aa3;
+}
+
+.sidebar__colapsar,
+.sidebar__cerrar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  background: rgb(255 255 255 / 4%);
+  color: #b7b7c8;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+}
+
+.sidebar__colapsar:hover,
+.sidebar__cerrar:hover {
+  background: rgb(255 255 255 / 11%);
+  color: #fff;
+}
+
+.sidebar__colapsar:active,
+.sidebar__cerrar:active {
+  transform: scale(0.9);
+}
+
+.sidebar__colapsar:focus-visible,
+.sidebar__cerrar:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 55%);
+  outline-offset: 1px;
+}
+
+.sidebar__velo {
+  display: none;
+}
+
+/* ── Barra reducida a iconos (sólo en pantallas anchas) ───────────────────────────────── */
+
+@media (min-width: 901px) {
+  /* El botón de cerrar es del cajón móvil. */
+  .sidebar__cerrar {
+    display: none;
+  }
+
+  .app[data-colapsada="true"] {
+    --sidebar-w: 78px;
+  }
+
+  .app__main {
+    transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .app[data-colapsada="true"] .sidebar__marca,
+  .app[data-colapsada="true"] .nav__texto,
+  .app[data-colapsada="true"] .nav__chevron,
+  .app[data-colapsada="true"] .sidebar__empresa-datos,
+  .app[data-colapsada="true"] .nav__titulo {
+    display: none;
+  }
+
+  .app[data-colapsada="true"] .sidebar__brand {
+    justify-content: center;
+    padding-inline: 0;
+    margin-inline: 14px;
+  }
+
+  /* Sin títulos de grupo, el grupo se separa del anterior con una línea. Los grupos
+     cerrados se muestran abiertos: cerrados no dejarían ver a dónde ir. */
+  .app[data-colapsada="true"] .nav {
+    padding-inline: 14px;
+  }
+
+  .app[data-colapsada="true"] .nav__pildora::before {
+    left: -14px;
+  }
+
+  .app[data-colapsada="true"] .nav__label {
+    height: 1px;
+    padding: 0;
+    margin: 12px 8px 10px;
+    background: rgb(255 255 255 / 8%);
+    pointer-events: none;
+  }
+
+  .app[data-colapsada="true"] .nav__group:first-child .nav__label {
+    display: none;
+  }
+
+  .app[data-colapsada="true"] .nav__lista {
+    grid-template-rows: 1fr;
+  }
+
+  .app[data-colapsada="true"] .nav__lista > .nav__lista-interior {
+    visibility: visible;
+  }
+
+  .app[data-colapsada="true"] .nav__item {
+    justify-content: center;
+    padding: 11px 0;
+  }
+
+  .app[data-colapsada="true"] .nav__item:hover .nav__texto {
+    transform: none;
+  }
+
+  .app[data-colapsada="true"] .sidebar__pie {
+    flex-direction: column;
+    padding: 10px 0;
+    margin-inline: 14px;
+  }
+
+  .app[data-colapsada="true"] .sidebar__empresa {
+    flex: none;
+  }
+}
+
+@keyframes barra-entra {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
+@keyframes item-entra {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+
+@keyframes icono-rebota {
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(1.22) translateY(-2px);
+  }
+
+  70% {
+    transform: scale(0.94);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes punto-late {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.5);
+    opacity: 0.55;
+  }
+}
+
+/* ── Encabezado ───────────────────────────────────────────────────────────────────────── */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  min-height: var(--topbar-h);
+  background: rgb(255 255 255 / 78%);
+  backdrop-filter: saturate(180%) blur(10px);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 38px;
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+/* Al desplazar la página, el encabezado gana cuerpo: fondo más sólido y una sombra suave. */
+.topbar[data-desplazada="true"] {
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 6px 20px rgb(30 30 46 / 8%);
+}
+
+.topbar__menu {
+  display: none;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-700);
+  place-items: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.12s ease;
+}
+
+.topbar__menu:active {
+  transform: scale(0.92);
+}
+
+.topbar__menu:focus-visible,
+.cuenta__disparador:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Las migas: grupo y pantalla. Calladas, para ubicarse sin competir con el título de la página. */
+.topbar__migas {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-500);
+  white-space: nowrap;
+  animation: miga-entra 0.4s ease backwards;
+}
+
+.topbar__migas b {
+  color: var(--ink-900);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar__separador {
+  color: var(--ink-300);
+}
+
+.topbar__right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cuenta {
+  position: relative;
+}
+
+.cuenta__disparador {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px 5px 5px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    transform 0.12s ease;
+}
+
+.cuenta__disparador:hover,
+.cuenta__disparador[aria-expanded="true"] {
+  border-color: var(--ink-300);
+}
+
+.cuenta__disparador:active {
+  transform: scale(0.97);
+}
+
+.cuenta__avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-mid), var(--primary));
+  box-shadow: 0 0 0 2px var(--accent-100);
+  transition: box-shadow 0.2s ease;
+}
+
+.cuenta__disparador:hover .cuenta__avatar,
+.cuenta__disparador[aria-expanded="true"] .cuenta__avatar {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.cuenta__datos {
+  min-width: 0;
+  max-width: 190px;
+}
+
+.cuenta__datos b,
+.cuenta__datos small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cuenta__datos b {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.cuenta__datos small {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.cuenta__chevron {
+  flex: none;
+  color: var(--ink-400);
+  transition: transform 0.25s ease;
+}
+
+.cuenta__disparador[aria-expanded="true"] .cuenta__chevron {
+  transform: rotate(180deg);
+}
+
+/* El panel no usa `hidden`: se anima con escala y opacidad desde la esquina del botón, y
+   `visibility` lo saca del orden de foco cuando está cerrado. */
+.cuenta__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 252px;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow:
+    0 2px 4px rgb(30 30 46 / 6%),
+    0 18px 40px rgb(30 30 46 / 16%);
+  z-index: 50;
+  transform-origin: top right;
+  transform: translateY(-6px) scale(0.95);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 0.16s ease,
+    visibility 0s linear 0.2s;
+}
+
+.cuenta__panel[data-abierto="true"] {
+  transform: none;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 0.16s ease;
+}
+
+.cuenta__cabecera {
+  padding: 10px 12px 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cuenta__cabecera b,
+.cuenta__cabecera small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cuenta__cabecera b {
+  font-size: 13.5px;
+}
+
+.cuenta__cabecera small {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.cuenta__enlace {
+  display: block;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-700);
+  text-decoration: none;
+  transition:
+    background 0.14s ease,
+    padding-left 0.14s ease;
+}
+
+.cuenta__enlace:hover,
+.cuenta__enlace:focus-visible {
+  background: var(--bg-soft);
+  color: var(--ink-900);
+  text-decoration: none;
+  padding-left: 15px;
+}
+
+.cuenta__enlace:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.cuenta__salida {
+  margin-top: 4px;
+  padding: 8px 6px 4px;
+  border-top: 1px solid var(--line);
+}
+
+.cuenta__salida .panel__salir {
+  width: 100%;
+  box-shadow: none;
+}
+
+.panel__salir {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink-700);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-control);
+  padding: 9px 14px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.panel__salir:hover {
+  border-color: var(--ink-300);
+}
+
+.panel__salir:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@keyframes miga-entra {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* ── Móvil: la barra es un cajón ──────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .app__main {
+    margin-left: 0;
+  }
+
+  .page {
+    padding: 22px 16px 44px;
+  }
+
+  .topbar {
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .topbar__menu {
+    display: grid;
+  }
+
+  .cuenta__datos,
+  .cuenta__chevron {
+    display: none;
+  }
+
+  .cuenta__disparador {
+    padding: 4px;
+  }
+
+  .sidebar {
+    width: min(86vw, 300px);
+    transform: translateX(-100%);
+    visibility: hidden;
+    /* `visibility` espera a que el cajón termine de salir: así el cierre no parpadea y,
+       cerrado, lo que hay adentro deja de estar en el orden de foco. */
+    transition:
+      transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      visibility 0s linear 0.3s;
+  }
+
+  .app[data-cajon="true"] .sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+    box-shadow: 0 0 60px rgb(0 0 0 / 45%);
+  }
+
+  .sidebar__cerrar {
+    display: grid;
+  }
+
+  .sidebar__velo {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    border: 0;
+    padding: 0;
+    background: rgb(14 14 26 / 55%);
+    backdrop-filter: blur(3px);
+    animation: velo-entra 0.25s ease;
+  }
+
+  .sidebar__colapsar {
+    display: none;
+  }
+}
+
+@keyframes velo-entra {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Quien pide menos movimiento no recibe ninguna de las animaciones de arriba: el estado final
+   es el mismo, sólo sin el trayecto. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar__brand,
+  .sidebar__logo,
+  .sidebar__pie,
+  .app__main,
+  .nav__group,
+  .nav__item,
+  .nav__item::after,
+  .nav__texto,
+  .nav__label,
+  .nav__icono,
+  .nav__chevron,
+  .nav__lista,
+  .nav__lista[data-abierto="true"] .nav__item,
+  .nav__pildora,
+  .nav__punto,
+  .nav__marco::before,
+  .nav__marco::after,
+  .sidebar__colapsar,
+  .sidebar__cerrar,
+  .sidebar__velo,
+  .topbar,
+  .topbar__migas,
+  .topbar__menu,
+  .cuenta__disparador,
+  .cuenta__avatar,
+  .cuenta__chevron,
+  .cuenta__panel,
+  .cuenta__enlace,
+  .nav__item:hover .nav__icono,
+  .nav__item:focus-visible .nav__icono {
+    animation: none;
+    transition: none;
+  }
+
+  .sidebar__brand:hover .sidebar__logo,
+  .nav__item:hover .nav__texto,
+  .nav__item:focus-visible .nav__texto {
+    transform: none;
+  }
+}
+
+/* ── Integration cards — PAN-CFG-INT, from PAN-ONB-03 ─────────────────────── */
+
+/*
+ * The grid the Etapa 5 mockup draws for the integrations screen
+ * (`inputs/prototipos/pantallas/onboarding.html`, third column). Its rules are inline in
+ * that file rather than in the shared `styles.css`, so they are transcribed here with the
+ * repository's tokens substituted for the prototype's raw names — `--line` →
+ * `--color-border`, `--accent` → `--color-accent`, `--ink-500` → `--color-text-secondary`,
+ * `--mono` → `--font-mono`. That substitution is the epic-1 decision that the PDF governs
+ * where the two disagree, applied again here.
+ *
+ * Three rules have no counterpart in the mockup, and each one exists because HU-E2-05
+ * asks for something the onboarding step never had to show: the detail line behind an
+ * "Atención" badge, the check control with its timestamp, and the note on a card whose
+ * provider belongs to a later epic.
+ */
+
+.int-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 720px) {
+  .int-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.int-card {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  background: var(--color-surface);
+}
+
+.int-card.is-on {
+  border-color: var(--color-accent);
+  background: var(--color-success-light);
+}
+
+.int-card__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.int-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-on-dark);
+  font-weight: 800;
+  font-size: var(--text-caption);
+  font-family: var(--font-mono);
+  flex: none;
+}
+
+.int-card b {
+  font-size: var(--text-body);
+  font-weight: 700;
+  display: block;
+}
+
+/*
+ * The mockup calls this slot `.cuit`, because on the ARCA card it held the company's
+ * CUIT. Here it holds the environment. Same slot, same styling, so the rule is shared
+ * rather than duplicated — and the markup uses the neutral name, so nothing reads as a
+ * tax id that is not one.
+ */
+.int-card .cuit,
+.int-card__sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+  /*
+   * A card can carry two of these at once — the verified name and the environment — and
+   * a `span` is inline, so without this they render glued together as
+   * "+54 9 11 5555-0000Homologación". Found by QA on every connected card.
+   */
+  display: block;
+}
+
+.int-card p {
+  font-size: var(--text-body);
+  color: var(--color-text-secondary);
+  margin: var(--space-3) 0;
+  line-height: var(--leading-body);
+}
+
+/* Not in the mockup: HU-E2-05's "Atención con el detalle disponible". */
+.int-card__detalle {
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+  border-radius: var(--radius-input);
+  padding: var(--space-2) var(--space-3);
+}
+
+.int-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* Not in the mockup: a card whose provider arrives in a later epic. */
+.int-card__pronto {
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Not in the mockup: the live check of HU-E2-05 and its RN-03 timestamp. */
+.int-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.int-encabezado__resumen {
+  font-weight: 600;
+  margin: 0;
+}
+
+.int-encabezado__marca {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+  margin: var(--space-1) 0 0;
+}
+
+.int-intro {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+/* Not in the mockup either: PAN-ONB-03 has no connection form, because in the prototype
+   the cards were decorative. The three fields Meta needs (HU-E2-03) had to go somewhere,
+   and the modal is the one place the design system already provides. */
+.int-form__ayuda {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  margin: 0 0 var(--space-4);
+}
+
+.int-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* PAN-ING-01 — la zona de carga (HU-E3-03).
+   El borde punteado es lo que dice «soltá algo acá» sin una sola palabra; el cambio de
+   color al arrastrar es la unica confirmacion de que el navegador va a aceptar el drop. */
+.ingesta__zona {
+  border: 2px dashed var(--color-borde);
+  border-radius: var(--radio-md);
+  padding: var(--espacio-xl);
+  text-align: center;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.ingesta__zona--activa {
+  border-color: var(--color-primario);
+  background-color: var(--color-fondo-sutil);
+}
+
+.ingesta__titulo {
+  font-size: var(--texto-lg);
+  font-weight: 600;
+  margin: 0 0 var(--espacio-xs);
+}
+
+.ingesta__ayuda {
+  color: var(--color-texto-secundario);
+  font-size: var(--texto-sm);
+  margin: var(--espacio-xs) 0;
+}
+
+.ingesta__o {
+  color: var(--color-texto-secundario);
+  margin: var(--espacio-md) 0;
+  text-transform: uppercase;
+  font-size: var(--texto-xs);
+  letter-spacing: 0.08em;
+}
+
+/* PAN-ING-03 — el resumen de una carga (HU-E3-05 RN-01).
+   Una lista de definiciones y no una tabla: son tres pares etiqueta/valor, y una tabla de
+   una fila le miente al lector de pantalla sobre lo que está mirando. */
+.resumen-de-carga {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--espacio-md);
+  margin: var(--espacio-lg) 0;
+}
+
+.resumen-de-carga dt {
+  color: var(--color-texto-secundario);
+  font-size: var(--texto-sm);
+}
+
+.resumen-de-carga dd {
+  font-size: var(--texto-xl);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* --- Épico 5 · Facturación (PAN-FAC-01 … PAN-FAC-05) --------------------------------
+   Sin prototipo dibujado, igual que Datos Maestros: la maquetación de Etapa 5 codifica
+   estas pantallas y no las ilustra. Se arman con los tokens y el catálogo de §1.3. */
+
+.fac-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+/* El número, el CAE y su vencimiento: monoespaciado por §1.2, porque son identificadores
+   fiscales que alguien va a comparar carácter por carácter contra un papel. */
+.fac-mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+/* PAN-FAC-02. Dos columnas en pantalla ancha, una sola cuando no entra: el detalle se
+   consulta tanto desde un escritorio como desde un teléfono en un mostrador. */
+.fac-detalle {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.fac-datos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.fac-datos dt {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+}
+
+.fac-datos dd {
+  margin: 0;
+}
+
+/* Los totales, alineados a la derecha y con el total final destacado: es el número que
+   alguien busca primero. */
+.fac-totales {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+}
+
+.fac-totales__final {
+  font-size: var(--text-h3);
+  font-weight: 600;
+}
+
+/* PAN-FAC-03. La fila de un ítem en carga: descripción ancha, números angostos. */
+.fac-item {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr auto;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 720px) {
+  .fac-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Reportería (PAN-REP-01 y PAN-REP-02) ------------------------------------------- */
+
+.rep-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+}
+
+.rep-comparacion {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.rep-variacion {
+  font-weight: 600;
+}
+
+.rep-variacion--sube {
+  color: var(--color-accent);
+}
+
+.rep-variacion--baja {
+  color: var(--color-error);
+}
+
+.rep-barras {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.rep-barras__fila {
+  display: grid;
+  grid-template-columns: 10rem 1fr 8rem;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.rep-barras__pista {
+  background: var(--color-row-alt);
+  border-radius: var(--radius);
+  height: 0.75rem;
+  overflow: hidden;
+}
+
+.rep-barras__barra {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+}
+
+.rep-barras__valor {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rep-grupo {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin: var(--space-3) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.rep-grupo__opcion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.rep-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.rep-previsualizacion {
+  background: var(--color-row-alt);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+/* ── La barra reducida a iconos ───────────────────────────────────────────────────────── */
+@media (min-width: 901px) {
+  /* Reducida no hay a dónde mirar una barra de scroll: la lista se desplaza igual con la
+     rueda, y el carril de seis píxeles sólo le come ancho a los iconos. */
+  .app[data-colapsada="true"] .nav {
+    scrollbar-width: none;
+  }
+
+  .app[data-colapsada="true"] .nav::-webkit-scrollbar {
+    width: 0;
+  }
+
+  .app[data-colapsada="true"] .nav__item {
+    border-radius: 13px;
+    padding-block: 12px;
+  }
+
+  .app[data-colapsada="true"] .nav__icono {
+    width: 20px;
+    height: 20px;
+  }
+
+  .app[data-colapsada="true"] .nav__item:hover {
+    background: rgb(255 255 255 / 7%);
+  }
+
+  .app[data-colapsada="true"] .nav__pildora {
+    border-radius: 13px;
+    box-shadow: inset 0 0 0 1px rgb(0 168 121 / 26%);
+  }
+
+  /* El pie reducido no es una tarjeta: una tarjeta de 78 píxeles con otra adentro (el
+     avatar) y un botón con su propio marco eran tres cajas anidadas. Queda una línea fina
+     arriba y dos piezas centradas, avatar y botón, del mismo ancho. */
+  .app[data-colapsada="true"] .sidebar__pie {
+    gap: 10px;
+    margin: 0 14px 14px;
+    padding: 14px 0 0;
+    border: 0;
+    border-top: 1px solid rgb(255 255 255 / 8%);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .app[data-colapsada="true"] .sidebar__avatar,
+  .app[data-colapsada="true"] .sidebar__colapsar {
+    width: 40px;
+    height: 36px;
+    border-radius: 12px;
+  }
+
+  .app[data-colapsada="true"] .sidebar__avatar {
+    height: 40px;
+  }
+}
+
+/* ══ Refinamiento de las primitivas ═══════════════════════════════════════════════════
+ *
+ * Botones, campos, select, casilla y modal: lo que más se ve en todo el panel. Van al final
+ * para ganar por orden sobre las reglas de arriba sin reescribirlas una por una, y cada
+ * bloque dice qué cambió y por qué. */
+
+/* ── Botones ─────────────────────────────────────────────────────────────────────────── */
+.boton {
+  border-radius: 12px;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.boton:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.boton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* El principal: degradado verde con un brillo arriba y una sombra de su color. Levanta al pasar
+   el mouse. El texto sigue oscuro: el verde de marca es claro y con blanco no da el contraste. */
+.boton--primario {
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  color: var(--primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 28%),
+    0 6px 14px rgb(0 168 121 / 18%);
+}
+
+.boton--primario:hover:not(:disabled) {
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 10px 22px rgb(0 168 121 / 26%);
+}
+
+.boton--primario:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.boton--secundario {
+  box-shadow: 0 1px 2px rgb(30 30 46 / 5%);
+}
+
+.boton--secundario:hover:not(:disabled) {
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 2px rgb(30 30 46 / 5%),
+    0 8px 18px rgb(30 30 46 / 8%);
+}
+
+/* La destructiva no grita en reposo: texto rojo y borde tenue. El rojo pleno aparece al pasar
+   el mouse, que es cuando alguien está por apretarla; y de todos modos pide confirmación. */
+.boton--destructivo {
+  border-color: rgb(220 43 58 / 35%);
+  box-shadow: none;
+}
+
+.boton--destructivo:hover:not(:disabled) {
+  background: var(--err-bg);
+  border-color: var(--err);
+}
+
+/* ── Campos de texto ─────────────────────────────────────────────────────────────────── */
+.campo__control {
+  border-radius: 12px;
+  min-height: 42px;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.campo__control:hover:not(:focus, :disabled) {
+  border-color: var(--ink-300);
+}
+
+.campo__control:disabled {
+  background: var(--bg-soft);
+  color: var(--ink-400);
+  cursor: not-allowed;
+}
+
+/* El select nativo con una flecha propia: la del sistema cambia de un navegador a otro y rompe
+   la alineación con el resto de los campos. Sigue siendo un `<select>` nativo, con su teclado y
+   su selector de celular. */
+select.campo__control {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a8a9c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+}
+
+select.campo__control:focus {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2300805c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+}
+
+/* ── Casilla (todas, salvo los interruptores `role="switch"`, que dibujan los suyos) ─────────────────────────────────────────────────────────────────────────── */
+input[type="checkbox"]:not([role="switch"]) {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--ink-300);
+  border-radius: 6px;
+  background: var(--card);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.12s ease;
+}
+
+input[type="checkbox"]:not([role="switch"]):hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:not([role="switch"]):checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e1e2e' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>");
+  background-size: 14px 14px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+input[type="checkbox"]:not([role="switch"]):active:not(:disabled) {
+  transform: scale(0.88);
+}
+
+input[type="checkbox"]:not([role="switch"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input[type="checkbox"]:not([role="switch"]):disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.campo--casilla label,
+input[type="checkbox"]:not([role="switch"]) + label {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ── Modal: cómo se abre ─────────────────────────────────────────────────────────────── */
+.modal {
+  border-radius: 20px;
+  box-shadow:
+    0 4px 12px rgb(30 30 46 / 8%),
+    0 28px 80px rgb(30 30 46 / 28%);
+}
+
+/* Se abre con un fundido que sube unos píxeles y un leve crecimiento: aparece donde la persona
+   ya está mirando, en lugar de «saltar». El fondo se oscurece y se desenfoca de a poco. */
+.modal[open] {
+  animation: modal-entra 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.modal[open]::backdrop {
+  background: rgb(30 30 46 / 42%);
+  backdrop-filter: blur(3px);
+  animation: modal-fondo 0.22s ease;
+}
+
+@keyframes modal-entra {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+
+@keyframes modal-fondo {
+  from {
+    opacity: 0;
+  }
+}
+
+.modal__encabezado {
+  padding: 22px 26px 18px;
+}
+
+.modal__titulo {
+  font-size: 17px;
+  letter-spacing: -0.015em;
+}
+
+.modal__cerrar {
+  border-radius: 10px;
+  color: var(--ink-500);
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.2s ease;
+}
+
+.modal__cerrar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.modal__cerrar:hover {
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+  color: var(--ink-900);
+  transform: rotate(90deg);
+}
+
+.modal__cerrar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.modal__cuerpo {
+  padding: 24px 26px 26px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boton,
+  .campo__control,
+  input[type="checkbox"]:not([role="switch"]),
+  .modal__cerrar {
+    transition: none;
+  }
+
+  .boton:hover:not(:disabled),
+  .boton:active:not(:disabled),
+  .modal__cerrar:hover {
+    transform: none;
+  }
+
+  .modal[open],
+  .modal[open]::backdrop {
+    animation: none;
+  }
+}
+
+/* ── La lista del select ─────────────────────────────────────────────────────────────────
+ *
+ * El desplegable de un `<select>` lo dibuja el navegador y, con CSS común, no se puede tocar:
+ * es el recuadro azul y gris del sistema, distinto en cada plataforma. Chrome y Edge permiten
+ * personalizarlo con `appearance: base-select` y el seudoelemento `::picker(select)`.
+ *
+ * **Sigue siendo el `<select>` nativo**: el teclado (flechas, escribir para saltar, Esc), el
+ * selector del celular, los lectores de pantalla y los formularios funcionan igual. Lo que
+ * cambia es cómo se ve la lista. Donde el navegador no lo soporta (Firefox, Safari) el bloque
+ * entero se ignora y queda el select nativo de siempre, con la flecha propia de arriba. */
+@supports (appearance: base-select) {
+  select.campo__control,
+  select.campo__control::picker(select) {
+    appearance: base-select;
+  }
+
+  /* La flecha la dibuja ahora el propio select: la imagen de fondo de arriba sobraría. */
+  select.campo__control {
+    background-image: none;
+    padding-right: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  select.campo__control:focus {
+    background-image: none;
+  }
+
+  select.campo__control::picker-icon {
+    content: "";
+    width: 16px;
+    height: 16px;
+    flex: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a8a9c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: center;
+    transition: transform 0.2s ease;
+  }
+
+  select.campo__control:open::picker-icon {
+    transform: rotate(180deg);
+  }
+
+  /* El panel: una tarjeta flotante, con aire alrededor de las opciones y una entrada suave. */
+  select.campo__control::picker(select) {
+    margin-top: 6px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--card);
+    box-shadow:
+      0 2px 6px rgb(30 30 46 / 6%),
+      0 16px 40px rgb(30 30 46 / 16%);
+    max-height: 320px;
+    transition:
+      opacity 0.16s ease,
+      transform 0.16s ease,
+      display 0.16s allow-discrete,
+      overlay 0.16s allow-discrete;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @starting-style {
+    select.campo__control::picker(select) {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+
+  select.campo__control option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 9px;
+    font-size: 13.5px;
+    color: var(--ink-700);
+    cursor: pointer;
+    transition:
+      background-color 0.12s ease,
+      color 0.12s ease;
+  }
+
+  select.campo__control option:hover,
+  select.campo__control option:focus-visible {
+    background: var(--bg-soft);
+    color: var(--ink-900);
+    outline: none;
+  }
+
+  /* La opción elegida: verde suave y su tilde, en lugar del azul del sistema. */
+  select.campo__control option:checked {
+    background: var(--accent-050);
+    color: var(--accent-700);
+    font-weight: 600;
+  }
+
+  select.campo__control option::checkmark {
+    order: 1;
+    margin-left: auto;
+    content: "";
+    width: 15px;
+    height: 15px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300805c' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='m5 12.5 4.5 4.5L19 7.5'/></svg>");
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+
+  select.campo__control option:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    select.campo__control::picker(select),
+    select.campo__control::picker-icon,
+    select.campo__control option {
+      transition: none;
+    }
+  }
+}
+
+/* ── Menú de la cuenta: hover con vida ───────────────────────────────────────────────────
+ *
+ * Las opciones entran escalonadas al abrirse, el icono de cada una toma el color de la marca
+ * al pasar el mouse y la fila se corre un poco. «Cerrar sesión» se pone roja: es la única acción
+ * que saca a la persona de donde está, y el color se lo dice antes del clic. */
+.cuenta__enlace {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    padding-left 0.16s ease;
+}
+
+.cuenta__enlace svg {
+  flex: none;
+  color: var(--ink-400);
+  transition:
+    color 0.16s ease,
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.cuenta__enlace:hover svg,
+.cuenta__enlace:focus-visible svg {
+  color: var(--accent-700);
+  transform: scale(1.15) rotate(-6deg);
+}
+
+.cuenta__enlace:hover,
+.cuenta__enlace:focus-visible {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.cuenta__enlace:active {
+  transform: scale(0.98);
+}
+
+/* La entrada en cascada: cada fila aparece un instante después de la anterior. */
+.cuenta__panel[data-abierto="true"] .cuenta__cabecera,
+.cuenta__panel[data-abierto="true"] .cuenta__enlace,
+.cuenta__panel[data-abierto="true"] .cuenta__salida {
+  animation: cuenta-fila 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.cuenta__panel[data-abierto="true"] .cuenta__enlace:nth-of-type(1) {
+  animation-delay: 0.04s;
+}
+
+.cuenta__panel[data-abierto="true"] .cuenta__enlace:nth-of-type(2) {
+  animation-delay: 0.08s;
+}
+
+.cuenta__panel[data-abierto="true"] .cuenta__salida {
+  animation-delay: 0.12s;
+}
+
+@keyframes cuenta-fila {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+.cuenta__salida .panel__salir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  border-radius: 12px;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.panel__salir-icono {
+  flex: none;
+  transition: transform 0.22s ease;
+}
+
+.cuenta__salida .panel__salir:hover:not(:disabled),
+.cuenta__salida .panel__salir:focus-visible {
+  background: var(--err-bg);
+  border-color: var(--err);
+  color: var(--err);
+  box-shadow: 0 6px 16px rgb(220 43 58 / 16%);
+}
+
+.cuenta__salida .panel__salir:hover:not(:disabled) .panel__salir-icono,
+.cuenta__salida .panel__salir:focus-visible .panel__salir-icono {
+  transform: translateX(3px);
+}
+
+.cuenta__salida .panel__salir:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.cuenta__salida .panel__salir:focus-visible {
+  outline: 2px solid var(--err);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cuenta__panel[data-abierto="true"] .cuenta__cabecera,
+  .cuenta__panel[data-abierto="true"] .cuenta__enlace,
+  .cuenta__panel[data-abierto="true"] .cuenta__salida {
+    animation: none;
+  }
+
+  .cuenta__enlace,
+  .cuenta__enlace svg,
+  .panel__salir-icono,
+  .cuenta__salida .panel__salir {
+    transition: none;
+  }
+
+  .cuenta__enlace:hover svg,
+  .cuenta__salida .panel__salir:hover .panel__salir-icono {
+    transform: none;
+  }
+}

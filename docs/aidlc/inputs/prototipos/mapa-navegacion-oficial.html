@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Mapa de Navegación (formato documento)</title>
+<link rel="stylesheet" href="estilo-doc.css">
+<style>
+  .role-dot{ display:inline-block; width:11px; height:11px; border-radius:3px; vertical-align:middle; margin-right:4px; }
+  .flow{ counter-reset:step; margin:6px 0 14px; padding:0; list-style:none; }
+  .flow li{ position:relative; padding:8px 0 8px 38px; border-left:2px solid #c9d3e6; margin-left:12px; }
+  .flow li::before{ counter-increment:step; content:counter(step); position:absolute; left:-13px; top:7px; width:24px; height:24px; border-radius:50%; background:var(--azul2); color:#fff; font-size:10pt; font-weight:700; display:grid; place-items:center; }
+  .flow li:last-child{ border-left-color:transparent; }
+  .gate-line{ background:#1F3864; color:#fff; font-weight:700; font-size:10pt; padding:8px 14px; border-radius:4px; display:inline-block; }
+  .lock{ color:#A23A46; font-weight:700; }
+</style>
+</head>
+<body>
+
+<!-- ===== PÁGINA 1 ===== -->
+<div class="page">
+  <div class="doc-title">Mapa de Navegación entre Pantallas</div>
+  <div class="doc-subtitle">CheatSheet — Plataforma iPaaS para PyMEs</div>
+  <hr class="doc-rule">
+  <p class="doc-meta"><b>Versión:</b> 2.4 &nbsp;·&nbsp; <b>Fecha:</b> Junio 2026 &nbsp;·&nbsp; <b>Alcance:</b> Web — Escritorio</p>
+  <p class="intro">Recorrido entre las pantallas del sistema. Cada transición indica si requiere <b>autenticación</b> o un <b>rol específico</b>. El rol mínimo necesario para cada pantalla se indica en la columna correspondiente; las acciones restringidas a un rol superior se marcan con un candado (<span class="lock">🔒</span>).</p>
+
+  <h1 class="h">1. Roles del sistema</h1>
+  <table class="w">
+    <thead><tr><th style="width:150px;">Rol</th><th>Alcance</th></tr></thead>
+    <tbody>
+      <tr><td><span class="role-dot" style="background:#8A8A9C;"></span><b>Sin autenticar</b></td><td>Solo accede al inicio de sesión y al alta de organización (onboarding).</td></tr>
+      <tr><td><span class="role-dot" style="background:#A23A46;"></span><b>Administrador</b></td><td>Acceso total, incluyendo configuración, usuarios, auditoría y acciones sensibles (reembolsos, puntos de venta).</td></tr>
+      <tr><td><span class="role-dot" style="background:#00A879;"></span><b>Operador</b></td><td>Opera el día a día: ingesta, facturación, cobros, agenda y conversaciones. Sin configuración del sistema.</td></tr>
+      <tr><td><span class="role-dot" style="background:#4F6D8C;"></span><b>Solo Lectura</b></td><td>Consulta listados y reportes; no ejecuta acciones.</td></tr>
+      <tr><td><span class="role-dot" style="background:#7C5CDB;"></span><b>Contador externo</b></td><td>Usuario invitado con acceso de solo lectura a los reportes y descarga del paquete contable.</td></tr>
+    </tbody>
+  </table>
+
+  <h1 class="h">2. Flujo de acceso y autenticación</h1>
+  <p>El acceso al panel exige sesión iniciada y haber completado el onboarding (RN-04).</p>
+  <ol class="flow">
+    <li><b>PAN-ONB-01 — Inicio de sesión.</b> Usuario sin autenticar. Si ya tiene cuenta, ingresa con credenciales u OAuth de Google y salta directo al panel.</li>
+    <li><b>PAN-ONB-02 — Registro de empresa.</b> Alta sin sesión. Se valida el CUIT contra ARCA.</li>
+    <li><b>PAN-ONB-03 — Integraciones.</b> Conexión de ARCA, MercadoPago, WhatsApp y Google Sheets.</li>
+    <li><span class="gate-line">🔒 Autenticado — sesión activa + rol asignado</span></li>
+    <li><b>PAN-DASH — Dashboard.</b> Punto de entrada común a todos los roles. La barra lateral muestra únicamente los módulos permitidos por el rol del usuario.</li>
+  </ol>
+
+  <div class="page__foot">CheatSheet · Mapa de Navegación</div>
+  <div class="page__num">1</div>
+</div>
+
+<!-- ===== PÁGINA 2 ===== -->
+<div class="page">
+  <h1 class="h">3. Navegación por módulo</h1>
+  <p>Pantallas de cada módulo con su código y el rol mínimo requerido. <span class="lock">🔒</span> = restringido a Administrador.</p>
+  <table class="w">
+    <thead><tr><th style="width:120px;">Módulo</th><th>Pantalla</th><th class="mono" style="width:95px;">Código</th><th style="width:135px;">Rol mínimo</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="3"><b>Ingesta de Datos</b><br><span class="small">Épica 3</span></td><td>Carga de planilla</td><td class="mono">PAN-ING-01</td><td>Admin · Operador</td></tr>
+      <tr><td>Mapeo IA</td><td class="mono">PAN-ING-02</td><td>Admin · Operador</td></tr>
+      <tr><td>Detalle de procesamiento</td><td class="mono">PAN-ING-03</td><td>Admin · Operador</td></tr>
+
+      <tr><td rowspan="3"><b>Datos Maestros</b><br><span class="small">Épica 4</span></td><td>Clientes</td><td class="mono">PAN-DM-01</td><td>Admin · Operador</td></tr>
+      <tr><td>Servicios / Productos</td><td class="mono">PAN-DM-02</td><td>Admin · Operador</td></tr>
+      <tr><td>Categorías</td><td class="mono">PAN-DM-03</td><td>Admin · Operador</td></tr>
+
+      <tr><td rowspan="5"><b>Facturación</b><br><span class="small">Épica 5</span></td><td>Listado de comprobantes</td><td class="mono">PAN-FAC-01</td><td>Todos (Solo Lectura ve)</td></tr>
+      <tr><td>Detalle de comprobante</td><td class="mono">PAN-FAC-02</td><td>Todos los roles</td></tr>
+      <tr><td>Nueva emisión (CAE)</td><td class="mono">PAN-FAC-03</td><td>Admin · Operador</td></tr>
+      <tr><td>Nota de crédito</td><td class="mono">PAN-FAC-04</td><td>Admin · Operador</td></tr>
+      <tr><td>Puntos de venta <span class="lock">🔒</span></td><td class="mono">PAN-FAC-05</td><td>Solo Admin</td></tr>
+
+      <tr><td rowspan="3"><b>Cobros</b><br><span class="small">Épica 6</span></td><td>Listado de cobros</td><td class="mono">PAN-COB-01</td><td>Admin · Operador</td></tr>
+      <tr><td>Detalle de cobro — <i>Reembolso</i> <span class="lock">🔒</span></td><td class="mono">PAN-COB-02</td><td>Admin · Operador</td></tr>
+      <tr><td>Nuevo cobro</td><td class="mono">PAN-COB-03</td><td>Admin · Operador</td></tr>
+
+      <tr><td rowspan="3"><b>Agenda</b><br><span class="small">Épica 7</span></td><td>Vista de agenda</td><td class="mono">PAN-AGE-01</td><td>Admin · Operador</td></tr>
+      <tr><td>Detalle de turno</td><td class="mono">PAN-AGE-02</td><td>Admin · Operador</td></tr>
+      <tr><td>Recursos y disponibilidad <span class="lock">🔒</span></td><td class="mono">PAN-AGE-03</td><td>Solo Admin</td></tr>
+
+      <tr><td rowspan="2"><b>Agente WhatsApp</b><br><span class="small">Épicas 8 · 9</span></td><td>Conversaciones</td><td class="mono">PAN-WA-01</td><td>Operador · Admin</td></tr>
+      <tr><td>Configuración y FAQ <span class="lock">🔒</span></td><td class="mono">PAN-WA-02</td><td>Solo Admin</td></tr>
+
+      <tr><td rowspan="3"><b>Reportes</b><br><span class="small">Épica 10</span></td><td>Dashboard de reportes</td><td class="mono">PAN-REP-01</td><td>Admin · Op · Contador</td></tr>
+      <tr><td>Libro IVA Ventas</td><td class="mono">REP-IVA</td><td>Admin · Op · Contador</td></tr>
+      <tr><td>Configuración automática <span class="lock">🔒</span></td><td class="mono">PAN-REP-02</td><td>Solo Admin</td></tr>
+
+      <tr><td rowspan="4"><b>Sistema y Configuración</b><br><span class="small">Épicas 11 · 12</span></td><td>Bitácora de operaciones <span class="lock">🔒</span></td><td class="mono">PAN-LOG-01</td><td>Solo Admin</td></tr>
+      <tr><td>Usuarios y roles <span class="lock">🔒</span></td><td class="mono">PAN-USR</td><td>Solo Admin</td></tr>
+      <tr><td>Reglas de negocio <span class="lock">🔒</span></td><td class="mono">PAN-CFG-RN</td><td>Solo Admin</td></tr>
+      <tr><td>Soporte <span class="lock">🔒</span></td><td class="mono">PAN-SOP-01</td><td>Solo Admin</td></tr>
+    </tbody>
+  </table>
+
+  <div class="page__foot">CheatSheet · Mapa de Navegación</div>
+  <div class="page__num">2</div>
+</div>
+
+<!-- ===== PÁGINA 3 ===== -->
+<div class="page">
+  <h1 class="h">4. Acceso del contador externo</h1>
+  <p>El contador externo es un usuario invitado con permisos de solo lectura sobre reportes (HU-E10-05 / E10-06).</p>
+  <ol class="flow">
+    <li><b>Invitación por email</b> con un link de acceso limitado. No necesita usuario en CheatSheet.</li>
+    <li><b>PAN-REP-01 — Reportes (solo lectura).</b> Consulta los indicadores y gráficos del período.</li>
+    <li><b>REP-IVA / Paquete contable.</b> Descarga el Libro IVA Ventas y el ZIP del cierre mensual.</li>
+  </ol>
+  <div class="note">El contador <b>no</b> tiene acceso a Facturación, Cobros, Agente WhatsApp ni Configuración. Su acceso puede ser <b>revocado</b> por el Administrador en cualquier momento.</div>
+
+  <h1 class="h">5. Matriz de acceso por rol</h1>
+  <p class="small">● acceso total &nbsp;·&nbsp; RO solo lectura &nbsp;·&nbsp; — sin acceso</p>
+  <table class="w">
+    <thead><tr><th>Módulo / Pantalla</th><th style="width:90px;">Admin</th><th style="width:90px;">Operador</th><th style="width:90px;">Solo Lectura</th><th style="width:90px;">Contador</th></tr></thead>
+    <tbody>
+      <tr><td>Dashboard</td><td class="s-ok">●</td><td class="s-ok">●</td><td>RO</td><td>—</td></tr>
+      <tr><td>Ingesta de Datos</td><td class="s-ok">●</td><td class="s-ok">●</td><td>—</td><td>—</td></tr>
+      <tr><td>Datos Maestros</td><td class="s-ok">●</td><td class="s-ok">●</td><td>RO</td><td>—</td></tr>
+      <tr><td>Facturación — consulta</td><td class="s-ok">●</td><td class="s-ok">●</td><td>RO</td><td>—</td></tr>
+      <tr><td>Facturación — emitir / anular</td><td class="s-ok">●</td><td class="s-ok">●</td><td>—</td><td>—</td></tr>
+      <tr><td>Facturación — puntos de venta</td><td class="s-ok">●</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Cobros — listado / detalle</td><td class="s-ok">●</td><td class="s-ok">●</td><td>RO</td><td>—</td></tr>
+      <tr><td>Cobros — reembolso</td><td class="s-ok">●</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Agenda</td><td class="s-ok">●</td><td class="s-ok">●</td><td>RO</td><td>—</td></tr>
+      <tr><td>Agente WhatsApp — conversaciones</td><td class="s-ok">●</td><td class="s-ok">●</td><td>—</td><td>—</td></tr>
+      <tr><td>Agente WhatsApp — config / FAQ</td><td class="s-ok">●</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Reportes y Libro IVA</td><td class="s-ok">●</td><td class="s-ok">●</td><td>RO</td><td>RO</td></tr>
+      <tr><td>Reportes — config. automática</td><td class="s-ok">●</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Log de Operaciones (auditoría)</td><td class="s-ok">●</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Configuración (usuarios, reglas, soporte)</td><td class="s-ok">●</td><td>—</td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <div class="page__foot">CheatSheet · Mapa de Navegación · Fin del documento</div>
+  <div class="page__num">3</div>
+</div>
+
+</body>
+</html>

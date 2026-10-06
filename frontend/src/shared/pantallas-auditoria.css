@@ -1,0 +1,1035 @@
+/*
+ * Auditoría, notificaciones y soporte — PAN-LOG-01, PAN-LOG-02, PAN-CFG-NOT y PAN-SOP-01.
+ *
+ * Hoja propia y no un bloque más al final de `componentes.css` por una razón práctica: ese
+ * archivo es el catálogo compartido que tocan todas las features a la vez, y ajustar el
+ * ancho de una columna de la bitácora no debería obligar a editar el archivo del que cuelga
+ * el panel entero. Acá vive lo que sólo estas cuatro pantallas usan.
+ *
+ * Todo lleva el prefijo `.log-`. Los colores salen de los alias del prototipo que expone
+ * `tokens.css` (`--ink-*`, `--line`, `--ok/--err/--info`…): no hay un hex suelto.
+ *
+ * Las animaciones son de entrada, duran menos de 300 ms y ninguna se repite. El bloque
+ * `prefers-reduced-motion` del final las anula todas.
+ */
+
+/* --- Encabezado de pantalla ---------------------------------------------------------- */
+
+.log-encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.log-encabezado__migas {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+  margin: 0 0 14px;
+}
+
+.log-encabezado__migas b {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+.log-encabezado__migas a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.log-encabezado__migas a:hover {
+  color: var(--ink-700);
+  text-decoration: underline;
+}
+
+/*
+ * El cintillo mono del prototipo, el mismo que llevan la agenda y el canal de WhatsApp.
+ * Dice en qué parte del panel está parado quien mira antes de que lea el título, que es lo
+ * que un `<h1>` suelto no puede decir: «Notificaciones» a secas no distingue la bandeja de
+ * la pantalla donde se eligen las preferencias.
+ */
+.log-encabezado__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+}
+
+.log-encabezado h1 {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.log-encabezado__sub {
+  color: var(--ink-500);
+  font-size: 14.5px;
+  margin: 6px 0 0;
+  max-width: 68ch;
+}
+
+/* --- PAN-LOG-01 · filtros ------------------------------------------------------------ */
+
+.log-filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3) var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+/* La búsqueda es el filtro que más texto recibe; ocupa dos columnas cuando la fila las
+   tiene, y una sola cuando la pantalla se angosta. */
+.log-filtros__ancho {
+  grid-column: span 2;
+}
+
+@media (max-width: 720px) {
+  .log-filtros__ancho {
+    grid-column: span 1;
+  }
+}
+
+/* Los campos compartidos traen separación pensada para un formulario en columna; dentro de
+   la barra de filtros la pone la grilla. */
+.log-filtros .campo {
+  margin-bottom: 0;
+}
+
+.log-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.log-barra__cuenta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-400);
+  margin: 0;
+}
+
+.log-accion {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 0 var(--space-4);
+  min-height: var(--touch-min);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.log-accion:hover:not(:disabled) {
+  border-color: var(--ink-300);
+  background: var(--bg-soft);
+}
+
+.log-accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.log-accion:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- PAN-LOG-01 · el panel de la tabla ----------------------------------------------- */
+
+.log-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.log-panel__cab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.log-panel__cab p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+/* La tabla compartida trae su propia caja con borde y radio. Dentro del panel sobra: dos
+   bordes concéntricos se leen como un error de maquetación, no como una jerarquía. */
+.log-panel .tabla__contenedor,
+.log-panel .tabla__vacia {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.log-panel .tabla tbody tr {
+  transition: background-color 140ms ease;
+}
+
+.log-panel .tabla tbody tr:hover td {
+  background: var(--bg-soft);
+}
+
+/* --- PAN-LOG-01 · las celdas densas del prototipo ------------------------------------ */
+
+.log-ts {
+  display: block;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+
+.log-ts b {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.log-ts span {
+  display: block;
+  /* 12px y no 10.5: es la fecha de la operación, texto para leer y no una etiqueta de
+     columna. El piso de legibilidad de la guía visual empieza acá. */
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.log-modulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  white-space: nowrap;
+}
+
+.log-modulo__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--ink-300);
+}
+
+.log-modulo__punto--acento {
+  background: var(--accent);
+}
+
+.log-modulo__punto--info {
+  background: var(--info);
+}
+
+.log-modulo__punto--alerta {
+  background: var(--alert);
+}
+
+.log-modulo__punto--primario {
+  background: var(--primary);
+}
+
+.log-op {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  text-decoration: none;
+}
+
+.log-op:hover {
+  color: var(--accent-700);
+  text-decoration: underline;
+}
+
+.log-ent {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-600);
+}
+
+.log-por {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--ink-600);
+  white-space: nowrap;
+}
+
+.log-por__tag {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-family: var(--mono);
+  /* 11px: son dos iniciales dentro de un círculo, el mínimo que la guía admite cuando el
+     contenido es una marca y no una frase. */
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-on-dark);
+  background: var(--ink-400);
+}
+
+.log-por--usuario .log-por__tag {
+  background: var(--info);
+}
+
+/*
+ * El agente de IA es la fila que hace que la pantalla valga la pena: es la única donde la
+ * decisión no la tomó una persona. Por eso lleva el acento, un halo que ninguna otra marca
+ * tiene y el texto en el tono más oscuro — se distingue antes de leerlo.
+ */
+.log-por--ia {
+  color: var(--ink-900);
+  font-weight: 600;
+}
+
+.log-por--ia .log-por__tag {
+  background: var(--accent);
+  color: var(--primary);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.log-ver {
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: var(--radius);
+  color: var(--ink-300);
+  font-size: 18px;
+  text-decoration: none;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.log-ver:hover {
+  color: var(--accent-700);
+  background: var(--accent-050);
+}
+
+/* --- PAN-LOG-01 · paginador ---------------------------------------------------------- */
+
+.log-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.log-pager__resumen {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.log-pager__resumen b {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.log-pager__paginas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.log-pg {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 60ms ease;
+}
+
+.log-pg:hover:not(:disabled) {
+  border-color: var(--ink-300);
+  color: var(--ink-900);
+}
+
+.log-pg:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.log-pg:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.log-pg[aria-current="page"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+.log-pager__elipsis {
+  color: var(--ink-300);
+  padding: 0 var(--space-1);
+}
+
+/* --- PAN-LOG-02 · detalle ------------------------------------------------------------ */
+
+.log-detalle {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.log-tarjeta {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+}
+
+.log-cabecera__linea {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.log-cabecera__titulo {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 10px 0 0;
+}
+
+.log-cabecera__sub {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-400);
+  margin: 2px 0 0;
+}
+
+.log-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-2);
+}
+
+.log-meta__l {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 7px;
+}
+
+.log-meta__v {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+  margin: 0;
+}
+
+.log-meta__v--mono {
+  font-family: var(--mono);
+}
+
+.log-seccion__titulo {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.log-seccion__nota {
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 500;
+  color: var(--ink-400);
+}
+
+.log-kv {
+  margin: 0;
+}
+
+.log-kv__par {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.log-kv__par:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.log-kv__k {
+  font-size: 13.5px;
+  color: var(--ink-500);
+}
+
+.log-kv__v {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.log-kv__v--mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+/*
+ * Casi ninguna operación registra datos propios. Decirlo con una raya y una frase ocupa una
+ * línea; una tarjeta vacía ocupa media pantalla y se lee como una carga que falló.
+ */
+.log-nada {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.log-nada::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+/* --- PAN-LOG-02 · el timeline -------------------------------------------------------- */
+
+.log-tl {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 2px;
+}
+
+.log-tl__paso {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 20px;
+  animation: log-tl-paso 160ms ease-out both;
+}
+
+.log-tl__paso:last-child {
+  padding-bottom: 0;
+}
+
+/* La línea que une un paso con el siguiente. Se dibuja de arriba hacia abajo. */
+.log-tl__paso::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 22px;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+  transform-origin: top;
+  animation: log-tl-linea 160ms ease-out both;
+}
+
+.log-tl__paso:last-child::before {
+  display: none;
+}
+
+/* El escalonado corta en el quinto punto: cinco pasos ya cuentan la historia, y un timeline
+   de veinte no puede tardar veinte retardos en aparecer. Máximo 140 ms + 160 ms = 300 ms. */
+.log-tl__paso:nth-child(1),
+.log-tl__paso:nth-child(1)::before {
+  animation-delay: 0ms;
+}
+
+.log-tl__paso:nth-child(2),
+.log-tl__paso:nth-child(2)::before {
+  animation-delay: 35ms;
+}
+
+.log-tl__paso:nth-child(3),
+.log-tl__paso:nth-child(3)::before {
+  animation-delay: 70ms;
+}
+
+.log-tl__paso:nth-child(4),
+.log-tl__paso:nth-child(4)::before {
+  animation-delay: 105ms;
+}
+
+.log-tl__paso:nth-child(n + 5),
+.log-tl__paso:nth-child(n + 5)::before {
+  animation-delay: 140ms;
+}
+
+@keyframes log-tl-paso {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes log-tl-linea {
+  from {
+    transform: scaleY(0);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.log-tl__punto {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: var(--card);
+  flex: none;
+  margin-top: 1px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.log-tl__punto--ok {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--color-text-on-dark);
+}
+
+.log-tl__punto--error {
+  background: var(--err);
+  border-color: var(--err);
+  color: var(--color-text-on-dark);
+}
+
+.log-tl__cuerpo {
+  flex: 1;
+  min-width: 0;
+}
+
+.log-tl__cuerpo b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.log-tl__cuerpo span {
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.log-tl__paso--fallo .log-tl__cuerpo b {
+  color: var(--err);
+}
+
+.log-tl__hora {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+/* --- PAN-CFG-NOT · la bandeja -------------------------------------------------------- */
+
+.log-bandeja__resumen {
+  font-size: 13.5px;
+  color: var(--ink-500);
+  margin: 0 0 var(--space-4);
+}
+
+/* El `main` del panel llega a 1640 px: sin tope, el cuerpo de un aviso se estira a lineas de
+   casi doscientos caracteres, que es el doble de lo que se lee sin perder el renglón. */
+.log-bandeja {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+  max-width: 1320px;
+}
+
+/* El estado vacío es una frase corta. Una tarjeta de ancho completo para sostenerla vuelve a
+   ser la caja gigante que se acaba de sacar de la pantalla. */
+.log-bandeja__vacia {
+  max-width: 620px;
+}
+
+/*
+ * La tarjeta es propia y no el `Card` compartido porque su fondo y su borde cambian al
+ * marcarla leída, y una transición sólo existe si el elemento que la sufre es el mismo
+ * antes y después.
+ */
+.log-aviso {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    opacity 220ms ease;
+}
+
+.log-aviso--destacado {
+  background: var(--err-bg);
+  border-left-color: var(--err);
+}
+
+/* Leída baja el peso visual sin borrar el aviso: sigue siendo consultable. */
+.log-aviso--leida {
+  opacity: 0.85;
+}
+
+.log-aviso__cab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin: 0 0 var(--space-2);
+}
+
+.log-aviso__sev {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.log-aviso__urgente {
+  font-size: var(--text-caption);
+  font-weight: 700;
+  color: var(--err);
+}
+
+.log-aviso__fecha {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.log-aviso__cuerpo {
+  margin: 0;
+  max-width: 96ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-700);
+}
+
+/*
+ * El pie reserva su alto. Al marcar leída, el botón se va y entra una línea de texto: si el
+ * pie se encogiera, la tarjeta saltaría y arrastraría a todas las de abajo — que es
+ * exactamente el salto que la transición está tratando de evitar.
+ */
+.log-aviso__pie {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  margin-top: var(--space-3);
+}
+
+.log-aviso__leida {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.log-aviso__leida::before {
+  content: "✓";
+}
+
+/*
+ * La acción de la fila es texto, no una caja con borde.
+ *
+ * Es el mismo criterio que `.faq-accion` y que el chevron del log: en una lista de avisos, un
+ * botón con borde por tarjeta dibuja una columna de cajas que compite por atención con el
+ * aviso mismo, y el aviso es lo único que hay que leer. El acuse de recibo es además la
+ * acción más barata del panel: no borra nada.
+ *
+ * El margen negativo compensa el padding para que el texto arranque en la misma vertical que
+ * el cuerpo del aviso; sin él la acción queda visiblemente corrida a la derecha.
+ */
+.log-aviso__accion {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  margin-left: -11px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 60ms ease;
+}
+
+.log-aviso__accion:hover:not(:disabled) {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-color: var(--line);
+}
+
+.log-aviso__accion:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.log-aviso__accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* --- PAN-SOP-01 · soporte ------------------------------------------------------------ */
+
+/*
+ * Formulario a la izquierda, listado a la derecha, y el conjunto acotado.
+ *
+ * El `main` del panel llega a 1640 px. Cuatro columnas cortas —asunto, prioridad, estado y
+ * fecha— repartidas sobre ese ancho dejan medio metro de vacío entre el asunto y su
+ * prioridad, y obligan a barrer la pantalla entera para leer una fila. El tope de 1320 px y
+ * la columna del formulario son las dos cosas que devuelven la fila a un ancho que se lee de
+ * una sola pasada.
+ */
+.log-soporte {
+  display: grid;
+  grid-template-columns: minmax(320px, 400px) 1fr;
+  gap: var(--space-4);
+  align-items: start;
+  max-width: 1320px;
+}
+
+/* Sin permiso para abrir solicitudes no hay formulario: el listado no debe estirarse a
+   ocupar las dos columnas, sólo la que le corresponde. */
+.log-soporte--sola {
+  grid-template-columns: minmax(0, 900px);
+}
+
+@media (max-width: 1080px) {
+  .log-soporte {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* La prioridad se lee antes de leerla: el punto de color la ordena de un vistazo, igual que
+   el punto de módulo ordena la bitácora. El texto la sigue diciendo, porque el color solo no
+   es información accesible. */
+.log-prio {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  white-space: nowrap;
+}
+
+.log-prio__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--ink-300);
+}
+
+.log-prio__punto--alta {
+  background: var(--err);
+}
+
+.log-prio__punto--media {
+  background: var(--alert);
+}
+
+/* «Abierta el» parte en dos renglones cuando su columna se angosta, y una cabecera de dos
+   líneas entre tres de una sola desalinea la fila entera. */
+.log-soporte .tabla th {
+  white-space: nowrap;
+}
+
+.log-soporte__pie {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+/*
+ * El área de texto que al catálogo compartido le falta.
+ *
+ * Hereda del `.campo__control` todo lo que la hace parte del mismo juego de controles —tipo,
+ * borde, radio, padding y el foco de acento con halo— y sólo cambia lo que un `textarea`
+ * necesita: alto propio.
+ *
+ * **`resize: none` es deliberado.** El tirador nativo es el único control del panel que se
+ * dibuja solo, con una diagonal gris que ningún otro campo tiene, y aparece justo sobre el
+ * borde de la tarjeta. Cuatro renglones alcanzan para describir un problema; lo que no entra,
+ * hace scroll.
+ */
+.log-area {
+  width: 100%;
+  min-height: 104px;
+  resize: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-900);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 10px 13px;
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.log-area::placeholder {
+  color: var(--ink-300);
+}
+
+.log-area:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.log-area:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.log-sol b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.log-sol span {
+  display: block;
+  max-width: 42ch;
+  font-size: 12px;
+  color: var(--ink-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-fecha {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-600);
+}
+
+/* --- Quien pidió menos movimiento no recibe ninguno ---------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .log-tl__paso,
+  .log-tl__paso::before,
+  .log-aviso,
+  .log-aviso__accion,
+  .log-accion,
+  .log-area,
+  .log-pg,
+  .log-ver,
+  .log-panel .tabla tbody tr {
+    animation: none;
+    transition: none;
+  }
+
+  .log-tl__paso {
+    opacity: 1;
+    transform: none;
+  }
+
+  .log-tl__paso::before {
+    transform: none;
+  }
+
+  .log-accion:active:not(:disabled),
+  .log-aviso__accion:active:not(:disabled),
+  .log-pg:active:not(:disabled) {
+    transform: none;
+  }
+}

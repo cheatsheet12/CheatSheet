@@ -1,0 +1,14 @@
+$sistema necesita tu atención
+
+Hola,
+
+$sistema sigue funcionando, pero hay algo que conviene resolver antes de que
+deje de hacerlo:
+
+$detalle
+
+Podés ver el estado de todas tus integraciones acá:
+
+$enlace
+
+— CheatSheet

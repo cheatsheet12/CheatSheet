@@ -1,0 +1,264 @@
+# Render Blueprint — the staging environment, versioned.
+#
+# This file is the description of the infrastructure, reviewable in a pull request,
+# for the same reason `backend/scripts/provision_app_role.py` exists instead of a
+# sequence of clicks in the Neon console: infrastructure nobody can read is
+# infrastructure nobody can audit.
+#
+# It lives at the repository root because that is the only place Render reads it from,
+# and because it describes both applications at once — which is exactly the test
+# CLAUDE.md §2.3 sets for what belongs at the root.
+#
+# ---------------------------------------------------------------------------
+# This file has never been applied, and that is worth knowing before you apply it
+# ---------------------------------------------------------------------------
+# The staging services were created by hand in the dashboard, following the runbook,
+# between 2026-08-24 and 2026-09-19. **The dashboard is the source of truth**; this
+# file is the reviewable description of what is there, which is why it lives in the
+# repository at all (the same reason `provision_app_role.py` exists instead of a
+# sequence of clicks).
+#
+# It is kept faithful by hand. Before trusting it, compare it against the console --
+# a service created by a Blueprint apply is a NEW service, so applying this today
+# would leave a second copy of each one running beside the originals, and the paid
+# worker would be paid twice. If this environment is ever rebuilt from scratch, apply
+# it into an empty workspace, not over the current one.
+#
+# Known and deliberate differences from a plain apply: nothing today. Verified
+# against the console on 2026-09-19.
+
+# Companion runbook: docs/staging-deployment.md
+# Decision and alternatives: docs/adr/0006-staging-hosting-render.md
+#
+# ---------------------------------------------------------------------------
+# `autoDeploy: false` on every service, and it is the whole point
+# ---------------------------------------------------------------------------
+# Render's default is to deploy on every push to the tracked branch. That would
+# deploy a red build: Render does not know whether CI passed. Deploys are driven
+# by the `deploy-staging` job of .github/workflows/ci.yml, which runs only after
+# every gate succeeded and after the migrations applied cleanly. Turning autoDeploy
+# back on would silently restore the failure mode this unit was built to avoid.
+#
+# ---------------------------------------------------------------------------
+# What this costs
+# ---------------------------------------------------------------------------
+# One Starter instance, for `cheatsheet-worker`. Everything else — the API, the
+# panel, Key Value, and the Neon database behind them — runs on a free plan, and
+# Cloudflare R2 stays inside its free tier. Decision R1 (2026-08-24) deferred the
+# workers precisely because they are the part that is not free; 2026-09-18 accepted
+# that cost at its minimum, with Beat embedded in the worker rather than running as
+# a second paid service.
+
+services:
+  # -------------------------------------------------------------------------
+  # The API. Docker, because the image is shared with the workers that follow.
+  # -------------------------------------------------------------------------
+  - type: web
+    name: cheatsheet-api
+    runtime: docker
+    region: ohio # Neon lives in sa-east-1; Render has no São Paulo. Nearest of the five.
+    plan: free
+    branch: develop
+    autoDeploy: false
+    dockerfilePath: ./backend/Dockerfile
+    # The context is `backend/`, not the repository root: the image needs nothing from
+    # `frontend/` or `docs/`, and a smaller context is a faster and narrower build.
+    dockerContext: ./backend
+    # /health answers 503 when PostgreSQL or Redis is unreachable, so an instance
+    # that cannot serve is never routed traffic. It was written before this unit
+    # and needed no change.
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: staging
+      # Every value below is a secret or an environment-specific URL: `sync: false`
+      # means Render asks for it once and stores it, and it never appears here.
+      # CLAUDE.md §3.2 — no credential in the repository, ever.
+      - key: DATABASE_URL # role cheatsheet_app: owns nothing, RLS applies to it
+        sync: false
+      - key: DATABASE_URL_MIGRATIONS # role neondb_owner: read by Alembic only
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      # APP_BASE_URL is the panel's public URL, not the API's: it is what the
+      # MercadoPago redirect_uri is derived from (settings.py), and that URI has to
+      # match the one registered in the MercadoPago application character for
+      # character or the exchange fails with `invalid_grant`.
+      - key: APP_BASE_URL
+        sync: false
+      # This service's own public URL. Every MercadoPago link carries
+      # {API_URL_PUBLICA}/webhooks/mercadopago/{empresa_id} as notification_url;
+      # required when MERCADOPAGO_ADAPTADOR=mercadopago.
+      - key: API_URL_PUBLICA
+        sync: false
+      # Same four values as the worker: both processes read and write the same
+      # objects, and two different buckets would be two halves of one flow.
+      - key: ALMACENAMIENTO_ADAPTADOR
+        value: r2
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      # WhatsApp. The adapter is `simulado` on staging: there are no real Meta credentials
+      # yet (docs/staging-deployment.md §8), so messages go to a log and reminders are
+      # recorded as sent. Production must be `meta`; `simulado` is refused there.
+      - key: WHATSAPP_ADAPTADOR
+        value: simulado
+      # The Meta app's App Secret, which signs `X-Hub-Signature-256` on every inbound
+      # notification. **Without it every notification is discarded with a 200** (D49).
+      - key: WHATSAPP_WEBHOOK_SECRET
+        sync: false
+      # The token typed when the webhook URL is registered in the Meta app.
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: cheatsheet-redis
+          type: redis
+          property: connectionString
+
+  # -------------------------------------------------------------------------
+  # The workers: ONE service, with Beat embedded. Half of what the product does is
+  # asynchronous — without it an ingestion never finishes and a document never gets
+  # its CAE, which looks like a defect and is a deployment gap.
+  #
+  # **This is the only paid line of the environment.** Render's free plan covers web
+  # services and Key Value, not background workers, so this is the one instance that
+  # costs money (Starter). Splitting Beat into its own service is the textbook shape
+  # and doubles that bill for a staging environment where one person clicks at a
+  # time; `-B` runs the scheduler inside this same process instead.
+  #
+  # `-B` is safe here for exactly one reason, and it stops being safe the moment the
+  # reason goes away: **there is one instance**. Two instances with `-B` are two
+  # schedulers — two WhatsApp polls and two emails to every Administrador, which is
+  # what `workers/beat.py` warns about. If this service is ever scaled, Beat moves
+  # out to its own `numInstances: 1` service first.
+  #
+  # `-c 2`, not 4: the image measures ~82 MB per process, so a parent and two
+  # children fit the 512 MB of a Starter instance with room to spare. Four children
+  # would not, and the failure is an out-of-memory kill in the middle of a task.
+  #
+  # Same image as the API on purpose: the tasks import the same application code, and
+  # a second Dockerfile is a second place for the versions to drift.
+  # -------------------------------------------------------------------------
+  - type: worker
+    name: cheatsheet-worker
+    runtime: docker
+    region: ohio
+    plan: starter
+    branch: develop
+    autoDeploy: false
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    numInstances: 1 # not a default: `-B` below makes a second instance a duplicate scheduler
+    # The five queues in one worker. They exist so a burst of spreadsheet processing
+    # cannot delay a payment webhook; on staging, where the load is one person
+    # clicking, five services would buy nothing and cost five times as much.
+    # `-s /tmp/...` is not cosmetic: with `-B`, Beat persists its schedule to a file,
+    # and its default path is `celerybeat-schedule` in the working directory. The image
+    # copies everything as root and then drops to an unprivileged user, so /app is not
+    # writable and the process would die on boot -- on the very first deploy. /tmp is
+    # writable and ephemeral, which is right: the schedule is rebuilt from
+    # `workers/beat.py` at every start, so there is nothing worth keeping across one.
+    startCommand: >-
+      celery -A cheatsheet.workers.main:app worker -B
+      -s /tmp/celerybeat-schedule
+      -Q integrations_sync,spreadsheet_processing,incremental_sync,notifications,ai_nlp
+      -c 2
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_MIGRATIONS
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      # Must be the SAME value the API holds: integration credentials are encrypted
+      # with it, and a worker that cannot decrypt ARCA's certificate fails every
+      # authorisation with `CredencialIlegible` while the row looks perfectly fine.
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      # Same value as on the API. The worker loads the same Settings, which refuse to
+      # boot without it when MERCADOPAGO_ADAPTADOR=mercadopago.
+      - key: API_URL_PUBLICA
+        sync: false
+      # Object storage, and it stops being optional the day this service exists.
+      # `GenerarPaqueteContable` runs BOTH here and in the API; with the in-memory
+      # adapter the package this process builds lives in this process, and the API
+      # serves a download for a file it cannot see.
+      - key: ALMACENAMIENTO_ADAPTADOR
+        value: r2
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      # The reminder sweep runs here and must pick the same channel as the API.
+      # Per-company token and number come from `integrations`, not from the environment.
+      - key: WHATSAPP_ADAPTADOR
+        value: simulado
+      - key: REDIS_URL
+        fromService:
+          name: cheatsheet-redis
+          type: redis
+          property: connectionString
+
+  # -------------------------------------------------------------------------
+  # The panel. Node runtime rather than Docker: packaging Next.js in an image
+  # requires `output: 'standalone'` in next.config, which means changing the
+  # application to suit the platform. `npm ci && npm run build` asks for nothing.
+  # -------------------------------------------------------------------------
+  - type: web
+    name: cheatsheet-panel
+    runtime: node
+    region: ohio
+    plan: free
+    branch: develop
+    autoDeploy: false
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22" # package.json engines and CI both say 22
+      # The BFF's address for the API. Deliberately not NEXT_PUBLIC_: the browser
+      # never talks to the API, only this app's own route handlers do. Point it at
+      # the API's INTERNAL Render URL so the traffic never leaves the platform.
+      - key: BACKEND_API_URL
+        sync: false
+      # This service's OWN public URL. `app/api/auth/google/route.ts` builds the
+      # OAuth redirect from it and falls back to http://localhost:3000, so leaving
+      # it unset does not fail loudly: the button simply sends the user to their
+      # own machine. Same variable name as on the API, same value, different
+      # reason -- there it is what the MercadoPago redirect_uri derives from.
+      - key: APP_BASE_URL
+        sync: false
+
+  # -------------------------------------------------------------------------
+  # Redis. Not "the workers' infrastructure": without REDIS_URL the API does not
+  # boot (settings.py requires it), and the OAuth2 `state` memory, the idempotency
+  # registry and half of /health live here.
+  #
+  # NOTE: Render renamed this product to "Key Value". If a blueprint apply rejects
+  # `type: redis`, the current schema name is `keyvalue` — check the console before
+  # changing it, and change nothing else.
+  # -------------------------------------------------------------------------
+  - type: redis
+    name: cheatsheet-redis
+    region: ohio
+    plan: free
+    # No public access: only the services above reach it, over the private network.
+    # An empty list is not a placeholder — it is the closed door.
+    ipAllowList: []

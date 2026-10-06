@@ -1,8 +1,12 @@
 name: CI
 
-# Pipeline de integración continua (sección 6 del plan de configuración).
-# Se ejecuta automáticamente ante cada Pull Request dirigido a develop o main.
-# Un PR no puede fusionarse si alguno de estos jobs falla.
+# Continuous integration pipeline (section 6 of the configuration plan).
+# Runs on every Pull Request targeting develop or main.
+# A PR cannot be merged if any of these jobs fails.
+#
+# The rules this pipeline enforces live in CLAUDE.md and docs/code-standards.md.
+# Tool versions are pinned in requirements-dev.txt so CI and the team's machines
+# see exactly the same thing.
 
 on:
   pull_request:
@@ -13,10 +17,75 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHON_VERSION: "3.11"
+
 jobs:
   # ----------------------------------------------------------------------
-  # Análisis estático de código — Python (módulos core/intake/billing/...)
-  # Condición de falla: el código no cumple las convenciones de estilo.
+  # Repository conventions: branch name, target branch and commit messages.
+  # Fails when: the PR does not follow GitFlow or Conventional Commits.
+  # ----------------------------------------------------------------------
+  conventions:
+    name: Conventions (branch and commits)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate branch naming and target
+        env:
+          BRANCH: ${{ github.head_ref }}
+          TARGET: ${{ github.base_ref }}
+        run: |
+          echo "Branch: $BRANCH  ->  Target: $TARGET"
+
+          if [[ "$BRANCH" =~ ^(feature|fix)/[a-z0-9_]+-[a-z0-9-]+$ ]]; then
+            if [[ "$TARGET" != "develop" ]]; then
+              echo "::error::feature/ and fix/ branches may only target develop (got: $TARGET)."
+              exit 1
+            fi
+          elif [[ "$BRANCH" =~ ^hotfix/[a-z0-9-]+$ ]]; then
+            if [[ "$TARGET" != "main" ]]; then
+              echo "::error::hotfix/ branches may only target main (got: $TARGET)."
+              exit 1
+            fi
+          elif [[ "$BRANCH" == "develop" && "$TARGET" == "main" ]]; then
+            echo "develop -> main integration: OK."
+          else
+            echo "::error::'$BRANCH' does not follow the project naming scheme."
+            echo "Valid formats: feature/<module>-<desc>, fix/<module>-<desc>, hotfix/<desc>"
+            exit 1
+          fi
+
+      - name: Validate commit message format
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='^(feat|fix|docs|refactor|test|chore|perf|ci)(\([a-z_]+\))?: .{10,}'
+          failed=0
+          while IFS= read -r message; do
+            [ -n "$message" ] || continue
+            case "$message" in
+              "Merge "*) continue ;;   # GitHub merge commits do not follow the format
+            esac
+            if ! echo "$message" | grep -Eq "$pattern"; then
+              echo "::error::Invalid commit message: '$message'"
+              failed=1
+            fi
+          done < <(git log --format=%s "$BASE_SHA".."$HEAD_SHA")
+
+          if [ "$failed" -ne 0 ]; then
+            echo "Required format: <type>(<module>): <description>  — see CLAUDE.md §6"
+            exit 1
+          fi
+          echo "All commit messages follow Conventional Commits."
+
+  # ----------------------------------------------------------------------
+  # Static analysis — Python. Formatting and linting (ruff, strict config).
+  # Fails when: the code does not meet the defined conventions.
   # ----------------------------------------------------------------------
   lint-python:
     name: Lint (Python / ruff)
@@ -25,90 +94,425 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Instalar ruff
-        run: pip install ruff
-      - name: Ejecutar ruff
-        run: ruff check .
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install tooling
+        run: pip install -r requirements-dev.txt
+
+      - name: Check formatting
+        run: ruff format --check --diff .
+
+      - name: Run linter
+        run: ruff check --output-format=github .
 
   # ----------------------------------------------------------------------
-  # Análisis estático de código — Frontend (dashboard, Next.js)
-  # Solo corre si el dashboard ya tiene package.json.
+  # Type checking (mypy --strict).
+  # Fails when: there is untyped code or inconsistent types.
   # ----------------------------------------------------------------------
-  lint-dashboard:
-    name: Lint (dashboard / ESLint)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: ¿Existe dashboard/package.json?
-        id: check
-        run: |
-          if [ -f dashboard/package.json ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "dashboard/package.json aún no existe — se omite el lint del frontend."
-          fi
-      - uses: actions/setup-node@v4
-        if: steps.check.outputs.exists == 'true'
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: dashboard/package-lock.json
-      - name: Instalar dependencias
-        if: steps.check.outputs.exists == 'true'
-        working-directory: dashboard
-        run: npm ci
-      - name: Ejecutar ESLint
-        if: steps.check.outputs.exists == 'true'
-        working-directory: dashboard
-        run: npm run lint
-
-  # ----------------------------------------------------------------------
-  # Ejecución de tests automáticos (pytest)
-  # Condición de falla: al menos un test falla.
-  # ----------------------------------------------------------------------
-  tests:
-    name: Tests (pytest)
+  typecheck:
+    name: Types (mypy --strict)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Instalar dependencias de test
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install tooling
+        run: pip install -r requirements-dev.txt
+
+      - name: Install the backend package
+        # Without this, `import fastapi` is an unresolved import and mypy --strict
+        # fails on every module of the application. The package is installed rather
+        # than a requirements file because its dependencies live in backend/pyproject.
+        run: pip install -e backend/
+
+      - name: Run mypy
         run: |
-          pip install pytest
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-      - name: Ejecutar pytest
-        run: |
-          # exit code 5 = "no se recolectaron tests"; aceptable mientras el
-          # proyecto está vacío. Cualquier test fallido (1) sí rompe el pipeline.
-          pytest
-          code=$?
-          if [ $code -eq 5 ]; then
-            echo "No hay tests todavía — OK."
+          # Files are passed explicitly: `mypy .` skips hidden directories, and the
+          # hooks under .claude/hooks/ are code we maintain too. node_modules is
+          # excluded because it ships Python of its own that is nobody's to fix.
+          find_py() {
+            find . -name '*.py' \
+              -not -path './.venv/*' \
+              -not -path './.git/*' \
+              -not -path './frontend/node_modules/*' "$@"
+          }
+          if [ -z "$(find_py -print -quit)" ]; then
+            echo "No Python code yet — nothing to check."
             exit 0
           fi
-          exit $code
+          find_py -print0 | xargs -0 mypy
 
   # ----------------------------------------------------------------------
-  # Verificación de variables de entorno / credenciales hardcodeadas
-  # Condición de falla: se detecta un patrón de credencial en el código.
+  # Architecture boundaries (hexagonal layering + bounded contexts).
+  # Fails when: a module reaches across a boundary the Context Map forbids.
+  # This is what keeps the modular monolith modular (ADR-0001).
+  # ----------------------------------------------------------------------
+  architecture:
+    name: Architecture boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Check hexagonal and bounded-context boundaries
+        run: python .claude/hooks/guard_architecture.py --scan .
+
+  # ----------------------------------------------------------------------
+  # Frontend gates (frontend/, Next.js) — ADR-0002.
+  # Fails when: formatting, lint, types or the 80% coverage threshold fail.
+  # ----------------------------------------------------------------------
+  lint-frontend:
+    name: Frontend gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Check formatting
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Check TypeScript types
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Verify the R5 ESLint rule still fires
+        working-directory: frontend
+        run: |
+          # A misconfigured pattern here fails open: lint stays green while the rule
+          # matches nothing. That happened once already, so it is now checked.
+          mkdir -p src/features/payments/components
+          fixture=src/features/payments/components/__r5_fixture.tsx
+          printf 'import { x } from "@/features/billing/api/client";\nexport const a = x;\n' \
+            > "$fixture"
+          if npm run lint --silent > /dev/null 2>&1; then
+            rm -f "$fixture"
+            echo "::error::The R5 ESLint rule no longer flags a deep cross-feature import."
+            exit 1
+          fi
+          rm -f "$fixture"
+          echo "R5 ESLint rule is live."
+
+      - name: Run tests with coverage
+        working-directory: frontend
+        run: npm run test:coverage
+
+  # ----------------------------------------------------------------------
+  # Automated tests and minimum coverage (80%, defined in pyproject.toml).
+  # Fails when: a test fails, or coverage drops below the threshold.
+  # ----------------------------------------------------------------------
+  tests:
+    name: Tests and coverage (pytest)
+    runs-on: ubuntu-latest
+
+    services:
+      # Row-Level Security is a feature of the engine: it cannot be faked, and a test
+      # against SQLite would pass while proving nothing. pgvector's image because
+      # migration 0001 installs the `vector` extension.
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: cheatsheet_owner
+          POSTGRES_PASSWORD: test-only-ci-container
+          POSTGRES_DB: cheatsheet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cheatsheet_owner -d cheatsheet"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      # The application connects as a role that owns nothing, so RLS actually applies
+      # to it; migrations connect as the owner. Test-only values for a container that
+      # lives for the length of this job.
+      DATABASE_URL: postgresql+asyncpg://cheatsheet_app:test-only-ci-container@localhost:5432/cheatsheet
+      DATABASE_URL_MIGRATIONS: postgresql+asyncpg://cheatsheet_owner:test-only-ci-container@localhost:5432/cheatsheet
+      REDIS_URL: redis://localhost:6379/0
+      APP_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        # `pip install -e backend/` and not a root requirements.txt: application
+        # dependencies live in backend/pyproject.toml, and guard_edit.py blocks a
+        # requirements.txt at the root precisely so there is one answer to this.
+        run: |
+          pip install -r requirements-dev.txt
+          pip install -e backend/
+
+      - name: Provision the application role
+        # Same SQL the local docker-compose runs, so the two environments cannot drift.
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+          PGPASSWORD=test-only-ci-container psql -h localhost -U cheatsheet_owner -d cheatsheet \
+            -v ON_ERROR_STOP=1 -f backend/scripts/init-db.sql
+          PGPASSWORD=test-only-ci-container psql -h localhost -U cheatsheet_owner -d cheatsheet \
+            -v ON_ERROR_STOP=1 -c "ALTER ROLE cheatsheet_app PASSWORD 'test-only-ci-container'"
+
+      - name: Apply migrations
+        run: alembic -c backend/alembic.ini upgrade head
+
+      - name: Verify the tenant barrier on the provisioned database
+        # Row-Level Security only holds if the application role is not the owner and
+        # does not bypass policies — and that is a property of how the database was
+        # provisioned, which no unit test can observe. This asks the live database,
+        # and ends by actually trying to read across the tenant boundary (ADR-0005).
+        run: python backend/scripts/verify_rls.py
+
+      - name: Verify the tenant-barrier check still fails when the barrier is down
+        # A verifier nobody has seen fail is a verifier that reports green on the day it
+        # stopped checking anything. Same reasoning as the R5 ESLint fixture above.
+        run: |
+          psql_owner() {
+            PGPASSWORD=test-only-ci-container psql -h localhost -U cheatsheet_owner \
+              -d cheatsheet -v ON_ERROR_STOP=1 -c "$1"
+          }
+          psql_owner "ALTER ROLE cheatsheet_app BYPASSRLS"
+          if python backend/scripts/verify_rls.py; then
+            psql_owner "ALTER ROLE cheatsheet_app NOBYPASSRLS"
+            echo "::error::verify_rls.py pasó con cheatsheet_app en BYPASSRLS: dejó de verificar."
+            exit 1
+          fi
+          psql_owner "ALTER ROLE cheatsheet_app NOBYPASSRLS"
+          echo "The tenant-barrier verifier is live."
+
+      - name: Run tests with coverage
+        run: |
+          # While the project has no tests, this job passes. As soon as the first one
+          # exists, the coverage threshold from pyproject.toml applies.
+          if ! pytest --collect-only -q 2>/dev/null | grep -qE '^[^ ]+::'; then
+            echo "No collectable tests yet — nothing to run."
+            exit 0
+          fi
+          pytest --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Verify the integration tests actually ran
+        # The database tests skip themselves when DATABASE_URL is unset. That is right
+        # on a laptop and wrong here: a misconfigured service container would turn the
+        # isolation suite into a green no-op, which is the worst kind of passing build.
+        run: |
+          if pytest backend/tests/integracion -q --collect-only 2>/dev/null | grep -q "no tests ran"; then
+            echo "::error::No se recolectaron los tests de integración."
+            exit 1
+          fi
+          pytest backend/tests/integracion -q -p no:cacheprovider | tee /tmp/integracion.txt
+          if grep -q "skipped" /tmp/integracion.txt; then
+            echo "::error::Los tests de integración se saltearon: la base no está configurada en CI."
+            exit 1
+          fi
+
+  # ----------------------------------------------------------------------
+  # Hardcoded credential detection.
+  # Fails when: a credential pattern is found in the code.
   # ----------------------------------------------------------------------
   secret-scan:
-    name: Detección de credenciales (gitleaks)
+    name: Credential detection (gitleaks)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Instalar gitleaks
+
+      - name: Install gitleaks
         run: |
           VERSION=8.21.2
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
             | tar -xz gitleaks
           sudo mv gitleaks /usr/local/bin/
-      - name: Escanear el árbol de trabajo
+
+      - name: Scan the working tree
         run: gitleaks detect --source . --no-git --redact -v
+
+  # ----------------------------------------------------------------------
+  # Repository configuration integrity.
+  # Fails when: the local hooks are broken, or the Claude Code configuration is
+  # not valid JSON (which would silently disable every rule for the whole team).
+  # ----------------------------------------------------------------------
+  guards:
+    name: Local guard integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Validate .claude/settings.json
+        run: |
+          jq -e '.hooks.PreToolUse' .claude/settings.json > /dev/null \
+            || { echo "::error::.claude/settings.json is invalid or lost its hooks."; exit 1; }
+          echo "settings.json is valid and declares its hooks."
+
+      - name: Validate that the hooks still compile
+        run: |
+          for h in .claude/hooks/*.py; do
+            python -m py_compile "$h" || { echo "::error::$h does not compile."; exit 1; }
+          done
+          for s in .claude/hooks/*.sh; do
+            bash -n "$s" || { echo "::error::$s does not compile."; exit 1; }
+          done
+          echo "All hooks are syntactically valid."
+
+      - name: Verify the guards still block
+        run: |
+          git config --global user.email "ci@cheatsheet.local"
+          git config --global user.name "CI"
+          bash .claude/hooks/test_guards.sh
+
+  # ---------------------------------------------------------------------------
+  # Continuous deployment to staging.
+  #
+  # This lives inside the CI workflow, as a job, rather than in a workflow of its
+  # own triggered by `workflow_run`. That was the first design and it does not
+  # work here: GitHub only fires `workflow_run` from the copy of the workflow file
+  # on the repository's DEFAULT branch, which is `main`. A deploy workflow living
+  # on `develop` would sit there and never run, and nothing would say so.
+  #
+  # As a job it is also a stronger guarantee. `needs:` is a hard dependency: if any
+  # gate above fails, this job does not start. There is no second workflow run that
+  # has to look up whether the first one passed.
+  #
+  # Runbook: docs/staging-deployment.md · Decision: docs/adr/0006-staging-hosting-render.md
+  # ---------------------------------------------------------------------------
+  deploy-staging:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    # `conventions` is deliberately NOT here, and adding it breaks this job.
+    # That job only runs on `pull_request` -- it validates the branch name and the
+    # commit format, neither of which describes a push to `develop`. In GitHub
+    # Actions a SKIPPED dependency skips the dependent job, so listing it here
+    # means this one never runs at all, on any push, silently. It did exactly that
+    # on 2026-08-25. Every job below runs on push, which is what makes them usable
+    # as a gate.
+    needs:
+      - lint-python
+      - typecheck
+      - architecture
+      - lint-frontend
+      - tests
+      - secret-scan
+      - guards
+    # Only a real push to `develop`. Pull requests targeting it — including the ones
+    # that run every gate above — must not deploy anything.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    concurrency:
+      # One deploy at a time. Two overlapping runs would mean two `alembic upgrade
+      # head` against the same database, and Alembic is not built for that.
+      # `cancel-in-progress: false` on purpose: a half-applied migration is worse
+      # than a queued deploy.
+      group: deploy-staging
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install the backend
+        # Alembic and the verifier both need the application's dependencies.
+        run: pip install -e backend/
+
+      - name: Apply migrations
+        # As the OWNER role. The application role owns nothing and cannot create
+        # tables — that separation is what makes RLS apply to the application at
+        # all (ADR-0005), so it is also what makes this a separate secret.
+        env:
+          DATABASE_URL_MIGRATIONS: ${{ secrets.DATABASE_URL_MIGRATIONS }}
+        run: alembic -c backend/alembic.ini upgrade head
+
+      - name: Verify the tenant barrier on the live database
+        # This already ran above against the job's container. Here it runs against
+        # the real database, after migrating. That is the difference between "the
+        # policies were right the day we provisioned it" and "they are right now".
+        #
+        # A non-zero exit stops the job, so no deploy hook is called and the
+        # services keep serving the previous version.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_MIGRATIONS: ${{ secrets.DATABASE_URL_MIGRATIONS }}
+        run: python backend/scripts/verify_rls.py
+
+      - name: Release the API
+        # A deploy hook is a per-service secret URL. Nothing is echoed: the URL is
+        # the credential, so it never reaches the log, not even on failure.
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+        run: curl --fail --silent --show-error --output /dev/null "$HOOK"
+
+      - name: Release the panel
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PANEL }}
+        run: curl --fail --silent --show-error --output /dev/null "$HOOK"
+
+      - name: Release the worker
+        # Without this the worker keeps consuming tasks with the code of whatever
+        # release it last booted on, while the API and the panel move ahead. It fails
+        # silently -- the task is consumed and half-understood, not rejected -- which
+        # is the exact drift ADR-0006 built one shared image to avoid.
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_WORKER }}
+        run: curl --fail --silent --show-error --output /dev/null "$HOOK"
+
+      - name: Wait for the API to report healthy
+        # The deploy hook returns as soon as Render accepts the job, not when the
+        # new version serves traffic. Without this the workflow would go green on
+        # "the deploy was requested", which is not what a green check should mean.
+        #
+        # /health returns 503 while PostgreSQL or Redis is unreachable, so this
+        # waits for a genuinely working instance. The free plan suspends idle
+        # services and Neon suspends idle compute, so the first request also has to
+        # wake both: the budget is generous on purpose.
+        env:
+          API_URL: ${{ secrets.STAGING_API_URL }}
+        run: |
+          set -euo pipefail
+          for intento in $(seq 1 40); do
+            codigo=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+                          --max-time 30 "$API_URL/health" || true)
+            if [ "$codigo" = "200" ]; then
+              echo "La API responde sana tras $intento intento(s)."
+              exit 0
+            fi
+            echo "Intento $intento: /health devolvio '$codigo'. Reintento en 15 s."
+            sleep 15
+          done
+          echo "::error::La API no reporto /health 200 en 10 minutos."
+          echo "Los servicios pueden seguir sirviendo la version anterior; ver la consola de Render."
+          exit 1

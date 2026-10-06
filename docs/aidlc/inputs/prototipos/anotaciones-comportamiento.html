@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CheatSheet · Anotaciones de Comportamiento</title>
+<style>
+  :root {
+    --primary:#1E1E2E; --accent:#00C48C; --accent-700:#00A879; --accent-050:#E4F8F1; --accent-100:#C9F1E4;
+    --alert:#FDCB6E; --alert-050:#FEF6E4; --bg:#F8F7FF; --card:#FFFFFF;
+    --ink-900:#1E1E2E; --ink-700:#3d3d52; --ink-600:#54546a; --ink-500:#6b6b80; --ink-400:#8a8a9c; --ink-300:#b6b6c4;
+    --line:#e7e6f0; --line-2:#eeedf6;
+    --ok:#00A879; --ok-bg:#E4F8F1; --warn:#B8860B; --warn-bg:#FEF1D6; --err:#DC2B3A; --err-bg:#FCE8EA; --info:#3A3A5C; --info-bg:#ECECF4;
+    --radius:14px; --radius-sm:10px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Roboto Mono",Menlo,monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #F0EEE6; font-family: var(--sans); color: var(--ink-900); -webkit-font-smoothing: antialiased; }
+  .page { width: 816px; min-height: 1056px; margin: 30px auto; background: #fff; padding: 56px 60px 62px; box-shadow: 0 2px 12px rgba(0,0,0,.08); border-radius: 3px; position: relative; }
+  .page__num { position: absolute; bottom: 30px; right: 60px; font-family: var(--mono); font-size: 10px; color: var(--ink-300); }
+  .page__foot { position: absolute; bottom: 30px; left: 60px; font-family: var(--mono); font-size: 10px; color: var(--ink-300); }
+
+  /* cover */
+  .cover-mark { display: flex; align-items: center; gap: 14px; margin-bottom: 52px; }
+  .cover-mark .logo { width: 50px; height: 50px; border-radius: 14px; background: var(--accent); color: var(--primary); display: grid; place-items: center; font-weight: 800; font-size: 17px; }
+  .cover-mark b { font-size: 18px; font-weight: 700; display: block; }
+  .cover-mark span { font-family: var(--mono); font-size: 11px; color: var(--ink-400); }
+  .cover h1 { font-size: 42px; font-weight: 800; letter-spacing: -1.3px; line-height: 1.06; margin: 0 0 18px; }
+  .cover .lead { font-size: 15px; color: var(--ink-500); line-height: 1.6; max-width: 540px; margin: 0 0 40px; }
+  .keymap { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; max-width: 540px; }
+  .keymap__h { background: var(--bg); padding: 11px 16px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-500); font-weight: 700; border-bottom: 1px solid var(--line); }
+  .keymap__row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+  .keymap__row:last-child { border-bottom: 0; }
+  .tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; flex: none; font-family: var(--mono); }
+  .tag--act { background: var(--info-bg); color: var(--info); }
+  .tag--req { background: var(--alert-050); color: var(--warn); }
+  .tag--ok { background: var(--ok-bg); color: var(--ok); }
+  .tag--err { background: var(--err-bg); color: var(--err); }
+
+  .cover-list { margin-top: 38px; }
+  .cover-list h3 { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-400); margin: 0 0 12px; }
+  .cover-list ol { margin: 0; padding: 0; list-style: none; counter-reset: c; columns: 2; column-gap: 30px; max-width: 560px; }
+  .cover-list li { counter-increment: c; padding: 7px 0; font-size: 13px; display: flex; gap: 9px; align-items: baseline; break-inside: avoid; }
+  .cover-list li::before { content: counter(c, decimal-leading-zero); font-family: var(--mono); font-size: 10.5px; color: var(--accent-700); font-weight: 700; }
+
+  /* section header */
+  .sec-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-700); font-weight: 700; }
+  .sec-title { font-size: 27px; font-weight: 800; letter-spacing: -.5px; margin: 7px 0 8px; }
+  .sec-divider { height: 3px; width: 42px; background: var(--accent); border-radius: 2px; margin-bottom: 26px; }
+
+  /* screen card */
+  .screen { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-bottom: 22px; break-inside: avoid; }
+  .screen__head { display: flex; align-items: center; gap: 12px; padding: 15px 20px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .screen__pan { font-family: var(--mono); font-size: 10.5px; color: var(--ink-400); }
+  .screen__name { font-size: 16px; font-weight: 800; letter-spacing: -.2px; }
+  .screen__role { margin-left: auto; font-size: 10.5px; font-weight: 700; font-family: var(--mono); padding: 4px 10px; border-radius: 999px; background: #ECECF2; color: var(--ink-600); flex: none; }
+  .screen__role.op { background: var(--accent-050); color: var(--accent-700); }
+  .screen__role.admin { background: #F7E9EB; color: #A23A46; }
+  .screen__role.public { background: #EEEEF3; color: var(--ink-500); }
+  .screen__body { padding: 18px 20px 20px; }
+
+  .blk-label { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--ink-500); margin: 0 0 9px; display: flex; align-items: center; gap: 7px; }
+  .blk-label::before { content: ""; width: 11px; height: 11px; border-radius: 3px; }
+  .blk-label.act::before { background: var(--info); }
+  .blk-label.req::before { background: var(--alert); }
+  .blk-label.msg::before { background: var(--accent); }
+
+  .act-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .act { display: flex; gap: 11px; align-items: baseline; font-size: 12.5px; line-height: 1.5; }
+  .act b { font-weight: 700; color: var(--ink-900); white-space: nowrap; }
+  .act b::before { content: "▸ "; color: var(--accent-700); }
+  .act span { color: var(--ink-600); }
+
+  .cols { display: grid; grid-template-columns: 1fr 1.25fr; gap: 22px; }
+  .req-list { display: flex; flex-direction: column; gap: 7px; }
+  .req-item { font-size: 12.5px; color: var(--ink-700); display: flex; gap: 8px; align-items: baseline; }
+  .req-item::before { content: "•"; color: var(--alert); font-weight: 800; }
+  .req-item .mono { font-family: var(--mono); font-size: 11px; color: var(--ink-400); }
+
+  .msg-list { display: flex; flex-direction: column; gap: 7px; }
+  .msg { display: flex; gap: 9px; align-items: flex-start; font-size: 12px; line-height: 1.45; padding: 7px 11px; border-radius: 8px; }
+  .msg__i { font-weight: 800; flex: none; font-size: 12px; line-height: 1.3; }
+  .msg--ok { background: var(--ok-bg); } .msg--ok .msg__i { color: var(--ok); }
+  .msg--err { background: var(--err-bg); } .msg--err .msg__i { color: var(--err); }
+  .msg--warn { background: var(--warn-bg); } .msg--warn .msg__i { color: var(--warn); }
+  .msg span { color: var(--ink-700); }
+  .msg span b { color: var(--ink-900); }
+  .msg em { font-style: normal; font-family: var(--mono); font-size: 11px; background: rgba(255,255,255,.6); padding: 1px 5px; border-radius: 4px; }
+
+  .reffoot { font-size: 11px; color: var(--ink-400); margin-top: 14px; font-family: var(--mono); }
+  .footer-note { text-align: center; font-family: var(--mono); font-size: 11px; color: var(--ink-300); margin-top: 20px; }
+
+  @media print {
+    body { background: #fff; }
+    .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; border-radius: 0; break-after: page; }
+    .page:last-child { break-after: auto; }
+    .page__num, .page__foot { position: static; }
+    @page { margin: 0.7in; }
+    .screen, .keymap, .cover-list li { break-inside: avoid; }
+    * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ PORTADA ============ -->
+<div class="page cover">
+  <div class="cover-mark">
+    <div class="logo">CS</div>
+    <div><b>CheatSheet</b><span>iPaaS · v2.4</span></div>
+  </div>
+  <h1>Anotaciones de<br>Comportamiento</h1>
+  <p class="lead">Para cada pantalla crítica: qué hace cada acción principal, qué campos son obligatorios y qué mensajes muestra el sistema ante un error o una acción exitosa. Derivado de las reglas de negocio y criterios de aceptación de las historias de usuario.</p>
+
+  <div class="keymap">
+    <div class="keymap__h">Cómo leer cada ficha</div>
+    <div class="keymap__row"><span class="tag tag--act">Acciones</span> Qué ejecuta cada botón o control principal de la pantalla.</div>
+    <div class="keymap__row"><span class="tag tag--req">Obligatorios</span> Campos que deben completarse para poder avanzar.</div>
+    <div class="keymap__row"><span class="tag tag--ok">✓ Éxito</span> Mensaje de confirmación tras una acción correcta.</div>
+    <div class="keymap__row"><span class="tag tag--err">✗ Error</span> Mensaje de validación o fallo, con su causa.</div>
+  </div>
+
+  <div class="cover-list">
+    <h3>Pantallas documentadas</h3>
+    <ol>
+      <li>PAN-ONB-01 · Inicio de sesión</li>
+      <li>PAN-ONB-02 · Registro de empresa</li>
+      <li>PAN-ING · Ingesta de datos</li>
+      <li>PAN-FAC-03 · Nueva emisión</li>
+      <li>PAN-COB-03 · Nuevo cobro</li>
+      <li>PAN-COB-02 · Detalle de cobro</li>
+      <li>PAN-WA-01 · Conversaciones</li>
+      <li>PAN-WA-02 · Configuración del agente</li>
+      <li>PAN-REP-02 · Config. automática</li>
+    </ol>
+  </div>
+
+  <div class="page__foot">CheatSheet · Anotaciones de Comportamiento</div>
+  <div class="page__num">01</div>
+</div>
+
+<!-- ============ PÁGINA 2 · ONBOARDING ============ -->
+<div class="page">
+  <div class="sec-eyebrow">Épica 1 · Onboarding</div>
+  <div class="sec-title">Acceso &amp; alta de empresa</div>
+  <div class="sec-divider"></div>
+
+  <!-- Login -->
+  <div class="screen">
+    <div class="screen__head"><div><div class="screen__pan">PAN-ONB-01</div><div class="screen__name">Inicio de sesión</div></div><span class="screen__role public">Sin autenticar</span></div>
+    <div class="screen__body">
+      <div class="blk-label act">Acciones principales</div>
+      <div class="act-list">
+        <div class="act"><b>Ingresar</b><span>valida las credenciales e inicia sesión; redirige al dashboard o al paso pendiente del onboarding.</span></div>
+        <div class="act"><b>Continuar con Google</b><span>registro/ingreso vía OAuth2; solo solicita email y nombre del perfil.</span></div>
+        <div class="act"><b>Registrate</b><span>crea una cuenta nueva y avanza al paso 2 (registro de empresa).</span></div>
+        <div class="act"><b>¿Olvidaste tu contraseña?</b><span>inicia el flujo de recuperación por email.</span></div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="blk-label req">Campos obligatorios</div>
+          <div class="req-list">
+            <div class="req-item">Email <span class="mono">— formato válido</span></div>
+            <div class="req-item">Contraseña <span class="mono">— mín. 8 caracteres</span></div>
+            <div class="req-item">Aceptar Términos y Condiciones</div>
+          </div>
+        </div>
+        <div>
+          <div class="blk-label msg">Mensajes del sistema</div>
+          <div class="msg-list">
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>Sesión iniciada — redirige al panel.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>La contraseña debe tener al menos 8 caracteres.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Ese email ya tiene una cuenta. <b>¿Iniciar sesión?</b></span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Email o contraseña incorrectos.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Debés aceptar los Términos y Condiciones.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reffoot">Ref. HU-E1-01 · RN-01 contraseña ≥ 8 · RN-03 email único · RN-04 sin panel hasta completar onboarding</div>
+    </div>
+  </div>
+
+  <!-- Registro empresa -->
+  <div class="screen">
+    <div class="screen__head"><div><div class="screen__pan">PAN-ONB-02</div><div class="screen__name">Registro de empresa</div></div><span class="screen__role public">Alta · sin sesión</span></div>
+    <div class="screen__body">
+      <div class="blk-label act">Acciones principales</div>
+      <div class="act-list">
+        <div class="act"><b>Continuar</b><span>valida el CUIT contra ARCA, autocompleta razón social y condición IVA, y avanza al paso 3 (integraciones).</span></div>
+        <div class="act"><b>Volver</b><span>regresa al paso anterior sin perder lo cargado.</span></div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="blk-label req">Campos obligatorios</div>
+          <div class="req-list">
+            <div class="req-item">Nombre comercial</div>
+            <div class="req-item">CUIT <span class="mono">— 11 díg. + verificador</span></div>
+            <div class="req-item">Condición IVA <span class="mono">— autocompletado</span></div>
+            <div class="req-item">Razón social <span class="mono">— autocompletado</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="blk-label msg">Mensajes del sistema</div>
+          <div class="msg-list">
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>CUIT válido — datos verificados contra ARCA.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>El CUIT no supera la validación del dígito verificador.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Ingresá los 11 dígitos del CUIT.</span></div>
+            <div class="msg msg--warn"><span class="msg__i">!</span><span><b>Continuar</b> permanece deshabilitado mientras el CUIT no sea válido.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reffoot">Ref. HU-E1-02 · validación de CUIT en tiempo real contra ARCA</div>
+    </div>
+  </div>
+
+  <div class="page__foot">CheatSheet · Anotaciones de Comportamiento</div>
+  <div class="page__num">02</div>
+</div>
+
+<!-- ============ PÁGINA 3 · INGESTA + FACTURACIÓN ============ -->
+<div class="page">
+  <div class="sec-eyebrow">Épicas 3 · 5</div>
+  <div class="sec-title">Ingesta de datos &amp; facturación</div>
+  <div class="sec-divider"></div>
+
+  <!-- Ingesta -->
+  <div class="screen">
+    <div class="screen__head"><div><div class="screen__pan">PAN-ING-01 · 02 · 03</div><div class="screen__name">Ingesta de datos</div></div><span class="screen__role op">Admin · Operador</span></div>
+    <div class="screen__body">
+      <div class="blk-label act">Acciones principales</div>
+      <div class="act-list">
+        <div class="act"><b>Seleccionar archivo / Conectar Sheets</b><span>sube la planilla y dispara el análisis automático de columnas con IA.</span></div>
+        <div class="act"><b>Confirmar y procesar</b><span>(mapeo) valida que las columnas obligatorias estén asignadas y procesa las filas.</span></div>
+        <div class="act"><b>Reprocesar filas corregidas</b><span>(detalle) reincorpora solo las filas con error, sin duplicar las ya procesadas.</span></div>
+        <div class="act"><b>Descargar listado de errores</b><span>exporta las filas rechazadas con su motivo.</span></div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="blk-label req">Campos obligatorios</div>
+          <div class="req-list">
+            <div class="req-item">Archivo <span class="mono">.xlsx/.xls/.csv ≤ 25 MB</span></div>
+            <div class="req-item">Columnas mapeadas: <span class="mono">Cliente, CUIT, Fecha, Monto</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="blk-label msg">Mensajes del sistema</div>
+          <div class="msg-list">
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>Archivo analizado — revisá el mapeo.</span></div>
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>138 de 142 filas procesadas correctamente.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Formato no soportado / el archivo supera 25 MB.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Hay columnas obligatorias sin asignar.</span></div>
+            <div class="msg msg--warn"><span class="msg__i">!</span><span>4 filas con CUIT inválido — revisá antes de continuar.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reffoot">Ref. HU-E3-03/05/06 · mapeo IA con niveles de confianza · reproceso sin duplicar</div>
+    </div>
+  </div>
+
+  <!-- Facturación nueva emisión -->
+  <div class="screen">
+    <div class="screen__head"><div><div class="screen__pan">PAN-FAC-03</div><div class="screen__name">Nueva emisión de comprobante</div></div><span class="screen__role op">Admin · Operador</span></div>
+    <div class="screen__body">
+      <div class="blk-label act">Acciones principales</div>
+      <div class="act-list">
+        <div class="act"><b>Emitir comprobante</b><span>solicita el CAE a ARCA y, si se autoriza, genera el PDF del comprobante.</span></div>
+        <div class="act"><b>Guardar borrador</b><span>conserva la emisión sin enviarla a ARCA.</span></div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="blk-label req">Campos obligatorios</div>
+          <div class="req-list">
+            <div class="req-item">Cliente receptor</div>
+            <div class="req-item">Tipo de comprobante</div>
+            <div class="req-item">Punto de venta</div>
+            <div class="req-item">Al menos un ítem <span class="mono">— desc., cant., precio</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="blk-label msg">Mensajes del sistema</div>
+          <div class="msg-list">
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>Comprobante autorizado — <em>CAE 74028591034726</em>.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>ARCA rechazó la solicitud: <b>[motivo devuelto]</b>.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Agregá al menos un ítem para emitir.</span></div>
+            <div class="msg msg--warn"><span class="msg__i">!</span><span>Sin conexión con ARCA — la emisión queda pendiente y se reintenta.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reffoot">Ref. HU-E5-03 · EmitirComprobante · requiere ARCA conectado y punto de venta configurado</div>
+    </div>
+  </div>
+
+  <div class="page__foot">CheatSheet · Anotaciones de Comportamiento</div>
+  <div class="page__num">03</div>
+</div>
+
+<!-- ============ PÁGINA 4 · COBROS ============ -->
+<div class="page">
+  <div class="sec-eyebrow">Épica 6 · Cobros</div>
+  <div class="sec-title">Gestión de cobros</div>
+  <div class="sec-divider"></div>
+
+  <!-- Nuevo cobro -->
+  <div class="screen">
+    <div class="screen__head"><div><div class="screen__pan">PAN-COB-03</div><div class="screen__name">Nuevo cobro</div></div><span class="screen__role op">Admin · Operador</span></div>
+    <div class="screen__body">
+      <div class="blk-label act">Acciones principales</div>
+      <div class="act-list">
+        <div class="act"><b>Generar link de cobro</b><span>crea un link de pago de MercadoPago y lo envía al cliente por WhatsApp.</span></div>
+        <div class="act"><b>Asociar a comprobante / turno</b><span>(opcional) vincula el cobro a un documento fiscal con saldo o a un turno como seña.</span></div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="blk-label req">Campos obligatorios</div>
+          <div class="req-list">
+            <div class="req-item">Cliente</div>
+            <div class="req-item">Concepto</div>
+            <div class="req-item">Monto <span class="mono">— mayor a $0</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="blk-label msg">Mensajes del sistema</div>
+          <div class="msg-list">
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>Link de pago generado y enviado por WhatsApp.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>El monto debe ser mayor a $0.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>MercadoPago no está conectado.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reffoot">Ref. HU-E6-03/06/07 · GenerarCobro · requiere MercadoPago conectado</div>
+    </div>
+  </div>
+
+  <!-- Detalle de cobro -->
+  <div class="screen">
+    <div class="screen__head"><div><div class="screen__pan">PAN-COB-02</div><div class="screen__name">Detalle de cobro</div></div><span class="screen__role op">Admin · Operador</span></div>
+    <div class="screen__body">
+      <div class="blk-label act">Acciones principales</div>
+      <div class="act-list">
+        <div class="act"><b>Enviar recordatorio ahora</b><span>dispara un recordatorio de pago por WhatsApp fuera del ciclo automático.</span></div>
+        <div class="act"><b>Registrar pago manual</b><span>marca el cobro como pagado cuando se cobró por otro medio.</span></div>
+        <div class="act"><b>Cancelar cobro</b><span>da de baja una deuda pendiente o en mora; invalida el link de pago.</span></div>
+        <div class="act"><b>Reembolsar</b><span>devuelve total o parcialmente un cobro ya pagado. <b>Solo Administrador.</b></span></div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="blk-label req">Campos obligatorios</div>
+          <div class="req-list">
+            <div class="req-item">Motivo de cancelación <span class="mono">— mín. 10 caracteres</span></div>
+            <div class="req-item">Monto a reembolsar <span class="mono">— ≤ monto cobrado</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="blk-label msg">Mensajes del sistema</div>
+          <div class="msg-list">
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>Recordatorio enviado · Cobro cancelado · Reembolso en proceso.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Ingresá un motivo de al menos 10 caracteres.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Solo se pueden reembolsar cobros con estado <b>Pagado</b>.</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>El reembolso no puede superar el monto cobrado.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reffoot">Ref. HU-E6-04 cancelar (motivo ≥ 10) · HU-E6-05 reembolso solo Admin, solo Pagado, asíncrono</div>
+    </div>
+  </div>
+
+  <div class="page__foot">CheatSheet · Anotaciones de Comportamiento</div>
+  <div class="page__num">04</div>
+</div>
+
+<!-- ============ PÁGINA 5 · WHATSAPP + REPORTES ============ -->
+<div class="page">
+  <div class="sec-eyebrow">Épicas 8 · 9 · 10</div>
+  <div class="sec-title">Agente WhatsApp &amp; reportes</div>
+  <div class="sec-divider"></div>
+
+  <!-- WA conversaciones -->
+  <div class="screen">
+    <div class="screen__head"><div><div class="screen__pan">PAN-WA-01</div><div class="screen__name">Conversaciones</div></div><span class="screen__role op">Operador · Admin</span></div>
+    <div class="screen__body">
+      <div class="blk-label act">Acciones principales</div>
+      <div class="act-list">
+        <div class="act"><b>Tomar control manualmente</b><span>el operador asume la conversación escalada; el agente deja de responder en ese hilo.</span></div>
+        <div class="act"><b>Responder</b><span>envía un mensaje al cliente; se distingue visualmente de los del agente.</span></div>
+        <div class="act"><b>Cerrar escalamiento</b><span>devuelve la conversación al agente o la da por finalizada.</span></div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="blk-label req">Campos obligatorios</div>
+          <div class="req-list">
+            <div class="req-item">Mensaje no vacío <span class="mono">— para responder</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="blk-label msg">Mensajes del sistema</div>
+          <div class="msg-list">
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>Tomaste la conversación — el agente se pausó en este hilo.</span></div>
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>Escalamiento cerrado — conversación devuelta al agente.</span></div>
+            <div class="msg msg--warn"><span class="msg__i">!</span><span>Otro operador ya está atendiendo esta conversación.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reffoot">Ref. HU-E9-01/02 · la toma registra operador + timestamp en el Log de Operaciones</div>
+    </div>
+  </div>
+
+  <!-- WA config -->
+  <div class="screen">
+    <div class="screen__head"><div><div class="screen__pan">PAN-WA-02</div><div class="screen__name">Configuración del agente &amp; FAQ</div></div><span class="screen__role admin">Solo Admin</span></div>
+    <div class="screen__body">
+      <div class="blk-label act">Acciones principales</div>
+      <div class="act-list">
+        <div class="act"><b>Agregar / Editar / Eliminar FAQ</b><span>gestiona las preguntas frecuentes que el agente responde automáticamente.</span></div>
+        <div class="act"><b>Activar agente / horarios</b><span>enciende o pausa el agente y define la franja de atención automática.</span></div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="blk-label req">Campos obligatorios</div>
+          <div class="req-list">
+            <div class="req-item">Pregunta de la FAQ</div>
+            <div class="req-item">Respuesta de la FAQ</div>
+          </div>
+        </div>
+        <div>
+          <div class="blk-label msg">Mensajes del sistema</div>
+          <div class="msg-list">
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>FAQ agregada — disponible para el agente (contador en 0).</span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>La FAQ necesita una pregunta y una respuesta.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reffoot">Ref. HU-E9-04 · administración del repositorio de FAQ</div>
+    </div>
+  </div>
+
+  <!-- Reportes config -->
+  <div class="screen">
+    <div class="screen__head"><div><div class="screen__pan">PAN-REP-02</div><div class="screen__name">Configuración automática de reportes</div></div><span class="screen__role admin">Solo Admin</span></div>
+    <div class="screen__body">
+      <div class="blk-label act">Acciones principales</div>
+      <div class="act-list">
+        <div class="act"><b>Activar envío automático</b><span>programa el armado y envío del paquete contable al contador cada mes.</span></div>
+        <div class="act"><b>Enviar paquete ahora</b><span>genera y despacha el ZIP del período en el momento.</span></div>
+        <div class="act"><b>Revocar acceso</b><span>quita al contador externo el acceso de solo lectura a los reportes.</span></div>
+      </div>
+      <div class="cols">
+        <div>
+          <div class="blk-label req">Campos obligatorios</div>
+          <div class="req-list">
+            <div class="req-item">Email del contador <span class="mono">— formato válido</span></div>
+            <div class="req-item">Día del mes de envío</div>
+            <div class="req-item">Formato del paquete</div>
+          </div>
+        </div>
+        <div>
+          <div class="blk-label msg">Mensajes del sistema</div>
+          <div class="msg-list">
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>Cambios guardados automáticamente.</span></div>
+            <div class="msg msg--ok"><span class="msg__i">✓</span><span>Paquete enviado a <em>contador@estudio…</em></span></div>
+            <div class="msg msg--err"><span class="msg__i">✗</span><span>Ingresá un email válido para el contador.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reffoot">Ref. HU-E10-04/05 · envío automático · acceso de solo lectura revocable</div>
+    </div>
+  </div>
+
+  <div class="footer-note">CheatSheet iPaaS · Anotaciones de Comportamiento · Fin del documento</div>
+  <div class="page__foot">CheatSheet · Anotaciones de Comportamiento</div>
+  <div class="page__num">05</div>
+</div>
+
+</body>
+</html>
