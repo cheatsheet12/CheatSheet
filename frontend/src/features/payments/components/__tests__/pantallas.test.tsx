@@ -62,6 +62,7 @@ import type {
   ListadoDeCobrosRespuesta,
   Reembolso,
 } from "@/features/payments";
+import { elegirFecha } from "@/shared/ui/__tests__/elegir-fecha";
 
 const { ListadoDeCobros } = await import("@/features/payments/components/ListadoDeCobros");
 const { DetalleDeCobro } = await import("@/features/payments/components/DetalleDeCobro");
@@ -199,12 +200,12 @@ describe("PAN-COB-01 — listado de cobros", () => {
     expect(await screen.findByText(MENSAJE_SIN_RESULTADOS)).toBeTruthy();
   });
 
-  it("le esconde «Generar cobro» a Solo Lectura", () => {
+  it("le esconde «Nuevo cobro» a Solo Lectura", () => {
     const { rerender } = render(<ListadoDeCobros inicial={LISTADO} puedeGestionar />);
-    expect(screen.getByRole("link", { name: "Generar cobro" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Nuevo cobro" })).toBeTruthy();
 
     rerender(<ListadoDeCobros inicial={LISTADO} puedeGestionar={false} />);
-    expect(screen.queryByRole("link", { name: "Generar cobro" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Nuevo cobro" })).toBeNull();
   });
 });
 
@@ -755,9 +756,7 @@ describe("PAN-COB-02 — reembolsos parciales y manuales (HU-E6-05)", () => {
     const confirmar = screen.getByRole("button", { name: "Confirmar registro" });
     expect(confirmar.hasAttribute("disabled")).toBe(true);
     fireEvent.change(screen.getByLabelText("Monto devuelto"), { target: { value: "300.10" } });
-    fireEvent.change(screen.getByLabelText("Fecha de devolución"), {
-      target: { value: "2026-09-20" },
-    });
+    elegirFecha("Fecha de devolución", "2026-09-20");
     fireEvent.change(screen.getByLabelText("Referencia (opcional)"), {
       target: { value: "OP-77" },
     });
@@ -786,9 +785,7 @@ describe("PAN-COB-02 — reembolsos parciales y manuales (HU-E6-05)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Registrar reembolso" }));
     fireEvent.change(screen.getByLabelText("Monto devuelto"), { target: { value: "99999.00" } });
-    fireEvent.change(screen.getByLabelText("Fecha de devolución"), {
-      target: { value: "2026-09-20" },
-    });
+    elegirFecha("Fecha de devolución", "2026-09-20");
     fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "Devolución" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar registro" }));
 

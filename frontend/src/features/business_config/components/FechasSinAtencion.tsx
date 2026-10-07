@@ -16,7 +16,7 @@
 
 import { useState } from "react";
 
-import { Button, Campo, Card, Tabla } from "@/shared";
+import { Button, Card, SelectorDeFecha, Tabla } from "@/shared";
 
 import { MAXIMO_DE_FECHAS } from "../api/atencion";
 
@@ -83,14 +83,13 @@ export function FechasSinAtencion({
       />
       {!deshabilitado && (
         <div className="age-excepcion">
-          <Campo
+          <SelectorDeFecha
             id="fecha-sin-atencion"
             etiqueta="Día sin atención"
-            type="date"
             min={hoy}
             value={nueva}
             error={repetida ? "Esa fecha ya está cargada." : undefined}
-            onChange={(evento) => setNueva(evento.target.value)}
+            alCambiar={setNueva}
           />
           <Button
             variante="secundario"

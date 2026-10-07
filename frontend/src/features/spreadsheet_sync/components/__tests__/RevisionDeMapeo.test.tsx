@@ -139,7 +139,7 @@ describe("RevisionDeMapeo", () => {
 
     // «No pudimos proponerlo» y «ya lo teniamos» son cosas distintas para alguien mirando
     // una tabla llena de «Sin asignar».
-    expect(screen.getByText(/No pudimos proponerte un mapeo automatico/)).toBeTruthy();
+    expect(screen.getByText(/No pudimos proponerte un mapeo automático/)).toBeTruthy();
   });
 
   it("un rol que no edita ve el mapeo sin controles ni boton", () => {
@@ -160,7 +160,7 @@ describe("RevisionDeMapeo", () => {
     fireEvent.click(screen.getByText("Confirmar y procesar"));
 
     await waitFor(() => {
-      expect(screen.getByText(/Ya podes procesar la planilla/)).toBeTruthy();
+      expect(screen.getByText(/Ya podés procesar la planilla/)).toBeTruthy();
     });
   });
 

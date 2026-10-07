@@ -94,7 +94,7 @@ describe("PaginaDeIngesta", () => {
       // mirar. Se afirma sobre el vacio de la tabla y no sobre el titulo «Cargas
       // recientes» porque `Tabla` descarta su caption cuando no hay filas -- defecto del
       // sistema de diseno, anotado en `TODO.md`, no de esta pantalla.
-      expect(html).toContain("Todavia no vinculaste ninguna planilla");
+      expect(html).toContain("Todavía no vinculaste ninguna planilla");
     },
   );
 });

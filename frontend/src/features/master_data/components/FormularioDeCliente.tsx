@@ -19,11 +19,14 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 import { Alert, Button, Campo, Select } from "@/shared";
 
 import { consultarPadron } from "../api/cliente";
 import type { Cliente, CondicionIVA, DatosDeCliente, ResultadoDePadron } from "../api/cliente";
+
+import { IconoDeCliente } from "./iconos";
 
 const CONDICIONES: readonly { valor: string; etiqueta: string }[] = [
   { valor: "", etiqueta: "Sin especificar" },
@@ -43,6 +46,13 @@ export interface PropsDeFormulario {
   /** The duplicate's id, when the save failed for that reason (RN-03). */
   readonly duplicadoId?: string | null;
   readonly onVerDuplicado?: (id: string) => void;
+  /**
+   * El selector de categorías, que sólo existe al editar (una asignación necesita un cliente
+   * con id). Entra como ranura y no como hijo del `Modal` para que quede **dentro** del
+   * formulario, encima del pie de acciones: si no, «Guardar» quedaba en medio de la hoja y las
+   * categorías debajo, como si fueran de otro formulario.
+   */
+  readonly categorias?: ReactNode | undefined;
 }
 
 interface Campos {
@@ -90,6 +100,7 @@ export function FormularioDeCliente({
   error = null,
   duplicadoId = null,
   onVerDuplicado,
+  categorias,
 }: PropsDeFormulario): JSX.Element {
   const [campos, setCampos] = useState<Campos>(() => inicial(cliente));
   const [padron, setPadron] = useState<ResultadoDePadron | null>(null);
@@ -141,6 +152,7 @@ export function FormularioDeCliente({
   }
 
   const aviso = padron === null ? null : avisoDePadron(padron);
+  const editando = cliente !== undefined;
 
   return (
     <form
@@ -152,10 +164,15 @@ export function FormularioDeCliente({
     >
       {/* Qué decide este formulario, antes de los campos: quien lo abre no tendría que
           deducirlo de los nombres de las etiquetas. */}
-      <p className="mae-form__nota">
-        Sólo el nombre es obligatorio. El CUIT y la condición frente al IVA son lo que después
-        necesita la facturación; el WhatsApp, el agente.
-      </p>
+      <div className="mae-form__intro">
+        <span className="mae-form__tile" aria-hidden="true">
+          <IconoDeCliente />
+        </span>
+        <p className="mae-form__nota">
+          Sólo el nombre es obligatorio. El CUIT y la condición frente al IVA son lo que después
+          necesita la facturación; el WhatsApp, el agente.
+        </p>
+      </div>
 
       {error !== null && (
         <Alert tono="error" titulo="No se pudo guardar">
@@ -171,65 +188,93 @@ export function FormularioDeCliente({
         </Alert>
       )}
 
-      <Campo
-        id="cliente-nombre"
-        etiqueta="Nombre o razón social"
-        value={campos.nombre}
-        onChange={(evento) => cambiar("nombre", evento.target.value)}
-        ayuda="Si validás un CUIT contra ARCA y dejás esto vacío, se completa solo."
-      />
-
-      <div className="dm-formulario__cuit">
+      <section className="mae-seccion" aria-labelledby="cliente-sec-fiscal">
+        <h3 className="mae-seccion__titulo" id="cliente-sec-fiscal">
+          Datos fiscales
+        </h3>
         <Campo
-          id="cliente-cuit"
-          etiqueta="CUIT"
-          mono
-          value={campos.cuit}
-          onChange={(evento) => cambiar("cuit", evento.target.value)}
-          ayuda="Opcional. Un cliente sin CUIT no puede recibir Factura A."
+          id="cliente-nombre"
+          etiqueta="Nombre o razón social"
+          value={campos.nombre}
+          onChange={(evento) => cambiar("nombre", evento.target.value)}
+          ayuda="Si validás un CUIT contra ARCA y dejás esto vacío, se completa solo."
         />
-        <Button
-          variante="secundario"
-          onClick={() => void validar()}
-          cargando={validando}
-          disabled={campos.cuit.trim() === ""}
-        >
-          Validar contra ARCA
-        </Button>
-      </div>
 
-      {aviso !== null && <Alert tono={aviso.tono}>{aviso.texto}</Alert>}
-      {errorDePadron !== null && <Alert tono="error">{errorDePadron}</Alert>}
+        <div className="dm-formulario__cuit">
+          <Campo
+            id="cliente-cuit"
+            etiqueta="CUIT"
+            mono
+            value={campos.cuit}
+            onChange={(evento) => cambiar("cuit", evento.target.value)}
+            ayuda="Opcional. Un cliente sin CUIT no puede recibir Factura A."
+          />
+          <Button
+            variante="secundario"
+            onClick={() => void validar()}
+            cargando={validando}
+            disabled={campos.cuit.trim() === ""}
+          >
+            Validar contra ARCA
+          </Button>
+        </div>
 
-      <Select
-        id="cliente-condicion-iva"
-        etiqueta="Condición frente al IVA"
-        opciones={CONDICIONES}
-        value={campos.condicion_iva}
-        onChange={(evento) => cambiar("condicion_iva", evento.target.value)}
-      />
+        {aviso !== null && <Alert tono={aviso.tono}>{aviso.texto}</Alert>}
+        {errorDePadron !== null && <Alert tono="error">{errorDePadron}</Alert>}
 
-      <Campo
-        id="cliente-whatsapp"
-        etiqueta="WhatsApp"
-        value={campos.contacto_whatsapp}
-        onChange={(evento) => cambiar("contacto_whatsapp", evento.target.value)}
-      />
+        <Select
+          id="cliente-condicion-iva"
+          etiqueta="Condición frente al IVA"
+          opciones={CONDICIONES}
+          value={campos.condicion_iva}
+          onChange={(evento) => cambiar("condicion_iva", evento.target.value)}
+          ayuda="Define qué tipo de factura se le puede emitir."
+        />
+      </section>
 
-      <Campo
-        id="cliente-email"
-        etiqueta="Email"
-        type="email"
-        value={campos.contacto_email}
-        onChange={(evento) => cambiar("contacto_email", evento.target.value)}
-      />
+      <section className="mae-seccion" aria-labelledby="cliente-sec-contacto">
+        <h3 className="mae-seccion__titulo" id="cliente-sec-contacto">
+          Contacto
+        </h3>
+        <div className="mae-form__columnas">
+          <Campo
+            id="cliente-whatsapp"
+            etiqueta="WhatsApp"
+            mono
+            value={campos.contacto_whatsapp}
+            onChange={(evento) => cambiar("contacto_whatsapp", evento.target.value)}
+            ayuda="Con código de país, sin espacios."
+          />
+          <Campo
+            id="cliente-email"
+            etiqueta="Email"
+            type="email"
+            value={campos.contacto_email}
+            onChange={(evento) => cambiar("contacto_email", evento.target.value)}
+            ayuda="Donde se envían los comprobantes."
+          />
+        </div>
+      </section>
 
-      <div className="dm-formulario__acciones">
+      <section className="mae-seccion mae-seccion--categorias" aria-labelledby="cliente-sec-cat">
+        <h3 className="mae-seccion__titulo" id="cliente-sec-cat">
+          Categorías
+        </h3>
+        {editando ? (
+          categorias
+        ) : (
+          <p className="mae-seccion__ayuda">
+            Podés asignarle categorías una vez creado el cliente.
+          </p>
+        )}
+      </section>
+
+      <div className="dm-formulario__acciones mae-form__pie">
         <Button variante="secundario" onClick={onCancelar}>
           Cancelar
         </Button>
         <Button type="submit" cargando={guardando}>
-          {cliente === undefined ? "Crear cliente" : "Guardar cambios"}
+          {guardando ? "Guardando…" : editando ? "Guardar cambios" : "Crear cliente"}
         </Button>
       </div>
     </form>

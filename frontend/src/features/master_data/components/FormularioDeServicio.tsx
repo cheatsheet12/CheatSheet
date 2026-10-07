@@ -22,6 +22,7 @@ import { Alert, Button, Campo, Select } from "@/shared";
 
 import { ETIQUETAS_DE_ALICUOTA } from "../api/servicio";
 import type { AlicuotaIVA, DatosDeServicio, Servicio } from "../api/servicio";
+import { IconoDeServicio } from "./iconos";
 
 const ALICUOTAS: readonly { valor: string; etiqueta: string }[] = (
   Object.keys(ETIQUETAS_DE_ALICUOTA) as AlicuotaIVA[]
@@ -121,10 +122,15 @@ export function FormularioDeServicio({
     >
       {/* Qué decide este formulario, antes de los campos. La frase también dice lo que el
           panel **no** hace: el total con IVA lo arma el comprobante, no esta pantalla. */}
-      <p className="mae-form__nota">
-        El precio se carga sin IVA y la alícuota va aparte. Marcá «se puede reservar por agenda»
-        sólo si el servicio ocupa un turno.
-      </p>
+      <div className="mae-form__intro">
+        <span className="mae-form__tile" aria-hidden="true">
+          <IconoDeServicio />
+        </span>
+        <p className="mae-form__nota">
+          El precio se carga sin IVA y la alícuota va aparte. Marcá «se puede reservar por agenda»
+          sólo si el servicio ocupa un turno.
+        </p>
+      </div>
 
       {error !== null && (
         <Alert tono="error" titulo="No se pudo guardar">
@@ -132,62 +138,83 @@ export function FormularioDeServicio({
         </Alert>
       )}
 
-      <Campo
-        id="servicio-nombre"
-        etiqueta="Nombre"
-        value={campos.nombre}
-        onChange={(evento) => cambiar("nombre", evento.target.value)}
-      />
-
-      <Campo
-        id="servicio-precio"
-        etiqueta="Precio sin IVA"
-        mono
-        inputMode="decimal"
-        value={campos.precio}
-        onChange={(evento) => cambiar("precio", evento.target.value)}
-        ayuda="En pesos, con hasta dos decimales. Ej: 5000.00"
-      />
-
-      <Select
-        id="servicio-alicuota"
-        etiqueta="Alícuota de IVA"
-        opciones={ALICUOTAS}
-        value={campos.alicuota_iva}
-        onChange={(evento) => cambiar("alicuota_iva", evento.target.value as AlicuotaIVA)}
-      />
-
-      <label className="mae-casilla" htmlFor="servicio-agendable">
-        <input
-          id="servicio-agendable"
-          type="checkbox"
-          checked={campos.agendable}
-          onChange={(evento) => cambiar("agendable", evento.target.checked)}
-        />
-        Se puede reservar por agenda
-      </label>
-
-      {campos.agendable && (
+      <section className="mae-seccion" aria-labelledby="servicio-sec-datos">
+        <h3 className="mae-seccion__titulo" id="servicio-sec-datos">
+          Datos del servicio
+        </h3>
         <Campo
-          id="servicio-duracion"
-          etiqueta="Duración estándar (minutos)"
-          inputMode="numeric"
-          value={campos.duracion}
-          onChange={(evento) => {
-            setErrorDeDuracion(undefined);
-            cambiar("duracion", evento.target.value);
-          }}
-          {...(errorDeDuracion !== undefined ? { error: errorDeDuracion } : {})}
-          ayuda="Entre 5 y 480 minutos."
+          id="servicio-nombre"
+          etiqueta="Nombre"
+          value={campos.nombre}
+          onChange={(evento) => cambiar("nombre", evento.target.value)}
+          ayuda="Como lo va a ver quien factura o agenda."
         />
-      )}
+      </section>
 
-      <div className="dm-formulario__acciones">
+      <section className="mae-seccion" aria-labelledby="servicio-sec-precio">
+        <h3 className="mae-seccion__titulo" id="servicio-sec-precio">
+          Precio e IVA
+        </h3>
+        <div className="mae-form__columnas">
+          <Campo
+            id="servicio-precio"
+            etiqueta="Precio sin IVA"
+            mono
+            inputMode="decimal"
+            value={campos.precio}
+            onChange={(evento) => cambiar("precio", evento.target.value)}
+            ayuda="En pesos, con hasta dos decimales. Ej: 5000.00"
+          />
+          <Select
+            id="servicio-alicuota"
+            etiqueta="Alícuota de IVA"
+            opciones={ALICUOTAS}
+            value={campos.alicuota_iva}
+            onChange={(evento) => cambiar("alicuota_iva", evento.target.value as AlicuotaIVA)}
+            ayuda="El comprobante suma el IVA al emitir."
+          />
+        </div>
+      </section>
+
+      <section className="mae-seccion" aria-labelledby="servicio-sec-agenda">
+        <h3 className="mae-seccion__titulo" id="servicio-sec-agenda">
+          Agenda
+        </h3>
+        <label className="mae-casilla" htmlFor="servicio-agendable">
+          <input
+            id="servicio-agendable"
+            type="checkbox"
+            checked={campos.agendable}
+            onChange={(evento) => cambiar("agendable", evento.target.checked)}
+          />
+          Se puede reservar por agenda
+        </label>
+
+        {campos.agendable ? (
+          <Campo
+            id="servicio-duracion"
+            etiqueta="Duración estándar (minutos)"
+            mono
+            inputMode="numeric"
+            value={campos.duracion}
+            onChange={(evento) => {
+              setErrorDeDuracion(undefined);
+              cambiar("duracion", evento.target.value);
+            }}
+            {...(errorDeDuracion !== undefined ? { error: errorDeDuracion } : {})}
+            ayuda="Entre 5 y 480 minutos."
+          />
+        ) : (
+          <p className="mae-seccion__ayuda">Los servicios que no se agendan no llevan duración.</p>
+        )}
+      </section>
+
+      <div className="dm-formulario__acciones mae-form__pie">
         <Button variante="secundario" onClick={onCancelar}>
           Cancelar
         </Button>
         <Button type="submit" cargando={guardando}>
-          {servicio === undefined ? "Crear servicio" : "Guardar cambios"}
+          {guardando ? "Guardando…" : servicio === undefined ? "Crear servicio" : "Guardar cambios"}
         </Button>
       </div>
     </form>

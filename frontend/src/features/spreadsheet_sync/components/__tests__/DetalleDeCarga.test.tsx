@@ -41,8 +41,8 @@ const CON_ERRORES: DetalleDeCargaRespuesta = {
     created_at: "2026-09-07T12:00:00Z",
   },
   errores: [
-    { numero_fila: 42, motivo: "CUIT invalido" },
-    { numero_fila: 77, motivo: "La fila no tiene nombre" },
+    { numero_fila: 42, motivo: "CUIT invalido", corregida: false },
+    { numero_fila: 77, motivo: "La fila no tiene nombre", corregida: false },
   ],
   puede_reprocesar: true,
 };
@@ -127,7 +127,9 @@ describe("csvDeErrores", () => {
   });
 
   it("escapa las comillas de un motivo", () => {
-    const csv = csvDeErrores([{ numero_fila: 1, motivo: 'El campo "precio" no es un numero' }]);
+    const csv = csvDeErrores([
+      { numero_fila: 1, motivo: 'El campo "precio" no es un numero', corregida: false },
+    ]);
 
     expect(csv).toContain('1,"El campo ""precio"" no es un numero"');
   });

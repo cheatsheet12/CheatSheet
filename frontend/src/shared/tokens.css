@@ -25,7 +25,10 @@
   --color-mid: #3a3a5c; /* sidebar hover, highlighted sections */
   --color-accent: #00c48c; /* CTA, success, "Conectado", progress */
   --color-warning: #fdcb6e; /* background or border only, never text */
-  --color-bg: #f8f7ff; /* panel background; the violet tint cuts eye strain */
+  --color-bg: #ffffff; /* panel background: white, as the product owner asked */
+  /* The violet tint the page used to have, kept for surfaces *inside* the page (table headers,
+     chips, empty states) so they still read against white cards. */
+  --color-bg-soft: #f8f7ff;
   --color-surface: #ffffff; /* cards, side panels, tables, modals */
   --color-success-light: #e8faf5;
   --color-error: #cc0000;
@@ -178,6 +181,7 @@ h3 {
   --alert: var(--color-warning);
   --alert-050: #fef6e4;
   --bg: var(--color-bg);
+  --bg-soft: var(--color-bg-soft);
   --card: var(--color-surface);
 
   /* Escala neutra, de tono frío, derivada del primario. */

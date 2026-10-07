@@ -13,7 +13,7 @@ than no number at all.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
@@ -54,6 +54,14 @@ class ErrorDeFila:
     #: 1-based, as the spreadsheet numbers it, header included. See the module docstring.
     numero_fila: int
     motivo: str
+    #: When a person corrected the row in the system. **The error is not deleted**: a
+    #: processing is the record of an import, and «esta fila falló y se arregló el martes» is
+    #: part of that record. A corrected error is history and no longer counts as pending.
+    corregida_en: datetime | None = None
+
+    @property
+    def pendiente(self) -> bool:
+        return self.corregida_en is None
 
     def __post_init__(self) -> None:
         if self.numero_fila < 1:
@@ -137,6 +145,37 @@ class ProcesamientoDePlanilla:
         self.errores.append(ErrorDeFila(id=self.id, numero_fila=1, motivo=motivo))
 
     @property
+    def errores_pendientes(self) -> list[ErrorDeFila]:
+        """The rows still waiting for a person. A corrected one is history."""
+        return [e for e in self.errores if e.pendiente]
+
+    def corregir_fila(self, *, numero_fila: int, ahora: datetime) -> None:
+        """A person fixed one failed row and it went into the catalogue.
+
+        **The counters move here and nowhere else**, for the reason `cerrar` gives: a caller
+        that could set `filas_error` by hand is a caller that can make the screen lie. One
+        row less in error and one more imported; the total does not change, because it is
+        the same row.
+
+        Only a run that finished **with errors** can be corrected. A `FALLIDO` one never
+        ingested anything and its single error is the file itself, not a row to fix.
+        """
+        if self.estado is not EstadoProcesamiento.CON_ERRORES:
+            raise InvarianteViolada(
+                f"Solo se corrigen filas de una carga con errores, y esta termino {self.estado.value}"
+            )
+        for indice, error in enumerate(self.errores):
+            if error.numero_fila == numero_fila and error.pendiente:
+                self.errores[indice] = replace(error, corregida_en=ahora)
+                break
+        else:
+            raise EntradaInvalida(f"La fila {numero_fila} no tiene un error pendiente de corregir")
+        self.filas_error -= 1
+        self.filas_ok += 1
+        if self.filas_error == 0:
+            self.estado = EstadoProcesamiento.COMPLETADO
+
+    @property
     def filas_a_reprocesar(self) -> tuple[int, ...]:
         """HU-E3-06 RN-02: only the rows that failed, so nothing is duplicated.
 
@@ -145,7 +184,7 @@ class ProcesamientoDePlanilla:
         and the story would have to be about deduplication instead of about correcting
         four rows.
         """
-        return tuple(sorted({e.numero_fila for e in self.errores}))
+        return tuple(sorted({e.numero_fila for e in self.errores_pendientes}))
 
     def _exigir_en_curso(self) -> None:
         if self.estado.es_terminal:

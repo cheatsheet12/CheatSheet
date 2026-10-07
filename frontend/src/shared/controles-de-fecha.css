@@ -1,0 +1,60 @@
+/*
+ * Campos de fecha del panel: un solo tratamiento para todos los `<input type="date">`.
+ *
+ * Se apoya en `.campo__control` (componentes.css) y sólo afina lo propio de la fecha: el
+ * ícono nativo del calendario pasa a ser un pictograma propio, el segmento activo toma el
+ * verde de acento y el campo tiene un ancho que no baila según el navegador.
+ */
+
+input[type="date"].campo__control,
+input[type="date"].fecha-control {
+  position: relative;
+  appearance: none;
+  min-width: 158px;
+  font-variant-numeric: tabular-nums;
+  color-scheme: light;
+  padding-right: 38px;
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a8a9c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='5' width='18' height='16' rx='3'/><path d='M3 10h18M8 3v4M16 3v4'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+input[type="date"].campo__control:hover:not(:focus),
+input[type="date"].fecha-control:hover:not(:focus) {
+  border-color: var(--ink-300);
+}
+
+/* El ícono nativo queda como zona de clic invisible sobre el pictograma propio. */
+input[type="date"].campo__control::-webkit-calendar-picker-indicator,
+input[type="date"].fecha-control::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 38px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+input[type="date"].campo__control::-webkit-datetime-edit-day-field:focus,
+input[type="date"].campo__control::-webkit-datetime-edit-month-field:focus,
+input[type="date"].campo__control::-webkit-datetime-edit-year-field:focus {
+  background: var(--accent-050);
+  color: var(--accent-700);
+  border-radius: 4px;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[type="date"].campo__control,
+  input[type="date"].fecha-control {
+    transition: none;
+  }
+}
