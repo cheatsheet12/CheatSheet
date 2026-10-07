@@ -377,9 +377,9 @@ usa la misma escala (`WHATSAPP_SONDEO_MINUTOS`).
 
 ## Infraestructura
 
-- **Migraciones** (una: **`0035_plantillas_en_meta.py`, `down_revision = "0034"`**; la 0031 sigue
+- **Migraciones** (una: **`0036_plantillas_en_meta.py`, `down_revision = "0035"`**; la 0031 sigue
   reservada para `tipos-de-comprobante-por-receptor`. Se renumera/re-apunta al integrar si la cabeza
-  cambió, patrón de 0030/0032. La migración de U7 (`externo_id`) toma la 0036):
+  cambió, patrón de 0030/0032. La migración de U7 (`externo_id`) toma la 0037):
   - `plantilla_de_notificacion`: las 7 columnas de D-U6-2; índice único parcial
     `uq_plantilla_meta_id (empresa_id, meta_plantilla_id) WHERE meta_plantilla_id IS NOT NULL`.
   - Backfill: `nombre_en_meta = codigo` donde `canal = 'WHATSAPP'`; `estado_aprobacion_meta =
@@ -448,7 +448,7 @@ usa la misma escala (`WHATSAPP_SONDEO_MINUTOS`).
 - [x] `backend/src/cheatsheet/workers/tasks_business_config.py` (nuevo) · `workers/beat.py` · `workers/main.py`
 - [x] `backend/src/cheatsheet/platform/settings.py` (+4 líneas, 664 en total) · `render.yaml` (sin cambio: se avisa)
 - [ ] `backend/.env.example`: **lo aplica el dueño** (el archivo está protegido): `WHATSAPP_PLANTILLAS_MINUTOS=30` junto a `WHATSAPP_SONDEO_*`
-- [x] `backend/migrations/versions/0035_plantillas_en_meta.py` (`down_revision = "0034"`)
+- [x] `backend/migrations/versions/0036_plantillas_en_meta.py` (`down_revision = "0035"`)
 - [x] `backend/tests/contexts/business_config/domain/test_plantilla.py`, `…/application/test_plantillas.py`, `…/application/test_revision_de_meta.py`, `…/application/test_conciliacion.py`
 - [x] `backend/tests/contexts/conversational/infrastructure/test_plantillas_meta.py`, `test_canal_plantillas.py` (nuevo; `test_canal.py` ya tiene 319 líneas)
 - [x] `backend/tests/contexts/payments/infrastructure/test_envio_con_plantilla.py`, `backend/tests/contexts/scheduling/infrastructure/test_avisos_con_plantilla.py` (nuevos: `test_envio.py` 346 y `test_avisos.py` 180 pasarían el tope)
@@ -489,8 +489,8 @@ usa la misma escala (`WHATSAPP_SONDEO_MINUTOS`).
 | 25 | Valor con salto de línea → espacio | unit | verde (`test_consulta_y_estado.py`): el saneo vive en `ConsultarPlantillaParaEnviar`, un solo lugar |
 | 26 | `enviar_plantilla`: forma del `POST` (`type: template`, `parameter_name`); un caso por clase de error usando el bucle compartido (503 ×3, 132001, timeout incierto: ya probados en `test_canal.py`); 132000/132012/132015/132016 parametrizados como permanentes | contrato | verde, RED observado (`test_canal_plantillas.py`) |
 | 27 | Ningún log de los módulos nuevos contiene teléfono, cuerpo, parámetros, token ni `error_user_msg` (patrón de captura de logs de U5) | unit (captura de logs) | verde (`test_canal_plantillas.py`, `test_plantillas_meta.py`, `test_envio_con_plantilla.py`) |
-| 28 | Backfill: `PENDIENTE` de WhatsApp → `SIN_ENVIAR`; texto de fábrica viejo → nuevo; uno editado queda igual | migración (CI) | escrito (`test_migracion_0035.py`); **solo CI** (no hay Docker local) |
-| 29 | Las dos funciones `SECURITY DEFINER` devuelven solo `empresa_id` y `cheatsheet_app` puede ejecutarlas | migración (CI) | escrito (`test_migracion_0035.py`, `test_plantillas_en_meta_postgres.py`); **solo CI** |
+| 28 | Backfill: `PENDIENTE` de WhatsApp → `SIN_ENVIAR`; texto de fábrica viejo → nuevo; uno editado queda igual | migración (CI) | escrito (`test_migracion_0036.py`); **solo CI** (no hay Docker local) |
+| 29 | Las dos funciones `SECURITY DEFINER` devuelven solo `empresa_id` y `cheatsheet_app` puede ejecutarlas | migración (CI) | escrito (`test_migracion_0036.py`, `test_plantillas_en_meta_postgres.py`); **solo CI** |
 | 30 | PAN-CFG-NOT: badge por estado, motivo traducido, «Enviar a revisión» visible solo en Sin enviar/Rechazada y solo para Administrador, edición bloqueada con explicación en revisión / 24 h | unit (Vitest) | verde (`plantillas.test.tsx`, `motivosDeMeta.test.ts`, `clientes.test.ts`, `rutas.test.ts`); RED observado solo en estos tres últimos |
 | 31 | `guard_architecture --scan` y `.claude/hooks/test_guards.sh`: ningún import de business_config, payments o scheduling hacia conversational | gate | `guard_architecture --scan` verde; `test_guards.sh` **solo CI** (falta `jq`) |
 
@@ -524,8 +524,8 @@ Numeración definitiva en `TODO.md` §22 (sigue a las de U5, que llegan hasta 22
   servicio `cheatsheet-worker` solo si quiere otro valor; el dashboard es la fuente de verdad.
 - **U7 (`entregas-de-whatsapp`)**: mantener tal cual los cuatro nombres que le deja U6:
   `ConsultarPlantillaParaEnviar` (con `texto`), `api/whatsapp_notificaciones.py`,
-  `empresa_de_la_cuenta_de_whatsapp` y `PortMensajeria.enviar_plantilla`. La migración 0035 es de U6 y
-  la de U7 (`externo_id`) toma la 0036. U7 ya no tiene que reverificar la afirmación del ADR-0011 §5.
+  `empresa_de_la_cuenta_de_whatsapp` y `PortMensajeria.enviar_plantilla`. La migración 0036 es de U6 y
+  la de U7 (`externo_id`) toma la 0037. U7 ya no tiene que reverificar la afirmación del ADR-0011 §5.
 - **Equipo** (M6): con esta unidad las plantillas se envían solas a Meta al conectar WhatsApp (si se
   aprueba P1).
 
@@ -548,7 +548,7 @@ Con U5 mergeada (#104) y el ADR-0011 aceptado (#62), se contrastó este plan con
 Gate 1 aprobado sigue vigente**: no cambia nada de lo que aprobó Luciano (Pregunta 1: envío automático;
 Pregunta 2: « Gracias.» al final). Todas las correcciones ya están aplicadas arriba y son de tres clases:
 
-- **Mecánicas**: citas de línea, número de migración (0035, `down_revision = "0034"`), `TODO.md` §25 →
+- **Mecánicas**: citas de línea, número de migración (0036, `down_revision = "0035"`), `TODO.md` §25 →
   §22.43–22.50, `render.yaml` (un solo servicio `cheatsheet-worker`), `armar_notificador(unidad, *, canal)`,
   `CLAVE_WABA_ID` local (R3), `.env.example`, `docs/architecture.md` §7, `pendientes.md`, `units.md`.
   El «Pedido al ADR-0011» desaparece: el §5 aceptado ya cubre el webhook por WABA y U6 ya verificó la
@@ -581,7 +581,7 @@ verde por sí solo (`ruff`, `mypy`, `pytest`):
 | `docs(business_config): revalidate…` | La revalidación de este plan contra develop; cierra el Gate 1 |
 | `feat(conversational): send approved WhatsApp templates and share the Meta retry loop` | `PortMensajeria.enviar_plantilla`, `canal_http.py` (bucle compartido), códigos 132000/132012/132015/132016, `error_user_msg` solo para plantillas |
 | `feat(conversational): add the Meta message templates client` | `plantillas_meta.py`: `PlantillasDeMeta`, `PlantillasSimuladas`, `SinCuentaDeMeta` |
-| `feat(business_config): track WhatsApp template state from Meta and seed templates unsent` | Agregado (7 estados, 7 campos, bordes, edición admisible), migración 0035, `DE_FABRICA` corregido |
+| `feat(business_config): track WhatsApp template state from Meta and seed templates unsent` | Agregado (7 estados, 7 campos, bordes, edición admisible), migración 0036, `DE_FABRICA` corregido |
 | `feat(business_config): send templates to Meta on edit, reconcile their state and expose it` | `revision_de_meta.py`, `conciliacion.py`, `ConsultarPlantillaParaEnviar`, `ActualizarEstadoDesdeMeta`, `_RevisionViaMeta`, `routers/plantillas.py` (503 / 422 con el texto de Meta) |
 | `feat(payments): send approved WhatsApp templates for payment reminders and turn notices` | Adaptadores de cobros y turnos, `plantillas_salientes.py`, `armar_notificador(unidad, *, canal)` |
 | `feat(business_config): reconcile WhatsApp templates with Meta from Beat` | `tasks_business_config.py`, Beat, `WHATSAPP_PLANTILLAS_MINUTOS`, consultas `SECURITY DEFINER` desde `integrations` |
@@ -595,7 +595,7 @@ saltean por falta de PostgreSQL/Redis) verdes; `guard_architecture --scan` verde
 `typecheck`, `format:check` y `test:coverage` (1040 tests) verdes. Gate 2 (verificación real) y Gate 3 (PR)
 siguen sin llenar.
 
-**Solo CI:** `test_migracion_0035.py`, `test_plantillas_en_meta_postgres.py`, el `PUT /plantillas` de
+**Solo CI:** `test_migracion_0036.py`, `test_plantillas_en_meta_postgres.py`, el `PUT /plantillas` de
 `test_api_conversacional.py` (ahora con un cuerpo que no empieza con variable) y `test_guards.sh`.
 
 **Para el dueño:** agregar `WHATSAPP_PLANTILLAS_MINUTOS=30` a `backend/.env.example` (junto a

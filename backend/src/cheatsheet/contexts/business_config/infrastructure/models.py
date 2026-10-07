@@ -64,7 +64,7 @@ class PlantillaDeNotificacionORM(Base):
     canal: Mapped[str] = mapped_column(String(20), nullable=False)
     cuerpo: Mapped[str] = mapped_column(Text, nullable=False)
     estado_aprobacion_meta: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    # Lo que se sabe de la plantilla del otro lado (U6, migración 0035).
+    # Lo que se sabe de la plantilla del otro lado (U6, migración 0036).
     nombre_en_meta: Mapped[str | None] = mapped_column(String(512), nullable=True)
     meta_plantilla_id: Mapped[str | None] = mapped_column(
         String(LARGO_MAXIMO_ID_EN_META), nullable=True

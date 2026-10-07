@@ -1,7 +1,7 @@
 """WhatsApp templates in Meta (unit `plantillas-de-whatsapp-en-meta`).
 
-Revision ID: 0035
-Revises: 0034
+Revision ID: 0036
+Revises: 0035
 
 Three things, all of one unit:
 
@@ -36,8 +36,8 @@ from collections.abc import Sequence
 from alembic import op
 from sqlalchemy import text
 
-revision: str = "0035"
-down_revision: str | None = "0034"
+revision: str = "0036"
+down_revision: str | None = "0035"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -1,7 +1,7 @@
 """Las dos lecturas entre empresas que trae `plantillas-de-whatsapp-en-meta` (U6, caso 29).
 
 Cada una es una función `SECURITY DEFINER` que devuelve **ids de empresa y nada más**. Que la
-base las ejecute con el rol de la aplicación lo prueba `tests/integracion/test_migracion_0035.py`;
+base las ejecute con el rol de la aplicación lo prueba `tests/integracion/test_migracion_0036.py`;
 acá se prueba la forma del pedido: la función que se llama, que el id de la WABA viaje como
 **parámetro** (nunca pegado al SQL) y que lo que vuelve se traduzca a `EmpresaId`.
 """

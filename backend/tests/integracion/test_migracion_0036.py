@@ -1,4 +1,4 @@
-"""La migración 0035: plantillas en Meta (U6, casos 28 y 29).
+"""La migración 0036: plantillas en Meta (U6, casos 28 y 29).
 
 Sube y baja sobre una base con plantillas existentes. Son síncronos a propósito, como
 `test_migracion_0034.py`: `alembic.command` arranca su propio loop de asyncio. Necesitan
