@@ -114,12 +114,12 @@ https://developers.facebook.com/documentation/business-messaging/whatsapp/webhoo
 
 | Hecho | Consecuencia |
 |---|---|
-| `entry[].changes[].value.statuses[]` con `id` (wamid), `status`, `timestamp`, `recipient_id` siempre; `errors[]` «only included if failure to send or deliver message»; `conversation`/`pricing` solo en `sent` y uno de `delivered`/`read`; `biz_opaque_callback_data` si se mandó | Se leen `id`, `status`, `timestamp`, `errors[0].code` y `errors[0].title`. Nada de `recipient_id` se guarda ni se loguea (es un teléfono) |
+| `entry[].changes[].value.statuses[]` con `id` (wamid), `status`, `timestamp`, `recipient_id` siempre; `errors[]` «only included if failure to send or deliver message»; `conversation`/`pricing` solo en `sent` y uno de `delivered`/`read`; `biz_opaque_callback_data` si se mandó | Se leen `id`, `status`, `timestamp` y `errors[0].code`; el `title` **no** se lee ni se guarda (decisión (b): texto de un tercero, §22.56). Nada de `recipient_id` se guarda ni se loguea (es un teléfono) |
 | `status` ∈ `sent`, `delivered`, `read`, `failed`, `played` | `played` (nota de voz reproducida) se ignora |
 | «In some cases… the message is both delivered and read at the same time. In these cases, the 'delivered' webhook is not sent» | `LEIDO` sin `ENTREGADO` previo es legítimo: el orden permite saltar |
 | La documentación **no** garantiza orden ni ausencia de duplicados | Idempotencia y piso monotónico obligatorios |
 | El campo `messages` (que incluye `statuses`) **sí** admite override por WABA | Los callbacks llegan a `/webhooks/whatsapp/{empresa}` cuando la WABA tiene override, o a `/webhooks/whatsapp` (ruta de la app, U6) si no |
-| Códigos en `errors[].code`: 131047 fuera de ventana, 131026 no es usuario de WhatsApp, 131049 «healthy ecosystem», 131050 baja de marketing, 132015/132016 plantilla pausada/deshabilitada ([error codes](https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes)) | La pantalla traduce los conocidos y muestra el `title` de Meta para el resto |
+| Códigos en `errors[].code`: 131047 fuera de ventana, 131026 no es usuario de WhatsApp, 131049 «healthy ecosystem», 131050 baja de marketing, 132015/132016 plantilla pausada/deshabilitada ([error codes](https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes)) | La pantalla traduce los conocidos y muestra el código crudo para el resto (el `title` de Meta no se guarda: decisión (b), §22.56) |
 
 Sin verificar → `TODO.md` §25 (al final).
 
@@ -142,9 +142,14 @@ Sin verificar → `TODO.md` §25 (al final).
   `payments.RegistrarEntregaDeRecordatorio` (tabla `recordatorio`). Bajo RLS, un `wamid` de otra
   empresa simplemente no existe: nunca hay cruce de inquilinos.
 - No encontrado en ninguno → log `whatsapp_estado_sin_destinatario` (sin el wamid completo) y 200.
-  Caso esperable: el `sent` llega antes de que haga commit la transacción que mandó el mensaje. No se
-  pierde nada: ese estado (`ENVIADO`) ya lo escribió el propio envío, y los siguientes
-  (`delivered`/`read`) llegan después.
+  Caso esperable: el `sent` llega antes de que haga commit la transacción que mandó el mensaje. Para un
+  **mensaje** del agente o del operador no se pierde nada: ese estado (`ENVIADO`) ya lo escribió el
+  propio envío, y los siguientes (`delivered`/`read`) llegan después. **Para un recordatorio de cobro
+  la afirmación era falsa** (hallazgo H1 del Gate 2): el barrido (`workers/tasks_payments.py:74`) abre
+  una unidad de trabajo por empresa y confirma recién al final, así que un `failed` o `delivered` que
+  llega antes del commit no encuentra la fila, se contesta 200 y se pierde. El tramo ii confirma cada
+  recordatorio **antes** de la E/S a Meta y lo actualiza después (con ello también resuelve la parte de
+  recordatorios del hallazgo G5/ADR-0014); queda registrado en `TODO.md` §22.57.
 - **Alternativa descartada — `biz_opaque_callback_data`** con «payments:<id>» para rutear sin buscar
   en dos tablas: igual hace falta guardar el `wamid` (idempotencia, la respuesta del envío), es un dato
   más que mantener en tres adaptadores y no aporta nada que dos búsquedas por índice no den.
@@ -331,7 +336,7 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 | 2 | **RED** — Un callback `read` del `wamid` de un recordatorio de cobro no cambia nada (hoy no hay `externo_id`). GREEN: `LEIDO` en PAN-COB-02 | integración | hecho · tramo 1 |
 | 3 | **RED** — Cancelar un turno no deja ningún registro del aviso (hoy). GREEN: un `Mensaje` `SALIENTE`/`SISTEMA` con el `wamid` en la conversación activa del cliente | integración | pendiente · tramo 3 |
 | 4 | **RED** — Una fila de recordatorio con `enviado_en` nulo traba la cadena: el barrido siguiente no manda nada (hoy). GREEN: se reintenta y sale | caso de uso | pendiente · tramo 2 |
-| 5 | El mismo `statuses[]` entregado dos veces → un solo cambio | integración | hecho · tramo 1 |
+| 5 | El mismo `statuses[]` entregado dos veces → un solo cambio (en `recordatorio`, con un solo `recordatorio_fallido`, y en `mensaje`) | integración | hecho · tramo 1 |
 | 6 | `read` y después `delivered` (fuera de orden) → queda `LEIDO`, en `mensaje` y en `recordatorio` | unit (dominio, tabla) | hecho · tramo 1 |
 | 7 | `read` sin `delivered` previo → `LEIDO` | unit | hecho · tramo 1 |
 | 8 | `failed` con `errors[0].code=131047` → `FALLIDO` + motivo; un `read` posterior no lo cambia | unit + integración | hecho · tramo 1 |
@@ -340,7 +345,7 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 | 11 | `entry[].id` con la WABA de B en la URL de A → descartado con log | integración | hecho · tramo 1 |
 | 12 | Callback por la ruta de la app → se rutea a la empresa de `entry[].id` | integración | hecho · tramo 1 |
 | 13 | `wamid` desconocido → 200, log sin el wamid completo | integración | hecho · tramo 1 |
-| 14 | Varios estados en una notificación: el segundo falla → el primero quedó aplicado | integración | hecho · tramo 1 |
+| 14 | Varios estados en una notificación: el segundo falla → el primero y el tercero (en `mensaje` y en `recordatorio`) quedaron aplicados, 200 y log solo con la clase de la excepción (H4) | integración | hecho · tramo 1 |
 | 15 | Falla transitoria en el primer intento → fila sin `enviado_en`, `intentos=1`, `proximo_intento_en=+1h`; sin `INSERT` nuevo | caso de uso | pendiente · tramo 2 |
 | 16 | Barrido antes de `proximo_intento_en` → no reintenta; después → `UPDATE` de la misma fila y sale con `wamid` | caso de uso | pendiente · tramo 2 |
 | 17 | Tercer intento transitorio → `FALLIDO`, `enviado_en` puesto, y el barrido siguiente evalúa el paso 2 | caso de uso | pendiente · tramo 2 |
@@ -356,11 +361,15 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 | 26 | Historial del intérprete: un `SISTEMA` se reemplaza por el descriptor; el texto con nombre no llega al intérprete | unit | pendiente · tramo 3 (solo regresión: el descriptor ya existe) |
 | 27 | Respuesta del cliente a un aviso → el agente procesa en la misma conversación (RN-03) | integración | pendiente · tramo 3 |
 | 28 | Ningún log de los módulos nuevos contiene `recipient_id`, teléfono ni texto del aviso | unit (captura de logs) | parcial · tramo 1 (webhook de estados; faltan los avisos, tramo 3) |
-| 29 | Migración 0037: columnas e índice único de `externo_id` (sin backfill, D1) | migración (CI) | escrito · tramo 1 (corre en CI) |
+| 29 | Migración 0037: columnas e índice único **parcial** de `externo_id` (sin backfill, D1) | migración (CI) | escrito · tramo 1 (corre en CI) |
 | 30 | PAN-COB-02: «Reintentando · intento n de 3», motivos traducidos; hilo con estado en castellano y motivo | unit (Vitest) | pendiente · tramo 3 |
 | 31 | `guard_architecture --scan` y `test_guards.sh` pasan | gate | hecho · tramo 1 (`guard_architecture`; `test_guards.sh` pendiente: falta `jq`) |
+| 32 | Dos callbacks del mismo `wamid` solapados (dos transacciones) no se pisan: `LEIDO` no se pisa con `ENTREGADO`, `FALLIDO` no se pisa, y `recordatorio_fallido` se publica una vez (H2) | integración (CI) | escrito · tramo 1 (corre en CI) |
+| 33 | `wamid` vacío o más largo que la columna → se guarda `None`, el paso queda despachado y el log no lleva el id (H3) | unit | hecho · tramo 1 |
+| 34 | Un estado venenoso no bloquea los mensajes del cliente (ruta por empresa); una falla transitoria de la base no corta los demás estados ni los mensajes y termina en 500 para que Meta reintente (H4) | integración (API) | hecho · tramo 1 |
+| 35 | Clasificación de fallas: conexión, tiempo, deadlock y `SQLSTATE` 08/40/53/57 son transitorias; integridad, datos, sintaxis y errores nuestros no (H4) | unit | hecho · tramo 1 |
 
-Gates: los mismos de U6 (backend y frontend). Los casos 10, 21 y 29 corren con PostgreSQL en la CI.
+Gates: los mismos de U6 (backend y frontend). Los casos 10, 21, 29 y 32 corren con PostgreSQL en la CI.
 
 **Tramos (PRs encadenados, D4):** (i) callbacks `statuses[]` + estado monótono + columnas + motivo de
 falla; (ii) reintento acotado de fallas transitorias; (iii) avisos del SISTEMA + frontend. Cada
@@ -435,11 +444,40 @@ uno se apila sobre el anterior y se mergea a `develop` en ese orden.
   cumple para el motivo que llega por callback.
 - El `EstadoEntrega` se traduce en la raíz por valor (`"LEIDO"`): cada contexto conserva su enum (R3).
 
+**Correcciones del Gate 2 (2026-10-07)** — H2 a H5 (H1 va al tramo ii):
+
+- **H2, bloqueo de la fila:** `buscar_por_externo_id(externo_id, *, para_actualizar=False)` en los dos
+  puertos y repositorios; los casos de uso de los callbacks lo piden con `para_actualizar=True`
+  (`SELECT ... FOR UPDATE`, compatible con `aislamiento_por_cobro`, que es `FOR ALL`). Dos callbacks del
+  mismo `wamid` se serializan: un `delivered` retrasado no pisa un `read`, un `failed` no se pisa y
+  `recordatorio_fallido` se publica una sola vez. Test de CI con dos transacciones solapadas
+  (`tests/integracion/test_entregas_concurrentes_postgres.py`).
+- **H3, `wamid` fuera de la columna:** `shared/externo_id.py` define `LARGO_MAXIMO_EXTERNO_ID` (160, también
+  usado por los modelos y el parser) y `externo_id_o_ninguno`. `Recordatorio.marcar_enviado` guarda `None`
+  si el id está vacío o no entra (el paso se da por despachado igual: sin eso el barrido lo reenviaría y el
+  cliente recibiría el recordatorio dos veces); los mensajes salientes del agente y del operador siguen la
+  misma regla. El canal devuelve `""` y loguea `whatsapp_id_de_mensaje_demasiado_largo` (largo, sin el id).
+- **H4, un estado no tumba la notificación:** `aplicar_estados_de_entrega` aísla cada estado
+  (`api/entregas.py`); ver «Decisiones» más abajo para las clases de excepción. En la ruta por empresa los
+  mensajes entrantes se procesan aunque un estado falle. La unidad de trabajo se cierra con `aclosing`
+  cuando el cuerpo levanta, para soltar la fila bloqueada de inmediato.
+- **H5:** `pytestmark` asyncio solo en los tests async de `test_fallos_tipados_del_canal.py` (cero
+  warnings propios); `test_webhook_estados.py` (475 líneas) partido en `test_webhook_estados.py`,
+  `test_webhook_estados_robustez.py`, `test_clasificacion_de_fallas_de_estados.py` y el montaje
+  `montaje_webhook_estados.py`; la 0037 verifica que el índice es parcial (`WHERE`); el caso 5 cubre también
+  el lado `mensaje` y el 14 también el lado `recordatorio`.
+
 **Evidencia RED (TDD):** observado en colección (`ImportError` del símbolo inexistente) antes de implementar en
 cada bloque: dominio y casos de uso de `conversational`, dominio/casos de uso/adaptador de `payments`, el
 envoltorio de la raíz, el parser y el webhook de estados. **No se observó RED** en: el refactor de
 `repositorio_mensaje.py` (movimiento puro), `test_migracion_0037.py`, `test_entregas_de_recordatorio_postgres.py`
 y los dos casos agregados a `test_conversacional_postgres.py` (necesitan PostgreSQL: solo corren en la CI).
+
+**Correcciones del Gate 2:** RED observado (el test falla antes de implementar) en H3 (dominio, canal,
+agente y operador), H2 (los casos de uso piden la fila bloqueada) y H4 (los tres casos nuevos del webhook).
+**No se observó RED** en: `test_entregas_concurrentes_postgres.py` y la aserción de índice parcial de
+`test_migracion_0037.py` (necesitan PostgreSQL: solo corren en la CI; §22.55) y en el movimiento de tests
+de H5.
 
 ## Decisiones tomadas durante la unidad
 
@@ -463,3 +501,32 @@ y los dos casos agregados a `test_conversacional_postgres.py` (necesitan Postgre
     verifica contra Meta que el override por WABA aplica a `messages`; queda como pendiente en el TODO
     porque no hay sandbox) y punto 8 (el Context Map incluye registrar el mensaje en la conversación).
   - **D6** — Los avisos de turno no se reintentan (la pregunta 1 del Gate 1 se mantiene).
+- Gate 2 del tramo 1 (2026-10-07, Luciano):
+  - **H1 (no se implementa en el tramo i; va al tramo ii)** — el barrido (`workers/tasks_payments.py:74`,
+    una `unidad_de_trabajo` por empresa; `recordatorios.py:230-252`) confirma recién al final, así que un
+    `failed`/`delivered` que llega antes del commit no encuentra la fila, recibe 200 y se pierde: la
+    afirmación «no se pierde nada» de D-U7-1 era falsa para los recordatorios. El tramo ii confirma cada
+    recordatorio antes de la E/S a Meta y lo actualiza después (resuelve también la parte de recordatorios
+    del hallazgo G5/ADR-0014). Pendiente en `TODO.md` §22.57.
+  - **H2** — la búsqueda de los callbacks bloquea la fila (`SELECT ... FOR UPDATE`) y hay un test de CI con
+    dos transacciones.
+  - **H3** — un `wamid` vacío o más largo que la columna se guarda como `None`, nunca cortado; el paso se da
+    por despachado igual; log estructurado sin el id.
+  - **H4** — cada estado se aplica aislado. Un estado que falla por algo suyo se registra con la clase de su
+    excepción (nunca `wamid`, teléfono ni texto) y se sigue; solo una falla **transitoria** de la base se
+    vuelve a levantar, al final, para que Meta reintente. Clases transitorias (`es_falla_transitoria`):
+    `OperationalError`, `InterfaceError`, el `TimeoutError` del pool de SQLAlchemy, `ConnectionError` y
+    `TimeoutError` del sistema (red, tiempo agotado), y cualquier `DBAPIError` cuyo `SQLSTATE` sea de clase
+    08 (conexión), 40 (deadlock o serialización), 53 (recursos) o 57 (reinicio o cancelación), porque el
+    controlador asíncrono no siempre lo traduce a `OperationalError`. No lo son `IntegrityError`,
+    `DataError`, `ProgrammingError` ni un error de nuestro código: reintentar el mismo estado fallaría igual,
+    para siempre. El único `except Exception` (con `# noqa: BLE001` y su justificación, como en
+    `recordatorios.py`) está en el borde del aislamiento y decide con esa función, no con un `pass`.
+  - **H5** — ver «Correcciones del Gate 2» arriba.
+  - **Un `failed` que llega después de `read`/`delivered` se acepta y es terminal** (D-U7-2): se verifica
+    contra Meta en `TODO.md` §22.54.
+  - **(a)** `intentos` y `proximo_intento_en` van a la migración **0038** en el tramo ii (`down_revision =
+    "0037"`, su propio test de migración en la CI, sin backfill).
+  - **(b)** Del `failed` se guarda solo `errors[0].code`, nunca el `title` (texto de un tercero); §22.56 es la
+    salida si hace falta mostrarlo.
+  - **(c)** El `wamid` sin destinatario se sigue registrando en nivel `warning`.
