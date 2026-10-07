@@ -244,11 +244,14 @@ class PortRepositorioRecordatorios(Protocol):
 
     async def guardar(self, recordatorio: Recordatorio) -> None: ...
 
-    async def buscar_por_externo_id(self, externo_id: str) -> Recordatorio | None:
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Recordatorio | None:
         """El recordatorio al que se refiere un callback de estado, por el `wamid` de Meta (U7).
 
         `None` si ese `wamid` no es de un recordatorio **de esta empresa**: bajo RLS, uno ajeno
-        simplemente no existe.
+        simplemente no existe. `para_actualizar` bloquea la fila hasta el fin de la transacción:
+        los callbacks leen, mutan y reescriben, y dos en paralelo se pisarían.
         """
         ...
 

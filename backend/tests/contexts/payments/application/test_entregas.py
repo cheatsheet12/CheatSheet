@@ -103,3 +103,14 @@ async def test_failed_guarda_el_codigo_y_publica_un_solo_evento_aunque_el_callba
     assert evento.entidad_afectada == f"Cobro:{recordatorio.cobro_id}"
     assert evento.resultado is Resultado.ERROR
     assert evento.empresa_id == EMPRESA
+
+
+async def test_el_callback_pide_el_recordatorio_bloqueado_para_no_pisar_a_otro_callback() -> None:
+    """H2: dos callbacks del mismo `wamid` en paralelo se serializan en la base (ver el de mensajes)."""
+    recordatorios, _, publicador = await _con_un_recordatorio()
+
+    await _caso(recordatorios, publicador).ejecutar(
+        empresa_id=EMPRESA, externo_id="wamid-1", estado=EstadoEntrega.ENTREGADO, ahora=AHORA
+    )
+
+    assert recordatorios.busquedas_por_externo_id == [True]

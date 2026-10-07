@@ -29,7 +29,8 @@ class RegistrarEstadoDeEntrega:
 
         `False` significa «no es mío»: el webhook prueba entonces con el otro contexto.
         """
-        mensaje = await self._mensajes.buscar_por_externo_id(externo_id)
+        # Bloqueada: leer, mutar y reescribir sin el bloqueo pierde la actualización de otro callback.
+        mensaje = await self._mensajes.buscar_por_externo_id(externo_id, para_actualizar=True)
         if mensaje is None:
             return False
         if mensaje.marcar_entrega(estado, motivo=codigo_de_error):

@@ -60,10 +60,12 @@ class _SesionSinEmpresa:
 class RepositorioQueExplota(RepositorioMensajeEnMemoria):
     """Levanta al buscar `wamid-boom`: lo que pasa cuando algo nuestro se rompe."""
 
-    async def buscar_por_externo_id(self, externo_id: str) -> Mensaje | None:
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Mensaje | None:
         if externo_id == "wamid-boom":
             raise RuntimeError("se rompio algo nuestro")
-        return await super().buscar_por_externo_id(externo_id)
+        return await super().buscar_por_externo_id(externo_id, para_actualizar=para_actualizar)
 
 
 @dataclass(frozen=True)

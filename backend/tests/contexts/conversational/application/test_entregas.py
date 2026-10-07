@@ -105,3 +105,19 @@ async def test_failed_guarda_el_codigo_de_meta_y_es_terminal() -> None:
 
     assert mensaje.estado_entrega is EstadoEntrega.FALLIDO
     assert mensaje.motivo_de_falla == "131047"
+
+
+async def test_el_callback_pide_el_mensaje_bloqueado_para_no_pisar_a_otro_callback() -> None:
+    """H2: dos callbacks del mismo `wamid` en paralelo se serializan en la base.
+
+    Sin el bloqueo, cada uno lee el estado viejo y el que escribe último pisa al otro (un
+    `ENTREGADO` retrasado sobre un `LEIDO`). Que el caso de uso lo pida es lo que este test fija;
+    que la base lo cumpla lo prueba `test_entregas_concurrentes_postgres.py` (CI).
+    """
+    mensajes = RepositorioMensajeEnMemoria(_saliente())
+
+    await RegistrarEstadoDeEntrega(mensajes).ejecutar(
+        externo_id="wamid-1", estado=EstadoEntrega.ENTREGADO
+    )
+
+    assert mensajes.busquedas_por_externo_id == [True]

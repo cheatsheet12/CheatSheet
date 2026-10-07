@@ -302,9 +302,17 @@ class RepositorioRecordatoriosPostgres:
         fila.ultimo_error = recordatorio.ultimo_error
         await self._sesion.flush()
 
-    async def buscar_por_externo_id(self, externo_id: str) -> Recordatorio | None:
-        """Por el `wamid`. RLS (`aislamiento_por_cobro`) acota a los cobros de la empresa."""
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Recordatorio | None:
+        """Por el `wamid`. RLS (`aislamiento_por_cobro`) acota a los cobros de la empresa.
+
+        Con `para_actualizar` bloquea solo la fila de `recordatorio` (`FOR UPDATE`): la política
+        es `FOR ALL`, así que el bloqueo respeta el mismo `USING` que la lectura.
+        """
         sentencia = select(RecordatorioORM).where(RecordatorioORM.externo_id == externo_id)
+        if para_actualizar:
+            sentencia = sentencia.with_for_update().execution_options(populate_existing=True)
         fila = (await self._sesion.execute(sentencia)).scalars().first()
         return _recordatorio_a_dominio(fila) if fila is not None else None
 

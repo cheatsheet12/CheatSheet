@@ -38,7 +38,11 @@ class RegistrarEntregaDeRecordatorio:
         codigo_de_error: str | None = None,
     ) -> bool:
         """Devuelve si el `wamid` es de un recordatorio de esta empresa (no si cambió algo)."""
-        recordatorio = await self._recordatorios.buscar_por_externo_id(externo_id)
+        # Bloqueada: dos `failed` en paralelo publicarían `recordatorio_fallido` dos veces, y un
+        # `delivered` retrasado podría pisar un `read`.
+        recordatorio = await self._recordatorios.buscar_por_externo_id(
+            externo_id, para_actualizar=True
+        )
         if recordatorio is None:
             return False
         if not recordatorio.marcar_entrega(estado, motivo=codigo_de_error):

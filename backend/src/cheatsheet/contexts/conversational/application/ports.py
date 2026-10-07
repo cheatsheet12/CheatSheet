@@ -145,11 +145,17 @@ class PortRepositorioMensaje(Protocol):
 
     async def guardar(self, mensaje: Mensaje) -> None: ...
 
-    async def buscar_por_externo_id(self, externo_id: str) -> Mensaje | None:
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Mensaje | None:
         """El mensaje que ya se procesó. **La idempotencia del webhook de Meta.**
 
         Devuelve `None` cuando nunca llegó. Que exista este método y no una clave en Redis es
         lo que hace que la protección sobreviva a un `FLUSHALL`, igual que en el épico 6.
+
+        `para_actualizar` bloquea la fila hasta el fin de la transacción: lo piden los callbacks
+        de estado, que leen, mutan y reescriben la fila. Sin el bloqueo, dos callbacks del mismo
+        `wamid` en paralelo se pisan (un `delivered` retrasado sobre un `read`).
         """
         ...
 

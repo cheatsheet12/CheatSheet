@@ -42,8 +42,15 @@ class RepositorioMensajePostgres:
         _mensaje_a_fila(mensaje, fila)
         await self._sesion.flush()
 
-    async def buscar_por_externo_id(self, externo_id: str) -> Mensaje | None:
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Mensaje | None:
         sentencia = select(MensajeORM).where(MensajeORM.externo_id == externo_id)
+        if para_actualizar:
+            # `FOR UPDATE`: el callback lee, muta y reescribe la fila. Sin el bloqueo, dos
+            # callbacks del mismo `wamid` leen el mismo estado y el último en escribir pisa al otro.
+            # `populate_existing` por si la sesión ya había cargado la fila antes del bloqueo.
+            sentencia = sentencia.with_for_update().execution_options(populate_existing=True)
         fila = (await self._sesion.execute(sentencia)).scalars().first()
         return _mensaje_a_dominio(fila) if fila is not None else None
 

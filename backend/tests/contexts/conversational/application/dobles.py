@@ -83,6 +83,8 @@ class RepositorioConversacionEnMemoria:
 class RepositorioMensajeEnMemoria:
     def __init__(self, *mensajes: Mensaje) -> None:
         self.mensajes: dict[UUID, Mensaje] = {uno.id: uno for uno in mensajes}
+        #: El `para_actualizar` de cada `buscar_por_externo_id`: si se pidió la fila bloqueada.
+        self.busquedas_por_externo_id: list[bool] = []
 
     async def agregar(self, mensaje: Mensaje) -> None:
         self.mensajes[mensaje.id] = mensaje
@@ -90,7 +92,10 @@ class RepositorioMensajeEnMemoria:
     async def guardar(self, mensaje: Mensaje) -> None:
         self.mensajes[mensaje.id] = mensaje
 
-    async def buscar_por_externo_id(self, externo_id: str) -> Mensaje | None:
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Mensaje | None:
+        self.busquedas_por_externo_id.append(para_actualizar)
         return next((uno for uno in self.mensajes.values() if uno.externo_id == externo_id), None)
 
     async def del_hilo(self, conversacion_id: UUID) -> list[Mensaje]:

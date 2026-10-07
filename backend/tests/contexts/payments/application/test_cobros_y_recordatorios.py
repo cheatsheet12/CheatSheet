@@ -103,6 +103,8 @@ class RecordatoriosFalsos:
 
     def __init__(self) -> None:
         self.guardados: list[Recordatorio] = []
+        #: El `para_actualizar` de cada `buscar_por_externo_id`: si se pidió la fila bloqueada.
+        self.busquedas_por_externo_id: list[bool] = []
 
     async def agregar(self, recordatorio: Recordatorio) -> None:
         if any(
@@ -115,7 +117,10 @@ class RecordatoriosFalsos:
     async def guardar(self, recordatorio: Recordatorio) -> None:
         pass
 
-    async def buscar_por_externo_id(self, externo_id: str) -> Recordatorio | None:
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Recordatorio | None:
+        self.busquedas_por_externo_id.append(para_actualizar)
         return next((uno for uno in self.guardados if uno.externo_id == externo_id), None)
 
     async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]:
