@@ -38,6 +38,7 @@ from cheatsheet.contexts.conversational.domain.faq import DIMENSION_DEL_VECTOR
 from cheatsheet.contexts.conversational.infrastructure.canal_http import Esperar, pedir_a_meta
 from cheatsheet.platform.settings import Entorno
 from cheatsheet.platform.telemetry import obtener_logger
+from cheatsheet.shared.externo_id import LARGO_MAXIMO_EXTERNO_ID
 
 logger = obtener_logger(__name__)
 
@@ -192,7 +193,7 @@ class SinCanal:
 
 
 def _id_del_mensaje(respuesta: httpx.Response) -> str:
-    """El `wamid` que Meta devuelve, o una cadena vacía si contestó algo raro.
+    """El `wamid` que Meta devuelve, o una cadena vacía si contestó algo raro o demasiado largo.
 
     Vacío y no una excepción: el mensaje **salió**. Perder el id significa no poder atar los
     callbacks de entrega a esa fila, que es peor que nada pero mucho mejor que tratar un envío
@@ -200,10 +201,15 @@ def _id_del_mensaje(respuesta: httpx.Response) -> str:
     """
     try:
         mensajes = respuesta.json().get("messages", [])
-        return str(mensajes[0]["id"]) if mensajes else ""
+        externo_id = str(mensajes[0]["id"]) if mensajes else ""
     except (ValueError, KeyError, IndexError, TypeError):
         logger.warning("whatsapp_respondio_sin_id")
         return ""
+    if len(externo_id) > LARGO_MAXIMO_EXTERNO_ID:
+        # Un id nunca se corta (uno truncado coincidiría con otro mensaje) y tampoco se loguea.
+        logger.warning("whatsapp_id_de_mensaje_demasiado_largo", largo=len(externo_id))
+        return ""
+    return externo_id
 
 
 class TranscriptorSimulado:

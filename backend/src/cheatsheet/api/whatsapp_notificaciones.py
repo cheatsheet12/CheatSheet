@@ -26,6 +26,7 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
     LARGO_MAXIMO_MOTIVO_DE_FALLA,
 )
 from cheatsheet.platform.telemetry import obtener_logger
+from cheatsheet.shared.externo_id import LARGO_MAXIMO_EXTERNO_ID
 
 logger = obtener_logger(__name__)
 
@@ -37,9 +38,6 @@ SIN_MOTIVO = "NONE"
 
 #: El campo que trae mensajes entrantes y callbacks de estado de entrega.
 CAMPO_MENSAJES = "messages"
-
-#: El largo de la columna donde se guarda el `wamid` (`mensaje.externo_id`, `recordatorio.externo_id`).
-LARGO_MAXIMO_EXTERNO_ID = 160
 
 #: `status` de Meta → nuestro vocabulario (el valor de `EstadoEntrega` de los dos contextos).
 #: `played` (una nota de voz reproducida) y lo que Meta agregue mañana se ignoran.

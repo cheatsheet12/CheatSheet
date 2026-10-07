@@ -35,6 +35,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from cheatsheet.platform.database import Base
+from cheatsheet.shared.externo_id import LARGO_MAXIMO_EXTERNO_ID
 
 TABLA_COBRO = "cobro"
 TABLA_RECORDATORIO = "recordatorio"
@@ -163,7 +164,7 @@ class RecordatorioORM(Base):
     estado_entrega: Mapped[str | None] = mapped_column(String(20), nullable=True)
     #: El `wamid` con el que Meta aceptó el mensaje: así un callback `statuses[]` encuentra su
     #: recordatorio (U7, migración 0037). Único en todo el sistema, no solo por empresa.
-    externo_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    externo_id: Mapped[str | None] = mapped_column(String(LARGO_MAXIMO_EXTERNO_ID), nullable=True)
     #: Por qué falló el envío: un código de Meta o una clase corta (`INCIERTO`, `SIN_CANAL`...).
     ultimo_error: Mapped[str | None] = mapped_column(String(60), nullable=True)
 

@@ -23,6 +23,7 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
     TipoContenido,
 )
 from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.externo_id import externo_id_o_ninguno
 
 
 class SalidaAlCliente:
@@ -64,7 +65,9 @@ class SalidaAlCliente:
         motivo: str | None = None
         estado = EstadoEntrega.FALLIDO
         try:
-            externo_id = await self._mensajeria.enviar(telefono=telefono, texto=texto)
+            externo_id = externo_id_o_ninguno(
+                await self._mensajeria.enviar(telefono=telefono, texto=texto)
+            )
             estado = EstadoEntrega.ENVIADO
         except Exception as fallo:  # noqa: BLE001 — ver abajo
             # `Exception` es lo que `CLAUDE.md` §5 prohíbe en general, y acá está acotado por

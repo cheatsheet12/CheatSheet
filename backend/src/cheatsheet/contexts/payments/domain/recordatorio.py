@@ -19,6 +19,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.externo_id import externo_id_o_ninguno
 
 #: El largo de la columna `recordatorio.ultimo_error` (migración 0037).
 LARGO_MAXIMO_ULTIMO_ERROR = 60
@@ -66,10 +67,15 @@ class Recordatorio:
             raise EntradaInvalida("El paso de un recordatorio empieza en 1")
 
     def marcar_enviado(self, ahora: datetime, externo_id: str | None = None) -> None:
-        """Salió por el canal. El proveedor confirmará la entrega después, o no."""
+        """Salió por el canal. El proveedor confirmará la entrega después, o no.
+
+        Un `externo_id` vacío o que no entra en la columna se guarda como `None`, nunca cortado: el
+        mensaje salió y el paso se da por despachado igual (si no, el barrido lo mandaría otra vez
+        y el cliente recibiría el recordatorio dos veces). Solo se pierde el estado de entrega.
+        """
         self.enviado_en = ahora
         self.estado_entrega = EstadoEntrega.ENVIADO
-        self.externo_id = externo_id
+        self.externo_id = externo_id_o_ninguno(externo_id)
 
     def marcar_entrega(self, estado: EstadoEntrega, *, motivo: str | None = None) -> bool:
         """Lo que el proveedor informó (RN-04). **Solo avanza**; devuelve si cambió algo (U7).

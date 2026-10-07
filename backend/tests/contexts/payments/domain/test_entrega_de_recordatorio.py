@@ -15,6 +15,7 @@ from cheatsheet.contexts.payments.domain.recordatorio import (
     EstadoEntrega,
     Recordatorio,
 )
+from cheatsheet.shared.externo_id import LARGO_MAXIMO_EXTERNO_ID
 
 AHORA = datetime(2026, 10, 7, 15, 0, tzinfo=UTC)
 
@@ -92,3 +93,24 @@ def test_un_recordatorio_sin_estado_acepta_el_primero() -> None:
     recordatorio = Recordatorio(id=uuid4(), cobro_id=uuid4(), paso=1, canal="WHATSAPP")
 
     assert recordatorio.marcar_entrega(EstadoEntrega.ENVIADO) is True
+
+
+def test_marcar_enviado_con_un_wamid_vacio_guarda_ninguno() -> None:
+    recordatorio = Recordatorio(id=uuid4(), cobro_id=uuid4(), paso=1, canal="WHATSAPP")
+
+    recordatorio.marcar_enviado(AHORA, externo_id="")
+
+    assert recordatorio.externo_id is None
+    assert recordatorio.enviado_en == AHORA
+
+
+def test_marcar_enviado_con_un_wamid_que_no_entra_en_la_columna_guarda_ninguno() -> None:
+    recordatorio = Recordatorio(id=uuid4(), cobro_id=uuid4(), paso=1, canal="WHATSAPP")
+
+    recordatorio.marcar_enviado(AHORA, externo_id="w" * (LARGO_MAXIMO_EXTERNO_ID + 1))
+
+    # Nunca se corta: uno truncado coincidiría con otro mensaje. El paso se da por despachado igual
+    # (si no, el barrido lo mandaría otra vez y el cliente recibiría el recordatorio dos veces).
+    assert recordatorio.externo_id is None
+    assert recordatorio.enviado_en == AHORA
+    assert recordatorio.estado_entrega is EstadoEntrega.ENVIADO
