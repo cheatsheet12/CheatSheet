@@ -367,7 +367,14 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 | 28 | Ningún log de los módulos nuevos contiene `recipient_id`, teléfono ni texto del aviso | unit (captura de logs) | parcial · tramo 1 (webhook de estados; faltan los avisos, tramo 3) |
 | 36 | **H1** — Cuando el barrido llama a Meta la fila del recordatorio ya está confirmada y vista por otra transacción; ninguna llamada a Meta corre con escrituras sin confirmar; el orden es reservar, confirmar, mandar, registrar, confirmar | caso de uso + integración (CI) | hecho (caso de uso) · escrito (CI) · tramo 2 |
 | 37 | Caídas del proceso: reserva que la base no confirma → no se manda; resultado que la base no guarda → la fila queda «en curso» y vencida su ventana se resuelve `INCIERTO`, nunca se reenvía; envío en curso dentro de su ventana → no se toca | caso de uso | hecho · tramo 2 |
-| 38 | Migración 0038: columnas `intentos` y `proximo_intento_en`, índice **parcial**, sin backfill, `intentos >= 0` | migración (CI) | escrito · tramo 2 (corre en CI) |
+| 38 | Migración 0038: columnas `intentos` y `proximo_intento_en`, índice **parcial**, sin backfill, `intentos >= 0`; y la función `SECURITY DEFINER` `empresas_con_recordatorios_en_espera()` (existe, `prosecdef`, solo la app la ejecuta, el downgrade la quita) | migración (CI) | escrito · tramo 2 (corre en CI) |
+| 39 | **S1** — La lectura del contacto y la plantilla es `preparar`, **antes** de reservar; un error de base ahí no deja fila, no voltea a los demás cobros y el barrido siguiente lo retoma (nunca `INCIERTO`); lo mismo para un reintento (la fila queda como estaba); `mandar` no lee la base | caso de uso + adaptador | hecho · Gate 2 del tramo 2 |
+| 40 | **S1 (CI)** — Un error real de PostgreSQL (`SELECT 1 / 0`) al preparar, dentro del savepoint de la reserva, no aborta la transacción: los otros cobros salen | integración (CI) | escrito · Gate 2 del tramo 2 (corre en CI) |
+| 41 | **S2** — Cada reserva mide su ventana (30 min) desde su propio instante (reloj real); lo que se registra lleva el instante del registro; un barrido solapado no resuelve `INCIERTO` una reserva con ventana vigente | caso de uso | hecho · Gate 2 del tramo 2 |
+| 42 | **N2** — Cobro pagado o cerrado entre la reserva y el envío → no se manda, la fila se descarta (`COBRO_CERRADO`); si la relectura falla en la base, no se manda y la fila queda «en curso» | caso de uso | hecho · Gate 2 del tramo 2 |
+| 43 | **N3** — El reparto del barrido incluye las empresas con un recordatorio esperando o en curso, sin repetir las que ya tienen cobros abiertos | unit (worker) | hecho · Gate 2 del tramo 2 |
+| 44 | **N3 (CI)** — `empresas_con_recordatorios_en_espera()` devuelve la empresa cuyo único cobro se cerró con un reintento esperando, y no la que ya envió | integración (CI) | escrito · Gate 2 del tramo 2 (corre en CI) |
+| 45 | **N7** — Un cobro cuyo reintento terminó en la pasada 1 no recibe el paso siguiente en la misma corrida | caso de uso | hecho · Gate 2 del tramo 2 |
 | 29 | Migración 0037: columnas e índice único **parcial** de `externo_id` (sin backfill, D1) | migración (CI) | escrito · tramo 1 (corre en CI) |
 | 30 | PAN-COB-02: «Reintentando · intento n de 3», motivos traducidos; hilo con estado en castellano y motivo | unit (Vitest) | pendiente · tramo 3 |
 | 31 | `guard_architecture --scan` y `test_guards.sh` pasan | gate | hecho · tramo 1 (`guard_architecture`; `test_guards.sh` pendiente: falta `jq`) |
@@ -491,8 +498,8 @@ de H5.
 **Hecho** (casos 4, 15 a 20, 22, 36 y 37 con dobles; 21, 36 y 38 escritos para la CI):
 
 - **Tres tiempos por recordatorio** (`payments/application/reintentos.py`, `EnvioConReintento`): (1) *reservar*:
-  se escribe la fila con el intento ya contado y se **confirma**; (2) *mandar* a Meta, con nada sin
-  confirmar; (3) *registrar* el resultado (`wamid`, estado, error) en otra transacción corta y confirmarla.
+  se escribe la fila con el intento ya contado y se **confirma**; (2) *mandar* a Meta, sin escrituras sin
+  confirmar ni locks; (3) *registrar* el resultado (`wamid`, estado, error) en otra transacción corta y confirmarla.
   `PortTransaccion.confirmar()` (`ConfirmacionDeLaUnidad`) hace el commit y **vuelve a declarar la
   empresa** de la sesión (el `SET LOCAL` de `sesion_de_empresa` muere con el commit). Cada reserva y cada
   registro corren además en su savepoint. `DespacharRecordatorios` queda como orquestador de dos pasadas.
@@ -501,7 +508,7 @@ de H5.
 | Estado | `enviado_en` | `estado_entrega` | `intentos` | `proximo_intento_en` | `ultimo_error` |
 |---|---|---|---|---|---|
 | Sin intentar (ningún envío empezó) | nulo | nulo | 0 | nulo | nulo |
-| Envío en curso (reservada) | nulo | nulo | n | inicio + 15 min (ventana) | nulo |
+| Envío en curso (reservada) | nulo | nulo | n | instante de la reserva + 30 min (ventana) | nulo |
 | Esperando reintento (falla transitoria) | nulo | nulo | n | ahora + 2^(n-1) h | código |
 | Enviada | momento | `ENVIADO` → callbacks | n | nulo | nulo |
 | Fallida (permanente, incierta o agotada) | momento | `FALLIDO` | n | nulo | código |
@@ -536,7 +543,8 @@ de H5.
   pasó a `repositorio_recordatorio.py` (`repositories.py` superaba las 400 líneas). Sin tablas nuevas: `BORRADOS`
   no cambia.
 - **Cierra la parte de recordatorios de G5/ADR-0014** (E/S a Meta con la transacción abierta): ninguna
-  llamada a Meta de un recordatorio corre con escrituras sin confirmar. Los otros contextos (y los avisos de
+  llamada a Meta de un recordatorio corre con escrituras sin confirmar ni locks (N1: tras `confirmar()` se
+  abre una transacción nueva y vacía; no es «sin transacción abierta»). Los otros contextos (y los avisos de
   turno, tramo iii) siguen como estaban.
 
 **Decisiones del tramo 2**
@@ -544,9 +552,9 @@ de H5.
 - **Una fila sin intentar se manda; una en curso vencida no.** `intentos` se cuenta **al empezar** el intento,
   no al terminar, y es lo que distingue «nada pudo haber salido» de «pudo haber salido»: es la única forma de
   cumplir RN-05 sin reenviar tras una caída y sin trabar la cadena (caso 4).
-- **Ventana de envío de 15 minutos** (`VENTANA_DE_ENVIO`, no estaba en el plan): un envío son segundos (el
-  canal tiene sus tiempos y 3 intentos propios) y el barrido es horario; 15 min deja margen a un envío lento
-  sin dejar una fila «en curso» más de un barrido. Pregunta abierta para el dueño.
+- **Ventana de envío** (`VENTANA_DE_ENVIO`, no estaba en el plan): un envío son segundos (el canal tiene sus
+  tiempos y 3 intentos propios) y el barrido es horario. Era de 15 min; el dueño la fijó en **30 min** en el
+  Gate 2 (S2), todavía menor que el período del barrido, y se mide desde el instante real de la reserva.
 - **La falla de un intento intermedio no publica `enviar_recordatorio`**: la bitácora registra el resultado
   del recordatorio, no cada intento.
 - **Ventana residual de H1** (honestidad): la fila ya existe antes de llamar a Meta, pero su `externo_id` (el
@@ -562,6 +570,75 @@ transitoria (11 tests fallaban) y los 18 tests de caso de uso (`TypeError`: el b
 adaptador `ConfirmacionDeLaUnidad` (su test unitario se escribió junto con él), la migración 0038 y
 `test_reintento_de_recordatorios_postgres.py` (necesitan PostgreSQL: solo corren en la CI; `TODO.md` §22.59) y los
 cambios a `test_barrido_de_recordatorios_postgres.py`.
+
+### Gate 2 del tramo 2 — correcciones (2026-10-07)
+
+**Hecho** (S1, S2, N1, N2, N3, N7; casos 39 a 45):
+
+- **S1, la llamada a Meta no hace E/S de base.** `PortEnvioDeRecordatorio` se separó en dos:
+  `preparar(empresa_id, cobro, canal, paso)` lee el contacto y la plantilla y devuelve un `MensajeListo`
+  (o, si ya se sabe que no puede salir —sin teléfono, canal sin adaptador—, un `ResultadoDeEnvio`
+  `FALLIDO`); `mandar(mensaje)` solo habla con el canal y nunca levanta. `MensajeListo` es un dato de
+  `payments` (`cobro_id`, `paso`, `canal`, `telefono`, y `texto` o `PlantillaLista`), con el teléfono, el
+  texto y los parámetros fuera del `repr`. R3 intacta: el adaptador (`EnvioPorWhatsApp`) sigue usando los
+  `Protocol`s locales. **Flujo nuevo por recordatorio:** (1) *reservar*, en un savepoint: `preparar` →
+  `iniciar_intento(reloj.ahora())` → `agregar`/`guardar`, y `confirmar()`; (2) *revisar el cobro* (N2) y
+  *mandar* a Meta; (3) *registrar* en otro savepoint y `confirmar()`. Si `preparar` falla en la base, el
+  savepoint se deshace: no queda fila (o la fila existente queda como estaba) y el barrido siguiente lo
+  retoma; ya no hay `INCIERTO` ni `FALLIDO` terminal por una lectura transitoria (resuelve también N9). El
+  adaptador deja pasar el `SQLAlchemyError` (si lo tragara, el savepoint no se enteraría y la transacción
+  quedaría abortada); cualquier otra falla de `preparar` es un `FALLIDO` `ERROR`, y un adaptador que
+  rompa el contrato (levante otra cosa) deja el ítem sin fila y el barrido sigue.
+- **S2, reloj real.** `EnvioConReintento` y `DespacharRecordatorios` reciben un `Reloj`
+  (`unidad.reloj` en el worker; nada de `datetime.now` en `application`). El `ahora` del barrido solo decide
+  qué le toca a la corrida; la ventana de la reserva, `enviado_en`, la espera del reintento, `INCIERTO` y el
+  evento salen del reloj en el momento de escribir. `VENTANA_DE_ENVIO` pasa a **30 min**.
+- **N1, el docstring.** La afirmación exacta es «ninguna llamada a Meta corre con escrituras sin
+  confirmar ni locks, y sin leer la base»; **no** «sin transacción abierta», porque `confirmar()` vuelve a
+  declarar la empresa y eso abre una transacción nueva y vacía. Corregido en `reintentos.py`,
+  `recordatorios.py`, `PortTransaccion` y este plan.
+- **N2, relectura del cobro.** Después del commit de la reserva y antes de llamar a Meta se relee el cobro
+  (en su savepoint); si se pagó o cerró, se descarta la fila con la regla de siempre (`COBRO_CERRADO`) y no
+  se manda. Si esa lectura falla en la base, no se manda y la fila queda «en curso».
+- **N3, el reparto.** La migración **0038** (aún sin mergear) agrega la función `SECURITY DEFINER`
+  `empresas_con_recordatorios_en_espera()` (la octava, misma forma que `empresas_con_cobros_abiertos()`:
+  ids y nada más, `REVOKE` a `PUBLIC`, `EXECUTE` a `cheatsheet_app`): `recordatorio` no tiene `empresa_id`,
+  así que une con `cobro` y filtra por `enviado_en IS NULL AND proximo_intento_en IS NOT NULL` (lee el
+  índice parcial). `barrer_cobros` une las dos listas sin repetidos y en orden estable. Antes, una empresa
+  cuyo único cobro se pagó mientras su recordatorio esperaba no recibía tarea y la fila no se descartaba
+  ni se resolvía nunca.
+- **N7, uno por cobro por corrida.** `reintentar_pendientes` devuelve `(cobro_id, desenlace)`; el
+  despacho de pasos nuevos se salta los cobros cuya fila ya tuvo un desenlace distinto de «nada» en la
+  pasada 1.
+
+**Aceptado y solo documentado (sin código):**
+
+- **N4** — Un commit de reserva ambiguo (la base confirmó y no lo dijo) deja una fila «en curso» que se
+  resuelve `INCIERTO` al vencer su ventana **sin haber mandado nada**: es un falso `FALLIDO`, nunca un
+  duplicado. Seguro. El docstring de `reintentos.py` («no hay fila y nada pudo salir») ahora lo dice.
+- **N5** — Si la primera `confirmar()` falla, lo no confirmado hasta ahí (por ejemplo los cobros que
+  `VencerCobros` movió a `VENCIDO`) se deshace y se rehace en el barrido siguiente.
+- **N6** — `confirmar()` puede dejar escapar un `SQLAlchemyError` crudo si no puede volver a declarar la
+  empresa; con la empresa sin declarar RLS no muestra ni deja escribir nada, así que es seguro y la tarea de
+  esa empresa falla sola.
+
+**Revisión de consumidores de `recordatorio_fallido` (pregunta 2 del escritor):** se mantiene un único
+`enviar_recordatorio` por recordatorio y `recordatorio_fallido` sigue siendo el veredicto del callback de
+Meta. Se buscó en `backend/src` quién consume esas acciones: **nadie** las lee por nombre —no hay alerta al
+dueño, ni consulta de PAN-COB-02, ni reportería que dependa de `recordatorio_fallido`; la acción solo la
+publica `RegistrarEntregaDeRecordatorio`—. PAN-COB-02 lee la tabla `recordatorio` (`VerRecordatorios`),
+donde una falla terminal del barrido ya figura como `FALLIDO` con su `ultimo_error`; y la bitácora recibe
+`enviar_recordatorio` con resultado `ERROR`. Nada que ajustar.
+
+**Evidencia RED (TDD).** Honestidad: la implementación de S1/S2/N2/N3/N7 se escribió **antes** que sus tests
+nuevos (no hubo RED previo). Para suplirlo, cada test nuevo se verificó por **mutación** (se rompió el
+comportamiento y el test falló; se restauró): N7 (se quita el salto de cobros tocados → falla el caso 45),
+N2 (se anula la relectura → fallan los dos casos del caso 42), S1 (se prepara después de `agregar` →
+fallan tres del caso 39) y S2 (la reserva usa una hora atrasada → fallan la ventana propia y el barrido
+solapado). **No se observó RED ni GREEN** en lo que necesita PostgreSQL (solo corre en la CI): el caso 40 y
+el caso 44 de `test_reintento_de_recordatorios_postgres.py`, y las dos aserciones nuevas de
+`test_migracion_0038.py` (la función); y se ajustaron para el reloj y para `mandar` los tests de CI ya
+existentes (`test_reintento_de_recordatorios_postgres.py`, `test_barrido_de_recordatorios_postgres.py`).
 
 ## Decisiones tomadas durante la unidad
 
@@ -614,4 +691,25 @@ cambios a `test_barrido_de_recordatorios_postgres.py`.
   - **(b)** Del `failed` se guarda solo `errors[0].code`, nunca el `title` (texto de un tercero); §22.56 es la
     salida si hace falta mostrarlo.
   - **(c)** El `wamid` sin destinatario se sigue registrando en nivel `warning`.
-- Tramo ii (2026-10-07): ver «Decisiones del tramo 2» arriba (una fila sin intentar se manda y una en curso vencida se resuelve `INCIERTO`; ventana de 15 min; sin `enviar_recordatorio` por intento intermedio; ventana residual de H1). Pendiente de Gate 2.
+- Tramo ii (2026-10-07): ver «Decisiones del tramo 2» arriba (una fila sin intentar se manda y una en curso vencida se resuelve `INCIERTO`; ventana de envío; sin `enviar_recordatorio` por intento intermedio; ventana residual de H1).
+- Gate 2 del tramo 2 (2026-10-07, Luciano):
+  - **S1** — La llamada a Meta no puede hacer E/S de base: el contacto y la plantilla se leen **antes** de
+    reservar (`preparar`), dentro del savepoint; `mandar` solo habla con el canal. Si la lectura falla en la
+    base, no se reserva nada y el siguiente barrido lo retoma (sin `INCIERTO` ni `ERROR` terminal por una
+    lectura transitoria; resuelve N9).
+  - **S2** — Las fechas que se escriben salen del reloj real inyectado (`Reloj`), al reservar y al
+    registrar; `VENTANA_DE_ENVIO` pasa a **30 minutos** (menor que el barrido horario).
+  - **N2** — Se relee el cobro después de la reserva y no se manda si se pagó o cerró (se descarta).
+  - **N3** — El reparto incluye las empresas con recordatorios esperando o en curso (función
+    `SECURITY DEFINER` en la 0038, que aún no se mergeó).
+  - **N7** — A lo sumo un recordatorio por cobro por barrido.
+  - **N1** — La afirmación exacta es «sin escrituras sin confirmar ni locks (y sin leer la base) durante la
+    llamada a Meta», no «sin transacción abierta».
+  - **Aceptados y solo documentados:** N4 (commit de reserva ambiguo → `INCIERTO` sin haber mandado nada:
+    seguro), N5 (si falla la primera `confirmar()`, lo no confirmado se deshace y se rehace), N6 (`confirmar()`
+    puede dejar escapar un `SQLAlchemyError` crudo; RLS sin empresa niega: seguro).
+  - **Preguntas del escritor:** (1) ventana de 30 min; (2) un único `enviar_recordatorio` por recordatorio y
+    `recordatorio_fallido` sigue siendo el veredicto del callback de Meta (ningún consumidor depende solo de
+    él: ver la revisión arriba); (3) `biz_opaque_callback_data` queda para después (`TODO.md` §22.60), con el
+    argumento de la revisión: las filas `INCIERTO` no tienen `wamid`, así que sus `delivered`/`failed`
+    posteriores no pueden coincidir nunca con una fila; es la razón más fuerte para adoptarlo.
