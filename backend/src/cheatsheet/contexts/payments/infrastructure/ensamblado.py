@@ -19,8 +19,8 @@ from cheatsheet.contexts.payments.application.ports import (
 )
 from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
 from cheatsheet.contexts.payments.infrastructure.aislamiento import AislamientoConSavepoint
-from cheatsheet.contexts.payments.infrastructure.repositories import (
-    RepositorioCobroPostgres,
+from cheatsheet.contexts.payments.infrastructure.repositories import RepositorioCobroPostgres
+from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
 from cheatsheet.contexts.payments.infrastructure.repositorio_reembolso import (

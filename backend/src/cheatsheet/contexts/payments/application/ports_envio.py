@@ -67,4 +67,26 @@ class PortAislamiento(Protocol):
     def aislar(self) -> AbstractAsyncContextManager[None]: ...
 
 
-__all__ = ["ContactoDeCobro", "FallaDelCanal", "PortAislamiento", "PortContactoDeCliente"]
+class PortTransaccion(Protocol):
+    """Confirma lo hecho hasta ahora, **antes** de hablar con Meta (U7, D-U7-3, H1).
+
+    El barrido de recordatorios corre en la unidad de trabajo de la empresa, que confirma recién al
+    final: un callback `failed` o `delivered` que llegara antes del commit no encontraría la fila y
+    se perdería. Con este puerto cada recordatorio confirma su fila antes de la E/S a Meta y su
+    resultado después, en una transacción corta aparte: **ninguna llamada a Meta corre con una
+    transacción abierta**. La implementación vuelve a declarar la empresa de la sesión (el `SET
+    LOCAL` muere con el commit).
+
+    Si la base rechaza el commit, levanta `DespachoNoPersistido` y lo no confirmado se deshizo.
+    """
+
+    async def confirmar(self) -> None: ...
+
+
+__all__ = [
+    "ContactoDeCobro",
+    "FallaDelCanal",
+    "PortAislamiento",
+    "PortContactoDeCliente",
+    "PortTransaccion",
+]

@@ -123,6 +123,18 @@ class RecordatoriosFalsos:
         self.busquedas_por_externo_id.append(para_actualizar)
         return next((uno for uno in self.guardados if uno.externo_id == externo_id), None)
 
+    async def buscar_para_actualizar(self, recordatorio_id: UUID) -> Recordatorio | None:
+        return next((uno for uno in self.guardados if uno.id == recordatorio_id), None)
+
+    async def pendientes_de_reintento(self, ahora: datetime) -> list[Recordatorio]:
+        return [
+            uno
+            for uno in self.guardados
+            if uno.enviado_en is None
+            and uno.proximo_intento_en is not None
+            and uno.proximo_intento_en <= ahora
+        ]
+
     async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]:
         return [uno for uno in self.guardados if uno.cobro_id == cobro_id]
 

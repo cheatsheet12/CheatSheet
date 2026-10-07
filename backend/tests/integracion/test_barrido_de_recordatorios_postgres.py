@@ -25,8 +25,8 @@ from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
 from cheatsheet.contexts.payments.application.recordatorios import DespacharRecordatorios
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
 from cheatsheet.contexts.payments.infrastructure.aislamiento import AislamientoConSavepoint
-from cheatsheet.contexts.payments.infrastructure.repositories import (
-    RepositorioCobroPostgres,
+from cheatsheet.contexts.payments.infrastructure.repositories import RepositorioCobroPostgres
+from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
 from cheatsheet.platform.database import sesion_de_empresa
