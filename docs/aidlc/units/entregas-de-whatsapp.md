@@ -19,6 +19,53 @@
 > De U6 asume `ConsultarPlantillaParaEnviar` (devuelve también el `texto` resuelto) y
 > `enviar_plantilla`.
 
+## Revalidación contra develop + U6 (2026-10-07)
+
+Hallazgos verificados contra el código por una revalidación de solo lectura.
+
+**Ya resuelto por U5/U6 (fuera de alcance):**
+
+- D-U7-5 (descriptor del SISTEMA) ya existe en `conversational/domain/datos_personales.py:36,71-78`:
+  no hay cambio en `agente.py`; el caso 26 queda solo como test de regresión.
+- `PortMensajeria.enviar_plantilla`, `ConsultarPlantillaParaEnviar` y `api/plantillas_salientes.py`
+  existen. Las rutas `/webhooks/whatsapp` (app) y por empresa ya rutean plantillas por WABA con
+  `empresas_de_la_cuenta_de_whatsapp`. `uq_integracion_waba` (0036) es único: hay 0 o 1 empresa por
+  WABA. El agente usa `_NotificadorSilencioso`. El único llamador de `armar_avisador`/`armar_notificador`
+  es `api/routers/agenda.py:579-649` (688 líneas: no debe crecer).
+
+**Correcciones al plan:**
+
+- La migración es la **0037** (`down_revision="0036"`) y su test es
+  `tests/integracion/test_migracion_0037.py`.
+- Citas movidas: `whatsapp.py` `_mensajes_de` ~274-303; `Mensaje.marcar_entrega`
+  `conversacion.py:149-163`; `buscar_por_externo_id` `repositories.py:148-151`;
+  `PortEnvioDeRecordatorio` en `payments/application/ports_de_recordatorios.py:17-25`; `_hilo_de`
+  `agente.py:251-263`; el hilo del frontend es ahora `LineaDeTiempo.tsx`; el estado del cobro está en
+  `DetalleDeCobro.tsx:375-392`.
+- Las entradas de TODO de U7 son §22.35, §22.38, §22.39 y las nuevas de §22.53 (no §25).
+- Archivos de test reales: `application/test_cobros_y_recordatorios.py` tiene 1000 líneas, así que
+  los tests nuevos van en archivos nuevos; `test_cobros_postgres.py`;
+  `scheduling/infrastructure/test_avisos.py`; se reutiliza `tests/api/montaje_webhook_plantillas.py`.
+
+**Riesgos:**
+
+- `routers/whatsapp.py` tiene 356 líneas: el ruteo de `statuses` va en `api/entregas.py` y el router
+  solo lo llama.
+- `hay_mensajes` (`whatsapp_notificaciones.py:80`) es verdadero también para payloads solo de
+  `statuses`, y la ruta de la app loguea `whatsapp_mensajes_en_la_url_de_la_app`: hay que distinguir
+  `messages[]` de `statuses[]`.
+- La ruta por empresa debe verificar `entry[].id` (WABA) contra la empresa de la URL también para
+  `statuses`.
+- Archivos en el límite: `conversational/infrastructure/repositories.py` 400/400 (mover
+  `RepositorioMensajePostgres` a su propio módulo), `atencion.py` 391, `conversational/application/ports.py`
+  381, `payments/application/recordatorios.py` 285 (el reintento va en un `reintentos.py` aparte),
+  `payments/infrastructure/repositories.py` 353, `cobros.py` 385.
+- El hallazgo del ADR-0014 (E/S a Meta con la transacción abierta) no cambia y no se agrava.
+- Verificar RLS en la búsqueda de `recordatorio` por `externo_id` en el caso PostgreSQL.
+
+**Cierre y tamaño:** el #73 se cierra recién tras U8 (lista U5, U6, U7 y U8). U7 cierra los pendientes
+#4 (épico 8) y #3 (épico 6). Estimación: ~1.750 líneas de autoría, en 3 PR encadenados.
+
 ## Qué hace
 
 Cada mensaje que CheatSheet manda por WhatsApp pasa a tener su **estado de entrega real**
@@ -309,7 +356,7 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 | 26 | Historial del intérprete: un `SISTEMA` se reemplaza por el descriptor; el texto con nombre no llega al intérprete | unit | pendiente |
 | 27 | Respuesta del cliente a un aviso → el agente procesa en la misma conversación (RN-03) | integración | pendiente |
 | 28 | Ningún log de los módulos nuevos contiene `recipient_id`, teléfono ni texto del aviso | unit (captura de logs) | pendiente |
-| 29 | Migración: índice único de `externo_id`, backfill de filas trabadas | migración (CI) | pendiente |
+| 29 | Migración 0037: columnas e índice único de `externo_id` (sin backfill, D1) | migración (CI) | pendiente |
 | 30 | PAN-COB-02: «Reintentando · intento n de 3», motivos traducidos; hilo con estado en castellano y motivo | unit (Vitest) | pendiente |
 | 31 | `guard_architecture --scan` y `test_guards.sh` pasan | gate | pendiente |
 
@@ -348,3 +395,22 @@ Gates: los mismos de U6 (backend y frontend). Los casos 10, 21 y 29 corren con P
 ## Decisiones tomadas durante la unidad
 
 - Gate 1 (2026-10-04): Pregunta 1 → no: los avisos de turno con falla transitoria no se reintentan; la falla queda visible en el hilo con su motivo.
+- Gate 1 revalidado y aprobado por Luciano (2026-10-07):
+  - **D1** — Se elimina el backfill de «filas trabadas»: la premisa es falsa (`recordatorios.py:221-249`
+    inserta, envía y marca enviado en un solo savepoint) y un backfill podría reenviar un recordatorio
+    que sí salió. La migración 0037 trae solo columnas e índices. El caso 29 se actualiza.
+  - **D2** — Las clases de falla se traducen en la raíz de composición: wrappers en `api/` (patrón
+    `_RevisionViaMeta`, `api/mensajeria.py:196-244`) que capturan los errores tipados de conversational
+    (`MensajeriaSaturada`, `MensajeRechazado`, `EnvioIncierto`, `CanalNoConectado`, con `.codigo`,
+    `conversational/application/errors.py:63-109`) y levantan excepciones locales de payments/scheduling
+    declaradas en su módulo de puertos. R3 intacta.
+  - **D3** — `motivo_de_falla` también para los mensajes del agente y del operador (misma columna, mismo
+    código).
+  - **D4** — Tres PR encadenados, cada uno apilado sobre el anterior y mergeados a `develop` en orden:
+    (i) callbacks de estado + estado monotónico + columnas + motivo de falla; (ii) reintento acotado de
+    fallas transitorias; (iii) avisos del SISTEMA + frontend. Los límites de cada slice se registran en
+    este plan.
+  - **D5** — Las dos enmiendas de una línea al ADR-0011 se hacen dentro de U7 (slice i): punto 5 (U7
+    verifica contra Meta que el override por WABA aplica a `messages`; queda como pendiente en el TODO
+    porque no hay sandbox) y punto 8 (el Context Map incluye registrar el mensaje en la conversación).
+  - **D6** — Los avisos de turno no se reintentan (la pregunta 1 del Gate 1 se mantiene).
