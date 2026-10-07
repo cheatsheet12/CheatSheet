@@ -87,6 +87,8 @@ class MensajeORM(Base):
     origen: Mapped[str | None] = mapped_column(String(12), nullable=True)
     #: La clave de idempotencia del webhook. Ver el docstring del módulo.
     externo_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    #: Por qué falló un saliente: el código de Meta o una clase corta (U7, migración 0037).
+    motivo_de_falla: Mapped[str | None] = mapped_column(String(60), nullable=True)
     momento: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (Index("ix_mensaje_hilo_momento", "conversacion_id", "momento"),)
