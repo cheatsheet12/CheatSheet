@@ -20,8 +20,8 @@ Three things, all of one unit:
    template webhook run with no company (`app.current_empresa` unset) and RLS shows them nothing:
    `empresas_con_whatsapp_conectado()` feeds the reconciliation fan-out, and
    `empresa_de_la_cuenta_de_whatsapp(text)` resolves the company that owns a WABA id. Both return
-   **company ids and nothing else**. An expression index on `parametros->>'waba_id'` serves the
-   second.
+   **company ids and nothing else**. A **unique** partial expression index on `parametros->>'waba_id'`
+   serves the second and keeps one WABA to one empresa.
 
 **Reversible, with declared losses.** `downgrade` drops the functions, the indexes and the
 columns, and maps the states the old code cannot read (`SIN_ENVIAR`, `PAUSADA`, `DESHABILITADA`)
@@ -56,9 +56,14 @@ CREATE UNIQUE INDEX uq_plantilla_meta_id ON plantilla_de_notificacion (empresa_i
     WHERE meta_plantilla_id IS NOT NULL
 """
 
+# **Unique**: the webhook resolves the empresa from the WABA, so two empresas sharing one
+# would let the second hijack or block the first one's template events. The write path turns
+# the violation into a 409 (`CuentaDeWhatsAppEnUso`). Empty ids do not count as an account.
+# If a database already holds two empresas on one WABA, the upgrade fails on purpose: the
+# duplicate has to be resolved by a person, not silently picked by a migration.
 INDICE_WABA = """
-CREATE INDEX ix_integracion_waba ON configuracion_de_integracion ((parametros->>'waba_id'))
-    WHERE sistema = 'WHATSAPP'
+CREATE UNIQUE INDEX uq_integracion_waba ON configuracion_de_integracion ((parametros->>'waba_id'))
+    WHERE sistema = 'WHATSAPP' AND COALESCE(parametros->>'waba_id', '') <> ''
 """
 
 BACKFILL_NOMBRE = (
@@ -161,7 +166,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("DROP FUNCTION IF EXISTS empresa_de_la_cuenta_de_whatsapp(text)")
     op.execute("DROP FUNCTION IF EXISTS empresas_con_whatsapp_conectado()")
-    op.execute("DROP INDEX IF EXISTS ix_integracion_waba")
+    op.execute("DROP INDEX IF EXISTS uq_integracion_waba")
     op.execute("DROP INDEX IF EXISTS uq_plantilla_meta_id")
     # The old code only knows PENDIENTE, APROBADA and RECHAZADA: it would fail reading the rest.
     op.execute(
