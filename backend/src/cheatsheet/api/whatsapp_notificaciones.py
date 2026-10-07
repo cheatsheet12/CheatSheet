@@ -2,7 +2,7 @@
 
 Una notificación trae `entry[]`, y cada entrada trae `changes[]` con un `field` que dice de qué se
 trata: `messages` (mensajes entrantes y estados de entrega) o `message_template_status_update`
-(el estado de una plantilla). Este módulo sabe leer el segundo.
+(el estado de una plantilla). Este módulo sabe leer el segundo y los `statuses[]` del primero (U7).
 
 **Todo campo se lee defensivamente.** El cuerpo lo manda un tercero: una forma inesperada tiene que
 producir una lista vacía y un 200, no un 500 que Meta reintenta durante horas. Y **nada de lo que
@@ -22,6 +22,9 @@ from cheatsheet.contexts.business_config.domain.plantilla import (
     LARGO_MAXIMO_ID_EN_META,
     LARGO_MAXIMO_MOTIVO,
 )
+from cheatsheet.contexts.conversational.domain.conversacion import (
+    LARGO_MAXIMO_MOTIVO_DE_FALLA,
+)
 from cheatsheet.platform.telemetry import obtener_logger
 
 logger = obtener_logger(__name__)
@@ -31,6 +34,21 @@ CAMPO_ESTADO_DE_PLANTILLA = "message_template_status_update"
 
 #: Meta manda «NONE» cuando no hay motivo de rechazo.
 SIN_MOTIVO = "NONE"
+
+#: El campo que trae mensajes entrantes y callbacks de estado de entrega.
+CAMPO_MENSAJES = "messages"
+
+#: El largo de la columna donde se guarda el `wamid` (`mensaje.externo_id`, `recordatorio.externo_id`).
+LARGO_MAXIMO_EXTERNO_ID = 160
+
+#: `status` de Meta → nuestro vocabulario (el valor de `EstadoEntrega` de los dos contextos).
+#: `played` (una nota de voz reproducida) y lo que Meta agregue mañana se ignoran.
+ESTADOS_DE_META = {
+    "sent": "ENVIADO",
+    "delivered": "ENTREGADO",
+    "read": "LEIDO",
+    "failed": "FALLIDO",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +64,21 @@ class EstadoDePlantillaNotificado:
     detalle: str | None
     #: El `entry[].time` (epoch en segundos): cuándo lo dijo Meta. Sirve para no retroceder.
     momento: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class EstadoDeEntregaNotificado:
+    """Un `statuses[]` de Meta, en nuestro vocabulario.
+
+    **Nada de `recipient_id`** (es un teléfono) ni del `title` del error (texto de un tercero): solo
+    el `wamid`, el estado y el código. `estado` es el valor del `EstadoEntrega` de cada contexto;
+    quien lo aplica lo convierte a su propio enum.
+    """
+
+    waba_id: str
+    externo_id: str
+    estado: str
+    codigo_de_error: str | None
 
 
 def cuerpo_de(crudo: bytes) -> dict[str, Any] | None:
@@ -77,10 +110,66 @@ def estados_de_plantillas(cuerpo: dict[str, Any]) -> list[EstadoDePlantillaNotif
     return encontrados
 
 
+def estados_de_entrega(cuerpo: dict[str, Any]) -> list[EstadoDeEntregaNotificado]:
+    """Los `statuses[]` de la notificación. Lo que no se entiende se saltea (nunca levanta).
+
+    Un `id` demasiado largo se descarta en vez de cortarse: uno truncado coincidiría con otro
+    mensaje. El `code` de `errors[0]` solo se lee en un `failed`.
+    """
+    encontrados: list[EstadoDeEntregaNotificado] = []
+    for entrada in _objetos(cuerpo.get("entry")):
+        waba_id = entrada.get("id")
+        if not isinstance(waba_id, str) or not waba_id:
+            continue
+        for cambio in _objetos(entrada.get("changes")):
+            valor = cambio.get("value")
+            if cambio.get("field") != CAMPO_MENSAJES or not isinstance(valor, dict):
+                continue
+            for crudo in _objetos(valor.get("statuses")):
+                leido = _leer_estado_de_entrega(waba_id, crudo)
+                if leido is not None:
+                    encontrados.append(leido)
+    return encontrados
+
+
+def _leer_estado_de_entrega(
+    waba_id: str, crudo: dict[str, Any]
+) -> EstadoDeEntregaNotificado | None:
+    externo_id = crudo.get("id")
+    status = crudo.get("status")
+    if not isinstance(externo_id, str) or not externo_id:
+        return None
+    if len(externo_id) > LARGO_MAXIMO_EXTERNO_ID or not isinstance(status, str):
+        return None
+    estado = ESTADOS_DE_META.get(status)
+    if estado is None:
+        return None
+    codigo = _codigo_de_error(crudo.get("errors")) if estado == "FALLIDO" else None
+    return EstadoDeEntregaNotificado(
+        waba_id=waba_id, externo_id=externo_id, estado=estado, codigo_de_error=codigo
+    )
+
+
+def _codigo_de_error(errores: Any) -> str | None:
+    """El `code` de `errors[0]` como texto, o `None`. Un código largo se descarta, no se corta."""
+    primero = _objetos(errores)[:1]
+    if not primero:
+        return None
+    crudo = primero[0].get("code")
+    if isinstance(crudo, bool):
+        return None
+    codigo = str(crudo) if isinstance(crudo, int) else _texto(crudo)
+    if codigo is None or len(codigo) > LARGO_MAXIMO_MOTIVO_DE_FALLA:
+        return None
+    return codigo
+
+
 def hay_mensajes(cuerpo: dict[str, Any]) -> bool:
-    """Si la notificación trae el campo `messages` (que esta ruta no procesa)."""
+    """Si la notificación trae **mensajes entrantes** (`messages[]`), no solo estados (`statuses[]`)."""
     return any(
-        cambio.get("field") == "messages"
+        cambio.get("field") == CAMPO_MENSAJES
+        and isinstance(cambio.get("value"), dict)
+        and bool(_objetos(cambio["value"].get("messages")))
         for entrada in _objetos(cuerpo.get("entry"))
         for cambio in _objetos(entrada.get("changes"))
     )
@@ -157,8 +246,10 @@ def _objetos(valor: Any) -> list[dict[str, Any]]:
 
 __all__ = [
     "CAMPO_ESTADO_DE_PLANTILLA",
+    "EstadoDeEntregaNotificado",
     "EstadoDePlantillaNotificado",
     "cuerpo_de",
+    "estados_de_entrega",
     "estados_de_plantillas",
     "hay_mensajes",
 ]
