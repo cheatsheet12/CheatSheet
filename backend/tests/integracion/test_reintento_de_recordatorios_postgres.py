@@ -28,12 +28,14 @@ from cheatsheet.contexts.payments.domain.recordatorio import VENTANA_DE_ENVIO
 from cheatsheet.contexts.payments.infrastructure.aislamiento import AislamientoConSavepoint
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     RepositorioCobroPostgres,
+    empresas_con_cobros_abiertos,
+    empresas_con_recordatorios_en_espera,
 )
 from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
 from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
-from cheatsheet.platform.database import sesion_de_empresa
+from cheatsheet.platform.database import sesion_de_empresa, sesion_sin_empresa
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text
@@ -251,3 +253,26 @@ async def test_un_error_de_base_al_preparar_deja_el_savepoint_limpio_y_el_barrid
     assert sano.llamadas == 1
     assert {fila[5] for fila in await _filas(sesiones, empresa_id)} == {None}
     assert len(cobro_ids) == 3
+
+
+async def test_el_reparto_incluye_la_empresa_cuyo_unico_cobro_se_cerro_con_un_reintento_esperando(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """**N3.** Sin la segunda función, esa empresa no recibiría tarea y la fila no se descartaría."""
+    esperando = await _un_cobro(sesiones, engine_dueno)
+    await _barrer(sesiones, esperando, EnvioGuionado(TransaccionFalsa(), transitoria()), DESPUES)
+    async with engine_dueno.begin() as conexion:  # el cobro se cierra mientras la fila espera
+        await conexion.execute(
+            text("UPDATE cobro SET estado = 'CANCELADO' WHERE empresa_id = :empresa_id"),
+            {"empresa_id": esperando},
+        )
+    enviada = await _un_cobro(sesiones, engine_dueno)
+    await _barrer(sesiones, enviada, EnvioGuionado(TransaccionFalsa(), enviado()), DESPUES)
+
+    async with sesion_sin_empresa(sesiones) as sesion:
+        con_cobros = await empresas_con_cobros_abiertos(sesion)
+        con_recordatorios = await empresas_con_recordatorios_en_espera(sesion)
+
+    assert esperando not in con_cobros
+    assert esperando in con_recordatorios
+    assert enviada not in con_recordatorios  # su recordatorio ya salió: nada espera

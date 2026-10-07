@@ -49,6 +49,17 @@ COLUMNAS = text(
     "AND column_name IN ('intentos', 'proximo_intento_en')"
 )
 INDICE = text("SELECT indexdef FROM pg_indexes WHERE indexname = 'ix_recordatorio_reintento'")
+#: La octava función `SECURITY DEFINER`: ids de empresa con un recordatorio esperando (N3).
+FUNCION = text(
+    "SELECT prosecdef FROM pg_proc WHERE proname = 'empresas_con_recordatorios_en_espera'"
+)
+PERMISO_DE_LA_APP = text(
+    "SELECT has_function_privilege('cheatsheet_app', "
+    "'empresas_con_recordatorios_en_espera()', 'EXECUTE')"
+)
+PERMISO_DE_PUBLIC = text(
+    "SELECT has_function_privilege('public', 'empresas_con_recordatorios_en_espera()', 'EXECUTE')"
+)
 
 
 def _config() -> Config:
@@ -113,6 +124,7 @@ def esquema_en_0037(esquema_migrado: None) -> Iterator[None]:
 def test_downgrade_deja_la_tabla_sin_las_columnas_ni_el_indice(esquema_en_0037: None) -> None:
     assert asyncio.run(_leer(COLUMNAS)) == [(0,)]
     assert asyncio.run(_leer(INDICE)) == []
+    assert asyncio.run(_leer(FUNCION)) == []
 
 
 def test_sube_sin_backfill_y_la_fila_vieja_queda_sin_intentos(esquema_en_0037: None) -> None:
@@ -139,6 +151,14 @@ def test_el_indice_del_reintento_es_parcial(esquema_migrado: None) -> None:
     # Parcial: sin la cláusula `WHERE` indexaría cada recordatorio que alguna vez se mandó.
     assert "WHERE" in indexdef
     assert "proximo_intento_en IS NOT NULL" in indexdef
+
+
+def test_la_funcion_de_recordatorios_en_espera_es_security_definer_y_solo_la_app_la_ejecuta(
+    esquema_migrado: None,
+) -> None:
+    assert asyncio.run(_leer(FUNCION)) == [(True,)]
+    assert asyncio.run(_leer(PERMISO_DE_LA_APP)) == [(True,)]
+    assert asyncio.run(_leer(PERMISO_DE_PUBLIC)) == [(False,)]
 
 
 def test_intentos_no_puede_ser_negativo(esquema_migrado: None) -> None:

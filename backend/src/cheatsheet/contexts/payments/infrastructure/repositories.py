@@ -262,9 +262,23 @@ async def empresas_con_cobros_abiertos(sesion: AsyncSession) -> list[EmpresaId]:
     return [EmpresaId(fila[0]) for fila in filas]
 
 
+async def empresas_con_recordatorios_en_espera(sesion: AsyncSession) -> list[EmpresaId]:
+    """Que empresas tienen un recordatorio esperando su reintento o con su envio en curso (U7).
+
+    Octava funcion `SECURITY DEFINER`, misma forma: **ids y nada mas**, y la sesion tiene que ser
+    una **sin** empresa. Sin ella, un recordatorio cuyo cobro se pago mientras esperaba, en una
+    empresa sin otros cobros abiertos, no se descartaria ni se resolveria nunca.
+    """
+    filas = await sesion.execute(
+        text("SELECT empresa_id FROM empresas_con_recordatorios_en_espera()")
+    )
+    return [EmpresaId(fila[0]) for fila in filas]
+
+
 __all__ = [
     "ESTADOS_PAGADOS",
     "RepositorioCobroPostgres",
     "empresas_con_cobros_abiertos",
+    "empresas_con_recordatorios_en_espera",
     "en_periodo",
 ]

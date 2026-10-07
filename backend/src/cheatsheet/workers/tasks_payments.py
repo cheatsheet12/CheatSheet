@@ -30,6 +30,7 @@ from cheatsheet.contexts.payments.application.recordatorios import (
 from cheatsheet.contexts.payments.infrastructure.ensamblado import Cobros
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     empresas_con_cobros_abiertos,
+    empresas_con_recordatorios_en_espera,
 )
 from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import sesion_sin_empresa
@@ -48,11 +49,18 @@ NOMBRE_EMPRESA = "payments.barrer_empresa"
 async def barrer_cobros(recursos: Recursos) -> int:
     """Reparte una tarea por empresa con algo abierto. Devuelve cuántas.
 
-    La sesión es **sin empresa**: la función `SECURITY DEFINER` que responde esta pregunta
-    tiene que correr fuera de RLS, o contestaría siempre por el mismo inquilino.
+    «Algo abierto» son los cobros abiertos **y** los recordatorios que esperan su reintento o
+    tienen un envío en curso (U7): un cobro que se pagó mientras su recordatorio esperaba no deja
+    a la empresa con nada abierto, y sin esta segunda pregunta la fila no se descartaría nunca.
+
+    La sesión es **sin empresa**: las funciones `SECURITY DEFINER` que responden estas preguntas
+    tienen que correr fuera de RLS, o contestarían siempre por el mismo inquilino.
     """
     async with sesion_sin_empresa(recursos.sesiones) as sesion:
-        empresas = await empresas_con_cobros_abiertos(sesion)
+        con_cobros = await empresas_con_cobros_abiertos(sesion)
+        con_recordatorios = await empresas_con_recordatorios_en_espera(sesion)
+    # Sin repetidas y en orden estable: una empresa con las dos cosas recibe una sola tarea.
+    empresas = list(dict.fromkeys([*con_cobros, *con_recordatorios]))
 
     for empresa_id in empresas:
         _encolar_empresa(recursos.settings, empresa_id)
