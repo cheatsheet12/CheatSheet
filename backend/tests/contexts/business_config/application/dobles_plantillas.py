@@ -81,12 +81,15 @@ class RevisionDeMetaFalsa:
         *,
         respuestas: list[RespuestaDeMeta | Exception] | None = None,
         estados: list[EstadoEnMeta] | Exception | None = None,
+        estados_completos: bool = True,
     ) -> None:
         self.respuestas = list(respuestas or [])
         self._estados = estados if estados is not None else []
+        self.estados_completos = estados_completos
         self.creaciones: list[tuple[str, str, str, Mapping[str, str]]] = []
         self.ediciones: list[tuple[str, str, Mapping[str, str]]] = []
         self.lecturas = 0
+        self._creadas: list[EstadoEnMeta] = []
 
     def _siguiente(self) -> RespuestaDeMeta:
         """La que se programó; sin programar, una aprobada con un id propio por pedido."""
@@ -104,7 +107,19 @@ class RevisionDeMetaFalsa:
         self, *, nombre: str, idioma: str, cuerpo: str, ejemplos: Mapping[str, str]
     ) -> RespuestaDeMeta:
         self.creaciones.append((nombre, idioma, cuerpo, dict(ejemplos)))
-        return self._siguiente()
+        respuesta = self._siguiente()
+        # Como Meta: lo que se crea después se lista, con el estado que contestó.
+        self._creadas.append(
+            EstadoEnMeta(
+                meta_plantilla_id=respuesta.meta_plantilla_id,
+                nombre=nombre,
+                idioma=idioma,
+                estado=respuesta.estado,
+                categoria=respuesta.categoria,
+                cuerpo=cuerpo,
+            )
+        )
+        return respuesta
 
     async def editar(
         self, *, meta_plantilla_id: str, cuerpo: str, ejemplos: Mapping[str, str]
@@ -116,7 +131,7 @@ class RevisionDeMetaFalsa:
         self.lecturas += 1
         if isinstance(self._estados, Exception):
             raise self._estados
-        return list(self._estados)
+        return [*self._estados, *self._creadas]
 
 
 __all__ = ["PublicadorFalso", "RepositorioPlantillasEnMemoria", "RevisionDeMetaFalsa"]

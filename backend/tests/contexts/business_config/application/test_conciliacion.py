@@ -13,6 +13,7 @@ import pytest
 from cheatsheet.contexts.business_config.application import conciliacion as modulo_conciliacion
 from cheatsheet.contexts.business_config.application.conciliacion import (
     DETALLE_DIVERGENTE,
+    DETALLE_YA_NO_ESTA_EN_META,
     ConciliarPlantillasConMeta,
     ResumenDeConciliacion,
 )
@@ -21,7 +22,10 @@ from cheatsheet.contexts.business_config.application.errors import (
     MetaNoDisponible,
     MetaRechazoLaPlantilla,
 )
-from cheatsheet.contexts.business_config.application.plantillas import DE_FABRICA
+from cheatsheet.contexts.business_config.application.plantillas import (
+    DE_FABRICA,
+    ConsultarPlantillaParaEnviar,
+)
 from cheatsheet.contexts.business_config.application.ports import EstadoEnMeta, RespuestaDeMeta
 from cheatsheet.contexts.business_config.application.revision_de_meta import DETALLE_SIN_CONECTAR
 from cheatsheet.contexts.business_config.domain.plantilla import (
@@ -304,13 +308,87 @@ async def test_una_con_texto_viejo_que_termina_en_variable_no_se_manda() -> None
     assert repositorio.filas[plantilla.id].estado_aprobacion is EstadoDeAprobacion.SIN_ENVIAR
 
 
-async def test_una_plantilla_con_id_que_meta_ya_no_lista_queda_como_esta() -> None:
+async def test_una_aprobada_que_meta_ya_no_lista_vuelve_a_sin_enviar_con_un_aviso() -> None:
+    """G3: seguir «aprobada» haría fallar el envío con 132001 sin texto de respaldo."""
     plantilla = _plantilla(EstadoDeAprobacion.APROBADA, meta_plantilla_id="1")
     repositorio = RepositorioPlantillasEnMemoria(plantilla)
 
-    await _conciliar(repositorio, RevisionDeMetaFalsa(estados=[]))
+    resumen = await _conciliar(repositorio, RevisionDeMetaFalsa(estados=[]))
+
+    guardada = repositorio.filas[plantilla.id]
+    assert guardada.estado_aprobacion is EstadoDeAprobacion.SIN_ENVIAR
+    assert guardada.detalle_meta == DETALLE_YA_NO_ESTA_EN_META
+    assert guardada.meta_plantilla_id is None
+    assert not guardada.puede_usarse
+    assert resumen.actualizadas == 1
+    assert resumen.interrumpida is None
+
+
+async def test_la_que_dejo_de_estar_en_meta_no_se_reenvia_sola_ni_cambia_en_la_corrida_siguiente() -> (
+    None
+):
+    plantilla = _plantilla(EstadoDeAprobacion.APROBADA, meta_plantilla_id="1")
+    repositorio = RepositorioPlantillasEnMemoria(plantilla)
+    revision = RevisionDeMetaFalsa(estados=[])
+    await _conciliar(repositorio, revision)
+
+    segunda = await _conciliar(repositorio, revision)
+
+    assert segunda.actualizadas == 0
+    assert segunda.enviadas == 0
+    assert all(pedido[0] != "recordatorio_de_turno" for pedido in revision.creaciones)
+    assert repositorio.filas[plantilla.id].estado_aprobacion is EstadoDeAprobacion.SIN_ENVIAR
+
+
+async def test_si_la_lista_de_meta_no_es_exhaustiva_la_aprobada_queda_como_esta() -> None:
+    """El doble de desarrollo devuelve vacío porque no recuerda nada, no porque Meta no tenga."""
+    plantilla = _plantilla(EstadoDeAprobacion.APROBADA, meta_plantilla_id="1")
+    repositorio = RepositorioPlantillasEnMemoria(plantilla)
+
+    await _conciliar(repositorio, RevisionDeMetaFalsa(estados=[], estados_completos=False))
 
     assert repositorio.filas[plantilla.id].estado_aprobacion is EstadoDeAprobacion.APROBADA
+
+
+async def test_si_la_lectura_de_meta_falla_la_aprobada_queda_como_esta() -> None:
+    plantilla = _plantilla(EstadoDeAprobacion.APROBADA, meta_plantilla_id="1")
+    repositorio = RepositorioPlantillasEnMemoria(plantilla)
+
+    resumen = await _conciliar(
+        repositorio, RevisionDeMetaFalsa(estados=MetaNoDisponible("x", incierto=True))
+    )
+
+    assert resumen.interrumpida == "meta_no_disponible"
+    assert repositorio.filas[plantilla.id].estado_aprobacion is EstadoDeAprobacion.APROBADA
+
+
+async def test_las_que_meta_si_lista_siguen_aprobadas_aunque_otra_haya_desaparecido() -> None:
+    sigue = _plantilla(
+        EstadoDeAprobacion.APROBADA, codigo="turno_confirmado", meta_plantilla_id="1"
+    )
+    se_fue = _plantilla(
+        EstadoDeAprobacion.APROBADA, codigo="turno_cancelado", meta_plantilla_id="2"
+    )
+    repositorio = RepositorioPlantillasEnMemoria(sigue, se_fue)
+
+    await _conciliar(
+        repositorio,
+        RevisionDeMetaFalsa(estados=[_en_meta("1", "turno_confirmado", cuerpo=sigue.cuerpo)]),
+    )
+
+    assert repositorio.filas[sigue.id].estado_aprobacion is EstadoDeAprobacion.APROBADA
+    assert repositorio.filas[se_fue.id].estado_aprobacion is EstadoDeAprobacion.SIN_ENVIAR
+
+
+async def test_una_aprobada_que_la_lista_trae_con_otro_estado_no_se_trata_como_desaparecida() -> (
+    None
+):
+    plantilla = _plantilla(EstadoDeAprobacion.APROBADA, meta_plantilla_id="1")
+    repositorio = RepositorioPlantillasEnMemoria(plantilla)
+
+    await _conciliar(repositorio, RevisionDeMetaFalsa(estados=[_en_meta("1", estado="PAUSED")]))
+
+    assert repositorio.filas[plantilla.id].estado_aprobacion is EstadoDeAprobacion.PAUSADA
 
 
 async def test_un_estado_desconocido_no_cambia_nada_y_deja_un_log(
@@ -356,3 +434,18 @@ async def test_un_id_de_meta_mas_largo_que_su_columna_se_ignora_con_un_aviso(
     assert fila.meta_plantilla_id == "1"
     assert fila.estado_aprobacion is EstadoDeAprobacion.PENDIENTE
     assert any(r["event"] == "plantilla_meta_id_demasiado_largo" for r in registros)
+
+
+async def test_despues_de_desaparecer_el_envio_cae_al_texto_de_fabrica() -> None:
+    """G3, de punta a punta: sin plantilla aprobada el adaptador manda su texto, no la plantilla."""
+    plantilla = _plantilla(
+        EstadoDeAprobacion.APROBADA, codigo="turno_confirmado", meta_plantilla_id="1"
+    )
+    repositorio = RepositorioPlantillasEnMemoria(plantilla)
+    consulta = ConsultarPlantillaParaEnviar(repositorio)
+    variables = {"nombre": "Ana", "servicio": "Corte", "fecha": "1/1", "hora": "10:00"}
+    assert await consulta.ejecutar("turno_confirmado", variables) is not None
+
+    await _conciliar(repositorio, RevisionDeMetaFalsa(estados=[]))
+
+    assert await consulta.ejecutar("turno_confirmado", variables) is None

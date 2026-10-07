@@ -169,6 +169,9 @@ class _ClienteDePlantillas(Protocol):
         self, *, meta_plantilla_id: str, cuerpo: str, ejemplos: Mapping[str, str]
     ) -> RespuestaDePlantilla: ...
 
+    @property
+    def estados_completos(self) -> bool: ...
+
     async def estados(self) -> list[PlantillaEnMeta]: ...
 
 
@@ -219,6 +222,10 @@ class _RevisionViaMeta:
                 meta_plantilla_id=meta_plantilla_id, cuerpo=cuerpo, ejemplos=ejemplos
             )
         return _a_respuesta(respuesta)
+
+    @property
+    def estados_completos(self) -> bool:
+        return self._cliente.estados_completos
 
     async def estados(self) -> list[EstadoEnMeta]:
         with _traducir_errores():

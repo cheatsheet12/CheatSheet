@@ -246,12 +246,33 @@ async def test_estados_sigue_la_paginacion_y_lee_estado_motivo_y_cuerpo() -> Non
     assert "message_templates" in str(primero.url)
 
 
-async def test_estados_corta_en_diez_paginas() -> None:
+async def test_estados_con_mas_de_diez_paginas_no_devuelve_una_lista_parcial() -> None:
+    """G3: una lista cortada no puede pasar por completa, o una plantilla viva parecería borrada."""
     servidor = Servidor(_pagina("1", siguiente="SIEMPRE"))
 
-    await _cliente(servidor).estados()
+    with pytest.raises(EnvioIncierto):
+        await _cliente(servidor).estados()
 
     assert len(servidor.pedidos) == 10
+
+
+async def test_estados_con_una_respuesta_sin_lista_no_es_una_lista_vacia() -> None:
+    servidor = Servidor(httpx.Response(200, json={"error": "algo"}))
+
+    with pytest.raises(EnvioIncierto):
+        await _cliente(servidor).estados()
+
+
+async def test_estados_con_una_fila_con_id_pero_ilegible_no_devuelve_una_lista_parcial() -> None:
+    servidor = Servidor(httpx.Response(200, json={"data": [{"id": "1", "status": "APPROVED"}]}))
+
+    with pytest.raises(EnvioIncierto):
+        await _cliente(servidor).estados()
+
+
+async def test_el_cliente_real_lee_la_lista_entera_y_el_simulado_no() -> None:
+    assert _cliente(Servidor(_pagina("1"))).estados_completos is True
+    assert PlantillasSimuladas(Entorno.LOCAL).estados_completos is False
 
 
 async def test_estados_ignora_las_filas_con_forma_inesperada() -> None:

@@ -83,8 +83,22 @@ class PortRevisionDeMeta(Protocol):
         self, *, meta_plantilla_id: str, cuerpo: str, ejemplos: Mapping[str, str]
     ) -> RespuestaDeMeta: ...
 
+    @property
+    def estados_completos(self) -> bool:
+        """Si `estados()` es **toda** la verdad de la WABA o solo lo que el doble recuerda.
+
+        Quien deduce algo de lo que **falta** (G3: una aprobada que Meta ya no lista) solo puede
+        hacerlo cuando esto es verdadero. El doble de desarrollo no recuerda nada y devuelve vacío:
+        ahí que falte no dice nada.
+        """
+        ...
+
     async def estados(self) -> list[EstadoEnMeta]:
-        """Todas las plantillas de la WABA (paginado del otro lado)."""
+        """Todas las plantillas de la WABA (paginado del otro lado).
+
+        **O la lista entera o un error**: una lectura cortada (páginas de más, una respuesta que no
+        es una lista) levanta `MetaNoDisponible`, nunca devuelve una parte como si fuera el todo.
+        """
         ...
 
 

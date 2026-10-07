@@ -151,7 +151,17 @@ class PlantillasDeMeta:
             meta_plantilla_id=meta_plantilla_id, estado="PENDING", categoria=None
         )
 
+    @property
+    def estados_completos(self) -> bool:
+        return True
+
     async def estados(self) -> list[PlantillaEnMeta]:
+        """La lista entera de la WABA, o `EnvioIncierto`: nunca una parte como si fuera el todo.
+
+        Quien la usa deduce lo que **falta** (una aprobada que Meta ya no lista), así que una
+        lectura cortada —páginas de más, una respuesta que no es una lista, una fila con id pero
+        ilegible— tiene que ser un error y no una lista más corta.
+        """
         plantillas: list[PlantillaEnMeta] = []
         cursor: str | None = None
         for _ in range(MAXIMO_DE_PAGINAS):
@@ -164,8 +174,8 @@ class PlantillasDeMeta:
             plantillas.extend(_leer_filas(datos.get("data")))
             cursor = _siguiente_cursor(datos.get("paging"))
             if cursor is None:
-                break
-        return plantillas
+                return plantillas
+        raise EnvioIncierto("La lista de plantillas de Meta tiene más páginas de las que se leen")
 
     async def _pedir(
         self,
@@ -203,9 +213,14 @@ def _siguiente_cursor(paginacion: object) -> str | None:
 
 
 def _leer_filas(filas: object) -> list[PlantillaEnMeta]:
-    """Las plantillas bien formadas; una fila con otra forma se ignora, no rompe la lectura."""
+    """Las plantillas bien formadas.
+
+    Una fila sin forma de plantilla (sin id, o que no es un objeto) se ignora. **Una fila con id
+    pero ilegible no**: podría ser una plantilla nuestra, y ignorarla la haría pasar por borrada.
+    Una respuesta que no es una lista tampoco es una lista vacía.
+    """
     if not isinstance(filas, list):
-        return []
+        raise EnvioIncierto("Meta contestó la lista de plantillas con una forma inesperada")
     leidas: list[PlantillaEnMeta] = []
     for fila in filas:
         if not isinstance(fila, dict):
@@ -214,6 +229,8 @@ def _leer_filas(filas: object) -> list[PlantillaEnMeta]:
         if not (
             isinstance(identificador, str) and isinstance(nombre, str) and isinstance(estado, str)
         ):
+            if isinstance(identificador, str):
+                raise EnvioIncierto("Meta contestó una plantilla con una forma inesperada")
             continue
         idioma, categoria, motivo = (
             fila.get("language"),
@@ -275,6 +292,11 @@ class PlantillasSimuladas:
             meta_plantilla_id=meta_plantilla_id, estado="APPROVED", categoria=CATEGORIA
         )
 
+    @property
+    def estados_completos(self) -> bool:
+        """No recuerda nada: que una plantilla falte acá no dice que Meta no la tenga."""
+        return False
+
     async def estados(self) -> list[PlantillaEnMeta]:
         return []
 
@@ -293,6 +315,10 @@ class SinCuentaDeMeta:
     ) -> RespuestaDePlantilla:
         del meta_plantilla_id, cuerpo, ejemplos
         raise CanalNoConectado(SIN_CUENTA)
+
+    @property
+    def estados_completos(self) -> bool:
+        return False
 
     async def estados(self) -> list[PlantillaEnMeta]:
         raise CanalNoConectado(SIN_CUENTA)

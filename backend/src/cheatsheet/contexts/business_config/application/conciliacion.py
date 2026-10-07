@@ -17,7 +17,8 @@ una plantilla quedaría `PENDIENTE` para siempre. Beat corre esto cada tanto, po
 revirtió y en Meta quedó un texto que no guardamos. Se compara el cuerpo y se deja un aviso: el
 cuerpo local **no** se pisa con el de Meta, porque el texto lo decide el administrador.
 
-Una plantilla que Meta ya refutó (`SIN_ENVIAR` con el texto de Meta como detalle) no se reintenta en
+**Una aprobada que Meta ya no lista (G3)** vuelve a `SIN_ENVIAR` con un aviso, solo si la
+lectura fue entera (`estados_completos`): sin eso el envío fallaría con 132001. Una que Meta ya refutó (`SIN_ENVIAR` con el texto de Meta como detalle) no se reintenta en
 cada corrida: queda a la espera de que el administrador la edite o la reenvíe.
 """
 
@@ -54,6 +55,8 @@ from cheatsheet.shared.errors import EntradaInvalida
 logger = obtener_logger(__name__)
 
 DETALLE_DIVERGENTE = "El texto en Meta no coincide con el guardado: volvé a guardar la plantilla."
+
+DETALLE_YA_NO_ESTA_EN_META = "Meta ya no la tiene: volvé a enviarla a revisión."
 
 SIN_ESTADO_QUE_LEER = frozenset({EstadoDeAprobacion.SIN_ENVIAR})
 
@@ -106,6 +109,8 @@ class ConciliarPlantillasConMeta:
                 divergentes += diverge
                 if cambio:
                     await self._plantillas.guardar(plantilla)
+            elif plantilla.estado_aprobacion is EstadoDeAprobacion.APROBADA:
+                actualizadas += await self._retirar_aprobacion(plantilla, ahora)
             elif plantilla.estado_aprobacion is EstadoDeAprobacion.SIN_ENVIAR:
                 try:
                     enviadas += await self._enviar(plantilla, ahora)
@@ -123,6 +128,31 @@ class ConciliarPlantillasConMeta:
             divergentes=divergentes,
             interrumpida=interrumpida,
         )
+
+    async def _retirar_aprobacion(self, plantilla: PlantillaDeNotificacion, ahora: datetime) -> int:
+        """G3: una aprobada que Meta ya no lista deja de serlo. 1 si cambió.
+
+        Seguir «aprobada» haría que el envío saliera como plantilla inexistente (Meta 132001) sin
+        texto de respaldo. Pasa a `SIN_ENVIAR`, el mismo estado al que lleva un `DELETED` de Meta:
+        `ConsultarPlantillaParaEnviar` ya no la devuelve y el adaptador manda su texto. **No se
+        reenvía sola**: tiene un detalle, como una refutada, y la decisión de volver a mandarla es
+        del administrador (puede que Meta la haya borrado a propósito).
+
+        Solo con una lista exhaustiva: `estados()` o la trae entera o falla, y el doble de
+        desarrollo, que no recuerda nada, lo avisa con `estados_completos`.
+        """
+        if not self._revision.estados_completos:
+            return 0
+        cambio = plantilla.aplicar_respuesta_de_meta(
+            EstadoDeAprobacion.SIN_ENVIAR,
+            motivo=None,
+            detalle=DETALLE_YA_NO_ESTA_EN_META,
+            momento=ahora,
+        )
+        if cambio:
+            logger.warning("plantilla_aprobada_que_meta_ya_no_lista", codigo=plantilla.codigo)
+            await self._plantillas.guardar(plantilla)
+        return int(cambio)
 
     async def _enviar(self, plantilla: PlantillaDeNotificacion, ahora: datetime) -> int:
         """1 si la mandó. Una ya refutada, o con un texto que Meta no acepta, espera al administrador."""
@@ -192,4 +222,9 @@ def _detalle(
     return None
 
 
-__all__ = ["DETALLE_DIVERGENTE", "ConciliarPlantillasConMeta", "ResumenDeConciliacion"]
+__all__ = [
+    "DETALLE_DIVERGENTE",
+    "DETALLE_YA_NO_ESTA_EN_META",
+    "ConciliarPlantillasConMeta",
+    "ResumenDeConciliacion",
+]

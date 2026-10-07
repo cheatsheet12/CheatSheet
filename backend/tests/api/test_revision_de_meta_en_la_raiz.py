@@ -221,6 +221,8 @@ async def test_las_simuladas_se_niegan_a_construirse_en_produccion() -> None:
 
 
 class _ClienteQueFalla:
+    estados_completos = True
+
     def __init__(self, error: Exception) -> None:
         self._error = error
 
@@ -289,6 +291,14 @@ async def test_canal_no_conectado_es_meta_no_conectada_en_las_tres_operaciones()
         await revision.editar(meta_plantilla_id="1", cuerpo="Hola.", ejemplos={})
     with pytest.raises(MetaNoConectada):
         await revision.estados()
+
+
+async def test_que_la_lista_sea_exhaustiva_lo_decide_el_cliente() -> None:
+    class _Parcial(_ClienteQueFalla):
+        estados_completos = False
+
+    assert _RevisionViaMeta(_ClienteQueFalla(RuntimeError())).estados_completos is True
+    assert _RevisionViaMeta(_Parcial(RuntimeError())).estados_completos is False
 
 
 async def test_los_estados_se_traducen_a_los_de_business_config() -> None:
