@@ -390,8 +390,8 @@ usa la misma escala (`WHATSAPP_SONDEO_MINUTOS`).
   - `empresas_con_whatsapp_conectado()` y `empresa_de_la_cuenta_de_whatsapp(text)` `SECURITY DEFINER`,
     `REVOKE … FROM PUBLIC`, `GRANT EXECUTE … TO cheatsheet_app`, mismo formato que la 0005 y la 0007.
     La segunda devuelve **solo** `empresa_id`. Se verifica que `empresas_con_whatsapp_conectado()` no
-    duplique `empresas_con_integracion_pendiente()` (0005), que devuelve solo las «pendientes». Índice de expresión `(parametros->>'waba_id') WHERE sistema =
-    'WHATSAPP'` si `parametros` es `jsonb` (se verifica en la 0004 al implementar).
+    duplique `empresas_con_integracion_pendiente()` (0005), que devuelve solo las «pendientes». Índice de expresión **único** `uq_integracion_waba` sobre `(parametros->>'waba_id') WHERE sistema =
+    'WHATSAPP' AND COALESCE(parametros->>'waba_id', '') <> ''` (G4 del Gate 2: una WABA, una empresa).
   - Reversible: `downgrade` borra columnas, índices y funciones; el backfill de texto no se revierte
     (se documenta).
 - **Trabajo asíncrono**: `workers/tasks_business_config.py` (nuevo) con
@@ -589,13 +589,16 @@ verde por sí solo (`ruff`, `mypy`, `pytest`):
 | `test(business_config): cover WhatsApp template state against PostgreSQL` | Tests de PostgreSQL (solo CI) |
 | `feat(frontend): show the Meta state of WhatsApp templates and send them to review` | PAN-CFG-NOT: estados, motivo traducido, «Enviar a revisión», bloqueo de edición, BFF `envio` |
 | `test(business_config): keep the WhatsApp template tests under the file size limit` | Tests partidos por debajo de 400 líneas |
+| `fix(business_config): renumber the templates migration to 0036 after merging develop` | Develop tomó la 0035 (`correccion_de_fila_con_error`): la nuestra pasa a 0036 con `down_revision = "0035"`; una sola cabeza |
+| `fix(integrations): reject a WhatsApp business account already linked to another empresa` | G4: índice único `uq_integracion_waba`, `CuentaDeWhatsAppEnUso` (409) en el repositorio de integraciones |
+| `fix(business_config): stop treating a template Meta no longer lists as approved` | G3: la aprobada que Meta ya no lista vuelve a `SIN_ENVIAR`; `estados()` o trae la lista entera o falla |
 
-**Gates locales:** `ruff format --check`, `ruff check`, `mypy` (718 archivos) y `pytest` (2570 pasan, 532 se
+**Gates locales (actualizados el 2026-10-07, después de G3 y G4):** `ruff format --check`, `ruff check`, `mypy` (725 archivos) y `pytest` (2612 pasan, 541 se
 saltean por falta de PostgreSQL/Redis) verdes; `guard_architecture --scan` verde; frontend `lint`,
 `typecheck`, `format:check` y `test:coverage` (1040 tests) verdes. Gate 2 (verificación real) y Gate 3 (PR)
 siguen sin llenar.
 
-**Solo CI:** `test_migracion_0036.py`, `test_plantillas_en_meta_postgres.py`, el `PUT /plantillas` de
+**Solo CI:** `test_migracion_0036.py` (incluye el índice único de la WABA), `test_waba_unica_postgres.py`, `test_plantillas_en_meta_postgres.py`, el `PUT /plantillas` de
 `test_api_conversacional.py` (ahora con un cuerpo que no empieza con variable) y `test_guards.sh`.
 
 **Para el dueño:** agregar `WHATSAPP_PLANTILLAS_MINUTOS=30` a `backend/.env.example` (junto a
@@ -608,7 +611,7 @@ de verdad si se quiere otro valor. Registrar en la app de Meta la URL `/webhooks
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. Condición cumplida el 2026-10-05 (ADR-0011 aceptado, [#62](https://github.com/cheatsheet12/CheatSheet/pull/62)); revalidado contra develop `2b96b4a` el 2026-10-06; **Gate 1 cerrado, ya se puede escribir código** |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-07 | Aprobado por Luciano (G1), con G3 y G4 corregidos antes del PR |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
@@ -625,3 +628,8 @@ de verdad si se quiere otro valor. Registrar en la app de Meta la URL `/webhooks
 - Implementación: los mensajes entrantes (`messages`) que lleguen a la URL de la app se registran y se ignoran con 200: no hay empresa a quién atribuirlos desde esa URL.
 - Hallazgo de revisión: **los textos que manda Meta llegaban sin medida a columnas acotadas** (`motivo_meta` varchar(40), `meta_plantilla_id` varchar(64)). Un desborde da un error de base, un 500 y los reintentos de Meta durante horas. Los límites se definen una sola vez en el dominio (`LARGO_MAXIMO_MOTIVO`, `LARGO_MAXIMO_ID_EN_META`, `LARGO_MAXIMO_DETALLE`) y el modelo los usa. El motivo, que es informativo, se recorta (en el agregado, que cubre el webhook y la conciliación, y también al leer el webhook). Un id más largo que su columna se ignora con un aviso estructurado (`plantilla_meta_id_demasiado_largo`) y nunca se recorta: un id truncado coincidiría con otra fila. Cubierto con tests de ambos caminos.
 - Hallazgo de revisión: **se quitó `ResolverPlantilla`**, sin llamadores en el código ni en los tests desde que esta unidad retiró el único que tenía (U7 y U8 usan `ConsultarPlantillaParaEnviar`). Se actualizaron las referencias en `plantillas.py`, `ports.py` y `models.py`.
+- Gate 2 (2026-10-07): **G3 → una aprobada que Meta ya no lista deja de estar aprobada.** Antes seguía `APROBADA` y el envío fallaba con Meta 132001 sin texto de respaldo. Ahora la conciliación la pasa a **`SIN_ENVIAR`** con el detalle «Meta ya no la tiene: volvé a enviarla a revisión.» y le saca el id de Meta. Se eligió `SIN_ENVIAR` y no `DESHABILITADA` porque es el estado al que ya lleva un `DELETED` de Meta (`ESTADOS_DEL_NODO`), el que el panel ya muestra como «Atención» con su detalle y uno de los dos desde los que «Enviar a revisión» está permitido (con `RECHAZADA`); `DESHABILITADA` quiere decir que Meta la deshabilitó, y acá Meta no dijo nada. Con `SIN_ENVIAR` `ConsultarPlantillaParaEnviar` devuelve `None` (no `puede_usarse`) y el adaptador manda su texto de fábrica. Tiene un detalle, así que **no se reenvía sola** en cada corrida (como una refutada): vuelve a revisión cuando el administrador lo decide. **Solo se aplica con la lista entera:** `PortRevisionDeMeta.estados_completos` es falso en el doble de desarrollo (que devuelve vacío porque no recuerda nada), y `PlantillasDeMeta.estados()` ahora levanta `EnvioIncierto` —en vez de devolver una parte— si quedan páginas sin leer (tope de 10), si la respuesta no trae una lista o si una fila con id es ilegible; la conciliación ya trata ese error como «Meta no disponible» y no toca nada.
+- Gate 2 (2026-10-07): **G4 → una WABA pertenece a una sola empresa.** El índice de `parametros->>'waba_id'` de la migración 0036 pasó a ser **único** y parcial (`sistema = 'WHATSAPP'` y id no vacío). Sin eso, una segunda empresa podía registrar la WABA de otra y robarle o bloquearle el ruteo del webhook de plantillas, que resuelve la empresa por WABA. El repositorio de integraciones traduce solo la violación de ese índice (por nombre, como `uq_cobro_clave_idempotencia` en cobros) a `CuentaDeWhatsAppEnUso`, una `InvarianteViolada` que la API contesta **409** con «Esa cuenta de WhatsApp Business ya está vinculada a otra empresa. Verificá el ID de la cuenta que pegaste.» (no nombra a la otra empresa). Si una base ya tuviera dos empresas con la misma WABA, la migración falla a propósito: lo resuelve una persona.
+- Gate 2 (2026-10-07): **G5 → hallazgo aparte, no se implementa en esta unidad.** La conciliación hace E/S contra Meta con una transacción de base abierta y la tarea de Beat no tiene límite de tiempo de Celery. Se resuelve con el ADR-0014 (#101), junto con el resto de los casos de E/S dentro de transacción.
+- Gate 2 (2026-10-07): **G2 → un solo formateador de dinero es-AR** para el texto de U5 y el de la plantilla de U6. Aprobado; se hace como cambio aparte, después de esta unidad (es la Pregunta abierta Q1).
+- Gate 2 (2026-10-07): **renumeración a 0036.** Develop incorporó `0035_correccion_de_fila_con_error` (PR #105) mientras esta rama tenía su propia 0035. La migración de plantillas pasa a `0036_plantillas_en_meta.py` con `down_revision = "0035"` (una sola cabeza), y su test a `test_migracion_0036.py`. La migración de U7 (`externo_id`) toma la 0037.
