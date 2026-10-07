@@ -27,8 +27,6 @@ from cheatsheet.shared.errors import EntradaInvalida
 
 from .dobles import RepositorioMensajeEnMemoria
 
-pytestmark = pytest.mark.asyncio
-
 AHORA = datetime(2026, 10, 6, 15, 0, tzinfo=UTC)
 EMPRESA = EmpresaId(uuid4())
 TIPADAS = [MensajeRechazado, MensajeriaSaturada, EnvioIncierto, CanalNoConectado]
@@ -49,6 +47,7 @@ class CanalQueFalla:
         raise self._error
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("clase", TIPADAS)
 async def test_el_agente_guarda_fallido_y_no_levanta(clase: type[MensajeriaNoDisponible]) -> None:
     mensajes = RepositorioMensajeEnMemoria()
@@ -63,6 +62,7 @@ async def test_el_agente_guarda_fallido_y_no_levanta(clase: type[MensajeriaNoDis
     assert guardado.externo_id is None
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("clase", TIPADAS)
 async def test_las_tipadas_siguen_siendo_mensajeria_no_disponible_y_entrada_invalida(
     clase: type[MensajeriaNoDisponible],
@@ -91,6 +91,7 @@ def test_el_motivo_de_falla_es_un_codigo_o_una_clase_corta_nunca_el_texto(
     assert motivo_de_falla_de(error) == esperado
 
 
+@pytest.mark.asyncio
 async def test_el_agente_guarda_el_motivo_de_la_falla_en_el_saliente() -> None:
     mensajes = RepositorioMensajeEnMemoria()
     salida = SalidaAlCliente(

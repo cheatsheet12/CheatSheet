@@ -139,7 +139,11 @@ def test_sube_sin_backfill_y_la_fila_vieja_queda_igual(esquema_en_0036: None) ->
 def test_el_indice_de_externo_id_es_unico_y_parcial(esquema_migrado: None) -> None:
     definicion = asyncio.run(_leer(INDICE))
     assert len(definicion) == 1
-    assert "UNIQUE" in str(definicion[0][0])
+    indexdef = str(definicion[0][0])
+    assert "UNIQUE" in indexdef
+    # Parcial: sin la cláusula `WHERE`, dos recordatorios sin `wamid` (NULL o vacío) chocarían.
+    assert "WHERE" in indexdef
+    assert "externo_id IS NOT NULL" in indexdef
 
     cobro_id = _sembrar_cobro()
     wamid = f"wamid-{uuid.uuid4()}"
@@ -149,7 +153,7 @@ def test_el_indice_de_externo_id_es_unico_y_parcial(esquema_migrado: None) -> No
             CREAR_RECORDATORIO,
             [
                 {"id": primero, "cobro_id": cobro_id, "paso": 1, "externo_id": wamid},
-                # Los sin `wamid` no chocan entre sí: el índice es parcial.
+                # Dos filas con `externo_id` NULL conviven: el índice es parcial.
                 {"id": segundo, "cobro_id": cobro_id, "paso": 2, "externo_id": None},
                 {"id": tercero, "cobro_id": cobro_id, "paso": 3, "externo_id": None},
             ],
