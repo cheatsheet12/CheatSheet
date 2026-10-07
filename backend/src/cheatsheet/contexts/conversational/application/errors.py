@@ -134,6 +134,23 @@ class ClienteSinWhatsApp(EntradaInvalida):
     """
 
 
+def motivo_de_falla_de(error: BaseException) -> str:
+    """El motivo que se guarda cuando un envío falla: un código de Meta o una clase corta.
+
+    **Nunca el texto del error**: el de Meta puede traer el número del cliente y `CLAUDE.md` §5
+    prohíbe loguearlo o guardarlo. Es lo que PAN-COB-02 y el hilo traducen después a castellano.
+    """
+    if isinstance(error, EnvioIncierto):
+        return "INCIERTO"
+    if isinstance(error, CanalNoConectado):
+        return "SIN_CANAL"
+    if isinstance(error, MensajeRechazado):
+        return str(error.codigo) if error.codigo is not None else "RECHAZADO"
+    if isinstance(error, MensajeriaSaturada):
+        return str(error.codigo) if error.codigo is not None else "SATURADA"
+    return "ERROR"
+
+
 __all__ = [
     "AgenteNoDisponible",
     "CanalNoConectado",
@@ -150,4 +167,5 @@ __all__ = [
     "MensajeriaNoDisponible",
     "MensajeriaSaturada",
     "TurnoNoCancelable",
+    "motivo_de_falla_de",
 ]

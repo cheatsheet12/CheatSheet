@@ -70,6 +70,7 @@ def _mensaje_a_dominio(fila: MensajeORM) -> Mensaje:
         estado_entrega=EstadoEntrega(fila.estado_entrega) if fila.estado_entrega else None,
         origen=OrigenDelMensaje(fila.origen) if fila.origen else None,
         externo_id=fila.externo_id,
+        motivo_de_falla=fila.motivo_de_falla,
     )
 
 
@@ -84,6 +85,7 @@ def _mensaje_a_fila(mensaje: Mensaje, fila: MensajeORM) -> MensajeORM:
     fila.estado_entrega = mensaje.estado_entrega.value if mensaje.estado_entrega else None
     fila.origen = mensaje.origen.value if mensaje.origen else None
     fila.externo_id = mensaje.externo_id
+    fila.motivo_de_falla = mensaje.motivo_de_falla
     fila.momento = mensaje.momento
     return fila
 

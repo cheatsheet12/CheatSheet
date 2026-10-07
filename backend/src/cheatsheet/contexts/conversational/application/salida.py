@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
+from cheatsheet.contexts.conversational.application.errors import motivo_de_falla_de
 from cheatsheet.contexts.conversational.application.ports import (
     PortMensajeria,
     PortRepositorioMensaje,
@@ -60,6 +61,7 @@ class SalidaAlCliente:
         `estado_entrega` del `Mensaje` devuelto.
         """
         externo_id: str | None = None
+        motivo: str | None = None
         estado = EstadoEntrega.FALLIDO
         try:
             externo_id = await self._mensajeria.enviar(telefono=telefono, texto=texto)
@@ -70,7 +72,7 @@ class SalidaAlCliente:
             # implementan adaptadores que pueden levantar lo que el SDK de turno levante, y
             # enumerarlos acá acoplaría este caso de uso a su infraestructura.
             estado = EstadoEntrega.FALLIDO
-            del fallo
+            motivo = motivo_de_falla_de(fallo)
         mensaje = Mensaje(
             id=uuid4(),
             conversacion_id=conversacion.id,
@@ -82,6 +84,7 @@ class SalidaAlCliente:
             origen=OrigenDelMensaje.AGENTE,
             estado_entrega=estado,
             externo_id=externo_id,
+            motivo_de_falla=motivo,
         )
         await self._mensajes.agregar(mensaje)
         return mensaje

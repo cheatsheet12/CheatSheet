@@ -18,6 +18,7 @@ from cheatsheet.contexts.conversational.application.errors import (
     MensajeRechazado,
     MensajeriaNoDisponible,
     MensajeriaSaturada,
+    motivo_de_falla_de,
 )
 from cheatsheet.contexts.conversational.application.salida import SalidaAlCliente
 from cheatsheet.contexts.conversational.domain.conversacion import Conversacion, EstadoEntrega
@@ -70,3 +71,34 @@ async def test_las_tipadas_siguen_siendo_mensajeria_no_disponible_y_entrada_inva
     # recibiendo lo mismo con las subclases.
     assert issubclass(clase, MensajeriaNoDisponible)
     assert issubclass(clase, EntradaInvalida)
+
+
+@pytest.mark.parametrize(
+    ("error", "esperado"),
+    [
+        (MensajeRechazado("no", codigo=131047), "131047"),
+        (MensajeRechazado("no"), "RECHAZADO"),
+        (MensajeriaSaturada("no", codigo=130429), "130429"),
+        (MensajeriaSaturada("no"), "SATURADA"),
+        (EnvioIncierto("no"), "INCIERTO"),
+        (CanalNoConectado("no"), "SIN_CANAL"),
+        (RuntimeError("el texto no se guarda: puede traer el numero"), "ERROR"),
+    ],
+)
+def test_el_motivo_de_falla_es_un_codigo_o_una_clase_corta_nunca_el_texto(
+    error: Exception, esperado: str
+) -> None:
+    assert motivo_de_falla_de(error) == esperado
+
+
+async def test_el_agente_guarda_el_motivo_de_la_falla_en_el_saliente() -> None:
+    mensajes = RepositorioMensajeEnMemoria()
+    salida = SalidaAlCliente(
+        mensajes=mensajes, mensajeria=CanalQueFalla(MensajeRechazado("no", codigo=131026))
+    )
+    hilo = Conversacion(id=uuid4(), empresa_id=EMPRESA, cliente_id=uuid4(), created_at=AHORA)
+
+    await salida.responder(EMPRESA, hilo, "5491112345678", "Hola", AHORA)
+
+    (guardado,) = mensajes.salientes
+    assert guardado.motivo_de_falla == "131026"
