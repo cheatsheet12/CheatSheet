@@ -9,9 +9,8 @@ Tres piezas se arman acá:
 - **El catálogo de servicios agendables**, que sale de `master_data` (HU-E7-04 RN-02).
 - **El directorio de clientes**, que sale del mismo contexto y contesta a qué número escribir
   (HU-E7-02 RN-03).
-- **El avisador**, que hoy tiene un solo adaptador —el de consola— porque el cliente real de
-  WhatsApp Business lo construye el **épico 8**. El doble se niega a arrancar en producción,
-  igual que el de los recordatorios de cobro.
+- **El avisador**, que manda por el canal de WhatsApp de la empresa. El canal se arma en
+  `api/mensajeria.py` (ADR-0011 §2) y llega ya armado.
 
 Se construyen **por request** y no cacheadas por proceso: las tres están atadas a la
 transacción y a la empresa del pedido. Es la misma conclusión de `mercadopago.py`.
@@ -20,6 +19,7 @@ transacción y a la empresa del pedido. Es la misma conclusión de `mercadopago.
 from __future__ import annotations
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
+from cheatsheet.api.plantillas_salientes import armar_plantillas_aprobadas
 from cheatsheet.contexts.master_data.infrastructure.repositories import (
     RepositorioClientePostgres,
     RepositorioServicioPostgres,
@@ -30,12 +30,11 @@ from cheatsheet.contexts.scheduling.application.ports import (
     PortNotificadorDeTurnos,
 )
 from cheatsheet.contexts.scheduling.application.turnos import Avisador
-from cheatsheet.contexts.scheduling.infrastructure.avisos import AvisoPorConsola
+from cheatsheet.contexts.scheduling.infrastructure.avisos import AvisoPorWhatsApp, CanalDeTexto
 from cheatsheet.contexts.scheduling.infrastructure.catalogo import (
     CatalogoViaMasterData,
     ClientesViaMasterData,
 )
-from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.roles import RolUsuario
 
@@ -58,29 +57,29 @@ def armar_directorio(unidad: UnidadDeTrabajo, *, empresa_id: EmpresaId) -> PortD
     return ClientesViaMasterData(RepositorioClientePostgres(unidad.sesion), empresa_id=empresa_id)
 
 
-def armar_notificador(settings: Settings) -> PortNotificadorDeTurnos:
-    """Por dónde sale el aviso de un turno.
+def armar_notificador(unidad: UnidadDeTrabajo, *, canal: CanalDeTexto) -> PortNotificadorDeTurnos:
+    """Por dónde sale el aviso de un turno: WhatsApp, por el canal que el llamador ya armó.
 
-    Un solo adaptador por ahora, y **no** un `if` sobre un `*_ADAPTADOR` que hoy tendría una
-    sola rama: el cliente real es del épico 8 y la elección la va a introducir esa unidad,
-    junto con el adaptador que la justifica. El doble se niega a arrancar en producción, así
-    que no se puede desplegar sin que alguien se entere.
+    **El canal llega armado** (ADR-0011 §2): `api/mensajeria.armar_mensajeria` lo arma una vez por
+    unidad de trabajo y este módulo no depende de `conversational`. El agente **no** usa esto: arma
+    su propio `Avisador` con un notificador silencioso (`api/conversacional.py`), porque confirma
+    en la conversación.
     """
-    return AvisoPorConsola(settings.entorno)
+    return AvisoPorWhatsApp(canal, armar_plantillas_aprobadas(unidad))
 
 
 def armar_avisador(
     unidad: UnidadDeTrabajo,
-    settings: Settings,
     *,
     empresa_id: EmpresaId,
     rol: RolUsuario,
+    canal: CanalDeTexto,
 ) -> Avisador:
     """Las tres piezas del aviso, atadas: cliente, servicio y canal."""
     return Avisador(
         clientes=armar_directorio(unidad, empresa_id=empresa_id),
         servicios=armar_catalogo(unidad, empresa_id=empresa_id, rol=rol),
-        notificador=armar_notificador(settings),
+        notificador=armar_notificador(unidad, canal=canal),
     )
 
 

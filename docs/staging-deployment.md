@@ -83,6 +83,25 @@ and the OAuth2 `state` memory, the idempotency registry and half of `/health` li
 | `JWT_SECRET` | Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `SECRETS_ENCRYPTION_KEY` | 32 bytes base64. Generate with the command in `backend/.env.example` line 59 |
 | `APP_BASE_URL` | The **panel's** public URL — filled in at §5, not now |
+| `WHATSAPP_ADAPTADOR` | `simulado` on staging (no real Meta credentials, §8). Production must be `meta`; `simulado` is refused there |
+| `WHATSAPP_WEBHOOK_SECRET` | The **App Secret** of the Meta app, which signs `X-Hub-Signature-256` on every inbound notification |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | The token typed when the webhook URL is registered in the Meta app |
+
+**Two webhook URLs, and they are not interchangeable** (`plantillas-de-whatsapp-en-meta`). Incoming
+messages arrive at the per-company URL, `/webhooks/whatsapp/{empresa_id}` (set per account with
+`POST /{waba_id}/subscribed_apps` and `override_callback_uri`). **Template status updates
+(`message_template_status_update`) do not support callback overrides**: they arrive at the **app-level URL**,
+`/webhooks/whatsapp`, which is the one registered in the Meta app's webhook settings, and the app must be
+**subscribed to the `message_template_status_update` field**. The event is routed by the WABA id it carries,
+never by the URL. Both URLs use the same `WHATSAPP_WEBHOOK_SECRET` and `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. If the
+subscription is missing nothing breaks: the periodic reconciliation (below) reads the same state, only up to
+`WHATSAPP_PLANTILLAS_MINUTOS` later ([`aidlc/TODO.md`](aidlc/TODO.md) §22.45).
+
+> **Without `WHATSAPP_WEBHOOK_SECRET` every WhatsApp notification is discarded with a 200** (D49,
+> pending #3 of epic 8): the signature can never match an empty secret, and the 200 stops Meta from
+> retrying. The two `WHATSAPP_WEBHOOK_*` values are only needed once a Meta app exists
+> ([`aidlc/TODO.md`](aidlc/TODO.md) §22.30 and §22.39). The company's own WhatsApp token and number are
+> **not** environment variables: they live in `integrations`, per company.
 
 > **`SECRETS_ENCRYPTION_KEY` is not a password you can change your mind about.** It encrypts every
 > integration credential at rest. Rotating it later means re-encrypting `configuracion_de_integracion`
@@ -150,6 +169,14 @@ Environment variables: the same seven the API has — `APP_ENV`, `DATABASE_URL`,
 plus `ALMACENAMIENTO_ADAPTADOR=r2` and the four `R2_*` values from §4 bis.1. **Add those five to the
 API as well**, or it will keep writing reports into its own memory.
 
+The worker also needs `WHATSAPP_ADAPTADOR`, with **the same value as the API**: the payment-reminder
+sweep runs here and has to pick the same channel the API does (`simulado` on staging). It does not
+need the two `WHATSAPP_WEBHOOK_*` values, which only the API reads.
+
+`WHATSAPP_PLANTILLAS_MINUTOS` (default `30`) is read **only by the worker**, whose embedded Beat reconciles each
+company's WhatsApp templates with Meta (queue `integrations_sync`). It is not in `render.yaml`: the default
+is fine, and the dashboard is the source of truth if a different value is wanted.
+
 > **`SECRETS_ENCRYPTION_KEY` must be character-for-character the same as the API's.** Integration
 > credentials are encrypted with it. A worker with a different key fails every ARCA authorisation
 > with `CredencialIlegible` while the stored row looks perfectly healthy.
@@ -169,6 +196,13 @@ schedule is rebuilt from `workers/beat.py` at every start, so an ephemeral `/tmp
 **`-c 2`, not 4.** The image measures ~82 MB per process, so a parent and two children fit a
 Starter's 512 MB with room. Four children do not, and the failure is an out-of-memory kill in the
 middle of a task.
+
+**No `-l`: `LOG_LEVEL` sets the worker's log level**, as it does the API's. The worker answers
+Celery's `setup_logging` signal (`workers/celery_app.py`, `conservar_el_logging_propio`), so Celery
+leaves the logging that `configurar_logging` installed alone, and `-l` has no effect. Before that,
+a worker without `-l` dropped every `info` line. That includes `invitacion_no_enviada_modo_consola`,
+the line that carries the invitation link while `EMAIL_ADAPTADOR` is unset (console mode). **That
+line is in the worker's logs, not the API's**, because the worker sends the invitations.
 
 ---
 

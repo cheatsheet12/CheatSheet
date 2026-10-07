@@ -15,8 +15,9 @@ from celery import Celery
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging
 from cheatsheet.workers.beat import configurar_beat
-from cheatsheet.workers.celery_app import crear_celery
+from cheatsheet.workers.celery_app import conservar_el_logging_propio, crear_celery
 from cheatsheet.workers.tasks_billing import registrar as registrar_billing
+from cheatsheet.workers.tasks_business_config import registrar as registrar_business_config
 from cheatsheet.workers.tasks_conversational import registrar as registrar_conversational
 from cheatsheet.workers.tasks_identity import registrar_en as registrar_identity
 from cheatsheet.workers.tasks_integrations import registrar_en as registrar_integrations
@@ -28,6 +29,7 @@ from cheatsheet.workers.tasks_spreadsheet import registrar as registrar_spreadsh
 
 settings = Settings.desde_entorno()
 configurar_logging(settings)
+conservar_el_logging_propio()
 
 app: Celery = configurar_beat(crear_celery(settings), settings)
 
@@ -36,6 +38,7 @@ app: Celery = configurar_beat(crear_celery(settings), settings)
 # task in a fresh one, and a connection pool does not survive that. See
 # `workers/ejecucion.py` — this is the defect QA found by sending two invitations.
 registrar_billing(app, settings)
+registrar_business_config(app, settings)
 registrar_identity(app, settings)
 registrar_integrations(app, settings)
 registrar_observability(app, settings)

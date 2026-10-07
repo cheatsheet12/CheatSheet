@@ -25,7 +25,6 @@ const reembolsarCobro = vi.fn();
 const actualizarReembolso = vi.fn();
 const registrarReembolso = vi.fn();
 const corregirReembolso = vi.fn();
-const push = vi.fn();
 
 vi.mock("@/features/payments/api/cobro", async () => {
   const real = await vi.importActual<typeof import("@/features/payments/api/cobro")>(
@@ -44,7 +43,10 @@ vi.mock("@/features/payments/api/cobro", async () => {
   };
 });
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
+});
 
 import {
   ErrorDeCobro,
@@ -60,10 +62,15 @@ import type {
   ListadoDeCobrosRespuesta,
   Reembolso,
 } from "@/features/payments";
+import { elegirFecha } from "@/shared/ui/__tests__/elegir-fecha";
 
 const { ListadoDeCobros } = await import("@/features/payments/components/ListadoDeCobros");
 const { DetalleDeCobro } = await import("@/features/payments/components/DetalleDeCobro");
 const { NuevoCobro } = await import("@/features/payments/components/NuevoCobro");
+const { ArnesDeRouter, reiniciarRouter, resolverNavegacion, routerQueSuspende } = await import(
+  "@/shared/__tests__/router-que-suspende"
+);
+const push = routerQueSuspende.push;
 
 const PENDIENTE: Cobro = {
   id: "co1",
@@ -141,6 +148,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  reiniciarRouter();
 });
 
 /** La tarjeta de metrica que lleva ese titulo. `Card` es un `<section>` con un `<h2>`. */
@@ -192,12 +200,12 @@ describe("PAN-COB-01 — listado de cobros", () => {
     expect(await screen.findByText(MENSAJE_SIN_RESULTADOS)).toBeTruthy();
   });
 
-  it("le esconde «Generar cobro» a Solo Lectura", () => {
+  it("le esconde «Nuevo cobro» a Solo Lectura", () => {
     const { rerender } = render(<ListadoDeCobros inicial={LISTADO} puedeGestionar />);
-    expect(screen.getByRole("link", { name: "Generar cobro" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Nuevo cobro" })).toBeTruthy();
 
     rerender(<ListadoDeCobros inicial={LISTADO} puedeGestionar={false} />);
-    expect(screen.queryByRole("link", { name: "Generar cobro" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Nuevo cobro" })).toBeNull();
   });
 });
 
@@ -451,12 +459,15 @@ describe("PAN-COB-03 — nuevo cobro", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
 
     await waitFor(() => {
-      expect(generarCobro).toHaveBeenCalledWith({
-        cliente_id: "cl2",
-        monto: "1000",
-        descripcion: "Consulta",
-        comprobante_id: null,
-      });
+      expect(generarCobro).toHaveBeenCalledWith(
+        {
+          cliente_id: "cl2",
+          monto: "1000",
+          descripcion: "Consulta",
+          comprobante_id: null,
+        },
+        expect.any(String),
+      );
     });
   });
 
@@ -469,13 +480,16 @@ describe("PAN-COB-03 — nuevo cobro", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
 
     await waitFor(() => {
-      expect(generarCobro).toHaveBeenCalledWith({
-        cliente_id: "cl1",
-        // Texto, no `12500.1`: el punto de todo el archivo `cobro.ts`.
-        monto: "12500.10",
-        descripcion: "Consulta",
-        comprobante_id: null,
-      });
+      expect(generarCobro).toHaveBeenCalledWith(
+        {
+          cliente_id: "cl1",
+          // Texto, no `12500.1`: el punto de todo el archivo `cobro.ts`.
+          monto: "12500.10",
+          descripcion: "Consulta",
+          comprobante_id: null,
+        },
+        expect.any(String),
+      );
     });
     expect(push).toHaveBeenCalledWith("/cobros/co1");
   });
@@ -742,9 +756,7 @@ describe("PAN-COB-02 — reembolsos parciales y manuales (HU-E6-05)", () => {
     const confirmar = screen.getByRole("button", { name: "Confirmar registro" });
     expect(confirmar.hasAttribute("disabled")).toBe(true);
     fireEvent.change(screen.getByLabelText("Monto devuelto"), { target: { value: "300.10" } });
-    fireEvent.change(screen.getByLabelText("Fecha de devolución"), {
-      target: { value: "2026-09-20" },
-    });
+    elegirFecha("Fecha de devolución", "2026-09-20");
     fireEvent.change(screen.getByLabelText("Referencia (opcional)"), {
       target: { value: "OP-77" },
     });
@@ -773,9 +785,7 @@ describe("PAN-COB-02 — reembolsos parciales y manuales (HU-E6-05)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Registrar reembolso" }));
     fireEvent.change(screen.getByLabelText("Monto devuelto"), { target: { value: "99999.00" } });
-    fireEvent.change(screen.getByLabelText("Fecha de devolución"), {
-      target: { value: "2026-09-20" },
-    });
+    elegirFecha("Fecha de devolución", "2026-09-20");
     fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "Devolución" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar registro" }));
 
@@ -836,5 +846,118 @@ describe("PAN-COB-02 — reembolsos parciales y manuales (HU-E6-05)", () => {
     await waitFor(() => {
       expect(listarCobros).toHaveBeenCalledWith({ estado: "REEMBOLSADO_PARCIAL" });
     });
+  });
+});
+
+describe("PAN-COB-03 — nuevo cobro, la clave del pedido (ADR-0013)", () => {
+  function completar(): void {
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "1000" } });
+  }
+
+  function claveDeLaLlamada(numero: number): string {
+    return (generarCobro.mock.calls[numero] as [unknown, string])[1];
+  }
+
+  it("manda la misma clave en dos envios tras un error (un 504 del BFF)", async () => {
+    generarCobro.mockRejectedValue(new ErrorDeCobro("No se pudo completar la operacion"));
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await screen.findByText("No se pudo completar la operacion");
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(generarCobro).toHaveBeenCalledTimes(2));
+
+    expect(claveDeLaLlamada(0)).toMatch(/^[0-9a-f-]{36}$/);
+    expect(claveDeLaLlamada(1)).toBe(claveDeLaLlamada(0));
+  });
+
+  it("no renueva la clave al editar el formulario despues de un error", async () => {
+    generarCobro.mockRejectedValue(new ErrorDeCobro("No se pudo completar la operacion"));
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await screen.findByText("No se pudo completar la operacion");
+
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "2000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(generarCobro).toHaveBeenCalledTimes(2));
+
+    expect(claveDeLaLlamada(1)).toBe(claveDeLaLlamada(0));
+  });
+
+  it("renueva la clave despues de un exito: un nuevo envio es otro cobro", async () => {
+    generarCobro.mockResolvedValue(PENDIENTE);
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/cobros/co1"));
+    // Como si el navegador restaurara la pantalla desde el bfcache: misma instancia, otro envio.
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Generar link de pago" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(generarCobro).toHaveBeenCalledTimes(2));
+
+    expect(claveDeLaLlamada(1)).not.toBe(claveDeLaLlamada(0));
+  });
+
+  it("ante una clave ya usada muestra el texto del backend y el enlace al listado", async () => {
+    generarCobro.mockRejectedValue(
+      new ErrorDeCobro(
+        "Esta clave ya se uso para generar un cobro con otros datos. Revise el listado de cobros antes de reintentar.",
+        "ClaveDeIdempotenciaReusada",
+      ),
+    );
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+
+    expect(await screen.findByText(/Esta clave ya se uso para generar un cobro/)).toBeTruthy();
+    const enlace = screen.getByRole("link", { name: "Ver el listado de cobros" });
+    expect(enlace.getAttribute("href")).toBe("/cobros");
+  });
+
+  it("un error comun no ofrece el enlace al listado", async () => {
+    generarCobro.mockRejectedValue(new ErrorDeCobro("No se pudo completar la operacion"));
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+    completar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+
+    await screen.findByText("No se pudo completar la operacion");
+    expect(screen.queryByRole("link", { name: "Ver el listado de cobros" })).toBeNull();
+  });
+});
+
+describe("PAN-COB-03 — nuevo cobro, mientras la navegación tarda", () => {
+  it("un segundo clic después de la respuesta y antes del detalle no genera otro cobro", async () => {
+    // Un segundo cobro es un segundo link de pago, y la plata se cobra dos veces.
+    generarCobro.mockResolvedValue(PENDIENTE);
+    render(
+      <ArnesDeRouter>
+        <NuevoCobro clienteId="cl1" comprobantes={[]} />
+      </ArnesDeRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "12500.10" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/cobros/co1"));
+
+    const boton = screen.getByRole("button", { name: "Generar link de pago" });
+    expect((boton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(boton);
+    fireEvent.submit(boton.closest("form") as HTMLFormElement);
+    expect(generarCobro).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(generarCobro).toHaveBeenCalledTimes(1);
   });
 });

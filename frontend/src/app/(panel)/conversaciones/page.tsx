@@ -29,7 +29,7 @@ export default async function PaginaDeConversaciones(): Promise<JSX.Element> {
       {/* El mismo encabezado que su pantalla hermana, `/configuracion/respuestas`: cintillo,
           título de 27 px y bajada. Dos criterios distintos dentro del mismo contexto es lo que
           hace que un panel se lea como dos productos pegados. */}
-      <header className="wa-encabezado">
+      <header className="wa-encabezado cv-encabezado">
         <div>
           <p className="wa-encabezado__eyebrow">Agente WhatsApp · Conversaciones</p>
           <h1 className="wa-encabezado__titulo">Conversaciones</h1>

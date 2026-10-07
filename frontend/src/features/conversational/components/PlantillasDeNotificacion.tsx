@@ -15,6 +15,11 @@
  * misma pantalla dos veces —una configura lo que el agente contesta, la otra lo que el sistema
  * avisa— y editar el texto de un recordatorio es querer ver los otros cinco al lado.
  *
+ * **Editar manda la plantilla a Meta** (U6): si Meta la refuta, el error trae su texto y no se
+ * guardó nada. Una plantilla en revisión, o aprobada hace menos de 24 horas, no se edita: la
+ * pantalla lo explica en vez de dejar un botón gris sin motivo. «Enviar a revisión» reenvía una
+ * sin enviar o rechazada sin tocar el texto.
+ *
  * **El listado no muestra el cuerpo.** Una columna con `Hola {{nombre}}, te esperamos…`
  * repetida seis veces es la misma frase seis veces; lo que distingue una fila de la otra es el
  * mensaje que representa, su canal y si Meta ya la aprobó.
@@ -24,21 +29,24 @@
 
 import { useRef, useState } from "react";
 
-import { Alert, Badge, Button, Tabla } from "@/shared";
+import { Alert, Button, Tabla } from "@/shared";
 import type { Columna } from "@/shared";
 
 import {
-  ETIQUETAS_DE_APROBACION,
   ETIQUETAS_DE_CANAL,
   ETIQUETAS_DE_CODIGO,
   ErrorDeFaq,
+  MENSAJE_BORDE_CON_VARIABLE,
   MENSAJE_VARIABLE_INVALIDA,
   editarPlantilla,
+  empiezaOTerminaConVariable,
+  enviarARevision,
   listarPlantillas,
   nombreDeIdioma,
   variablesInvalidas,
 } from "../api/faq";
 import type { ListadoDePlantillas, Plantilla } from "../api/faq";
+import { EstadoDePlantilla, motivoDeBloqueo } from "./EstadoDePlantilla";
 
 export interface PropsDePlantillasDeNotificacion {
   readonly inicial: ListadoDePlantillas;
@@ -83,6 +91,9 @@ export function PlantillasDeNotificacion({
   const plantillas = listado.plantillas;
   const frenadas = plantillas.filter((una) => !una.puede_usarse).length;
   const invalidas = editando === null ? [] : variablesInvalidas(cuerpo, editando.variables);
+  // Meta rechaza una plantilla de WhatsApp que empieza o termina con una variable.
+  const bordeInvalido =
+    editando !== null && editando.canal === "WHATSAPP" && empiezaOTerminaConVariable(cuerpo);
 
   // Canal e idioma sólo son columna cuando de verdad varían entre filas.
   const canalUnico = unicoValor(plantillas.map((una) => una.canal));
@@ -100,6 +111,19 @@ export function PlantillasDeNotificacion({
       setEditando(null);
     } catch (fallo) {
       setError(fallo instanceof ErrorDeFaq ? fallo.message : "No se pudo guardar la plantilla.");
+    } finally {
+      setTrabajando(false);
+    }
+  }
+
+  async function reenviar(plantilla: Plantilla): Promise<void> {
+    setError(null);
+    setTrabajando(true);
+    try {
+      await enviarARevision(plantilla.id);
+      setListado(await listarPlantillas());
+    } catch (fallo) {
+      setError(fallo instanceof ErrorDeFaq ? fallo.message : "No se pudo enviar la plantilla.");
     } finally {
       setTrabajando(false);
     }
@@ -136,18 +160,43 @@ export function PlantillasDeNotificacion({
     clave: "acciones",
     titulo: "Acciones",
     alDerecha: true,
-    celda: (fila) => (
-      <button
-        type="button"
-        className="plt-accion"
-        onClick={() => {
-          setEditando(fila);
-          setCuerpo(fila.cuerpo);
-        }}
-      >
-        Editar texto
-      </button>
-    ),
+    celda: (fila) => {
+      const bloqueo = motivoDeBloqueo(fila, new Date());
+      const reenviable =
+        fila.canal === "WHATSAPP" &&
+        (fila.estado_aprobacion === "SIN_ENVIAR" || fila.estado_aprobacion === "RECHAZADA");
+      return (
+        <div className="plt-acciones">
+          <button
+            type="button"
+            className="plt-accion"
+            disabled={bloqueo !== null}
+            aria-describedby={bloqueo === null ? undefined : `plt-bloqueo-${fila.id}`}
+            onClick={() => {
+              setEditando(fila);
+              setCuerpo(fila.cuerpo);
+            }}
+          >
+            Editar texto
+          </button>
+          {reenviable && (
+            <button
+              type="button"
+              className="plt-accion"
+              disabled={trabajando}
+              onClick={() => void reenviar(fila)}
+            >
+              Enviar a revisión
+            </button>
+          )}
+          {bloqueo !== null && (
+            <p className="plt-nota" id={`plt-bloqueo-${fila.id}`}>
+              {bloqueo}
+            </p>
+          )}
+        </div>
+      );
+    },
   };
 
   const columnas: readonly Columna<Plantilla>[] = [
@@ -183,11 +232,7 @@ export function PlantillasDeNotificacion({
     {
       clave: "estado",
       titulo: "Estado",
-      celda: (fila) => (
-        <Badge estado={fila.puede_usarse ? "ok" : "atencion"}>
-          {ETIQUETAS_DE_APROBACION[fila.estado_aprobacion]}
-        </Badge>
-      ),
+      celda: (fila) => <EstadoDePlantilla plantilla={fila} />,
     },
     ...(puedeEditar ? [acciones] : []),
   ];
@@ -216,7 +261,8 @@ export function PlantillasDeNotificacion({
         // acá evita que alguien edite el texto y se pregunte por qué el cliente no recibe nada.
         <Alert tono="advertencia" titulo="Hay plantillas sin aprobar">
           WhatsApp exige que Meta apruebe las plantillas antes de poder enviarlas. Mientras tanto,
-          el sistema manda el texto de fábrica.
+          el sistema manda el texto de fábrica, y fuera de las 24 horas de una conversación Meta no
+          lo entrega.
         </Alert>
       )}
 
@@ -287,13 +333,19 @@ export function PlantillasDeNotificacion({
               </Alert>
             )}
 
+            {bordeInvalido && (
+              <Alert tono="error" titulo={MENSAJE_BORDE_CON_VARIABLE}>
+                Agregá texto antes de la primera variable y después de la última.
+              </Alert>
+            )}
+
             <div className="plt-editor__pie">
               <button type="button" className="plt-accion" onClick={() => setEditando(null)}>
                 Cancelar
               </button>
               <Button
                 type="submit"
-                disabled={invalidas.length > 0 || cuerpo.trim() === ""}
+                disabled={invalidas.length > 0 || bordeInvalido || cuerpo.trim() === ""}
                 cargando={trabajando}
               >
                 Guardar

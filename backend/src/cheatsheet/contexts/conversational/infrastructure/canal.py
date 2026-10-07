@@ -22,25 +22,24 @@ fallara nadie se enteraría.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 import struct
+from collections.abc import Mapping
 from dataclasses import dataclass
 from uuid import uuid4
 
 import httpx
 
-from cheatsheet.contexts.conversational.application.errors import MensajeriaNoDisponible
+from cheatsheet.contexts.conversational.application.errors import CanalNoConectado
 from cheatsheet.contexts.conversational.application.ports import Transcripcion
 from cheatsheet.contexts.conversational.domain.faq import DIMENSION_DEL_VECTOR
+from cheatsheet.contexts.conversational.infrastructure.canal_http import Esperar, pedir_a_meta
 from cheatsheet.platform.settings import Entorno
 from cheatsheet.platform.telemetry import obtener_logger
 
 logger = obtener_logger(__name__)
-
-#: Cuántas veces se reintenta un envío. Dos reintentos sobre un 5xx alcanzan para un blip;
-#: más sería tenerle a alguien el request abierto mientras Meta se recupera.
-INTENTOS = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +68,15 @@ class MensajeriaSimulada:
                 "en un log y ningún cliente los recibiría"
             )
         self.enviados: list[str] = []
+        self.plantillas_enviadas: list[tuple[str, Mapping[str, str]]] = []
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, idioma
+        self.plantillas_enviadas.append((nombre, dict(parametros)))
+        logger.info("plantilla_simulada", nombre=nombre, parametros=len(parametros))
+        return f"simulado-{uuid4()}"
 
     async def enviar(self, *, telefono: str, texto: str) -> str:
         del telefono
@@ -85,10 +93,14 @@ class MensajeriaSimulada:
 class MensajeriaWhatsApp:
     """El cliente real de la Cloud API de Meta.
 
-    Timeout explícito, reintento con backoff y manejo del fallo, como pide `CLAUDE.md` §5 para
-    toda llamada externa. **Un 4xx no se reintenta**: un número mal formado o una plantilla no
-    aprobada van a fallar igual las tres veces, y reintentarlas es gastar el rate limit de la
-    empresa contra un error propio.
+    Timeout explícito, reintento con espera y manejo del fallo, como pide `CLAUDE.md` §5 para
+    toda llamada externa. La política (transitorio / permanente / incierto) vive en
+    `canal_http.py` y es la misma para el mensaje de texto, la plantilla y el cliente de
+    plantillas.
+
+    `esperar` se inyecta para que los tests no duerman. Las excepciones llevan el `error.code`
+    de Meta; el log, `estado`, `codigo` y `fbtrace_id` y **nunca** `error.message`,
+    `error_data`, el teléfono, el texto ni los parámetros.
     """
 
     def __init__(
@@ -96,17 +108,49 @@ class MensajeriaWhatsApp:
         configuracion: ConfiguracionDeMensajeria,
         *,
         transporte: httpx.AsyncBaseTransport | None = None,
+        esperar: Esperar = asyncio.sleep,
     ) -> None:
         self._config = configuracion
         self._transporte = transporte
+        self._esperar = esperar
 
     async def enviar(self, *, telefono: str, texto: str) -> str:
-        cuerpo = {
-            "messaging_product": "whatsapp",
-            "to": telefono,
-            "type": "text",
-            "text": {"body": texto},
-        }
+        return await self._publicar(
+            {
+                "messaging_product": "whatsapp",
+                "to": telefono,
+                "type": "text",
+                "text": {"body": texto},
+            },
+            objeto="el mensaje",
+        )
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        """Una plantilla aprobada, con los parámetros **por nombre** (`parameter_name`)."""
+        plantilla: dict[str, object] = {"name": nombre, "language": {"code": idioma}}
+        if parametros:
+            plantilla["components"] = [
+                {
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "parameter_name": clave, "text": valor}
+                        for clave, valor in parametros.items()
+                    ],
+                }
+            ]
+        return await self._publicar(
+            {
+                "messaging_product": "whatsapp",
+                "to": telefono,
+                "type": "template",
+                "template": plantilla,
+            },
+            objeto="la plantilla",
+        )
+
+    async def _publicar(self, cuerpo: Mapping[str, object], *, objeto: str) -> str:
         ruta = (
             f"{self._config.graph_url.rstrip('/')}/{self._config.graph_version}/"
             f"{self._config.phone_number_id}/messages"
@@ -114,23 +158,37 @@ class MensajeriaWhatsApp:
         async with httpx.AsyncClient(
             timeout=self._config.timeout_segundos, transport=self._transporte
         ) as cliente:
-            for intento in range(INTENTOS):
-                respuesta = await cliente.post(
-                    ruta,
-                    json=cuerpo,
-                    headers={"Authorization": f"Bearer {self._config.token}"},
-                )
-                if respuesta.status_code < 300:
-                    return _id_del_mensaje(respuesta)
-                if respuesta.status_code < 500:
-                    # Nuestro error, no de ellos. Ver el docstring.
-                    logger.warning("whatsapp_rechazo_el_mensaje", estado=respuesta.status_code)
-                    raise MensajeriaNoDisponible(
-                        f"WhatsApp rechazó el mensaje ({respuesta.status_code})"
-                    )
-                if intento < INTENTOS - 1:
-                    logger.info("whatsapp_reintenta", intento=intento + 1)
-        raise MensajeriaNoDisponible("WhatsApp no respondió")
+            respuesta = await pedir_a_meta(
+                cliente,
+                "POST",
+                ruta,
+                token=self._config.token,
+                objeto=objeto,
+                cuerpo=cuerpo,
+                esperar=self._esperar,
+            )
+        return _id_del_mensaje(respuesta)
+
+
+class SinCanal:
+    """El canal de una empresa que no conectó WhatsApp, en producción (ADR-0011 §3).
+
+    **Levanta `CanalNoConectado` y no toca la red.** El puerto devuelve un `str` —el id del
+    mensaje— y devolver uno inventado daría por enviado lo que no salió: quien llama
+    (recordatorio, aviso, agente, operador) registra el mensaje como **no enviado**.
+    """
+
+    async def enviar(self, *, telefono: str, texto: str) -> str:
+        del telefono, texto
+        logger.info("whatsapp_sin_conectar_no_se_envia")
+        raise CanalNoConectado("La empresa no conectó WhatsApp: el mensaje no se envió")
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, nombre, idioma, parametros
+        logger.info("whatsapp_sin_conectar_no_se_envia")
+        raise CanalNoConectado("La empresa no conectó WhatsApp: el mensaje no se envió")
 
 
 def _id_del_mensaje(respuesta: httpx.Response) -> str:
@@ -217,5 +275,6 @@ __all__ = [
     "EmbeddingsSimulados",
     "MensajeriaSimulada",
     "MensajeriaWhatsApp",
+    "SinCanal",
     "TranscriptorSimulado",
 ]

@@ -19,6 +19,14 @@ export { Campo, Casilla } from "@/shared/ui/Campo";
 export type { PropsDeCampo, PropsDeCasilla } from "@/shared/ui/Campo";
 export { Card } from "@/shared/ui/Card";
 export type { PropsDeCard } from "@/shared/ui/Card";
+export { Desplegable } from "@/shared/ui/Desplegable";
+export { SelectorDeFecha } from "@/shared/ui/SelectorDeFecha";
+export type { PropsDeSelectorDeFecha } from "@/shared/ui/SelectorDeFecha";
+export type {
+  PropsDeDesplegable,
+  PropsDeGrupo,
+  VarianteDeDesplegable,
+} from "@/shared/ui/Desplegable";
 export { Modal } from "@/shared/ui/Modal";
 export type { PropsDeModal } from "@/shared/ui/Modal";
 export { Select } from "@/shared/ui/Select";
@@ -34,3 +42,9 @@ export {
   PREFERENCIAS_POR_DEFECTO,
 } from "@/shared/formato";
 export type { PreferenciasDeFormato } from "@/shared/formato";
+export { useAccionConNavegacion } from "@/shared/navegacion";
+export type {
+  AccionConNavegacion,
+  OpcionesDeEjecucion,
+  RouterDeNavegacion,
+} from "@/shared/navegacion";

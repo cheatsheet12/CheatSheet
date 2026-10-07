@@ -1989,11 +1989,13 @@ Esta épica agrupa las historias del operador humano que atiende las conversacio
 
 ## **HU-E9-04 — Administrar el repositorio de FAQ**
 
+> Modificada por ADR-0012 (2026-10-04).
+
 | ID | HU-E9-04 |
 | :---- | :---- |
 | **Actor** | Administrador |
 | **Acción Bloque K** | (métodos sobre FAQ) |
-| **Descripción** | Como administrador, quiero agregar, editar y eliminar preguntas frecuentes del agente, para que responda automáticamente las consultas más comunes de mis clientes. |
+| **Descripción** | Como administrador, quiero agregar, editar y eliminar preguntas frecuentes del agente y ver cuánto se usa cada una, para que responda automáticamente las consultas más comunes de mis clientes y saber si mis cambios mejoran esas respuestas. |
 | **Prioridad** | Media |
 | **Complejidad** | Baja |
 | **Pantalla** | PAN-WA-02 (Agente WhatsApp — Configuración) |
@@ -2006,18 +2008,28 @@ Esta épica agrupa las historias del operador humano que atiende las conversacio
 **Reglas de negocio**
 
 * RN-01: Cada FAQ tiene una pregunta disparadora y una respuesta; ambos campos son obligatorios, conforme a la entidad FAQ.
-* RN-02: El sistema muestra cuántas veces fue usada cada FAQ en el período actual.
+* RN-02: El sistema muestra, por cada FAQ, cuántas veces fue usada **en el mes calendario en curso** («Este mes»), **en el mes calendario anterior** («Mes anterior») y **desde su creación** («Total»). Los meses se cuentan en hora de Argentina (America/Argentina/Buenos_Aires): un uso a las 23:30 del último día del mes pertenece a ese mes. Los usos registrados antes de esta modificación no tienen fecha: suman al total y no a ningún mes.
 * RN-03: Una FAQ eliminada deja de estar disponible para el agente de forma inmediata.
 * RN-04: No existe un límite en la cantidad de FAQ que una empresa puede configurar. De definirse a futuro un modelo de planes, podría incorporarse una restricción; en el alcance actual no aplica.
+* RN-05: Un uso se cuenta una sola vez, cuando el agente respondió la consulta con esa FAQ **y** el mensaje de WhatsApp salió (no quedó como fallido). Una coincidencia por debajo del umbral de HU-E8-03 RN-03 no es un uso. Un mismo mensaje entrante reenviado por WhatsApp no genera un segundo uso.
+* RN-06: El detalle de cada FAQ muestra su **participación** antes y después de su última edición: los usos de esa FAQ divididos por todas las consultas que el agente respondió con alguna FAQ de la empresa, en la misma cantidad de días antes y después de la edición (como máximo 30 días; menos si la edición o la FAQ son más recientes). Se informa como porcentaje con un decimal. Editar es cambiar el texto de la pregunta o de la respuesta.
+* RN-07: Cuando la comparación no puede hacerse, el detalle lo dice en lugar de mostrar un porcentaje: si la FAQ nunca se editó, si se editó hace menos de un día, si se editó durante su primer día (no hay historia previa), o si en uno de los dos lapsos la empresa no tuvo consultas respondidas por FAQ.
+* RN-08: Los usos de una FAQ eliminada siguen contando en el total de consultas respondidas de la empresa, para que la participación de las demás no cambie hacia atrás.
 
 **Criterios de Aceptación**
 
 | Cuando | Espero | Referencia |
 | :---- | :---- | :---- |
-| Agrego una FAQ nueva | Aparece en el listado con contador en cero y disponible para el agente | PAN-WA-02 |
+| Agrego una FAQ nueva | Aparece en el listado con «Este mes», «Mes anterior» y «Total» en cero y disponible para el agente | PAN-WA-02 |
 | Intento guardar una FAQ sin pregunta o sin respuesta | El sistema muestra “La pregunta y la respuesta son obligatorias.” y no permite guardar | PAN-WA-02 |
 | Elimino una FAQ | El sistema solicita confirmación y, al confirmar, el agente deja de usarla de inmediato | PAN-WA-02 |
-| Reviso el listado de FAQ | Cada una muestra cuántas veces fue respondida en el período | PAN-WA-02 |
+| Reviso el listado de FAQ | Cada una muestra cuántas veces fue respondida este mes, el mes anterior y en total | PAN-WA-02 |
+| El agente responde con una FAQ el último día del mes a las 22:00 (hora de Argentina) | Ese uso cuenta en «Este mes» de ese mes y, desde el día 1, en «Mes anterior» | PAN-WA-02 |
+| El agente encuentra la FAQ pero el WhatsApp no sale | El uso no se cuenta | PAN-WA-02 |
+| WhatsApp reenvía el mismo mensaje entrante | La FAQ suma un solo uso | PAN-WA-02 |
+| Abro el detalle de una FAQ editada hace 10 días | Veo su participación en los 10 días previos y en los 10 días posteriores a la edición | PAN-WA-02 |
+| Abro el detalle de una FAQ que nunca edité | Veo que no hay una edición con la cual comparar | PAN-WA-02 |
+| Abro el detalle de una FAQ editada en un lapso sin consultas respondidas por FAQ | Veo «Sin consultas respondidas por FAQ» en ese lapso, no un porcentaje | PAN-WA-02 |
 
 # **Épica 10 — Reportería y Análisis**
 

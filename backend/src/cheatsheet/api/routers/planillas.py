@@ -27,6 +27,11 @@ from datetime import datetime
 from uuid import UUID
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.contexts.master_data.infrastructure.ensamblado import DatosMaestros
+from cheatsheet.contexts.spreadsheet_sync.application.correcciones import (
+    CorregirFila,
+    LeerFilaConError,
+)
 from cheatsheet.contexts.spreadsheet_sync.application.errors import (
     ArchivoDemasiadoGrande,
     PermisosDePlanillaInsuficientes,
@@ -65,6 +70,7 @@ from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
     ProveedorPlanilla,
 )
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
+from cheatsheet.contexts.spreadsheet_sync.infrastructure.catalogo import IngestaEnMasterData
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.ensamblado import (
     Planillas,
     almacenamiento,
@@ -136,6 +142,27 @@ class ErrorDeFilaSalida(BaseModel):
 
     numero_fila: int
     motivo: str
+    #: True when a person fixed the row in the system. The error stays as history.
+    corregida: bool = False
+
+
+class CampoDeFilaSalida(BaseModel):
+    atributo: str
+    valor: str
+
+
+class FilaConErrorSalida(BaseModel):
+    """What the editor of one failed row needs: why it failed and what it holds."""
+
+    numero_fila: int
+    motivo: str
+    campos: list[CampoDeFilaSalida]
+
+
+class CorreccionDeFilaEntrada(BaseModel):
+    """The corrected values, by system field. Empty ones mean «no data»."""
+
+    valores: dict[str, str]
 
 
 class CargaSalida(BaseModel):
@@ -157,6 +184,22 @@ class DetalleDeCargaSalida(BaseModel):
     errores: list[ErrorDeFilaSalida]
     #: False for Solo Lectura (RN-04), and also when nothing failed.
     puede_reprocesar: bool
+
+
+def _detalle_a_salida(
+    procesamiento: ProcesamientoDePlanilla, rol: RolUsuario
+) -> DetalleDeCargaSalida:
+    """The detail of a run, shared by the read and by the correction that answers with it."""
+    return DetalleDeCargaSalida(
+        carga=_carga_a_salida(procesamiento),
+        errores=[
+            ErrorDeFilaSalida(numero_fila=e.numero_fila, motivo=e.motivo, corregida=not e.pendiente)
+            for e in procesamiento.errores
+        ],
+        puede_reprocesar=(
+            rol is not RolUsuario.SOLO_LECTURA and bool(procesamiento.filas_a_reprocesar)
+        ),
+    )
 
 
 def _carga_a_salida(procesamiento: ProcesamientoDePlanilla) -> CargaSalida:
@@ -292,6 +335,7 @@ def crear_router(recursos: Recursos) -> APIRouter:
     router.include_router(_rutas_de_procesamiento(recursos), prefix="/planillas/cargas")
     router.include_router(_rutas_de_lectura_de_cargas(recursos), prefix="/planillas/cargas")
     router.include_router(_rutas_de_reproceso(recursos), prefix="/planillas/cargas")
+    router.include_router(_rutas_de_correccion(recursos), prefix="/planillas/cargas")
     return router
 
 
@@ -654,17 +698,7 @@ def _rutas_de_lectura_de_cargas(recursos: Recursos) -> APIRouter:
             resumen = await ConsultarProcesamiento(piezas.procesamientos).ejecutar(
                 procesamiento_id=procesamiento_id
             )
-            salida = DetalleDeCargaSalida(
-                carga=_carga_a_salida(resumen.procesamiento),
-                errores=[
-                    ErrorDeFilaSalida(numero_fila=e.numero_fila, motivo=e.motivo)
-                    for e in resumen.procesamiento.errores
-                ],
-                puede_reprocesar=(
-                    rol is not RolUsuario.SOLO_LECTURA
-                    and bool(resumen.procesamiento.filas_a_reprocesar)
-                ),
-            )
+            salida = _detalle_a_salida(resumen.procesamiento, rol)
         return _exigir_detalle(salida)
 
     return router
@@ -696,6 +730,74 @@ def _rutas_de_reproceso(recursos: Recursos) -> APIRouter:
                 "No pudimos encolar el reproceso. Intentalo de nuevo en un momento."
             )
         return EncoladoSalida(encolado=True)
+
+    return router
+
+
+def _rutas_de_correccion(recursos: Recursos) -> APIRouter:
+    """Corregir en el sistema una fila que falló (unidad correccion-de-filas-con-error)."""
+    router = APIRouter()
+
+    @router.get("/{procesamiento_id}/filas/{numero_fila}")
+    async def fila_con_error(
+        request: Request, procesamiento_id: UUID, numero_fila: int
+    ) -> FilaConErrorSalida:
+        """Los valores de la fila, tal como están en el archivo y mapeados a campos. Todos leen."""
+        empresa_id, _, _ = _actor(request)
+        salida: FilaConErrorSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            vista = await LeerFilaConError(
+                procesamientos=piezas.procesamientos,
+                mapeos=piezas.mapeos,
+                almacenamiento=almacenamiento(recursos.settings),
+                lector=LectorDePlanilla(),
+            ).ejecutar(procesamiento_id=procesamiento_id, numero_fila=numero_fila)
+            salida = FilaConErrorSalida(
+                numero_fila=vista.numero_fila,
+                motivo=vista.motivo,
+                campos=[
+                    CampoDeFilaSalida(atributo=c.atributo, valor=c.valor) for c in vista.campos
+                ],
+            )
+        if salida is None:  # pragma: no cover — la unidad de trabajo siempre rinde una vez
+            raise RuntimeError("La unidad de trabajo no produjo un resultado")
+        return salida
+
+    @router.post("/{procesamiento_id}/filas/{numero_fila}/correccion")
+    async def corregir(
+        request: Request,
+        procesamiento_id: UUID,
+        numero_fila: int,
+        entrada: CorreccionDeFilaEntrada,
+    ) -> DetalleDeCargaSalida:
+        """Importa la fila corregida y contesta con el detalle actualizado de la carga.
+
+        Si `master_data` la rechaza, 422 con su motivo y nada escrito: la unidad de trabajo
+        descarta la transacción cuando el cuerpo levanta.
+        """
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: DetalleDeCargaSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = Planillas.armar(unidad)
+            maestros = DatosMaestros.armar(unidad)
+            procesamiento = await CorregirFila(
+                procesamientos=piezas.procesamientos,
+                catalogo=IngestaEnMasterData(
+                    clientes=maestros.clientes, servicios=maestros.servicios
+                ),
+                publicador=unidad.publicador,
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                procesamiento_id=procesamiento_id,
+                numero_fila=numero_fila,
+                valores=entrada.valores,
+                ahora=unidad.reloj.ahora(),
+            )
+            salida = _detalle_a_salida(procesamiento, rol)
+        return _exigir_detalle(salida)
 
     return router
 

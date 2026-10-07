@@ -14,6 +14,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from cheatsheet.contexts.master_data.application.ports import PortRepositorioCliente
+from cheatsheet.contexts.payments.application.ports_envio import ContactoDeCobro
 
 
 class ClienteViaMasterData:
@@ -27,4 +28,21 @@ class ClienteViaMasterData:
         return cliente is not None and cliente.activo
 
 
-__all__ = ["ClienteViaMasterData"]
+class ContactoViaMasterData:
+    """`PortContactoDeCliente`: nombre y WhatsApp del cliente, para el recordatorio (U5).
+
+    Un cliente inexistente, ajeno o sin WhatsApp se colapsan en `None`: para el recordatorio
+    significan lo mismo (no hay a quién escribirle).
+    """
+
+    def __init__(self, clientes: PortRepositorioCliente) -> None:
+        self._clientes = clientes
+
+    async def contacto_de(self, cliente_id: UUID) -> ContactoDeCobro | None:
+        cliente = await self._clientes.buscar_por_id(cliente_id)
+        if cliente is None or cliente.contacto_whatsapp is None:
+            return None
+        return ContactoDeCobro(nombre=cliente.nombre, telefono=str(cliente.contacto_whatsapp))
+
+
+__all__ = ["ClienteViaMasterData", "ContactoViaMasterData"]

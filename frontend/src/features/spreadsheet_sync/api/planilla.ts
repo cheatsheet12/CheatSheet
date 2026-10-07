@@ -258,6 +258,21 @@ export interface ErrorDeFila {
   /** El número de fila del archivo original (HU-E3-05 RN-02). */
   readonly numero_fila: number;
   readonly motivo: string;
+  /** Una persona la corrigió en el sistema. El error se conserva como historia. */
+  readonly corregida: boolean;
+}
+
+/** Un campo del sistema y el valor que la fila tiene en el archivo (puede estar vacío). */
+export interface CampoDeFila {
+  readonly atributo: string;
+  readonly valor: string;
+}
+
+/** Lo que el editor de una fila fallida necesita: por qué falló y qué contiene. */
+export interface FilaConError {
+  readonly numero_fila: number;
+  readonly motivo: string;
+  readonly campos: readonly CampoDeFila[];
 }
 
 export interface DetalleDeCarga {
@@ -319,6 +334,39 @@ export async function procesarPlanilla(vinculoId: string): Promise<void> {
   if (!respuesta.ok) {
     await fallar(respuesta);
   }
+}
+
+/** Los valores de una fila que falló, leídos del archivo y mapeados a campos del sistema. */
+export async function verFilaConError(cargaId: string, numeroFila: number): Promise<FilaConError> {
+  const respuesta = await fetch(`/api/planillas/cargas/${cargaId}/filas/${numeroFila}`, {
+    cache: "no-store",
+  });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as FilaConError;
+}
+
+/**
+ * Importa la fila con los valores corregidos y devuelve el detalle actualizado de la carga.
+ *
+ * Si el sistema la rechaza (un CUIT que sigue mal) levanta `ErrorDePlanilla` con el motivo,
+ * y no se cambió nada: el editor sigue abierto para corregirla de nuevo.
+ */
+export async function corregirFila(
+  cargaId: string,
+  numeroFila: number,
+  valores: Readonly<Record<string, string>>,
+): Promise<DetalleDeCarga> {
+  const respuesta = await fetch(`/api/planillas/cargas/${cargaId}/filas/${numeroFila}/correccion`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ valores }),
+  });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as DetalleDeCarga;
 }
 
 export async function reprocesarCarga(cargaId: string): Promise<void> {

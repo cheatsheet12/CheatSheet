@@ -1,3 +1,16 @@
+import {
+  ArrowLeft,
+  Headset,
+  Inbox,
+  MessageCircle,
+  MessagesSquare,
+  Search,
+  SendHorizontal,
+  Sparkles,
+  UserRound,
+  X,
+} from "lucide-react";
+
 /**
  * Los tres iconos que dibujan las pantallas del agente, transcriptos del prototipo
  * (`docs/aidlc/inputs/prototipos/agente-whatsapp.html`).
@@ -34,4 +47,52 @@ export function IconoDePregunta(): JSX.Element {
       <path d="M9.5 9.5a2.5 2.5 0 1 1 3.2 2.4c-.5.2-.7.6-.7 1.1v.5M12 16.5h.01" />
     </svg>
   );
+}
+
+/*
+ * Iconos de la bandeja y del hilo (rediseño de PAN-WA-01). Vienen de `lucide-react`, como los
+ * del resto del panel; el color sale de `currentColor` y el tamaño lo da el CSS del contenedor.
+ */
+
+const TRAZO = 2;
+
+export function IconoDeLupa(): JSX.Element {
+  return <Search aria-hidden="true" strokeWidth={TRAZO} />;
+}
+
+export function IconoDeLimpiar(): JSX.Element {
+  return <X aria-hidden="true" strokeWidth={TRAZO} />;
+}
+
+export function IconoDeBandeja(): JSX.Element {
+  return <Inbox aria-hidden="true" strokeWidth={1.7} />;
+}
+
+export function IconoDeBurbuja(): JSX.Element {
+  return <MessageCircle aria-hidden="true" strokeWidth={TRAZO} />;
+}
+
+export function IconoDeBurbujas(): JSX.Element {
+  return <MessagesSquare aria-hidden="true" strokeWidth={1.6} />;
+}
+
+/** El destello del agente: marca lo que escribió el sistema y no una persona. */
+export function IconoDeDestello(): JSX.Element {
+  return <Sparkles aria-hidden="true" strokeWidth={TRAZO} />;
+}
+
+export function IconoDeOperador(): JSX.Element {
+  return <Headset aria-hidden="true" strokeWidth={TRAZO} />;
+}
+
+export function IconoDeCliente(): JSX.Element {
+  return <UserRound aria-hidden="true" strokeWidth={TRAZO} />;
+}
+
+export function IconoDeVolver(): JSX.Element {
+  return <ArrowLeft aria-hidden="true" strokeWidth={TRAZO} />;
+}
+
+export function IconoDeEnviar(): JSX.Element {
+  return <SendHorizontal aria-hidden="true" strokeWidth={TRAZO} />;
 }

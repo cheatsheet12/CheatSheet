@@ -111,10 +111,10 @@ describe("PaginaDeCobros", () => {
     llamarApi.mockResolvedValue({ cobros: [], metricas: METRICAS });
 
     leerClaims.mockReturnValue(CLAIMS_OPERADOR);
-    expect(renderToString(await PaginaDeCobros())).toContain("Generar cobro");
+    expect(renderToString(await PaginaDeCobros())).toContain("Nuevo cobro");
 
     leerClaims.mockReturnValue(CLAIMS_LECTURA);
-    expect(renderToString(await PaginaDeCobros())).not.toContain("Generar cobro");
+    expect(renderToString(await PaginaDeCobros())).not.toContain("Nuevo cobro");
   });
 });
 

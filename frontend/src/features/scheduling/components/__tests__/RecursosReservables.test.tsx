@@ -41,6 +41,7 @@ vi.mock("@/features/scheduling/api/recurso", async () => {
 
 import { ErrorDeRecurso, MENSAJE_HORARIO_INVERTIDO } from "@/features/scheduling";
 import type { ListadoDeRecursos, Recurso, ServicioAgendable } from "@/features/scheduling";
+import { elegirFecha } from "@/shared/ui/__tests__/elegir-fecha";
 
 const { RecursosReservables } = await import(
   "@/features/scheduling/components/RecursosReservables"
@@ -109,12 +110,128 @@ describe("PAN-AGE-03", () => {
   it("lista nombre, tipo, servicios, horario y estado", () => {
     render(<RecursosReservables inicial={LISTADO} servicios={[CORTE]} puedeEditar />);
 
-    const tabla = within(screen.getByRole("table"));
-    expect(tabla.getByText("Consultorio 1")).toBeTruthy();
-    expect(tabla.getByText("Espacio")).toBeTruthy();
-    expect(tabla.getByText("Corte")).toBeTruthy();
-    expect(tabla.getByText("Martes 09:00 a 18:00")).toBeTruthy();
-    expect(tabla.getByText("Activo")).toBeTruthy();
+    expect(screen.getByText("Consultorio 1")).toBeTruthy();
+    expect(screen.getByText("Espacio")).toBeTruthy();
+    expect(screen.getByText("Corte")).toBeTruthy();
+    expect(screen.getByText("09:00–18:00")).toBeTruthy();
+    expect(screen.getByText("Activo")).toBeTruthy();
+    expect(screen.getByText("1 recurso")).toBeTruthy();
+  });
+
+  it("marca en la mini-semana solo los dias que el recurso atiende", () => {
+    const variado: Recurso = {
+      ...RECURSO,
+      patrones: [
+        { dia_semana: 0, hora_inicio: "09:00:00", hora_fin: "18:00:00", duracion_slot_min: 30 },
+        { dia_semana: 2, hora_inicio: "09:00:00", hora_fin: "18:00:00", duracion_slot_min: 30 },
+        { dia_semana: 5, hora_inicio: "10:00:00", hora_fin: "13:00:00", duracion_slot_min: 30 },
+      ],
+    };
+    render(
+      <RecursosReservables inicial={{ recursos: [variado] }} servicios={[CORTE]} puedeEditar />,
+    );
+
+    const semana = within(screen.getByRole("list", { name: "Días de atención" }));
+    const dias = semana.getAllByRole("listitem");
+    expect(dias.map((uno) => uno.className.includes("age-mini__dia--atiende"))).toEqual([
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+    ]);
+    expect(semana.getByText("Miércoles: atiende")).toBeTruthy();
+    expect(semana.getByText("Jueves: cerrado")).toBeTruthy();
+    // Con horarios distintos cada tramo dice a qué dias corresponde.
+    expect(screen.getByText("Lun, Mié")).toBeTruthy();
+    expect(screen.getByText("10:00–13:00")).toBeTruthy();
+  });
+
+  it("resume con +N los servicios que no entran en la tarjeta", () => {
+    const servicios: ServicioAgendable[] = ["A", "B", "C", "D", "E"].map((nombre) => ({
+      id: `s-${nombre}`,
+      nombre: `Servicio ${nombre}`,
+      duracion_estandar_min: 30,
+    }));
+    const muchos: Recurso = { ...RECURSO, servicios: servicios.map((uno) => uno.id) };
+    render(
+      <RecursosReservables inicial={{ recursos: [muchos] }} servicios={servicios} puedeEditar />,
+    );
+
+    expect(screen.getByText("Servicio A")).toBeTruthy();
+    expect(screen.getByText("Servicio C")).toBeTruthy();
+    expect(screen.queryByText("Servicio D")).toBeNull();
+    expect(screen.getByText("+2")).toBeTruthy();
+  });
+
+  it("dice «Sin excepciones» cuando no hay ninguna", () => {
+    render(
+      <RecursosReservables
+        inicial={{ recursos: [SIN_CONFIGURAR] }}
+        servicios={[CORTE]}
+        puedeEditar
+      />,
+    );
+    expect(screen.getByText("Sin excepciones")).toBeTruthy();
+  });
+
+  it("explica el vacio y ofrece agregar el primer recurso", () => {
+    render(<RecursosReservables inicial={{ recursos: [] }} servicios={[CORTE]} puedeEditar />);
+
+    expect(
+      screen.getByText("Sin al menos un recurso activo no se pueden reservar turnos."),
+    ).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Agregar recurso" }).length).toBe(2);
+  });
+
+  it("filtra por nombre y por estado, y permite limpiar", () => {
+    const inactivo: Recurso = { ...SIN_CONFIGURAR, activo: false };
+    render(
+      <RecursosReservables
+        inicial={{ recursos: [RECURSO, inactivo] }}
+        servicios={[CORTE]}
+        puedeEditar
+      />,
+    );
+    expect(screen.getByText("2 recursos")).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText("Buscar por nombre"), {
+      target: { value: "consultorio" },
+    });
+    expect(screen.getByText("1 recurso")).toBeTruthy();
+    expect(screen.queryByText("Sala nueva")).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText("Buscar por nombre"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Inactivos" }));
+    expect(screen.getByText("Sala nueva")).toBeTruthy();
+    expect(screen.queryByText("Consultorio 1")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Activos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Equipos" }));
+    expect(screen.getByText("Ningún recurso coincide")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+    expect(screen.getByText("2 recursos")).toBeTruthy();
+  });
+
+  it("ofrece Reactivar en el menu de un recurso inactivo", async () => {
+    cambiarEstadoDeRecurso.mockResolvedValue({ ...RECURSO, activo: true });
+    listarRecursos.mockResolvedValue(LISTADO);
+    render(
+      <RecursosReservables
+        inicial={{ recursos: [{ ...RECURSO, activo: false }] }}
+        servicios={[CORTE]}
+        puedeEditar
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Más acciones para Consultorio 1" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reactivar" }));
+
+    await waitFor(() => {
+      expect(cambiarEstadoDeRecurso).toHaveBeenCalledWith("r1", true);
+    });
   });
 
   it("dice cuando un recurso no tiene servicios ni horario", () => {
@@ -137,7 +254,8 @@ describe("PAN-AGE-03", () => {
     render(<RecursosReservables inicial={LISTADO} servicios={[CORTE]} puedeEditar />);
 
     expect(screen.queryByRole("button", { name: "Eliminar" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Más acciones para Consultorio 1" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Desactivar" }));
 
     await waitFor(() => {
       expect(cambiarEstadoDeRecurso).toHaveBeenCalledWith("r1", false);
@@ -246,9 +364,7 @@ describe("PAN-AGE-03", () => {
     render(<RecursosReservables inicial={LISTADO} servicios={[CORTE]} puedeEditar />);
     fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
 
-    fireEvent.change(screen.getByLabelText("Día sin atención"), {
-      target: { value: "2027-12-25" },
-    });
+    elegirFecha("Día sin atención", "2027-12-25");
     fireEvent.click(screen.getByRole("button", { name: "Bloquear el día" }));
 
     await waitFor(() => {

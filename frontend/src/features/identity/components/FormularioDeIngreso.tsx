@@ -18,10 +18,9 @@
 
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Casilla, Stepper } from "@/shared";
+import { Alert, Button, Campo, Casilla, Stepper, useAccionConNavegacion } from "@/shared";
 
 import { ErrorDeFormulario, ingresar, registrar } from "../api/cliente";
 import { PASOS_DEL_ONBOARDING } from "./pasos";
@@ -37,14 +36,13 @@ interface Errores {
 }
 
 export function FormularioDeIngreso(): JSX.Element {
-  const router = useRouter();
   const [modo, setModo] = useState<Modo>("ingresar");
   const [email, setEmail] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [nombre, setNombre] = useState("");
   const [acepta, setAcepta] = useState(false);
   const [errores, setErrores] = useState<Errores>({});
-  const [enviando, setEnviando] = useState(false);
+  const { pendiente: enviando, ejecutar } = useAccionConNavegacion();
 
   const registrando = modo === "registrarse";
 
@@ -67,13 +65,14 @@ export function FormularioDeIngreso(): JSX.Element {
       return;
     }
 
-    setEnviando(true);
     try {
-      const resultado = registrando
-        ? await registrar({ email, contrasena, nombre })
-        : await ingresar({ email, contrasena });
-      // RN-04: the dashboard stays closed until the onboarding is complete.
-      router.push(resultado.onboarding_completo ? "/panel" : "/onboarding/empresa");
+      await ejecutar(
+        () =>
+          registrando ? registrar({ email, contrasena, nombre }) : ingresar({ email, contrasena }),
+        // RN-04: the dashboard stays closed until the onboarding is complete.
+        (resultado, router) =>
+          router.push(resultado.onboarding_completo ? "/panel" : "/onboarding/empresa"),
+      );
     } catch (error) {
       setErrores({
         general:
@@ -81,8 +80,6 @@ export function FormularioDeIngreso(): JSX.Element {
             ? error.detalle
             : "No pudimos completar la operación. Probá de nuevo en unos minutos.",
       });
-    } finally {
-      setEnviando(false);
     }
   };
 

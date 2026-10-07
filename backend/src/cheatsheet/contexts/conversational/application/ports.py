@@ -10,9 +10,9 @@ hay por dónde: reservar es `PortAgenda.reservar`, que es el caso de uso determi
 por lo que un prompt injection en este sistema puede como mucho hacer que el agente conteste
 algo raro — no que agende, cobre o cancele.
 
-`PortAgenda` es el ACL contra `scheduling`. Cuatro operaciones, las cuatro que HU-E8-01 y
-HU-E8-02 necesitan, y ninguna más: `conversational` no ve el recurso, ni su patrón semanal, ni
-el estado del turno.
+`PortAgenda` es el ACL contra `scheduling`. Cinco operaciones, las que HU-E8-01 y HU-E8-02
+necesitan, y ninguna más: `conversational` no ve el recurso, ni su patrón semanal, ni el estado
+del turno.
 
 `PortTranscriptor` devuelve texto **y una calidad**. La calidad existe porque HS-T7 RN-04 pide
 derivar cuando la transcripción no alcanza: sin ese número, «no se entendió el audio» y «el
@@ -21,7 +21,7 @@ cliente dijo algo raro» serían indistinguibles.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Protocol
@@ -34,6 +34,11 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
 )
 from cheatsheet.contexts.conversational.domain.escalamiento import Escalamiento
 from cheatsheet.contexts.conversational.domain.faq import FAQ, CoincidenciaDeFAQ
+from cheatsheet.contexts.conversational.domain.fuera_de_horario import AtencionDelNegocio
+from cheatsheet.contexts.conversational.domain.pedido_de_turno import PedidoDeTurno
+from cheatsheet.contexts.conversational.domain.seleccion_de_horarios import HorarioOfrecible
+from cheatsheet.contexts.conversational.domain.uso_de_faq import ConteoDeUsos, UsoDeFAQ
+from cheatsheet.shared.zona_horaria import MesCalendario
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +55,10 @@ class Lectura:
     #: Lo que el modelo cree que el cliente quiere agendar, en texto libre y **sin efecto**.
     #: Lo lee un humano en el panel; ninguna decisión del sistema depende de esto.
     resumen: str = ""
+    #: Lo que el modelo extrajo de un pedido de turno: acción, días, franja, hora, servicio. Sigue
+    #: sin ser una acción ni una herramienta: orienta la búsqueda de horarios y nada más. Los ids
+    #: que se reservan o cancelan salen del `Dialogo` que armó el sistema, nunca de acá.
+    pedido_de_turno: PedidoDeTurno | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.confianza <= 1.0:
@@ -78,20 +87,17 @@ class TurnoDelCliente:
     id: UUID
     servicio: str
     inicio: datetime
+    #: Si el turno tiene una seña (HU-E6-07). Cancelarlo depende de una política que el sistema
+    #: todavía no tiene tipada (pendiente #6), así que el agente no lo cancela solo.
+    tiene_sena: bool = False
 
 
 @dataclass(frozen=True, slots=True)
-class HorarioOfrecible:
-    """Un horario que el agente puede ofrecer (HU-E8-01 RN-02).
+class ServicioOfrecible:
+    """Un servicio que el cliente puede pedir: agendable y con al menos un recurso activo."""
 
-    Sale de cruzar la disponibilidad del recurso con los turnos ya tomados, del lado de
-    `scheduling`. Que llegue acá ya filtrado es lo que hace que el agente **no pueda** ofrecer
-    un horario que no existe.
-    """
-
-    recurso_id: UUID
-    servicio_id: UUID
-    inicio: datetime
+    id: UUID
+    nombre: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,8 +129,12 @@ class PortRepositorioConversacion(Protocol):
 
     async def buscar_por_id(self, conversacion_id: UUID) -> Conversacion | None: ...
 
-    async def abierta_de(self, cliente_id: UUID) -> Conversacion | None:
-        """El hilo activo de ese cliente, si lo hay. Cómo un mensaje encuentra su conversación."""
+    async def abierta_de(self, cliente_id: UUID, *, bloquear: bool = False) -> Conversacion | None:
+        """El hilo activo de ese cliente, si lo hay. Cómo un mensaje encuentra su conversación.
+
+        Con `bloquear=True` toma la fila (`SELECT … FOR UPDATE`): dos mensajes casi simultáneos
+        del mismo cliente se procesan de a uno, y el segundo lee el diálogo ya consumido (T10).
+        """
         ...
 
     async def listar(self, *, solo_escaladas: bool = False) -> list[Conversacion]: ...
@@ -208,6 +218,27 @@ class PortRepositorioFAQ(Protocol):
     async def pendientes_de_indexar(self) -> list[FAQ]: ...
 
 
+class PortUsosDeFAQ(Protocol):
+    """Los usos de las FAQ: una fila inmutable por respuesta enviada (ADR-0012).
+
+    Es **solo de alta y consulta**: no hay `guardar` ni `eliminar`. Registrar un uso no toca la
+    fila de la FAQ, que es lo que impide que el agente pise una edición del administrador.
+    """
+
+    async def registrar(self, uso: UsoDeFAQ) -> None:
+        """Idempotente por `mensaje_id`: un mensaje es a lo sumo un uso."""
+        ...
+
+    async def conteos(self, mes: MesCalendario) -> dict[UUID, ConteoDeUsos]:
+        """Los conteos de **todas** las FAQ con usos, en una sola consulta."""
+        ...
+
+    async def contar(self, *, desde: datetime, hasta: datetime, faq_id: UUID | None) -> int:
+        """Usos en `[desde, hasta)`. `faq_id=None`: todas las respuestas con FAQ de la empresa,
+        incluidas las de FAQ ya borradas."""
+        ...
+
+
 class PortEmbeddings(Protocol):
     """Convierte texto en un vector. Un solo método, y una versión que lo identifica."""
 
@@ -240,6 +271,16 @@ class PortMensajeria(Protocol):
 
     async def enviar(self, *, telefono: str, texto: str) -> str: ...
 
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        """Manda una plantilla **aprobada** por Meta: lo único que se acepta fuera de las 24 h.
+
+        `parametros` va por nombre (`parameter_name`), y devuelve el id del mensaje igual que
+        `enviar`.
+        """
+        ...
+
 
 class PortDirectorio(Protocol):
     """ACL sobre `master_data`: quién es el número que escribió.
@@ -250,6 +291,14 @@ class PortDirectorio(Protocol):
     """
 
     async def cliente_de(self, telefono: str) -> tuple[UUID, str] | None: ...
+
+    async def telefono_de(self, cliente_id: UUID) -> str | None:
+        """El WhatsApp del cliente, o `None` si no existe o no tiene uno registrado.
+
+        Es lo que usa la respuesta del operador: el destino sale del cliente dueño del hilo,
+        nunca de lo que mande el request.
+        """
+        ...
 
     async def alta_rapida(self, *, telefono: str, nombre: str) -> UUID:
         """Crea el cliente mínimo para poder abrirle un hilo.
@@ -262,52 +311,71 @@ class PortDirectorio(Protocol):
 
 
 class PortAgenda(Protocol):
-    """ACL sobre `scheduling`. Cuatro operaciones y ninguna más.
+    """ACL sobre `scheduling`. Cinco operaciones y ninguna más.
 
     **Es la única puerta por la que el agente puede tocar la agenda**, y del otro lado están
     los casos de uso deterministas con su restricción de exclusión (decisión D28 del épico 7).
     Esa asimetría —el modelo propone, el motor dispone— es HU-E8-01 RN-03.
     """
 
-    async def horarios_ofrecibles(
-        self, *, dia: date, limite: int = 4
-    ) -> list[HorarioOfrecible]: ...
-
-    async def reservar(self, *, cliente_id: UUID, horario: HorarioOfrecible) -> UUID:
-        """Reserva de verdad, o levanta si la franja se tomó. **El motor determinista.**"""
+    async def servicios_ofrecibles(self) -> list[ServicioOfrecible]:
+        """Los servicios que se pueden reservar hoy: agendables y con un recurso activo."""
         ...
 
-    async def turnos_de(self, cliente_id: UUID) -> list[TurnoDelCliente]: ...
+    async def horarios_libres(self, *, servicio_id: UUID, dia: date) -> list[HorarioOfrecible]:
+        """**Todos** los inicios libres de ese día para ese servicio, en todos los recursos.
 
-    async def cancelar(self, turno_id: UUID) -> None: ...
+        No elige ni corta: elegir qué se ofrece es del dominio (`elegir_horarios`).
+        """
+        ...
+
+    async def reservar(self, *, cliente_id: UUID, horario: HorarioOfrecible) -> UUID:
+        """Reserva de verdad, o levanta si la franja se tomó. **El motor determinista.**
+
+        Levanta `HorarioNoDisponible` (se ocupó, está fuera de horario, el recurso ya no sirve)
+        o `HorarioEnElPasado`. Un rechazo revierte sólo este intento: lo que el agente hizo antes
+        y lo que escriba después sigue en pie (T9).
+        """
+        ...
+
+    async def turnos_de(self, cliente_id: UUID) -> list[TurnoDelCliente]:
+        """Los turnos futuros y abiertos del cliente."""
+        ...
+
+    async def cancelar(self, turno_id: UUID) -> None:
+        """Cancela. Levanta `TurnoNoCancelable` si ya no se puede (otro lo canceló antes)."""
+        ...
 
 
-class PortPlantillas(Protocol):
-    """ACL sobre `business_config` para los textos salientes (HU-E11-02).
+class PortHorarioDeAtencion(Protocol):
+    """ACL sobre `business_config`: lo único que este contexto sabe del horario de atención.
 
-    Devuelve `None` cuando no hay plantilla configurada para ese código, y el llamador usa su
-    texto por defecto. Es deliberado: un canal que se queda mudo porque falta una fila es peor
-    que uno que manda el texto de fábrica.
+    Responde **una pregunta ya resuelta** —¿está abierto?, ¿con qué política?, ¿cuándo abre?—
+    y no entrega ninguna regla ni franja: el cálculo es de `business_config`, escrito una vez,
+    y el modelo no participa. Sin horario configurado responde «abierto».
     """
 
-    async def resolver(self, codigo: str, variables: dict[str, str]) -> str | None: ...
+    async def consultar(self, ahora: datetime) -> AtencionDelNegocio: ...
 
 
 __all__ = [
+    "AtencionDelNegocio",
     "HorarioOfrecible",
     "Lectura",
     "MensajeEntrante",
     "PortAgenda",
     "PortDirectorio",
     "PortEmbeddings",
+    "PortHorarioDeAtencion",
     "PortInterprete",
     "PortMensajeria",
-    "PortPlantillas",
     "PortRepositorioConversacion",
     "PortRepositorioEscalamiento",
     "PortRepositorioFAQ",
     "PortRepositorioMensaje",
     "PortTranscriptor",
+    "PortUsosDeFAQ",
+    "ServicioOfrecible",
     "Transcripcion",
     "TurnoDelCliente",
 ]

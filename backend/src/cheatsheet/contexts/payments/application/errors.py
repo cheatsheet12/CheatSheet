@@ -13,7 +13,7 @@ reenvían explícitamente.
 
 from __future__ import annotations
 
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import EntradaInvalida, ErrorDeDominio, InvarianteViolada
 
 
 class CobroInexistente(EntradaInvalida):
@@ -31,6 +31,20 @@ class ClienteInexistente(EntradaInvalida):
 
 class ComprobanteDeOtroCliente(EntradaInvalida):
     """El comprobante pertenece a otro cliente: seria cobrar la deuda de otra persona."""
+
+
+class ClaveDeIdempotenciaReusada(EntradaInvalida):
+    """ADR-0013: la misma clave de pedido ya creo un cobro con **otros** datos.
+
+    Es un error del cliente, no un conflicto con el estado del negocio: por eso 422 y no 409.
+    """
+
+
+class PedidoEnCurso(InvarianteViolada):
+    """ADR-0013, respaldo: el indice unico de la clave salto pese al bloqueo consultivo.
+
+    Con el bloqueo no deberia pasar; si pasa, es un 409 con texto y nunca un 500.
+    """
 
 
 class CobroNoCancelable(InvarianteViolada):
@@ -75,6 +89,15 @@ class RecordatorioDuplicado(EntradaInvalida):
     """
 
 
+class DespachoNoPersistido(ErrorDeDominio):
+    """La base rechazó algo dentro del savepoint de un cobro del barrido (U5, H1).
+
+    Lo levanta el adaptador del aislamiento cuando un `SQLAlchemyError` sale del bloque. El
+    barrido lo registra y sigue con el cobro siguiente: sólo se deshacen las filas de **ese**
+    cobro. No lleva datos de la excepción original: puede traer valores de la fila.
+    """
+
+
 class WebhookNoAutentico(EntradaInvalida):
     """HS-T1 RN-01. Se registra y se descarta **con 200** (decisión D22).
 
@@ -84,13 +107,16 @@ class WebhookNoAutentico(EntradaInvalida):
 
 
 __all__ = [
+    "ClaveDeIdempotenciaReusada",
     "ClienteInexistente",
     "CobroInexistente",
     "CobroNoCancelable",
     "CobroNoReembolsable",
     "ComprobanteDeOtroCliente",
+    "DespachoNoPersistido",
     "MontoExcedeSaldo",
     "PasarelaNoDisponible",
+    "PedidoEnCurso",
     "RecordatorioDuplicado",
     "ReembolsoEnProceso",
     "ReembolsoNoCorregible",

@@ -19,20 +19,16 @@ from decimal import Decimal
 from typing import Any, TypeVar
 from uuid import UUID
 
-from sqlalchemy import Select, func, select, text
+from sqlalchemy import Select, String, cast, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
-from cheatsheet.contexts.payments.application.errors import RecordatorioDuplicado
+from cheatsheet.contexts.payments.application.errors import PedidoEnCurso, RecordatorioDuplicado
 from cheatsheet.contexts.payments.application.ports import FiltrosDeCobro, MetricasDeCobros
-from cheatsheet.contexts.payments.domain.cobro import (
-    Cobro,
-    EstadoCobro,
-    LinkDePago,
-    MedioDePago,
-)
+from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
+from cheatsheet.contexts.payments.infrastructure.mapeo_de_cobro import a_dominio, a_fila
 from cheatsheet.contexts.payments.infrastructure.models import (
     CobroORM,
     RecordatorioORM,
@@ -41,6 +37,14 @@ from cheatsheet.contexts.payments.infrastructure.models import (
 from cheatsheet.shared.empresa import EmpresaId
 
 CERO = Decimal("0.00")
+
+#: Primera clave de `pg_advisory_xact_lock(int4, int4)`: el espacio de las claves de pedido de un
+#: cobro (ASCII "CC" en los bytes altos). La segunda es `hashtext(empresa_id || ':' || clave)`.
+#: Un choque de hash solo hace esperar a dos claves distintas: no expone datos (ADR-0013).
+ESPACIO_CLAVE_DE_COBRO = 0x4343_0001
+#: El nombre del indice unico de la migracion 0034, para traducir solo ese `IntegrityError`.
+INDICE_CLAVE_DE_COBRO = "uq_cobro_clave_idempotencia"
+MENSAJE_PEDIDO_EN_CURSO = "Ese pedido ya se esta procesando. Intente nuevamente."
 
 #: Los tres estados de un cobro que se pagó, por bruto: un reembolso no deshace que se cobró.
 ESTADOS_PAGADOS = (
@@ -73,67 +77,6 @@ def en_periodo(
     return sentencia
 
 
-def _a_dominio(fila: CobroORM) -> Cobro:
-    link = (
-        LinkDePago(preference_id=fila.mp_preference_id, url=fila.mp_url_pago)
-        if fila.mp_preference_id is not None and fila.mp_url_pago is not None
-        else None
-    )
-    return Cobro(
-        id=fila.id,
-        empresa_id=EmpresaId(fila.empresa_id),
-        cliente_id=fila.cliente_id,
-        monto=fila.monto,
-        descripcion=fila.descripcion,
-        vence_el=fila.vence_el,
-        created_at=fila.created_at,
-        estado=EstadoCobro(fila.estado),
-        link=link,
-        mp_payment_id=fila.mp_payment_id,
-        comprobante_id=fila.comprobante_id,
-        turno_id=fila.turno_id,
-        fecha_pago=fila.fecha_pago,
-        fecha_pago_aproximada=fila.fecha_pago_aproximada,
-        medio_de_pago=MedioDePago(fila.medio_de_pago),
-        numero_de_operacion=fila.numero_de_operacion,
-        monto_reembolsado=fila.monto_reembolsado,
-        reembolso_solicitado_en=fila.reembolso_solicitado_en,
-        reembolso_solicitado_monto=fila.reembolso_solicitado_monto,
-        reembolso_clave_idempotencia=fila.reembolso_clave_idempotencia,
-        reembolso_mp_refund_id=fila.reembolso_mp_refund_id,
-        motivo_de_cancelacion=fila.motivo_de_cancelacion,
-        updated_at=fila.updated_at,
-    )
-
-
-def _a_fila(cobro: Cobro, fila: CobroORM) -> CobroORM:
-    fila.id = cobro.id
-    fila.empresa_id = cobro.empresa_id
-    fila.cliente_id = cobro.cliente_id
-    fila.comprobante_id = cobro.comprobante_id
-    fila.turno_id = cobro.turno_id
-    fila.monto = cobro.monto
-    fila.monto_reembolsado = cobro.monto_reembolsado
-    fila.descripcion = cobro.descripcion
-    fila.estado = cobro.estado.value
-    fila.mp_preference_id = cobro.link.preference_id if cobro.link else None
-    fila.mp_url_pago = cobro.link.url if cobro.link else None
-    fila.mp_payment_id = cobro.mp_payment_id
-    fila.vence_el = cobro.vence_el
-    fila.fecha_pago = cobro.fecha_pago
-    fila.fecha_pago_aproximada = cobro.fecha_pago_aproximada
-    fila.medio_de_pago = cobro.medio_de_pago.value
-    fila.numero_de_operacion = cobro.numero_de_operacion
-    fila.reembolso_solicitado_en = cobro.reembolso_solicitado_en
-    fila.reembolso_solicitado_monto = cobro.reembolso_solicitado_monto
-    fila.reembolso_clave_idempotencia = cobro.reembolso_clave_idempotencia
-    fila.reembolso_mp_refund_id = cobro.reembolso_mp_refund_id
-    fila.motivo_de_cancelacion = cobro.motivo_de_cancelacion
-    fila.created_at = cobro.created_at
-    fila.updated_at = cobro.updated_at or cobro.created_at
-    return fila
-
-
 class RepositorioCobroPostgres:
     """Cobros, sobre PostgreSQL."""
 
@@ -141,19 +84,52 @@ class RepositorioCobroPostgres:
         self._sesion = sesion
 
     async def agregar(self, cobro: Cobro) -> None:
-        self._sesion.add(_a_fila(cobro, CobroORM()))
-        await self._sesion.flush()
+        self._sesion.add(a_fila(cobro, CobroORM()))
+        try:
+            await self._sesion.flush()
+        except IntegrityError as exc:
+            # Respaldo del bloqueo consultivo: con el bloqueo, dos altas con la misma clave no
+            # compiten. Si el indice saltara igual, es un 409 con texto y no un 500. Solo ese
+            # indice, por nombre: cualquier otra violacion sigue siendo un error de verdad.
+            if INDICE_CLAVE_DE_COBRO not in str(exc.orig):
+                raise
+            raise PedidoEnCurso(MENSAJE_PEDIDO_EN_CURSO) from exc
+
+    async def buscar_por_clave_bloqueada(self, clave: UUID) -> Cobro | None:
+        """Toma el bloqueo consultivo de `(empresa, clave)` y recien despues lee (ADR-0013).
+
+        El bloqueo es transaccional: lo suelta la unidad de trabajo al terminar (commit o
+        rollback), igual que `tomar_con_familia_bloqueada`. Un segundo pedido con la misma clave
+        espera aca. Como la lectura es la primera de la sesion sobre esta clave, ve lo que el
+        primero dejo confirmado; `populate_existing` por si la sesion ya tuviera la fila.
+        """
+        empresa = func.current_setting("app.current_empresa", True)
+        await self._sesion.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    ESPACIO_CLAVE_DE_COBRO,
+                    func.hashtext(func.concat(empresa, ":", cast(str(clave), String))),
+                )
+            )
+        )
+        sentencia = (
+            select(CobroORM)
+            .where(CobroORM.clave_idempotencia == clave)
+            .execution_options(populate_existing=True)
+        )
+        fila = (await self._sesion.execute(sentencia)).scalar_one_or_none()
+        return a_dominio(fila) if fila is not None else None
 
     async def guardar(self, cobro: Cobro) -> None:
         fila = await self._sesion.get(CobroORM, cobro.id)
         if fila is None:
             raise LookupError(f"El cobro {cobro.id} no existe para esta empresa")
-        _a_fila(cobro, fila)
+        a_fila(cobro, fila)
         await self._sesion.flush()
 
     async def buscar_por_id(self, cobro_id: UUID) -> Cobro | None:
         fila = await self._sesion.get(CobroORM, cobro_id)
-        return _a_dominio(fila) if fila is not None else None
+        return a_dominio(fila) if fila is not None else None
 
     async def buscar_para_actualizar(self, cobro_id: UUID) -> Cobro | None:
         """`SELECT ... FOR UPDATE`: el segundo que llega espera y ve el acumulado nuevo.
@@ -169,7 +145,7 @@ class RepositorioCobroPostgres:
             .execution_options(populate_existing=True)
         )
         fila = (await self._sesion.execute(sentencia)).scalar_one_or_none()
-        return _a_dominio(fila) if fila is not None else None
+        return a_dominio(fila) if fila is not None else None
 
     async def buscar_por_payment_id(self, payment_id: str) -> Cobro | None:
         """La primera linea de la idempotencia del webhook (D20).
@@ -179,12 +155,12 @@ class RepositorioCobroPostgres:
         """
         sentencia = select(CobroORM).where(CobroORM.mp_payment_id == payment_id)
         fila = (await self._sesion.execute(sentencia)).scalar_one_or_none()
-        return _a_dominio(fila) if fila is not None else None
+        return a_dominio(fila) if fila is not None else None
 
     async def buscar_por_preference_id(self, preference_id: str) -> Cobro | None:
         sentencia = select(CobroORM).where(CobroORM.mp_preference_id == preference_id)
         fila = (await self._sesion.execute(sentencia)).scalar_one_or_none()
-        return _a_dominio(fila) if fila is not None else None
+        return a_dominio(fila) if fila is not None else None
 
     async def listar(self, filtros: FiltrosDeCobro) -> list[Cobro]:
         sentencia = self._con_filtros(select(CobroORM), filtros)
@@ -192,7 +168,7 @@ class RepositorioCobroPostgres:
         # revisa la mora quiere ver arriba.
         sentencia = sentencia.order_by(CobroORM.vence_el.asc(), CobroORM.created_at.asc())
         filas = (await self._sesion.execute(sentencia)).scalars().all()
-        return [_a_dominio(fila) for fila in filas]
+        return [a_dominio(fila) for fila in filas]
 
     async def metricas(self, filtros: FiltrosDeCobro) -> MetricasDeCobros:
         """Las dos bases del encabezado, sumadas **en la base** y en `Decimal` (D91, ADR-0010).
@@ -245,7 +221,7 @@ class RepositorioCobroPostgres:
             .order_by(CobroORM.created_at)
         )
         filas = (await self._sesion.execute(sentencia)).scalars().all()
-        return [_a_dominio(fila) for fila in filas]
+        return [a_dominio(fila) for fila in filas]
 
     async def abiertos_vencidos_a(self, ahora: datetime) -> list[Cobro]:
         sentencia = (
@@ -255,7 +231,7 @@ class RepositorioCobroPostgres:
             .order_by(CobroORM.vence_el)
         )
         filas = (await self._sesion.execute(sentencia)).scalars().all()
-        return [_a_dominio(fila) for fila in filas]
+        return [a_dominio(fila) for fila in filas]
 
     async def abiertos(self) -> list[Cobro]:
         sentencia = (
@@ -264,7 +240,7 @@ class RepositorioCobroPostgres:
             .order_by(CobroORM.vence_el)
         )
         filas = (await self._sesion.execute(sentencia)).scalars().all()
-        return [_a_dominio(fila) for fila in filas]
+        return [a_dominio(fila) for fila in filas]
 
     @staticmethod
     def _con_filtros(sentencia: _Sentencia, filtros: FiltrosDeCobro) -> _Sentencia:
@@ -283,20 +259,27 @@ class RepositorioRecordatoriosPostgres:
         self._sesion = sesion
 
     async def agregar(self, recordatorio: Recordatorio) -> None:
-        self._sesion.add(
-            RecordatorioORM(
-                id=recordatorio.id,
-                cobro_id=recordatorio.cobro_id,
-                paso=recordatorio.paso,
-                canal=recordatorio.canal,
-                enviado_en=recordatorio.enviado_en,
-                estado_entrega=(
-                    recordatorio.estado_entrega.value if recordatorio.estado_entrega else None
-                ),
-            )
-        )
+        # **El `flush` va en su propio savepoint** (U5, H1b). En PostgreSQL un `IntegrityError`
+        # aborta la transacción entera: sin el savepoint, atrapar el duplicado dejaba la sesión
+        # inservible y el «no es un error, seguí» del barrido tiraba a todos los cobros que
+        # venían después. Con él, sólo se deshace este `INSERT`.
         try:
-            await self._sesion.flush()
+            async with self._sesion.begin_nested():
+                self._sesion.add(
+                    RecordatorioORM(
+                        id=recordatorio.id,
+                        cobro_id=recordatorio.cobro_id,
+                        paso=recordatorio.paso,
+                        canal=recordatorio.canal,
+                        enviado_en=recordatorio.enviado_en,
+                        estado_entrega=(
+                            recordatorio.estado_entrega.value
+                            if recordatorio.estado_entrega
+                            else None
+                        ),
+                    )
+                )
+                await self._sesion.flush()
         except IntegrityError as exc:
             # El indice unico `(cobro_id, paso)`, no una lectura previa: un «existe? -> no ->
             # insertá» pierde contra dos barridos solapados, que es exactamente el caso que

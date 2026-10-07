@@ -34,8 +34,10 @@ from cheatsheet.contexts.integrations.domain.valores import (
 )
 from cheatsheet.contexts.integrations.infrastructure.mercadopago.mapeo import (
     CLAVE_CUENTA_REAL,
+    ETIQUETA_DE_PRUEBA,
     desempaquetar,
     empaquetar,
+    es_cuenta_real,
     estado_por_ambiente,
     leer_tokens,
     parametros_de,
@@ -94,19 +96,18 @@ class MercadoPagoSimulado:
                 "Volve a iniciar la conexion."
             )
 
-        cuenta_real = codigo == CODIGO_CUENTA_REAL
         tokens = leer_tokens(
-            self._respuesta_de_token(cuenta_real=cuenta_real, revocable=codigo == CODIGO_REVOCABLE),
-            self._reloj.ahora(),
+            self._respuesta_de_token(revocable=codigo == CODIGO_REVOCABLE), self._reloj.ahora()
         )
-        estado, detalle = estado_por_ambiente(tokens.cuenta_real, self._es_produccion)
+        cuenta = self._cuenta(real=codigo == CODIGO_CUENTA_REAL)
+        estado, detalle = estado_por_ambiente(es_cuenta_real(cuenta), self._es_produccion)
         if estado is EstadoDeConexion.NO_CONECTADO:
             raise ConexionRechazada(detalle or "La cuenta de MercadoPago no corresponde")
         return ResultadoDeConexion(
             credencial=empaquetar(tokens.acceso, tokens.refresco),
             estado=estado,
             detalle=detalle,
-            parametros=parametros_de(tokens, self._cuenta()),
+            parametros=parametros_de(tokens, cuenta),
         )
 
     async def verificar(
@@ -118,7 +119,9 @@ class MercadoPagoSimulado:
         )
         if estado is EstadoDeConexion.NO_CONECTADO:
             estado = EstadoDeConexion.ATENCION
-        return ResultadoDeVerificacion(estado, detalle, parametros_de_cuenta(self._cuenta()))
+        return ResultadoDeVerificacion(
+            estado, detalle, parametros_de_cuenta(self._cuenta(real=False))
+        )
 
     async def renovar(self, credencial: bytes) -> ResultadoDeConexion:
         _, refresco = desempaquetar(credencial)
@@ -127,15 +130,13 @@ class MercadoPagoSimulado:
                 "MercadoPago rechazo la renovacion: el acceso fue revocado desde la cuenta. "
                 "Volve a conectarla."
             )
-        tokens = leer_tokens(
-            self._respuesta_de_token(cuenta_real=False, revocable=False), self._reloj.ahora()
-        )
+        tokens = leer_tokens(self._respuesta_de_token(revocable=False), self._reloj.ahora())
         return ResultadoDeConexion(
             credencial=empaquetar(tokens.acceso, tokens.refresco),
             parametros=parametros_de(tokens),
         )
 
-    def _respuesta_de_token(self, *, cuenta_real: bool, revocable: bool) -> dict[str, Any]:
+    def _respuesta_de_token(self, *, revocable: bool) -> dict[str, Any]:
         """The payload MercadoPago would answer, shaped exactly like the real one.
 
         Fabricated and then read back through the real `leer_tokens`, so the translation
@@ -147,15 +148,18 @@ class MercadoPagoSimulado:
             "refresh_token": f"{PREFIJO_SIMULADO}-refresco-{sufijo}",
             "expires_in": DURACION_SEGUNDOS,
             "user_id": 123456789,
-            "live_mode": cuenta_real,
+            # Always true, as MercadoPago answers for test accounts too: the account kind is
+            # on `/users/me`, which is where the real adapter reads it.
+            "live_mode": True,
             "scope": "offline_access read write",
         }
 
-    def _cuenta(self) -> dict[str, Any]:
+    def _cuenta(self, *, real: bool) -> dict[str, Any]:
         """What `/users/me` would answer. Fake data only — no real seller exists here."""
         return {
             "id": 123456789,
             "nickname": "VENDEDOR-SIMULADO",
             "email": "vendedor.simulado@example.invalid",
             "site_id": "MLA",
+            "tags": ["normal"] if real else [ETIQUETA_DE_PRUEBA, "normal"],
         }

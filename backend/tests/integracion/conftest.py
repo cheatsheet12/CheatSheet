@@ -106,7 +106,9 @@ BORRADOS = (
     "DELETE FROM reporte",
     "DELETE FROM configuracion_de_paquete",
     # `mensaje` y `escalamiento` antes que `conversacion`, y `conversacion` antes que
-    # `cliente`: el orden va de la hoja a la raiz, como el resto de la lista.
+    # `cliente`: el orden va de la hoja a la raiz, como el resto de la lista. `faq_uso`
+    # apunta a `mensaje` sin cascada (un uso no desaparece con su mensaje), así que va antes.
+    "DELETE FROM faq_uso",
     "DELETE FROM mensaje",
     "DELETE FROM escalamiento",
     "DELETE FROM conversacion",

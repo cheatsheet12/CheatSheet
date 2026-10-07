@@ -6,40 +6,40 @@
  * los agrega cuando alguien los toca — un `desde`/`hasta` puesto acá con la fecha del
  * navegador podría no coincidir con el día que el local está atendiendo.
  *
+ * **Tres vistas sobre los mismos datos.** Lista (turnos agrupados por día), Semana y Día (una
+ * grilla de tiempo). Las de calendario piden a la API con los mismos parámetros `desde`/`hasta`
+ * que el filtro de fechas, derivados del período que se mira; la Lista conserva exactamente los
+ * filtros que se eligieron.
+ *
  * **«Reprogramado» no aparece en ningún lado**, y es a propósito (RN-02): un turno movido se ve
  * en su franja nueva con el estado que tenía. Que se movió lo dice la bitácora.
  *
  * **El encabezado vive acá y no en `page.tsx`.** El CTA verde forma parte del encabezado —es lo
  * único que se hace desde esta pantalla— y quién puede verlo depende del rol, que es un dato
- * que este componente ya tiene. Partir el bloque en dos archivos para que el título esté en uno
- * y su botón en el otro deja dos lugares donde desalinear el mismo renglón.
+ * que este componente ya tiene.
  *
  * **Los nombres del cliente y del servicio son opcionales.** Un `Turno` viaja con ids; los
- * nombres los resuelve la página del servidor. Cuando no llegan —porque el cliente quedó fuera
- * de la página que el catálogo devolvió— se muestra el id, que es feo pero es cierto: una celda
- * vacía haría pensar que el turno está mal cargado.
+ * nombres los resuelve la página del servidor. Cuando no llegan se muestra el id, que es feo
+ * pero es cierto: una celda vacía haría pensar que el turno está mal cargado.
  */
 
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Alert, Badge, Campo, Select, Tabla, formatearFecha } from "@/shared";
-import type { Columna } from "@/shared";
+import { Alert } from "@/shared";
 
-import {
-  ETIQUETAS_DE_ESTADO,
-  ErrorDeTurno,
-  MENSAJE_SIN_TURNOS,
-  fechaLargaDe,
-  horaDe,
-  listarTurnos,
-  tonoDeEstado,
-} from "../api/turno";
-import type { FiltrosDeAgenda, ListadoDeTurnos, Nombrado, Turno } from "../api/turno";
+import { ErrorDeTurno, MENSAJE_SIN_TURNOS, fechaLargaDe, listarTurnos } from "../api/turno";
+import type { FiltrosDeAgenda, ListadoDeTurnos, Nombrado } from "../api/turno";
 import type { Recurso } from "../api/recurso";
-import { IconoDeMas } from "./iconos";
+import { BarraDeAgenda } from "./BarraDeAgenda";
+import { CalendarioDeTurnos } from "./CalendarioDeTurnos";
+import { IconoDeCalendario, IconoDeMas, IconoDeRecurso } from "./iconos";
+import { ListaDeTurnos } from "./ListaDeTurnos";
+import { diaDe, rangoDeVista, sumarDias } from "./calendario";
+import type { VistaDeAgenda } from "./calendario";
+import type { NombresDeAgenda } from "./nombres";
 
 export interface PropsDeAgendaDelDia {
   readonly inicial: ListadoDeTurnos;
@@ -60,21 +60,32 @@ export interface PropsDeAgendaDelDia {
   readonly hoy?: string;
 }
 
-/**
- * Los cinco estados del enum, con la etiqueta que la historia les da.
- *
- * El valor que viaja es el del dominio: mandar «No se presentó» al backend obligaría a
- * traducir del otro lado, que es el seam donde una traducción mal hecha devuelve la lista
- * entera.
- */
-const ESTADOS: readonly { valor: string; etiqueta: string }[] = [
-  { valor: "", etiqueta: "Todos los estados" },
-  { valor: "RESERVADO", etiqueta: "Reservado" },
-  { valor: "CONFIRMADO", etiqueta: "Confirmado" },
-  { valor: "COMPLETADO", etiqueta: "Completado" },
-  { valor: "NO_SHOW", etiqueta: "No se presentó" },
-  { valor: "CANCELADO", etiqueta: "Cancelado" },
-];
+/** En un celular una grilla de siete columnas no se lee: las vistas de calendario pasan a lista. */
+const CONSULTA_DE_CELULAR = "(max-width: 720px)";
+
+function useEsCelular(): boolean {
+  const [celular, setCelular] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+    const consulta = window.matchMedia(CONSULTA_DE_CELULAR);
+    const actualizar = (): void => setCelular(consulta.matches);
+    actualizar();
+    consulta.addEventListener("change", actualizar);
+    return () => consulta.removeEventListener("change", actualizar);
+  }, []);
+  return celular;
+}
+
+/** Los parámetros del pedido: los filtros tal cual en la Lista; con el período en el calendario. */
+function parametrosDe(
+  vista: VistaDeAgenda,
+  ancla: string,
+  filtros: FiltrosDeAgenda,
+): FiltrosDeAgenda {
+  return vista === "lista" ? filtros : { ...filtros, ...rangoDeVista(vista, ancla) };
+}
 
 export function AgendaDelDia({
   inicial,
@@ -84,122 +95,134 @@ export function AgendaDelDia({
   servicios = [],
   hoy,
 }: PropsDeAgendaDelDia): JSX.Element {
+  // El instante «ahora»: el del servidor al principio y el del navegador cada minuto.
+  const [ahora, setAhora] = useState(() => hoy ?? new Date().toISOString());
   const [listado, setListado] = useState<ListadoDeTurnos>(inicial);
   const [filtros, setFiltros] = useState<FiltrosDeAgenda>({});
+  const [vista, setVista] = useState<VistaDeAgenda>("lista");
+  const [ancla, setAncla] = useState(() => diaDe(hoy ?? new Date().toISOString()));
+  const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pedidos = useRef(0);
+  const celular = useEsCelular();
 
-  const nombres = new Map(recursos.map((uno) => [uno.id, uno.nombre]));
-  const nombresDeCliente = new Map(clientes.map((uno) => [uno.id, uno.nombre]));
-  const nombresDeServicio = new Map(servicios.map((uno) => [uno.id, uno.nombre]));
+  useEffect(() => {
+    const reloj = setInterval(() => setAhora(new Date().toISOString()), 60_000);
+    return () => clearInterval(reloj);
+  }, []);
+
+  const hoyDia = diaDe(ahora);
+  const nombres = useMemo<NombresDeAgenda>(() => {
+    const deRecurso = new Map(recursos.map((uno) => [uno.id, uno.nombre]));
+    const deCliente = new Map(clientes.map((uno) => [uno.id, uno.nombre]));
+    const deServicio = new Map(servicios.map((uno) => [uno.id, uno.nombre]));
+    return {
+      cliente: (id) => deCliente.get(id) ?? id,
+      servicio: (id) => deServicio.get(id) ?? id,
+      // El nombre y no el id: un id en una agenda no le dice nada a quien la mira. Si el
+      // recurso no está en la lista —porque se desactivó—, el id es mejor que nada.
+      recurso: (id) => deRecurso.get(id) ?? id,
+    };
+  }, [recursos, clientes, servicios]);
+
   const cantidad = listado.turnos.length;
+  const hayFiltros =
+    Boolean(filtros.recurso_id) ||
+    Boolean(filtros.estado) ||
+    Boolean(filtros.desde) ||
+    Boolean(filtros.hasta);
+  const enCalendario = vista !== "lista" && !celular;
 
-  async function aplicar(cambios: FiltrosDeAgenda): Promise<void> {
-    const siguientes = { ...filtros, ...cambios };
-    setFiltros(siguientes);
+  async function cargar(
+    siguienteVista: VistaDeAgenda,
+    siguienteAncla: string,
+    siguientesFiltros: FiltrosDeAgenda,
+  ): Promise<void> {
+    const numero = pedidos.current + 1;
+    pedidos.current = numero;
     setError(null);
+    setCargando(true);
     try {
-      setListado(await listarTurnos(siguientes));
+      const respuesta = await listarTurnos(
+        parametrosDe(siguienteVista, siguienteAncla, siguientesFiltros),
+      );
+      // Si mientras tanto se pidió otra cosa, esta respuesta ya no es la que se está mirando.
+      if (pedidos.current === numero) {
+        setListado(respuesta);
+      }
     } catch (fallo) {
-      setError(fallo instanceof ErrorDeTurno ? fallo.message : "No se pudo actualizar la agenda.");
+      if (pedidos.current === numero) {
+        setError(
+          fallo instanceof ErrorDeTurno ? fallo.message : "No se pudo actualizar la agenda.",
+        );
+      }
+    } finally {
+      if (pedidos.current === numero) {
+        setCargando(false);
+      }
     }
   }
 
-  const columnas: readonly Columna<Turno>[] = [
-    {
-      clave: "hora",
-      titulo: "Hora",
-      // Monoespaciada y con cifras de ancho fijo: una agenda se lee bajando por la columna
-      // de horas, y con tipografía proporcional los dos puntos de cada fila caen en un
-      // lugar distinto.
-      celda: (fila) => (
-        <span className="age-hora">
-          <b>{horaDe(fila.inicio)}</b>
-          <span>hasta {horaDe(fila.fin)}</span>
-        </span>
-      ),
-    },
-    {
-      clave: "fecha",
-      titulo: "Fecha",
-      celda: (fila) => <span className="age-fecha">{formatearFecha(fila.inicio)}</span>,
-    },
-    {
-      clave: "cliente",
-      titulo: "Cliente",
-      // El nombre es también el enlace al turno: es lo que alguien busca en la fila cuando
-      // atiende el teléfono, y por lo tanto lo que va a intentar apretar.
-      celda: (fila) => (
-        <Link className="age-quien" href={`/agenda/${fila.id}`}>
-          {nombresDeCliente.get(fila.cliente_id) ?? fila.cliente_id}
-        </Link>
-      ),
-    },
-    {
-      clave: "servicio",
-      titulo: "Servicio",
-      celda: (fila) => (
-        <span className="age-dato">
-          {nombresDeServicio.get(fila.servicio_id) ?? fila.servicio_id}
-        </span>
-      ),
-    },
-    {
-      clave: "recurso",
-      titulo: "Recurso",
-      // El nombre y no el id: un id en una agenda no le dice nada a quien la mira. Si el
-      // recurso no está en la lista —porque se desactivó y el filtro pide sólo activos—, el
-      // id es mejor que una celda vacía.
-      celda: (fila) => (
-        <span className="age-dato age-dato--tenue">
-          {nombres.get(fila.recurso_id) ?? fila.recurso_id}
-        </span>
-      ),
-    },
-    {
-      clave: "estado",
-      titulo: "Estado",
-      celda: (fila) => (
-        <Badge estado={tonoDeEstado(fila.estado)}>{ETIQUETAS_DE_ESTADO[fila.estado]}</Badge>
-      ),
-    },
-    {
-      clave: "ver",
-      titulo: "",
-      alDerecha: true,
-      celda: (fila) => (
-        // El chevron con nombre accesible: un enlace cuyo único contenido es «›» se anuncia
-        // como «enlace, ›», que no dice a dónde va.
-        <Link className="age-ver" href={`/agenda/${fila.id}`}>
-          <span className="solo-lectores">Ver el turno de las {horaDe(fila.inicio)}</span>
-          <span aria-hidden="true">›</span>
-        </Link>
-      ),
-    },
-  ];
+  function aplicar(cambios: FiltrosDeAgenda): void {
+    const siguientes = { ...filtros, ...cambios };
+    setFiltros(siguientes);
+    void cargar(vista, ancla, siguientes);
+  }
+
+  function limpiar(): void {
+    setFiltros({});
+    void cargar(vista, ancla, {});
+  }
+
+  function elegirVista(siguiente: VistaDeAgenda): void {
+    if (siguiente === vista) {
+      return;
+    }
+    setVista(siguiente);
+    void cargar(siguiente, ancla, filtros);
+  }
+
+  function mover(sentido: -1 | 1): void {
+    if (vista === "lista") {
+      return;
+    }
+    const siguiente = sumarDias(ancla, sentido * (vista === "semana" ? 7 : 1));
+    setAncla(siguiente);
+    void cargar(vista, siguiente, filtros);
+  }
+
+  function irAHoy(): void {
+    setAncla(hoyDia);
+    void cargar(vista, hoyDia, filtros);
+  }
 
   return (
     <div className="age-pantalla">
       <div className="age-encabezado">
         <div>
-          <p className="age-encabezado__eyebrow">
-            Operaciones · {fechaLargaDe(hoy ?? new Date().toISOString())}
-          </p>
+          <p className="age-encabezado__eyebrow">Operaciones · {fechaLargaDe(ahora)}</p>
           <h1 className="age-encabezado__titulo">Agenda</h1>
           <p className="age-encabezado__intro">
-            Los turnos del día en curso. Cambiá el rango o el recurso para ver otra cosa; un turno
-            reprogramado aparece en su franja nueva conservando su estado.
+            Los turnos de tu negocio, por día, por semana o por recurso. Un turno reprogramado
+            aparece en su franja nueva y conserva su estado.
           </p>
         </div>
-        {puedeGestionar && (
-          <div className="age-encabezado__acciones">
-            <Link className="age-cta" href="/agenda/nuevo">
-              <span aria-hidden="true" className="age-cta__icono">
+        <div className="age-encabezado__acciones">
+          <Link className="age-secundario" href="/agenda/recursos">
+            <span className="age-secundario__ico" aria-hidden="true">
+              <IconoDeRecurso />
+            </span>
+            Recursos
+          </Link>
+          {puedeGestionar && (
+            <Link className="age-principal" href="/agenda/nuevo">
+              <span className="age-principal__ico" aria-hidden="true">
                 <IconoDeMas />
               </span>
               Nuevo turno
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {error !== null && (
@@ -208,59 +231,102 @@ export function AgendaDelDia({
         </Alert>
       )}
 
-      <div className="age-filtros">
-        <Select
-          id="agenda-recurso"
-          etiqueta="Recurso"
-          opciones={[
-            { valor: "", etiqueta: "Todos los recursos" },
-            ...recursos.map((uno) => ({ valor: uno.id, etiqueta: uno.nombre })),
-          ]}
-          value={filtros.recurso_id ?? ""}
-          onChange={(evento) => void aplicar({ recurso_id: evento.target.value })}
-        />
-        <Campo
-          id="agenda-desde"
-          etiqueta="Desde"
-          type="date"
-          value={filtros.desde ?? ""}
-          onChange={(evento) => void aplicar({ desde: evento.target.value })}
-        />
-        <Campo
-          id="agenda-hasta"
-          etiqueta="Hasta"
-          type="date"
-          value={filtros.hasta ?? ""}
-          onChange={(evento) => void aplicar({ hasta: evento.target.value })}
-        />
-        <Select
-          id="agenda-estado"
-          etiqueta="Estado"
-          opciones={ESTADOS}
-          value={filtros.estado ?? ""}
-          onChange={(evento) => void aplicar({ estado: evento.target.value })}
-        />
-      </div>
+      <BarraDeAgenda
+        vista={vista}
+        ancla={ancla}
+        filtros={filtros}
+        recursos={recursos}
+        total={cantidad}
+        onVista={elegirVista}
+        onMover={mover}
+        onHoy={irAHoy}
+        onFiltros={aplicar}
+        onLimpiar={limpiar}
+      />
 
-      <p className="age-cuenta">
-        {cantidad} {cantidad === 1 ? "turno" : "turnos"}
-      </p>
-
-      {cantidad === 0 ? (
-        // Corto y en una línea. La caja punteada de media pantalla que había antes decía lo
-        // mismo y se leía como una carga que falló.
-        <p className="age-vacio">{MENSAJE_SIN_TURNOS}</p>
-      ) : (
-        <div className="age-lista">
-          <Tabla
-            titulo="Turnos"
-            columnas={columnas}
-            filas={listado.turnos}
-            claveDeFila={(fila) => fila.id}
-            vacia={MENSAJE_SIN_TURNOS}
+      <div
+        className="age-contenido"
+        aria-busy={cargando}
+        data-cargando={cargando ? "true" : undefined}
+        key={`${enCalendario ? vista : "lista"}-${ancla}`}
+      >
+        {enCalendario && (
+          <>
+            {cantidad === 0 && !cargando && (
+              <VacioDeAgenda
+                compacto
+                filtrado={hayFiltros}
+                puedeGestionar={puedeGestionar}
+                onLimpiar={limpiar}
+              />
+            )}
+            <CalendarioDeTurnos
+              vista={vista === "dia" ? "dia" : "semana"}
+              ancla={ancla}
+              hoy={hoyDia}
+              ahora={ahora}
+              turnos={listado.turnos}
+              recursos={recursos}
+              nombres={nombres}
+            />
+          </>
+        )}
+        {!enCalendario && cantidad > 0 && (
+          <ListaDeTurnos turnos={listado.turnos} hoy={hoyDia} nombres={nombres} />
+        )}
+        {!enCalendario && cantidad === 0 && (
+          <VacioDeAgenda
+            filtrado={hayFiltros}
+            puedeGestionar={puedeGestionar}
+            onLimpiar={limpiar}
           />
-        </div>
-      )}
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * El día sin turnos: un día normal, no un error. Con filtros puestos la causa más probable es
+ * el filtro, así que ofrece sacarlo; sin filtros ofrece lo único que se hace desde acá.
+ */
+function VacioDeAgenda({
+  filtrado,
+  puedeGestionar,
+  compacto = false,
+  onLimpiar,
+}: {
+  readonly filtrado: boolean;
+  readonly puedeGestionar: boolean;
+  readonly compacto?: boolean;
+  readonly onLimpiar: () => void;
+}): JSX.Element {
+  return (
+    <div className="age-sinturnos" data-compacto={compacto ? "true" : undefined}>
+      <span className="age-sinturnos__icono" aria-hidden="true">
+        <IconoDeCalendario />
+      </span>
+      <div className="age-sinturnos__cuerpo">
+        <p className="age-sinturnos__titulo">
+          {filtrado ? "Ningún turno coincide con los filtros" : MENSAJE_SIN_TURNOS}
+        </p>
+        {filtrado && <p className="age-sinturnos__texto">{MENSAJE_SIN_TURNOS}</p>}
+      </div>
+      <div className="age-sinturnos__acciones">
+        {filtrado && (
+          <button type="button" className="age-sinturnos__accion" onClick={onLimpiar}>
+            Limpiar filtros
+          </button>
+        )}
+        {puedeGestionar && (
+          <Link
+            className="age-sinturnos__accion age-sinturnos__accion--primaria"
+            href="/agenda/nuevo"
+          >
+            Nuevo turno
+          </Link>
+        )}
+      </div>
     </div>
   );
 }

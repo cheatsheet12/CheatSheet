@@ -42,7 +42,8 @@ export interface OpcionesDeLlamada {
   /** Off by default: a panel showing invoices must not serve a cached page. */
   readonly cache?: RequestCache;
   /**
-   * Cabeceras extra para el backend. Existe por un solo caso y conviene que siga así: el
+   * Cabeceras extra para el backend. Existe por pocos casos y conviene que siga así (el
+   * `X-Idempotency-Key` de un pedido con efecto externo, ADR-0013, es el segundo): el
    * `state` del ida y vuelta con Google viaja en una cookie que el backend vuelve a
    * verificar, y el BFF es el único que la ve. Sin esto, ese guarda no se puede satisfacer
    * desde el panel — que es el único camino, porque el navegador nunca habla con la API.
@@ -58,6 +59,15 @@ function urlDelBackend(): string {
   return base.replace(/\/$/, "");
 }
 
+/**
+ * Call the backend and return the JSON body as `T`.
+ *
+ * A successful response with **no body** — a `204 No Content`, which is what every DELETE
+ * of the API answers — resolves to `undefined`, not to an error. Whoever calls a 204
+ * endpoint declares `T` as `unknown` or `undefined`: the `undefined as T` is the same
+ * contract assertion the `as T` on the parsed JSON already is. A 200 whose body is
+ * present but not valid JSON still throws `SyntaxError`; it is not hidden.
+ */
 export async function llamarApi<T>(ruta: string, opciones: OpcionesDeLlamada = {}): Promise<T> {
   const { method = "GET", body, timeoutMs = TIMEOUT_POR_DEFECTO_MS } = opciones;
   const token = leerToken();
@@ -81,7 +91,11 @@ export async function llamarApi<T>(ruta: string, opciones: OpcionesDeLlamada = {
       const { codigo, detalle } = await leerFalla(respuesta);
       throw new ErrorDeApi(respuesta.status, detalle, codigo);
     }
-    return (await respuesta.json()) as T;
+    const texto = await respuesta.text();
+    if (texto === "") {
+      return undefined as T;
+    }
+    return JSON.parse(texto) as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new ErrorDeApi(504, `La API no respondió en ${timeoutMs} ms`);

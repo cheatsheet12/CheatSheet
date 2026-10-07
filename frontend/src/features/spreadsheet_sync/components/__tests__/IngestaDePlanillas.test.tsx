@@ -9,7 +9,7 @@
  * literalmente lo que dice el criterio de aceptación.
  */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listarPlanillas = vi.fn();
@@ -32,6 +32,11 @@ vi.mock("@/features/spreadsheet_sync/api/planilla", async () => {
     listarCargas: (...args: unknown[]) => listarCargas(...args),
     procesarPlanilla: (...args: unknown[]) => procesarPlanilla(...args),
   };
+});
+
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
 });
 
 import type { Carga, ListadoDeVinculos, Vinculo } from "@/features/spreadsheet_sync";
@@ -71,6 +76,13 @@ const CARGA: Carga = {
 beforeAll(() => {
   // `Button variante="destructivo"` confirma con `window.confirm`, que jsdom no implementa.
   vi.stubGlobal("confirm", () => true);
+  // `Modal` es un `<dialog>` nativo y jsdom no implementa `showModal`.
+  HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+    this.open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+    this.open = false;
+  });
 });
 
 afterEach(() => {
@@ -200,5 +212,114 @@ describe("IngestaDePlanillas", () => {
     );
 
     expect(screen.getByText("Pausada")).toBeTruthy();
+  });
+});
+
+describe("IngestaDePlanillas · vincular con Google", () => {
+  function abrirElPedidoDeEnlace(): void {
+    fireEvent.click(screen.getByRole("button", { name: "Vincular Google Sheets" }));
+    fireEvent.change(screen.getByLabelText("Enlace o nombre de la planilla"), {
+      target: { value: "Clientes 2026" },
+    });
+  }
+
+  it("«Continuar» queda ocupado mientras se pide la URL y un segundo clic no pide otra vinculación", async () => {
+    // Dos pedidos son dos `state` de OAuth: la cookie puede quedar con el otro y el callback
+    // falla.
+    let responder: (url: string) => void = () => undefined;
+    iniciarVinculacionConGoogle.mockReturnValue(
+      new Promise<string>((resolver) => {
+        responder = resolver;
+      }),
+    );
+    const original = window.location;
+    const destino = { href: "" };
+    vi.stubGlobal("location", destino);
+    try {
+      render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
+      abrirElPedidoDeEnlace();
+
+      fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+      const boton = screen.getByRole("button", { name: "Continuar" }) as HTMLButtonElement;
+      expect(boton.disabled).toBe(true);
+      expect(boton.getAttribute("aria-busy")).toBe("true");
+      fireEvent.click(boton);
+      expect(iniciarVinculacionConGoogle).toHaveBeenCalledTimes(1);
+
+      responder("https://accounts.example/oauth?state=abc");
+      await waitFor(() => expect(destino.href).toBe("https://accounts.example/oauth?state=abc"));
+
+      // La página todavía no se fue: el botón sigue ocupado hasta que lo haga.
+      const despues = screen.getByRole("button", { name: "Continuar" }) as HTMLButtonElement;
+      expect(despues.disabled).toBe(true);
+      fireEvent.click(despues);
+      expect(iniciarVinculacionConGoogle).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.stubGlobal("location", original);
+    }
+  });
+
+  it("si el pedido falla, «Continuar» se libera y el error se ve", async () => {
+    iniciarVinculacionConGoogle.mockRejectedValue(new ErrorDePlanilla("Google no responde."));
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
+    abrirElPedidoDeEnlace();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByText("Google no responde.")).toBeTruthy();
+    const boton = screen.getByRole("button", { name: "Continuar" }) as HTMLButtonElement;
+    expect(boton.disabled).toBe(false);
+  });
+});
+
+describe("IngestaDePlanillas · resumen y avance", () => {
+  it("la franja de resumen suma lo que la pantalla ya tiene", () => {
+    const cargas: readonly Carga[] = [
+      CARGA,
+      { ...CARGA, id: "c2", estado: "COMPLETADO", filas_totales: 10, filas_ok: 10, filas_error: 0 },
+    ];
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={cargas} puedeEditar />);
+
+    const resumen = screen.getByRole("list", { name: "Resumen de la ingesta" });
+    const valor = (clave: string): string | null =>
+      resumen.querySelector(`[data-clave="${clave}"]`)?.textContent ?? null;
+    expect(valor("planillas")).toBe("1");
+    expect(valor("cargas")).toBe("2");
+    expect(valor("importadas")).toBe("108");
+    expect(valor("errores")).toBe("2");
+  });
+
+  it("sin mapeo, el paso que sigue es el mapeo", () => {
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
+
+    const pasos = within(screen.getByRole("list", { name: "Avance de la planilla" })).getAllByRole(
+      "listitem",
+    );
+    expect(pasos.map((paso) => paso.getAttribute("data-situacion"))).toEqual([
+      "hecho",
+      "actual",
+      "pendiente",
+    ]);
+  });
+
+  it("con mapeo y una lectura, los tres pasos quedan hechos", () => {
+    render(
+      <IngestaDePlanillas
+        inicial={{
+          vinculos: [{ ...VINCULO, tiene_mapeo: true, ultima_lectura: "2026-09-08T10:00:00Z" }],
+        }}
+        cargasIniciales={[]}
+        puedeEditar
+      />,
+    );
+
+    const pasos = within(screen.getByRole("list", { name: "Avance de la planilla" })).getAllByRole(
+      "listitem",
+    );
+    expect(pasos.map((paso) => paso.getAttribute("data-situacion"))).toEqual([
+      "hecho",
+      "hecho",
+      "hecho",
+    ]);
   });
 });
