@@ -244,6 +244,14 @@ class PortRepositorioRecordatorios(Protocol):
 
     async def guardar(self, recordatorio: Recordatorio) -> None: ...
 
+    async def buscar_por_externo_id(self, externo_id: str) -> Recordatorio | None:
+        """El recordatorio al que se refiere un callback de estado, por el `wamid` de Meta (U7).
+
+        `None` si ese `wamid` no es de un recordatorio **de esta empresa**: bajo RLS, uno ajeno
+        simplemente no existe.
+        """
+        ...
+
     async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]: ...
 
     async def de_cobros(self, cobro_ids: list[UUID]) -> dict[UUID, list[Recordatorio]]:

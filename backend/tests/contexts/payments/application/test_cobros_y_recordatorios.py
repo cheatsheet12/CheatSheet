@@ -48,6 +48,7 @@ from cheatsheet.contexts.payments.application.ports import (
 from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     PasoDeCadena,
     PortEnvioDeRecordatorio,
+    ResultadoDeEnvio,
 )
 from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
 from cheatsheet.contexts.payments.application.recordatorios import (
@@ -114,6 +115,9 @@ class RecordatoriosFalsos:
     async def guardar(self, recordatorio: Recordatorio) -> None:
         pass
 
+    async def buscar_por_externo_id(self, externo_id: str) -> Recordatorio | None:
+        return next((uno for uno in self.guardados if uno.externo_id == externo_id), None)
+
     async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]:
         return [uno for uno in self.guardados if uno.cobro_id == cobro_id]
 
@@ -131,10 +135,10 @@ class EnvioFalso:
 
     async def enviar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> EstadoEntrega:
+    ) -> ResultadoDeEnvio:
         del empresa_id
         self.enviados.append((cobro.id, paso, canal))
-        return EstadoEntrega.ENVIADO
+        return ResultadoDeEnvio(estado=EstadoEntrega.ENVIADO)
 
 
 class AislamientoFalso:
@@ -853,13 +857,13 @@ class EnvioQueFallaEn:
 
     async def enviar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> EstadoEntrega:
+    ) -> ResultadoDeEnvio:
         del empresa_id, canal, paso
         self.llamadas += 1
         if self.llamadas == self._posicion:
             raise self._error
         self.enviados.append(cobro.id)
-        return EstadoEntrega.ENVIADO
+        return ResultadoDeEnvio(estado=EstadoEntrega.ENVIADO)
 
 
 async def _tres_cobros_vencidos(cobros: CobrosFalsos) -> list[Cobro]:

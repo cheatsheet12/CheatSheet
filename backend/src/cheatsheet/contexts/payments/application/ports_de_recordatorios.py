@@ -14,15 +14,30 @@ from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega
 from cheatsheet.shared.empresa import EmpresaId
 
 
+@dataclass(frozen=True, slots=True)
+class ResultadoDeEnvio:
+    """Cómo terminó un envío: el estado, el `wamid` si Meta lo aceptó y el motivo si falló (U7).
+
+    `externo_id` es lo que permite que un callback `statuses[]` encuentre su recordatorio.
+    `codigo` es un código de Meta o una clase corta (`INCIERTO`, `SIN_TELEFONO`...): nunca el texto
+    de un error, que puede traer el número.
+    """
+
+    estado: EstadoEntrega
+    externo_id: str | None = None
+    codigo: str | None = None
+
+
 class PortEnvioDeRecordatorio(Protocol):
     """Por dónde sale un recordatorio (HS-T3 RN-02).
 
-    Devuelve el estado de entrega que el canal informó, para que RN-04 tenga qué registrar.
+    Devuelve el resultado del canal, para que RN-04 tenga qué registrar y el callback de estado
+    pueda encontrar el recordatorio después.
     """
 
     async def enviar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> EstadoEntrega: ...
+    ) -> ResultadoDeEnvio: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,4 +74,5 @@ __all__ = [
     "PasoDeCadena",
     "PortCadenaDeEscalamiento",
     "PortEnvioDeRecordatorio",
+    "ResultadoDeEnvio",
 ]

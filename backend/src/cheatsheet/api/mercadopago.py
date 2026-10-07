@@ -21,6 +21,7 @@ fila de la empresa actual. Es la misma conclusión a la que llegó `arca.py`.
 from __future__ import annotations
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
+from cheatsheet.api.fallas_de_canal import CanalConFallasTraducidas
 from cheatsheet.api.plantillas_salientes import armar_plantillas_aprobadas
 from cheatsheet.contexts.billing.infrastructure.repositorio_comprobante import (
     RepositorioComprobantePostgres,
@@ -48,7 +49,10 @@ from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     PortCadenaDeEscalamiento,
     PortEnvioDeRecordatorio,
 )
-from cheatsheet.contexts.payments.application.ports_envio import PortContactoDeCliente
+from cheatsheet.contexts.payments.application.ports_envio import (
+    FallaDelCanal,
+    PortContactoDeCliente,
+)
 from cheatsheet.contexts.payments.infrastructure.cadena import CadenaViaConfiguracion
 from cheatsheet.contexts.payments.infrastructure.clientes import (
     ClienteViaMasterData,
@@ -166,7 +170,11 @@ def armar_envio(unidad: UnidadDeTrabajo, *, canal: CanalDeTexto) -> PortEnvioDeR
     canal puede ser el simulado, y entonces el recordatorio queda `ENVIADO` sin salir de la
     máquina; en producción sin WhatsApp conectado es `SinCanal` y queda `FALLIDO`.
     """
-    return EnvioPorWhatsApp(canal, armar_contactos(unidad), armar_plantillas_aprobadas(unidad))
+    return EnvioPorWhatsApp(
+        CanalConFallasTraducidas(canal, FallaDelCanal),
+        armar_contactos(unidad),
+        armar_plantillas_aprobadas(unidad),
+    )
 
 
 __all__ = [

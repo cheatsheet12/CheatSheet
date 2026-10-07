@@ -20,6 +20,9 @@ from uuid import UUID
 
 from cheatsheet.shared.errors import EntradaInvalida
 
+#: El largo de la columna `recordatorio.ultimo_error` (migración 0037).
+LARGO_MAXIMO_ULTIMO_ERROR = 60
+
 
 class EstadoEntrega(StrEnum):
     """El enum `estado_entrega` del DER (HS-T3 RN-04).
@@ -51,6 +54,10 @@ class Recordatorio:
     canal: str
     enviado_en: datetime | None = None
     estado_entrega: EstadoEntrega | None = None
+    #: El `wamid` con el que Meta aceptó el mensaje: así un callback `statuses[]` lo encuentra.
+    externo_id: str | None = None
+    #: Por qué falló: un código de Meta o una clase corta. Nunca el texto que devolvió el canal.
+    ultimo_error: str | None = None
 
     def __post_init__(self) -> None:
         if self.paso < 1:
@@ -58,19 +65,34 @@ class Recordatorio:
             # consulta, y «paso 0» no significa nada para quien la mire.
             raise EntradaInvalida("El paso de un recordatorio empieza en 1")
 
-    def marcar_enviado(self, ahora: datetime) -> None:
+    def marcar_enviado(self, ahora: datetime, externo_id: str | None = None) -> None:
         """Salió por el canal. El proveedor confirmará la entrega después, o no."""
         self.enviado_en = ahora
         self.estado_entrega = EstadoEntrega.ENVIADO
+        self.externo_id = externo_id
 
-    def marcar_entrega(self, estado: EstadoEntrega) -> None:
-        """Lo que el proveedor informó (RN-04). No hay máquina de estados acá.
+    def marcar_entrega(self, estado: EstadoEntrega, *, motivo: str | None = None) -> bool:
+        """Lo que el proveedor informó (RN-04). **Solo avanza**; devuelve si cambió algo (U7).
 
-        Es deliberado: WhatsApp puede reportar `LEIDO` sin haber reportado `ENTREGADO`, y
-        exigir un orden haría que un webhook fuera de secuencia se descartara. Lo último que
-        el proveedor dijo es lo que vale.
+        Orden: `ENVIADO < ENTREGADO < LEIDO < FALLIDO`. WhatsApp no garantiza el orden de los
+        callbacks, y con «lo último que llega vale» un `delivered` retrasado pisaría un `read`.
+        El orden admite saltos (`LEIDO` sin `ENTREGADO`: Meta no manda `delivered` cuando las dos
+        cosas pasan a la vez) y solo prohíbe retroceder o repetir. `FALLIDO` es el veredicto
+        final de Meta sobre ese `wamid`. Es la misma regla que `Mensaje` en `conversational`; la
+        tabla de orden se duplica a propósito (R3). `motivo` solo se guarda al pasar a `FALLIDO`.
         """
+        orden = {
+            EstadoEntrega.ENVIADO: 0,
+            EstadoEntrega.ENTREGADO: 1,
+            EstadoEntrega.LEIDO: 2,
+            EstadoEntrega.FALLIDO: 3,
+        }
+        if self.estado_entrega is not None and orden[estado] <= orden[self.estado_entrega]:
+            return False
         self.estado_entrega = estado
+        if estado is EstadoEntrega.FALLIDO and motivo:
+            self.ultimo_error = motivo[:LARGO_MAXIMO_ULTIMO_ERROR]
+        return True
 
     @property
     def fue_despachado(self) -> bool:
@@ -91,4 +113,4 @@ def proximo_paso(recordatorios: list[Recordatorio]) -> int:
     return max(despachados, default=0) + 1
 
 
-__all__ = ["EstadoEntrega", "Recordatorio", "proximo_paso"]
+__all__ = ["LARGO_MAXIMO_ULTIMO_ERROR", "EstadoEntrega", "Recordatorio", "proximo_paso"]

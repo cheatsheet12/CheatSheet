@@ -27,7 +27,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Protocol
 
-from cheatsheet.contexts.payments.application.ports_envio import PortContactoDeCliente
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import ResultadoDeEnvio
+from cheatsheet.contexts.payments.application.ports_envio import (
+    FallaDelCanal,
+    PortContactoDeCliente,
+)
 from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.dinero import formatear_es_ar, redondear
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega
@@ -130,13 +134,13 @@ class EnvioPorWhatsApp:
 
     async def enviar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> EstadoEntrega:
+    ) -> ResultadoDeEnvio:
         del empresa_id
         if canal != CANAL_WHATSAPP:
             logger.warning(
                 "recordatorio_canal_sin_adaptador", cobro_id=str(cobro.id), paso=paso, canal=canal
             )
-            return EstadoEntrega.FALLIDO
+            return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo="CANAL_NO_SOPORTADO")
         try:
             return await self._mandar(cobro, paso)
         except Exception as exc:  # noqa: BLE001 — ver el docstring del modulo
@@ -149,29 +153,31 @@ class EnvioPorWhatsApp:
                 paso=paso,
                 causa=type(exc).__name__,
             )
-            return EstadoEntrega.FALLIDO
+            # `FallaDelCanal` trae el motivo que la raiz tradujo; cualquier otra cosa es `ERROR`.
+            codigo = exc.codigo if isinstance(exc, FallaDelCanal) else "ERROR"
+            return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo=codigo)
 
-    async def _mandar(self, cobro: Cobro, paso: int) -> EstadoEntrega:
+    async def _mandar(self, cobro: Cobro, paso: int) -> ResultadoDeEnvio:
         contacto = await self._contactos.contacto_de(cobro.cliente_id)
         if contacto is None:
             logger.info("recordatorio_sin_telefono", cobro_id=str(cobro.id), paso=paso)
-            return EstadoEntrega.FALLIDO
+            return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo="SIN_TELEFONO")
         plantilla = await self._plantillas.para(
             CODIGO_RECORDATORIO, variables_de_recordatorio(nombre=contacto.nombre, cobro=cobro)
         )
         if plantilla is not None:
-            await self._canal.enviar_plantilla(
+            externo_id = await self._canal.enviar_plantilla(
                 telefono=contacto.telefono,
                 nombre=plantilla.nombre_en_meta,
                 idioma=plantilla.idioma,
                 parametros=plantilla.parametros,
             )
         else:
-            await self._canal.enviar(
+            externo_id = await self._canal.enviar(
                 telefono=contacto.telefono,
                 texto=texto_de_recordatorio(nombre=contacto.nombre, cobro=cobro),
             )
-        return EstadoEntrega.ENVIADO
+        return ResultadoDeEnvio(estado=EstadoEntrega.ENVIADO, externo_id=externo_id)
 
 
 __all__ = [

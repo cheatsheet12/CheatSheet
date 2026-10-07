@@ -106,7 +106,7 @@ class CanalGrabador:
 async def _enviar(
     envio: EnvioPorWhatsApp, cobro: Cobro, *, canal: str = "WHATSAPP"
 ) -> EstadoEntrega:
-    return await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal=canal, paso=1)
+    return (await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal=canal, paso=1)).estado
 
 
 # --- Caso 16 y 17: el texto ----------------------------------------------------------------
