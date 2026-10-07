@@ -14,7 +14,7 @@ un minuto es peor que uno que los recibe tarde.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum
 from uuid import UUID
 
@@ -23,6 +23,20 @@ from cheatsheet.shared.externo_id import externo_id_o_ninguno
 
 #: El largo de la columna `recordatorio.ultimo_error` (migración 0037).
 LARGO_MAXIMO_ULTIMO_ERROR = 60
+
+#: Intentos en total entre barridos (U7, D-U7-3), además de los 3 que ya hace el canal dentro de
+#: cada llamada. El barrido es horario: con esperas de 1 h y 2 h un recordatorio caído se resuelve
+#: en ~3 h o queda `FALLIDO`; más que eso convertiría un «a los 3 días» en «a los 4».
+REINTENTOS_MAXIMOS = 3
+#: La espera tras el intento `n` es `ESPERA_BASE * 2 ** (n - 1)`: 1 h, 2 h.
+ESPERA_BASE = timedelta(hours=1)
+#: Cuánto puede tardar un envío en curso antes de darlo por perdido. Un envío son segundos (el
+#: canal tiene sus tiempos de espera y 3 intentos propios); pasada la ventana, quien lo encuentre
+#: sabe que el proceso murió **después de empezar** y no puede saber si Meta lo aceptó.
+VENTANA_DE_ENVIO = timedelta(minutes=15)
+#: Motivos de `ultimo_error` que no son un código de Meta.
+COBRO_CERRADO = "COBRO_CERRADO"
+INCIERTO = "INCIERTO"
 
 
 class EstadoEntrega(StrEnum):
@@ -59,6 +73,11 @@ class Recordatorio:
     externo_id: str | None = None
     #: Por qué falló: un código de Meta o una clase corta. Nunca el texto que devolvió el canal.
     ultimo_error: str | None = None
+    #: Cuántos intentos de envío **empezaron** (U7, migración 0038). Se cuenta al empezar, no al
+    #: terminar: si el proceso muere a mitad del envío, el intento ya figura.
+    intentos: int = 0
+    #: Según el estado de la fila: cuándo vence el envío en curso, o cuándo toca el reintento.
+    proximo_intento_en: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.paso < 1:
@@ -76,6 +95,99 @@ class Recordatorio:
         self.enviado_en = ahora
         self.estado_entrega = EstadoEntrega.ENVIADO
         self.externo_id = externo_id_o_ninguno(externo_id)
+        self.proximo_intento_en = None
+        self.ultimo_error = None
+
+    # ------------------------------------------------------------ reintento (U7, D-U7-3)
+    #
+    # Estados de una fila, por sus columnas (`enviado_en` / `intentos` / `proximo_intento_en` /
+    # `ultimo_error`): sin intentar (nulo/0/nulo/nulo), envío en curso (nulo/n/ventana/nulo),
+    # esperando reintento (nulo/n/espera/código), enviada o fallida (con fecha) y descartada
+    # (nulo/n/nulo/`COBRO_CERRADO`).
+
+    def iniciar_intento(self, ahora: datetime) -> None:
+        """Empieza un envío: cuenta el intento y abre la ventana. Se confirma **antes** de Meta."""
+        self.intentos += 1
+        self.proximo_intento_en = ahora + VENTANA_DE_ENVIO
+        self.ultimo_error = None
+
+    def registrar_falla(self, ahora: datetime, *, codigo: str, transitoria: bool) -> bool:
+        """Cierra un intento fallido. Devuelve `True` si queda programado otro.
+
+        Solo una falla **transitoria** con intentos disponibles espera. Una permanente (4xx de
+        Meta) o una incierta (timeout de lectura: Meta pudo haberlo aceptado y no hay clave de
+        idempotencia, ADR-0011 punto 6) deja la fila `FALLIDO` y despachada: la cadena sigue.
+        """
+        if transitoria and self.intentos < REINTENTOS_MAXIMOS:
+            self.proximo_intento_en = ahora + ESPERA_BASE * 2 ** (self.intentos - 1)
+            self.ultimo_error = codigo[:LARGO_MAXIMO_ULTIMO_ERROR]
+            return True
+        self.fallar(ahora, codigo)
+        return False
+
+    def fallar(self, ahora: datetime, codigo: str) -> None:
+        """Termina la fila como `FALLIDO`, con su fecha: el paso se da por hecho."""
+        self.enviado_en = ahora
+        self.estado_entrega = EstadoEntrega.FALLIDO
+        self.proximo_intento_en = None
+        self.ultimo_error = codigo[:LARGO_MAXIMO_ULTIMO_ERROR]
+
+    def descartar(self) -> None:
+        """El cobro se cerró mientras la fila esperaba: no se manda nada y no es una falla."""
+        self.enviado_en = None
+        self.estado_entrega = None
+        self.proximo_intento_en = None
+        self.ultimo_error = COBRO_CERRADO
+
+    @property
+    def descartado(self) -> bool:
+        return self.enviado_en is None and self.ultimo_error == COBRO_CERRADO
+
+    @property
+    def sin_intentar(self) -> bool:
+        """Ningún envío empezó: mandarla es seguro (nada pudo haber salido)."""
+        return self.enviado_en is None and self.intentos == 0 and not self.descartado
+
+    @property
+    def envio_en_curso(self) -> bool:
+        return (
+            self.enviado_en is None
+            and self.intentos > 0
+            and self.proximo_intento_en is not None
+            and self.ultimo_error is None
+        )
+
+    @property
+    def esperando_reintento(self) -> bool:
+        return (
+            self.enviado_en is None
+            and self.proximo_intento_en is not None
+            and self.ultimo_error is not None
+            and not self.descartado
+        )
+
+    def envio_perdido(self, ahora: datetime) -> bool:
+        """Un envío empezó y su ventana venció sin resultado: el proceso murió a mitad.
+
+        Es el caso clásico del resultado **incierto**: Meta pudo haberlo aceptado. Se resuelve
+        como `FALLIDO` `INCIERTO`, nunca se reenvía.
+        """
+        return (
+            self.envio_en_curso
+            and self.proximo_intento_en is not None
+            and self.proximo_intento_en <= ahora
+        )
+
+    def corresponde_intentar(self, ahora: datetime) -> bool:
+        """Si le toca a un barrido tocar esta fila: sin intentar, o con su fecha cumplida."""
+        if self.sin_intentar:
+            return True
+        return (
+            self.enviado_en is None
+            and not self.descartado
+            and self.proximo_intento_en is not None
+            and self.proximo_intento_en <= ahora
+        )
 
     def marcar_entrega(self, estado: EstadoEntrega, *, motivo: str | None = None) -> bool:
         """Lo que el proveedor informó (RN-04). **Solo avanza**; devuelve si cambió algo (U7).
@@ -119,4 +231,14 @@ def proximo_paso(recordatorios: list[Recordatorio]) -> int:
     return max(despachados, default=0) + 1
 
 
-__all__ = ["LARGO_MAXIMO_ULTIMO_ERROR", "EstadoEntrega", "Recordatorio", "proximo_paso"]
+__all__ = [
+    "COBRO_CERRADO",
+    "ESPERA_BASE",
+    "INCIERTO",
+    "LARGO_MAXIMO_ULTIMO_ERROR",
+    "REINTENTOS_MAXIMOS",
+    "VENTANA_DE_ENVIO",
+    "EstadoEntrega",
+    "Recordatorio",
+    "proximo_paso",
+]

@@ -26,6 +26,9 @@ class ResultadoDeEnvio:
     estado: EstadoEntrega
     externo_id: str | None = None
     codigo: str | None = None
+    #: Solo con `FALLIDO`: si vale otro intento en un barrido posterior (D-U7-3). Un rechazo
+    #: permanente, un resultado incierto o un error propio nunca lo son.
+    transitoria: bool = False
 
 
 class PortEnvioDeRecordatorio(Protocol):

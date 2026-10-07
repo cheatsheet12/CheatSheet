@@ -154,8 +154,11 @@ class EnvioPorWhatsApp:
                 causa=type(exc).__name__,
             )
             # `FallaDelCanal` trae el motivo que la raiz tradujo; cualquier otra cosa es `ERROR`.
-            codigo = exc.codigo if isinstance(exc, FallaDelCanal) else "ERROR"
-            return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo=codigo)
+            if isinstance(exc, FallaDelCanal):
+                return ResultadoDeEnvio(
+                    estado=EstadoEntrega.FALLIDO, codigo=exc.codigo, transitoria=exc.transitoria
+                )
+            return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo="ERROR")
 
     async def _mandar(self, cobro: Cobro, paso: int) -> ResultadoDeEnvio:
         contacto = await self._contactos.contacto_de(cobro.cliente_id)

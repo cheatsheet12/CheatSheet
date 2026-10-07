@@ -19,11 +19,16 @@ class FallaDelCanal(Exception):
     `conversational` a esta (R3), y el adaptador de envío la lee sin importar a ese contexto.
     `codigo` es un código de Meta (`"131047"`) o una clase corta (`"INCIERTO"`); nunca el texto del
     error, que puede traer el número.
+
+    `transitoria` dice si vale otro intento más tarde (5xx, 429, throttling, sin conexión: el canal
+    ya agotó los suyos). Un rechazo permanente (4xx) o un resultado incierto (timeout de lectura:
+    Meta pudo haberlo aceptado) **no** lo son, y por defecto una falla no lo es.
     """
 
-    def __init__(self, codigo: str) -> None:
+    def __init__(self, codigo: str, *, transitoria: bool = False) -> None:
         super().__init__(codigo)
         self.codigo = codigo
+        self.transitoria = transitoria
 
 
 @dataclass(frozen=True, slots=True)
