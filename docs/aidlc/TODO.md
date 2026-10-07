@@ -712,3 +712,61 @@ HU-E4-05.
   admite hasta 200, así que cada llamada levanta `EntradaInvalida`. Ningún test del repo lo
   ejercitaba; los de esta unidad fijan el límite en 200 con `monkeypatch`. El arreglo es de una
   línea, pero es de la unidad del write-back.
+
+## 25. MercadoPago y Cobros en staging: lo que quedó abierto el 06/10/2026
+
+Lo que **sí quedó funcionando** contra MercadoPago real en `staging`, con los PRs #89, #91 y #95:
+conectar un vendedor de prueba (HU-E2-02), rechazar una cuenta real, verificar el estado
+(HU-E2-05), crear la preferencia con `notification_url` por empresa y con el monto exacto (HS-T1,
+`TODO.md` §20.6). El diagnóstico está en
+[`units/cuenta-de-prueba-por-etiqueta.md`](units/cuenta-de-prueba-por-etiqueta.md).
+
+### 25.1 Bloqueante: ningún pago de prueba se completa · **te toca a vos**
+
+El comprador de prueba llega al checkout, ve el monto correcto y al tocar «Pagar» MercadoPago
+responde «Oh, no, algo anduvo mal», con «Dinero disponible» y con tarjeta, en sandbox (antes de #95)
+y en el checkout normal (después). El pago nunca se crea: no llega ningún aviso a la API. Se
+descartaron la preferencia (leída con la API: bien armada), las credenciales de sandbox (#95) y la
+verificación de identidad de comprador y vendedor (hecha el 06/10).
+
+**Hipótesis vigente, sin confirmar:** la aplicación «CheatSheet staging» pertenece a una **cuenta
+real** y cobra en nombre de un vendedor **de prueba** que le paga un comprador **de prueba**;
+MercadoPago no deja mezclar cuentas reales y de prueba en una operación. Para probarlo:
+
+1. Desde la aplicación actual › «Cuentas de prueba», crear una tercera cuenta de prueba (vendedor)
+   que sea la dueña de la plataforma.
+2. Con esa cuenta, crear en el panel de desarrolladores una aplicación igual: Checkout Pro,
+   permisos `read` · `offline access` · `write`, PKCE «Sí», Redirect URL
+   `cheatsheet-panel.onrender.com/configuracion/integraciones`, Webhooks a la API.
+3. Activar sus credenciales de producción y reemplazar en Render (API y worker)
+   `MERCADOPAGO_CLIENT_ID`, `MERCADOPAGO_CLIENT_SECRET` y `MERCADOPAGO_WEBHOOK_SECRET`.
+4. Reconectar MercadoPago en la empresa de prueba, crear un cobro nuevo y pagarlo con el comprador.
+
+Si así tampoco se crea el pago, escribirle al soporte de MercadoPago con los `router-request-id`
+de los intentos fallidos. Sin esto, **HS-T1 y PRU-06 no se pueden ejecutar** y en la matriz siguen
+como «Simulada · pendiente de validar».
+
+### 25.2 Riesgo abierto: la firma del webhook enviado a la `notification_url`
+
+La documentación no aclara si el aviso a la URL de la preferencia llega con `x-signature` y con el
+secreto de la aplicación. Si llega sin firma, `_firma_valida` lo descarta (D22) y el cobro tampoco
+se imputa. Se puede verificar sin un pago real: aplicación › «Webhooks» › «Simular notificación»
+contra `https://cheatsheet-api-j4hv.onrender.com/webhooks/mercadopago/<empresa_id>` y leer los
+logs de `cheatsheet-api`.
+
+### 25.3 Bugs encontrados en la prueba manual, sin arreglar
+
+| Severidad | Dónde | Qué pasa |
+|---|---|---|
+| **Mayor** | PAN-COB-03 «Nuevo cobro» | Un monto con coma decimal (`1234,56`, el formato argentino que usa todo el panel) da «El monto debe ser mayor a cero.» y no deja continuar. Con punto funciona |
+| Menor | Integraciones › MercadoPago | Mensajes sin tildes: «homologacion», «Conecta una cuenta de prueba», «No se pudo completar la operacion» |
+| Menor | Integraciones › MercadoPago | Si el canje falla por un corte (por ejemplo, un deploy en el medio), el panel muestra el genérico «No se pudo completar la operacion» y el Administrador no sabe que alcanza con reintentar |
+| Menor | `backend/.env.example` | Faltan `MERCADOPAGO_WEBHOOK_SECRET` y `MERCADOPAGO_URL_DE_RETORNO`. La segunda vale por defecto `http://localhost:3000/cobros`: sin declararla, el comprador vuelve a `localhost` después de pagar (en staging ya está cargada) |
+
+### 25.4 Datos que quedaron en staging
+
+- Cobro **CB-565A11B7** ($ 1.234,56): su preferencia es de sandbox, de antes de #95. No sirve para
+  pagar; se puede cancelar.
+- Cobro **CB-C8E23FB0** ($ 9.500,50): preferencia del checkout normal, lista para pagar cuando
+  25.1 se resuelva.
+- Las verificaciones de `TODO.md` §20 contra MercadoPago siguen pendientes por el mismo bloqueante.
