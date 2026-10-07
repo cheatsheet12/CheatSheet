@@ -46,6 +46,7 @@ from cheatsheet.contexts.payments.application.ports import (
     MetricasDeCobros,
 )
 from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    MensajeListo,
     PasoDeCadena,
     PortEnvioDeRecordatorio,
     ResultadoDeEnvio,
@@ -146,15 +147,45 @@ class RecordatoriosFalsos:
         return agrupados
 
 
+def mensaje_de_prueba(cobro: Cobro, canal: str, paso: int) -> MensajeListo:
+    """Lo que `preparar` entrega: un mensaje armado, sin datos reales."""
+    return MensajeListo(
+        cobro_id=cobro.id, paso=paso, canal=canal, telefono="5491100000000", texto="recordatorio"
+    )
+
+
+async def enviar_de_punta_a_punta(
+    envio: PortEnvioDeRecordatorio, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
+) -> ResultadoDeEnvio:
+    """`preparar` y `mandar` seguidos: lo que hace el barrido, para probar un adaptador solo."""
+    preparado = await envio.preparar(empresa_id=empresa_id, cobro=cobro, canal=canal, paso=paso)
+    if isinstance(preparado, ResultadoDeEnvio):
+        return preparado
+    return await envio.mandar(preparado)
+
+
+class RelojDePrueba:
+    """`Reloj` con el instante a mano: el de un barrido a los 4 días del vencimiento por defecto."""
+
+    def __init__(self, instante: datetime | None = None) -> None:
+        self.instante = instante or AHORA + timedelta(days=4)
+
+    def ahora(self) -> datetime:
+        return self.instante
+
+
 class EnvioFalso:
     def __init__(self) -> None:
         self.enviados: list[tuple[UUID, int, str]] = []
 
-    async def enviar(
+    async def preparar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> ResultadoDeEnvio:
+    ) -> MensajeListo | ResultadoDeEnvio:
         del empresa_id
-        self.enviados.append((cobro.id, paso, canal))
+        return mensaje_de_prueba(cobro, canal, paso)
+
+    async def mandar(self, mensaje: MensajeListo) -> ResultadoDeEnvio:
+        self.enviados.append((mensaje.cobro_id, mensaje.paso, mensaje.canal))
         return ResultadoDeEnvio(estado=EstadoEntrega.ENVIADO)
 
 
@@ -766,6 +797,7 @@ def _despachar(
     cadena: CadenaFalsa,
     aislamiento: PortAislamiento | None = None,
     transaccion: TransaccionFalsa | None = None,
+    reloj: RelojDePrueba | None = None,
 ) -> DespacharRecordatorios:
     return DespacharRecordatorios(
         cobros=cobros,
@@ -775,6 +807,7 @@ def _despachar(
         publicador=PublicadorFalso(),
         aislamiento=aislamiento or AislamientoFalso(),
         transaccion=transaccion or TransaccionFalsa(),
+        reloj=reloj or RelojDePrueba(),
     )
 
 
@@ -917,14 +950,17 @@ class EnvioQueFallaEn:
         self.llamadas = 0
         self.enviados: list[UUID] = []
 
-    async def enviar(
+    async def preparar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> ResultadoDeEnvio:
-        del empresa_id, canal, paso
+    ) -> MensajeListo | ResultadoDeEnvio:
+        del empresa_id
+        return mensaje_de_prueba(cobro, canal, paso)
+
+    async def mandar(self, mensaje: MensajeListo) -> ResultadoDeEnvio:
         self.llamadas += 1
         if self.llamadas == self._posicion:
             raise self._error
-        self.enviados.append(cobro.id)
+        self.enviados.append(mensaje.cobro_id)
         return ResultadoDeEnvio(estado=EstadoEntrega.ENVIADO)
 
 
@@ -989,6 +1025,7 @@ async def test_un_recordatorio_fallido_se_audita_como_error_y_no_cuenta_como_des
         publicador=publicador,
         aislamiento=AislamientoFalso(),
         transaccion=TransaccionFalsa(),
+        reloj=RelojDePrueba(),
     )
 
     resultado = await barrido.ejecutar(empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4))
@@ -1038,8 +1075,9 @@ async def test_un_fallo_de_persistencia_en_un_cobro_deshace_solo_ese_cobro() -> 
         cobros, recordatorios, EnvioFalso(), CadenaFalsa(), aislamiento
     ).ejecutar(empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4))
 
-    # Dos savepoints por recordatorio (reservar y registrar): 3 reservas + 2 registros confirmados.
-    assert aislamiento.confirmados == 5
+    # Tres savepoints por recordatorio (reservar, releer el cobro y registrar): 3 reservas + 3
+    # relecturas + 2 registros confirmados.
+    assert aislamiento.confirmados == 8
     assert aislamiento.deshechos == 1
     # Los otros dos siguieron: el barrido no se cortó en el que falló.
     assert resultado.procesados == 2

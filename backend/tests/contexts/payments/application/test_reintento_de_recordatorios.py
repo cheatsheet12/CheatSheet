@@ -49,6 +49,7 @@ async def test_la_fila_se_confirma_antes_de_hablar_con_meta_y_el_resultado_despu
 
     assert escenario.fila.externo_id == "wamid-1"
     assert escenario.transaccion.bitacora == [
+        "preparar",
         "agregar",
         "confirmar",
         "enviar",

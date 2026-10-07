@@ -73,11 +73,17 @@ class PortTransaccion(Protocol):
     El barrido de recordatorios corre en la unidad de trabajo de la empresa, que confirma recién al
     final: un callback `failed` o `delivered` que llegara antes del commit no encontraría la fila y
     se perdería. Con este puerto cada recordatorio confirma su fila antes de la E/S a Meta y su
-    resultado después, en una transacción corta aparte: **ninguna llamada a Meta corre con una
-    transacción abierta**. La implementación vuelve a declarar la empresa de la sesión (el `SET
-    LOCAL` muere con el commit).
+    resultado después, en una transacción corta aparte.
 
-    Si la base rechaza el commit, levanta `DespachoNoPersistido` y lo no confirmado se deshizo.
+    **Qué garantiza y qué no (N1).** La llamada a Meta corre **sin escrituras sin confirmar y sin
+    locks**, y sin leer la base. No corre «sin transacción abierta»: la implementación vuelve a
+    declarar la empresa de la sesión (el `SET LOCAL` muere con el commit), y eso abre una
+    transacción nueva y vacía.
+
+    Si la base rechaza el commit, levanta `DespachoNoPersistido` y lo no confirmado se deshizo (N5:
+    p. ej. los cobros que `VencerCobros` movió en el mismo barrido se rehacen en el siguiente). Si el
+    commit sale bien y no puede volver a declarar la empresa, puede escapar un `SQLAlchemyError`
+    crudo (N6): con la empresa sin declarar RLS no muestra ni deja escribir nada, así que es seguro.
     """
 
     async def confirmar(self) -> None: ...

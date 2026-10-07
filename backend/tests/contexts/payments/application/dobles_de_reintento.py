@@ -11,7 +11,10 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from cheatsheet.contexts.payments.application.ports_de_recordatorios import ResultadoDeEnvio
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    MensajeListo,
+    ResultadoDeEnvio,
+)
 from cheatsheet.contexts.payments.application.recordatorios import (
     DespacharRecordatorios,
     ResultadoDeBarrido,
@@ -26,8 +29,10 @@ from tests.contexts.payments.application.test_cobros_y_recordatorios import (
     AislamientoFalso,
     CadenaFalsa,
     RecordatoriosFalsos,
+    RelojDePrueba,
     TransaccionFalsa,
     _cobro,
+    mensaje_de_prueba,
 )
 from tests.contexts.payments.application.test_confirmacion import CobrosFalsos, PublicadorFalso
 
@@ -78,26 +83,36 @@ class EnvioGuionado:
         transaccion: TransaccionFalsa,
         *resultados: ResultadoDeEnvio | BaseException,
         al_enviar: Callable[[], None] | None = None,
+        al_preparar: Callable[[], None] | None = None,
     ) -> None:
         self._transaccion = transaccion
+        self._al_preparar = al_preparar
         self._resultados = list(resultados)
         self._al_enviar = al_enviar
         self.llamadas = 0
+        self.preparados = 0
         self.enviados: list[tuple[UUID, int]] = []
         #: Verdadero si en algún envío había escrituras sin confirmar: E/S con la transacción
         #: abierta, que es lo que este tramo elimina.
         self.con_transaccion_abierta = False
 
-    async def enviar(
+    async def preparar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> ResultadoDeEnvio:
-        del empresa_id, canal
+    ) -> MensajeListo | ResultadoDeEnvio:
+        del empresa_id
+        self.preparados += 1
+        self._transaccion.bitacora.append("preparar")
+        if self._al_preparar is not None:
+            self._al_preparar()
+        return mensaje_de_prueba(cobro, canal, paso)
+
+    async def mandar(self, mensaje: MensajeListo) -> ResultadoDeEnvio:
         self.llamadas += 1
         self._transaccion.bitacora.append("enviar")
         self.con_transaccion_abierta = (
             self.con_transaccion_abierta or self._transaccion.sin_confirmar
         )
-        self.enviados.append((cobro.id, paso))
+        self.enviados.append((mensaje.cobro_id, mensaje.paso))
         if self._al_enviar is not None:
             self._al_enviar()
         resultado = (
@@ -138,6 +153,7 @@ class Escenario:
     envio: EnvioGuionado
     transaccion: TransaccionFalsa
     publicador: PublicadorFalso
+    reloj: RelojDePrueba
 
     @property
     def fila(self) -> Recordatorio:
@@ -145,6 +161,7 @@ class Escenario:
         return fila
 
     async def barrer(self, ahora: datetime) -> ResultadoDeBarrido:
+        self.reloj.instante = ahora
         return await self.barrido.ejecutar(empresa_id=EMPRESA, ahora=ahora)
 
 
@@ -153,12 +170,14 @@ def _escenario(
     cobros: CobrosFalsos | None = None,
     recordatorios: RecordatoriosConBitacora | None = None,
     transaccion: TransaccionFalsa | None = None,
+    reloj: RelojDePrueba | None = None,
 ) -> Escenario:
     transaccion = transaccion or TransaccionFalsa()
     cobros = cobros or CobrosFalsos()
     recordatorios = recordatorios or RecordatoriosConBitacora(transaccion)
     envio = EnvioGuionado(transaccion, *resultados)  # type: ignore[arg-type]
     publicador = PublicadorFalso()
+    reloj = reloj or RelojDePrueba()
     barrido = DespacharRecordatorios(
         cobros=cobros,
         recordatorios=recordatorios,
@@ -167,8 +186,9 @@ def _escenario(
         publicador=publicador,
         aislamiento=AislamientoFalso(),
         transaccion=transaccion,
+        reloj=reloj,
     )
-    return Escenario(barrido, cobros, recordatorios, envio, transaccion, publicador)
+    return Escenario(barrido, cobros, recordatorios, envio, transaccion, publicador, reloj)
 
 
 async def _con_un_cobro(*resultados: object) -> tuple[Escenario, Cobro]:

@@ -34,6 +34,7 @@ from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import
 )
 from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import sesion_de_empresa
+from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -78,6 +79,7 @@ def _barrido(
         publicador=PublicadorFalso(),
         aislamiento=AislamientoConSavepoint(sesion),
         transaccion=ConfirmacionDeLaUnidad(sesion, empresa_id),
+        reloj=RelojFijo(DESPUES),
     )
 
 

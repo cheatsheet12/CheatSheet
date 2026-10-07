@@ -30,10 +30,12 @@ LARGO_MAXIMO_ULTIMO_ERROR = 60
 REINTENTOS_MAXIMOS = 3
 #: La espera tras el intento `n` es `ESPERA_BASE * 2 ** (n - 1)`: 1 h, 2 h.
 ESPERA_BASE = timedelta(hours=1)
-#: Cuánto puede tardar un envío en curso antes de darlo por perdido. Un envío son segundos (el
-#: canal tiene sus tiempos de espera y 3 intentos propios); pasada la ventana, quien lo encuentre
-#: sabe que el proceso murió **después de empezar** y no puede saber si Meta lo aceptó.
-VENTANA_DE_ENVIO = timedelta(minutes=15)
+#: Cuánto puede tardar un envío en curso antes de darlo por perdido, **medido desde que se reservó**
+#: (reloj real, no el del inicio del barrido). Un envío son segundos (el canal tiene sus tiempos de
+#: espera y 3 intentos propios); pasada la ventana, quien lo encuentre sabe que el proceso murió
+#: **después de empezar** y no puede saber si Meta lo aceptó. Menor que el período del barrido
+#: (1 h): el barrido siguiente ya la ve vencida.
+VENTANA_DE_ENVIO = timedelta(minutes=30)
 #: Motivos de `ultimo_error` que no son un código de Meta.
 COBRO_CERRADO = "COBRO_CERRADO"
 INCIERTO = "INCIERTO"

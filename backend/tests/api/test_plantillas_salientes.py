@@ -46,6 +46,7 @@ from cheatsheet.shared.empresa import EmpresaId
 from tests.contexts.business_config.application.dobles_plantillas import (
     RepositorioPlantillasEnMemoria,
 )
+from tests.contexts.payments.application.test_cobros_y_recordatorios import enviar_de_punta_a_punta
 
 pytestmark = pytest.mark.asyncio
 
@@ -239,7 +240,9 @@ async def test_el_recordatorio_aprobado_sale_como_template_con_monto_en_formato_
         _canal(meta), _Contactos(), _plantillas(_aprobada("recordatorio_de_cobro"))
     )
 
-    resultado = await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1)
+    resultado = await enviar_de_punta_a_punta(
+        envio, empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1
+    )
     estado = resultado.estado
 
     assert estado is EstadoEntrega.ENVIADO

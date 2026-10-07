@@ -18,15 +18,23 @@ import uuid
 from datetime import datetime, timedelta
 
 import pytest
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    MensajeListo,
+    ResultadoDeEnvio,
+)
 from cheatsheet.contexts.payments.application.recordatorios import DespacharRecordatorios
+from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.recordatorio import VENTANA_DE_ENVIO
 from cheatsheet.contexts.payments.infrastructure.aislamiento import AislamientoConSavepoint
-from cheatsheet.contexts.payments.infrastructure.repositories import RepositorioCobroPostgres
+from cheatsheet.contexts.payments.infrastructure.repositories import (
+    RepositorioCobroPostgres,
+)
 from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
 from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import sesion_de_empresa
+from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -63,8 +71,20 @@ async def _un_cobro(
     return empresa_id
 
 
+async def _tres_cobros(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> tuple[EmpresaId, list[uuid.UUID]]:
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    cobros = [
+        _cobro(empresa_id, cliente_id, vence_en_dias=0, preferencia=f"pref-{n}") for n in range(3)
+    ]
+    await _guardar(sesiones, empresa_id, *cobros)
+    return empresa_id, [uno.id for uno in cobros]
+
+
 def _barrido(
-    sesion: AsyncSession, empresa_id: EmpresaId, envio: EnvioGuionado
+    sesion: AsyncSession, empresa_id: EmpresaId, envio: EnvioGuionado, ahora: datetime
 ) -> DespacharRecordatorios:
     return DespacharRecordatorios(
         cobros=RepositorioCobroPostgres(sesion),
@@ -74,6 +94,7 @@ def _barrido(
         publicador=PublicadorFalso(),
         aislamiento=AislamientoConSavepoint(sesion),
         transaccion=ConfirmacionDeLaUnidad(sesion, empresa_id),
+        reloj=RelojFijo(ahora),
     )
 
 
@@ -91,7 +112,9 @@ async def _barrer(
     ahora: datetime,
 ) -> None:
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
-        await _barrido(sesion, empresa_id, envio).ejecutar(empresa_id=empresa_id, ahora=ahora)
+        await _barrido(sesion, empresa_id, envio, ahora).ejecutar(
+            empresa_id=empresa_id, ahora=ahora
+        )
 
 
 async def test_cuando_el_barrido_llama_a_meta_la_fila_ya_esta_confirmada_para_otra_transaccion(
@@ -102,14 +125,14 @@ async def test_cuando_el_barrido_llama_a_meta_la_fila_ya_esta_confirmada_para_ot
     vistas: list[list[tuple[object, ...]]] = []
     envio = EnvioGuionado(TransaccionFalsa(), enviado("wamid-h1"))
 
-    original = envio.enviar
+    original = envio.mandar
 
-    async def enviar_mirando(**kwargs: object) -> object:
+    async def mandar_mirando(mensaje: MensajeListo) -> ResultadoDeEnvio:
         # Otra transacción, otra conexión: solo ve lo que el barrido ya confirmó.
         vistas.append(await _filas(sesiones, empresa_id))
-        return await original(**kwargs)  # type: ignore[arg-type]
+        return await original(mensaje)
 
-    envio.enviar = enviar_mirando  # type: ignore[method-assign,assignment]
+    envio.mandar = mandar_mirando  # type: ignore[method-assign]
 
     await _barrer(sesiones, empresa_id, envio, DESPUES)
 
@@ -186,3 +209,45 @@ async def test_un_envio_perdido_se_resuelve_incierto_y_no_se_reenvia(
     assert (final[3], final[5]) == ("FALLIDO", "INCIERTO")
     assert final[2] is not None
     assert uuid.UUID(str(final[0])) == uuid.UUID(str(en_curso[0]))
+
+
+async def test_un_error_de_base_al_preparar_deja_el_savepoint_limpio_y_el_barrido_sigue(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """**S1.** Un error real de PostgreSQL al leer el contacto, dentro del savepoint de la reserva:
+    no queda fila, la transacción no se aborta, y los otros cobros salen. Antes ocurría después de
+    reservar, fuera de todo savepoint, y abortaba la transacción de la empresa entera."""
+    empresa_id, cobro_ids = await _tres_cobros(sesiones, engine_dueno)
+
+    class PreparaYRompeElSegundo(EnvioGuionado):
+        sesion: AsyncSession
+
+        async def preparar(
+            self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
+        ) -> MensajeListo | ResultadoDeEnvio:
+            resultado = await super().preparar(
+                empresa_id=empresa_id, cobro=cobro, canal=canal, paso=paso
+            )
+            if self.preparados == 2:
+                await self.sesion.execute(text("SELECT 1 / 0"))  # error real del motor
+            return resultado
+
+    envio = PreparaYRompeElSegundo(TransaccionFalsa())
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        envio.sesion = sesion
+        await _barrido(sesion, empresa_id, envio, DESPUES).ejecutar(
+            empresa_id=empresa_id, ahora=DESPUES
+        )
+
+    filas = await _filas(sesiones, empresa_id)
+    assert len(filas) == 2  # el segundo no reservó nada
+    assert {fila[3] for fila in filas} == {"ENVIADO"}
+    assert envio.llamadas == 2
+
+    # El barrido siguiente lo evalúa como un paso nuevo: nunca fue `INCIERTO`.
+    sano = EnvioGuionado(TransaccionFalsa())
+    await _barrer(sesiones, empresa_id, sano, DESPUES + timedelta(hours=1))
+    assert len(await _filas(sesiones, empresa_id)) == 3
+    assert sano.llamadas == 1
+    assert {fila[5] for fila in await _filas(sesiones, empresa_id)} == {None}
+    assert len(cobro_ids) == 3

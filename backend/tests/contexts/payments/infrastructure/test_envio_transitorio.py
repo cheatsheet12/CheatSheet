@@ -18,6 +18,8 @@ from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorWhatsApp
 from cheatsheet.shared.empresa import EmpresaId
 
+from tests.contexts.payments.application.test_cobros_y_recordatorios import enviar_de_punta_a_punta
+
 pytestmark = pytest.mark.asyncio
 
 AHORA = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
@@ -63,7 +65,9 @@ async def _enviar(falla: Exception | None) -> tuple[bool, str | None]:
         created_at=AHORA,
     )
     envio = EnvioPorWhatsApp(_Canal(falla), _Contactos(), _SinPlantillas())
-    resultado = await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1)
+    resultado = await enviar_de_punta_a_punta(
+        envio, empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1
+    )
     return resultado.transitoria, resultado.codigo
 
 

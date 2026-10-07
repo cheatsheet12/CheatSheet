@@ -92,6 +92,8 @@ async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
             aislamiento=piezas.aislamiento,
             # Confirma cada recordatorio antes y después de hablar con Meta (U7, D-U7-3, H1).
             transaccion=ConfirmacionDeLaUnidad(unidad.sesion, empresa_id),
+            # El reloj real, no el `ahora` del barrido: ventanas y fechas se miden al escribir (S2).
+            reloj=unidad.reloj,
         ).ejecutar(empresa_id=empresa_id, ahora=ahora)
         despachados = resultado.procesados
 

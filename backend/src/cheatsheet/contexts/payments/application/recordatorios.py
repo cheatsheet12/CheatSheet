@@ -33,6 +33,7 @@ from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.recordatorio import Recordatorio, proximo_paso
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
+from cheatsheet.shared.clock import Reloj
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import PublicadorDeEventos
 
@@ -118,7 +119,9 @@ class DespacharRecordatorios:
 
     **Cada recordatorio confirma su fila antes de hablar con Meta y su resultado después**
     (`PortTransaccion`; ver `reintentos.py`): un callback no se pierde por llegar antes del
-    commit del barrido, y ninguna llamada a Meta corre con una transacción abierta.
+    commit del barrido, y ninguna llamada a Meta corre con escrituras sin confirmar ni locks.
+    **A lo sumo un recordatorio por cobro por corrida** (N7): lo que la pasada 1 tocó no se vuelve
+    a evaluar en la 2.
 
     **Un fallo de un cobro no aborta el barrido ni deshace a los demás** (U5, H1): cada ítem tiene
     su savepoint, y lo que la base rechaza solo deshace ese ítem.
@@ -134,6 +137,7 @@ class DespacharRecordatorios:
         publicador: PublicadorDeEventos,
         aislamiento: PortAislamiento,
         transaccion: PortTransaccion,
+        reloj: Reloj,
     ) -> None:
         self._cobros = cobros
         self._recordatorios = recordatorios
@@ -145,10 +149,16 @@ class DespacharRecordatorios:
             publicador=publicador,
             aislamiento=aislamiento,
             transaccion=transaccion,
+            reloj=reloj,
         )
 
     async def ejecutar(self, *, empresa_id: EmpresaId, ahora: datetime) -> ResultadoDeBarrido:
-        desenlaces = await self._envio.reintentar_pendientes(empresa_id=empresa_id, ahora=ahora)
+        retomados = await self._envio.reintentar_pendientes(empresa_id=empresa_id, ahora=ahora)
+        desenlaces = [desenlace for _, desenlace in retomados]
+        # N7: un cobro que ya tuvo su recordatorio en la pasada 1 no recibe otro en esta corrida.
+        ya_tocados = {
+            cobro_id for cobro_id, desenlace in retomados if desenlace is not Desenlace.NADA
+        }
 
         abiertos = await self._cobros.abiertos()
         if abiertos:
@@ -157,6 +167,8 @@ class DespacharRecordatorios:
             # cada recordatorio enviado. Se lee **después** de la pasada 1, que pudo cambiarlas.
             por_cobro = await self._recordatorios.de_cobros([cobro.id for cobro in abiertos])
             for cobro in abiertos:
+                if cobro.id in ya_tocados:
+                    continue
                 desenlaces.append(
                     await self._despachar_uno(
                         empresa_id=empresa_id,
@@ -215,7 +227,7 @@ class DespacharRecordatorios:
         existente = next((uno for uno in previos if uno.paso == numero), None)
         if existente is None:
             return await self._envio.enviar_nuevo(
-                empresa_id=empresa_id, cobro=cobro, canal=paso.canal, numero=numero, ahora=ahora
+                empresa_id=empresa_id, cobro=cobro, canal=paso.canal, numero=numero
             )
         if existente.sin_intentar:
             return await self._envio.retomar(

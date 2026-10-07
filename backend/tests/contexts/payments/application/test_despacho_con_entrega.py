@@ -10,7 +10,10 @@ from datetime import timedelta
 from uuid import UUID
 
 import pytest
-from cheatsheet.contexts.payments.application.ports_de_recordatorios import ResultadoDeEnvio
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    MensajeListo,
+    ResultadoDeEnvio,
+)
 from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega
 from cheatsheet.shared.empresa import EmpresaId
@@ -22,6 +25,7 @@ from tests.contexts.payments.application.test_cobros_y_recordatorios import (
     RecordatoriosFalsos,
     _cobro,
     _despachar,
+    mensaje_de_prueba,
 )
 from tests.contexts.payments.application.test_confirmacion import CobrosFalsos
 
@@ -32,10 +36,14 @@ class EnvioQueDevuelve:
     def __init__(self, resultado: ResultadoDeEnvio | Exception) -> None:
         self._resultado = resultado
 
-    async def enviar(
+    async def preparar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> ResultadoDeEnvio:
-        del empresa_id, cobro, canal, paso
+    ) -> MensajeListo | ResultadoDeEnvio:
+        del empresa_id
+        return mensaje_de_prueba(cobro, canal, paso)
+
+    async def mandar(self, mensaje: MensajeListo) -> ResultadoDeEnvio:
+        del mensaje
         if isinstance(self._resultado, Exception):
             raise self._resultado
         return self._resultado
