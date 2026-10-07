@@ -51,6 +51,8 @@ from cheatsheet.contexts.conversational.infrastructure.repositories import (
     RepositorioConversacionPostgres,
     RepositorioEscalamientoPostgres,
     RepositorioFAQPostgres,
+)
+from cheatsheet.contexts.conversational.infrastructure.repositorio_mensaje import (
     RepositorioMensajePostgres,
 )
 from cheatsheet.platform.database import sesion_de_empresa
