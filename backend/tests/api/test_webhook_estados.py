@@ -64,7 +64,9 @@ async def test_el_mismo_statuses_dos_veces_es_un_solo_efecto(
 ) -> None:
     montaje = await montar(monkeypatch)
     notificacion = cuerpo(
-        WABA_A, estado("wamid-cobro-a", "failed", errors=[{"code": 131047, "title": "x"}])
+        WABA_A,
+        estado("wamid-cobro-a", "failed", errors=[{"code": 131047, "title": "x"}]),
+        estado("wamid-agente-a", "failed", errors=[{"code": 131047, "title": "x"}]),
     )
 
     await enviar(montaje, notificacion)
@@ -73,6 +75,9 @@ async def test_el_mismo_statuses_dos_veces_es_un_solo_efecto(
     recordatorio = recordatorio_de(montaje, EMPRESA_A)
     assert recordatorio.estado_entrega is EstadoDeRecordatorio.FALLIDO
     assert recordatorio.ultimo_error == "131047"
+    mensaje = mensaje_de(montaje, EMPRESA_A)
+    assert mensaje.estado_entrega is EstadoDeMensaje.FALLIDO
+    assert mensaje.motivo_de_falla == "131047"
     assert len(montaje.publicadores[EMPRESA_A].eventos) == 1
 
 

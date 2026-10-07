@@ -34,6 +34,7 @@ from cheatsheet.contexts.payments.domain.recordatorio import Recordatorio
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
 from fastapi import FastAPI
+from sqlalchemy.exc import OperationalError
 
 from tests.api.montaje_webhook_plantillas import EMPRESA_A, EMPRESA_B, WABA_A, WABA_B, firmar
 from tests.conftest import INSTANTE_FIJO, settings_de_prueba
@@ -54,13 +55,15 @@ class SesionSinEmpresa:
 
 
 class RepositorioQueExplota(RepositorioMensajeEnMemoria):
-    """Levanta al buscar `wamid-boom`: lo que pasa cuando algo nuestro se rompe."""
+    """Levanta al buscar `wamid-boom` (un estado «venenoso») o `wamid-caido` (la base se cayó)."""
 
     async def buscar_por_externo_id(
         self, externo_id: str, *, para_actualizar: bool = False
     ) -> Mensaje | None:
         if externo_id == "wamid-boom":
             raise RuntimeError("se rompio algo nuestro")
+        if externo_id == "wamid-caido":
+            raise OperationalError("SELECT", {}, ConnectionResetError("se cayo la conexion"))
         return await super().buscar_por_externo_id(externo_id, para_actualizar=para_actualizar)
 
 
