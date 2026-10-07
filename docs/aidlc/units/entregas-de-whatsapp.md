@@ -327,40 +327,44 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED** — Un callback `delivered` del `wamid` de un mensaje del agente no cambia nada (hoy se descarta). GREEN: `ENTREGADO` | integración (API) | pendiente |
-| 2 | **RED** — Un callback `read` del `wamid` de un recordatorio de cobro no cambia nada (hoy no hay `externo_id`). GREEN: `LEIDO` en PAN-COB-02 | integración | pendiente |
-| 3 | **RED** — Cancelar un turno no deja ningún registro del aviso (hoy). GREEN: un `Mensaje` `SALIENTE`/`SISTEMA` con el `wamid` en la conversación activa del cliente | integración | pendiente |
-| 4 | **RED** — Una fila de recordatorio con `enviado_en` nulo traba la cadena: el barrido siguiente no manda nada (hoy). GREEN: se reintenta y sale | caso de uso | pendiente |
-| 5 | El mismo `statuses[]` entregado dos veces → un solo cambio | integración | pendiente |
-| 6 | `read` y después `delivered` (fuera de orden) → queda `LEIDO`, en `mensaje` y en `recordatorio` | unit (dominio, tabla) | pendiente |
-| 7 | `read` sin `delivered` previo → `LEIDO` | unit | pendiente |
-| 8 | `failed` con `errors[0].code=131047` → `FALLIDO` + motivo; un `read` posterior no lo cambia | unit + integración | pendiente |
-| 9 | `played` → ignorado sin error | unit | pendiente |
-| 10 | Callback por `/webhooks/whatsapp/{A}` con el `wamid` de un recordatorio de B → nada cambia en B (RLS) | integración (multi-tenant, CI) | pendiente |
-| 11 | `entry[].id` con la WABA de B en la URL de A → descartado con log | integración | pendiente |
-| 12 | Callback por la ruta de la app → se rutea a la empresa de `entry[].id` | integración | pendiente |
-| 13 | `wamid` desconocido → 200, log sin el wamid completo | integración | pendiente |
-| 14 | Varios estados en una notificación: el segundo falla → el primero quedó aplicado | integración | pendiente |
-| 15 | Falla transitoria en el primer intento → fila sin `enviado_en`, `intentos=1`, `proximo_intento_en=+1h`; sin `INSERT` nuevo | caso de uso | pendiente |
-| 16 | Barrido antes de `proximo_intento_en` → no reintenta; después → `UPDATE` de la misma fila y sale con `wamid` | caso de uso | pendiente |
-| 17 | Tercer intento transitorio → `FALLIDO`, `enviado_en` puesto, y el barrido siguiente evalúa el paso 2 | caso de uso | pendiente |
-| 18 | Timeout de lectura → `FALLIDO` `INCIERTO` al primer intento, **nunca** reintentado | caso de uso | pendiente |
-| 19 | Rechazo permanente (400 131026) → `FALLIDO`, sin reintento | caso de uso | pendiente |
-| 20 | Cobro pagado mientras esperaba reintento → fila descartada (`COBRO_CERRADO`), ningún envío | caso de uso | pendiente |
-| 21 | Dos barridos solapados con una fila pendiente → un solo envío (savepoint + índice) | integración (CI) | pendiente |
-| 22 | El reintento de un cobro no voltea los demás del barrido (savepoint por ítem) | caso de uso | pendiente |
-| 23 | Aviso con el cliente sin conversación → se crea una `ACTIVA`; con conversación archivada → se crea otra; con una activa → se agrega ahí | unit | pendiente |
-| 24 | Aviso con Meta caído → `Mensaje` `FALLIDO` con motivo, turno cancelado, request OK | integración | pendiente |
-| 25a | Empresa sin WhatsApp conectado (producción) → ningún hilo ni mensaje creado, turno cancelado | unit | pendiente |
-| 25 | Falla al guardar el mensaje del sistema → el turno queda cancelado; log `aviso_de_turno_sin_registrar` | unit | pendiente |
-| 26 | Historial del intérprete: un `SISTEMA` se reemplaza por el descriptor; el texto con nombre no llega al intérprete | unit | pendiente |
-| 27 | Respuesta del cliente a un aviso → el agente procesa en la misma conversación (RN-03) | integración | pendiente |
-| 28 | Ningún log de los módulos nuevos contiene `recipient_id`, teléfono ni texto del aviso | unit (captura de logs) | pendiente |
-| 29 | Migración 0037: columnas e índice único de `externo_id` (sin backfill, D1) | migración (CI) | pendiente |
-| 30 | PAN-COB-02: «Reintentando · intento n de 3», motivos traducidos; hilo con estado en castellano y motivo | unit (Vitest) | pendiente |
-| 31 | `guard_architecture --scan` y `test_guards.sh` pasan | gate | pendiente |
+| 1 | **RED** — Un callback `delivered` del `wamid` de un mensaje del agente no cambia nada (hoy se descarta). GREEN: `ENTREGADO` | integración (API) | hecho · tramo 1 |
+| 2 | **RED** — Un callback `read` del `wamid` de un recordatorio de cobro no cambia nada (hoy no hay `externo_id`). GREEN: `LEIDO` en PAN-COB-02 | integración | hecho · tramo 1 |
+| 3 | **RED** — Cancelar un turno no deja ningún registro del aviso (hoy). GREEN: un `Mensaje` `SALIENTE`/`SISTEMA` con el `wamid` en la conversación activa del cliente | integración | pendiente · tramo 3 |
+| 4 | **RED** — Una fila de recordatorio con `enviado_en` nulo traba la cadena: el barrido siguiente no manda nada (hoy). GREEN: se reintenta y sale | caso de uso | pendiente · tramo 2 |
+| 5 | El mismo `statuses[]` entregado dos veces → un solo cambio | integración | hecho · tramo 1 |
+| 6 | `read` y después `delivered` (fuera de orden) → queda `LEIDO`, en `mensaje` y en `recordatorio` | unit (dominio, tabla) | hecho · tramo 1 |
+| 7 | `read` sin `delivered` previo → `LEIDO` | unit | hecho · tramo 1 |
+| 8 | `failed` con `errors[0].code=131047` → `FALLIDO` + motivo; un `read` posterior no lo cambia | unit + integración | hecho · tramo 1 |
+| 9 | `played` → ignorado sin error | unit | hecho · tramo 1 |
+| 10 | Callback por `/webhooks/whatsapp/{A}` con el `wamid` de un recordatorio de B → nada cambia en B (RLS) | integración (multi-tenant, CI) | escrito · tramo 1 (corre en CI; en memoria, hecho) |
+| 11 | `entry[].id` con la WABA de B en la URL de A → descartado con log | integración | hecho · tramo 1 |
+| 12 | Callback por la ruta de la app → se rutea a la empresa de `entry[].id` | integración | hecho · tramo 1 |
+| 13 | `wamid` desconocido → 200, log sin el wamid completo | integración | hecho · tramo 1 |
+| 14 | Varios estados en una notificación: el segundo falla → el primero quedó aplicado | integración | hecho · tramo 1 |
+| 15 | Falla transitoria en el primer intento → fila sin `enviado_en`, `intentos=1`, `proximo_intento_en=+1h`; sin `INSERT` nuevo | caso de uso | pendiente · tramo 2 |
+| 16 | Barrido antes de `proximo_intento_en` → no reintenta; después → `UPDATE` de la misma fila y sale con `wamid` | caso de uso | pendiente · tramo 2 |
+| 17 | Tercer intento transitorio → `FALLIDO`, `enviado_en` puesto, y el barrido siguiente evalúa el paso 2 | caso de uso | pendiente · tramo 2 |
+| 18 | Timeout de lectura → `FALLIDO` `INCIERTO` al primer intento, **nunca** reintentado | caso de uso | pendiente · tramo 2 |
+| 19 | Rechazo permanente (400 131026) → `FALLIDO`, sin reintento | caso de uso | pendiente · tramo 2 |
+| 20 | Cobro pagado mientras esperaba reintento → fila descartada (`COBRO_CERRADO`), ningún envío | caso de uso | pendiente · tramo 2 |
+| 21 | Dos barridos solapados con una fila pendiente → un solo envío (savepoint + índice) | integración (CI) | pendiente · tramo 2 |
+| 22 | El reintento de un cobro no voltea los demás del barrido (savepoint por ítem) | caso de uso | pendiente · tramo 2 |
+| 23 | Aviso con el cliente sin conversación → se crea una `ACTIVA`; con conversación archivada → se crea otra; con una activa → se agrega ahí | unit | pendiente · tramo 3 |
+| 24 | Aviso con Meta caído → `Mensaje` `FALLIDO` con motivo, turno cancelado, request OK | integración | pendiente · tramo 3 |
+| 25a | Empresa sin WhatsApp conectado (producción) → ningún hilo ni mensaje creado, turno cancelado | unit | pendiente · tramo 3 |
+| 25 | Falla al guardar el mensaje del sistema → el turno queda cancelado; log `aviso_de_turno_sin_registrar` | unit | pendiente · tramo 3 |
+| 26 | Historial del intérprete: un `SISTEMA` se reemplaza por el descriptor; el texto con nombre no llega al intérprete | unit | pendiente · tramo 3 (solo regresión: el descriptor ya existe) |
+| 27 | Respuesta del cliente a un aviso → el agente procesa en la misma conversación (RN-03) | integración | pendiente · tramo 3 |
+| 28 | Ningún log de los módulos nuevos contiene `recipient_id`, teléfono ni texto del aviso | unit (captura de logs) | parcial · tramo 1 (webhook de estados; faltan los avisos, tramo 3) |
+| 29 | Migración 0037: columnas e índice único de `externo_id` (sin backfill, D1) | migración (CI) | escrito · tramo 1 (corre en CI) |
+| 30 | PAN-COB-02: «Reintentando · intento n de 3», motivos traducidos; hilo con estado en castellano y motivo | unit (Vitest) | pendiente · tramo 3 |
+| 31 | `guard_architecture --scan` y `test_guards.sh` pasan | gate | hecho · tramo 1 (`guard_architecture`; `test_guards.sh` pendiente: falta `jq`) |
 
 Gates: los mismos de U6 (backend y frontend). Los casos 10, 21 y 29 corren con PostgreSQL en la CI.
+
+**Tramos (PRs encadenados, D4):** (i) callbacks `statuses[]` + estado monótono + columnas + motivo de
+falla; (ii) reintento acotado de fallas transitorias; (iii) avisos del SISTEMA + frontend. Cada
+uno se apila sobre el anterior y se mergea a `develop` en ese orden.
 
 ## Verificaciones no posibles sin la app de prueba → `TODO.md` §25
 
@@ -391,6 +395,51 @@ Gates: los mismos de U6 (backend y frontend). Los casos 10, 21 y 29 corren con P
 
 > Bloqueado para cerrar el Gate 1 hasta que el ADR-0011 esté aceptado (con el agregado de D-U7-4) y
 > U5 y U6 mergeadas.
+
+## Estado de la implementación
+
+### Tramo 1 — callbacks de estado (2026-10-07)
+
+**Hecho** (casos 1, 2, 5 a 9 y 11 a 14 con dobles; 10 y 29 escritos para la CI):
+
+- `api/whatsapp_notificaciones.py`: `estados_de_entrega` (defensivo; solo `id`, `status` y `errors[0].code`
+  de un `failed`; `played` y desconocidos se ignoran; un id demasiado largo se descarta, no se corta) y
+  `hay_mensajes` ahora distingue `messages[]` de `statuses[]`.
+- `api/entregas.py` (nuevo): ruteo por la WABA del `entry[].id` (ruta de la app: debe tener una sola
+  dueña; ruta por empresa: debe ser la de la URL, si no se descarta con log), una transacción por
+  estado, primero `mensaje` y después `recordatorio`. `routers/whatsapp.py` solo lo llama (362 líneas).
+- `conversational`: `Mensaje.marcar_entrega(estado, motivo=)` devuelve si cambió (monótono, `FALLIDO`
+  terminal), `Mensaje.motivo_de_falla`, `RegistrarEstadoDeEntrega`, `motivo_de_falla_de` (código de Meta
+  o clase corta: `INCIERTO`, `SIN_CANAL`, `SATURADA`, `RECHAZADO`, `ERROR`) y `SalidaAlCliente` lo guarda
+  cuando el envío del agente falla (D3).
+- `payments`: `Recordatorio.marcar_entrega` monótono (D-U7-2), `externo_id` y `ultimo_error`,
+  `ResultadoDeEnvio` (el puerto devuelve el `wamid` y el código), `RegistrarEntregaDeRecordatorio`
+  (publica `recordatorio_fallido` una sola vez).
+- Raíz (D2): `api/fallas_de_canal.py` (`CanalConFallasTraducidas`) traduce los errores tipados del canal a
+  `payments.FallaDelCanal(codigo)`; `armar_envio` lo usa. **Para `scheduling` se hará en el tramo 3**, cuando
+  los avisos se registren.
+- Migración **0037**: `recordatorio.externo_id` + `ultimo_error` + índice único parcial, `mensaje.motivo_de_falla`.
+  Sin backfill (D1).
+- `mensaje`: `RepositorioMensajePostgres` pasó a `repositorio_mensaje.py` (el módulo estaba en 400/400).
+- ADR-0011 (puntos 5 y 8) y `architecture.md` §4 enmendados (D5); pendientes en `TODO.md` §22.53 a §22.56.
+
+**Decisiones del tramo 1**
+
+- **Las columnas `intentos` y `proximo_intento_en` no están en la 0037**: nada del tramo 1 las usa. Las agrega
+  el tramo 2 (migración 0038), así cada PR trae solo el esquema que ejerce.
+- **Del `failed` se guarda solo el `code`**, no el `title` (texto de un tercero, §22.56). Sin código, el motivo
+  queda vacío y la pantalla dirá «sin detalle».
+- **Un `wamid` sin destinatario se loguea en `warning`** (sin el id): si el id del envío no coincidiera con el de
+  `statuses[]` (§22.54), todos los estados caerían ahí y se vería.
+- **Un envío del operador que falla no guarda mensaje** (levanta `MensajeriaNoDisponible`, como antes): D3 se
+  cumple para el motivo que llega por callback.
+- El `EstadoEntrega` se traduce en la raíz por valor (`"LEIDO"`): cada contexto conserva su enum (R3).
+
+**Evidencia RED (TDD):** observado en colección (`ImportError` del símbolo inexistente) antes de implementar en
+cada bloque: dominio y casos de uso de `conversational`, dominio/casos de uso/adaptador de `payments`, el
+envoltorio de la raíz, el parser y el webhook de estados. **No se observó RED** en: el refactor de
+`repositorio_mensaje.py` (movimiento puro), `test_migracion_0037.py`, `test_entregas_de_recordatorio_postgres.py`
+y los dos casos agregados a `test_conversacional_postgres.py` (necesitan PostgreSQL: solo corren en la CI).
 
 ## Decisiones tomadas durante la unidad
 
