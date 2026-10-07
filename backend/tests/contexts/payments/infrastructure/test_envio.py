@@ -38,6 +38,7 @@ from tests.contexts.payments.application.test_cobros_y_recordatorios import (
     AislamientoFalso,
     CadenaFalsa,
     RecordatoriosFalsos,
+    TransaccionFalsa,
 )
 from tests.contexts.payments.application.test_confirmacion import CobrosFalsos, PublicadorFalso
 
@@ -296,6 +297,7 @@ def _barrido(
         cadena=CadenaFalsa(),
         publicador=PublicadorFalso(),
         aislamiento=AislamientoFalso(),
+        transaccion=TransaccionFalsa(),
     )
 
 

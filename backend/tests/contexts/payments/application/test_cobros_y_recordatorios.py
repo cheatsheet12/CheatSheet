@@ -179,6 +179,24 @@ class AislamientoFalso:
         self.confirmados += 1
 
 
+class TransaccionFalsa:
+    """`PortTransaccion`: cuenta los commits y sabe si hay algo sin confirmar."""
+
+    def __init__(self) -> None:
+        self.bitacora: list[str] = []
+        self.confirmaciones = 0
+        self.sin_confirmar = False
+
+    def escribio(self, que: str) -> None:
+        self.bitacora.append(que)
+        self.sin_confirmar = True
+
+    async def confirmar(self) -> None:
+        self.confirmaciones += 1
+        self.sin_confirmar = False
+        self.bitacora.append("confirmar")
+
+
 class CadenaFalsa:
     def __init__(self, *dias: int) -> None:
         self.pasos_ = tuple(
@@ -747,6 +765,7 @@ def _despachar(
     envio: PortEnvioDeRecordatorio,
     cadena: CadenaFalsa,
     aislamiento: PortAislamiento | None = None,
+    transaccion: TransaccionFalsa | None = None,
 ) -> DespacharRecordatorios:
     return DespacharRecordatorios(
         cobros=cobros,
@@ -755,6 +774,7 @@ def _despachar(
         cadena=cadena,
         publicador=PublicadorFalso(),
         aislamiento=aislamiento or AislamientoFalso(),
+        transaccion=transaccion or TransaccionFalsa(),
     )
 
 
@@ -804,10 +824,35 @@ async def test_dos_barridos_solapados_no_mandan_el_mismo_paso_dos_veces() -> Non
     await cobros.agregar(cobro)
     despues = AHORA + timedelta(days=4)
 
-    # El primero deja la fila; el segundo la encuentra ocupada.
-    await recordatorios.agregar(
-        Recordatorio(id=uuid4(), cobro_id=cobro.id, paso=1, canal="WHATSAPP")
+    # El primero deja la fila, con su envío en curso; el segundo la encuentra ocupada.
+    en_curso = Recordatorio(id=uuid4(), cobro_id=cobro.id, paso=1, canal="WHATSAPP")
+    en_curso.iniciar_intento(despues)
+    await recordatorios.agregar(en_curso)
+
+    resultado = await _despachar(cobros, recordatorios, envio, CadenaFalsa()).ejecutar(
+        empresa_id=EMPRESA, ahora=despues
     )
+
+    assert resultado.procesados == 0
+    assert envio.enviados == []
+
+
+async def test_el_indice_unico_ataja_a_un_barrido_que_leyo_antes_que_el_otro() -> None:
+    """La segunda capa de RN-05: el barrido no vio la fila (la leyó antes), calculó el mismo paso e
+    intentó insertarlo. El índice lo rechaza y **no se manda nada**."""
+
+    class NoVeLaFila(RecordatoriosFalsos):
+        async def de_cobros(self, cobro_ids: list[UUID]) -> dict[UUID, list[Recordatorio]]:
+            del cobro_ids
+            return {}
+
+    cobros, recordatorios, envio = CobrosFalsos(), NoVeLaFila(), EnvioFalso()
+    cobro = _cobro(vence_en_dias=0)
+    await cobros.agregar(cobro)
+    despues = AHORA + timedelta(days=4)
+    en_curso = Recordatorio(id=uuid4(), cobro_id=cobro.id, paso=1, canal="WHATSAPP")
+    en_curso.iniciar_intento(despues)
+    await recordatorios.agregar(en_curso)
 
     resultado = await _despachar(cobros, recordatorios, envio, CadenaFalsa()).ejecutar(
         empresa_id=EMPRESA, ahora=despues
@@ -943,6 +988,7 @@ async def test_un_recordatorio_fallido_se_audita_como_error_y_no_cuenta_como_des
         cadena=CadenaFalsa(),
         publicador=publicador,
         aislamiento=AislamientoFalso(),
+        transaccion=TransaccionFalsa(),
     )
 
     resultado = await barrido.ejecutar(empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4))
@@ -992,7 +1038,8 @@ async def test_un_fallo_de_persistencia_en_un_cobro_deshace_solo_ese_cobro() -> 
         cobros, recordatorios, EnvioFalso(), CadenaFalsa(), aislamiento
     ).ejecutar(empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4))
 
-    assert aislamiento.confirmados == 2
+    # Dos savepoints por recordatorio (reservar y registrar): 3 reservas + 2 registros confirmados.
+    assert aislamiento.confirmados == 5
     assert aislamiento.deshechos == 1
     # Los otros dos siguieron: el barrido no se cortó en el que falló.
     assert resultado.procesados == 2
@@ -1015,7 +1062,7 @@ async def test_el_log_de_un_cobro_no_persistido_no_lleva_datos_personales() -> N
             empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4)
         )
 
-    eventos = [r for r in registros if r["event"] == "recordatorio_no_persistido"]
+    eventos = [r for r in registros if r["event"] == "recordatorio_resultado_no_persistido"]
     assert len(eventos) == 1
     assert eventos[0]["cobro_id"] == str(cobro.id)
     assert "Ana Diaz" not in repr(registros)

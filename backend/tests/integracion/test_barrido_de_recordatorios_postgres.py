@@ -1,5 +1,8 @@
 """El barrido de recordatorios contra el motor: un fallo no deshace lo que ya salió (U5, H1 y H1b).
 
+Desde U7 (tramo ii) cada recordatorio confirma su fila antes de hablar con Meta y su resultado
+después (`ConfirmacionDeLaUnidad`): lo que ya salió queda confirmado aunque lo que sigue falle.
+
 Dos defectos que sólo existen con una transacción real:
 
 - **H1.** El barrido despacha todos los cobros de una empresa en **una sola transacción**. Si el
@@ -29,6 +32,7 @@ from cheatsheet.contexts.payments.infrastructure.repositories import Repositorio
 from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
+from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import sesion_de_empresa
 from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text
@@ -62,6 +66,7 @@ async def _tres_cobros(
 
 def _barrido(
     sesion: AsyncSession,
+    empresa_id: EmpresaId,
     envio: PortEnvioDeRecordatorio,
     recordatorios: RepositorioRecordatoriosPostgres | None = None,
 ) -> DespacharRecordatorios:
@@ -72,6 +77,7 @@ def _barrido(
         cadena=CadenaFalsa(),
         publicador=PublicadorFalso(),
         aislamiento=AislamientoConSavepoint(sesion),
+        transaccion=ConfirmacionDeLaUnidad(sesion, empresa_id),
     )
 
 
@@ -98,7 +104,7 @@ async def test_dos_barridos_seguidos_mandan_un_solo_mensaje_por_cobro(
 
     for _ in range(2):
         async with sesion_de_empresa(sesiones, empresa_id) as sesion:
-            await _barrido(sesion, envio).ejecutar(empresa_id=empresa_id, ahora=DESPUES)
+            await _barrido(sesion, empresa_id, envio).ejecutar(empresa_id=empresa_id, ahora=DESPUES)
 
     assert envio.llamadas == 3
     assert envio.enviados.count(uno) == 1
@@ -126,7 +132,7 @@ async def test_una_falla_de_base_en_el_savepoint_del_cobro_2_conserva_las_filas_
                     await sesion.execute(text("SELECT 1 / 0"))
                 await super().guardar(recordatorio)
 
-        resultado = await _barrido(sesion, EnvioFalso(), GuardaMal(sesion)).ejecutar(
+        resultado = await _barrido(sesion, empresa_id, EnvioFalso(), GuardaMal(sesion)).ejecutar(
             empresa_id=empresa_id, ahora=DESPUES
         )
 
@@ -134,7 +140,9 @@ async def test_una_falla_de_base_en_el_savepoint_del_cobro_2_conserva_las_filas_
     estados = await _estados(sesiones, empresa_id)
     assert estados[uno] == [EstadoEntrega.ENVIADO.value]
     assert estados[tres] == [EstadoEntrega.ENVIADO.value]
-    assert dos not in estados  # su fila se deshizo: la corrida siguiente lo reintenta
+    # Su fila se reservó y confirmó **antes** del envío (U7, H1) y la base rechazó el resultado: queda
+    # «en curso», sin estado de entrega. No se reenvía: vencida su ventana se resuelve `INCIERTO`.
+    assert estados[dos] == [None]
 
 
 async def test_un_duplicado_no_envenena_la_transaccion_del_barrido(
@@ -160,7 +168,7 @@ async def test_un_duplicado_no_envenena_la_transaccion_del_barrido(
                 visibles.pop(a, None)  # la carrera: el barrido no la vio al leer
                 return visibles
 
-        resultado = await _barrido(sesion, envio, NoVeLaFilaDeA(sesion)).ejecutar(
+        resultado = await _barrido(sesion, empresa_id, envio, NoVeLaFilaDeA(sesion)).ejecutar(
             empresa_id=empresa_id, ahora=DESPUES
         )
 

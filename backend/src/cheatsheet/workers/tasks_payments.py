@@ -31,6 +31,7 @@ from cheatsheet.contexts.payments.infrastructure.ensamblado import Cobros
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     empresas_con_cobros_abiertos,
 )
+from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import sesion_sin_empresa
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
@@ -89,16 +90,19 @@ async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
             cadena=armar_cadena(unidad),
             publicador=unidad.publicador,
             aislamiento=piezas.aislamiento,
+            # Confirma cada recordatorio antes y después de hablar con Meta (U7, D-U7-3, H1).
+            transaccion=ConfirmacionDeLaUnidad(unidad.sesion, empresa_id),
         ).ejecutar(empresa_id=empresa_id, ahora=ahora)
         despachados = resultado.procesados
 
-        if vencidos.procesados or despachados or resultado.fallidos:
+        if vencidos.procesados or despachados or resultado.fallidos or resultado.reintentos:
             logger.info(
                 "barrido_de_cobros",
                 empresa_id=str(empresa_id),
                 vencidos=vencidos.procesados,
                 recordatorios=despachados,
                 recordatorios_fallidos=resultado.fallidos,
+                recordatorios_en_reintento=resultado.reintentos,
             )
     return despachados
 
