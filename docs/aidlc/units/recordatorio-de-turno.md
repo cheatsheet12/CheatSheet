@@ -377,13 +377,13 @@ ADR-0014 no bloquea.
 ## Archivos a tocar
 
 Tramo 1
-- [ ] `backend/src/cheatsheet/contexts/business_config/domain/agenda_de_notificacion.py` (nuevo) · `domain/regla.py` (`interpretada_como_agenda`)
-- [ ] `backend/src/cheatsheet/contexts/business_config/application/agenda.py` (nuevo)
-- [ ] `backend/src/cheatsheet/api/routers/reglas.py` (`PUT /reglas/agenda`) y el armado del caso de uso donde se arma el de atención
-- [ ] `backend/tests/contexts/business_config/domain/test_agenda_de_notificacion.py` · `…/application/test_agenda.py` · `backend/tests/api/test_reglas.py`
-- [ ] `frontend/src/features/business_config/api/agenda.ts` · `components/AgendaDeNotificacion.tsx` · `index.ts` y sus tests
-- [ ] `frontend/src/app/(panel)/configuracion/reglas/page.tsx` · `frontend/src/app/api/reglas/agenda/route.ts`
-- [ ] `docs/aidlc/units.md`
+- [x] `backend/src/cheatsheet/contexts/business_config/domain/agenda_de_notificacion.py` (nuevo) · `domain/regla.py` (`interpretada_como_agenda`)
+- [x] `backend/src/cheatsheet/contexts/business_config/application/agenda.py` (nuevo)
+- [x] `backend/src/cheatsheet/api/routers/reglas.py` (`PUT /reglas/agenda`) y el armado del caso de uso donde se arma el de atención
+- [x] `backend/tests/contexts/business_config/domain/test_agenda_de_notificacion.py` · `…/application/test_agenda.py` · `backend/tests/integracion/test_agenda_de_notificacion_postgres.py` (en vez de `tests/api/`: es la convención de los demás tests de API de reglas)
+- [x] `frontend/src/features/business_config/api/agenda.ts` · `components/AgendaDeNotificacion.tsx` · `index.ts` y sus tests
+- [x] `frontend/src/app/(panel)/configuracion/reglas/page.tsx` · `frontend/src/app/api/reglas/agenda/route.ts`
+- [ ] `docs/aidlc/units.md` (sin cambios: la unidad ya figura «en curso»)
 
 Tramo 2
 - [ ] `backend/migrations/versions/0039_recordatorio_de_turno.py`
@@ -409,13 +409,13 @@ Tramo 3
 | # | Caso | Tipo | Tramo | Estado |
 |---|---|---|---|---|
 | 1 | **RED** — Un turno que empieza en 23 h, con la regla por defecto, no recibe nada tras el barrido (hoy no existe). GREEN: un recordatorio con la plantilla `recordatorio_de_turno`, fila `ENVIADO` | caso de uso | 3 | pendiente |
-| 2 | **RED** — `interpretada_como_agenda()` no existe. GREEN: devuelve la configuración tipada | unit | 1 | pendiente |
-| 3 | Configuración: 0 recordatorios, 4, horas 0 o 169, repetidos → `EntradaInvalida` con la frase; se ordenan de mayor a menor | unit (tabla) | 1 | pendiente |
-| 4 | Fila mal formada en la base → falla al leer (D24) | unit | 1 | pendiente |
-| 5 | `PUT /reglas/agenda`: Administrador guarda y reemplaza; Operador → rechazo; bitácora | integración (API) | 1 | pendiente |
-| 6 | `ConsultarAgendaDeNotificacion`: sin regla → 24 h y `configurada=False`; regla desactivada → agenda vacía (recordatorios apagados) | unit | 1 | pendiente |
-| 7 | Dos reglas de agenda → gana la de mayor prioridad (RN-05) | unit | 1 | pendiente |
-| 8 | PAN-CFG-RN: agrega hasta 3, valida con la frase, muestra el default, solo Administrador edita | unit (Vitest) | 1 | pendiente |
+| 2 | **RED** — `interpretada_como_agenda()` no existe. GREEN: devuelve la configuración tipada | unit | 1 | hecho |
+| 3 | Configuración: 0 recordatorios, 4, horas 0 o 169, repetidos → `EntradaInvalida` con la frase; se ordenan de mayor a menor | unit (tabla) | 1 | hecho |
+| 4 | Fila mal formada en la base → falla al leer (D24) | unit | 1 | hecho |
+| 5 | `PUT /reglas/agenda`: Administrador guarda y reemplaza; Operador → rechazo; bitácora | integración (API) | 1 | escrito (corre en la CI) |
+| 6 | `ConsultarAgendaDeNotificacion`: sin regla → 24 h y `configurada=False`; regla desactivada → agenda vacía (recordatorios apagados) | unit | 1 | hecho |
+| 7 | Dos reglas de agenda → gana la de mayor prioridad (RN-05) | unit | 1 | hecho |
+| 8 | PAN-CFG-RN: agrega hasta 3, valida con la frase, muestra el default, solo Administrador edita | unit (Vitest) | 1 | hecho |
 | 9 | `que_corresponde`: con 48 h y 24 h y el worker caído hasta faltar 20 h → solo la de 24 h; la de 48 h `OMITIDO` | unit | 2 | pendiente |
 | 10 | Turno reservado 3 h antes con regla de 24 h → no se recuerda (`M < F`) | unit | 2 | pendiente |
 | 11 | Turno confirmado dentro de la ventana → **sí** se recuerda | unit | 2 | pendiente |
@@ -442,7 +442,7 @@ Tramo 3
 | 32 | Ningún log del barrido contiene nombre, teléfono ni texto | unit (captura de logs) | 3 | pendiente |
 | 33 | Extracción a `shared/`: la suite de payments (recordatorios, reintentos, integración) pasa sin cambios de comportamiento | regresión | 3 | pendiente |
 | 34 | PAN-CFG-NOT: la advertencia aparece si `recordatorio_de_turno` no está aprobada y no aparece si lo está | unit (Vitest) | 3 | pendiente |
-| 35 | `guard_architecture --scan` (R1–R5) y `test_guards.sh` pasan | gate | 1/2/3 | pendiente |
+| 35 | `guard_architecture --scan` (R1–R5) y `test_guards.sh` pasan | gate | 1/2/3 | tramo 1: scan verde; `test_guards.sh` falla igual en la base (27/54, entorno Windows) |
 
 Gates: `ruff format --check . && ruff check . && mypy . && pytest` y, en frontend, `npm run format:check
 && npm run lint && npm run typecheck && npm run test:coverage`. Los casos 14–17, 25, 29 y 30 corren con
@@ -504,6 +504,20 @@ PostgreSQL en la CI.
 | 1 · Plan (re-presentación) | 2026-10-08 | **Aprobado por Luciano el 08/10.** Revalidación contra U6 y U7 del 07/10; once decisiones (D-U8-8 a D-U8-18) y las dos preguntas abiertas resueltas (ver «Decisiones tomadas durante la unidad») |
 | 2 · Verificación | | |
 | 3 · PR | | |
+
+## Progreso
+
+**Tramo 1 · Regla de agenda (implementado, sin push).**
+
+- Backend: `domain/agenda_de_notificacion.py`, `interpretada_como_agenda()` en `regla.py`,
+  `application/agenda.py` (`ConfigurarAgendaDeNotificacion`, `ConsultarAgendaDeNotificacion`,
+  `AgendaVigente`) y `PUT /reglas/agenda`. Regla desactivada = agenda vacía (recordatorios apagados);
+  sin ninguna regla = 24 h con `configurada=False`.
+- Frontend: `api/agenda.ts`, `AgendaDeNotificacion.tsx`, BFF `app/api/reglas/agenda/route.ts`,
+  compuesto debajo de `ReglasDeNegocio` en PAN-CFG-RN.
+- Desvíos del plan: las rutas `horario-de-atencion` y `agenda` se movieron a un segundo router
+  (`_rutas_de_reglas_tipadas`) porque `_rutas` superaba la complejidad 10; el test de API vive en
+  `tests/integracion/` (como el del horario) y no en `tests/api/`. `units.md` no cambia.
 
 ## Decisiones tomadas durante la unidad
 
