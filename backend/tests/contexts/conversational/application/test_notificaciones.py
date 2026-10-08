@@ -46,6 +46,7 @@ from structlog.testing import capture_logs
 from tests.contexts.conversational.application.dobles import (
     RepositorioConversacionEnMemoria,
     RepositorioMensajeEnMemoria,
+    sin_savepoint,
 )
 from tests.contexts.conversational.application.escena import (
     EMPRESA as EMPRESA_DE_LA_ESCENA,
@@ -91,7 +92,12 @@ def _caso(
 ) -> tuple[NotificarAlCliente, RepositorioConversacionEnMemoria, RepositorioMensajeEnMemoria]:
     conversaciones = conversaciones or RepositorioConversacionEnMemoria()
     mensajes = mensajes or RepositorioMensajeEnMemoria()
-    caso = NotificarAlCliente(conversaciones=conversaciones, mensajes=mensajes, mensajeria=canal)
+    caso = NotificarAlCliente(
+        conversaciones=conversaciones,
+        mensajes=mensajes,
+        mensajeria=canal,
+        aislar=sin_savepoint,
+    )
     return caso, conversaciones, mensajes
 
 
@@ -321,6 +327,7 @@ class TestElAgenteRespondeEnElMismoHilo:
             conversaciones=escena.conversaciones,
             mensajes=escena.mensajes,
             mensajeria=Canal(),
+            aislar=sin_savepoint,
         )
         await caso.ejecutar(
             empresa_id=EMPRESA_DE_LA_ESCENA,

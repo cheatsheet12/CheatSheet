@@ -29,7 +29,7 @@ hay logs; el resultado le informa al llamador lo que pasó.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from contextlib import AbstractAsyncContextManager, nullcontext
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -100,7 +100,7 @@ class NotificarAlCliente:
         conversaciones: PortRepositorioConversacion,
         mensajes: PortRepositorioMensaje,
         mensajeria: PortMensajeria,
-        aislar: Callable[[], AbstractAsyncContextManager[object]] = nullcontext,
+        aislar: Callable[[], AbstractAsyncContextManager[object]],
     ) -> None:
         self._conversaciones = conversaciones
         self._mensajes = mensajes

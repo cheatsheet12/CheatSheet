@@ -49,6 +49,7 @@ from tests.conftest import settings_de_prueba
 from tests.contexts.conversational.application.dobles import (
     RepositorioConversacionEnMemoria,
     RepositorioMensajeEnMemoria,
+    sin_savepoint,
 )
 from tests.contexts.scheduling.application.test_agenda import (
     AHORA as AHORA_DE_LA_AGENDA,
@@ -96,6 +97,7 @@ def hilos(monkeypatch: pytest.MonkeyPatch) -> _EnMemoria:
                 conversaciones=en_memoria.conversaciones,
                 mensajes=en_memoria.mensajes,
                 mensajeria=canal,
+                aislar=sin_savepoint,
             ),
             empresa_id=empresa_id,
             reloj=_RelojFijo(),

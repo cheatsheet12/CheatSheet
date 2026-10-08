@@ -51,6 +51,7 @@ from tests.contexts.business_config.application.dobles_plantillas import (
 from tests.contexts.conversational.application.dobles import (
     RepositorioConversacionEnMemoria,
     RepositorioMensajeEnMemoria,
+    sin_savepoint,
 )
 from tests.contexts.payments.application.test_cobros_y_recordatorios import enviar_de_punta_a_punta
 
@@ -113,6 +114,7 @@ def _aviso(meta: _Meta, plantillas: PlantillasViaConfiguracion) -> AvisoPorWhats
         conversaciones=RepositorioConversacionEnMemoria(),
         mensajes=RepositorioMensajeEnMemoria(),
         mensajeria=_canal(meta),
+        aislar=sin_savepoint,
     )
     return AvisoPorWhatsApp(
         CanalDeAvisosViaConversacion(caso, empresa_id=EMPRESA, reloj=_Reloj()), plantillas

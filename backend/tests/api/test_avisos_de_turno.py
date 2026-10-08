@@ -33,6 +33,7 @@ from cheatsheet.shared.empresa import EmpresaId
 from tests.contexts.conversational.application.dobles import (
     RepositorioConversacionEnMemoria,
     RepositorioMensajeEnMemoria,
+    sin_savepoint,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -76,7 +77,12 @@ def _adaptador(
 ]:
     conversaciones = RepositorioConversacionEnMemoria()
     mensajes = RepositorioMensajeEnMemoria()
-    caso = NotificarAlCliente(conversaciones=conversaciones, mensajes=mensajes, mensajeria=canal)
+    caso = NotificarAlCliente(
+        conversaciones=conversaciones,
+        mensajes=mensajes,
+        mensajeria=canal,
+        aislar=sin_savepoint,
+    )
     return (
         CanalDeAvisosViaConversacion(caso, empresa_id=EMPRESA, reloj=_Reloj()),
         conversaciones,
