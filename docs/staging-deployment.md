@@ -204,10 +204,26 @@ exhausts the month in about 17 days. Two things kept it awake, and both are fixe
 
 - the Render health check ran `SELECT 1` every few seconds -> use `/health/live` (§3, step 7);
 - every periodic task fired at its own offset from Beat's boot -> they now fire at the same
-  wall-clock instants (minute 0 of the hour), so the database wakes once per period. Intervals must
-  tile the hour or the day exactly (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60, 120, 180, 240, 360,
-  480, 720 or 1440 minutes); anything else, such as 45, stops the process at boot with a message
-  naming the variable.
+  wall-clock instants (minute 0 of the hour; the daily ones at 00:00), so the database wakes once
+  per period. This covers every database-touching entry, including the daily ones and the fiscal
+  parameters sync (`PARAMETROS_FISCALES_HORAS`, in hours). Intervals must tile the hour or the day
+  exactly (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720 or 1440
+  minutes; for `PARAMETROS_FISCALES_HORAS`: 1, 2, 3, 4, 6, 8, 12 or 24 hours); anything else, such
+  as 0, a negative number, 7 or 45, stops the process at boot with a message naming the variable.
+  This is stricter than before: 0 and negative values used to be clamped silently.
+
+#### Pre-deploy checklist (do it before deploying this change)
+
+Both the API and the worker read these settings at startup, so a bad value crashes **both**
+services into a boot loop. Check **both** Render services (API and worker), not just the worker:
+
+- [ ] `WHATSAPP_SONDEO_MINUTOS`, `DLQ_BARRIDO_MINUTOS`, `SYNC_PLANILLAS_MINUTOS` and
+  `BILLING_RECONCILIACION_MINUTOS`, if set, are one of: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60,
+  120, 180, 240, 360, 480, 720, 1440. Unset is fine (the defaults are valid).
+- [ ] `PARAMETROS_FISCALES_HORAS`, if set, is one of: 1, 2, 3, 4, 6, 8, 12, 24. Unset is fine.
+- [ ] API service -> Settings -> **Health Check Path** is `/health/live`. Without this the health
+  check keeps running `SELECT 1` every few seconds, the database never sleeps and this change saves
+  nothing (`render.yaml` is not read by Render).
 
 The remaining lever is how often the tasks fire. Set these on the **worker** (the only service
 running Beat) in the Render dashboard:

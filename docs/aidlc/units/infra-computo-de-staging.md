@@ -57,8 +57,10 @@ Neon suspende el compute tras 5 minutos sin conexiones. Dos cosas lo mantenían 
   alinea **detiene el arranque** nombrando la variable, en lugar de cambiar en silencio cada
   cuánto corre un barrido de facturación. Alcanzadas: `WHATSAPP_SONDEO_MINUTOS`,
   `DLQ_BARRIDO_MINUTOS`, `SYNC_PLANILLAS_MINUTOS`, `BILLING_RECONCILIACION_MINUTOS`, más los
-  literales de `barrer-cobros` (60) y `reindexar-faqs` (360). **No se tocan** las entradas diarias
-  ni `PARAMETROS_FISCALES_HORAS` (ver ADR-0014 abajo).
+  literales de `barrer-cobros` (60) y `reindexar-faqs` (360). Tras la corrección de Gate 2
+  (2026-10-08) **también** se alinean las tres entradas diarias (00:00) y
+  `PARAMETROS_FISCALES_HORAS` (horas × 60; debe ser 1, 2, 3, 4, 6, 8, 12 o 24; falla al arrancar si
+  no). Ver ADR-0014 abajo.
 - **C. `/health/live`.** Responde `200 {"estado": "ok"}` sin tocar PostgreSQL ni Redis, es público
   como `/health`. `/health` queda como comprobación completa (readiness) y la sigue usando el
   sondeo posterior al despliegue de CI. `render.yaml` pasa a `healthCheckPath: /health/live`.
@@ -75,7 +77,7 @@ entradas de menos de un día que tocan la base. No es una contradicción de fond
   `crontab` anclado al reloj no necesita `last_run_at` para saber cuándo toca, es compatible con
   RedBeat (que sabe programar `crontab`) y **no sufre** la pérdida de cuenta tras un deploy que el
   ADR describe.
-- Las entradas diarias y `PARAMETROS_FISCALES_HORAS` quedan intactas, así que ninguna otra decisión
+- Las entradas diarias y `PARAMETROS_FISCALES_HORAS` también se alinean (corrección de Gate 2), así que ninguna otra decisión
   de la unidad `temporizadores-de-beat` (horas ART, `timezone`, RedBeat) se pisa. Si esa unidad
   cambia la `timezone` de Celery a Argentina (UTC−3, sin horario de verano), los instantes de esta
   unidad se corren 3 h pero **siguen alineados entre sí**, que es lo único que importa acá.
@@ -99,6 +101,18 @@ entradas de menos de un día que tocan la base. No es una contradicción de fond
 De ~6 CU-h/día (compute siempre encendido) a **< 1 CU-h/día**: con los valores de abajo el compute
 despierta ~1 vez por hora (el barrido de cobros, minuto 0), ~5–6 minutos cada vez, unos
 24 × 0,25 × (6/60) ≈ 0,6 CU-h/día, con el health check ya sin tocar la base.
+
+### Checklist previo al despliegue (Render, API **y** worker)
+
+Antes de desplegar, porque un valor inválido tumba **ambos** servicios en bucle de arranque (antes
+0 y negativos se corregían a 1 en silencio; ahora fallan):
+
+- [ ] `WHATSAPP_SONDEO_MINUTOS`, `DLQ_BARRIDO_MINUTOS`, `SYNC_PLANILLAS_MINUTOS` y
+  `BILLING_RECONCILIACION_MINUTOS`, si están definidas, valen uno de: 1, 2, 3, 4, 5, 6, 10, 12, 15,
+  20, 30, 60, 120, 180, 240, 360, 480, 720, 1440 (sin definir está bien).
+- [ ] `PARAMETROS_FISCALES_HORAS`, si está definida, vale 1, 2, 3, 4, 6, 8, 12 o 24.
+- [ ] **Health Check Path** de la API en el panel de Render = `/health/live`. Sin esto el health
+  check sigue haciendo `SELECT 1` y la unidad no ahorra nada.
 
 ### Acciones del dueño (Render, no versionables)
 
@@ -161,14 +175,28 @@ despierta ~1 vez por hora (el barrido de cobros, minuto 0), ~5–6 minutos cada 
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-08 | **aprobado** |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-08 | **aprobado con correcciones**: checklist previo al despliegue, alinear entradas diarias y `PARAMETROS_FISCALES_HORAS`, Health Check Path como ítem explícito |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
 
-- ¿Se alinean las entradas diarias y `PARAMETROS_FISCALES_HORAS`? → **No** (2026-10-08): son
-  territorio de la unidad `temporizadores-de-beat` / ADR-0014 y despiertan la base una vez al día.
+- ¿Se alinean las entradas diarias y `PARAMETROS_FISCALES_HORAS`? → **Sí** (Gate 2, 2026-10-08;
+  revierte el «No» del Gate 1): una entrada con `timedelta` despierta la base en un instante propio
+  y rompe la regla de que todas disparen juntas. `PARAMETROS_FISCALES_HORAS` se valida al arrancar
+  con la misma regla (horas × 60).
 - ¿Redondear un intervalo que no divide la hora? → **No, se rechaza** (2026-10-08): redondear
   cambia en silencio la frecuencia de un barrido de facturación o de cobros.
 - ¿`/health` pasa a ser liveness? → **No**: se agrega `/health/live` y `/health` queda como
   readiness, porque CI lo usa para saber que el despliegue quedó sano.
+
+## Para el PR
+
+> **Cambio de comportamiento al arrancar.** Los intervalos de las tareas periódicas
+> (`WHATSAPP_SONDEO_MINUTOS`, `DLQ_BARRIDO_MINUTOS`, `SYNC_PLANILLAS_MINUTOS`,
+> `BILLING_RECONCILIACION_MINUTOS`, `PARAMETROS_FISCALES_HORAS`) ahora deben dividir exactamente la
+> hora o el día. Un valor inválido (0, negativos, 7, 45, 90, mayores a 1440, o que no dividan 24 h)
+> detiene la API y el worker al arrancar, nombrando la variable; antes 0 y negativos se corregían
+> a 1 en silencio. **Antes de desplegar**, revisar esas variables en **ambos** servicios de Render
+> contra: minutos 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440;
+> horas (`PARAMETROS_FISCALES_HORAS`) 1, 2, 3, 4, 6, 8, 12, 24. Además, cambiar el **Health Check
+> Path** de la API a `/health/live` en el panel de Render: sin eso la unidad no ahorra cómputo.
