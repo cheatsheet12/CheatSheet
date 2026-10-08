@@ -17,11 +17,15 @@ from cheatsheet.contexts.payments.application.ports import (
     PortRepositorioRecordatorios,
     PortRepositorioReembolso,
 )
+from cheatsheet.contexts.payments.application.ports_de_pagos import PortRepositorioPagoSinImputar
 from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
 from cheatsheet.contexts.payments.infrastructure.aislamiento import AislamientoConSavepoint
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     RepositorioCobroPostgres,
     RepositorioRecordatoriosPostgres,
+)
+from cheatsheet.contexts.payments.infrastructure.repositorio_pago_sin_imputar import (
+    RepositorioPagoSinImputarPostgres,
 )
 from cheatsheet.contexts.payments.infrastructure.repositorio_reembolso import (
     RepositorioReembolsoPostgres,
@@ -35,6 +39,8 @@ class Cobros:
     cobros: PortRepositorioCobro
     recordatorios: PortRepositorioRecordatorios
     reembolsos: PortRepositorioReembolso
+    #: Los pagos aprobados que no se pudieron imputar (unidad `pagos-sin-cobro-asociado`).
+    pagos_sin_imputar: PortRepositorioPagoSinImputar
     #: El savepoint por cobro del barrido de recordatorios (U5, H1).
     aislamiento: PortAislamiento
 
@@ -44,5 +50,6 @@ class Cobros:
             cobros=RepositorioCobroPostgres(unidad.sesion),
             recordatorios=RepositorioRecordatoriosPostgres(unidad.sesion),
             reembolsos=RepositorioReembolsoPostgres(unidad.sesion),
+            pagos_sin_imputar=RepositorioPagoSinImputarPostgres(unidad.sesion),
             aislamiento=AislamientoConSavepoint(unidad.sesion),
         )

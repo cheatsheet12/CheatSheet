@@ -124,8 +124,10 @@ BORRADOS = (
     # `recordatorio` y `cobro` antes que `comprobante`: un cobro apunta al comprobante que
     # salda, y el comprobante apunta al cliente. El orden va de la hoja a la raiz.
     "DELETE FROM recordatorio",
-    # `reembolso` apunta a `cobro` sin cascada: un cobro con reembolsos no se borra solo.
+    # `reembolso` y `pago_sin_imputar` apuntan a `cobro` sin cascada: un cobro con reembolsos
+    # o con pagos sin imputar no se borra solo.
     "DELETE FROM reembolso",
+    "DELETE FROM pago_sin_imputar",
     "DELETE FROM cobro",
     "DELETE FROM regla_de_negocio",
     # `comprobante` primero: apunta a `cliente` y a `punto_de_venta` sin cascada, porque

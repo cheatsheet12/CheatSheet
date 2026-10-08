@@ -25,13 +25,17 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID, uuid4
 
+from cheatsheet.contexts.payments.application.pagos_sin_imputar import RegistrarPagoSinImputar
 from cheatsheet.contexts.payments.application.ports import (
     PagoRecibido,
     PortPasarelaDePago,
     PortRepositorioCobro,
     PortSaldoDeComprobante,
 )
+from cheatsheet.contexts.payments.application.ports_de_pagos import PortRepositorioPagoSinImputar
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro
+from cheatsheet.contexts.payments.domain.dinero import redondear
+from cheatsheet.contexts.payments.domain.pago_sin_imputar import MotivoSinImputar
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId
@@ -58,6 +62,10 @@ class ResultadoDeConfirmacion:
     #: un tercer desenlace, y tiene su propia bandera por lo mismo que `ya_procesado` tiene la
     #: suya — sin ella la bitácora no podría distinguir el caso que hay que mirar hoy.
     huerfano: bool = False
+    #: Entró plata que **no se pudo imputar** (sin cobro, cobro ya pagado o monto distinto) y
+    #: quedó registrada como `PagoSinImputar` con su alerta. Cuarto desenlace, con su propia
+    #: bandera por lo mismo que los otros: la bitácora tiene que poder distinguirlo.
+    sin_imputar: bool = False
 
 
 class ConfirmarPago:
@@ -75,11 +83,14 @@ class ConfirmarPago:
         pasarela: PortPasarelaDePago,
         saldos: PortSaldoDeComprobante,
         publicador: PublicadorDeEventos,
+        sin_imputar: PortRepositorioPagoSinImputar,
     ) -> None:
         self._cobros = cobros
         self._pasarela = pasarela
         self._saldos = saldos
         self._publicador = publicador
+        self._sin_imputar = sin_imputar
+        self._registro = RegistrarPagoSinImputar(pagos=sin_imputar, publicador=publicador)
 
     async def ejecutar(
         self, *, empresa_id: EmpresaId, payment_id: str, ahora: datetime
@@ -91,6 +102,11 @@ class ConfirmarPago:
         if ya is not None:
             logger.info("webhook_repetido", payment_id=payment_id, cobro_id=str(ya.id))
             return ResultadoDeConfirmacion(aprobado=True, ya_procesado=True, cobro=ya)
+        # **La misma línea para los pagos que no se pudieron imputar**: una segunda notificación
+        # del mismo pago no llama a MercadoPago ni vuelve a avisar.
+        if await self._sin_imputar.buscar_por_payment_id(payment_id) is not None:
+            logger.info("webhook_repetido_sin_imputar", payment_id=payment_id)
+            return ResultadoDeConfirmacion(aprobado=False, ya_procesado=True, sin_imputar=True)
 
         pago = await self._pasarela.consultar_pago(empresa_id=empresa_id, payment_id=payment_id)
         if not pago.esta_aprobado:
@@ -101,10 +117,12 @@ class ConfirmarPago:
 
         cobro = await self._encontrar(pago)
         if cobro is None:
-            # MercadoPago manda eventos de la cuenta entera, y una empresa puede cobrar por
-            # fuera del sistema. No es un error nuestro y no debe parecerlo.
-            logger.info("webhook_sin_cobro_asociado", payment_id=payment_id)
-            return ResultadoDeConfirmacion(aprobado=False)
+            # Un pago **aprobado** al que no le encontramos cobro es plata que entró y no se
+            # imputó a nada: se registra y se avisa, no se pierde en un log. (Los no aprobados
+            # ya salieron arriba: solo el aprobado mueve plata.)
+            return await self._registrar_sin_imputar(
+                empresa_id, pago, MotivoSinImputar.SIN_COBRO, None, ahora
+            )
 
         return await self._aprobar(empresa_id=empresa_id, cobro=cobro, pago=pago, ahora=ahora)
 
@@ -142,12 +160,21 @@ class ConfirmarPago:
             )
 
         if not cobro.esta_abierto:
-            # **Segunda línea de la idempotencia.** Un cobro ya aprobado por otra notificación
-            # que llegó con otro `payment_id` -- raro, pero MercadoPago reintenta con ids
-            # distintos cuando reprocesa. La tabla de transiciones lo rechazaría; esto lo
-            # convierte en una respuesta y no en un 500 que haría reintentar otra vez.
-            logger.info("webhook_sobre_cobro_cerrado", cobro_id=str(cobro.id))
-            return ResultadoDeConfirmacion(aprobado=True, ya_procesado=True, cobro=cobro)
+            # Un cobro ya pagado que recibe **otro** `payment_id`: o MercadoPago reprocesó con un
+            # id distinto (a confirmar, `TODO.md` §20.19) o el cliente pagó dos veces. En los dos
+            # casos entró plata y alguien tiene que verla, así que se registra y se avisa. La
+            # tabla de transiciones no admite `APROBADO -> APROBADO`: esto lo vuelve una
+            # respuesta y no un 500 que haría reintentar otra vez.
+            return await self._registrar_sin_imputar(
+                empresa_id, pago, MotivoSinImputar.COBRO_YA_PAGADO, cobro, ahora
+            )
+
+        if pago.monto is not None and redondear(pago.monto) != cobro.monto:
+            # El pago no cubre exactamente esta deuda (a confirmar con cuotas, §20.18): no se
+            # aprueba sola. Si `transaction_amount` no vino no hay con qué contradecir al cobro.
+            return await self._registrar_sin_imputar(
+                empresa_id, pago, MotivoSinImputar.MONTO_DISTINTO, cobro, ahora
+            )
 
         # El link queda desactivado por el estado (`tiene_link_activo`), sin borrar la
         # preferencia: es lo que ata una notificación tardía a esta fila, y sin ella el
@@ -179,6 +206,30 @@ class ConfirmarPago:
         )
         logger.info("pago_confirmado", cobro_id=str(cobro.id), payment_id=pago.payment_id)
         return ResultadoDeConfirmacion(aprobado=True, cobro=cobro)
+
+    async def _registrar_sin_imputar(
+        self,
+        empresa_id: EmpresaId,
+        pago: PagoRecibido,
+        motivo: MotivoSinImputar,
+        cobro: Cobro | None,
+        ahora: datetime,
+    ) -> ResultadoDeConfirmacion:
+        """El pago queda registrado y alertado; el cobro, si lo hay, no se toca.
+
+        Si otra notificación del mismo pago ganó la carrera por el índice único, el resultado es
+        el de una repetida (`ya_procesado`) y no hay un segundo aviso.
+        """
+        nuevo = await self._registro.ejecutar(
+            empresa_id=empresa_id,
+            pago=pago,
+            motivo=motivo,
+            cobro_id=cobro.id if cobro else None,
+            ahora=ahora,
+        )
+        return ResultadoDeConfirmacion(
+            aprobado=False, ya_procesado=not nuevo, sin_imputar=True, cobro=cobro
+        )
 
     async def _registrar_huerfano(
         self, *, empresa_id: EmpresaId, cobro: Cobro, pago: PagoRecibido, ahora: datetime

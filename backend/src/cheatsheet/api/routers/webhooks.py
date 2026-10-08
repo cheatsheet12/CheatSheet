@@ -92,6 +92,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
                     pasarela=armar_pasarela(unidad, recursos.settings),
                     saldos=armar_saldos(unidad),
                     publicador=unidad.publicador,
+                    sin_imputar=piezas.pagos_sin_imputar,
                 ).ejecutar(empresa_id=empresa, payment_id=payment_id, ahora=unidad.reloj.ahora())
         except PasarelaNoDisponible:
             # **El único caso en que queremos que reintente.** No pudimos preguntarle a

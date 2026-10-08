@@ -14,6 +14,8 @@ que lo que se ejercita acá es el flujo completo y no un atajo.
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import json
 import os
 from collections.abc import AsyncIterator
@@ -400,3 +402,96 @@ async def test_la_misma_clave_con_otro_cuerpo_responde_422_y_no_crea_nada(
     assert otro.json()["error"] == "ClaveDeIdempotenciaReusada"
     assert "otros datos" in otro.json()["detalle"]
     assert len(pasarela_contada.links) == 1
+
+
+# ------------------------------------------------------------------ el webhook · pagos sin imputar
+
+
+def _webhook(empresa_id: EmpresaId, payment_id: str) -> tuple[str, bytes, dict[str, str]]:
+    """Un `POST /webhooks/mercadopago/{empresa}` firmado con el secreto de prueba.
+
+    La firma es el HMAC del cuerpo crudo: la segunda forma que `_firma_valida` acepta.
+    """
+    cuerpo = json.dumps({"type": "payment", "data": {"id": payment_id}}).encode()
+    firma = hmac.new(b"secreto-de-prueba", cuerpo, hashlib.sha256).hexdigest()
+    cabeceras = {"x-signature": f"ts=1,v1={firma}", "content-type": "application/json"}
+    return f"/webhooks/mercadopago/{empresa_id}", cuerpo, cabeceras
+
+
+@pytest.mark.asyncio
+async def test_un_pago_sin_cobro_responde_200_deja_la_fila_y_avisa_con_severidad_alta(
+    cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
+) -> None:
+    """Caso 16. Antes quedaba en un log `info` y no figuraba en ningún lado; ahora es una fila,
+    un evento `Resultado.ERROR` y una notificación de severidad alta. La repetición no duplica."""
+    token = await _registrar(cliente, "ana@empresa.com")
+    empresa = _empresa_de(token)
+    ruta, cuerpo, cabeceras = _webhook(empresa, "pago-pref-que-no-es-nuestra")
+
+    primera = await cliente.post(ruta, content=cuerpo, headers=cabeceras)
+    repetida = await cliente.post(ruta, content=cuerpo, headers=cabeceras)
+
+    assert primera.status_code == 200, primera.text
+    assert repetida.status_code == 200, repetida.text
+    async with engine_dueno.begin() as conexion:
+        pagos = (
+            await conexion.execute(
+                text(
+                    "SELECT motivo, cobro_id FROM pago_sin_imputar "
+                    "WHERE mp_payment_id = 'pago-pref-que-no-es-nuestra'"
+                )
+            )
+        ).all()
+        eventos = (
+            await conexion.execute(
+                text(
+                    "SELECT resultado FROM registro_de_auditoria "
+                    "WHERE accion = 'pago_sin_imputar' AND empresa_id = :empresa"
+                ),
+                {"empresa": empresa},
+            )
+        ).all()
+        avisos = (
+            await conexion.execute(
+                text(
+                    "SELECT severidad FROM notificacion "
+                    "WHERE categoria = 'COBROS' AND empresa_id = :empresa"
+                ),
+                {"empresa": empresa},
+            )
+        ).all()
+    assert [tuple(fila) for fila in pagos] == [("SIN_COBRO", None)]
+    assert [fila[0] for fila in eventos] == ["error"]
+    assert [fila[0].lower() for fila in avisos] == ["alta"]
+
+
+@pytest.mark.asyncio
+async def test_un_pago_de_un_cobro_nuestro_lo_aprueba_por_su_referencia(
+    cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
+) -> None:
+    """El camino feliz de punta a punta: el doble informa el `external_reference` del cobro."""
+    token = await _registrar(cliente, "ana@empresa.com")
+    empresa = _empresa_de(token)
+    cliente_id = await _crear_cliente(cliente, token)
+    creado = await cliente.post("/cobros", json=_cobro(cliente_id), headers=_con_clave(token))
+    assert creado.status_code == 201, creado.text
+    cobro_id = creado.json()["id"]
+    ruta, cuerpo, cabeceras = _webhook(empresa, f"pago-pref-{cobro_id}")
+
+    respuesta = await cliente.post(ruta, content=cuerpo, headers=cabeceras)
+
+    assert respuesta.status_code == 200, respuesta.text
+    async with engine_dueno.begin() as conexion:
+        estado = (
+            await conexion.execute(
+                text("SELECT estado FROM cobro WHERE id = :id"), {"id": cobro_id}
+            )
+        ).scalar_one()
+        sin_imputar = (
+            await conexion.execute(
+                text("SELECT count(*) FROM pago_sin_imputar WHERE empresa_id = :empresa"),
+                {"empresa": empresa},
+            )
+        ).scalar_one()
+    assert estado == "APROBADO"
+    assert sin_imputar == 0

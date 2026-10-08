@@ -36,6 +36,7 @@ from cheatsheet.contexts.payments.application.ports import (
     RespuestaDeReembolso,
 )
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDePago
+from cheatsheet.contexts.payments.domain.pago_sin_imputar import PagoSinImputar
 from cheatsheet.shared.auditoria import EventoAuditable, Resultado
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import EventoDeDominio
@@ -250,6 +251,25 @@ class SaldosFalsos:
         self.saldo += monto
 
 
+class PagosSinImputarFalsos:
+    """`PortRepositorioPagoSinImputar` en memoria: único por `mp_payment_id`, como el índice."""
+
+    def __init__(self) -> None:
+        self.registrados: dict[str, PagoSinImputar] = {}
+        #: Cuántas veces se intentó agregar, repetidas incluidas.
+        self.intentos = 0
+
+    async def agregar(self, pago: PagoSinImputar) -> bool:
+        self.intentos += 1
+        if pago.mp_payment_id in self.registrados:
+            return False
+        self.registrados[pago.mp_payment_id] = pago
+        return True
+
+    async def buscar_por_payment_id(self, payment_id: str) -> PagoSinImputar | None:
+        return self.registrados.get(payment_id)
+
+
 class PublicadorFalso:
     def __init__(self) -> None:
         self.eventos: list[EventoDeDominio] = []
@@ -278,8 +298,15 @@ def _confirmar(
     pasarela: PasarelaFalsa,
     saldos: SaldosFalsos,
     publicador: PublicadorFalso,
+    sin_imputar: PagosSinImputarFalsos | None = None,
 ) -> ConfirmarPago:
-    return ConfirmarPago(cobros=cobros, pasarela=pasarela, saldos=saldos, publicador=publicador)
+    return ConfirmarPago(
+        cobros=cobros,
+        pasarela=pasarela,
+        saldos=saldos,
+        publicador=publicador,
+        sin_imputar=sin_imputar or PagosSinImputarFalsos(),
+    )
 
 
 # ------------------------------------------------------------------ el camino feliz
@@ -342,11 +369,12 @@ async def test_una_notificacion_repetida_no_vuelve_a_cobrar() -> None:
 
 
 async def test_dos_ids_distintos_sobre_el_mismo_cobro_tampoco_cobran_dos_veces() -> None:
-    """La segunda línea de defensa: la tabla de transiciones.
+    """La segunda línea de defensa: el cobro cerrado no se vuelve a aprobar.
 
-    MercadoPago reintenta con ids distintos cuando reprocesa. La consulta por `payment_id` no
-    lo atrapa, pero `APROBADO → APROBADO` no existe — y el caso de uso lo convierte en una
-    respuesta y no en un 500 que haría reintentar otra vez.
+    La consulta por `payment_id` no atrapa un segundo pago con otro id, y `APROBADO → APROBADO`
+    no existe: el caso de uso lo convierte en una respuesta y no en un 500 que haría reintentar
+    otra vez. Desde `pagos-sin-cobro-asociado` además **queda registrado** como pago sin
+    imputar (P4): entró plata y alguien tiene que verla.
     """
     cobros, pasarela, saldos = CobrosFalsos(), PasarelaFalsa(), SaldosFalsos()
     cobro = _cobro(comprobante_id=uuid4())
@@ -356,7 +384,8 @@ async def test_dos_ids_distintos_sobre_el_mismo_cobro_tampoco_cobran_dos_veces()
     await confirmar.ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
     segunda = await confirmar.ejecutar(empresa_id=EMPRESA, payment_id="pago-2", ahora=AHORA)
 
-    assert segunda.ya_procesado
+    assert segunda.sin_imputar
+    assert not segunda.aprobado
     assert cobro.mp_payment_id == "pago-1"
     assert len(saldos.descuentos) == 1
 
@@ -436,7 +465,7 @@ async def test_un_webhook_repetido_no_toca_la_fecha_de_pago() -> None:
 
 
 async def test_otro_payment_id_sobre_un_cobro_cerrado_no_toca_la_fecha_de_pago() -> None:
-    """Segunda línea de D20: `ya_procesado` y la fecha intacta."""
+    """Segunda línea de D20: el pago de más queda sin imputar y la fecha, intacta."""
     cobros = CobrosFalsos()
     cobro = _cobro()
     await cobros.agregar(cobro)
@@ -452,7 +481,7 @@ async def test_otro_payment_id_sobre_un_cobro_cerrado_no_toca_la_fecha_de_pago()
         empresa_id=EMPRESA, payment_id="pago-2", ahora=AHORA + timedelta(days=2)
     )
 
-    assert segunda.ya_procesado
+    assert segunda.sin_imputar
     assert cobro.fecha_pago == pagado_el
     assert cobro.fecha_pago_aproximada is False
 
@@ -596,8 +625,11 @@ async def test_el_pago_huerfano_no_le_baja_el_saldo_al_comprobante() -> None:
     assert saldos.saldo == Decimal("5000.00")
 
 
-async def test_un_pago_sobre_un_cobro_reembolsado_sigue_siendo_idempotencia() -> None:
-    """La rama vieja no se tocó: sólo `CANCELADO` se desvía, y sin alerta acá."""
+async def test_un_pago_nuevo_sobre_un_cobro_reembolsado_queda_sin_imputar() -> None:
+    """Otro `payment_id` sobre un cobro ya reembolsado es plata nueva (P4): se registra y avisa.
+
+    El mismo `payment_id` sigue siendo idempotencia (`buscar_por_payment_id`, caso de abajo).
+    """
     cobros, publicador = CobrosFalsos(), PublicadorFalso()
     cobro = _cobro()
     cobro.aprobar(payment_id="pago-viejo", ahora=AHORA)
@@ -611,9 +643,9 @@ async def test_un_pago_sobre_un_cobro_reembolsado_sigue_siendo_idempotencia() ->
         empresa_id=EMPRESA, payment_id="pago-nuevo", ahora=AHORA
     )
 
-    assert resultado.ya_procesado
+    assert resultado.sin_imputar
     assert not resultado.huerfano
-    assert publicador.eventos == []
+    assert [e.accion for e in publicador.eventos] == ["pago_sin_imputar"]  # type: ignore[attr-defined]
 
 
 async def test_el_webhook_de_un_pago_ya_reembolsado_no_toca_el_reembolso() -> None:

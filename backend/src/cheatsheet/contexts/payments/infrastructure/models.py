@@ -1,7 +1,7 @@
 """Modelos de persistencia de `payments`.
 
-Las dos tablas del DER, más `reembolso` (ADR-0010, migración 0027). Tres cosas valen
-leerse dos veces:
+Las dos tablas del DER, más `reembolso` (ADR-0010, migración 0027) y `pago_sin_imputar`
+(migración 0036). Tres cosas valen leerse dos veces:
 
 - **`mp_payment_id` no lo muestra ninguna pantalla y existe igual.** Es la clave de
   idempotencia del webhook (decisión D20), y el índice único parcial de la migración 0019 es
@@ -39,6 +39,7 @@ from cheatsheet.platform.database import Base
 TABLA_COBRO = "cobro"
 TABLA_RECORDATORIO = "recordatorio"
 TABLA_REEMBOLSO = "reembolso"
+TABLA_PAGO_SIN_IMPUTAR = "pago_sin_imputar"
 
 MONTO = Numeric(14, 2)
 
@@ -214,5 +215,41 @@ class ReembolsoORM(Base):
         CheckConstraint(
             "origen <> 'MANUAL' OR (motivo IS NOT NULL AND length(btrim(motivo)) > 0)",
             name="ck_reembolso_motivo_manual",
+        ),
+    )
+
+
+class PagoSinImputarORM(Base):
+    """Un pago aprobado que no se imputó. **Solo `SELECT` e `INSERT`**: es un hecho registrado."""
+
+    __tablename__ = TABLA_PAGO_SIN_IMPUTAR
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    #: La clave de idempotencia: un pago de MercadoPago, una fila (por empresa).
+    mp_payment_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    #: El `external_reference` tal como vino, acotado a la columna. Sin interpretar.
+    referencia_externa: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    #: El cobro encontrado cuando lo hay. Sin `ON DELETE CASCADE`: un cobro con pagos sin imputar
+    #: no se borra solo.
+    cobro_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey(f"{TABLA_COBRO}.id"), nullable=True
+    )
+    motivo: Mapped[str] = mapped_column(String(20), nullable=False)
+    monto: Mapped[Decimal | None] = mapped_column(MONTO, nullable=True)
+    fecha_aprobacion: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    recibido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("uq_pago_sin_imputar_payment", "empresa_id", "mp_payment_id", unique=True),
+        Index("ix_pago_sin_imputar_cobro", "cobro_id"),
+        CheckConstraint(
+            "motivo IN ('SIN_COBRO', 'COBRO_YA_PAGADO', 'MONTO_DISTINTO')",
+            name="ck_pago_sin_imputar_motivo",
+        ),
+        CheckConstraint(
+            "(motivo = 'SIN_COBRO') = (cobro_id IS NULL)", name="ck_pago_sin_imputar_cobro"
         ),
     )
