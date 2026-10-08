@@ -25,7 +25,6 @@ from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
 from cheatsheet.contexts.payments.application.recordatorios import DespacharRecordatorios
 from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.recordatorio import VENTANA_DE_ENVIO
-from cheatsheet.contexts.payments.infrastructure.aislamiento import AislamientoConSavepoint
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     RepositorioCobroPostgres,
     empresas_con_cobros_abiertos,
@@ -34,8 +33,8 @@ from cheatsheet.contexts.payments.infrastructure.repositories import (
 from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
-from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import sesion_de_empresa, sesion_sin_empresa
+from cheatsheet.platform.transaccion import AislamientoConSavepoint, ConfirmacionDeLaUnidad
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text

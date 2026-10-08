@@ -11,7 +11,6 @@ from datetime import timedelta
 from uuid import uuid4
 
 import pytest
-from cheatsheet.contexts.payments.application.errors import DespachoNoPersistido
 from cheatsheet.contexts.payments.domain.recordatorio import (
     INCIERTO,
     VENTANA_DE_ENVIO,
@@ -19,6 +18,7 @@ from cheatsheet.contexts.payments.domain.recordatorio import (
     Recordatorio,
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Resultado
+from cheatsheet.shared.transaccion import DespachoNoPersistido
 
 from tests.contexts.payments.application.dobles_de_reintento import (
     BARRIDO_1,

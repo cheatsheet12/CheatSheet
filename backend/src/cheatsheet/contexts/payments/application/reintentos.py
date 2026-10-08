@@ -62,10 +62,7 @@ from enum import StrEnum
 from typing import TypeVar
 from uuid import UUID, uuid4
 
-from cheatsheet.contexts.payments.application.errors import (
-    DespachoNoPersistido,
-    RecordatorioDuplicado,
-)
+from cheatsheet.contexts.payments.application.errors import RecordatorioDuplicado
 from cheatsheet.contexts.payments.application.ports import (
     PortRepositorioCobro,
     PortRepositorioRecordatorios,
@@ -75,7 +72,6 @@ from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     PortEnvioDeRecordatorio,
     ResultadoDeEnvio,
 )
-from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento, PortTransaccion
 from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.recordatorio import (
     INCIERTO,
@@ -87,6 +83,7 @@ from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.clock import Reloj
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import PublicadorDeEventos
+from cheatsheet.shared.transaccion import DespachoNoPersistido, PortAislamiento, PortTransaccion
 
 logger = obtener_logger(__name__)
 

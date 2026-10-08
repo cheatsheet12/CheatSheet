@@ -15,7 +15,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pytest
-from cheatsheet.contexts.payments.application.errors import DespachoNoPersistido
 from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     MensajeListo,
     ResultadoDeEnvio,
@@ -28,6 +27,7 @@ from cheatsheet.contexts.payments.domain.recordatorio import (
     VENTANA_DE_ENVIO,
     EstadoEntrega,
 )
+from cheatsheet.shared.transaccion import DespachoNoPersistido
 
 from tests.contexts.payments.application.dobles_de_reintento import (
     BARRIDO_1,

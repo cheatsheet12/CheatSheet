@@ -21,21 +21,20 @@ import uuid
 from datetime import timedelta
 
 import pytest
-from cheatsheet.contexts.payments.application.errors import DespachoNoPersistido
 from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     PortEnvioDeRecordatorio,
 )
 from cheatsheet.contexts.payments.application.recordatorios import DespacharRecordatorios
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
-from cheatsheet.contexts.payments.infrastructure.aislamiento import AislamientoConSavepoint
 from cheatsheet.contexts.payments.infrastructure.repositories import RepositorioCobroPostgres
 from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
-from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import sesion_de_empresa
+from cheatsheet.platform.transaccion import AislamientoConSavepoint, ConfirmacionDeLaUnidad
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.transaccion import DespachoNoPersistido
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
