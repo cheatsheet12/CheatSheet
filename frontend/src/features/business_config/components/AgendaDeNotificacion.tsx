@@ -143,7 +143,11 @@ export function AgendaDeNotificacion({
               onChange={(evento) => cambiar(fila.clave, evento.target.value)}
             />
             {puedeEditar && filas.length > 1 && (
-              <Button variante="secundario" onClick={() => quitar(fila.clave)}>
+              <Button
+                variante="secundario"
+                aria-label={`Quitar recordatorio ${indice + 1}`}
+                onClick={() => quitar(fila.clave)}
+              >
                 Quitar
               </Button>
             )}

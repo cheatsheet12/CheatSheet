@@ -99,10 +99,11 @@ describe("con regla configurada", () => {
   it("quita una fila pero nunca la última", () => {
     render(<AgendaDeNotificacion inicial={GUARDADA} puedeEditar />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Quitar" })[0] as HTMLElement);
+    expect(screen.getByRole("button", { name: "Quitar recordatorio 2" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Quitar recordatorio 1" }));
 
     expect(campo(1).value).toBe("2");
-    expect(screen.queryByRole("button", { name: "Quitar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Quitar/ })).toBeNull();
   });
 
   it("manda el PUT con las horas como números y conserva la prioridad", async () => {
