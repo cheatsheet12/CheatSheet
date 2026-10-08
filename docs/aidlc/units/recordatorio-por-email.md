@@ -445,6 +445,19 @@ Se contestan en bloque («1 sí, 2 sí, …»).
 | 5 | ¿La unidad agrega a `docs/staging-deployment.md` la línea que dice que el worker necesita `EMAIL_ADAPTADOR` y `SMTP_*`, y deja como acción del dueño `.env.example` y Render? | **Sí.** El agente no puede editar `.env.example` ni el dashboard de Render; la doc de despliegue es lo que evita que el día que se cargue el proveedor en la API alguien se olvide del worker |
 | 6 | La unidad depende en los hechos de **U7 tramos i y ii** (puerto en dos tiempos, `transitoria`), no sólo de U5. ¿Se actualiza la columna «Depende de» de U11 en `units.md` a `canal-real-de-whatsapp, entregas-de-whatsapp (tramo ii)` al reclamarla? | **Sí.** El mapa tiene que decir la verdad: el tramo ii de U11 no se puede mergear antes que el de U7. El tramo i sí, y eso también queda escrito en esta fila |
 
+## Traspaso (2026-10-07)
+
+HS-T3 pertenece al módulo de cobros (`docs/aidlc/etapa-6/reparto.md` §1); el reparto asigna al canal
+conversacional solo el canal real de WhatsApp para recordatorios y avisos. Esta unidad se libera para
+quien tenga el módulo de cobros, con el **borrador del plan** en esta rama: el relevamiento, el diseño
+y las 6 preguntas con su recomendación. **El Gate 1 no se presentó**: lo presenta y lo aprueba quien
+la tome, que puede cambiar cualquier decisión.
+
+Antes de empezar: el tramo ii depende de `entregas-de-whatsapp` tramos i y ii (puerto en dos tiempos y
+`FallaDelCanal.transitoria`), todavía sin mergear; el tramo i no depende de nada y puede ir antes.
+Hallazgos que valen aunque la unidad no se haga ya: `platform/email.py` loguea la dirección y el
+asunto de cada correo (pregunta 3) y `reporting/infrastructure/avisos.py:85` loguea el destinatario.
+
 ## Registro
 
 | Gate | Fecha | Resultado |
