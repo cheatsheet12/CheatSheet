@@ -378,6 +378,13 @@ futura, si hiciera falta, solo podría tocar filas con `franja_inicio < now()`.
 | **3 · Barrido y envío** | `feature/scheduling-recordatorio-de-turno-barrido` | Extracción a `shared/`; `transitoria` en conversational; caso de uso en tres tiempos; adaptadores; `api/recordatorios_de_turno.py`; worker, Beat, settings; advertencia PAN-CFG-NOT; tests de caso de uso e integración; pendientes #7 y #11 | ~1.100 | Tramo 2 y **U7 mergeada** |
 
 **Orden de merge del épico:** U6 → U7 (i, ii, iii) → U8 (1 → 2 → 3). El tramo 1 puede adelantarse a U7.
+
+**Decisión (Luciano, 2026-10-08): el tramo 2 va apilado sobre la pila de U7.** La migración 0039
+encadena después de la 0038, que solo existe en `feature/conversational-entregas-de-whatsapp-avisos`
+(U6 + U7 i/ii/iii, migraciones 0036 a 0038). Por eso `feature/scheduling-recordatorio-de-turno-modelo`
+incorpora esa rama con un merge (`--no-ff`), igual que U7 se apiló sobre U6. **El PR del tramo 2 se
+abre después de que U6 y U7 estén mergeadas en `develop`** (orden U6 → U7 → U8); si U7 cambia su
+numeración antes de entrar, se re-encadena la 0039 (D-U8-15).
 ADR-0014 no bloquea.
 
 ## Archivos a tocar
@@ -392,11 +399,11 @@ Tramo 1
 - [ ] `docs/aidlc/units.md` (sin cambios: la unidad ya figura «en curso»)
 
 Tramo 2
-- [ ] `backend/migrations/versions/0039_recordatorio_de_turno.py`
-- [ ] `backend/src/cheatsheet/contexts/scheduling/domain/turno.py` · `domain/recordatorio_de_turno.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/scheduling/application/ports_de_recordatorios.py` (nuevo) · `application/errors.py` · `application/turnos.py` (solo la llamada a `reprogramar`)
-- [ ] `backend/src/cheatsheet/contexts/scheduling/infrastructure/models.py` · `repositories.py` · `repositorio_de_recordatorios.py` (nuevo)
-- [ ] `backend/tests/contexts/scheduling/domain/test_recordatorio_de_turno.py` · `test_turno.py` · `backend/tests/integracion/test_migracion_0039.py` · `test_recordatorios_de_turno_postgres.py`
+- [x] `backend/migrations/versions/0039_recordatorio_de_turno.py`
+- [x] `backend/src/cheatsheet/contexts/scheduling/domain/turno.py` · `domain/recordatorio_de_turno.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/scheduling/application/ports_de_recordatorios.py` (nuevo) · `application/errors.py` · `application/turnos.py` (la llamada a `reprogramar` y `franja_asignada_en` al reservar)
+- [x] `backend/src/cheatsheet/contexts/scheduling/infrastructure/models.py` · `repositories.py` · `repositorio_de_recordatorios.py` (nuevo)
+- [x] `backend/tests/contexts/scheduling/domain/test_recordatorio_de_turno.py` · `test_turno.py` · `backend/tests/integracion/test_migracion_0039.py` · `test_recordatorios_de_turno_postgres.py` · `tests/integracion/conftest.py` (`BORRADOS`)
 
 Tramo 3
 - [ ] `backend/src/cheatsheet/shared/transaccion.py` (nuevo) · `payments/application/ports_envio.py` · `payments/application/errors.py` · `payments/infrastructure/transaccion.py` · `workers/tasks_payments.py` (imports)
@@ -422,15 +429,15 @@ Tramo 3
 | 6 | `ConsultarAgendaDeNotificacion`: sin regla → 24 h y `configurada=False`; regla desactivada → agenda vacía (recordatorios apagados) | unit | 1 | hecho |
 | 7 | Dos reglas de agenda → gana la de mayor prioridad (RN-05) | unit | 1 | hecho |
 | 8 | PAN-CFG-RN: agrega hasta 3, valida con la frase, muestra el default, solo Administrador edita | unit (Vitest) | 1 | hecho |
-| 9 | `que_corresponde`: con 48 h y 24 h y el worker caído hasta faltar 20 h → solo la de 24 h; la de 48 h `OMITIDO` | unit | 2 | pendiente |
-| 10 | Turno reservado 3 h antes con regla de 24 h → no se recuerda (`M < F`) | unit | 2 | pendiente |
-| 11 | Turno confirmado dentro de la ventana → **sí** se recuerda | unit | 2 | pendiente |
-| 12 | Zona: 15/10/2026 10:00 AR (`13:00Z`) corresponde desde el 14/10 `13:00Z`; turno a las 00:30 AR muestra la fecha argentina | unit | 2/3 | pendiente |
-| 13 | Entidad: `registrar_falla` transitoria espera 15 y 30 min; la tercera agota → `FALLIDO`; espera que cae después de `I` → `DESCARTADO` | unit | 2 | pendiente |
-| 14 | Migración 0039: backfill `franja_asignada_en = created_at`, `NOT NULL`, upgrade/downgrade limpios | migración (CI) | 2 | pendiente |
-| 15 | RLS: la tabla aísla por `empresa_id`; sin empresa declarada no se ve nada | integración (CI) | 2 | pendiente |
-| 16 | `empresas_con_turnos_por_recordar`: solo ids, respeta `hasta`, incluye empresas con filas pendientes, excluye turnos cerrados | migración (CI) | 2 | pendiente |
-| 17 | Índice único: un segundo `INSERT` de la misma clave → `RecordatorioDeTurnoDuplicado` | integración (CI) | 2 | pendiente |
+| 9 | `que_corresponde`: con 48 h y 24 h y el worker caído hasta faltar 20 h → solo la de 24 h; la de 48 h `OMITIDO` | unit | 2 | hecho |
+| 10 | Turno reservado 3 h antes con regla de 24 h → no se recuerda (`M < F`) | unit | 2 | hecho |
+| 11 | Turno confirmado dentro de la ventana → **sí** se recuerda | unit | 2 | hecho |
+| 12 | Zona: 15/10/2026 10:00 AR (`13:00Z`) corresponde desde el 14/10 `13:00Z`; turno a las 00:30 AR muestra la fecha argentina | unit | 2/3 | hecho |
+| 13 | Entidad: `registrar_falla` transitoria espera 15 y 30 min; la tercera agota → `FALLIDO`; espera que cae después de `I` → `DESCARTADO` | unit | 2 | hecho |
+| 14 | Migración 0039: backfill `franja_asignada_en = created_at`, `NOT NULL`, upgrade/downgrade limpios | migración (CI) | 2 | escrito (corre en la CI) |
+| 15 | RLS: la tabla aísla por `empresa_id`; sin empresa declarada no se ve nada | integración (CI) | 2 | escrito (corre en la CI) |
+| 16 | `empresas_con_turnos_por_recordar`: solo ids, respeta `hasta`, incluye empresas con filas pendientes, excluye turnos cerrados | migración (CI) | 2 | escrito (corre en la CI) |
+| 17 | Índice único: un segundo `INSERT` de la misma clave → `RecordatorioDeTurnoDuplicado` | integración (CI) | 2 | escrito (corre en la CI) |
 | 18 | Reprogramado → recordatorio nuevo para la franja nueva; pendiente de la vieja → `DESCARTADO` | caso de uso | 3 | pendiente |
 | 19 | Cancelado → nunca; cancelado con reintento pendiente → `DESCARTADO`; cancelado entre reservar y mandar → `DESCARTADO` sin llamar al canal | caso de uso | 3 | pendiente |
 | 20 | A posteriori, completado o no-show → nunca; turno ya empezado → no se manda | caso de uso | 3 | pendiente |
@@ -539,12 +546,35 @@ PostgreSQL en la CI.
 
 **Gate 2 del tramo 1 (08/10).** Aprobado por Luciano. Se abre el tramo 2 sobre `ab4cd5d`.
 
+**Tramo 2 · Modelo de scheduling (implementado, sin push).**
+
+- Base: merge de la pila de U7 (`origin/feature/conversational-entregas-de-whatsapp-avisos`) en la rama
+  del tramo; sin conflictos. Suite verde tras el merge, antes de escribir código del tramo.
+- Migración `0039_recordatorio_de_turno.py` (`down_revision = "0038"`): `turno.franja_asignada_en`
+  con backfill `created_at` y `NOT NULL`; tabla `recordatorio_de_turno` con RLS forzada, sin `DELETE`
+  para la app, índice único `uq_recordatorio_de_turno` y los parciales `ix_recordatorio_de_turno_pendiente`
+  e `ix_turno_abierto_inicio`; función `SECURITY DEFINER` `empresas_con_turnos_por_recordar(hasta)`.
+- Dominio: `Turno.franja_asignada_en` (se fija al reservar, en la carga a posteriori y en
+  `reprogramar(franja, intervalo, ahora)`); `domain/recordatorio_de_turno.py` con la entidad, las
+  constantes del reintento y la función pura `que_corresponde`.
+- Aplicación: `ports_de_recordatorios.py` (cuatro puertos y `RecordatorioListo`, `SinTelefono`,
+  `ResultadoDelEnvio`) y `RecordatorioDeTurnoDuplicado`.
+- Infraestructura: `RecordatorioDeTurnoORM`, `repositorio_de_recordatorios.py` (con
+  `empresas_con_turnos_por_recordar`), `abiertos_con_inicio_entre` en el repositorio de turnos.
+- Pruebas: dominio y aplicación (casos 9 a 13) pasan; `test_migracion_0039.py` y
+  `test_recordatorios_de_turno_postgres.py` (casos 14 a 17 y el aislamiento) se saltean sin base y
+  corren en la CI. La tabla se agregó a `BORRADOS`.
+- Desvíos del plan: el resultado del canal se llama `ResultadoDelEnvio` (el nombre
+  `ResultadoDeRecordatorio` es el enum de la columna); los modelos se llaman `...ORM` como los demás de
+  scheduling; `PortTurnosPorRecordar` suma `buscar_por_id`, que el barrido necesita para releer el turno.
+
 ## Decisiones tomadas durante la unidad
 
 - Gate 1 (2026-10-04): Pregunta 1 → hasta 3 recordatorios por turno, cada uno en horas antes (1 a 168).
 - Gate 1 (2026-10-04): Pregunta 2 → sin regla configurada rige un recordatorio por defecto 24 h antes.
 - Gate 1 (2026-10-04): Pregunta 3 → se omite el recordatorio si el turno se reservó o se movió cuando su momento ya había pasado.
 - Gate 1 (2026-10-04): Pregunta 4 → sin horario de silencio en esta unidad.
+- Tramo 2 (2026-10-08): Luciano decidió apilar el tramo 2 sobre la pila de U7 (merge de la rama de U7 en la rama del tramo); su PR se abre después de U6 y U7 (orden U6 → U7 → U8).
 - Revalidación (2026-10-08): las once decisiones del informe del 07/10 aprobadas tal como se recomendaron → D-U8-8 a D-U8-18.
 - Gate 1 (2026-10-08): Pregunta abierta 1 → regla de agenda desactivada = recordatorios apagados, sin vuelta al default de 24 h (desactivar es una decisión explícita de no avisar y cada mensaje de plantilla cuesta).
 - Gate 1 (2026-10-08): Pregunta abierta 2 → `shared/` recibe los dos `Protocol` y el tipo de error (sin framework, R4); `ConfirmacionDeLaUnidad` y `AislamientoConSavepoint` van juntos a `platform/`. Ajusta D-U8-11.
