@@ -31,6 +31,7 @@ ATRIBUTO_ROL = "rol"
 RUTAS_PUBLICAS = frozenset(
     {
         "/health",
+        "/health/live",
         "/docs",
         "/openapi.json",
         "/redoc",
