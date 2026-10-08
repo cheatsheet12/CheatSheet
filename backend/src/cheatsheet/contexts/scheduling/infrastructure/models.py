@@ -28,6 +28,7 @@ TABLA_PATRON = "patron_de_disponibilidad"
 TABLA_EXCEPCION = "excepcion_de_disponibilidad"
 TABLA_SERVICIO_DE_RECURSO = "servicio_de_recurso"
 TABLA_TURNO = "turno"
+TABLA_RECORDATORIO_DE_TURNO = "recordatorio_de_turno"
 
 
 class RecursoReservableORM(Base):
@@ -143,9 +144,44 @@ class TurnoORM(Base):
     )
 
 
+class RecordatorioDeTurnoORM(Base):
+    """Un recordatorio de turno (migración 0039).
+
+    **`uq_recordatorio_de_turno` es la idempotencia**: una fila por `(turno, anticipación,
+    franja)`, y el índice es lo que impide mandar dos veces el mismo aviso aunque dos barridos se
+    solapen. Sin `DELETE` para la app: borrar una fila `OMITIDO` haría que el barrido siguiente la
+    recreara y la mandara. `resultado` nulo es «en curso o esperando reintento».
+    """
+
+    __tablename__ = TABLA_RECORDATORIO_DE_TURNO
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    turno_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey(f"{TABLA_TURNO}.id", ondelete="CASCADE"), nullable=False
+    )
+    anticipacion_min: Mapped[int] = mapped_column(Integer, nullable=False)
+    franja_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    resultado: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    intentos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    proximo_intento_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ultimo_error: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    procesado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "turno_id", "anticipacion_min", "franja_inicio", name="uq_recordatorio_de_turno"
+        ),
+    )
+
+
 __all__ = [
     "ExcepcionDeDisponibilidadORM",
     "PatronDeDisponibilidadORM",
+    "RecordatorioDeTurnoORM",
     "RecursoReservableORM",
     "ServicioDeRecursoORM",
     "TurnoORM",

@@ -34,6 +34,7 @@ from cheatsheet.contexts.scheduling.domain.recurso import (
     TipoRecurso,
 )
 from cheatsheet.contexts.scheduling.domain.turno import (
+    ESTADOS_ABIERTOS,
     ESTADOS_QUE_OCUPAN_LA_FRANJA,
     MENSAJE_HORARIO_OCUPADO,
     EstadoTurno,
@@ -272,6 +273,22 @@ class RepositorioTurnoPostgres:
             .where(TurnoORM.franja_inicio < inicio + timedelta(days=1))
             .where(TurnoORM.estado.in_([estado.value for estado in ESTADOS_QUE_OCUPAN_LA_FRANJA]))
             .order_by(TurnoORM.franja_inicio)
+        )
+        filas = (await self._sesion.execute(sentencia)).scalars().all()
+        return [_a_dominio(fila) for fila in filas]
+
+    async def abiertos_con_inicio_entre(self, desde: datetime, hasta: datetime) -> list[Turno]:
+        """Los turnos abiertos con `desde < inicio <= hasta`, por inicio (el barrido de avisos).
+
+        Lee `ix_turno_abierto_inicio`, el índice parcial de la migración 0039. Los abiertos son
+        `RESERVADO` y `CONFIRMADO`: la misma condición que el índice.
+        """
+        sentencia = (
+            select(TurnoORM)
+            .where(TurnoORM.estado.in_([estado.value for estado in ESTADOS_ABIERTOS]))
+            .where(TurnoORM.franja_inicio > desde)
+            .where(TurnoORM.franja_inicio <= hasta)
+            .order_by(TurnoORM.franja_inicio, TurnoORM.id)
         )
         filas = (await self._sesion.execute(sentencia)).scalars().all()
         return [_a_dominio(fila) for fila in filas]

@@ -114,6 +114,8 @@ BORRADOS = (
     "DELETE FROM conversacion",
     "DELETE FROM faq",
     "DELETE FROM plantilla_de_notificacion",
+    # `recordatorio_de_turno` apunta a `turno` y a `empresa`: antes que `turno`.
+    "DELETE FROM recordatorio_de_turno",
     # `turno` antes que `cobro`: un turno apunta a la seña que lo reserva, y también al
     # cliente y al servicio. El orden va de la hoja a la raíz, como el resto de la lista.
     "DELETE FROM turno",

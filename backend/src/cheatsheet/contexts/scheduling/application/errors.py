@@ -69,10 +69,19 @@ class ExcepcionDuplicada(EntradaInvalida):
     """HU-E7-05 RN-02. Ya hay una excepción para esa fecha en ese recurso."""
 
 
+class RecordatorioDeTurnoDuplicado(InvarianteViolada):
+    """Ya existe la fila de ese `(turno, anticipación, franja)`: otro barrido llegó primero.
+
+    No es un error para quien barre sino la prueba de que la idempotencia funcionó: se sigue con
+    el ítem siguiente y no se manda nada. Nace del índice único `uq_recordatorio_de_turno`.
+    """
+
+
 __all__ = [
     "ExcepcionDuplicada",
     "FranjaOcupada",
     "FueraDeHorario",
+    "RecordatorioDeTurnoDuplicado",
     "RecursoInactivo",
     "RecursoInexistente",
     "ServicioNoAdmitido",
