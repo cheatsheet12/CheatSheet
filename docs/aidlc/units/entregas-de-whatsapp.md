@@ -338,7 +338,7 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 |---|---|---|---|
 | 1 | **RED** — Un callback `delivered` del `wamid` de un mensaje del agente no cambia nada (hoy se descarta). GREEN: `ENTREGADO` | integración (API) | hecho · tramo 1 |
 | 2 | **RED** — Un callback `read` del `wamid` de un recordatorio de cobro no cambia nada (hoy no hay `externo_id`). GREEN: `LEIDO` en PAN-COB-02 | integración | hecho · tramo 1 |
-| 3 | **RED** — Cancelar un turno no deja ningún registro del aviso (hoy). GREEN: un `Mensaje` `SALIENTE`/`SISTEMA` con el `wamid` en la conversación activa del cliente | integración | pendiente · tramo 3 |
+| 3 | **RED** — Cancelar un turno no deja ningún registro del aviso (hoy). GREEN: un `Mensaje` `SALIENTE`/`SISTEMA` con el `wamid` en la conversación activa del cliente | integración | hecho (con dobles) · escrito (CI) · tramo 3 |
 | 4 | **RED** — Una fila de recordatorio con `enviado_en` nulo traba la cadena: el barrido siguiente no manda nada (hoy). GREEN: si **ningún envío empezó** (`intentos=0`) se manda y sale; si uno empezó y no registró resultado, se resuelve `INCIERTO` y **no** se reenvía | caso de uso | hecho · tramo 2 |
 | 5 | El mismo `statuses[]` entregado dos veces → un solo cambio (en `recordatorio`, con un solo `recordatorio_fallido`, y en `mensaje`) | integración | hecho · tramo 1 |
 | 6 | `read` y después `delivered` (fuera de orden) → queda `LEIDO`, en `mensaje` y en `recordatorio` | unit (dominio, tabla) | hecho · tramo 1 |
@@ -358,13 +358,13 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 | 20 | Cobro pagado mientras esperaba reintento → fila descartada (`COBRO_CERRADO`), ningún envío | caso de uso | hecho · tramo 2 |
 | 21 | Dos barridos solapados con una fila pendiente → un solo envío (savepoint + índice) | integración (CI) | escrito · tramo 2 (corre en CI) |
 | 22 | El reintento de un cobro no voltea los demás del barrido (savepoint por ítem) | caso de uso | hecho · tramo 2 |
-| 23 | Aviso con el cliente sin conversación → se crea una `ACTIVA`; con conversación archivada → se crea otra; con una activa → se agrega ahí | unit | pendiente · tramo 3 |
-| 24 | Aviso con Meta caído → `Mensaje` `FALLIDO` con motivo, turno cancelado, request OK | integración | pendiente · tramo 3 |
-| 25a | Empresa sin WhatsApp conectado (producción) → ningún hilo ni mensaje creado, turno cancelado | unit | pendiente · tramo 3 |
-| 25 | Falla al guardar el mensaje del sistema → el turno queda cancelado; log `aviso_de_turno_sin_registrar` | unit | pendiente · tramo 3 |
-| 26 | Historial del intérprete: un `SISTEMA` se reemplaza por el descriptor; el texto con nombre no llega al intérprete | unit | pendiente · tramo 3 (solo regresión: el descriptor ya existe) |
-| 27 | Respuesta del cliente a un aviso → el agente procesa en la misma conversación (RN-03) | integración | pendiente · tramo 3 |
-| 28 | Ningún log de los módulos nuevos contiene `recipient_id`, teléfono ni texto del aviso | unit (captura de logs) | parcial · tramo 1 (webhook de estados; faltan los avisos, tramo 3) |
+| 23 | Aviso con el cliente sin conversación → se crea una `ACTIVA`; con conversación archivada → se crea otra; con una activa → se agrega ahí | unit | hecho · tramo 3 |
+| 24 | Aviso con Meta caído → `Mensaje` `FALLIDO` con motivo, turno cancelado, request OK | integración | hecho (con dobles) · escrito (CI) · tramo 3 |
+| 25a | Empresa sin WhatsApp conectado (producción) → ningún hilo ni mensaje creado, turno cancelado | unit | hecho · tramo 3 |
+| 25 | Falla al guardar el mensaje del sistema → el turno queda cancelado; log `aviso_de_turno_sin_registrar` | unit | hecho (unit) · escrito (CI: savepoint real con un `wamid` repetido) · tramo 3 |
+| 26 | Historial del intérprete: un `SISTEMA` se reemplaza por el descriptor; el texto con nombre no llega al intérprete | unit | hecho · tramo 3 (regresión: el descriptor ya existía; ahora también con un aviso escrito por `NotificarAlCliente`) |
+| 27 | Respuesta del cliente a un aviso → el agente procesa en la misma conversación (RN-03) | integración | hecho (con dobles) · escrito (CI: `abierta_de` encuentra el hilo del aviso) · tramo 3 |
+| 28 | Ningún log de los módulos nuevos contiene `recipient_id`, teléfono ni texto del aviso | unit (captura de logs) | hecho · tramo 1 (webhook de estados) y tramo 3 (avisos) |
 | 36 | **H1** — Cuando el barrido llama a Meta la fila del recordatorio ya está confirmada y vista por otra transacción; ninguna llamada a Meta corre con escrituras sin confirmar; el orden es reservar, confirmar, mandar, registrar, confirmar | caso de uso + integración (CI) | hecho (caso de uso) · escrito (CI) · tramo 2 |
 | 37 | Caídas del proceso: reserva que la base no confirma → no se manda; resultado que la base no guarda → la fila queda «en curso» y vencida su ventana se resuelve `INCIERTO`, nunca se reenvía; envío en curso dentro de su ventana → no se toca | caso de uso | hecho · tramo 2 |
 | 38 | Migración 0038: columnas `intentos` y `proximo_intento_en`, índice **parcial**, sin backfill, `intentos >= 0`; y la función `SECURITY DEFINER` `empresas_con_recordatorios_en_espera()` (existe, `prosecdef`, solo la app la ejecuta, el downgrade la quita) | migración (CI) | escrito · tramo 2 (corre en CI) |
@@ -375,8 +375,11 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 | 43 | **N3** — El reparto del barrido incluye las empresas con un recordatorio esperando o en curso, sin repetir las que ya tienen cobros abiertos | unit (worker) | hecho · Gate 2 del tramo 2 |
 | 44 | **N3 (CI)** — `empresas_con_recordatorios_en_espera()` devuelve la empresa cuyo único cobro se cerró con un reintento esperando, y no la que ya envió | integración (CI) | escrito · Gate 2 del tramo 2 (corre en CI) |
 | 45 | **N7** — Un cobro cuyo reintento terminó en la pasada 1 no recibe el paso siguiente en la misma corrida | caso de uso | hecho · Gate 2 del tramo 2 |
+| 46 | **Tramo 3** — `api/routers/cobros.py` expone `intentos`, `ultimo_error` y `proximo_intento_en` **solo** mientras la fila espera un reintento (en un envío en curso es la ventana de la reserva y no se muestra) | unit (API) | hecho · tramo 3 |
+| 47 | **Tramo 3** — La API del hilo expone `motivo_de_falla` de cada mensaje | unit (API) | hecho · tramo 3 |
+| 48 | **Tramo 3** — La raíz ata `CanalDeAvisos` (scheduling) con `NotificarAlCliente` (conversational): traduce envío y resultado, usa `sesion.begin_nested` y el reloj de la unidad; los avisos reales de punta a punta (Meta falso) siguen saliendo con los parámetros que el cuerpo usa | unit (API) | hecho · tramo 3 |
 | 29 | Migración 0037: columnas e índice único **parcial** de `externo_id` (sin backfill, D1) | migración (CI) | escrito · tramo 1 (corre en CI) |
-| 30 | PAN-COB-02: «Reintentando · intento n de 3», motivos traducidos; hilo con estado en castellano y motivo | unit (Vitest) | pendiente · tramo 3 |
+| 30 | PAN-COB-02: «Reintentando · intento n de 3», motivos traducidos; hilo con estado en castellano y motivo | unit (Vitest) | hecho · tramo 3 |
 | 31 | `guard_architecture --scan` y `test_guards.sh` pasan | gate | hecho · tramo 1 (`guard_architecture`; `test_guards.sh` pendiente: falta `jq`) |
 | 32 | Dos callbacks del mismo `wamid` solapados (dos transacciones) no se pisan: `LEIDO` no se pisa con `ENTREGADO`, `FALLIDO` no se pisa, y `recordatorio_fallido` se publica una vez (H2) | integración (CI) | escrito · tramo 1 (corre en CI) |
 | 33 | `wamid` vacío o más largo que la columna → se guarda `None`, el paso queda despachado y el log no lleva el id (H3) | unit | hecho · tramo 1 |
@@ -640,6 +643,77 @@ el caso 44 de `test_reintento_de_recordatorios_postgres.py`, y las dos asercione
 `test_migracion_0038.py` (la función); y se ajustaron para el reloj y para `mandar` los tests de CI ya
 existentes (`test_reintento_de_recordatorios_postgres.py`, `test_barrido_de_recordatorios_postgres.py`).
 
+### Tramo 3 — avisos del sistema y frontend (2026-10-07)
+
+**Hecho** (casos 3, 23 a 28, 30 y 46 a 48; 3, 24, 25 y 27 también escritos para la CI):
+
+- **`NotificarAlCliente`** (`conversational/application/notificaciones.py`): manda el aviso (plantilla aprobada o
+  texto de fábrica), busca o crea la conversación `ACTIVA` del cliente (`abierta_de(..., bloquear=True)`, el
+  mismo camino que el agente, T10) y guarda un `Mensaje` `SALIENTE`/`SISTEMA` con el `wamid` y su estado
+  (`ENVIADO`, o `FALLIDO` con `motivo_de_falla_de`). **Primero se manda y después se guarda**, porque el
+  mensaje lleva el resultado real. Nunca levanta por el canal; **sin canal** (`CanalNoConectado` →
+  `SIN_CANAL`) no crea hilo ni mensaje. Devuelve `ResultadoDeNotificacion(enviado, externo_id, falla,
+  sin_registrar)`.
+- **Savepoint propio para la escritura**: `aislar` (`sesion.begin_nested` desde la raíz). Si la base rechaza
+  algo, el savepoint se deshace, el turno sigue cancelado, el envío a Meta no se repite y el resultado trae
+  `sin_registrar=True`; el adaptador de `scheduling` deja el log `aviso_de_turno_sin_registrar` (clase del
+  aviso, nada personal). Un `wamid` vacío o más largo que la columna se guarda como `None` (H3).
+- **`scheduling`**: `DatosDeAviso.cliente_id` (lo arma `Avisador._armar` desde el turno); `AvisoPorWhatsApp`
+  recibe un `CanalDeAvisos` (`Protocol` local, `notificar(*, cliente_id, telefono, envio) -> ResultadoLocal`)
+  en lugar del canal crudo. `PlantillaParaMandar` gana `texto` (el cuerpo resuelto, que es lo que se guarda).
+  El log `aviso_de_turno_fallido` ahora también lleva el motivo corto cuando el canal informa una falla.
+- **Raíz**: `api/avisos_de_turno.py` (`CanalDeAvisosViaConversacion`, `armar_canal_de_avisos`); `api/agenda.py`
+  (97 líneas) arma el aviso con él (`armar_notificador(unidad, *, empresa_id, canal)`). `api/routers/agenda.py`
+  **no cambia** (688 líneas, no crece): `armar_avisador` conserva su firma.
+- **Backend de los dos paneles**: `api/routers/cobros.py` agrega `intentos`, `proximo_intento_en` (solo
+  cuando `esperando_reintento`) y `ultimo_error`; `api/routers/conversaciones.py` agrega `motivo_de_falla`
+  a cada mensaje (el plan pedía el motivo bajo un `FALLIDO` y la salida no lo traía).
+- **Frontend**: `shared/motivos-de-falla.ts` (`motivoDeFalla`, la tabla de traducciones de D-U7-7; vive en
+  `shared/` porque la usan dos features y R5 prohíbe que se importen entre sí) y `formatearHora`;
+  `payments/components/HitoDeRecordatorio.tsx` (extraído de `DetalleDeCobro.tsx`) muestra «Reintentando ·
+  intento n de 3 · próximo hh:mm», «Enviando», «No enviado» y el motivo traducido bajo un `FALLIDO`;
+  `conversational/components/LineaDeTiempo.tsx` (el hilo; el plan decía `HiloDeConversacion.tsx`, que hoy
+  solo lo compone) muestra «Enviado / Entregado / Leído / No se pudo enviar» y el motivo bajo un fallido.
+
+**Decisiones del tramo 3**
+
+- **D2 para `scheduling` sin envoltorio de excepciones.** `NotificarAlCliente` ya convierte los errores
+  tipados de Meta en el `falla` del resultado (`motivo_de_falla_de`), así que ninguna excepción cruza hacia
+  `scheduling` y no hace falta un `CanalConFallasTraducidas` como el de `payments`: el motivo viaja como dato
+  y la raíz solo traduce el tipo del resultado. (`payments` lo necesita porque su puerto sí levanta.)
+- **«Intento n de 3» es el que viene.** Con `intentos=1` (el primero falló) la pantalla dice «intento 2 de 3»;
+  el tope (3) es una constante del frontend (`INTENTOS_MAXIMOS_DE_RECORDATORIO`) que repite
+  `REINTENTOS_MAXIMOS` del dominio, con un comentario que lo señala.
+- **Se traducen también las cuatro clases cortas que arma el backend** (`SATURADA`, `RECHAZADO`, `SIN_CANAL`,
+  `ERROR`) además de las que listaba D-U7-7: son nuestras, no de Meta, y mostrar `SATURADA` crudo no le dice
+  nada al operador. Lo desconocido sigue mostrando «Código <crudo>»; sin código, «Sin detalle».
+- **«Enviando» y «No enviado»**: un recordatorio con un envío en curso (`intentos > 0`, sin próximo intento ni
+  error) ya no se lee «Programado», y uno descartado (`COBRO_CERRADO`) dice «No enviado» con su motivo. No
+  estaba en D-U7-7; es consecuencia de la máquina de estados del tramo 2.
+- **El badge de entrega de los recordatorios conserva el enum** (`ENVIADO`, `FALLIDO`…) como antes: D-U7-7
+  pide castellano solo para el hilo.
+- **Los avisos de turno siguen haciendo E/S a Meta dentro de la transacción del panel** (hallazgo
+  G5/ADR-0014, como dice el tramo 2: «los avisos de turno, tramo iii, siguen como estaban»): este tramo no lo
+  agrava ni lo resuelve. Consecuencia: un `delivered` que llegara antes del commit del request del panel no
+  encuentra el mensaje (`whatsapp_estado_sin_destinatario`) y ese aviso queda en `ENVIADO`. Pendiente en
+  `TODO.md` §22.64.
+- **No se tocaron** `epicas/08-…/pendientes.md` (#4), `epicas/06-…/pendientes.md` (#3) ni `units.md`: se
+  cierran con el Gate 3 de la unidad completa.
+
+**Evidencia RED (TDD):** observado antes de implementar (`ModuleNotFoundError` / `ImportError` / fallo de la
+aserción): `NotificarAlCliente` (los 17 tests de `test_notificaciones.py`), `DatosDeAviso.cliente_id`
+(`test_agenda.py`), `AvisoPorWhatsApp` sobre `CanalDeAvisos` (colección de `test_avisos.py` y
+`test_avisos_con_plantilla.py`), la raíz (`test_avisos_de_turno.py`, colección), la salida del router de cobros
+(4 tests), la del hilo (2 tests), `motivoDeFalla` y `formatearHora` (Vitest), los seis estados de
+`HitoDeRecordatorio` y el estado de entrega del hilo. **No se observó RED** en: los tres casos nuevos de
+`test_canal_real_de_whatsapp.py` (casos 3, 24 y 25a de punta a punta con dobles: el cableado ya estaba hecho
+cuando se escribieron) y la adaptación de `test_plantillas_salientes.py`; ni en
+`tests/integracion/test_avisos_de_turno_postgres.py` (necesita PostgreSQL: solo corre en la CI; `TODO.md`
+§22.62). **Frontend:** `lucide-react` no está instalado en este entorno (`npm ls` vacío), así que 66 archivos
+de Vitest ya fallaban al importar `@/shared` antes de este tramo; las pruebas del tramo se corrieron con un
+alias temporal a un doble de `lucide-react` (fuera del repo) y pasaron; solo fallan tres pruebas ajenas que
+buscan los `<svg>` de los iconos.
+
 ## Decisiones tomadas durante la unidad
 
 - Gate 1 (2026-10-04): Pregunta 1 → no: los avisos de turno con falla transitoria no se reintentan; la falla queda visible en el hilo con su motivo.
@@ -713,3 +787,4 @@ existentes (`test_reintento_de_recordatorios_postgres.py`, `test_barrido_de_reco
     él: ver la revisión arriba); (3) `biz_opaque_callback_data` queda para después (`TODO.md` §22.60), con el
     argumento de la revisión: las filas `INCIERTO` no tienen `wamid`, así que sus `delivered`/`failed`
     posteriores no pueden coincidir nunca con una fila; es la razón más fuerte para adoptarlo.
+- Tramo iii (2026-10-07): ver «Decisiones del tramo 3» arriba (D2 de `scheduling` sin envoltorio de excepciones, «intento n de 3» como el que viene, clases cortas traducidas, E/S a Meta de los avisos aún dentro de la transacción del panel).
