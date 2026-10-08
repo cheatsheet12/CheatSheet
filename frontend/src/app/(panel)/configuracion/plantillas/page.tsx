@@ -11,7 +11,7 @@
 
 import { redirect } from "next/navigation";
 
-import { PlantillasDeNotificacion } from "@/features/conversational";
+import { AdvertenciaDeRecordatorio, PlantillasDeNotificacion } from "@/features/conversational";
 import type { ListadoDePlantillas } from "@/features/conversational";
 import { llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
@@ -29,6 +29,9 @@ export default async function PaginaDePlantillas(): Promise<JSX.Element> {
   const listado = await llamarApi<ListadoDePlantillas>("/plantillas");
 
   return (
-    <PlantillasDeNotificacion inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />
+    <>
+      <AdvertenciaDeRecordatorio plantillas={listado.plantillas} />
+      <PlantillasDeNotificacion inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />
+    </>
   );
 }
