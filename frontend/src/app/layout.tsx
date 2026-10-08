@@ -42,6 +42,8 @@ import "@/shared/pantalla-paquete-contable.css";
 // la tabla del catálogo compartido, y cargarla antes de `pantallas-identidad.css` la dejaría
 // perdiendo la cascada contra `.dm-` por orden de carga y no por especificidad.
 import "@/shared/pantallas-maestros.css";
+// Va última: unifica el hover de las tarjetas por encima de las reglas de cada pantalla.
+import "@/shared/tarjetas.css";
 
 // §1.2: DM Sans for the panel, JetBrains Mono for CUIT, CAE and document numbers.
 const dmSans = DM_Sans({
