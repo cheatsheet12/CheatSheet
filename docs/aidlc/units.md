@@ -71,6 +71,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | entregas-de-whatsapp | conversational | HU-E8-04, HS-T3, HU-E6-02, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp, plantillas-de-whatsapp-en-meta | Luciano | — | pendiente |
 | Agente de WhatsApp y atención humana | recordatorio-de-turno | scheduling | HU-E8-04, HU-E11-01 | plantillas-de-whatsapp-en-meta, entregas-de-whatsapp | Luciano | — | pendiente |
 | Cobros y recordatorios | recordatorio-por-email | payments | HS-T3 | canal-real-de-whatsapp | Luciano | — | pendiente |
+| Cimientos, identidad y bitácora | integracion-en-neon | tests de integración (`backend/tests/integracion`, transversal) | — | — | Luciano | feature/infra-integracion-en-neon | en curso |
 
 
 ---
