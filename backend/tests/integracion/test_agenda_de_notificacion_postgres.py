@@ -34,6 +34,7 @@ pytestmark = [requiere_base, pytest.mark.integration, pytest.mark.asyncio]
 
 CONTRASENA = "una-contrasena-larga"
 MENSAJE_RANGO = "Las horas de anticipación deben estar entre 1 y 168."
+MENSAJE_PRIORIDAD = "La prioridad de una regla no puede ser negativa"
 MENSAJE_REPETIDOS = "No puede haber dos recordatorios con la misma anticipación."
 
 
@@ -162,6 +163,59 @@ class TestApiDeLaAgenda:
         assert MENSAJE_RANGO in fuera_de_rango.text
         assert repetidos.status_code == 422
         assert MENSAJE_REPETIDOS in repetidos.text
+
+    async def test_la_prioridad_guardada_se_persiste_y_se_devuelve(
+        self, cliente_http: httpx.AsyncClient
+    ) -> None:
+        token = await _registrar(cliente_http, "agenda-prioridad@test.local")
+
+        guardada = await cliente_http.put(
+            "/reglas/agenda", headers=_auth(token), json=_agenda(24, prioridad=7)
+        )
+
+        assert guardada.status_code == 200, guardada.text
+        assert guardada.json()["prioridad"] == 7
+        [regla] = _reglas_de_agenda(await cliente_http.get("/reglas", headers=_auth(token)))
+        assert regla["prioridad"] == 7
+
+    async def test_guardar_una_regla_desactivada_la_reactiva(
+        self, cliente_http: httpx.AsyncClient
+    ) -> None:
+        token = await _registrar(cliente_http, "agenda-reactivar@test.local")
+        alta = await cliente_http.put("/reglas/agenda", headers=_auth(token), json=_agenda(24))
+        apagada = await cliente_http.put(
+            f"/reglas/{alta.json()['id']}/estado",
+            headers=_auth(token),
+            json={"activa": False},
+        )
+        assert apagada.status_code == 200, apagada.text
+        [regla] = _reglas_de_agenda(await cliente_http.get("/reglas", headers=_auth(token)))
+        assert regla["activa"] is False
+
+        guardada = await cliente_http.put("/reglas/agenda", headers=_auth(token), json=_agenda(12))
+
+        assert guardada.status_code == 200, guardada.text
+        [regla] = _reglas_de_agenda(await cliente_http.get("/reglas", headers=_auth(token)))
+        assert regla["activa"] is True
+        assert regla["configuracion"] == {"recordatorios": [{"horas_antes": 12}]}
+
+    async def test_una_prioridad_negativa_al_actualizar_es_422_y_no_toca_la_regla(
+        self, cliente_http: httpx.AsyncClient
+    ) -> None:
+        token = await _registrar(cliente_http, "agenda-prioridad-negativa@test.local")
+        await cliente_http.put(
+            "/reglas/agenda", headers=_auth(token), json=_agenda(24, prioridad=3)
+        )
+
+        rechazo = await cliente_http.put(
+            "/reglas/agenda", headers=_auth(token), json=_agenda(12, prioridad=-1)
+        )
+
+        assert rechazo.status_code == 422
+        assert MENSAJE_PRIORIDAD in rechazo.text
+        [regla] = _reglas_de_agenda(await cliente_http.get("/reglas", headers=_auth(token)))
+        assert regla["prioridad"] == 3
+        assert regla["configuracion"] == {"recordatorios": [{"horas_antes": 24}]}
 
     async def test_un_operador_no_puede_configurarla_pero_si_leer_las_reglas(
         self, cliente_http: httpx.AsyncClient, despachador: DespachadorEspia
