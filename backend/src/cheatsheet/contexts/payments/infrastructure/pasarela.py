@@ -42,6 +42,7 @@ from cheatsheet.contexts.payments.application.ports import (
 from cheatsheet.contexts.payments.domain.cobro import Cobro, LinkDePago
 from cheatsheet.contexts.payments.infrastructure.pasarela_respuestas import (
     fecha_de_aprobacion,
+    moneda_de,
     monto_de,
     preferencia_de,
     referencia_de,
@@ -148,6 +149,7 @@ class PasarelaMercadoPago:
             referencia_externa=referencia_de(datos),
             estado=str(datos.get("status") or ""),
             monto=monto_de(datos),
+            moneda=moneda_de(datos),
             fecha_aprobacion=fecha_de_aprobacion(datos),
         )
 

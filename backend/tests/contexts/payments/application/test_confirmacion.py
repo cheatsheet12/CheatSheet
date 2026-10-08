@@ -137,8 +137,11 @@ class PasarelaFalsa:
         fecha_aprobacion: datetime | None = None,
         referencia: str | None = None,
         monto: Decimal | None = None,
+        moneda: str | None = None,
     ) -> None:
         self.estado = estado
+        #: El `currency_id` del pago. `None` es «no lo informó».
+        self.moneda = moneda
         self.preferencia = preferencia
         #: El `external_reference` del pago (el id del cobro) y su `transaction_amount`.
         self.referencia = referencia
@@ -180,6 +183,7 @@ class PasarelaFalsa:
             fecha_aprobacion=self.fecha_aprobacion,
             referencia_externa=self.referencia,
             monto=self.monto,
+            moneda=self.moneda,
         )
 
     async def invalidar_link(

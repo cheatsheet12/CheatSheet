@@ -105,6 +105,9 @@ class PagoRecibido:
     #: propaga al pago. Es lo que ata un pago a su cobro aun cuando la preferencia cambió (link
     #: regenerado). Texto sin interpretar: puede venir vacío o de un cobro de otra cuenta.
     referencia_externa: str | None = None
+    #: El `currency_id` del pago, en mayúsculas. `None` si no vino: como con el monto, no hay con
+    #: qué contradecir al cobro. Un monto en otra moneda no es el monto del cobro (en pesos).
+    moneda: str | None = None
 
     @property
     def esta_aprobado(self) -> bool:

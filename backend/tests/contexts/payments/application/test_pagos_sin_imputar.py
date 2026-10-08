@@ -223,6 +223,44 @@ async def test_un_monto_igual_tras_redondear_aprueba() -> None:
     assert registro.registrados == {}
 
 
+async def test_un_pago_en_otra_moneda_no_aprueba_aunque_el_numero_coincida() -> None:
+    """1210 USD no son 1210 ARS: mismo número, otra plata. Se registra como monto distinto."""
+    cobros, publicador, registro = CobrosFalsos(), PublicadorFalso(), PagosSinImputarFalsos()
+    saldos = SaldosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pasarela = PasarelaFalsa(
+        preferencia=None, referencia=str(cobro.id), monto=Decimal("1210.00"), moneda="USD"
+    )
+
+    resultado = await _confirmar(cobros, pasarela, publicador, registro, saldos).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA
+    )
+
+    assert resultado.sin_imputar
+    assert not resultado.aprobado
+    assert registro.registrados["pago-1"].motivo is MotivoSinImputar.MONTO_DISTINTO
+    assert cobro.estado is EstadoCobro.PENDIENTE
+    assert saldos.descuentos == []
+    assert cobros.escrituras == []
+
+
+async def test_un_pago_en_pesos_o_sin_moneda_informada_se_aprueba() -> None:
+    for moneda in ("ARS", None):
+        cobros = CobrosFalsos()
+        cobro = _cobro()
+        await cobros.agregar(cobro)
+        pasarela = PasarelaFalsa(
+            preferencia=None, referencia=str(cobro.id), monto=Decimal("1210.00"), moneda=moneda
+        )
+
+        resultado = await _confirmar(cobros, pasarela).ejecutar(
+            empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA
+        )
+
+        assert resultado.aprobado, moneda
+
+
 async def test_un_pago_sin_monto_informado_se_aprueba_como_antes() -> None:
     """Sin `transaction_amount` no hay nada con qué contradecir al cobro."""
     cobros, registro = CobrosFalsos(), PagosSinImputarFalsos()

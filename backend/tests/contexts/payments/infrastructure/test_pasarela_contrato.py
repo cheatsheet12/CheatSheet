@@ -278,6 +278,26 @@ async def test_el_pago_real_se_ata_por_external_reference_y_no_por_la_orden() ->
 
 
 @pytest.mark.parametrize(
+    ("campos", "esperada"),
+    [
+        pytest.param({"currency_id": "ARS"}, "ARS", id="pesos"),
+        pytest.param({"currency_id": " usd "}, "USD", id="se-normaliza"),
+        pytest.param({}, None, id="ausente"),
+        pytest.param({"currency_id": None}, None, id="null"),
+        pytest.param({"currency_id": ""}, None, id="vacia"),
+    ],
+)
+async def test_la_moneda_del_pago_se_lee_de_currency_id(
+    campos: dict[str, Any], esperada: str | None
+) -> None:
+    pago = await _pasarela(Grabadora(_pago(**campos))).consultar_pago(
+        empresa_id=EMPRESA, payment_id="1"
+    )
+
+    assert pago.moneda == esperada
+
+
+@pytest.mark.parametrize(
     "campos",
     [
         pytest.param({}, id="ausente"),

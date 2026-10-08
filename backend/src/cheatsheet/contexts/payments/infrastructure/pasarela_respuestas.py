@@ -40,6 +40,15 @@ def monto_de(datos: dict[str, Any]) -> Decimal | None:
     return Decimal(str(valor)) if valor is not None else None
 
 
+def moneda_de(datos: dict[str, Any]) -> str | None:
+    """El `currency_id` del pago en mayúsculas, o `None` si falta o está vacío."""
+    valor = datos.get("currency_id")
+    if valor is None:
+        return None
+    texto = str(valor).strip().upper()
+    return texto or None
+
+
 def fecha_de_aprobacion(datos: dict[str, Any]) -> datetime | None:
     """`date_approved` en UTC, o `None` si falta, no se entiende o no trae zona horaria.
 

@@ -43,6 +43,9 @@ from cheatsheet.shared.events import PublicadorDeEventos
 
 logger = obtener_logger(__name__)
 
+#: La única moneda en la que se crean los cobros (`currency_id` de la preferencia).
+MONEDA_DE_COBRO = "ARS"
+
 
 @dataclass(frozen=True, slots=True)
 class ResultadoDeConfirmacion:
@@ -179,9 +182,12 @@ class ConfirmarPago:
                 empresa_id, pago, MotivoSinImputar.COBRO_YA_PAGADO, cobro, ahora
             )
 
-        if pago.monto is not None and redondear(pago.monto) != cobro.monto:
-            # El pago no cubre exactamente esta deuda (a confirmar con cuotas, §20.18): no se
-            # aprueba sola. Si `transaction_amount` no vino no hay con qué contradecir al cobro.
+        if (pago.moneda is not None and pago.moneda != MONEDA_DE_COBRO) or (
+            pago.monto is not None and redondear(pago.monto) != cobro.monto
+        ):
+            # El pago no cubre exactamente esta deuda (a confirmar con cuotas, §20.18) o es en
+            # otra moneda (1210 USD no son 1210 ARS): no se aprueba sola. Si `transaction_amount`
+            # o `currency_id` no vinieron no hay con qué contradecir al cobro.
             return await self._registrar_sin_imputar(
                 empresa_id, pago, MotivoSinImputar.MONTO_DISTINTO, cobro, ahora
             )
