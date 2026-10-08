@@ -64,10 +64,11 @@ services:
     # The context is `backend/`, not the repository root: the image needs nothing from
     # `frontend/` or `docs/`, and a smaller context is a faster and narrower build.
     dockerContext: ./backend
-    # /health answers 503 when PostgreSQL or Redis is unreachable, so an instance
-    # that cannot serve is never routed traffic. It was written before this unit
-    # and needed no change.
-    healthCheckPath: /health
+    # /health/live touches neither PostgreSQL nor Redis. Render probes every few seconds
+    # while the instance is awake, and a probe that ran SELECT 1 kept Neon's compute from
+    # ever suspending. /health stays the full readiness check (503 when PostgreSQL or
+    # Redis is down) and is what the post-deploy poll in CI uses.
+    healthCheckPath: /health/live
     envVars:
       - key: APP_ENV
         value: staging
