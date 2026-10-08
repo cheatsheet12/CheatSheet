@@ -19,6 +19,7 @@
 
 "use client";
 
+import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, Button, Modal, formatearFechaHora } from "@/shared";
@@ -192,21 +193,35 @@ export function GrillaDeIntegraciones({
 
   return (
     <section>
-      <header className="int-encabezado">
-        <div>
-          <p className="int-encabezado__resumen">
+      <header className="itg-resumen">
+        <div className="itg-resumen__texto">
+          <p className="itg-resumen__cifra">
             {conectadas} de {listado.integraciones.length} conectados
           </p>
-          <p className="int-encabezado__marca">
+          <div className="itg-progreso" aria-hidden="true">
+            {listado.integraciones.map((i) => (
+              <span
+                key={i.sistema}
+                className={`itg-progreso__tramo${i.estado === "CONECTADO" ? " is-on" : ""}`}
+              />
+            ))}
+          </div>
+          <p className="itg-resumen__marca">
             Última verificación: {formatearFechaHora(listado.verificado_en)}
           </p>
         </div>
         <Button
+          variante="secundario"
           onClick={() => {
             void verificar();
           }}
           disabled={ocupada !== null}
         >
+          <RefreshCw
+            size={15}
+            aria-hidden="true"
+            className={ocupada === "verificacion" ? "itg-gira" : undefined}
+          />
           {ocupada === "verificacion" ? "Verificando…" : "Verificar estado"}
         </Button>
       </header>
@@ -218,7 +233,7 @@ export function GrillaDeIntegraciones({
         </Alert>
       ) : null}
 
-      <div className="int-grid">
+      <div className="itg-grid">
         {listado.integraciones.map((integracion: Integracion) => (
           <TarjetaDeIntegracion
             key={integracion.sistema}
