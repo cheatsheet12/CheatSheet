@@ -432,22 +432,23 @@ Tramo 2
 - [x] `backend/tests/contexts/scheduling/domain/test_recordatorio_de_turno.py` · `test_turno.py` · `backend/tests/integracion/test_migracion_0039.py` · `test_recordatorios_de_turno_postgres.py` · `tests/integracion/conftest.py` (`BORRADOS`)
 
 Tramo 3
-- [ ] `backend/src/cheatsheet/shared/transaccion.py` (nuevo) · `payments/application/ports_envio.py` · `payments/application/errors.py` · `payments/infrastructure/transaccion.py` · `workers/tasks_payments.py` (imports)
-- [ ] `backend/src/cheatsheet/contexts/conversational/application/notificaciones.py` (`transitoria`) · `api/avisos_de_turno.py` · `scheduling/infrastructure/avisos.py` (`ResultadoLocal.transitoria`)
-- [ ] `backend/src/cheatsheet/contexts/scheduling/application/recordatorios.py` · `envio_de_recordatorios.py` (nuevos)
-- [ ] `backend/src/cheatsheet/contexts/scheduling/infrastructure/recordatorio_por_whatsapp.py` · `agenda_de_notificacion.py` (nuevos) · `ensamblado.py`
-- [ ] `backend/src/cheatsheet/api/recordatorios_de_turno.py` (nuevo)
-- [ ] `backend/src/cheatsheet/workers/tasks_scheduling.py` (nuevo) · `workers/beat.py` · `workers/main.py`
-- [ ] `backend/src/cheatsheet/platform/settings.py` · `backend/.env.example`
-- [ ] `backend/tests/contexts/scheduling/application/test_recordatorios.py` · `test_envio_de_recordatorios.py` · `…/infrastructure/test_recordatorio_por_whatsapp.py` · `backend/tests/contexts/conversational/application/test_notificaciones.py` · `backend/tests/workers/test_recordar_turnos.py` · `test_beat.py` · `backend/tests/integracion/test_barrido_de_turnos_postgres.py`
-- [ ] `frontend/src/features/conversational/components/AdvertenciaDeRecordatorio.tsx` y su test · `frontend/src/app/(panel)/configuracion/plantillas/page.tsx`
-- [ ] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (#7) · `docs/aidlc/epicas/07-agenda-y-recursos/pendientes.md` (#11) · `docs/aidlc/TODO.md` §22 · `docs/aidlc/units.md`
+- [x] `backend/src/cheatsheet/shared/transaccion.py` (nuevo) · `payments/application/ports_envio.py` · `payments/application/errors.py` · `payments/infrastructure/transaccion.py` · `workers/tasks_payments.py` (imports)
+- [x] `backend/src/cheatsheet/contexts/conversational/application/notificaciones.py` (`transitoria`) · `api/avisos_de_turno.py` · `scheduling/infrastructure/avisos.py` (`ResultadoLocal.transitoria`)
+- [x] `backend/src/cheatsheet/contexts/scheduling/application/recordatorios.py` · `envio_de_recordatorios.py` (nuevos)
+- [x] `backend/src/cheatsheet/contexts/scheduling/infrastructure/recordatorio_por_whatsapp.py` · `agenda_de_notificacion.py` (nuevos) · `ensamblado.py`
+- [x] `backend/src/cheatsheet/api/recordatorios_de_turno.py` (nuevo)
+- [x] `backend/src/cheatsheet/workers/tasks_scheduling.py` (nuevo) · `workers/beat.py` · `workers/main.py`
+- [x] `backend/src/cheatsheet/platform/settings.py` · `backend/.env.example`
+- [x] `backend/tests/contexts/scheduling/application/test_recordatorios.py` · `test_envio_de_recordatorios.py` · `…/infrastructure/test_recordatorio_por_whatsapp.py` · `backend/tests/contexts/conversational/application/test_notificaciones.py` · `backend/tests/workers/test_recordar_turnos.py` · `test_beat.py` · `backend/tests/integracion/test_barrido_de_turnos_postgres.py`
+- [x] `frontend/src/features/conversational/components/AdvertenciaDeRecordatorio.tsx` y su test · `frontend/src/app/(panel)/configuracion/plantillas/page.tsx`
+- [x] `docs/aidlc/epicas/08-agente-de-whatsapp/pendientes.md` (#7) · `docs/aidlc/epicas/07-agenda-y-recursos/pendientes.md` (#11)
+- [ ] `docs/aidlc/TODO.md` §22 (renumerar al mergear después de U7) · `docs/aidlc/units.md` (al abrir el PR)
 
 ## Casos de prueba
 
 | # | Caso | Tipo | Tramo | Estado |
 |---|---|---|---|---|
-| 1 | **RED** — Un turno que empieza en 23 h, con la regla por defecto, no recibe nada tras el barrido (hoy no existe). GREEN: un recordatorio con la plantilla `recordatorio_de_turno`, fila `ENVIADO` | caso de uso | 3 | pendiente |
+| 1 | **RED** — Un turno que empieza en 23 h, con la regla por defecto, no recibe nada tras el barrido (hoy no existe). GREEN: un recordatorio con la plantilla `recordatorio_de_turno`, fila `ENVIADO` | caso de uso | 3 | hecho |
 | 2 | **RED** — `interpretada_como_agenda()` no existe. GREEN: devuelve la configuración tipada | unit | 1 | hecho |
 | 3 | Configuración: 0 recordatorios, 4, horas 0 o 169, repetidos → `EntradaInvalida` con la frase; se ordenan de mayor a menor | unit (tabla) | 1 | hecho |
 | 4 | Fila mal formada en la base → falla al leer (D24) | unit | 1 | hecho |
@@ -464,25 +465,25 @@ Tramo 3
 | 15 | RLS: la tabla aísla por `empresa_id`; sin empresa declarada no se ve nada | integración (CI) | 2 | escrito (corre en la CI) |
 | 16 | `empresas_con_turnos_por_recordar`: solo ids, respeta `hasta`, incluye empresas con filas pendientes, excluye turnos cerrados | migración (CI) | 2 | escrito (corre en la CI) |
 | 17 | Índice único: un segundo `INSERT` de la misma clave → `RecordatorioDeTurnoDuplicado` | integración (CI) | 2 | escrito (corre en la CI) |
-| 18 | Reprogramado → recordatorio nuevo para la franja nueva; pendiente de la vieja → `DESCARTADO` | caso de uso | 3 | pendiente |
-| 19 | Cancelado → nunca; cancelado con reintento pendiente → `DESCARTADO`; cancelado entre reservar y mandar → `DESCARTADO` sin llamar al canal | caso de uso | 3 | pendiente |
-| 20 | A posteriori, completado o no-show → nunca; turno ya empezado → no se manda | caso de uso | 3 | pendiente |
-| 21 | Cliente sin teléfono → `OMITIDO` `SIN_TELEFONO`, ningún envío, no se reevalúa | caso de uso | 3 | pendiente |
-| 22 | Falla transitoria → reintento a los 15 y 30 min sobre la misma fila; agotado → `FALLIDO` | caso de uso | 3 | pendiente |
-| 23 | Incierto (timeout de lectura) y permanente (131047) → `FALLIDO` sin reintento | caso de uso | 3 | pendiente |
-| 24 | Fila en curso con ventana vencida (caída entre tiempos) → `FALLIDO` `INCIERTO`, **nunca** se reenvía | caso de uso | 3 | pendiente |
-| 25 | Tres tiempos: el canal falso registra que, al llamarlo, no hay escrituras sin confirmar (la fila ya está confirmada y visible desde otra sesión) | integración (CI) | 3 | pendiente |
-| 26 | `DespachoNoPersistido` en un turno no voltea los demás del barrido | caso de uso | 3 | pendiente |
-| 27 | Empresa con `SinCanal` → la raíz sale con `recordatorios_de_turno_sin_canal`, ninguna fila | unit (raíz) | 3 | pendiente |
-| 28 | `NotificarAlCliente`: `MensajeriaSaturada` → `transitoria=True`; `EnvioIncierto`, `MensajeRechazado` → `False`; el adaptador de scheduling lo propaga | unit | 3 | pendiente |
-| 29 | El recordatorio queda como mensaje `SISTEMA` en el hilo del cliente y un callback posterior al commit lo encuentra por `wamid` | integración (CI) | 3 | pendiente |
-| 30 | **Dos barridos solapados** de la misma empresa sobre PostgreSQL (dos sesiones concurrentes) → un solo envío y una sola fila por (turno, anticipación, franja) | integración (CI) | 3 | pendiente |
-| 31 | Beat: `recordar-turnos` en `notifications` con el intervalo de configuración | unit | 3 | pendiente |
-| 32 | Ningún log del barrido contiene nombre, teléfono ni texto | unit (captura de logs) | 3 | pendiente |
-| 33 | Extracción a `shared/`: la suite de payments (recordatorios, reintentos, integración) pasa sin cambios de comportamiento | regresión | 3 | pendiente |
-| 34 | PAN-CFG-NOT: la advertencia aparece si `recordatorio_de_turno` no está aprobada y no aparece si lo está | unit (Vitest) | 3 | pendiente |
+| 18 | Reprogramado → recordatorio nuevo para la franja nueva; pendiente de la vieja → `DESCARTADO` | caso de uso | 3 | hecho |
+| 19 | Cancelado → nunca; cancelado con reintento pendiente → `DESCARTADO`; cancelado entre reservar y mandar → `DESCARTADO` sin llamar al canal | caso de uso | 3 | hecho |
+| 20 | A posteriori, completado o no-show → nunca; turno ya empezado → no se manda | caso de uso | 3 | hecho |
+| 21 | Cliente sin teléfono → `OMITIDO` `SIN_TELEFONO`, ningún envío, no se reevalúa | caso de uso | 3 | hecho |
+| 22 | Falla transitoria → reintento a los 15 y 30 min sobre la misma fila; agotado → `FALLIDO` | caso de uso | 3 | hecho |
+| 23 | Incierto (timeout de lectura) y permanente (131047) → `FALLIDO` sin reintento | caso de uso | 3 | hecho |
+| 24 | Fila en curso con ventana vencida (caída entre tiempos) → `FALLIDO` `INCIERTO`, **nunca** se reenvía | caso de uso | 3 | hecho |
+| 25 | Tres tiempos: el canal falso registra que, al llamarlo, no hay escrituras sin confirmar (la fila ya está confirmada y visible desde otra sesión) | integración (CI) | 3 | escrito (corre en la CI) |
+| 26 | `DespachoNoPersistido` en un turno no voltea los demás del barrido | caso de uso | 3 | hecho |
+| 27 | Empresa con `SinCanal` → la raíz sale con `recordatorios_de_turno_sin_canal`, ninguna fila | unit (raíz) | 3 | hecho |
+| 28 | `NotificarAlCliente`: `MensajeriaSaturada` → `transitoria=True`; `EnvioIncierto`, `MensajeRechazado` → `False`; el adaptador de scheduling lo propaga | unit | 3 | hecho |
+| 29 | El recordatorio queda como mensaje `SISTEMA` en el hilo del cliente y un callback posterior al commit lo encuentra por `wamid` | integración (CI) | 3 | escrito (corre en la CI) |
+| 30 | **Dos barridos solapados** de la misma empresa sobre PostgreSQL (dos sesiones concurrentes) → un solo envío y una sola fila por (turno, anticipación, franja) | integración (CI) | 3 | escrito (corre en la CI) |
+| 31 | Beat: `recordar-turnos` en `notifications` con el intervalo de configuración | unit | 3 | hecho |
+| 32 | Ningún log del barrido contiene nombre, teléfono ni texto | unit (captura de logs) | 3 | hecho |
+| 33 | Extracción a `shared/`: la suite de payments (recordatorios, reintentos, integración) pasa sin cambios de comportamiento | regresión | 3 | hecho |
+| 34 | PAN-CFG-NOT: la advertencia aparece si `recordatorio_de_turno` no está aprobada y no aparece si lo está | unit (Vitest) | 3 | hecho |
 | 35 | `guard_architecture --scan` (R1–R5) y `test_guards.sh` pasan | gate | 1/2/3 | tramo 1: scan verde; `test_guards.sh` falla igual en la base (27/54, entorno Windows) |
-| 36 | Una empresa con la regla de agenda malformada (`interpretada_como_agenda()` levanta `EntradaInvalida`) se saltea con el log `recordatorios_de_turno_agenda_invalida`; las demás empresas del mismo barrido se procesan y el barrido no levanta | caso de uso | 3 | pendiente |
+| 36 | Una empresa con la regla de agenda malformada (`interpretada_como_agenda()` levanta `EntradaInvalida`) se saltea con el log `recordatorios_de_turno_agenda_invalida`; las demás empresas del mismo barrido se procesan y el barrido no levanta | caso de uso | 3 | hecho |
 
 Gates: `ruff format --check . && ruff check . && mypy . && pytest` y, en frontend, `npm run format:check
 && npm run lint && npm run typecheck && npm run test:coverage`. Los casos 14–17, 25, 29 y 30 corren con
@@ -602,6 +603,37 @@ debe crear las omitidas con el motivo `ANTICIPACION_SUPERADA`; (3) el backfill d
 es `now()` de la migración, no `created_at` (ver migración 0039 en «Infraestructura»), con prueba de
 dominio y de PostgreSQL; (4) nota de `EXPLAIN` sobre `ix_turno_abierto_inicio` para el tramo 3; (5) el
 modelo ORM declara `uq_recordatorio_de_turno` como `Index(..., unique=True)`, igual que la migración.
+
+**Tramo 3 · Barrido y envío (implementado, sin push).**
+
+- Extracción (D-U8-11 ajustada): `shared/transaccion.py` (`PortAislamiento`, `PortTransaccion`,
+  `DespachoNoPersistido`; payments lo reexporta desde `errors.py`) y `platform/transaccion.py`
+  (`ConfirmacionDeLaUnidad`, `AislamientoConSavepoint`). Imports y tests de payments actualizados, sin
+  duplicar nada; la suite de payments sigue verde (caso 33).
+- `ResultadoDeNotificacion.transitoria` (conversational) y `ResultadoLocal.transitoria` (scheduling);
+  `CanalDeAvisosViaConversacion` lo copia. Los avisos de turno lo ignoran.
+- Scheduling: `application/envio_de_recordatorios.py` (`EnvioDeRecordatorios`: tres tiempos, reintento
+  sobre la misma fila, descarte por turno cerrado/movido/empezado) y `application/recordatorios.py`
+  (`EnviarRecordatoriosDeTurno`: pasada 1 de pendientes, pasada 2 de nuevos, omitidas por
+  `ANTICIPACION_SUPERADA`, regla malformada atrapada por empresa con
+  `recordatorios_de_turno_agenda_invalida`). Adaptadores `recordatorio_por_whatsapp.py` y
+  `agenda_de_notificacion.py`; composición en `api/recordatorios_de_turno.py` (identidad `OPERADOR`);
+  tareas en `workers/tasks_scheduling.py` (chequeo de `SinCanal` en la raíz, log
+  `recordatorios_de_turno_sin_canal`), Beat `recordar-turnos` y `RECORDATORIO_DE_TURNO_MINUTOS` (15).
+- Frontend: `AdvertenciaDeRecordatorio` en PAN-CFG-NOT.
+- Desvíos del plan: `business_config` gana `AgendaMalFormada` (con `regla_id`) para poder loguearlo;
+  el puerto de filas suma `buscar_para_actualizar` (`FOR UPDATE`, necesario para que dos barridos no
+  retomen el mismo reintento); `PortTurnosPorRecordar.buscar_por_id` pasa a `releer` (`populate_existing`,
+  para que la relectura entre reservar y mandar vea la base y no el objeto de la sesión);
+  `RecordatorioListo` suma la plantilla aprobada; `avisos._dia/_hora` se publican como
+  `dia_local/hora_local`; motivo nuevo `AGENDA_APAGADA` (una fila que esperaba reintento y cuya agenda
+  se apagó queda `DESCARTADO`); `abiertos_con_inicio_entre` inlinea los estados como literales.
+- Pendiente para el Gate 2 con PostgreSQL: `EXPLAIN` de `abiertos_con_inicio_entre` (debe usar
+  `ix_turno_abierto_inicio`) y los casos 25, 29 y 30 en la CI.
+- **Al mergear con `fix/infra-computo-de-staging`** (trae `platform/intervalos.py::alineado(...)` y
+  convierte las entradas de Beat que tocan la base a crontab alineado al minuto 0): la entrada
+  `recordar-turnos` debe pasar a `alineado(...)` (15 divide a 60) y `RECORDATORIO_DE_TURNO_MINUTOS` debe
+  sumarse a la validación de arranque de los `*_MINUTOS`.
 
 ## Decisiones tomadas durante la unidad
 
