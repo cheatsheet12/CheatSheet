@@ -8,6 +8,8 @@ Lo que ningún doble puede probar vive acá:
   (caso 13).
 - **El índice único `(empresa, payment_id)`** deja una fila ante dos notificaciones simultáneas,
   y la que pierde se traduce a «ya registrado» y no a un error (caso 14).
+- **Dos pagos distintos sobre el mismo cobro abierto** no lo aprueban los dos: la confirmación lo
+  lee con `FOR UPDATE`, el segundo espera y queda `COBRO_YA_PAGADO` (caso 15).
 - **Los `CHECK`** que un bug futuro no puede saltear.
 
 Necesitan PostgreSQL: se saltean sin base y corren en CI. **Nunca contra Neon/staging.**
@@ -295,3 +297,55 @@ async def test_el_esquema_rechaza_un_motivo_o_un_cobro_incoherente(
                     "ahora": AHORA,
                 },
             )
+
+
+# ------------------------------------------------------------------ caso 15: dos pagos, un cobro
+
+
+class RepositorioQueSostieneElBloqueo(RepositorioCobroPostgres):
+    """Agranda la ventana **después** de tomar el bloqueo: mientras esta transacción duerme, la
+    otra ya está esperando en la base. Sin `FOR UPDATE` la segunda leería el cobro todavía abierto."""
+
+    async def buscar_para_actualizar(self, cobro_id: uuid.UUID) -> Cobro | None:
+        cobro = await super().buscar_para_actualizar(cobro_id)
+        await asyncio.sleep(0.4)
+        return cobro
+
+
+async def test_dos_pagos_distintos_sobre_el_mismo_cobro_abierto_se_aprueba_uno_solo(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """Caso 15. Dos webhooks con otro `payment_id` cada uno sobre el mismo cobro abierto. Sin el
+    bloqueo los dos lo ven `PENDIENTE`, los dos lo aprueban, el segundo pisa `mp_payment_id` y el
+    primer pago nunca queda registrado. Con él, el segundo espera, ve `APROBADO` y su pago queda
+    como `COBRO_YA_PAGADO`."""
+    empresa_id = await _empresa(engine_dueno)
+    cobro = await _cobro(sesiones, engine_dueno, empresa_id)
+
+    async def confirmar(payment_id: str) -> bool:
+        async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+            resultado = await ConfirmarPago(
+                cobros=RepositorioQueSostieneElBloqueo(sesion),
+                pasarela=PasarelaFalsa(preferencia=None, referencia=str(cobro.id)),
+                saldos=SaldosFalsos(),
+                publicador=PublicadorFalso(),
+                sin_imputar=RepositorioPagoSinImputarPostgres(sesion),
+            ).ejecutar(empresa_id=empresa_id, payment_id=payment_id, ahora=AHORA)
+        return resultado.aprobado
+
+    aprobados = await asyncio.gather(confirmar("pago-a"), confirmar("pago-b"))
+
+    assert sorted(aprobados) == [False, True]
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        final = await RepositorioCobroPostgres(sesion).buscar_por_id(cobro.id)
+        perdedor = (
+            await sesion.execute(
+                text("SELECT mp_payment_id, motivo FROM pago_sin_imputar WHERE cobro_id = :id"),
+                {"id": cobro.id},
+            )
+        ).one()
+    assert final is not None
+    assert final.estado is EstadoCobro.APROBADO
+    assert final.mp_payment_id in {"pago-a", "pago-b"}
+    assert perdedor.motivo == MotivoSinImputar.COBRO_YA_PAGADO.value
+    assert {final.mp_payment_id, perdedor.mp_payment_id} == {"pago-a", "pago-b"}

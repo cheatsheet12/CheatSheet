@@ -133,11 +133,21 @@ class ConfirmarPago:
         pago; sobrevive a un link regenerado, que cambia la preferencia de la fila. Se busca
         bajo RLS: una referencia con el id de un cobro de **otra** empresa no se ve. La
         preferencia queda por compatibilidad (el pago de Checkout Pro no la trae, §20.17).
+
+        **El cobro vuelve leído con `FOR UPDATE` por los dos caminos.** Dos webhooks con
+        `payment_id` distinto sobre el mismo cobro abierto, sin bloqueo, lo aprobarían los dos
+        (el segundo pisa `mp_payment_id` y el saldo baja dos veces, y el primer pago nunca queda
+        registrado). Con el bloqueo el segundo espera, ve `APROBADO` y queda `COBRO_YA_PAGADO`.
         """
         cobro = await self._por_referencia(pago.referencia_externa)
         if cobro is not None or pago.preference_id is None:
             return cobro
-        return await self._cobros.buscar_por_preference_id(pago.preference_id)
+        por_preferencia = await self._cobros.buscar_por_preference_id(pago.preference_id)
+        if por_preferencia is None:
+            return None
+        # La búsqueda por preferencia no bloquea: se vuelve a leer la fila con bloqueo, que
+        # además refresca el estado que otra transacción haya cambiado mientras tanto.
+        return await self._cobros.buscar_para_actualizar(por_preferencia.id)
 
     async def _por_referencia(self, referencia: str | None) -> Cobro | None:
         if referencia is None:
@@ -146,7 +156,7 @@ class ConfirmarPago:
             cobro_id = UUID(referencia)
         except ValueError:
             return None
-        return await self._cobros.buscar_por_id(cobro_id)
+        return await self._cobros.buscar_para_actualizar(cobro_id)
 
     async def _aprobar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, pago: PagoRecibido, ahora: datetime

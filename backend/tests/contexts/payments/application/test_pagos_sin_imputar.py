@@ -315,3 +315,34 @@ async def test_el_pago_sobre_un_cobro_cancelado_sigue_por_su_camino() -> None:
     assert not resultado.sin_imputar
     assert registro.registrados == {}
     assert [e.accion for e in publicador.eventos] == ["pago_sobre_cobro_cancelado"]  # type: ignore[attr-defined]
+
+
+# ------------------------------------------------------------------ la carrera entre dos pagos
+
+
+async def test_el_cobro_hallado_por_referencia_se_lee_con_bloqueo_de_fila() -> None:
+    """Dos webhooks con `payment_id` distinto sobre el mismo cobro abierto no pueden aprobarlo
+    los dos: el segundo tiene que esperar al primero y ver `APROBADO` (`COBRO_YA_PAGADO`)."""
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pasarela = PasarelaFalsa(preferencia=None, referencia=str(cobro.id))
+
+    await _confirmar(cobros, pasarela).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA
+    )
+
+    assert cobros.bloqueados == [cobro.id]
+
+
+async def test_el_cobro_hallado_por_preferencia_se_lee_con_bloqueo_de_fila() -> None:
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pasarela = PasarelaFalsa(preferencia="pref-vigente", referencia=None)
+
+    await _confirmar(cobros, pasarela).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA
+    )
+
+    assert cobros.bloqueados == [cobro.id]
