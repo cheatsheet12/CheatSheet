@@ -21,10 +21,19 @@ carry host, port and database name only, never credentials.
 
 from __future__ import annotations
 
-from cheatsheet.platform.database import HOSTS_LOCALES
+from typing import Any
+
+from cheatsheet.platform.database import HOSTS_LOCALES, argumentos_de_conexion
 from sqlalchemy.engine import URL, make_url
 
 BASE_DEDICADA_REMOTA = "cheatsheet_integracion"
+
+#: Connect timeout for the test engines against a remote database. The dedicated Neon
+#: project is reached over a jittery network: TCP connects in milliseconds but the TLS
+#: handshake sometimes takes several seconds and, rarely, beats the production 10 s
+#: timeout, which showed up as false failures (mostly in the concurrency tests).
+#: Production keeps its own timeout; this only applies to the integration suite.
+TIMEOUT_DE_CONEXION_DE_PRUEBA_SEGUNDOS = 30
 
 
 class DestinoDeIntegracionRechazado(RuntimeError):
@@ -62,3 +71,14 @@ def verificar_destino(url_app: str, url_dueno: str) -> None:
     es_local = (app.host or "").lower() in HOSTS_LOCALES
     if not es_local and app.database != BASE_DEDICADA_REMOTA:
         raise _rechazo(f"the host is not local and the database is '{app.database}'", app, dueno)
+
+
+def argumentos_de_conexion_de_prueba(url: str) -> dict[str, Any]:
+    """Production connect arguments, with a longer timeout when the host is remote.
+
+    A local host (laptop container, CI service) keeps exactly what production decides.
+    """
+    argumentos = argumentos_de_conexion(url)
+    if (make_url(url).host or "").lower() not in HOSTS_LOCALES:
+        argumentos["timeout"] = TIMEOUT_DE_CONEXION_DE_PRUEBA_SEGUNDOS
+    return argumentos

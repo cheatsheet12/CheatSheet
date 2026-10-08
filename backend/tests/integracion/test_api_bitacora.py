@@ -30,11 +30,11 @@ from cheatsheet.contexts.observability.application.consultas import MOTIVO_SIN_A
 from cheatsheet.contexts.observability.domain.solicitud_de_soporte import (
     MENSAJE_CAMPOS_OBLIGATORIOS,
 )
-from cheatsheet.platform.database import argumentos_de_conexion
 from cheatsheet.platform.settings import Settings
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.guarda import argumentos_de_conexion_de_prueba
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -386,7 +386,7 @@ async def _sesion_de_solo_lectura(http: httpx.AsyncClient, empresa_id: str) -> s
     email = f"{uuid4()}@cheatsheet.ar"
     engine = create_async_engine(
         os.environ["DATABASE_URL_MIGRATIONS"],
-        connect_args=argumentos_de_conexion(os.environ["DATABASE_URL_MIGRATIONS"]),
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL_MIGRATIONS"]),
     )
     async with engine.begin() as conexion:
         await conexion.execute(

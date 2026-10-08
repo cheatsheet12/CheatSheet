@@ -8,10 +8,13 @@ any migration or connection. These tests need no database: the guard is a pure f
 from __future__ import annotations
 
 import pytest
+from cheatsheet.platform.database import argumentos_de_conexion
 
 from tests.integracion.guarda import (
     BASE_DEDICADA_REMOTA,
+    TIMEOUT_DE_CONEXION_DE_PRUEBA_SEGUNDOS,
     DestinoDeIntegracionRechazado,
+    argumentos_de_conexion_de_prueba,
     verificar_destino,
 )
 
@@ -66,3 +69,15 @@ def test_verificar_destino_el_mensaje_no_filtra_la_password() -> None:
     assert "x@" not in str(error.value)
     assert "y@" not in str(error.value)
     assert "backend/tests/README.md" in str(error.value)
+
+
+def test_argumentos_de_prueba_alargan_el_timeout_de_un_host_remoto() -> None:
+    url = _urls(HOST_NEON, BASE_DEDICADA_REMOTA)[0]
+    argumentos = argumentos_de_conexion_de_prueba(url)
+    assert argumentos["timeout"] == TIMEOUT_DE_CONEXION_DE_PRUEBA_SEGUNDOS == 30
+    assert argumentos["ssl"] is not None  # TLS stays exactly as production decides it
+
+
+def test_argumentos_de_prueba_dejan_igual_a_produccion_un_host_local() -> None:
+    url = _urls("localhost", "cheatsheet")[0]
+    assert argumentos_de_conexion_de_prueba(url) == argumentos_de_conexion(url)

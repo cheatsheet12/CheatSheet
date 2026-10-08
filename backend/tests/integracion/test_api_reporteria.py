@@ -51,7 +51,6 @@ from cheatsheet.contexts.reporting.infrastructure.repositories import (
 )
 from cheatsheet.platform.almacenamiento import AlmacenamientoEnMemoria, ArchivoGuardado
 from cheatsheet.platform.database import (
-    argumentos_de_conexion,
     crear_sessionmaker,
     sesion_de_empresa,
 )
@@ -62,6 +61,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.guarda import argumentos_de_conexion_de_prueba
 from tests.integracion.test_api_bitacora import _sesion_de_solo_lectura
 
 pytestmark = [requiere_base, pytest.mark.integration]
@@ -117,7 +117,8 @@ async def _sembrar_enlace(empresa_id: EmpresaId, paquete_id: str) -> None:
     de uso.
     """
     engine = create_async_engine(
-        os.environ["DATABASE_URL"], connect_args=argumentos_de_conexion(os.environ["DATABASE_URL"])
+        os.environ["DATABASE_URL"],
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL"]),
     )
     sesiones = crear_sessionmaker(engine)
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
@@ -137,7 +138,8 @@ async def _sembrar_enlace(empresa_id: EmpresaId, paquete_id: str) -> None:
 
 async def _revocar(empresa_id: EmpresaId) -> None:
     engine = create_async_engine(
-        os.environ["DATABASE_URL"], connect_args=argumentos_de_conexion(os.environ["DATABASE_URL"])
+        os.environ["DATABASE_URL"],
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL"]),
     )
     sesiones = crear_sessionmaker(engine)
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
@@ -450,7 +452,8 @@ async def _sembrar_cobros_de_marzo(empresa_id: EmpresaId) -> None:
     pagado_el = datetime(2026, 3, 5, 12, 0, tzinfo=UTC)
     cliente_id = uuid4()
     engine = create_async_engine(
-        os.environ["DATABASE_URL"], connect_args=argumentos_de_conexion(os.environ["DATABASE_URL"])
+        os.environ["DATABASE_URL"],
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL"]),
     )
     sesiones = crear_sessionmaker(engine)
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
@@ -640,7 +643,8 @@ async def test_el_paquete_registra_totales(cliente_http: httpx.AsyncClient) -> N
     assert creado.status_code == 201, creado.text
 
     engine = create_async_engine(
-        os.environ["DATABASE_URL"], connect_args=argumentos_de_conexion(os.environ["DATABASE_URL"])
+        os.environ["DATABASE_URL"],
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL"]),
     )
     sesiones = crear_sessionmaker(engine)
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:

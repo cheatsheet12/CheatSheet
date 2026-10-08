@@ -70,6 +70,23 @@ URL rules (enforced by `argumentos_de_conexion`, see `docs/staging-database.md`)
 Some tests also need Redis and skip without `REDIS_URL`. Expect each test to be slower than
 locally: the cleanup issues about fifty `DELETE`s over the network after every test.
 
+### On a jittery connection
+
+The test engines use a 30 s connect timeout for remote hosts
+(`TIMEOUT_DE_CONEXION_DE_PRUEBA_SEGUNDOS` in `tests/integracion/guarda.py`; production keeps
+10 s). TLS handshakes to Neon occasionally take several seconds, and the longer timeout
+avoids false failures. Local hosts are unchanged.
+
+While working on a unit, run only the integration modules it touches; the full suite stays
+for CI:
+
+```bash
+pytest backend/tests/integracion/test_api_bitacora.py backend/tests/integracion/test_migracion_0034.py -q -p no:cacheprovider
+```
+
+If you switch to a branch with a different migration head, reset the database first (see
+[Resetting the database](#resetting-the-database)).
+
 ### Resetting the database
 
 The schema is migrated to the current head on every session. If you switch git branches

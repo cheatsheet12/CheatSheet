@@ -24,7 +24,7 @@ import pytest
 import pytest_asyncio
 from alembic import command
 from alembic.config import Config
-from cheatsheet.platform.database import argumentos_de_conexion, crear_sessionmaker
+from cheatsheet.platform.database import crear_sessionmaker
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -33,7 +33,11 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from tests.integracion.guarda import DestinoDeIntegracionRechazado, verificar_destino
+from tests.integracion.guarda import (
+    DestinoDeIntegracionRechazado,
+    argumentos_de_conexion_de_prueba,
+    verificar_destino,
+)
 
 RAIZ_BACKEND = Path(__file__).resolve().parents[2]
 
@@ -91,7 +95,9 @@ async def engine_aplicacion(esquema_migrado: None) -> AsyncIterator[AsyncEngine]
     """Engine connected as `cheatsheet_app` — the role that RLS actually constrains."""
     url = _url("DATABASE_URL")
     assert url is not None  # guarded by requiere_base
-    engine = create_async_engine(url, poolclass=None, connect_args=argumentos_de_conexion(url))
+    engine = create_async_engine(
+        url, poolclass=None, connect_args=argumentos_de_conexion_de_prueba(url)
+    )
     yield engine
     await engine.dispose()
 
@@ -101,7 +107,7 @@ async def engine_dueno(esquema_migrado: None) -> AsyncIterator[AsyncEngine]:
     """Engine connected as the owner. Used only to set up and inspect fixtures."""
     url = _url("DATABASE_URL_MIGRATIONS")
     assert url is not None
-    engine = create_async_engine(url, connect_args=argumentos_de_conexion(url))
+    engine = create_async_engine(url, connect_args=argumentos_de_conexion_de_prueba(url))
     yield engine
     await engine.dispose()
 
