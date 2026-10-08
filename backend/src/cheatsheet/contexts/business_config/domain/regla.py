@@ -22,6 +22,9 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
+from cheatsheet.contexts.business_config.domain.agenda_de_notificacion import (
+    ConfiguracionDeAgenda,
+)
 from cheatsheet.contexts.business_config.domain.horario_de_atencion import ConfiguracionDeAtencion
 from cheatsheet.contexts.business_config.domain.horario_de_atencion_json import desde_json
 from cheatsheet.shared.empresa import EmpresaId
@@ -202,6 +205,14 @@ class ReglaDeNegocio:
                 f"La regla {self.id} no es un horario de atención, es {self.tipo.value}"
             )
         return desde_json(self.configuracion)
+
+    def interpretada_como_agenda(self) -> ConfiguracionDeAgenda:
+        """La agenda de notificación, tipada. Falla si el tipo no es el que se pide."""
+        if self.tipo is not TipoRegla.AGENDA_DE_NOTIFICACION:
+            raise EntradaInvalida(
+                f"La regla {self.id} no es una agenda de notificación, es {self.tipo.value}"
+            )
+        return ConfiguracionDeAgenda.desde_json(self.configuracion)
 
     def reconfigurar(self, configuracion: dict[str, Any], ahora: datetime) -> None:
         """Reemplaza la parametrización. La validación es de quien construye la nueva."""
