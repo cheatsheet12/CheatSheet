@@ -144,7 +144,9 @@ Sin verificar → `TODO.md` §25 (al final).
 - No encontrado en ninguno → log `whatsapp_estado_sin_destinatario` (sin el wamid completo) y 200.
   Caso esperable: el `sent` llega antes de que haga commit la transacción que mandó el mensaje. Para un
   **mensaje** del agente o del operador no se pierde nada: ese estado (`ENVIADO`) ya lo escribió el
-  propio envío, y los siguientes (`delivered`/`read`) llegan después. **Para un recordatorio de cobro
+  propio envío, y los siguientes (`delivered`/`read`) llegan después (**salvo en los avisos de turno**: Meta
+  se llama dentro de la transacción del panel y el mensaje se confirma al final, así que ahí esta
+  afirmación ya no vale; ver `TODO.md` §22.64). **Para un recordatorio de cobro
   la afirmación era falsa** (hallazgo H1 del Gate 2): el barrido (`workers/tasks_payments.py:74`) abre
   una unidad de trabajo por empresa y confirma recién al final, así que un `failed` o `delivered` que
   llega antes del commit no encuentra la fila, se contesta 200 y se pierde. El tramo ii confirma cada
@@ -709,10 +711,25 @@ aserción): `NotificarAlCliente` (los 17 tests de `test_notificaciones.py`), `Da
 `test_canal_real_de_whatsapp.py` (casos 3, 24 y 25a de punta a punta con dobles: el cableado ya estaba hecho
 cuando se escribieron) y la adaptación de `test_plantillas_salientes.py`; ni en
 `tests/integracion/test_avisos_de_turno_postgres.py` (necesita PostgreSQL: solo corre en la CI; `TODO.md`
-§22.62). **Frontend:** `lucide-react` no está instalado en este entorno (`npm ls` vacío), así que 66 archivos
-de Vitest ya fallaban al importar `@/shared` antes de este tramo; las pruebas del tramo se corrieron con un
-alias temporal a un doble de `lucide-react` (fuera del repo) y pasaron; solo fallan tres pruebas ajenas que
-buscan los `<svg>` de los iconos.
+§22.62). **Frontend:** `lucide-react` faltaba solo en el entorno local (no en `package.json`); con `npm ci`
+quedó instalado y la suite completa corre: `tsc` limpio y Vitest 98/98 archivos, 1233 pruebas. Lo que sigue
+pendiente es la verificación en el navegador, en staging de Render (`TODO.md` §22.63).
+
+#### Correcciones de la revisión independiente (2026-10-07)
+
+- **S1** — `NotificarAlCliente` ya no traga en silencio el fallo al guardar: `ResultadoDeNotificacion.causa`
+  lleva `type(exc).__name__` (nunca el texto), pasa por la raíz a `ResultadoLocal.causa` y sale en el log
+  `aviso_de_turno_sin_registrar`. RED observado: 6 pruebas fallaron antes de implementarlo.
+- **S2** — Los casos 3, 24 y 25a salieron de `test_canal_real_de_whatsapp.py` (463 líneas) a
+  `test_avisos_de_turno_en_la_conversacion.py`; el montaje compartido está en
+  `montaje_avisos_de_turno_reales.py` y los fixtures en `tests/api/conftest.py`.
+- **S3** — `cobro.ts` (427 líneas) bajó a 386: `Recordatorio` e `INTENTOS_MAXIMOS_DE_RECORDATORIO` pasaron a
+  `api/recordatorio.ts` y `Reembolso`/`OrigenDeReembolso` a `api/reembolso.ts`; el `index.ts` de la feature
+  exporta los mismos nombres.
+- **S4** — La afirmación de que un `sent` previo al commit no pierde nada lleva ahora la salvedad de los
+  avisos de turno (§22.64).
+- **N2** — `aislar` es obligatorio en `NotificarAlCliente` (sin `nullcontext` por defecto); los tests lo pasan
+  explícito con `sin_savepoint`. RED observado: `TypeError` por argumento faltante en los puntos de uso.
 
 ## Decisiones tomadas durante la unidad
 
