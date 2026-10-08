@@ -12,9 +12,11 @@
 
 "use client";
 
+import { Bell, CalendarClock, ListChecks, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
+import type { CSSProperties } from "react";
 
-import { Alert, Badge, Button, Campo, Card, Select, Tabla } from "@/shared";
+import { Alert, Badge, Button, Campo, Select, Tabla } from "@/shared";
 import type { Columna } from "@/shared";
 
 import {
@@ -153,89 +155,141 @@ export function ReglasDeNegocio({ inicial, puedeEditar }: PropsDeReglasDeNegocio
     },
   ];
 
-  // Las dos superficies en una columna y las dos en tarjeta: el listado y el editor son el
-  // mismo nivel de la pantalla —lo que rige y lo que se cambia— y antes eran una caja
-  // punteada suelta encima de una tarjeta, que se lee como una carga que falló.
+  // Presentación de lo ya tipeado, sin lógica: «Día 3 después del vencimiento · WhatsApp».
+  const etiquetaDeCanal = (canal: CanalNotificacion): string =>
+    CANALES.find((opcion) => opcion.valor === canal)?.etiqueta ?? canal;
+
   return (
-    <div className="cob-reglas">
+    <div className="rgl">
       {error !== null && (
         <Alert tono="error" titulo="No se pudo completar">
           {error}
         </Alert>
       )}
 
-      <Card titulo="Reglas configuradas">
-        <Tabla
-          titulo="Reglas configuradas"
-          columnas={columnas}
-          filas={listado.reglas}
-          claveDeFila={(fila) => fila.id}
-          vacia="Todavía no configuraste ninguna regla. Rige la cadena por defecto."
-        />
-      </Card>
+      <section className="rgl-card" style={{ "--rgl-i": 0 } as CSSProperties}>
+        <header className="rgl-card__cab">
+          <span className="rgl-icono" aria-hidden="true">
+            <ListChecks size={18} />
+          </span>
+          <h2 className="rgl-card__titulo">Reglas configuradas</h2>
+        </header>
+        {listado.reglas.length === 0 ? (
+          <div className="rgl-vacio">
+            <span className="rgl-vacio__icono" aria-hidden="true">
+              <Bell size={22} />
+            </span>
+            <p className="rgl-vacio__texto">
+              Todavía no configuraste ninguna regla. Rige la cadena por defecto.
+            </p>
+            <ul className="rgl-vacio__fichas" aria-label="Cadena por defecto">
+              {[3, 7, 15].map((dias) => (
+                <li key={dias}>
+                  <CalendarClock size={13} aria-hidden="true" />
+                  {dias} días
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <Tabla
+            titulo="Reglas configuradas"
+            columnas={columnas}
+            filas={listado.reglas}
+            claveDeFila={(fila) => fila.id}
+            vacia="Todavía no configuraste ninguna regla. Rige la cadena por defecto."
+          />
+        )}
+      </section>
 
       {puedeEditar && (
-        <Card titulo="Cadena de recordatorios de cobro">
-          <p className="dm-intro">
+        <section className="rgl-card" style={{ "--rgl-i": 1 } as CSSProperties}>
+          <header className="rgl-card__cab">
+            <span className="rgl-icono" aria-hidden="true">
+              <Bell size={18} />
+            </span>
+            <h2 className="rgl-card__titulo">Cadena de recordatorios de cobro</h2>
+          </header>
+          <p className="rgl-intro">
             Los días se cuentan <strong>desde el vencimiento del cobro</strong>, no desde el
             recordatorio anterior. Un cobro pagado o cancelado deja de recibirlos.
           </p>
 
           <form
-            className="cob-reglas__form"
+            className="rgl-form"
             onSubmit={(evento) => {
               evento.preventDefault();
               void guardar();
             }}
           >
-            {/* Una lista ordenada y no un montón de `div`: la cadena tiene orden, y el
-                orden es parte de lo que se está configurando. */}
-            <ol className="cob-pasos">
-              {pasos.map((paso, indice) => (
-                <li className="cob-paso" key={paso.clave}>
-                  <Campo
-                    id={`${prefijo}-dias-${indice}`}
-                    etiqueta={`Días del recordatorio ${indice + 1}`}
-                    mono
-                    inputMode="numeric"
-                    value={String(paso.dias)}
-                    onChange={(evento) => cambiar(paso.clave, "dias", evento.target.value)}
-                  />
-                  <Select
-                    id={`${prefijo}-canal-${indice}`}
-                    etiqueta="Canal"
-                    opciones={CANALES}
-                    value={paso.canal}
-                    onChange={(evento) => cambiar(paso.clave, "canal", evento.target.value)}
-                  />
-                  <Button
-                    variante="secundario"
-                    disabled={pasos.length === 1}
-                    // Siempre una cadena y nunca `undefined`: `exactOptionalPropertyTypes`
-                    // trata a un `title={undefined}` como un error, no como «sin título».
-                    // El nombre accesible lo sigue dando el texto del botón, no esto.
-                    title={
-                      pasos.length === 1
-                        ? MOTIVO_PASO_UNICO
-                        : `Quitar el recordatorio ${indice + 1}`
-                    }
-                    onClick={() =>
-                      setPasos((previos) => previos.filter((otro) => otro.clave !== paso.clave))
-                    }
-                  >
-                    Quitar
-                  </Button>
-                </li>
-              ))}
-            </ol>
+            <div className="rgl-linea">
+              <div className="rgl-origen">
+                <span className="rgl-origen__punto" aria-hidden="true">
+                  <CalendarClock size={14} />
+                </span>
+                <span className="rgl-origen__texto">Vencimiento</span>
+              </div>
 
-            {pasos.length === 1 && <p className="cob-paso__nota">{MOTIVO_PASO_UNICO}</p>}
+              {/* Una lista ordenada y no un montón de `div`: la cadena tiene orden, y el
+                  orden es parte de lo que se está configurando. */}
+              <ol className="rgl-pasos">
+                {pasos.map((paso, indice) => (
+                  <li className="rgl-paso" key={paso.clave}>
+                    <span className="rgl-paso__punto" aria-hidden="true">
+                      {indice + 1}
+                    </span>
+                    <div className="rgl-paso__caja">
+                      <div className="rgl-paso__campos">
+                        <Campo
+                          id={`${prefijo}-dias-${indice}`}
+                          etiqueta={`Días del recordatorio ${indice + 1}`}
+                          mono
+                          inputMode="numeric"
+                          value={String(paso.dias)}
+                          onChange={(evento) => cambiar(paso.clave, "dias", evento.target.value)}
+                        />
+                        <Select
+                          id={`${prefijo}-canal-${indice}`}
+                          etiqueta="Canal"
+                          opciones={CANALES}
+                          value={paso.canal}
+                          onChange={(evento) => cambiar(paso.clave, "canal", evento.target.value)}
+                        />
+                        <Button
+                          variante="secundario"
+                          disabled={pasos.length === 1}
+                          // Siempre una cadena y nunca `undefined`: `exactOptionalPropertyTypes`
+                          // trata a un `title={undefined}` como un error, no como «sin título».
+                          // El nombre accesible lo sigue dando el texto del botón, no esto.
+                          title={
+                            pasos.length === 1
+                              ? MOTIVO_PASO_UNICO
+                              : `Quitar el recordatorio ${indice + 1}`
+                          }
+                          onClick={() =>
+                            setPasos((previos) =>
+                              previos.filter((otro) => otro.clave !== paso.clave),
+                            )
+                          }
+                        >
+                          <Trash2 size={14} aria-hidden="true" />
+                          Quitar
+                        </Button>
+                      </div>
+                      {paso.dias > 0 && (
+                        <p className="rgl-paso__resumen">
+                          <MessageCircle size={13} aria-hidden="true" />
+                          Día {paso.dias} después del vencimiento · {etiquetaDeCanal(paso.canal)}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
 
-            {hayDiaInvalido && <Alert tono="error">{MENSAJE_DIAS_INVALIDOS}</Alert>}
-
-            <div className="cob-reglas__acciones">
-              <Button
-                variante="secundario"
+              <button
+                type="button"
+                className="rgl-agregar"
                 disabled={pasos.length >= MAXIMO_DE_PASOS}
                 onClick={() =>
                   setPasos((previos) => [
@@ -244,14 +298,22 @@ export function ReglasDeNegocio({ inicial, puedeEditar }: PropsDeReglasDeNegocio
                   ])
                 }
               >
+                <Plus size={15} aria-hidden="true" />
                 Agregar paso
-              </Button>
+              </button>
+            </div>
+
+            {pasos.length === 1 && <p className="rgl-nota">{MOTIVO_PASO_UNICO}</p>}
+
+            {hayDiaInvalido && <Alert tono="error">{MENSAJE_DIAS_INVALIDOS}</Alert>}
+
+            <div className="rgl-pie">
               <Button type="submit" disabled={hayDiaInvalido} cargando={guardando}>
                 Guardar cadena
               </Button>
             </div>
           </form>
-        </Card>
+        </section>
       )}
     </div>
   );
