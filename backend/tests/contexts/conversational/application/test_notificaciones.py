@@ -137,6 +137,7 @@ class TestElHilo:
             "wamid.TEXTO",
             None,
         )
+        assert (resultado.sin_registrar, resultado.causa) == (False, None)
 
     async def test_con_una_conversacion_activa_se_agrega_ahi(self) -> None:
         """**Caso 23 (b).**"""
@@ -275,6 +276,9 @@ class TestCuandoNoSePuedeGuardar:
         assert resultado.enviado is True
         assert resultado.sin_registrar is True
         assert resultado.externo_id == "wamid.TEXTO"
+        # S1: la causa es sólo la clase de la excepción; el texto trae el teléfono.
+        assert resultado.causa == "RuntimeError"
+        assert TELEFONO not in repr(resultado)
 
     async def test_la_escritura_corre_dentro_del_savepoint_que_le_pasan(self) -> None:
         eventos: list[str] = []
@@ -317,6 +321,7 @@ class TestCuandoNoSePuedeGuardar:
         resultado = await _avisar(caso, uuid4())
 
         assert resultado.sin_registrar is True
+        assert resultado.causa == "RuntimeError"
 
 
 class TestElAgenteRespondeEnElMismoHilo:

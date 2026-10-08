@@ -74,12 +74,14 @@ class ResultadoLocal:
     """Cómo terminó el aviso, en el vocabulario de `scheduling`.
 
     `falla` es el motivo si no salió (`131047`, `INCIERTO`, `SIN_CANAL`…); `sin_registrar` es que se
-    intentó y el mensaje no quedó guardado en la conversación.
+    intentó y el mensaje no quedó guardado en la conversación, y `causa` es entonces la clase de la
+    excepción que lo impidió (nunca su texto).
     """
 
     enviado: bool
     falla: str | None = None
     sin_registrar: bool = False
+    causa: str | None = None
 
 
 class CanalDeAvisos(Protocol):
@@ -226,7 +228,7 @@ class AvisoPorWhatsApp:
             # El motivo es un código de Meta o una clase corta: nunca el texto del error.
             logger.warning("aviso_de_turno_fallido", clase=clase, causa=resultado.falla)
         if resultado.sin_registrar:
-            logger.warning("aviso_de_turno_sin_registrar", clase=clase)
+            logger.warning("aviso_de_turno_sin_registrar", clase=clase, causa=resultado.causa)
 
 
 def _envio_de(plantilla: PlantillaParaMandar | None, texto_de_fabrica: str) -> EnvioParaAviso:

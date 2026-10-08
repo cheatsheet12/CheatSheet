@@ -83,12 +83,15 @@ class ResultadoDeNotificacion:
 
     `sin_registrar` es verdadero cuando el envío se intentó y el mensaje **no se pudo guardar**: el
     llamador lo registra. Nunca es verdadero por `SIN_CANAL`, que no guarda nada a propósito.
+    `causa` es entonces la **clase** de la excepción que impidió guardar (`type(exc).__name__`),
+    nunca su texto: puede traer el teléfono. Es `None` si se guardó.
     """
 
     enviado: bool
     externo_id: str | None = None
     falla: str | None = None
     sin_registrar: bool = False
+    causa: str | None = None
 
 
 class NotificarAlCliente:
@@ -129,14 +132,15 @@ class NotificarAlCliente:
             # acoplaría este caso de uso a su infraestructura. Sólo el motivo corto, nunca el texto.
             motivo = motivo_de_falla_de(fallo)
         estado = EstadoEntrega.ENVIADO if motivo is None else EstadoEntrega.FALLIDO
-        guardado = await self._guardar(
+        causa_de_no_guardar = await self._guardar(
             empresa_id, cliente_id, envio, estado, externo_id, motivo, ahora
         )
         return ResultadoDeNotificacion(
             enviado=motivo is None,
             externo_id=externo_id,
             falla=motivo,
-            sin_registrar=not guardado,
+            sin_registrar=causa_de_no_guardar is not None,
+            causa=causa_de_no_guardar,
         )
 
     async def _mandar(self, telefono: str, envio: EnvioDeAviso) -> str:
@@ -159,8 +163,9 @@ class NotificarAlCliente:
         externo_id: str | None,
         motivo: str | None,
         ahora: datetime,
-    ) -> bool:
-        """Guarda el aviso en su hilo, en un savepoint. Devuelve si quedó guardado."""
+    ) -> str | None:
+        """Guarda el aviso en su hilo, en un savepoint. Devuelve `None` si quedó guardado o, si no,
+        la clase de la excepción que lo impidió."""
         try:
             async with self._aislar():
                 hilo = await self._hilo_de(empresa_id, cliente_id, ahora)
@@ -179,12 +184,13 @@ class NotificarAlCliente:
                         motivo_de_falla=motivo,
                     )
                 )
-        except Exception:  # noqa: BLE001 — ver el docstring del módulo
+        except Exception as fallo:  # noqa: BLE001 — ver el docstring del módulo
             # El savepoint ya se deshizo al salir del bloque. Acotado por el motivo: el envío a
             # Meta ocurrió, el turno sigue como está y el llamador deja constancia
-            # (`sin_registrar`). Aquí no se loguea nada: el texto de la excepción puede traer datos.
-            return False
-        return True
+            # (`sin_registrar`). Aquí no se loguea nada y sólo sale la clase, nunca el texto de la
+            # excepción: puede traer datos.
+            return type(fallo).__name__
+        return None
 
     async def _hilo_de(
         self, empresa_id: EmpresaId, cliente_id: UUID, ahora: datetime

@@ -203,7 +203,9 @@ class TestElRegistroDelAviso:
 
     async def test_si_el_mensaje_no_se_pudo_guardar_se_deja_constancia_y_no_levanta(self) -> None:
         """**Caso 25.** El turno queda cancelado; el log dice qué clase de aviso no se registró."""
-        canal = CanalDeAvisosFalso(resultado=ResultadoLocal(enviado=True, sin_registrar=True))
+        canal = CanalDeAvisosFalso(
+            resultado=ResultadoLocal(enviado=True, sin_registrar=True, causa="IntegrityError")
+        )
 
         with capture_logs() as registros:
             await AvisoPorWhatsApp(canal, SinPlantillas()).avisar_cancelacion(DATOS)
@@ -211,6 +213,7 @@ class TestElRegistroDelAviso:
         sin_registrar = [r for r in registros if r["event"] == "aviso_de_turno_sin_registrar"]
         assert len(sin_registrar) == 1
         assert sin_registrar[0]["clase"] == "cancelacion"
+        assert sin_registrar[0]["causa"] == "IntegrityError"
         volcado = repr(registros)
         for dato in (TELEFONO, NOMBRE, texto_de_cancelacion(DATOS)):
             assert dato not in volcado

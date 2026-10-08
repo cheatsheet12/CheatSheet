@@ -137,6 +137,7 @@ async def test_un_canal_caido_se_traduce_a_un_resultado_y_el_mensaje_queda_falli
     )
 
     assert (resultado.enviado, resultado.falla) == (False, "ERROR")
+    assert resultado.causa is None
     (aviso,) = mensajes.mensajes.values()
     assert (aviso.estado_entrega, aviso.motivo_de_falla) == (EstadoEntrega.FALLIDO, "ERROR")
 
@@ -205,3 +206,28 @@ async def test_armar_notificador_es_el_aviso_por_whatsapp_sobre_ese_canal() -> N
     notificador = armar_notificador(_unidad([]), empresa_id=EMPRESA, canal=_Canal())
 
     assert isinstance(notificador, AvisoPorWhatsApp)
+
+
+async def test_si_el_mensaje_no_se_guarda_el_resultado_lleva_la_clase_de_la_causa() -> None:
+    """S1: `causa` llega a `scheduling` como la clase de la excepción, nunca su texto."""
+
+    class MensajesQueNoGuardan(RepositorioMensajeEnMemoria):
+        async def agregar(self, mensaje: object) -> None:
+            del mensaje
+            raise RuntimeError(f"la base rechazó {TELEFONO}")
+
+    caso = NotificarAlCliente(
+        conversaciones=RepositorioConversacionEnMemoria(),
+        mensajes=MensajesQueNoGuardan(),
+        mensajeria=_Canal(),
+        aislar=sin_savepoint,
+    )
+    adaptador = CanalDeAvisosViaConversacion(caso, empresa_id=EMPRESA, reloj=_Reloj())
+
+    resultado = await adaptador.notificar(
+        cliente_id=uuid4(), telefono=TELEFONO, envio=EnvioParaAviso(texto="x")
+    )
+
+    assert (resultado.enviado, resultado.sin_registrar) == (True, True)
+    assert resultado.causa == "RuntimeError"
+    assert TELEFONO not in repr(resultado)

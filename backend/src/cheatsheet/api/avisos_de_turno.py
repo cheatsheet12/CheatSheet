@@ -71,6 +71,7 @@ class CanalDeAvisosViaConversacion:
             enviado=resultado.enviado,
             falla=resultado.falla,
             sin_registrar=resultado.sin_registrar,
+            causa=resultado.causa,
         )
 
 
