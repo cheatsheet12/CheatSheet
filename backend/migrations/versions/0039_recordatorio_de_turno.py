@@ -6,8 +6,14 @@ Revises: 0038
 1. **`turno.franja_asignada_en`** (`timestamptz NOT NULL`): when the *current* slot was fixed, at
    booking or at the last reschedule. `updated_at` cannot say it (it also moves on confirmation).
    A reminder whose moment `inicio - anticipacion` is earlier than this was already late when the
-   slot was fixed, and is not sent. Backfill: `created_at`. A turno moved before this migration
-   keeps its creation date, which can only make a reminder *more* likely, never skip an old one.
+   slot was fixed, and is not sent. **Backfill: `now()` of the migration, not `created_at`.** With
+   `created_at` every existing turno would satisfy `moment >= franja_asignada_en`, and the first
+   sweep after the deploy would send, all at once and late, every reminder whose ideal moment had
+   already passed. With the deploy instant those anticipations are omitted (plan D-U8-4) and only
+   the ones whose ideal moment falls after the deploy go out. The cost, accepted: a turno booked
+   before the deploy may miss a reminder whose window the deploy cut through. The repository's
+   fallback to `created_at` (`_a_fila`) only covers a `Turno` built without the field, which the
+   application never does; existing rows are resolved here, not by that fallback.
 2. **`recordatorio_de_turno`**: one row per `(turno, anticipacion, franja_inicio)`. The unique
    index is the idempotency guarantee (the same idea as `uq_recordatorio_cobro_paso` for payments);
    `resultado IS NULL` means in flight or waiting for a retry. `ENABLE` + `FORCE` row level
@@ -112,7 +118,7 @@ PERMISOS_FUNCION = (
 
 def upgrade() -> None:
     op.execute("ALTER TABLE turno ADD COLUMN franja_asignada_en timestamptz NULL")
-    op.execute("UPDATE turno SET franja_asignada_en = created_at")
+    op.execute("UPDATE turno SET franja_asignada_en = now()")
     op.execute("ALTER TABLE turno ALTER COLUMN franja_asignada_en SET NOT NULL")
     op.execute(CREAR_TABLA)
     for sentencia in INDICES:

@@ -2,7 +2,7 @@
 
 Fija lo que la migración promete y el código no puede garantizar solo:
 
-- el backfill de `franja_asignada_en` con `created_at`, y que la columna quede `NOT NULL`;
+- el backfill de `franja_asignada_en` con el instante de la migración, y que la columna quede `NOT NULL`;
 - la tabla con RLS **forzada**, sin `DELETE` para la app (la fila es la prueba de idempotencia);
 - el índice único de `(turno, anticipación, franja)` y los dos índices parciales;
 - `empresas_con_turnos_por_recordar(hasta)`: `SECURITY DEFINER`, solo ids, respeta `hasta`,
@@ -234,14 +234,24 @@ def test_downgrade_deja_el_esquema_sin_la_columna_la_tabla_ni_la_funcion(
 def test_sube_con_backfill_de_la_franja_asignada_y_la_columna_queda_not_null(
     esquema_en_0038: None,
 ) -> None:
-    """Caso 14. Un turno viejo toma su `created_at`: nunca se saltea un recordatorio por la fecha."""
+    """Caso 14. Un turno viejo toma el instante de la migración, **no** su `created_at`.
+
+    Así (D-U8-4) toda anticipación cuyo momento ideal cae antes del deploy se omite y el primer
+    barrido posterior no manda de golpe avisos atrasados.
+    """
     empresa = Empresa()
     creado = AHORA - timedelta(days=30)
     turno_id = empresa.turno(AHORA + timedelta(days=3), creado=creado, viejo=True)
 
+    antes = datetime.now(tz=UTC)
     command.upgrade(_config(), "head")
+    despues = datetime.now(tz=UTC)
 
-    assert asyncio.run(_leer(LEER_FRANJA_ASIGNADA, {"id": turno_id})) == [(creado,)]
+    [(valor,)] = asyncio.run(_leer(LEER_FRANJA_ASIGNADA, {"id": turno_id}))
+    assert isinstance(valor, datetime)
+    asignada: datetime = valor
+    assert asignada != creado
+    assert antes <= asignada <= despues
     assert asyncio.run(_leer(COLUMNA)) == [("NO",)]
 
 

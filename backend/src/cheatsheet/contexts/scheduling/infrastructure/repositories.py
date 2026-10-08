@@ -337,6 +337,8 @@ def _a_fila(turno: Turno, fila: TurnoORM) -> TurnoORM:
     fila.intervalo_posterior_min = turno.intervalo_posterior_min
     fila.created_at = turno.created_at or datetime.now(tz=ZONA_DE_LA_AGENDA)
     fila.updated_at = turno.updated_at or fila.created_at
+    # Respaldo de un `Turno` armado sin el campo (la aplicación siempre lo fija): en un alta es el
+    # mismo instante que la inserción. Los turnos que ya existían los resuelve la migración 0039.
     fila.franja_asignada_en = turno.franja_asignada_en or fila.created_at
     return fila
 
