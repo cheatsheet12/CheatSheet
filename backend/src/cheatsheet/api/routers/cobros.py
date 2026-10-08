@@ -62,6 +62,13 @@ class RecordatorioSalida(BaseModel):
     canal: str
     enviado_en: datetime | None
     estado_entrega: str | None
+    #: Cuántos envíos empezaron (U7). Con `proximo_intento_en` arma «Reintentando · intento n de 3».
+    intentos: int
+    #: Cuándo toca el próximo intento. **Solo** mientras la fila espera un reintento: en un envío en
+    #: curso la columna es la ventana de la reserva y mostrarla como «próximo» engañaría.
+    proximo_intento_en: datetime | None
+    #: Por qué falló: un código de Meta o una clase corta (`INCIERTO`, `COBRO_CERRADO`…).
+    ultimo_error: str | None
 
 
 class ReembolsoSalida(BaseModel):
@@ -178,6 +185,9 @@ def _a_recordatorio(uno: Recordatorio) -> RecordatorioSalida:
         canal=uno.canal,
         enviado_en=uno.enviado_en,
         estado_entrega=uno.estado_entrega.value if uno.estado_entrega else None,
+        intentos=uno.intentos,
+        proximo_intento_en=uno.proximo_intento_en if uno.esperando_reintento else None,
+        ultimo_error=uno.ultimo_error,
     )
 
 
