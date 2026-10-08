@@ -214,7 +214,8 @@ export function GrillaDeIntegraciones({
         </Button>
       </header>
 
-      {error !== null ? <Alert tono="error">{error}</Alert> : null}
+      {/* With a form open the error belongs inside it: behind the modal nobody reads it. */}
+      {error !== null && formulario === null ? <Alert tono="error">{error}</Alert> : null}
       {avisoFiscal !== null ? (
         <Alert tono="advertencia" titulo="Revisá los datos fiscales">
           {avisoFiscal}
@@ -246,6 +247,7 @@ export function GrillaDeIntegraciones({
           setFormulario(null);
         }}
       >
+        {error !== null ? <Alert tono="error">{error}</Alert> : null}
         <FormularioDeWhatsApp
           enviando={ocupada === "WHATSAPP"}
           onEnviar={(token, parametros) => {
@@ -264,6 +266,7 @@ export function GrillaDeIntegraciones({
           setFormulario(null);
         }}
       >
+        {error !== null ? <Alert tono="error">{error}</Alert> : null}
         <FormularioDeArca
           enviando={ocupada === "ARCA"}
           cuitDeCheatsheet={cuitDeCheatsheet ?? null}

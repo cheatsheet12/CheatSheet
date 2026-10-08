@@ -335,3 +335,32 @@ async def test_verificar_una_delegacion_vigente_la_deja_conectada(
 
     assert respuesta.status_code == 200, respuesta.text
     assert _tarjeta(respuesta.json(), "ARCA")["estado"] == "CONECTADO"
+
+
+# ----------------------------------------------------------------- cambio de CUIT
+
+
+@pytest.mark.asyncio
+async def test_cambiar_la_cuit_de_la_empresa_desconecta_arca(cliente: httpx.AsyncClient) -> None:
+    """Hallazgo de la prueba local del 08/10: si ARCA quedaba conectada con la CUIT vieja, el
+    comprobante saldría impreso con la nueva y autorizado en ARCA con la anterior."""
+    token = await _empresa_con_arca(cliente, "ana@empresa.com", CUIT_DE_LA_EMPRESA)
+
+    await _completar_empresa(cliente, token, OTRA_CUIT)
+
+    listado = await cliente.get("/integraciones", headers=_auth(token))
+    tarjeta = _tarjeta(listado.json(), "ARCA")
+    assert tarjeta["estado"] == "NO_CONECTADO"
+    assert "30-00000002-3" in str(tarjeta["detalle"]) or "30000000023" in str(tarjeta["detalle"])
+
+
+@pytest.mark.asyncio
+async def test_guardar_la_empresa_sin_cambiar_la_cuit_no_toca_arca(
+    cliente: httpx.AsyncClient,
+) -> None:
+    token = await _empresa_con_arca(cliente, "ana@empresa.com", CUIT_DE_LA_EMPRESA)
+
+    await _completar_empresa(cliente, token, CUIT_DE_LA_EMPRESA)
+
+    listado = await cliente.get("/integraciones", headers=_auth(token))
+    assert _tarjeta(listado.json(), "ARCA")["estado"] == "CONECTADO"

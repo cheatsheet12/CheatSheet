@@ -9,7 +9,7 @@
  * that is going to be rejected.
  */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const listarIntegraciones = vi.fn();
@@ -553,5 +553,18 @@ describe("GrillaDeIntegraciones", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verificar delegación" }));
 
     await waitFor(() => expect(conectarIntegracion).toHaveBeenCalledWith("ARCA", "", {}));
+  });
+
+  it("si ARCA rechaza la delegación el motivo se ve dentro del formulario", async () => {
+    // Hallazgo de la prueba local del 08/10: el error quedaba detrás del modal abierto.
+    conectarIntegracion.mockRejectedValue(new Error("ARCA no registra que la CUIT 30-99999900-6"));
+
+    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
+    await conectarArca();
+
+    const dialogo = await screen.findByRole("dialog");
+    await waitFor(() => {
+      expect(within(dialogo).getByText(/ARCA no registra/)).toBeTruthy();
+    });
   });
 });
