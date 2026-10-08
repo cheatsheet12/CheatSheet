@@ -383,6 +383,25 @@ contra Neon ni staging) y `test_guards.sh` no corre local (falta `jq`).
 - La pantalla para listar o resolver pagos sin imputar y la imputación manual quedan en
   `epicas/06-cobros-y-recordatorios/pendientes.md` #15.
 
+## Traspaso (2026-10-07)
+
+Las historias de esta unidad (HU-E6-03, HS-T1) pertenecen al módulo de cobros
+(`docs/aidlc/etapa-6/reparto.md` §1), no al de quien la registró y la implementó. Se libera para
+quien tenga ese módulo, **con el trabajo hecho**: plan con Gate 1 aprobado, implementación completa y
+revisión independiente aplicada, en esta rama. El Gate 2 **no se presentó**.
+
+Quien la tome:
+
+1. **Revalida el Gate 1** (las 11 respuestas del registro): es su módulo y puede cambiar cualquiera.
+   Si cambia una, se ajusta el código de esta rama antes del Gate 2.
+2. **Lee primero §20.17 de `TODO.md`**: con el código de `develop`, un pago real de MercadoPago
+   probablemente **nunca encuentra su cobro** (se busca solo por `preference_id`, que el pago no trae
+   según los tipos del SDK oficial) y queda en un log informativo. Esta rama lo corrige; el sandbox lo
+   confirma. Afecta también a PRU-06.
+3. Presenta el Gate 2 con la salida real de los gates (ver «Estado de la implementación»), abre el PR
+   con la CI en verde (casos 12–16 solo corren ahí) y renumera la migración `0036` si `develop` ya la
+   tomó.
+
 ## Registro
 
 | Gate | Fecha | Resultado |
