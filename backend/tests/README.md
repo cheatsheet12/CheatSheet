@@ -22,3 +22,7 @@ Rules ([`../../docs/code-standards.md`](../../docs/code-standards.md) §4):
 - Naming: `test_<what>_<condition>_<expected>()`.
 
 Every fixed bug starts with the test that reproduces it.
+
+To run the whole CI pipeline locally (PostgreSQL, Redis, RLS checks, coverage, frontend)
+see [`../scripts/local_ci/README.md`](../scripts/local_ci/README.md) and
+[ADR-0015](../../docs/adr/0015-local-ci-verification.md).
