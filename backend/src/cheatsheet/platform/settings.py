@@ -460,6 +460,9 @@ class Settings:
     arca_wsfe_url_homologacion: str
     arca_wsfe_url_produccion: str
     parametros_fiscales_horas: int
+    #: How often Beat re-checks documents whose fate ARCA never answered (decision D17).
+    #: Five minutes in production; staging raises it so the database can sleep.
+    billing_reconciliacion_minutos: int
 
     @property
     def arca_wsfe_url(self) -> str:
@@ -585,6 +588,7 @@ class Settings:
                 "ARCA_WSFE_URL_PRODUCCION", "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
             ),
             parametros_fiscales_horas=_entero("PARAMETROS_FISCALES_HORAS", 24),
+            billing_reconciliacion_minutos=_entero("BILLING_RECONCILIACION_MINUTOS", 5),
             dlq_max_intentos=_entero("DLQ_MAX_INTENTOS", DLQ_MAX_INTENTOS_POR_DEFECTO),
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.

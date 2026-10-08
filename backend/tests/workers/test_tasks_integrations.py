@@ -326,6 +326,18 @@ def test_el_barrido_de_la_dlq_corre_seguido_y_en_notifications() -> None:
     assert entrada["options"]["queue"] == "notifications"
 
 
+def test_la_reconciliacion_de_comprobantes_usa_el_intervalo_configurado() -> None:
+    """Cinco minutos por defecto (D17); staging lo sube para que la base pueda dormirse."""
+    por_defecto = programacion(settings_de_prueba())["reconciliar-comprobantes-en-vuelo"]
+    assert por_defecto["schedule"].total_seconds() == 5 * 60
+
+    settings = replace(settings_de_prueba(), billing_reconciliacion_minutos=60)
+    configurada = programacion(settings)["reconciliar-comprobantes-en-vuelo"]
+
+    assert configurada["task"] == tasks_billing.NOMBRE_RECONCILIAR
+    assert configurada["schedule"].total_seconds() == 60 * 60
+
+
 def test_la_renovacion_corre_a_diario() -> None:
     """Contra un token de ~180 dias y un margen de 15: catorce intentos antes de romperse."""
     entrada = programacion(settings_de_prueba())["renovar-credenciales-oauth"]

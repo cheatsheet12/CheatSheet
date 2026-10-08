@@ -81,7 +81,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # which `VENTANA_DE_VUELO` is what actually guards.
         "reconciliar-comprobantes-en-vuelo": {
             "task": "billing.reconciliar_comprobantes",
-            "schedule": timedelta(minutes=5),
+            "schedule": timedelta(minutes=max(settings.billing_reconciliacion_minutos, 1)),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         # HS-T3 y HU-E6-01 RN-03. Cada hora: una deuda no cambia de estado al minuto, y la
