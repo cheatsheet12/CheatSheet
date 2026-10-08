@@ -69,7 +69,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | canal-real-de-whatsapp | conversational | HS-T3, HU-E7-02, HU-E7-06, HU-E8-04 | — | Luciano | feature/conversational-canal-real-de-whatsapp | en revisión |
 | Agente de WhatsApp y atención humana | plantillas-de-whatsapp-en-meta | business_config | HU-E11-02, HU-E8-04, HS-T3, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp (ADR-0011 aceptado) | Luciano | — | pendiente |
 | Agente de WhatsApp y atención humana | entregas-de-whatsapp | conversational | HU-E8-04, HS-T3, HU-E6-02, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp, plantillas-de-whatsapp-en-meta | Luciano | — | pendiente |
-| Agente de WhatsApp y atención humana | recordatorio-de-turno | scheduling | HU-E8-04, HU-E11-01 | plantillas-de-whatsapp-en-meta, entregas-de-whatsapp | Luciano | — | pendiente |
+| Agente de WhatsApp y atención humana | recordatorio-de-turno | scheduling | HU-E8-04, HU-E11-01 | plantillas-de-whatsapp-en-meta, entregas-de-whatsapp | Luciano | feature/scheduling-recordatorio-de-turno | en curso |
 | Cobros y recordatorios | recordatorio-por-email | payments | HS-T3 | canal-real-de-whatsapp | Luciano | — | pendiente |
 
 
