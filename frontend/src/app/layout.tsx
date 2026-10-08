@@ -22,16 +22,22 @@ import "@/shared/controles-de-fecha.css";
 // sólo usa un puñado de pantallas no engorda el catálogo compartido.
 import "@/shared/pantallas-auditoria.css";
 import "@/shared/pantallas-agente.css";
+import "@/shared/pantalla-plantillas.css";
 // Después del catálogo compartido: las pantallas de Cobros y Facturación ajustan piezas
 // propias sobre él, y un import antes las dejaría perdiendo la cascada por orden de carga.
 import "@/shared/pantallas-cobros.css";
+import "@/shared/pantalla-reglas.css";
+import "@/shared/pantalla-puntos-de-venta.css";
 import "@/shared/pantallas-identidad.css";
 import "@/shared/pantalla-de-ingreso.css";
+import "@/shared/pantalla-alta.css";
+import "@/shared/pantalla-integraciones.css";
 import "@/shared/pantallas-ingesta.css";
 // Reportería va después de `componentes.css` a propósito: ahí sobrevive un `.rep-…` viejo del
 // catálogo compartido (la barra horizontal, el filtro, la previsualización) que estas tres
 // pantallas rehacen, y cargada antes las perdería por orden de carga y no por especificidad.
 import "@/shared/pantallas-reportes.css";
+import "@/shared/pantalla-paquete-contable.css";
 // Datos Maestros va última de las hojas de pantalla: sus reglas `.mae-panel .tabla…` ajustan
 // la tabla del catálogo compartido, y cargarla antes de `pantallas-identidad.css` la dejaría
 // perdiendo la cascada contra `.dm-` por orden de carga y no por especificidad.
