@@ -22,7 +22,8 @@ company and, at the moment Meta answers, two emails to every Administrator.
 
 Entries that touch the database and repeat within a day are anchored to the wall clock
 (`alineado`) instead of counting from Beat's boot, so they all fire at the same instants
-and a serverless database wakes once per period. The daily entries keep their `timedelta`.
+and a serverless database wakes once per period. That includes the daily entries (00:00)
+and the fiscal parameters sync, whose interval is validated at startup.
 
 The schedule is built from `Settings` rather than hardcoded, because the poll interval is
 a deployment decision (`WHATSAPP_SONDEO_MINUTOS`) and a constant here would mean a release
@@ -31,15 +32,16 @@ to change it.
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import Any
 
 from celery import Celery
 from celery.schedules import crontab
 
-from cheatsheet.platform.intervalos import campos_alineados
+from cheatsheet.platform.intervalos import MINUTOS_POR_HORA, campos_alineados
 from cheatsheet.platform.settings import Settings
 from cheatsheet.workers.celery_app import Cola
+
+MINUTOS_POR_DIA = 24 * MINUTOS_POR_HORA
 
 
 def alineado(minutos: int) -> crontab:
@@ -61,14 +63,14 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         },
         "revisar-vencimientos-de-credenciales": {
             "task": "integrations.revisar_vencimientos",
-            "schedule": timedelta(days=1),
+            "schedule": alineado(MINUTOS_POR_DIA),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         # Daily against a token that lasts about 180 days, and renewed a fortnight before
         # it expires: fourteen chances to survive an outage before anything breaks.
         "renovar-credenciales-oauth": {
             "task": "integrations.renovar_credenciales",
-            "schedule": timedelta(days=1),
+            "schedule": alineado(MINUTOS_POR_DIA),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         # HS-T6. On the notifications queue rather than a queue of its own: the sweep is
@@ -82,7 +84,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # every several months, and asking more often is a call to learn nothing changed.
         "sincronizar-parametros-fiscales": {
             "task": "reference_data.sincronizar_parametros",
-            "schedule": timedelta(hours=max(settings.parametros_fiscales_horas, 1)),
+            "schedule": alineado(settings.parametros_fiscales_horas * 60),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         "sincronizar-planillas": {
@@ -121,7 +123,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # corrida de un día sin empresas programadas es una consulta que devuelve cero filas.
         "armar-paquetes-contables": {
             "task": "reporting.barrer_paquetes",
-            "schedule": timedelta(days=1),
+            "schedule": alineado(MINUTOS_POR_DIA),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
         "barrer-tareas-agotadas": {

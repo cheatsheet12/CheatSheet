@@ -201,6 +201,13 @@ async def test_un_desenlace_avisa_a_todos_los_administradores(
     assert espia.avisos[0].estado is EstadoDeConexion.CONECTADO
 
 
+def _minutos_entre_disparos(programa: Any) -> float:
+    """Effective period of a schedule, whether a `timedelta` or an aligned `crontab`."""
+    if isinstance(programa, timedelta):
+        return programa.total_seconds() / 60
+    return (24 * 60) / (len(programa.minute) * len(programa.hour))
+
+
 def test_beat_programa_el_barrido_con_el_intervalo_configurado() -> None:
     """La primera entrada real de Beat. El intervalo es configuración, no una constante."""
     settings: Settings = replace(settings_de_prueba(), whatsapp_sondeo_minutos=20)
@@ -236,7 +243,9 @@ def test_beat_programa_la_revision_de_vencimientos_una_vez_por_dia() -> None:
 
     entrada = entradas["revisar-vencimientos-de-credenciales"]
     assert entrada["task"] == tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS
-    assert entrada["schedule"].total_seconds() == 24 * 60 * 60
+    assert _minutos_entre_disparos(entrada["schedule"]) == 24 * 60
+    assert entrada["schedule"].minute == {0}
+    assert entrada["schedule"].hour == {0}
     assert entrada["options"]["queue"] == "integrations_sync"
 
 
@@ -291,15 +300,24 @@ def test_los_parametros_fiscales_son_la_entrada_menos_frecuente() -> None:
     entrada = programacion(settings_de_prueba())["sincronizar-parametros-fiscales"]
 
     assert entrada["task"] == tasks_reference_data.NOMBRE_SINCRONIZAR
-    assert entrada["schedule"].total_seconds() == 24 * 60 * 60
-    # Es la entrada más espaciada de todas.
-    # Las entradas ancladas al reloj (`crontab`) son todas de seis horas o menos.
+    assert _minutos_entre_disparos(entrada["schedule"]) == 24 * 60
+    # Es la entrada más espaciada de todas, comparando la frecuencia efectiva de cada una
+    # (`crontab` incluidas): una entrada nueva menos frecuente rompe este test.
     otras = [
-        e["schedule"].total_seconds()
+        _minutos_entre_disparos(e["schedule"])
         for nombre, e in programacion(settings_de_prueba()).items()
-        if isinstance(e["schedule"], timedelta) and nombre != "sincronizar-parametros-fiscales"
+        if nombre != "sincronizar-parametros-fiscales"
     ]
-    assert entrada["schedule"].total_seconds() >= max(otras)
+    assert _minutos_entre_disparos(entrada["schedule"]) >= max(otras)
+
+
+def test_los_parametros_fiscales_configurados_se_anclan_al_reloj() -> None:
+    settings = replace(settings_de_prueba(), parametros_fiscales_horas=6)
+
+    entrada = programacion(settings)["sincronizar-parametros-fiscales"]
+
+    assert entrada["schedule"].minute == {0}
+    assert entrada["schedule"].hour == {0, 6, 12, 18}
 
 
 def test_la_sincronizacion_incremental_corre_por_hora_y_en_su_propia_cola() -> None:
@@ -357,6 +375,10 @@ def test_las_entradas_que_tocan_la_base_comparten_el_minuto_cero() -> None:
         "barrer-cobros",
         "reindexar-faqs",
         "barrer-tareas-agotadas",
+        "revisar-vencimientos-de-credenciales",
+        "renovar-credenciales-oauth",
+        "sincronizar-parametros-fiscales",
+        "armar-paquetes-contables",
     ]
 
     for nombre in alineadas:
@@ -372,7 +394,9 @@ def test_la_renovacion_corre_a_diario() -> None:
     entrada = programacion(settings_de_prueba())["renovar-credenciales-oauth"]
 
     assert entrada["task"] == tasks_integrations.NOMBRE_BARRIDO_RENOVACION
-    assert entrada["schedule"].total_seconds() == 24 * 60 * 60
+    assert _minutos_entre_disparos(entrada["schedule"]) == 24 * 60
+    assert entrada["schedule"].minute == {0}
+    assert entrada["schedule"].hour == {0}
     assert entrada["options"]["queue"] == "integrations_sync"
 
 

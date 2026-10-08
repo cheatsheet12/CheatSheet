@@ -190,6 +190,18 @@ def _intervalo_en_minutos(nombre: str, por_defecto: int) -> int:
     return valor
 
 
+def _intervalo_en_horas(nombre: str, por_defecto: int) -> int:
+    """Hours variant of `_intervalo_en_minutos`: the same rule, applied to hours x 60."""
+    valor = _entero(nombre, por_defecto)
+    try:
+        campos_alineados(valor * 60)
+    except IntervaloNoAlineable as exc:
+        raise ConfiguracionFaltante(
+            f"{nombre}: {valor} hours does not divide a day exactly; use 1, 2, 3, 4, 6, 8, 12 or 24"
+        ) from exc
+    return valor
+
+
 def _entero(nombre: str, por_defecto: int) -> int:
     crudo = os.environ.get(nombre, "").strip()
     if not crudo:
@@ -599,7 +611,7 @@ class Settings:
             arca_wsfe_url_produccion=_opcional(
                 "ARCA_WSFE_URL_PRODUCCION", "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
             ),
-            parametros_fiscales_horas=_entero("PARAMETROS_FISCALES_HORAS", 24),
+            parametros_fiscales_horas=_intervalo_en_horas("PARAMETROS_FISCALES_HORAS", 24),
             billing_reconciliacion_minutos=_intervalo_en_minutos(
                 "BILLING_RECONCILIACION_MINUTOS", 5
             ),

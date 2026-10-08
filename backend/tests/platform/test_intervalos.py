@@ -63,3 +63,31 @@ def test_un_intervalo_mal_configurado_falla_al_arrancar(
 
     with pytest.raises(ConfiguracionFaltante, match=variable):
         Settings.desde_entorno()
+
+
+@pytest.mark.parametrize("horas", ["0", "-1", "5", "7", "25", "48"])
+def test_las_horas_de_parametros_fiscales_que_no_se_alinean_fallan_al_arrancar(
+    monkeypatch: pytest.MonkeyPatch, horas: str
+) -> None:
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost/db")
+    monkeypatch.setenv("DATABASE_URL_MIGRATIONS", "postgresql+asyncpg://u:p@localhost/db")
+    monkeypatch.setenv("JWT_SECRET", "x" * 40)
+    monkeypatch.setenv("SECRETS_ENCRYPTION_KEY", "k" * 44)
+    monkeypatch.setenv("PARAMETROS_FISCALES_HORAS", horas)
+
+    with pytest.raises(ConfiguracionFaltante, match="PARAMETROS_FISCALES_HORAS"):
+        Settings.desde_entorno()
+
+
+def test_las_horas_de_parametros_fiscales_por_defecto_son_validas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost/db")
+    monkeypatch.setenv("DATABASE_URL_MIGRATIONS", "postgresql+asyncpg://u:p@localhost/db")
+    monkeypatch.setenv("JWT_SECRET", "x" * 40)
+    monkeypatch.setenv("SECRETS_ENCRYPTION_KEY", "k" * 44)
+    monkeypatch.delenv("PARAMETROS_FISCALES_HORAS", raising=False)
+
+    assert Settings.desde_entorno().parametros_fiscales_horas == 24
