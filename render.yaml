@@ -93,6 +93,10 @@ services:
       # required when MERCADOPAGO_ADAPTADOR=mercadopago.
       - key: API_URL_PUBLICA
         sync: false
+      # ADR-0014: the platform certificate and key (base64 PEM bundle). Required when
+      # ARCA_ADAPTADOR=arca. The most valuable secret of the system.
+      - key: ARCA_CREDENCIAL_PLATAFORMA
+        sync: false
       # Same four values as the worker: both processes read and write the same
       # objects, and two different buckets would be two halves of one flow.
       - key: ALMACENAMIENTO_ADAPTADOR
@@ -191,6 +195,9 @@ services:
       # boot without it when MERCADOPAGO_ADAPTADOR=mercadopago.
       - key: API_URL_PUBLICA
         sync: false
+      # Same value as on the API: the worker issues documents and asks the padrón too.
+      - key: ARCA_CREDENCIAL_PLATAFORMA
+        sync: false
       # Object storage, and it stops being optional the day this service exists.
       # `GenerarPaqueteContable` runs BOTH here and in the API; with the in-memory
       # adapter the package this process builds lives in this process, and the API
@@ -237,6 +244,9 @@ services:
       # never talks to the API, only this app's own route handlers do. Point it at
       # the API's INTERNAL Render URL so the traffic never leaves the platform.
       - key: BACKEND_API_URL
+        sync: false
+      # ADR-0014: shown in the ARCA delegation instructions. Not a secret.
+      - key: CUIT_DE_CHEATSHEET
         sync: false
       # This service's OWN public URL. `app/api/auth/google/route.ts` builds the
       # OAuth redirect from it and falls back to http://localhost:3000, so leaving

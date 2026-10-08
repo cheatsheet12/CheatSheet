@@ -74,6 +74,8 @@ export interface PropsDeGrilla {
   readonly puedeConectar: boolean;
   /** Absent on an ordinary visit; present only on the way back from the provider. */
   readonly retorno?: RetornoDeAutorizacion | null;
+  /** ADR-0014: the CUIT companies delegate ARCA's web service to. */
+  readonly cuitDeCheatsheet?: string | null;
 }
 
 /**
@@ -88,6 +90,7 @@ export function GrillaDeIntegraciones({
   inicial,
   puedeConectar,
   retorno = null,
+  cuitDeCheatsheet = null,
 }: PropsDeGrilla): JSX.Element {
   const [listado, setListado] = useState<ListadoDeIntegraciones>(inicial);
   const [ocupada, setOcupada] = useState<SistemaExterno | "verificacion" | null>(null);
@@ -263,8 +266,11 @@ export function GrillaDeIntegraciones({
       >
         <FormularioDeArca
           enviando={ocupada === "ARCA"}
-          onEnviar={(bundle) => {
-            void enviarConexion("ARCA", aBase64(bundle), {});
+          cuitDeCheatsheet={cuitDeCheatsheet ?? null}
+          onEnviar={() => {
+            // ADR-0014: nothing to send. The server takes the company's CUIT from its own
+            // fiscal data and asks ARCA about the delegation.
+            void enviarConexion("ARCA", "", {});
           }}
           onCancelar={() => {
             setFormulario(null);

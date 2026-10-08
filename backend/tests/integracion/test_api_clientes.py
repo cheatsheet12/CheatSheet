@@ -127,17 +127,17 @@ async def test_el_duplicado_responde_409_con_el_id_del_existente(
 
 
 @pytest.mark.asyncio
-async def test_sin_arca_conectada_el_alta_con_cuit_igual_entra(
+async def test_sin_arca_conectada_el_alta_con_cuit_se_valida_igual(
     cliente_http: httpx.AsyncClient,
 ) -> None:
-    """La decisión del Gate 1, vista desde afuera: se guarda y se avisa por qué no se validó."""
+    """ADR-0014: el padrón se consulta con el certificado de la plataforma, así que el alta
+    se valida aunque la empresa todavía no haya verificado su delegación."""
     token = await _registrar_empresa(cliente_http, "ana@empresa.com")
 
     respuesta = await _crear(cliente_http, token, nombre="Rosa", cuit=CUIT_VALIDO)
 
     assert respuesta.status_code == 201, respuesta.text
-    assert respuesta.json()["validacion"]["estado"] == "NO_DISPONIBLE"
-    assert respuesta.json()["validacion"]["motivo"]
+    assert respuesta.json()["validacion"]["estado"] == "ENCONTRADO"
 
 
 @pytest.mark.asyncio
@@ -194,7 +194,7 @@ async def test_una_empresa_no_ve_los_clientes_de_otra(cliente_http: httpx.AsyncC
 async def test_el_boton_de_validar_contra_arca_responde_los_tres_estados(
     cliente_http: httpx.AsyncClient,
 ) -> None:
-    """Con ARCA sin conectar el estado es `NO_DISPONIBLE`, nunca `NO_ENCONTRADO`."""
+    """ADR-0014: con ARCA sin conectar el padrón igual responde, como la plataforma."""
     token = await _registrar_empresa(cliente_http, "ana@empresa.com")
 
     respuesta = await cliente_http.post(
@@ -202,7 +202,7 @@ async def test_el_boton_de_validar_contra_arca_responde_los_tres_estados(
     )
 
     assert respuesta.status_code == 200, respuesta.text
-    assert respuesta.json()["estado"] == "NO_DISPONIBLE"
+    assert respuesta.json()["estado"] == "ENCONTRADO"
 
 
 @pytest.mark.asyncio

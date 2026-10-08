@@ -432,24 +432,14 @@ describe("GrillaDeIntegraciones", () => {
 
   // ------------------------------------------------------ conexion-arca: casos 28 y 29
 
-  it("conectar ARCA abre el formulario de los dos archivos", () => {
+  it("conectar ARCA explica la delegación y no pide archivos", () => {
+    // ADR-0014: la empresa delega el web service; ya no carga certificados.
     render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[0]!);
 
-    expect(screen.getByLabelText("Certificado (.crt o .pem)")).toBeTruthy();
-    expect(screen.getByLabelText("Clave privada (.key)")).toBeTruthy();
-    expect(conectarIntegracion).not.toHaveBeenCalled();
-  });
-
-  it("el formulario de ARCA exige los dos archivos antes de llamar al backend", () => {
-    // Caso 28. Sin uno de los dos no hay nada que validar contra ARCA.
-    render(<GrillaDeIntegraciones inicial={SIN_CONECTAR} puedeConectar />);
-    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[0]!);
-
-    expect(screen.getByRole("button", { name: "Conectar ARCA" }).hasAttribute("disabled")).toBe(
-      true,
-    );
+    expect(screen.getByText(/Administrador de Relaciones de Clave Fiscal/)).toBeTruthy();
+    expect(screen.queryByLabelText("Clave privada (.key)")).toBeNull();
     expect(conectarIntegracion).not.toHaveBeenCalled();
   });
 
@@ -502,38 +492,11 @@ describe("GrillaDeIntegraciones", () => {
     expect(screen.getByRole("button", { name: "Reconectar" })).toBeTruthy();
   });
 
-  /**
-   * Carga los dos archivos del certificado y envía el formulario de ARCA.
-   *
-   * Antes estos dos tests apretaban «Conectar» en MercadoPago, que era el único sistema
-   * con conexión de un click. `conexion-mercadopago` le puso su OAuth2, así que pasan por
-   * donde el aviso fiscal realmente ocurre: la conexión con ARCA.
-   */
-  function archivo(nombre: string, contenido: string): File {
-    // jsdom no implementa `Blob.prototype.text`, que es lo que el formulario usa para
-    // leer el certificado. Se resuelve por instancia en lugar de parchear el prototipo:
-    // un polyfill global escondería que el navegador real hace otra cosa.
-    const creado = new File([contenido], nombre);
-    Object.defineProperty(creado, "text", { value: () => Promise.resolve(contenido) });
-    return creado;
-  }
-
+  /** Abre el formulario de ARCA y verifica la delegación (ADR-0014): no hay archivos. */
   async function conectarArca(): Promise<void> {
     fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[0]!);
-    const certificado = archivo("cert.pem", "-----BEGIN CERTIFICATE-----");
-    const clave = archivo("clave.key", "-----BEGIN PRIVATE KEY-----");
-    fireEvent.change(screen.getByLabelText("Certificado (.crt o .pem)"), {
-      target: { files: [certificado] },
-    });
-    fireEvent.change(screen.getByLabelText("Clave privada (.key)"), {
-      target: { files: [clave] },
-    });
-    await waitFor(() => {
-      expect(
-        (screen.getByRole("button", { name: "Conectar ARCA" }) as HTMLButtonElement).disabled,
-      ).toBe(false);
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Conectar ARCA" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verificar delegación" }));
+    await Promise.resolve();
   }
 
   it("el aviso fiscal de la conexión con ARCA se muestra al Administrador", async () => {
@@ -541,7 +504,7 @@ describe("GrillaDeIntegraciones", () => {
     // hallazgo vuelve en esa misma respuesta. Si no se mostrara acá, un certificado de
     // otro CUIT recién se notaría cuando saliera el primer comprobante mal emitido.
     conectarIntegracion.mockResolvedValue({
-      aviso_fiscal: "El certificado cargado en ARCA pertenece a otro CUIT que el de la empresa.",
+      aviso_fiscal: "ARCA registra la empresa con otra condición frente al IVA.",
     });
     listarIntegraciones.mockResolvedValue(SIN_CONECTAR);
 
@@ -549,7 +512,7 @@ describe("GrillaDeIntegraciones", () => {
     await conectarArca();
 
     await waitFor(() => {
-      expect(screen.getByText(/pertenece a otro CUIT/)).toBeTruthy();
+      expect(screen.getByText(/otra condición frente al IVA/)).toBeTruthy();
     });
   });
 
@@ -571,5 +534,24 @@ describe("GrillaDeIntegraciones", () => {
     const campo = screen.getByLabelText("Token de acceso");
     expect(campo.getAttribute("type")).toBe("password");
     expect(campo.getAttribute("autocomplete")).toBe("off");
+  });
+
+  it("verificar la delegación de ARCA no manda ninguna credencial", async () => {
+    conectarIntegracion.mockResolvedValue({ aviso_fiscal: null });
+    listarIntegraciones.mockResolvedValue(SIN_CONECTAR);
+
+    render(
+      <GrillaDeIntegraciones
+        inicial={SIN_CONECTAR}
+        puedeConectar
+        cuitDeCheatsheet="20-11111111-2"
+      />,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Conectar" })[0]!);
+
+    expect(screen.getByText("20-11111111-2")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Verificar delegación" }));
+
+    await waitFor(() => expect(conectarIntegracion).toHaveBeenCalledWith("ARCA", "", {}));
   });
 });

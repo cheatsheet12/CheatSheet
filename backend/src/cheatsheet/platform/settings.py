@@ -17,6 +17,7 @@ Real values travel over a private encrypted channel, never through the repositor
 
 from __future__ import annotations
 
+import base64
 import os
 from dataclasses import dataclass
 from enum import StrEnum
@@ -333,6 +334,23 @@ def _adaptador_de_whatsapp(entorno: Entorno) -> AdaptadorDeWhatsApp:
     return adaptador
 
 
+def _credencial_de_plataforma(adaptador: AdaptadorDeArca) -> bytes:
+    """`ARCA_CREDENCIAL_PLATAFORMA`: base64 of the PEM certificate plus its PEM key (ADR-0014).
+
+    Required as soon as ARCA is real: without it no company can be reached. Base64 because
+    a PEM bundle is several lines, and an environment variable is one.
+    """
+    if adaptador is not AdaptadorDeArca.ARCA:
+        return b""
+    crudo = _requerida("ARCA_CREDENCIAL_PLATAFORMA")
+    try:
+        return base64.b64decode(crudo, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise ConfiguracionFaltante(
+            "ARCA_CREDENCIAL_PLATAFORMA debe ser el certificado y la clave PEM en base64"
+        ) from exc
+
+
 def _adaptador_de_arca(entorno: Entorno) -> AdaptadorDeArca:
     """Defaults to the simulator outside production, and is forbidden inside it."""
     crudo = _opcional("ARCA_ADAPTADOR", "")
@@ -487,6 +505,9 @@ class Settings:
     arca_timeout_segundos: int
     arca_margen_renovacion_minutos: int
     arca_aviso_vencimiento_dias: int
+    #: ADR-0014. The platform certificate and its private key, PEM, one after the other.
+    #: Empty only with the simulator: with ARCA real it is how every company is reached.
+    arca_credencial_plataforma: bytes
     mercadopago_adaptador: AdaptadorDeMercadoPago
     mercadopago_client_id: str
     mercadopago_client_secret: str
@@ -515,6 +536,7 @@ class Settings:
         entorno = Entorno(_opcional("APP_ENV", Entorno.LOCAL.value))
         redis_url = _requerida("REDIS_URL")
         mercadopago = _adaptador_de_mercadopago(entorno)
+        arca = _adaptador_de_arca(entorno)
         return cls(
             entorno=entorno,
             database_url=_requerida("DATABASE_URL"),
@@ -589,7 +611,8 @@ class Settings:
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.
             whatsapp_sondeo_maximo_dias=_entero("WHATSAPP_SONDEO_MAXIMO_DIAS", 7),
-            arca_adaptador=_adaptador_de_arca(entorno),
+            arca_adaptador=arca,
+            arca_credencial_plataforma=_credencial_de_plataforma(arca),
             # Two separate hosts, unlike Meta. Which one is used comes from `APP_ENV`, so
             # the environment decides whether a document is a rehearsal or irreversible.
             arca_wsaa_url_homologacion=_opcional(

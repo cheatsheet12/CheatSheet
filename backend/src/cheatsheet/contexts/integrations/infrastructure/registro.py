@@ -24,16 +24,18 @@ from cheatsheet.contexts.integrations.application.ports import (
     PortVerificadorDeConexion,
 )
 from cheatsheet.contexts.integrations.domain.valores import SistemaExterno
-from cheatsheet.contexts.integrations.infrastructure.arca.adaptadores import (
-    ConectorArca,
-    EmisorArcaDeTickets,
-    VerificadorArca,
+from cheatsheet.contexts.integrations.infrastructure.arca.adaptadores import EmisorArcaDeTickets
+from cheatsheet.contexts.integrations.infrastructure.arca.delegacion import (
+    ConectorDelegacionArca,
+    ConsultaDeDelegacion,
+    PortTicketDePlataforma,
+    VerificadorDelegacionArca,
 )
 from cheatsheet.contexts.integrations.infrastructure.arca.padron import (
     ClientePadronA5,
     ConfiguracionPadron,
 )
-from cheatsheet.contexts.integrations.infrastructure.arca.simulado import ArcaSimulado
+from cheatsheet.contexts.integrations.infrastructure.arca.simulado import ArcaSimuladoPorDelegacion
 from cheatsheet.contexts.integrations.infrastructure.arca.wsaa import ClienteWsaa, ConfiguracionWsaa
 from cheatsheet.contexts.integrations.infrastructure.mercadopago.autorizacion import (
     AutorizacionMercadoPago,
@@ -67,6 +69,7 @@ from cheatsheet.platform.settings import (
     Entorno,
     Settings,
 )
+from cheatsheet.platform.soap import ClienteSoap, ConfiguracionSoap
 from cheatsheet.shared.clock import Reloj, RelojDelSistema
 
 #: The systems this epic can connect. `GOOGLE_SHEETS` and `EXCEL_ONLINE` are on the screen
@@ -108,7 +111,11 @@ class RegistroDeAdaptadores:
         self._pares = pares
 
     @classmethod
-    def desde_settings(cls, settings: Settings) -> RegistroDeAdaptadores:
+    def desde_settings(
+        cls,
+        settings: Settings,
+        tickets_de_plataforma: PortTicketDePlataforma | None = None,
+    ) -> RegistroDeAdaptadores:
         """The registry the running application uses.
 
         Each of the three systems is either real or its own stand-in, according to its
@@ -119,7 +126,7 @@ class RegistroDeAdaptadores:
         return cls(
             {
                 SistemaExterno.WHATSAPP: _par_de_whatsapp(settings),
-                SistemaExterno.ARCA: _par_de_arca(settings, reloj),
+                SistemaExterno.ARCA: _par_de_arca(settings, reloj, tickets_de_plataforma),
                 SistemaExterno.MERCADOPAGO: _par_de_mercadopago(settings, reloj),
             }
         )
@@ -129,7 +136,9 @@ class RegistroDeAdaptadores:
         """Every system answered by a stand-in. For tests that do not care which."""
         reloj = RelojDelSistema()
         simulado_whatsapp = WhatsAppSimulado(entorno)
-        simulado_arca = ArcaSimulado(entorno=entorno, reloj=reloj, aviso=AVISO_POR_DEFECTO)
+        simulado_arca = ArcaSimuladoPorDelegacion(
+            entorno=entorno, reloj=reloj, aviso=AVISO_POR_DEFECTO
+        )
         simulado_mp = MercadoPagoSimulado(
             entorno=entorno, reloj=reloj, redirect_uri=RETORNO_POR_DEFECTO
         )
@@ -195,26 +204,52 @@ def _par_de_whatsapp(settings: Settings) -> ParDeAdaptadores:
     )
 
 
-def _par_de_arca(settings: Settings, reloj: Reloj) -> ParDeAdaptadores:
-    aviso = timedelta(days=settings.arca_aviso_vencimiento_dias)
+def emisor_de_arca(settings: Settings, reloj: Reloj) -> PortEmisorDeTickets:
+    """Who mints the platform's access tickets: WSAA, or the stand-in (ADR-0014)."""
     if settings.arca_adaptador is AdaptadorDeArca.SIMULADO:
-        simulado = ArcaSimulado(entorno=settings.entorno, reloj=reloj, aviso=aviso)
-        return ParDeAdaptadores(
-            conector=simulado, verificador=simulado, emisor=simulado, padron=simulado
+        return ArcaSimuladoPorDelegacion(
+            entorno=settings.entorno,
+            reloj=reloj,
+            aviso=timedelta(days=settings.arca_aviso_vencimiento_dias),
         )
-
     # **Two hosts, and this is where the choice is made.** `Ambiente` comes from `APP_ENV`
-    # and never from the request (the decision `mecanismo-de-integraciones` recorded), so
-    # this line is the difference between practising and issuing an irreversible document.
+    # and never from the request, so this line is the difference between practising and
+    # issuing an irreversible document.
     url = (
         settings.arca_wsaa_url_produccion
         if settings.es_produccion
         else settings.arca_wsaa_url_homologacion
     )
-    cliente = ClienteWsaa(
-        ConfiguracionWsaa(url=url, timeout_segundos=float(settings.arca_timeout_segundos))
+    return EmisorArcaDeTickets(
+        ClienteWsaa(
+            ConfiguracionWsaa(url=url, timeout_segundos=float(settings.arca_timeout_segundos))
+        ),
+        reloj,
     )
-    emisor = EmisorArcaDeTickets(cliente, reloj)
+
+
+def _par_de_arca(
+    settings: Settings, reloj: Reloj, tickets: PortTicketDePlataforma | None
+) -> ParDeAdaptadores:
+    """ARCA under ADR-0014: companies delegate, the platform certificate speaks for them."""
+    if settings.arca_adaptador is AdaptadorDeArca.SIMULADO:
+        simulado = ArcaSimuladoPorDelegacion(
+            entorno=settings.entorno,
+            reloj=reloj,
+            aviso=timedelta(days=settings.arca_aviso_vencimiento_dias),
+        )
+        return ParDeAdaptadores(
+            conector=simulado, verificador=simulado, emisor=simulado, padron=simulado
+        )
+
+    consulta = ConsultaDeDelegacion(
+        ClienteSoap(
+            ConfiguracionSoap(
+                url=settings.arca_wsfe_url, timeout_segundos=float(settings.arca_timeout_segundos)
+            )
+        ),
+        tickets,
+    )
     # The padrón lives on a different host from WSAA and splits its environments the same
     # way, so the choice is made once, here, from the same flag.
     url_padron = (
@@ -223,9 +258,9 @@ def _par_de_arca(settings: Settings, reloj: Reloj) -> ParDeAdaptadores:
         else settings.arca_padron_url_homologacion
     )
     return ParDeAdaptadores(
-        conector=ConectorArca(emisor, reloj),
-        verificador=VerificadorArca(reloj, aviso),
-        emisor=emisor,
+        conector=ConectorDelegacionArca(consulta),
+        verificador=VerificadorDelegacionArca(consulta),
+        emisor=emisor_de_arca(settings, reloj),
         padron=ClientePadronA5(
             ConfiguracionPadron(
                 url=url_padron, timeout_segundos=float(settings.arca_timeout_segundos)

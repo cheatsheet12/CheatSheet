@@ -133,6 +133,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         arca_timeout_segundos=1,
         arca_margen_renovacion_minutos=30,
         arca_aviso_vencimiento_dias=30,
+        arca_credencial_plataforma=b"",
         # The simulator again, and a host that does not resolve. The application
         # credentials are placeholders: nothing in the suite exchanges a real code.
         mercadopago_adaptador=AdaptadorDeMercadoPago.SIMULADO,
