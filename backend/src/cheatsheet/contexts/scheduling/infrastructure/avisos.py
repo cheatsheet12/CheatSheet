@@ -2,8 +2,14 @@
 
 `AvisoPorWhatsApp` manda el aviso por el canal que el composition root le pasa (ADR-0011). **No
 importa a `conversational` ni a `business_config`** (R3): el canal y las plantillas son `Protocol`s
-locales (`CanalDeTexto`, `PlantillasAprobadas`) que el cliente de la Cloud API y el caso de uso de
-`business_config` satisfacen por estructura.
+locales (`CanalDeAvisos`, `PlantillasAprobadas`) que el composition root respalda con
+`NotificarAlCliente` de `conversational` y con el caso de uso de `business_config`.
+
+**El aviso queda guardado (U7, D-U7-4).** `CanalDeAvisos.notificar` no solo manda: la raíz lo respalda
+con `NotificarAlCliente`, que además registra el aviso como mensaje del sistema en la conversación
+del cliente (por eso `DatosDeAviso` lleva `cliente_id`). Si el mensaje no se pudo guardar, el
+resultado lo dice y acá queda el log `aviso_de_turno_sin_registrar`; el turno sigue como estaba. Los
+avisos fallidos **no se reintentan** (D6): la falla queda visible en el hilo.
 
 **Plantilla aprobada si la hay (U6).** Fuera de la ventana de 24 h Meta solo acepta plantillas, y
 dentro de ella una plantilla de utilidad cuesta lo mismo que un texto: por eso, si la empresa tiene
@@ -14,10 +20,10 @@ no es de este adaptador: lo manda la unidad del barrido de turnos.
 
 **Nunca levanta.** `Avisador` promete que «ningún método levanta por no poder avisar», y esa
 promesa la sostiene este adaptador: un turno cancelado sigue cancelado aunque Meta esté caída
-(D33), así que cualquier excepción del canal es un log y nada más. El `except` es amplio porque
-el adaptador no puede importar las excepciones de `conversational`; el código de Meta ya quedó en
-el log del canal. Sin plantilla aprobada, fuera de la ventana Meta contesta 131047: ese aviso se
-loguea y el turno sigue.
+(D33), así que cualquier excepción es un log y nada más. El canal tampoco levanta por Meta: informa
+el motivo en su resultado (`falla`: un código de Meta o una clase corta). El `except` es amplio
+porque el adaptador no puede importar las excepciones de `conversational`. Sin plantilla aprobada,
+fuera de la ventana Meta contesta 131047: ese aviso queda `FALLIDO` en el hilo y el turno sigue.
 
 **El texto de fábrica se arma acá.** Es el respaldo cuando no hay plantilla aprobada; el texto
 configurable vive en `business_config` (HU-E11-02).
@@ -29,8 +35,10 @@ Ningún log lleva el nombre, el teléfono, el recurso ni el texto: son datos per
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
+from uuid import UUID
 
 from cheatsheet.contexts.scheduling.application.ports import DatosDeAviso
 from cheatsheet.contexts.scheduling.domain.recurso import ZONA_DE_LA_AGENDA
@@ -44,14 +52,46 @@ CODIGO_CANCELACION = "turno_cancelado"
 CODIGO_REPROGRAMACION = "turno_reprogramado"
 
 
-class CanalDeTexto(Protocol):
-    """Lo único que `scheduling` necesita del canal: mandar un texto o una plantilla aprobada."""
+@dataclass(frozen=True, slots=True)
+class PlantillaParaAviso:
+    """Una plantilla aprobada lista para mandar. Los parámetros llevan el nombre: no van al `repr`."""
 
-    async def enviar(self, *, telefono: str, texto: str) -> str: ...
+    nombre: str
+    idioma: str
+    parametros: Mapping[str, str] = field(repr=False)
 
-    async def enviar_plantilla(
-        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
-    ) -> str: ...
+
+@dataclass(frozen=True, slots=True)
+class EnvioParaAviso:
+    """Lo que el cliente va a leer (`texto`) y, si la hay, la plantilla aprobada por la que sale."""
+
+    texto: str = field(repr=False)
+    plantilla: PlantillaParaAviso | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ResultadoLocal:
+    """Cómo terminó el aviso, en el vocabulario de `scheduling`.
+
+    `falla` es el motivo si no salió (`131047`, `INCIERTO`, `SIN_CANAL`…); `sin_registrar` es que se
+    intentó y el mensaje no quedó guardado en la conversación.
+    """
+
+    enviado: bool
+    falla: str | None = None
+    sin_registrar: bool = False
+
+
+class CanalDeAvisos(Protocol):
+    """Lo único que `scheduling` necesita del canal: avisar a un cliente y que quede registrado.
+
+    **Nunca levanta por el canal**: el motivo viaja en el resultado. La raíz de composición lo
+    respalda con `NotificarAlCliente` de `conversational` (U7, D-U7-4).
+    """
+
+    async def notificar(
+        self, *, cliente_id: UUID, telefono: str, envio: EnvioParaAviso
+    ) -> ResultadoLocal: ...
 
 
 class PlantillaParaMandar(Protocol):
@@ -65,6 +105,11 @@ class PlantillaParaMandar(Protocol):
 
     @property
     def parametros(self) -> Mapping[str, str]: ...
+
+    @property
+    def texto(self) -> str:
+        """El cuerpo resuelto: lo que el cliente lee, y lo que se guarda en la conversación."""
+        ...
 
 
 class PlantillasAprobadas(Protocol):
@@ -148,7 +193,7 @@ def texto_de_reprogramacion(datos: DatosDeAviso) -> str:
 class AvisoPorWhatsApp:
     """`PortNotificadorDeTurnos` sobre el canal de WhatsApp de la empresa."""
 
-    def __init__(self, canal: CanalDeTexto, plantillas: PlantillasAprobadas) -> None:
+    def __init__(self, canal: CanalDeAvisos, plantillas: PlantillasAprobadas) -> None:
         self._canal = canal
         self._plantillas = plantillas
 
@@ -166,20 +211,36 @@ class AvisoPorWhatsApp:
     async def _mandar(self, clase: str, codigo: str, datos: DatosDeAviso, texto: str) -> None:
         try:
             plantilla = await self._plantillas.para(codigo, variables_de_aviso(datos))
-            if plantilla is not None:
-                await self._canal.enviar_plantilla(
-                    telefono=datos.telefono,
-                    nombre=plantilla.nombre_en_meta,
-                    idioma=plantilla.idioma,
-                    parametros=plantilla.parametros,
-                )
-            else:
-                await self._canal.enviar(telefono=datos.telefono, texto=texto)
+            resultado = await self._canal.notificar(
+                cliente_id=datos.cliente_id,
+                telefono=datos.telefono,
+                envio=_envio_de(plantilla, texto),
+            )
         except Exception as exc:  # noqa: BLE001 — ver el docstring del módulo
             # Acotado por el motivo: este adaptador no puede importar las excepciones de
             # `conversational` (R3), y **ningún fallo del canal puede voltear el turno**. Sólo
             # la clase de la excepción, nunca su texto: puede traer el número.
             logger.warning("aviso_de_turno_fallido", clase=clase, causa=type(exc).__name__)
+            return
+        if resultado.falla is not None:
+            # El motivo es un código de Meta o una clase corta: nunca el texto del error.
+            logger.warning("aviso_de_turno_fallido", clase=clase, causa=resultado.falla)
+        if resultado.sin_registrar:
+            logger.warning("aviso_de_turno_sin_registrar", clase=clase)
+
+
+def _envio_de(plantilla: PlantillaParaMandar | None, texto_de_fabrica: str) -> EnvioParaAviso:
+    """Plantilla aprobada si la hay (con su cuerpo resuelto); si no, el texto de fábrica."""
+    if plantilla is None:
+        return EnvioParaAviso(texto=texto_de_fabrica)
+    return EnvioParaAviso(
+        texto=plantilla.texto,
+        plantilla=PlantillaParaAviso(
+            nombre=plantilla.nombre_en_meta,
+            idioma=plantilla.idioma,
+            parametros=plantilla.parametros,
+        ),
+    )
 
 
 __all__ = [
@@ -187,9 +248,12 @@ __all__ = [
     "CODIGO_REPROGRAMACION",
     "CODIGO_RESERVA",
     "AvisoPorWhatsApp",
-    "CanalDeTexto",
+    "CanalDeAvisos",
+    "EnvioParaAviso",
+    "PlantillaParaAviso",
     "PlantillaParaMandar",
     "PlantillasAprobadas",
+    "ResultadoLocal",
     "texto_de_cancelacion",
     "texto_de_reprogramacion",
     "texto_de_reserva",

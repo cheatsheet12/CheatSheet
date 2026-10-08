@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
@@ -18,11 +19,17 @@ import httpx
 import pytest
 from cheatsheet.api import mensajeria as modulo
 from cheatsheet.api.agenda import armar_notificador
+from cheatsheet.api.avisos_de_turno import CanalDeAvisosViaConversacion
 from cheatsheet.api.conversacional import _NotificadorSilencioso, armar_agenda
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.api.mercadopago import armar_envio
+from cheatsheet.contexts.conversational.application.notificaciones import NotificarAlCliente
 from cheatsheet.contexts.conversational.application.ports import PortMensajeria
+from cheatsheet.contexts.conversational.domain.conversacion import (
+    EstadoEntrega,
+    OrigenDelMensaje,
+)
 from cheatsheet.contexts.conversational.infrastructure.canal import (
     ConfiguracionDeMensajeria,
     MensajeriaSimulada,
@@ -39,6 +46,10 @@ from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.conftest import settings_de_prueba
+from tests.contexts.conversational.application.dobles import (
+    RepositorioConversacionEnMemoria,
+    RepositorioMensajeEnMemoria,
+)
 from tests.contexts.scheduling.application.test_agenda import (
     AHORA as AHORA_DE_LA_AGENDA,
 )
@@ -59,6 +70,38 @@ class _SinPlantillas:
     async def para(self, codigo: str, variables: object) -> None:
         del codigo, variables
         return
+
+
+class _RelojFijo:
+    def ahora(self) -> datetime:
+        return AHORA_DE_LA_AGENDA
+
+
+class _EnMemoria:
+    """Los repositorios de `conversational` que reciben los avisos de turno en estos tests (U7)."""
+
+    def __init__(self) -> None:
+        self.conversaciones = RepositorioConversacionEnMemoria()
+        self.mensajes = RepositorioMensajeEnMemoria()
+
+
+@pytest.fixture(autouse=True)
+def hilos(monkeypatch: pytest.MonkeyPatch) -> _EnMemoria:
+    """`armar_canal_de_avisos` escribe en la base: acá se respalda con repositorios en memoria."""
+    en_memoria = _EnMemoria()
+    monkeypatch.setattr(
+        "cheatsheet.api.agenda.armar_canal_de_avisos",
+        lambda _unidad, *, empresa_id, canal: CanalDeAvisosViaConversacion(
+            NotificarAlCliente(
+                conversaciones=en_memoria.conversaciones,
+                mensajes=en_memoria.mensajes,
+                mensajeria=canal,
+            ),
+            empresa_id=empresa_id,
+            reloj=_RelojFijo(),
+        ),
+    )
+    return en_memoria
 
 
 @pytest.fixture(autouse=True)
@@ -322,7 +365,7 @@ def armar_avisador_con(escena: Escena, canal: PortMensajeria) -> Avisador:
     return Avisador(
         clientes=escena.directorio,
         servicios=escena.catalogo,
-        notificador=armar_notificador(_unidad(), canal=canal),
+        notificador=armar_notificador(_unidad(), empresa_id=EMPRESA_DE_LA_AGENDA, canal=canal),
     )
 
 
@@ -360,6 +403,49 @@ async def test_cancelar_en_produccion_sin_whatsapp_conectado_no_levanta_y_cancel
 
     assert cancelado.estado is EstadoTurno.CANCELADO
     assert "cancelar_turno" in escena.publicador.acciones
+
+
+async def test_cancelar_un_turno_deja_el_aviso_en_la_conversacion_del_cliente(
+    hilos: _EnMemoria,
+) -> None:
+    """**Caso 3.** Antes el aviso salía y no dejaba ningún registro."""
+    meta = _Meta(httpx.Response(200, json={"messages": [{"id": "wamid.AVISO"}]}))
+    escena, turno = _escena_con_canal(_canal_real(meta))
+
+    await _cancelar(escena, turno)
+
+    (hilo,) = hilos.conversaciones.hilos.values()
+    assert hilo.cliente_id == turno.cliente_id
+    (aviso,) = hilos.mensajes.mensajes.values()
+    assert (aviso.conversacion_id, aviso.origen) == (hilo.id, OrigenDelMensaje.SISTEMA)
+    assert (aviso.externo_id, aviso.estado_entrega) == ("wamid.AVISO", EstadoEntrega.ENVIADO)
+    assert aviso.contenido == json.loads(meta.pedidos[0].read())["text"]["body"]
+
+
+async def test_meta_caido_deja_el_aviso_fallido_en_el_hilo_y_el_turno_cancelado(
+    hilos: _EnMemoria,
+) -> None:
+    """**Caso 24.** El operador ve el aviso `FALLIDO` con su motivo; el request no falla."""
+    escena, turno = _escena_con_canal(_canal_real(_Meta(httpx.Response(500))))
+
+    cancelado = await _cancelar(escena, turno)
+
+    assert cancelado.estado is EstadoTurno.CANCELADO
+    (aviso,) = hilos.mensajes.mensajes.values()
+    assert aviso.estado_entrega is EstadoEntrega.FALLIDO
+    assert aviso.motivo_de_falla == "SATURADA"
+    assert aviso.externo_id is None
+
+
+async def test_sin_whatsapp_conectado_no_se_crea_ni_hilo_ni_mensaje(hilos: _EnMemoria) -> None:
+    """**Caso 25a.** La empresa no usa el canal: la bandeja no se llena de avisos fallidos."""
+    escena, turno = _escena_con_canal(SinCanal())
+
+    cancelado = await _cancelar(escena, turno)
+
+    assert cancelado.estado is EstadoTurno.CANCELADO
+    assert hilos.conversaciones.hilos == {}
+    assert hilos.mensajes.mensajes == {}
 
 
 async def test_el_agente_sigue_sin_mandar_un_segundo_aviso() -> None:
