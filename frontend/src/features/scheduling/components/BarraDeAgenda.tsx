@@ -1,5 +1,5 @@
 /**
- * La barra de herramientas de la agenda, en una sola tarjeta: la vista (Lista, Semana, Día), la
+ * La barra de herramientas de la agenda, en una sola tarjeta: la vista (Lista, Semana, Día, Mes), la
  * navegación del período, los filtros y cuántos turnos hay.
  *
  * No sabe nada de la red: recibe los valores y avisa cuando cambian. Quien llama es el que
@@ -26,6 +26,7 @@ import {
   IconoDeFlecha,
   IconoDeLimpiar,
   IconoDeLista,
+  IconoDeMes,
   IconoDeSemana,
 } from "./iconos";
 
@@ -42,6 +43,7 @@ const VISTAS: readonly { valor: VistaDeAgenda; etiqueta: string; icono: ReactNod
   { valor: "lista", etiqueta: "Lista", icono: <IconoDeLista /> },
   { valor: "semana", etiqueta: "Semana", icono: <IconoDeSemana /> },
   { valor: "dia", etiqueta: "Día", icono: <IconoDeDia /> },
+  { valor: "mes", etiqueta: "Mes", icono: <IconoDeMes /> },
 ];
 
 export interface PropsDeBarraDeAgenda {

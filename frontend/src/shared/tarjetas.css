@@ -1,0 +1,33 @@
+/*
+ * Tarjetas: el hover de todas, en un solo lugar.
+ *
+ * Antes cada pantalla resolvía su hover por su cuenta y casi todas terminaban en un borde gris
+ * oscuro y una sombra gris, que sobre blanco se ve sucio. Acá se unifica: el borde toma un
+ * verde suave y la sombra, un tinte del mismo verde. El color queda en el borde y en la luz, no
+ * en el fondo. Se importa al final de `layout.tsx` para ganar por orden sobre las reglas de
+ * cada pantalla; sólo toca `border-color` y `box-shadow`, no el movimiento ni el tamaño.
+ */
+
+:is(
+    .itg-card,
+    .pqt-card,
+    .pln-tarjeta,
+    .rgl-paso__caja,
+    .emp-seccion,
+    .age-rec,
+    .age-servicio,
+    .dsh-stat,
+    .rep-kpi,
+    .rep-tipo,
+    .log-dato,
+    .ing-proc-stat,
+    .ing-plan,
+    .cob-hito,
+    .wa-faq,
+    .ptv-tarjeta
+  ):hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  box-shadow:
+    0 1px 2px rgb(30 30 46 / 4%),
+    0 14px 30px -14px rgb(0 130 95 / 28%);
+}
