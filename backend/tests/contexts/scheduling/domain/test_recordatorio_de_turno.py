@@ -146,6 +146,57 @@ class TestQueCorresponde:
 
         assert plan == PlanDeRecordatorio(omitir=(48 * H,))
 
+    def test_con_una_mas_cercana_resuelta_en_cualquier_estado_las_mas_viejas_se_omiten(
+        self,
+    ) -> None:
+        """D-U8-3: la regla no depende de cómo terminó la más cercana, solo de que exista."""
+        uno = turno()
+        for resultado in ResultadoDeRecordatorio:
+            previa = fila(uno, 12, resultado=resultado)
+
+            plan = que_corresponde(uno, [24 * H, 12 * H], [previa], INICIO - timedelta(hours=5))
+
+            assert plan == PlanDeRecordatorio(omitir=(24 * H,)), resultado
+
+    def test_con_una_mas_cercana_en_curso_o_esperando_reintento_las_mas_viejas_se_omiten(
+        self,
+    ) -> None:
+        """D-U8-3: una fila sin `resultado` (en vuelo o con reintento) también supera a las viejas.
+
+        Si no, el barrido mandaría el aviso de 24 h mientras el de 12 h espera su reintento.
+        """
+        uno = turno()
+        en_vuelo = fila(uno, 12, intentos=1, proximo_intento_en=INICIO - timedelta(hours=4))
+        esperando = fila(
+            uno,
+            12,
+            intentos=1,
+            proximo_intento_en=INICIO - timedelta(hours=4),
+            ultimo_error="MENSAJERIA_SATURADA",
+        )
+        assert en_vuelo.resultado is None
+        assert esperando.resultado is None
+
+        for previa in (en_vuelo, esperando):
+            plan = que_corresponde(uno, [24 * H, 12 * H], [previa], INICIO - timedelta(hours=5))
+
+            assert plan == PlanDeRecordatorio(omitir=(24 * H,))
+
+    def test_una_franja_fijada_despues_del_momento_omite_esa_anticipacion(self) -> None:
+        """D-U8-4: los turnos existentes al migrar toman la fecha del deploy como `F`.
+
+        Con el deploy 20 h antes del turno, la de 24 h ya llegaba tarde (`M < F`) y no sale;
+        la de 12 h sí, porque su momento es posterior al deploy.
+        """
+        deploy = INICIO - timedelta(hours=20)
+        uno = turno(created_at=RESERVADO_EL, franja_asignada_en=deploy)
+
+        plan = que_corresponde(uno, [24 * H], [], deploy + timedelta(minutes=1))
+        assert plan == PlanDeRecordatorio()
+
+        plan = que_corresponde(uno, [24 * H, 12 * H], [], INICIO - timedelta(hours=11))
+        assert plan == PlanDeRecordatorio(enviar=12 * H)
+
     def test_las_filas_de_otra_franja_no_cuentan(self) -> None:
         """Reprogramar genera claves nuevas: la fila de la franja vieja no frena la nueva."""
         uno = turno()

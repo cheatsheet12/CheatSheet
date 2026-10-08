@@ -165,7 +165,18 @@ si `M ≤ ahora < I`, `M ≥ F` (la franja ya estaba fijada; Pregunta 3 del 04/1
 `(turno, h, I)`. Si varias corresponden a la vez (worker caído), sale **solo la más cercana al turno** y
 las otras quedan `OMITIDO`.
 
-`F` = **`turno.franja_asignada_en`** (`timestamptz NOT NULL`, backfill `created_at`), fijada al reservar y
+**Una más cercana ya registrada supera a las más viejas, en cualquier estado.** Si para el turno y la
+franja ya existe una fila de una anticipación más cercana al turno, las anticipaciones más viejas que
+corresponden se **omiten** (`OMITIDO`, motivo `ANTICIPACION_SUPERADA`) y nunca se mandan. «Ya registrada»
+incluye **cualquier estado**: `ENVIADO`, `FALLIDO`, `OMITIDO`, `DESCARTADO` y también las filas sin
+`resultado` (envío en curso o esperando reintento). Así, mientras el aviso de 12 h espera su reintento,
+el barrido no manda el de 24 h detrás. Lo fijan dos pruebas de `test_recordatorio_de_turno.py`. **Para el
+tramo 3:** `que_corresponde` solo devuelve las anticipaciones en `PlanDeRecordatorio.omitir`; el caso de
+uso debe crear esas filas ya cerradas con `omitir(ahora, ANTICIPACION_SUPERADA)`, de modo que lleven ese
+motivo en `ultimo_error` (y quede la clave única ocupada).
+
+`F` = **`turno.franja_asignada_en`** (`timestamptz NOT NULL`; backfill **`now()` de la migración**, ver
+más abajo), fijada al reservar y
 en `Turno.reprogramar(franja, intervalo, ahora)`. `updated_at` no sirve (cambia al confirmar).
 
 Comparaciones entre instantes UTC; la zona solo interviene al mostrar (`ZONA_DE_LA_AGENDA`, como
@@ -182,6 +193,7 @@ anticipaciones, existentes, ahora) -> PlanDeRecordatorio` (qué mandar, qué omi
 | Situación | Efecto |
 |---|---|
 | Turno `CANCELADO`, `COMPLETADO`, `NO_SHOW` | No se selecciona. Una fila esperando reintento → `DESCARTADO` (`TURNO_CERRADO`) |
+| Turno que ya existía al desplegar | `F` = instante de la migración: toda anticipación cuyo momento ideal cae antes del deploy se omite (ver «Backfill de `franja_asignada_en`») |
 | Reprogramado | Claves nuevas para la franja nueva; pendientes de la franja vieja → `DESCARTADO` (`FRANJA_CAMBIADA`); si fue dentro de la ventana, `M < F` y no se recuerda |
 | Carga a posteriori (nace `COMPLETADO`) | Nunca se recuerda |
 | Cliente sin teléfono | Fila `OMITIDO` `SIN_TELEFONO` (no se reevalúa cada 15 min) |
@@ -318,7 +330,16 @@ Los tests de payments no cambian salvo imports y tienen que seguir verdes.
 ### Migración 0039 (`0039_recordatorio_de_turno.py`, `down_revision = "0038"`)
 
 1. **`turno.franja_asignada_en timestamptz`**: agregar nula → `UPDATE turno SET franja_asignada_en =
-   created_at` → `SET NOT NULL`.
+   now()` → `SET NOT NULL`. **Decisión (Gate 2 del tramo 2, 08/10):** el backfill es el instante de la
+   migración y **no** `created_at`. Con `created_at`, `M ≥ F` se cumpliría para todo turno viejo y el
+   primer barrido tras el deploy mandaría de golpe, tarde, los avisos cuyo momento ideal ya pasó (un
+   turno de mañana reservado hace un mes recibiría su «24 h antes» con horas de atraso). Con `now()`,
+   por D-U8-4 (`M < F` → no se recuerda) esas anticipaciones se omiten y solo salen las cuyo momento
+   ideal es posterior al deploy. Contrapartida aceptada: un turno ya reservado puede quedarse sin su
+   aviso de 24 h si el deploy cae dentro de esa ventana. El respaldo de `_a_fila` (`created_at`) solo
+   rige para un `Turno` construido sin `franja_asignada_en`, que en la aplicación no ocurre (reservar y
+   reprogramar siempre lo fijan) y, en un alta, es el mismo instante que el de la inserción; las filas
+   que ya existían las resuelve la migración, no el respaldo.
 2. **Tabla `recordatorio_de_turno`**: `id uuid PK`, `empresa_id uuid NOT NULL` (FK a empresa),
    `turno_id uuid NOT NULL REFERENCES turno ON DELETE CASCADE`, `anticipacion_min integer NOT NULL
    CHECK (60..10080)`, `franja_inicio timestamptz NOT NULL`, `resultado varchar(12) NULL CHECK (IN
@@ -328,7 +349,7 @@ Los tests de payments no cambian salvo imports y tienen que seguir verdes.
 3. **RLS**: `ENABLE` + `FORCE`, política por `empresa_id = current_setting('app.current_empresa')`
    igual que `turno`; `GRANT SELECT, INSERT, UPDATE` a `cheatsheet_app` (sin `DELETE`: la fila es la
    prueba de idempotencia).
-4. **Índices**:
+4. **Índices** (el modelo ORM declara el único como `Index(..., unique=True)`, igual que la migración):
    - `uq_recordatorio_de_turno (turno_id, anticipacion_min, franja_inicio)` único — la idempotencia;
      también sirve a `de_turnos(ids)`.
    - `ix_recordatorio_de_turno_pendiente (proximo_intento_en) WHERE resultado IS NULL` — **parcial**:
@@ -376,6 +397,11 @@ futura, si hiciera falta, solo podría tocar filas con `franja_inicio < now()`.
 | **1 · Regla de agenda** | `feature/scheduling-recordatorio-de-turno` (esta) | Este plan; D-U8-1 (dominio, `agenda.py`, `PUT /reglas/agenda`); frontend PAN-CFG-RN y su BFF; tests | ~700–900 | `develop`. **Puede salir antes que U7** |
 | **2 · Modelo de scheduling** | `feature/scheduling-recordatorio-de-turno-modelo` | Migración 0039; `franja_asignada_en` en dominio, modelo y `reprogramar(…, ahora)`; `domain/recordatorio_de_turno.py`; `ports_de_recordatorios.py`; repositorio y modelo nuevos; `abiertos_con_inicio_entre`; tests de dominio, migración y RLS | ~900–1.000 | Tramo 1. Su migración revisa `0038`: **se mergea después de U7** |
 | **3 · Barrido y envío** | `feature/scheduling-recordatorio-de-turno-barrido` | Extracción a `shared/`; `transitoria` en conversational; caso de uso en tres tiempos; adaptadores; `api/recordatorios_de_turno.py`; worker, Beat, settings; advertencia PAN-CFG-NOT; tests de caso de uso e integración; pendientes #7 y #11 | ~1.100 | Tramo 2 y **U7 mergeada** |
+
+**Nota para el tramo 3 (Gate 2 del tramo 2):** verificar con `EXPLAIN` que `abiertos_con_inicio_entre`
+(`repositories.py`, `estado.in_([...])` con parámetros enlazados) use el índice parcial
+`ix_turno_abierto_inicio`; PostgreSQL puede no probar que el predicado `estado IN (...)` con
+parámetros implica el de un índice parcial. Si no lo usa, escribir los literales en la consulta.
 
 **Orden de merge del épico:** U6 → U7 (i, ii, iii) → U8 (1 → 2 → 3). El tramo 1 puede adelantarse a U7.
 
@@ -434,7 +460,7 @@ Tramo 3
 | 11 | Turno confirmado dentro de la ventana → **sí** se recuerda | unit | 2 | hecho |
 | 12 | Zona: 15/10/2026 10:00 AR (`13:00Z`) corresponde desde el 14/10 `13:00Z`; turno a las 00:30 AR muestra la fecha argentina | unit | 2/3 | hecho |
 | 13 | Entidad: `registrar_falla` transitoria espera 15 y 30 min; la tercera agota → `FALLIDO`; espera que cae después de `I` → `DESCARTADO` | unit | 2 | hecho |
-| 14 | Migración 0039: backfill `franja_asignada_en = created_at`, `NOT NULL`, upgrade/downgrade limpios | migración (CI) | 2 | escrito (corre en la CI) |
+| 14 | Migración 0039: backfill `franja_asignada_en = now()` de la migración (no `created_at`), `NOT NULL`, upgrade/downgrade limpios | migración (CI) | 2 | escrito (corre en la CI) |
 | 15 | RLS: la tabla aísla por `empresa_id`; sin empresa declarada no se ve nada | integración (CI) | 2 | escrito (corre en la CI) |
 | 16 | `empresas_con_turnos_por_recordar`: solo ids, respeta `hasta`, incluye empresas con filas pendientes, excluye turnos cerrados | migración (CI) | 2 | escrito (corre en la CI) |
 | 17 | Índice único: un segundo `INSERT` de la misma clave → `RecordatorioDeTurnoDuplicado` | integración (CI) | 2 | escrito (corre en la CI) |
@@ -518,6 +544,7 @@ PostgreSQL en la CI.
 | 1 · Plan (re-presentación) | 2026-10-08 | **Aprobado por Luciano el 08/10.** Revalidación contra U6 y U7 del 07/10; once decisiones (D-U8-8 a D-U8-18) y las dos preguntas abiertas resueltas (ver «Decisiones tomadas durante la unidad») |
 | 1 · Revisión del tramo 1 | 2026-10-08 | Correcciones aprobadas por Luciano: prioridad negativa al actualizar la agenda (422), nombre accesible de cada «Quitar», casos de PostgreSQL para prioridad, reactivación y 422, y la nota del caso 36 para el barrido |
 | 2 · Verificación del tramo 1 | 2026-10-08 | **Aprobado por Luciano el 08/10.** El tramo 2 se apila en `feature/scheduling-recordatorio-de-turno-modelo` |
+| 2 · Verificación del tramo 2 | 2026-10-08 | **Aprobado por Luciano el 08/10 con correcciones**: regla «más cercana registrada supera a las viejas» documentada y probada; backfill `now()`; nota de `EXPLAIN` para el tramo 3; modelo ORM alineado con el índice único |
 | 3 · PR | | |
 
 ## Progreso
@@ -551,7 +578,7 @@ PostgreSQL en la CI.
 - Base: merge de la pila de U7 (`origin/feature/conversational-entregas-de-whatsapp-avisos`) en la rama
   del tramo; sin conflictos. Suite verde tras el merge, antes de escribir código del tramo.
 - Migración `0039_recordatorio_de_turno.py` (`down_revision = "0038"`): `turno.franja_asignada_en`
-  con backfill `created_at` y `NOT NULL`; tabla `recordatorio_de_turno` con RLS forzada, sin `DELETE`
+  con backfill `now()` de la migración y `NOT NULL`; tabla `recordatorio_de_turno` con RLS forzada, sin `DELETE`
   para la app, índice único `uq_recordatorio_de_turno` y los parciales `ix_recordatorio_de_turno_pendiente`
   e `ix_turno_abierto_inicio`; función `SECURITY DEFINER` `empresas_con_turnos_por_recordar(hasta)`.
 - Dominio: `Turno.franja_asignada_en` (se fija al reservar, en la carga a posteriori y en
@@ -567,6 +594,14 @@ PostgreSQL en la CI.
 - Desvíos del plan: el resultado del canal se llama `ResultadoDelEnvio` (el nombre
   `ResultadoDeRecordatorio` es el enum de la columna); los modelos se llaman `...ORM` como los demás de
   scheduling; `PortTurnosPorRecordar` suma `buscar_por_id`, que el barrido necesita para releer el turno.
+
+**Gate 2 del tramo 2 (08/10).** Aprobado por Luciano con estas correcciones, ya aplicadas: (1, 2) la
+regla de D-U8-3 «una más cercana registrada, en cualquier estado, supera a las viejas» queda escrita y
+con dos pruebas (estados finales y filas en curso o esperando reintento), con la nota de que el tramo 3
+debe crear las omitidas con el motivo `ANTICIPACION_SUPERADA`; (3) el backfill de `franja_asignada_en`
+es `now()` de la migración, no `created_at` (ver migración 0039 en «Infraestructura»), con prueba de
+dominio y de PostgreSQL; (4) nota de `EXPLAIN` sobre `ix_turno_abierto_inicio` para el tramo 3; (5) el
+modelo ORM declara `uq_recordatorio_de_turno` como `Index(..., unique=True)`, igual que la migración.
 
 ## Decisiones tomadas durante la unidad
 
