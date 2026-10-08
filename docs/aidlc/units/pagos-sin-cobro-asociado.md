@@ -29,7 +29,7 @@ MercadoPago no reintenta y el pago no queda registrado en ningún lado. Esta uni
 - El pago sobre un cobro **cancelado**: ya lo resolvió `cancelacion-invalida-el-link`
   (`registrar_pago_huerfano`, `confirmacion.py:167-209`) y se mantiene igual (P7).
 - La concurrencia de dos notificaciones simultáneas del mismo pago en la tabla `cobro`
-  (`TODO.md` §20.7): esta unidad solo garantiza que la tabla nueva no devuelva 500 por eso.
+  (`TODO.md` §20.7): esta unidad solo garantizaba que la tabla nueva no devolviera 500 por eso. **La carrera de la confirmación se cerró después, en la revisión independiente** (ver «Correcciones de la revisión independiente»).
 
 ## Qué existe hoy (evidencia)
 
@@ -337,6 +337,33 @@ contra Neon ni staging) y `test_guards.sh` no corre local (falta `jq`).
   queda sin publicar en MercadoPago, mismo riesgo aceptado que en P1.
 - **Notificación**: el texto lo arma `NotificarPorEventos` («`pago_sin_imputar` falló sobre
   `PagoSinImputar:<id>`»); no se tocó `observability`.
+
+### Correcciones de la revisión independiente (2026-10-07)
+
+1. **Tamaño de archivo**: `infrastructure/pasarela.py` tenía 408 líneas (límite 400, `CLAUDE.md` §5).
+   Los lectores de respuesta (`preferencia_de`, `referencia_de`, `monto_de`, `moneda_de`,
+   `fecha_de_aprobacion`, `fecha_iso`, `respuesta_de_reembolso`) pasaron, sin cambiar de comportamiento,
+   a `infrastructure/pasarela_respuestas.py`; `pasarela.py` quedó en 337 líneas. Commit propio, tests
+   del contrato en verde.
+2. **Doble aprobación concurrente**: `ConfirmarPago._encontrar` leía el cobro con un `get` simple, así
+   que dos webhooks con `payment_id` distinto sobre el mismo cobro abierto podían aprobarlo los dos (el
+   segundo pisaba `mp_payment_id`, el saldo bajaba dos veces y el primer pago nunca quedaba registrado).
+   Ahora lo lee con `buscar_para_actualizar` (`SELECT ... FOR UPDATE`) por **las dos** búsquedas
+   (referencia y, tras hallarlo, preferencia): el segundo espera, ve `APROBADO` y queda
+   `COBRO_YA_PAGADO`. RED: 2 fallas unitarias (`cobros.bloqueados` vacío). Caso 15, **solo CI**
+   (PostgreSQL): dos confirmaciones solapadas, una aprobada y una `COBRO_YA_PAGADO`
+   (`test_pagos_sin_imputar_postgres.py`). Con esto la carrera de `TODO.md` §20.7 queda **cerrada para
+   la confirmación**.
+3. **Moneda**: `PagoRecibido.moneda` (de `currency_id`, en mayúsculas, `None` si falta). Un pago cuya
+   moneda está informada y no es `ARS` no se aprueba y se registra como `MONTO_DISTINTO`, por el mismo
+   camino que un monto distinto; sin `currency_id` se aprueba como antes (misma decisión que con el
+   monto). RED: 44 fallas (`TypeError` por el argumento `moneda` inexistente) y, tras agregar el campo,
+   los casos de lectura y de decisión en verde.
+4. **Documentación** (`TODO.md`): §20.20 (el `PUT` de `expiration_date_to` sobre una preferencia ya
+   vencida es aceptado), §22.44 (hallazgo previo: `monto_de` levanta `InvalidOperation` ante un
+   `transaction_amount` no numérico o `NaN`, el webhook responde 500 y MercadoPago reintenta; no se
+   corrige acá), y §20.17/§20.18 ahora piden verificar que `transaction_amount` y `currency_id` vienen
+   en el pago real (si faltan, se aprueba sin comparar, por decisión).
 
 ### Evidencia RED
 
