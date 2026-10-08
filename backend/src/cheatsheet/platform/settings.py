@@ -21,6 +21,8 @@ import os
 from dataclasses import dataclass
 from enum import StrEnum
 
+from cheatsheet.platform.intervalos import IntervaloNoAlineable, campos_alineados
+
 #: Default retry ceiling the DLQ sweep judges against (HS-T6 RN-01).
 #:
 #: Deliberately a literal and not an import of `workers.base.MAX_INTENTOS_POR_DEFECTO`:
@@ -176,6 +178,16 @@ def _booleano(nombre: str, por_defecto: bool) -> bool:
     if not crudo:
         return por_defecto
     return crudo in {"1", "true", "yes", "si"}
+
+
+def _intervalo_en_minutos(nombre: str, por_defecto: int) -> int:
+    """An interval Beat anchors to the wall clock; one that cannot be anchored fails at boot."""
+    valor = _entero(nombre, por_defecto)
+    try:
+        campos_alineados(valor)
+    except IntervaloNoAlineable as exc:
+        raise ConfiguracionFaltante(f"{nombre}: {exc}") from exc
+    return valor
 
 
 def _entero(nombre: str, por_defecto: int) -> int:
@@ -562,10 +574,10 @@ class Settings:
             whatsapp_timeout_segundos=_entero("WHATSAPP_TIMEOUT_SEGUNDOS", 10),
             # 30 minutes against a wait Meta measures in days (HU-E2-03 RN-02): it bounds
             # the delay to about 1% of the wait at 48 calls per number per day.
-            whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
+            whatsapp_sondeo_minutos=_intervalo_en_minutos("WHATSAPP_SONDEO_MINUTOS", 30),
             whatsapp_webhook_secret=_opcional("WHATSAPP_WEBHOOK_SECRET", ""),
             whatsapp_webhook_verify_token=_opcional("WHATSAPP_WEBHOOK_VERIFY_TOKEN", ""),
-            dlq_barrido_minutos=_entero("DLQ_BARRIDO_MINUTOS", 15),
+            dlq_barrido_minutos=_intervalo_en_minutos("DLQ_BARRIDO_MINUTOS", 15),
             planilla_adaptador=_adaptador_de_planilla(entorno),
             almacenamiento_adaptador=_adaptador_de_almacenamiento(entorno),
             almacenamiento_directorio=_opcional("ALMACENAMIENTO_DIRECTORIO", ""),
@@ -578,7 +590,7 @@ class Settings:
             llm_modelo=_opcional("LLM_MODELO", MODELO_POR_DEFECTO),
             llm_timeout_segundos=float(_entero("LLM_TIMEOUT_SEGUNDOS", 30)),
             llm_max_tokens=_entero("LLM_MAX_TOKENS", 4096),
-            sync_planillas_minutos=_entero("SYNC_PLANILLAS_MINUTOS", 60),
+            sync_planillas_minutos=_intervalo_en_minutos("SYNC_PLANILLAS_MINUTOS", 60),
             catalogos_fiscales_adaptador=_adaptador_de_catalogos(entorno),
             arca_wsfe_url_homologacion=_opcional(
                 "ARCA_WSFE_URL_HOMOLOGACION",
@@ -588,7 +600,9 @@ class Settings:
                 "ARCA_WSFE_URL_PRODUCCION", "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
             ),
             parametros_fiscales_horas=_entero("PARAMETROS_FISCALES_HORAS", 24),
-            billing_reconciliacion_minutos=_entero("BILLING_RECONCILIACION_MINUTOS", 5),
+            billing_reconciliacion_minutos=_intervalo_en_minutos(
+                "BILLING_RECONCILIACION_MINUTOS", 5
+            ),
             dlq_max_intentos=_entero("DLQ_MAX_INTENTOS", DLQ_MAX_INTENTOS_POR_DEFECTO),
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.

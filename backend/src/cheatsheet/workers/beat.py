@@ -20,6 +20,10 @@ Beat runs as **one** process. Replicating it duplicates every entry above — an
 there is a real one, that warning has teeth: two schedulers mean two sweeps, two polls per
 company and, at the moment Meta answers, two emails to every Administrator.
 
+Entries that touch the database and repeat within a day are anchored to the wall clock
+(`alineado`) instead of counting from Beat's boot, so they all fire at the same instants
+and a serverless database wakes once per period. The daily entries keep their `timedelta`.
+
 The schedule is built from `Settings` rather than hardcoded, because the poll interval is
 a deployment decision (`WHATSAPP_SONDEO_MINUTOS`) and a constant here would mean a release
 to change it.
@@ -31,9 +35,20 @@ from datetime import timedelta
 from typing import Any
 
 from celery import Celery
+from celery.schedules import crontab
 
+from cheatsheet.platform.intervalos import campos_alineados
 from cheatsheet.platform.settings import Settings
 from cheatsheet.workers.celery_app import Cola
+
+
+def alineado(minutos: int) -> crontab:
+    """An interval anchored to the wall clock, so every task wakes the database together.
+
+    See `platform/intervalos.py` for the rule and for why it never rounds.
+    """
+    minuto, hora = campos_alineados(minutos)
+    return crontab(minute=minuto, hour=hora)
 
 
 def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
@@ -41,7 +56,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
     return {
         "sondear-integraciones-pendientes": {
             "task": "integrations.sondear_pendientes",
-            "schedule": timedelta(minutes=max(settings.whatsapp_sondeo_minutos, 1)),
+            "schedule": alineado(settings.whatsapp_sondeo_minutos),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         "revisar-vencimientos-de-credenciales": {
@@ -72,7 +87,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         },
         "sincronizar-planillas": {
             "task": "spreadsheet_sync.sincronizar_pendientes",
-            "schedule": timedelta(minutes=max(settings.sync_planillas_minutos, 1)),
+            "schedule": alineado(settings.sync_planillas_minutos),
             "options": {"queue": Cola.INCREMENTAL_SYNC.value},
         },
         # Decision D17: the retry that `billing.autorizar_comprobante` deliberately does
@@ -81,7 +96,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # which `VENTANA_DE_VUELO` is what actually guards.
         "reconciliar-comprobantes-en-vuelo": {
             "task": "billing.reconciliar_comprobantes",
-            "schedule": timedelta(minutes=max(settings.billing_reconciliacion_minutos, 1)),
+            "schedule": alineado(settings.billing_reconciliacion_minutos),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         # HS-T3 y HU-E6-01 RN-03. Cada hora: una deuda no cambia de estado al minuto, y la
@@ -89,7 +104,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # sesenta veces para enterarse de que nada cambió.
         "barrer-cobros": {
             "task": "payments.barrer_cobros",
-            "schedule": timedelta(hours=1),
+            "schedule": alineado(60),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
         # Las FAQ que quedaron sin vector. Cada seis horas: sólo hay algo que hacer cuando el
@@ -98,7 +113,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # único que no puede es encontrarse por significado.
         "reindexar-faqs": {
             "task": "conversational.barrer_faqs",
-            "schedule": timedelta(hours=6),
+            "schedule": alineado(360),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
         # HU-E10-04. **Diario y no mensual**: el día de envío lo elige cada empresa, así que
@@ -111,7 +126,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         },
         "barrer-tareas-agotadas": {
             "task": "observability.barrer_dlq",
-            "schedule": timedelta(minutes=max(settings.dlq_barrido_minutos, 1)),
+            "schedule": alineado(settings.dlq_barrido_minutos),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
     }
