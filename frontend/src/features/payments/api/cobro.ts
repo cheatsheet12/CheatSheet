@@ -11,6 +11,9 @@
  * grants no DELETE, so a function here could only ever fail.
  */
 
+import type { Recordatorio } from "./recordatorio";
+import type { OrigenDeReembolso, Reembolso } from "./reembolso";
+
 export type EstadoCobro =
   | "PENDIENTE"
   | "APROBADO"
@@ -24,50 +27,6 @@ export type EstadoCobro =
  * MercadoPago (tarjeta, dinero en cuenta) no llega hasta acá.
  */
 export type MedioDePago = "LINK_MERCADOPAGO" | "TRANSFERENCIA";
-
-export interface Recordatorio {
-  readonly id: string;
-  readonly paso: number;
-  readonly canal: string;
-  readonly enviado_en: string | null;
-  readonly estado_entrega: string | null;
-  /** Cuántos envíos empezaron (U7). */
-  readonly intentos: number;
-  /**
-   * Cuándo toca el próximo intento. El backend lo manda **solo** mientras el recordatorio espera un
-   * reintento: en un envío en curso es la ventana de la reserva y no se expone.
-   */
-  readonly proximo_intento_en: string | null;
-  /** Por qué falló: un código de Meta o una clase corta (`INCIERTO`, `COBRO_CERRADO`…). */
-  readonly ultimo_error: string | null;
-}
-
-/**
- * Cuántos intentos de envío entre barridos hace el backend con un recordatorio (`REINTENTOS_MAXIMOS`
- * en `payments/domain/recordatorio.py`). Solo se usa para decir «intento 2 de 3».
- */
-export const INTENTOS_MAXIMOS_DE_RECORDATORIO = 3;
-
-/** Por dónde salió la plata de un reembolso (ADR-0010): la API de MercadoPago o una carga manual. */
-export type OrigenDeReembolso = "API_MERCADOPAGO" | "MANUAL";
-
-/**
- * Una fila del historial de reembolsos (HU-E6-05 RN-08): un reembolso o la corrección de uno.
- *
- * Nunca se edita ni se borra: un error se corrige con **otra fila**, negativa, que apunta a la
- * que anula (`corrige_a`). `corregido` avisa que esta fila ya fue anulada por otra.
- */
-export interface Reembolso {
-  readonly id: string;
-  /** Negativo si y solo si es una corrección. Texto: nunca un `number`. */
-  readonly monto: string;
-  readonly fecha_devolucion: string;
-  readonly origen: OrigenDeReembolso;
-  readonly referencia: string | null;
-  readonly motivo: string | null;
-  readonly corrige_a: string | null;
-  readonly corregido: boolean;
-}
 
 export interface Cobro {
   readonly id: string;

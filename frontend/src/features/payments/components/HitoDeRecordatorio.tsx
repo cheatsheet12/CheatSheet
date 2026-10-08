@@ -16,8 +16,8 @@
 
 import { Badge, formatearFechaHora, formatearHora, motivoDeFalla } from "@/shared";
 
-import { INTENTOS_MAXIMOS_DE_RECORDATORIO } from "../api/cobro";
-import type { Recordatorio } from "../api/cobro";
+import { INTENTOS_MAXIMOS_DE_RECORDATORIO } from "../api/recordatorio";
+import type { Recordatorio } from "../api/recordatorio";
 import { ICONO_CHAT, ICONO_RELOJ, tonoDeEntrega } from "./presentacion";
 
 const COBRO_CERRADO = "COBRO_CERRADO";
