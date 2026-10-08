@@ -33,6 +33,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from tests.integracion.guarda import DestinoDeIntegracionRechazado, verificar_destino
+
 RAIZ_BACKEND = Path(__file__).resolve().parents[2]
 
 
@@ -50,8 +52,28 @@ requiere_base = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(scope="session", autouse=True)
+def destino_verificado() -> None:
+    """Refuse to run the destructive suite against a database that is not meant for it.
+
+    Autouse and session-scoped, so it runs before the first fixture of the first test:
+    no migration, downgrade or cleanup can happen against a rejected destination, not
+    even from the test files that build their own engines or call alembic directly.
+    Without both URLs set, every test is skipped by `requiere_base` and there is
+    nothing to check.
+    """
+    url_app = _url("DATABASE_URL")
+    url_dueno = _url("DATABASE_URL_MIGRATIONS")
+    if url_app is None or url_dueno is None:
+        return
+    try:
+        verificar_destino(url_app, url_dueno)
+    except DestinoDeIntegracionRechazado as rechazo:
+        pytest.exit(str(rechazo), returncode=2)
+
+
 @pytest.fixture(scope="session")
-def esquema_migrado() -> None:
+def esquema_migrado(destino_verificado: None) -> None:
     """Bring the schema to head once per session, as the owner role.
 
     Running the real migrations rather than `metadata.create_all` is deliberate: it is
