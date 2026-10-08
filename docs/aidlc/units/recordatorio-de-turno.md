@@ -510,7 +510,7 @@ PostgreSQL en la CI.
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas 1–4 |
 | 1 · Plan (re-presentación) | 2026-10-08 | **Aprobado por Luciano el 08/10.** Revalidación contra U6 y U7 del 07/10; once decisiones (D-U8-8 a D-U8-18) y las dos preguntas abiertas resueltas (ver «Decisiones tomadas durante la unidad») |
 | 1 · Revisión del tramo 1 | 2026-10-08 | Correcciones aprobadas por Luciano: prioridad negativa al actualizar la agenda (422), nombre accesible de cada «Quitar», casos de PostgreSQL para prioridad, reactivación y 422, y la nota del caso 36 para el barrido |
-| 2 · Verificación | | |
+| 2 · Verificación del tramo 1 | 2026-10-08 | **Aprobado por Luciano el 08/10.** El tramo 2 se apila en `feature/scheduling-recordatorio-de-turno-modelo` |
 | 3 · PR | | |
 
 ## Progreso
@@ -536,6 +536,8 @@ PostgreSQL en la CI.
 - Cada botón «Quitar» de la agenda tiene `aria-label` «Quitar recordatorio N».
 - Tres casos nuevos en `test_agenda_de_notificacion_postgres.py` (se saltean sin base, corren en la CI).
 - Caso 36 y la nota de D-U8-5 sobre la regla malformada, para los tramos 2 y 3.
+
+**Gate 2 del tramo 1 (08/10).** Aprobado por Luciano. Se abre el tramo 2 sobre `ab4cd5d`.
 
 ## Decisiones tomadas durante la unidad
 
