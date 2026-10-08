@@ -132,6 +132,8 @@ class TurnoORM(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: Cuándo se fijó la franja actual (migración 0039): reservar o reprogramar.
+    franja_asignada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         # La consulta de PAN-AGE-01: los turnos de un recurso en un rango.

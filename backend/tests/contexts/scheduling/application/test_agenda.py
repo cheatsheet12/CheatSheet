@@ -18,7 +18,7 @@ los cinco casos de uso, y cinco copias del mismo test no encuentran un bug más.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -775,6 +775,29 @@ class TestNoEnElPasado:
         turno = await _reservar_el_martes(escena, inicio=local(15))
 
         assert turno.franja.inicio == local(15)
+
+    async def test_reservar_fija_cuando_se_asigno_la_franja(self) -> None:
+        escena = Escena(un_recurso())
+
+        turno = await _reservar_el_martes(escena, inicio=local(15))
+
+        assert turno.franja_asignada_en == AHORA_MARTES
+
+    async def test_reprogramar_vuelve_a_fijar_cuando_se_asigno_la_franja(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso, franja_asignada_en=AHORA - timedelta(days=2))
+        escena = Escena(recurso, turno)
+
+        movido = await escena.reprogramar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            turno_id=turno.id,
+            inicio=local(16),
+            ahora=AHORA,
+        )
+
+        assert movido.franja_asignada_en == AHORA
 
     @pytest.mark.parametrize("rol", [RolUsuario.OPERADOR, RolUsuario.ADMINISTRADOR])
     async def test_reprogramar_a_una_hora_ya_transcurrida_se_rechaza_y_conserva_la_franja(

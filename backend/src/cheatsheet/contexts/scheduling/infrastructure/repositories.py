@@ -302,6 +302,7 @@ def _a_dominio(fila: TurnoORM) -> Turno:
         created_at=fila.created_at,
         updated_at=fila.updated_at,
         intervalo_posterior_min=fila.intervalo_posterior_min,
+        franja_asignada_en=fila.franja_asignada_en,
     )
 
 
@@ -319,6 +320,7 @@ def _a_fila(turno: Turno, fila: TurnoORM) -> TurnoORM:
     fila.intervalo_posterior_min = turno.intervalo_posterior_min
     fila.created_at = turno.created_at or datetime.now(tz=ZONA_DE_LA_AGENDA)
     fila.updated_at = turno.updated_at or fila.created_at
+    fila.franja_asignada_en = turno.franja_asignada_en or fila.created_at
     return fila
 
 
