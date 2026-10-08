@@ -100,7 +100,7 @@ recomendaron**. Numeración: la decisión *n* del informe es **D-U8-(7+n)**.
 | **D-U8-8** | **Reintento acotado.** Solo falla transitoria, 3 intentos, esperas de 15 y 30 min, nunca después de la hora del turno. Incierto o permanente → `FALLIDO` sin reenvío |
 | **D-U8-9** | **Queda como mensaje `SISTEMA` en el hilo**, vía `NotificarAlCliente` |
 | **D-U8-10** | **Envío en tres tiempos de U7** (reservar + confirmar → mandar → registrar + confirmar). U8 no agrava G5 y no depende de #101 |
-| **D-U8-11** | **Extracción a `shared/`** solo de los dos `Protocol` (`PortAislamiento`, `PortTransaccion`) + `ConfirmacionDeLaUnidad` + el tipo de error (~120 líneas movidas). El orquestador queda por contexto |
+| **D-U8-11** | **Extracción (ajustada en el Gate 1 del 08/10):** a `shared/` los dos `Protocol` (`PortAislamiento`, `PortTransaccion`) y el tipo de error; a `platform/`, juntos, `ConfirmacionDeLaUnidad` y `AislamientoConSavepoint` (~120 líneas movidas). El orquestador queda por contexto |
 | **D-U8-12** | **Rol en el worker:** ACL de scheduling sobre master_data con identidad de sistema fija `OPERADOR`, como el agente |
 | **D-U8-13** | **Empresa sin WhatsApp:** chequeo de `SinCanal` en la raíz del barrido, antes de crear filas; log `recordatorios_de_turno_sin_canal` |
 | **D-U8-14** | **Regla:** seguir `atencion.py` con consulta propia `ConsultarAgendaDeNotificacion`; no inflar `ReglasVigentes`. Default 24 h |
@@ -282,7 +282,7 @@ lo dice (`MensajeriaSaturada`). Incierto, permanente (incluido 131047) o error p
 |---|---|---|
 | `PortAislamiento`, `PortTransaccion` | `payments/application/ports_envio.py:55-92` | `shared/transaccion.py` |
 | `DespachoNoPersistido` | `payments/application/errors.py:92` | `shared/transaccion.py` (`payments` lo reexporta: sin cambios en sus llamadores) |
-| `ConfirmacionDeLaUnidad` | `payments/infrastructure/transaccion.py` | ver **Pregunta abierta 2** |
+| `ConfirmacionDeLaUnidad` + `AislamientoConSavepoint` | `payments/infrastructure/transaccion.py` y `aislamiento.py` | `platform/` (juntos; aprobado 08/10) |
 
 Los orquestadores quedan por contexto (`payments/application/reintentos.py` y el nuevo de scheduling).
 Los tests de payments no cambian salvo imports y tienen que seguir verdes.
@@ -413,7 +413,7 @@ Tramo 3
 | 3 | Configuración: 0 recordatorios, 4, horas 0 o 169, repetidos → `EntradaInvalida` con la frase; se ordenan de mayor a menor | unit (tabla) | 1 | pendiente |
 | 4 | Fila mal formada en la base → falla al leer (D24) | unit | 1 | pendiente |
 | 5 | `PUT /reglas/agenda`: Administrador guarda y reemplaza; Operador → rechazo; bitácora | integración (API) | 1 | pendiente |
-| 6 | `ConsultarAgendaDeNotificacion`: sin regla → 24 h y `configurada=False`; regla desactivada → según Pregunta abierta 1 | unit | 1 | pendiente |
+| 6 | `ConsultarAgendaDeNotificacion`: sin regla → 24 h y `configurada=False`; regla desactivada → agenda vacía (recordatorios apagados) | unit | 1 | pendiente |
 | 7 | Dos reglas de agenda → gana la de mayor prioridad (RN-05) | unit | 1 | pendiente |
 | 8 | PAN-CFG-RN: agrega hasta 3, valida con la frase, muestra el default, solo Administrador edita | unit (Vitest) | 1 | pendiente |
 | 9 | `que_corresponde`: con 48 h y 24 h y el worker caído hasta faltar 20 h → solo la de 24 h; la de 48 h `OMITIDO` | unit | 2 | pendiente |
@@ -483,26 +483,25 @@ PostgreSQL en la CI.
 - **Dueño de la cuenta de Meta (acción previa al tramo 3 en staging):** la plantilla
   `recordatorio_de_turno` tiene que estar **aprobada** en Meta.
 
-## Preguntas abiertas para el Gate 1
+## Preguntas abiertas para el Gate 1 (resueltas el 08/10)
 
-1. **Regla de agenda desactivada.** HU-E11-01 RN-04 dice que una regla desactivada deja de regir de
-   inmediato, y D-U8-14 fija el default de 24 h para la empresa **sin** regla. No está decidido si
-   desactivar la regla de agenda **apaga los recordatorios** de la empresa o **vuelve al default** de
-   24 h. (En escalamiento, desactivar vuelve al default; en horario de atención, vuelve a «siempre
-   abierto», que es no aplicar nada.)
-2. **Dónde vive `ConfirmacionDeLaUnidad`, y si `AislamientoConSavepoint` acompaña.** D-U8-11 la manda a
-   `shared/`, pero hoy `shared/` no importa ningún framework (solo biblioteca estándar y otros módulos
-   de `shared/`), y esa clase usa SQLAlchemy y `platform.database.GUC_EMPRESA`. Además
-   `AislamientoConSavepoint` (38 líneas, levanta `DespachoNoPersistido`) no está en la lista: si se
-   queda en payments, scheduling no puede importarlo (R3) y tendría que duplicarlo. ¿`shared/` tal cual
-   se aprobó, o los dos adaptadores juntos en `platform/` (los `Protocol` y el error sí en `shared/`)?
+1. **Regla de agenda desactivada.** → **Aprobado: los recordatorios se APAGAN** (sin vuelta silenciosa
+   al default de 24 h). Desactivar la regla es una decisión explícita del negocio de no avisar, y cada
+   mensaje de plantilla de Meta tiene costo. Sin regla configurada sigue rigiendo el default de 24 h
+   (`configurada=False`); con regla desactivada, `ConsultarAgendaDeNotificacion` devuelve una agenda
+   vacía.
+2. **Dónde viven las piezas compartidas del envío en tres tiempos.** → **Aprobado:** los dos `Protocol`
+   (`PortAislamiento`, `PortTransaccion`) y el tipo de error (`DespachoNoPersistido`) van a `shared/`
+   (sin framework, R4); `ConfirmacionDeLaUnidad` y `AislamientoConSavepoint` van **juntos** a
+   `platform/` (que ya es dueño de la sesión de base de datos), de modo que ningún contexto los
+   duplica y R3/R4 se cumplen. **Ajusta D-U8-11**, que tal como se aprobó no podía cumplirse.
 
 ## Registro
 
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas 1–4 |
-| 1 · Plan (re-presentación) | 2026-10-08 | **Pendiente (re-presentación 08/10).** Revalidación contra U6 y U7 del 07/10; once decisiones aprobadas el 08/10 (D-U8-8 a D-U8-18); quedan las dos preguntas abiertas |
+| 1 · Plan (re-presentación) | 2026-10-08 | **Aprobado por Luciano el 08/10.** Revalidación contra U6 y U7 del 07/10; once decisiones (D-U8-8 a D-U8-18) y las dos preguntas abiertas resueltas (ver «Decisiones tomadas durante la unidad») |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
@@ -513,3 +512,5 @@ PostgreSQL en la CI.
 - Gate 1 (2026-10-04): Pregunta 3 → se omite el recordatorio si el turno se reservó o se movió cuando su momento ya había pasado.
 - Gate 1 (2026-10-04): Pregunta 4 → sin horario de silencio en esta unidad.
 - Revalidación (2026-10-08): las once decisiones del informe del 07/10 aprobadas tal como se recomendaron → D-U8-8 a D-U8-18.
+- Gate 1 (2026-10-08): Pregunta abierta 1 → regla de agenda desactivada = recordatorios apagados, sin vuelta al default de 24 h (desactivar es una decisión explícita de no avisar y cada mensaje de plantilla cuesta).
+- Gate 1 (2026-10-08): Pregunta abierta 2 → `shared/` recibe los dos `Protocol` y el tipo de error (sin framework, R4); `ConfirmacionDeLaUnidad` y `AislamientoConSavepoint` van juntos a `platform/`. Ajusta D-U8-11.
