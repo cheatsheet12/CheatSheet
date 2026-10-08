@@ -128,6 +128,20 @@ async def test_guardar_una_regla_desactivada_la_reactiva() -> None:
 
 
 @pytest.mark.asyncio
+async def test_actualizar_con_prioridad_negativa_se_rechaza_y_no_toca_la_regla() -> None:
+    reglas, publicador = ReglasFalsas(), PublicadorFalso()
+    existente = await _guardar(reglas, publicador, _config(24), prioridad=3)
+
+    with pytest.raises(EntradaInvalida) as exc:
+        await _guardar(reglas, publicador, _config(12), prioridad=-1)
+
+    assert str(exc.value) == "La prioridad de una regla no puede ser negativa"
+    assert reglas.guardadas[existente.id].prioridad == 3
+    assert reglas.guardadas[existente.id].configuracion == _config(24).como_json()
+    assert len(publicador.eventos) == 1
+
+
+@pytest.mark.asyncio
 async def test_un_operador_no_puede_configurar_la_agenda() -> None:
     reglas, publicador = ReglasFalsas(), PublicadorFalso()
 

@@ -71,8 +71,8 @@ class ConfigurarAgendaDeNotificacion:
             await self._reglas.agregar(regla)
             accion = "alta_regla_de_agenda"
         else:
+            regla.cambiar_prioridad(prioridad)  # valida antes de tocar nada
             regla.reconfigurar(configuracion.como_json(), ahora)
-            regla.prioridad = prioridad
             regla.activar(ahora)
             await self._reglas.guardar(regla)
             accion = "editar_regla_de_agenda"
