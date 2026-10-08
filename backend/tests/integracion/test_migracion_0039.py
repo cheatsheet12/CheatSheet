@@ -103,6 +103,16 @@ def _config() -> Config:
     return config
 
 
+RELOJ_DE_LA_BASE = text("SELECT clock_timestamp()")
+
+
+def _reloj_de_la_base() -> datetime:
+    """El instante actual según la base (una consulta aparte, fuera de toda transacción)."""
+    [(valor,)] = asyncio.run(_leer(RELOJ_DE_LA_BASE))
+    assert isinstance(valor, datetime)
+    return valor
+
+
 def _motor() -> AsyncEngine:
     """El rol dueño ve todas las empresas (`BYPASSRLS`, ADR-0005)."""
     return create_async_engine(os.environ["DATABASE_URL_MIGRATIONS"])
@@ -243,9 +253,11 @@ def test_sube_con_backfill_de_la_franja_asignada_y_la_columna_queda_not_null(
     creado = AHORA - timedelta(days=30)
     turno_id = empresa.turno(AHORA + timedelta(days=3), creado=creado, viejo=True)
 
-    antes = datetime.now(tz=UTC)
+    # Ambos extremos salen del reloj de la base (el `now()` de la migración también): el reloj
+    # de Python puede estar desfasado respecto de una base remota.
+    antes = _reloj_de_la_base()
     command.upgrade(_config(), "head")
-    despues = datetime.now(tz=UTC)
+    despues = _reloj_de_la_base()
 
     [(valor,)] = asyncio.run(_leer(LEER_FRANJA_ASIGNADA, {"id": turno_id}))
     assert isinstance(valor, datetime)
