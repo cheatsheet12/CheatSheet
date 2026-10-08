@@ -343,6 +343,14 @@ describe("Agenda · vista Mes", () => {
     );
   });
 
+  it("con `vistaInicial` en mes abre directo en la grilla, sin pasar por la lista", async () => {
+    render(<AgendaDelDia inicial={{ turnos: [A] }} vistaInicial="mes" {...props} />);
+
+    expect(screen.getByText("octubre de 2026")).toBeTruthy();
+    expect(await screen.findAllByRole("gridcell")).toHaveLength(35);
+    expect(listarTurnos).not.toHaveBeenCalled();
+  });
+
   it("navega por mes con ‹ y › y vuelve con Hoy", async () => {
     listarTurnos.mockResolvedValue({ turnos: [] });
     render(<AgendaDelDia inicial={{ turnos: [] }} {...props} />);

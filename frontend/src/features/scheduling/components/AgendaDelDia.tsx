@@ -44,6 +44,11 @@ import type { NombresDeAgenda } from "./nombres";
 
 export interface PropsDeAgendaDelDia {
   readonly inicial: ListadoDeTurnos;
+  /**
+   * La vista con la que abre la agenda. `inicial` tiene que corresponder a esa vista: la de
+   * mes necesita los turnos de las semanas que dibuja la grilla, no la lista por defecto.
+   */
+  readonly vistaInicial?: VistaDeAgenda;
   readonly recursos: readonly Recurso[];
   /** Administrador y Operador reservan; Solo Lectura sólo mira (HU-E7-01 RN-03). */
   readonly puedeGestionar: boolean;
@@ -93,6 +98,7 @@ function parametrosDe(
 
 export function AgendaDelDia({
   inicial,
+  vistaInicial = "lista",
   recursos,
   puedeGestionar,
   clientes = [],
@@ -103,7 +109,7 @@ export function AgendaDelDia({
   const [ahora, setAhora] = useState(() => hoy ?? new Date().toISOString());
   const [listado, setListado] = useState<ListadoDeTurnos>(inicial);
   const [filtros, setFiltros] = useState<FiltrosDeAgenda>({});
-  const [vista, setVista] = useState<VistaDeAgenda>("lista");
+  const [vista, setVista] = useState<VistaDeAgenda>(vistaInicial);
   const [ancla, setAncla] = useState(() => diaDe(hoy ?? new Date().toISOString()));
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
