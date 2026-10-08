@@ -73,6 +73,8 @@ class MensajeSalida(BaseModel):
     estado_entrega: str | None
     #: HU-E9-01 RN-04: lo que hace que la pantalla distinga al operador del agente.
     origen: str | None
+    #: Por qué falló un saliente (U7): un código de Meta o una clase corta, nunca el texto del error.
+    motivo_de_falla: str | None
 
 
 class ConversacionSalida(BaseModel):
@@ -121,6 +123,7 @@ def _a_mensaje(mensaje: Mensaje) -> MensajeSalida:
         intencion=mensaje.intencion.value if mensaje.intencion else None,
         estado_entrega=mensaje.estado_entrega.value if mensaje.estado_entrega else None,
         origen=mensaje.origen.value if mensaje.origen else None,
+        motivo_de_falla=mensaje.motivo_de_falla,
     )
 
 
