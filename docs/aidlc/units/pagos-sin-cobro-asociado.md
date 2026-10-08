@@ -288,7 +288,7 @@ Responder en bloque (por ejemplo «todas con la recomendación» o «P4: b»).
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-07 | Aprobado por Luciano con las recomendaciones de las 11 preguntas: 1 (a) no cambia la creación del cobro; 2 sí; 3 (a); 4 (a); 5 sí; 6 no se registran; 7 (a) `pago_sin_imputar`; 8 pantalla fuera de la unidad; 9 se incluye; 10 sin ADR; 11 `PagoSinImputar` |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
