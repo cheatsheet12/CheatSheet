@@ -156,3 +156,15 @@ archivos que git vuelve a convertir en el próximo checkout. La verificación lo
 
 El arreglo de fondo es un `.gitattributes` con `* text=auto eol=lf`, y **no es de este épico**:
 toca el repositorio entero y merece su propio cambio, con la renormalización que implica.
+
+### 15. No hay pantalla para los pagos sin imputar ni forma de imputarlos a mano · **historia nueva**
+
+La unidad `pagos-sin-cobro-asociado` registra todo pago aprobado que no se pudo imputar (sin cobro,
+cobro ya pagado o monto distinto) en `pago_sin_imputar` y avisa con una notificación de severidad
+alta. **Hoy la visibilidad es ese aviso y la bitácora**: no hay HU ni prototipo para listarlos,
+filtrarlos ni resolverlos.
+
+Falta, y necesita una historia de usuario antes de construirse: la pantalla (listado por empresa,
+con motivo, monto, referencia y cobro encontrado) y la operación de **imputar a mano** un pago a un
+cobro, que mueve plata y por eso no se improvisa. También la **devolución** de un pago de más
+(`COBRO_YA_PAGADO`), que hoy se hace por fuera del sistema. Dueño: una historia nueva del épico 6.

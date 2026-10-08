@@ -134,7 +134,9 @@ devolvieron 404/403 a la consulta automática; por eso la fuente de los campos e
 ## Infraestructura
 
 - **Migraciones**: una de Alembic, **número = el siguiente libre al mergear** (hoy el head de
-  `develop` es `0035`; `down_revision` al head real en ese momento).
+  `develop` es `0035`; `down_revision` al head real en ese momento). En esta rama quedó como
+  `0036_pago_sin_imputar.py` (`down_revision = "0035"`); **se renumera y se re-apunta al integrar**
+  si `develop` tomó el número.
   - Tabla `pago_sin_imputar`: `id UUID PK`, `empresa_id UUID NOT NULL` (FK a `empresa`),
     `mp_payment_id VARCHAR(120) NOT NULL`, `referencia_externa VARCHAR(256) NULL`,
     `cobro_id UUID NULL` (FK a `cobro`), `motivo VARCHAR(20) NOT NULL` con `CHECK` sobre los tres
@@ -172,23 +174,26 @@ devolvieron 404/403 a la consulta automática; por eso la fuente de los campos e
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/payments/domain/pago_sin_imputar.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/ports.py` (`PagoRecibido.referencia_externa`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/ports_de_pagos.py` (nuevo: `PortRepositorioPagoSinImputar`)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/confirmacion.py` (búsqueda, motivos, registro)
-- [ ] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (`RegenerarLink` invalida el anterior, si P9)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/pasarela.py` (`external_reference`, `_preferencia_de`)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/pasarela_simulada.py`
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/models.py` (`PagoSinImputarORM`)
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/repositorio_pago_sin_imputar.py` (nuevo)
-- [ ] `backend/src/cheatsheet/api/routers/webhooks.py` (armar el repositorio nuevo)
-- [ ] `backend/migrations/versions/00NN_pago_sin_imputar.py` (nuevo)
-- [ ] `backend/tests/contexts/payments/domain/test_pago_sin_imputar.py` (nuevo)
-- [ ] `backend/tests/contexts/payments/application/test_confirmacion.py`
-- [ ] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py` (regenerar, si P9)
-- [ ] `backend/tests/contexts/payments/infrastructure/test_pasarela_contrato.py`
-- [ ] `backend/tests/integracion/test_pagos_sin_imputar_postgres.py` (nuevo)
-- [ ] `backend/tests/integracion/test_api_mercadopago.py` (webhook de punta a punta)
+- [x] `backend/src/cheatsheet/contexts/payments/domain/pago_sin_imputar.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/payments/application/ports.py` (`PagoRecibido.referencia_externa`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/ports_de_pagos.py` (nuevo: `PortRepositorioPagoSinImputar`)
+- [x] `backend/src/cheatsheet/contexts/payments/application/confirmacion.py` (búsqueda, motivos, registro)
+- [x] `backend/src/cheatsheet/contexts/payments/application/cobros.py` (`RegenerarLink` invalida el anterior, si P9)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/pasarela.py` (`external_reference`, `_preferencia_de`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/pasarela_simulada.py`
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/models.py` (`PagoSinImputarORM`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/repositorio_pago_sin_imputar.py` (nuevo)
+- [x] `backend/src/cheatsheet/api/routers/webhooks.py` (armar el repositorio nuevo; el cableado vive en `infrastructure/ensamblado.py`, también tocado)
+- [x] `backend/migrations/versions/0036_pago_sin_imputar.py` (nuevo; número provisorio, se renumera al integrar)
+- [x] `backend/tests/contexts/payments/domain/test_pago_sin_imputar.py` (nuevo)
+- [x] `backend/tests/contexts/payments/application/test_confirmacion.py`
+- [x] `backend/tests/contexts/payments/application/test_cobros_y_recordatorios.py` (regenerar, si P9)
+- [x] `backend/tests/contexts/payments/infrastructure/test_pasarela_contrato.py`
+- [x] `backend/tests/integracion/test_pagos_sin_imputar_postgres.py` (nuevo; solo CI)
+- [x] `backend/tests/integracion/test_migracion_0036.py` (nuevo; solo CI)
+- [x] `backend/tests/integracion/conftest.py` (`BORRADOS`: `pago_sin_imputar` antes de `cobro`)
+- [x] `backend/tests/contexts/payments/application/test_pagos_sin_imputar.py` (nuevo)
+- [x] `backend/tests/integracion/test_api_mercadopago.py` (webhook de punta a punta; solo CI)
 
 ### Frontend
 - No aplica (P8).
@@ -197,7 +202,7 @@ devolvieron 404/403 a la consulta automática; por eso la fuente de los campos e
 - [x] `docs/aidlc/units/pagos-sin-cobro-asociado.md` (este plan)
 - [x] `docs/aidlc/units.md` (fila de la unidad: `Rama`, estado)
 - [x] `docs/aidlc/TODO.md` (§20.17–20.19 y §22.43)
-- [ ] `docs/aidlc/epicas/06-cobros-y-recordatorios/pendientes.md` (lo que queda fuera: pantalla e imputación manual)
+- [x] `docs/aidlc/epicas/06-cobros-y-recordatorios/pendientes.md` (#15: la pantalla y la imputación manual)
 
 **Tamaño estimado**: ~750 líneas de autoría (≈ 300 de código, ≈ 400 de tests, ≈ 50 de migración).
 Supera la referencia de 400; se entrega en dos commits de unidad de trabajo (1: lectura de
@@ -211,24 +216,24 @@ escriben y los confirma la CI.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | RED: `consultar_pago` con un cuerpo de pago real (`external_reference`, `order: {id, type}`, sin `preference_id`) devuelve `referencia_externa` y **no** toma `order.id` como preferencia | contrato (ACL) | pendiente |
-| 2 | RED: un pago aprobado con `referencia_externa` = id de un cobro `PENDIENTE` y sin preferencia lo aprueba (estado, `mp_payment_id`, saldo del comprobante, bitácora `confirmar_pago`) | unit | pendiente |
-| 3 | Un pago con la preferencia y sin referencia sigue encontrándose por preferencia (compatibilidad) | unit | pendiente |
-| 4 | Referencia que no es un UUID, o UUID sin cobro → `PagoSinImputar(SIN_COBRO)`, evento `pago_sin_imputar` con `Resultado.ERROR`, ningún cobro tocado | unit | pendiente |
-| 5 | RED: segundo pago (otro `payment_id`) sobre un cobro `APROBADO` → `COBRO_YA_PAGADO` con `cobro_id`; el cobro y el saldo no cambian | unit | pendiente |
-| 6 | Monto distinto (`1210.02` contra `1210.01`) → `MONTO_DISTINTO`, el cobro sigue `PENDIENTE`; `1210.005` contra `1210.01` aprueba | unit | pendiente |
-| 7 | Pago no aprobado (`pending`, `in_process`) sin cobro → no se registra nada (como hoy) | unit | pendiente |
-| 8 | RED: la misma notificación de un pago sin imputar dos veces → una fila, un evento, una sola llamada a la pasarela | unit | pendiente |
-| 9 | Pago sobre cobro `CANCELADO` sigue por `registrar_pago_huerfano` sin cambios | unit | pendiente |
-| 10 | El monto del pago sin imputar se guarda en `Decimal` desde el texto, redondeado `ROUND_HALF_UP` | unit (dominio) | pendiente |
-| 11 | RED (si P9): regenerar el link invalida la preferencia anterior; si la invalidación falla, no se guarda el link nuevo y no hay bitácora | unit | pendiente |
-| 12 | `PagoSinImputar` sobrevive la ida y vuelta en PostgreSQL con `Numeric(14,2)` | integración (PostgreSQL) | pendiente |
-| 13 | RLS: la empresa B no ve los pagos sin imputar de A; una referencia con el id de un cobro de A recibida por B queda `SIN_COBRO` en B | integración (PostgreSQL) | pendiente |
-| 14 | Dos inserciones concurrentes del mismo `(empresa, payment_id)` → una fila; la segunda se traduce a «ya registrado», no a 500 | integración (PostgreSQL) | pendiente |
-| 15 | La migración sube y baja limpia | integración (PostgreSQL) | pendiente |
-| 16 | Webhook de punta a punta: pago sin cobro → 200, fila y notificación de severidad alta | integración (API) | pendiente |
-| 17 | En sandbox: los campos reales del pago, monto y reproceso (§20.17–20.19) | manual | pendiente: `TODO.md` §20.17–20.19 |
-| 18 | En staging (Render): regenerar un link, pagar el viejo y ver que se rechaza (si P9) o que se imputa; pagar dos veces y ver el aviso | manual | pendiente: `TODO.md` §22.43 |
+| 1 | RED: `consultar_pago` con un cuerpo de pago real (`external_reference`, `order: {id, type}`, sin `preference_id`) devuelve `referencia_externa` y **no** toma `order.id` como preferencia | contrato (ACL) | hecho · RED observado (`AttributeError`: `PagoRecibido` no tenía `referencia_externa`) · `test_pasarela_contrato.py` |
+| 2 | RED: un pago aprobado con `referencia_externa` = id de un cobro `PENDIENTE` y sin preferencia lo aprueba (estado, `mp_payment_id`, saldo del comprobante, bitácora `confirmar_pago`) | unit | hecho · RED observado (2 fallas: sin preferencia el pago no encontraba el cobro y quedaba en el log) · `test_pagos_sin_imputar.py` |
+| 3 | Un pago con la preferencia y sin referencia sigue encontrándose por preferencia (compatibilidad) | unit | hecho · pasa antes y después (compatibilidad): no RED por diseño |
+| 4 | Referencia que no es un UUID, o UUID sin cobro → `PagoSinImputar(SIN_COBRO)`, evento `pago_sin_imputar` con `Resultado.ERROR`, ningún cobro tocado | unit | hecho · RED observado (`TypeError`: `ConfirmarPago` sin `sin_imputar`) · tres variantes: sin referencia, no UUID, UUID sin cobro |
+| 5 | RED: segundo pago (otro `payment_id`) sobre un cobro `APROBADO` → `COBRO_YA_PAGADO` con `cobro_id`; el cobro y el saldo no cambian | unit | hecho · RED observado (igual que el 4) · y los tres tests viejos de «otro `payment_id` sobre cobro cerrado» ahora afirman `sin_imputar` |
+| 6 | Monto distinto (`1210.02` contra `1210.01`) → `MONTO_DISTINTO`, el cobro sigue `PENDIENTE`; `1210.005` contra `1210.01` aprueba | unit | hecho · RED observado · incluye el caso sin `transaction_amount` (se aprueba como antes) |
+| 7 | Pago no aprobado (`pending`, `in_process`) sin cobro → no se registra nada (como hoy) | unit | hecho · parametrizado con `pending`, `in_process`, `rejected`, `authorized` |
+| 8 | RED: la misma notificación de un pago sin imputar dos veces → una fila, un evento, una sola llamada a la pasarela | unit | hecho · RED observado · más la carrera: la lectura previa no lo ve y el índice lo rechaza, sin segundo evento |
+| 9 | Pago sobre cobro `CANCELADO` sigue por `registrar_pago_huerfano` sin cambios | unit | hecho · regresión, no RED |
+| 10 | El monto del pago sin imputar se guarda en `Decimal` desde el texto, redondeado `ROUND_HALF_UP` | unit (dominio) | hecho · RED observado (`ModuleNotFoundError` de `pago_sin_imputar`) · `test_pago_sin_imputar.py` |
+| 11 | RED (si P9): regenerar el link invalida la preferencia anterior; si la invalidación falla, no se guarda el link nuevo y no hay bitácora | unit | hecho · RED observado (2 fallas) · más: regenerar un cobro sin link no invalida nada |
+| 12 | `PagoSinImputar` sobrevive la ida y vuelta en PostgreSQL con `Numeric(14,2)` | integración (PostgreSQL) | hecho · escrito, **solo CI** (PostgreSQL) · `test_pagos_sin_imputar_postgres.py` |
+| 13 | RLS: la empresa B no ve los pagos sin imputar de A; una referencia con el id de un cobro de A recibida por B queda `SIN_COBRO` en B | integración (PostgreSQL) | hecho · escrito, **solo CI** (PostgreSQL), con la referencia cruzada por `ConfirmarPago` real |
+| 14 | Dos inserciones concurrentes del mismo `(empresa, payment_id)` → una fila; la segunda se traduce a «ya registrado», no a 500 | integración (PostgreSQL) | hecho · escrito, **solo CI** (PostgreSQL), con `asyncio.gather` y el `IntegrityError` ajeno que no se traga |
+| 15 | La migración sube y baja limpia | integración (PostgreSQL) | hecho · escrito, **solo CI** (PostgreSQL) · `test_migracion_0036.py` |
+| 16 | Webhook de punta a punta: pago sin cobro → 200, fila y notificación de severidad alta | integración (API) | hecho · escrito, **solo CI** (PostgreSQL y Redis) · `test_api_mercadopago.py` (sin cobro y camino feliz) |
+| 17 | En sandbox: los campos reales del pago, monto y reproceso (§20.17–20.19) | manual | pendiente: `TODO.md` §20.17–20.19 (sandbox) |
+| 18 | En staging (Render): regenerar un link, pagar el viejo y ver que se rechaza (si P9) o que se imputa; pagar dos veces y ver el aviso | manual | pendiente: `TODO.md` §22.43 (staging) |
 
 ## Verificaciones que no se pueden hacer sin sandbox o navegador
 
@@ -284,6 +289,73 @@ Responder en bloque (por ejemplo «todas con la recomendación» o «P4: b»).
 11. **Nombre del lenguaje ubicuo.** `PagoSinImputar` / `pago_sin_imputar` (cubre los tres motivos)
     en lugar de `PagoSinCobro`. **Recomendación: `PagoSinImputar`.**
 
+## Estado de la implementación (2026-10-07)
+
+Tres commits de trabajo en la rama: (1) lectura de `external_reference`, búsqueda por referencia y
+`RegenerarLink` que invalida el link anterior; (2) `PagoSinImputar`, tabla, repositorio, alerta y
+cableado del webhook; (3) documentación. Gates locales (con el `.venv` del repo principal y
+`PYTHONPATH` al worktree): `ruff format --check`, `ruff check`, `mypy` y `pytest` verdes; los tests
+contra PostgreSQL y Redis quedan para la CI del PR (no hay Docker local, y **nunca** se corren
+contra Neon ni staging) y `test_guards.sh` no corre local (falta `jq`).
+
+### Hecho
+
+- `PagoRecibido.referencia_externa`; `PasarelaMercadoPago.consultar_pago` la lee de
+  `external_reference`; `_preferencia_de` ya no cae en `order.id` (la merchant order).
+- `ConfirmarPago._encontrar`: primero la referencia (UUID válido, `buscar_por_id` bajo RLS), después
+  la preferencia. `PasarelaSimulada` devuelve la referencia del cobro que creó el link.
+- `RegenerarLink` crea el link nuevo, **invalida el anterior** y recién entonces guarda y registra; si
+  la invalidación falla, no se guarda nada.
+- `PagoSinImputar` / `MotivoSinImputar` (dominio), `PortRepositorioPagoSinImputar` (puerto aparte),
+  `RegistrarPagoSinImputar` (aplicación, en su propio módulo: `confirmacion.py` quedó en 306 líneas),
+  `RepositorioPagoSinImputarPostgres` y migración `0036`.
+- `ConfirmarPago`: orden completo del diseño. `ResultadoDeConfirmacion.sin_imputar`.
+
+### Decisiones tomadas al implementar (ninguna cambia una respuesta del Gate 1)
+
+- **Migración `0036`**: el head de esta rama es `0035`. El número es provisorio y se renumera al
+  integrar si `develop` lo tomó (lo dice el docstring de la migración).
+- **`CHECK` extra `ck_pago_sin_imputar_cobro`** `(motivo = 'SIN_COBRO') = (cobro_id IS NULL)`: el plan
+  decía «`cobro_id` cuando lo hay»; el dominio ya lo exige y el esquema lo repite, como en
+  `reembolso`.
+- **Referencia larga**: se acota a 256 caracteres en vez de rechazarla; un `external_reference` de un
+  tercero no puede tumbar el registro de un pago que entró.
+- **Pago aprobado sin `transaction_amount`**: se aprueba como antes (no hay con qué contradecir al
+  cobro). Solo un monto informado y distinto da `MONTO_DISTINTO`.
+- **Repetición de un pago sin imputar**: `aprobado=False, ya_procesado=True, sin_imputar=True`, sin
+  llamar a MercadoPago ni volver a avisar. Si dos notificaciones compiten, la que pierde el índice
+  único devuelve lo mismo y no publica evento.
+- **`ConfirmarPago` exige `sin_imputar`** (argumento obligatorio): no hay forma de construirlo sin
+  registro y volver a perder pagos en silencio.
+- **Tests existentes cambiados por P4**: los tres que afirmaban `ya_procesado` para «otro
+  `payment_id` sobre un cobro cerrado» (aprobado, aprobado con fecha, reembolsado) ahora afirman
+  `sin_imputar` y, el último, el evento `pago_sin_imputar`. El mismo `payment_id` sigue siendo
+  idempotencia.
+- **Orden en `RegenerarLink`**: la invalidación va antes de `guardar`. Si MercadoPago confirma y
+  `guardar` falla después, el cobro queda con el link viejo muerto: se resuelve repitiendo
+  «regenerar» (la invalidación es idempotente). La preferencia nueva de una invalidación fallida
+  queda sin publicar en MercadoPago, mismo riesgo aceptado que en P1.
+- **Notificación**: el texto lo arma `NotificarPorEventos` («`pago_sin_imputar` falló sobre
+  `PagoSinImputar:<id>`»); no se tocó `observability`.
+
+### Evidencia RED
+
+- Caso 1: `AttributeError: 'PagoRecibido' object has no attribute 'referencia_externa'`.
+- Casos 2 y 3: 2 fallas de 3 (el pago con referencia y sin preferencia quedaba en el log
+  `webhook_sin_cobro_asociado`); el 3 pasa antes y después.
+- Casos 4–9: 36 fallas por `TypeError` (`ConfirmarPago` sin `sin_imputar`) antes de implementar.
+- Caso 10: `ModuleNotFoundError` de `domain.pago_sin_imputar`.
+- Caso 11: 2 fallas (no invalidaba; no fallaba al fallar la invalidación).
+- Casos 12–16: escritos para la CI, sin RED local.
+
+### Huecos para el dueño
+
+- Correr en la CI los casos 12–16 y `test_guards.sh`; renumerar `0036` si corresponde.
+- §20.17–20.19 y §22.43 siguen abiertos. Si el sandbox muestra que el pago no trae
+  `external_reference`, falta el plan B de §20.17 (la merchant order).
+- La pantalla para listar o resolver pagos sin imputar y la imputación manual quedan en
+  `epicas/06-cobros-y-recordatorios/pendientes.md` #15.
+
 ## Registro
 
 | Gate | Fecha | Resultado |
@@ -293,3 +365,6 @@ Responder en bloque (por ejemplo «todas con la recomendación» o «P4: b»).
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
+
+- Las del Gate 1 están en la fila de la tabla de arriba; las de la implementación, en «Estado de
+  la implementación».
