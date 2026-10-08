@@ -250,6 +250,12 @@ lo dice (`MensajeriaSaturada`). Incierto, permanente (incluido 131047) o error p
 
 **Errores** — `RecordatorioDeTurnoDuplicado` en `scheduling/application/errors.py` (82 líneas).
 
+**Regla de agenda malformada (hallazgo de la revisión del tramo 1).** `interpretada_como_agenda()`
+levanta `EntradaInvalida` si la fila guardada está mal formada. El barrido (tramos 2 y 3) debe
+atraparla **por empresa**: registrar un log (`recordatorios_de_turno_agenda_invalida`, solo con
+`empresa_id` y `regla_id`, sin datos personales) y saltear esa empresa, de modo que una fila
+corrupta nunca aborte el barrido completo ni se convierta en un 422 desde un worker.
+
 ### D-U8-6 · Adaptadores y raíz de composición
 
 - `scheduling/infrastructure/recordatorio_por_whatsapp.py` (nuevo, ~150): `RecordatorioPorWhatsApp`
@@ -443,6 +449,7 @@ Tramo 3
 | 33 | Extracción a `shared/`: la suite de payments (recordatorios, reintentos, integración) pasa sin cambios de comportamiento | regresión | 3 | pendiente |
 | 34 | PAN-CFG-NOT: la advertencia aparece si `recordatorio_de_turno` no está aprobada y no aparece si lo está | unit (Vitest) | 3 | pendiente |
 | 35 | `guard_architecture --scan` (R1–R5) y `test_guards.sh` pasan | gate | 1/2/3 | tramo 1: scan verde; `test_guards.sh` falla igual en la base (27/54, entorno Windows) |
+| 36 | Una empresa con la regla de agenda malformada (`interpretada_como_agenda()` levanta `EntradaInvalida`) se saltea con el log `recordatorios_de_turno_agenda_invalida`; las demás empresas del mismo barrido se procesan y el barrido no levanta | caso de uso | 3 | pendiente |
 
 Gates: `ruff format --check . && ruff check . && mypy . && pytest` y, en frontend, `npm run format:check
 && npm run lint && npm run typecheck && npm run test:coverage`. Los casos 14–17, 25, 29 y 30 corren con
@@ -502,6 +509,7 @@ PostgreSQL en la CI.
 |---|---|---|
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas 1–4 |
 | 1 · Plan (re-presentación) | 2026-10-08 | **Aprobado por Luciano el 08/10.** Revalidación contra U6 y U7 del 07/10; once decisiones (D-U8-8 a D-U8-18) y las dos preguntas abiertas resueltas (ver «Decisiones tomadas durante la unidad») |
+| 1 · Revisión del tramo 1 | 2026-10-08 | Correcciones aprobadas por Luciano: prioridad negativa al actualizar la agenda (422), nombre accesible de cada «Quitar», casos de PostgreSQL para prioridad, reactivación y 422, y la nota del caso 36 para el barrido |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
@@ -518,6 +526,16 @@ PostgreSQL en la CI.
 - Desvíos del plan: las rutas `horario-de-atencion` y `agenda` se movieron a un segundo router
   (`_rutas_de_reglas_tipadas`) porque `_rutas` superaba la complejidad 10; el test de API vive en
   `tests/integracion/` (como el del horario) y no en `tests/api/`. `units.md` no cambia.
+
+**Correcciones de la revisión del tramo 1 (08/10).**
+
+- `ReglaDeNegocio.cambiar_prioridad` valida con la misma regla que la construcción;
+  `ConfigurarAgendaDeNotificacion` la usa al actualizar, antes de tocar la regla, así que `PUT
+  /reglas/agenda` con prioridad negativa responde 422 también sobre una regla existente (antes, 500).
+  El mismo defecto en `atencion.py` y en escalamiento queda registrado en `TODO.md` §25.
+- Cada botón «Quitar» de la agenda tiene `aria-label` «Quitar recordatorio N».
+- Tres casos nuevos en `test_agenda_de_notificacion_postgres.py` (se saltean sin base, corren en la CI).
+- Caso 36 y la nota de D-U8-5 sobre la regla malformada, para los tramos 2 y 3.
 
 ## Decisiones tomadas durante la unidad
 
