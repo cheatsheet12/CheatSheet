@@ -13,6 +13,7 @@ from cheatsheet.contexts.business_config.application.agenda import (
     ConsultarAgendaDeNotificacion,
     configuracion_de_agenda_desde,
 )
+from cheatsheet.contexts.business_config.application.errors import AgendaMalFormada
 from cheatsheet.contexts.business_config.application.reglas import MOTIVO_SOLO_ADMIN
 from cheatsheet.contexts.business_config.domain.agenda_de_notificacion import (
     AnticipacionDeRecordatorio,
@@ -210,6 +211,25 @@ async def test_con_dos_reglas_rige_la_de_mayor_prioridad_y_a_igualdad_la_mas_rec
     await reglas.agregar(_regla(_config(3), creada=datetime(2026, 10, 2, tzinfo=UTC)))
     agenda = await ConsultarAgendaDeNotificacion(reglas).ejecutar(empresa_id=EMPRESA)
     assert agenda.anticipaciones_min == (3 * 60,)
+
+
+# --------------------------------------------------------------------- fila corrupta (D-U8-5)
+
+
+@pytest.mark.asyncio
+async def test_una_fila_mal_formada_levanta_agenda_mal_formada_con_el_id_de_la_regla() -> None:
+    """Quien barre (el recordatorio de turno) la distingue por el tipo y por el `regla_id`."""
+    reglas = ReglasFalsas()
+    corrupta = _regla(_config(24))
+    corrupta.configuracion = {"recordatorios": "no es una lista"}
+    await reglas.agregar(corrupta)
+
+    with pytest.raises(AgendaMalFormada) as exc:
+        await ConsultarAgendaDeNotificacion(reglas).ejecutar(empresa_id=EMPRESA)
+
+    assert exc.value.regla_id == corrupta.id
+    assert isinstance(exc.value, EntradaInvalida)
+    assert "no es una lista" not in str(exc.value)
 
 
 # --------------------------------------------------------------------- el formulario

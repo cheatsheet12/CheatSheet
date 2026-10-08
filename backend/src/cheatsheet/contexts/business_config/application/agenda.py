@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
+from cheatsheet.contexts.business_config.application.errors import AgendaMalFormada
 from cheatsheet.contexts.business_config.application.ports import PortRepositorioReglas
 from cheatsheet.contexts.business_config.application.reglas import _exigir_administrador
 from cheatsheet.contexts.business_config.domain.agenda_de_notificacion import (
@@ -29,6 +30,7 @@ from cheatsheet.contexts.business_config.domain.regla import (
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -125,7 +127,13 @@ class ConsultarAgendaDeNotificacion:
         elegida = resolver(candidatas, TipoRegla.AGENDA_DE_NOTIFICACION)
         if elegida is None:
             return AgendaVigente((), configurada=True)
-        return AgendaVigente(elegida.interpretada_como_agenda().anticipaciones_min, True)
+        try:
+            configuracion = elegida.interpretada_como_agenda()
+        except EntradaInvalida as exc:
+            # Una fila corrupta no es una entrada del usuario: quien consulta (un barrido) la
+            # distingue por el tipo y por el `regla_id`, sin el contenido.
+            raise AgendaMalFormada(str(exc), regla_id=elegida.id) from exc
+        return AgendaVigente(configuracion.anticipaciones_min, True)
 
 
 def configuracion_de_agenda_desde(crudo: dict[str, Any]) -> ConfiguracionDeAgenda:

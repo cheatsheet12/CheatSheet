@@ -7,12 +7,13 @@
 con el canal y **nunca levanta**: una falla del canal es un resultado, no una excepción. Así el
 caso de uso puede llamar al canal sin escrituras sin confirmar ni locks (G5).
 
-`PortAislamiento` y `PortTransaccion`, que el caso de uso del barrido necesita, se extraen a
-`shared/` en el tramo siguiente; no se declaran acá.
+`PortAislamiento` y `PortTransaccion`, que el caso de uso del barrido necesita, viven en
+`shared/transaccion.py`; no se declaran acá.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
@@ -39,6 +40,14 @@ class PortRepositorioRecordatoriosDeTurno(Protocol):
 
     async def guardar(self, recordatorio: RecordatorioDeTurno) -> None: ...
 
+    async def buscar_para_actualizar(self, recordatorio_id: UUID) -> RecordatorioDeTurno | None:
+        """La fila **bloqueada** y releída de la base (`SELECT ... FOR UPDATE`).
+
+        Es lo que hace que dos barridos solapados no retomen el mismo reintento: el segundo espera
+        el commit del primero y ve la ventana ya abierta.
+        """
+        ...
+
     async def de_turnos(self, turno_ids: list[UUID]) -> list[RecordatorioDeTurno]:
         """Todas las filas de esos turnos, de cualquier franja y estado."""
         ...
@@ -58,7 +67,13 @@ class PortTurnosPorRecordar(Protocol):
         """Turnos `RESERVADO` o `CONFIRMADO` con `desde < inicio <= hasta`, por inicio."""
         ...
 
-    async def buscar_por_id(self, turno_id: UUID) -> Turno | None: ...
+    async def releer(self, turno_id: UUID) -> Turno | None:
+        """El turno **como está ahora en la base**, no como quedó en la sesión.
+
+        Es la relectura del barrido entre reservar y mandar: si se canceló o se movió mientras
+        tanto, no se manda. Una lectura por clave de la sesión devolvería el objeto ya cargado.
+        """
+        ...
 
 
 class PortAgendaDeNotificacion(Protocol):
@@ -70,6 +85,15 @@ class PortAgendaDeNotificacion(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class PlantillaDelRecordatorio:
+    """La plantilla **aprobada** por la que sale. Los parámetros llevan el nombre: sin `repr`."""
+
+    nombre: str
+    idioma: str
+    parametros: Mapping[str, str] = field(repr=False)
+
+
+@dataclass(frozen=True, slots=True)
 class RecordatorioListo:
     """Todo lo que `mandar` necesita, ya leído. Teléfono y texto quedan fuera del `repr`."""
 
@@ -78,6 +102,8 @@ class RecordatorioListo:
     anticipacion_min: int
     telefono: str = field(repr=False)
     texto: str = field(repr=False)
+    #: La plantilla aprobada, si la hay; sin ella sale el texto de fábrica.
+    plantilla: PlantillaDelRecordatorio | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +135,7 @@ class PortEnvioDeRecordatorioDeTurno(Protocol):
 
 
 __all__ = [
+    "PlantillaDelRecordatorio",
     "PortAgendaDeNotificacion",
     "PortEnvioDeRecordatorioDeTurno",
     "PortRepositorioRecordatoriosDeTurno",

@@ -18,7 +18,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import ColumnElement, delete, literal_column, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -283,15 +283,31 @@ class RepositorioTurnoPostgres:
         Lee `ix_turno_abierto_inicio`, el índice parcial de la migración 0039. Los abiertos son
         `RESERVADO` y `CONFIRMADO`: la misma condición que el índice.
         """
+        # Los estados van como **literales** y no como parámetros enlazados: con parámetros,
+        # PostgreSQL puede usar un plan genérico que no prueba que `estado IN (...)` implica el
+        # predicado del índice parcial, y entonces lo ignora. Son constantes del dominio, nunca
+        # texto del usuario.
+        abiertos: list[ColumnElement[str]] = [
+            literal_column(f"'{estado.value}'") for estado in sorted(ESTADOS_ABIERTOS)
+        ]
         sentencia = (
             select(TurnoORM)
-            .where(TurnoORM.estado.in_([estado.value for estado in ESTADOS_ABIERTOS]))
+            .where(TurnoORM.estado.in_(abiertos))
             .where(TurnoORM.franja_inicio > desde)
             .where(TurnoORM.franja_inicio <= hasta)
             .order_by(TurnoORM.franja_inicio, TurnoORM.id)
         )
         filas = (await self._sesion.execute(sentencia)).scalars().all()
         return [_a_dominio(fila) for fila in filas]
+
+    async def releer(self, turno_id: UUID) -> Turno | None:
+        sentencia = (
+            select(TurnoORM)
+            .where(TurnoORM.id == turno_id)
+            .execution_options(populate_existing=True)
+        )
+        fila = (await self._sesion.execute(sentencia)).scalar_one_or_none()
+        return _a_dominio(fila) if fila is not None else None
 
     async def _flush_o_ocupado(self) -> None:
         try:

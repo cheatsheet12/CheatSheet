@@ -128,7 +128,7 @@ class PlantillasAprobadas(Protocol):
     ) -> PlantillaParaMandar | None: ...
 
 
-def _dia(instante: datetime) -> str:
+def dia_local(instante: datetime) -> str:
     """El día del instante en la hora **del local**, no en UTC (H3).
 
     Un turno leído de la base llega en UTC; sin convertir, el cliente leería una hora tres horas
@@ -137,12 +137,12 @@ def _dia(instante: datetime) -> str:
     return instante.astimezone(ZONA_DE_LA_AGENDA).strftime("%d/%m/%Y")
 
 
-def _hora(instante: datetime) -> str:
+def hora_local(instante: datetime) -> str:
     return instante.astimezone(ZONA_DE_LA_AGENDA).strftime("%H:%M")
 
 
 def _fecha(instante: datetime) -> str:
-    return f"{_dia(instante)} a las {_hora(instante)}"
+    return f"{dia_local(instante)} a las {hora_local(instante)}"
 
 
 def variables_de_aviso(datos: DatosDeAviso) -> dict[str, str]:
@@ -155,12 +155,12 @@ def variables_de_aviso(datos: DatosDeAviso) -> dict[str, str]:
         "nombre": datos.nombre_del_cliente,
         "servicio": datos.servicio,
         "recurso": datos.recurso,
-        "fecha": _dia(datos.inicio),
-        "hora": _hora(datos.inicio),
+        "fecha": dia_local(datos.inicio),
+        "hora": hora_local(datos.inicio),
     }
     if datos.inicio_anterior is not None:
-        variables["fecha_anterior"] = _dia(datos.inicio_anterior)
-        variables["hora_anterior"] = _hora(datos.inicio_anterior)
+        variables["fecha_anterior"] = dia_local(datos.inicio_anterior)
+        variables["hora_anterior"] = hora_local(datos.inicio_anterior)
     return variables
 
 
@@ -258,6 +258,8 @@ __all__ = [
     "PlantillaParaMandar",
     "PlantillasAprobadas",
     "ResultadoLocal",
+    "dia_local",
+    "hora_local",
     "texto_de_cancelacion",
     "texto_de_reprogramacion",
     "texto_de_reserva",
