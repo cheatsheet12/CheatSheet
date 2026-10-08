@@ -75,13 +75,15 @@ class ResultadoLocal:
 
     `falla` es el motivo si no salió (`131047`, `INCIERTO`, `SIN_CANAL`…); `sin_registrar` es que se
     intentó y el mensaje no quedó guardado en la conversación, y `causa` es entonces la clase de la
-    excepción que lo impidió (nunca su texto).
+    excepción que lo impidió (nunca su texto). `transitoria` es que la falla vale otro intento
+    (solo el canal lo sabe); los avisos de turno la ignoran y el recordatorio la usa.
     """
 
     enviado: bool
     falla: str | None = None
     sin_registrar: bool = False
     causa: str | None = None
+    transitoria: bool = False
 
 
 class CanalDeAvisos(Protocol):

@@ -235,6 +235,33 @@ class TestCuandoElCanalFalla:
         assert len(conversaciones.hilos) == 1
         assert (resultado.enviado, resultado.falla) == (False, motivo)
 
+    @pytest.mark.parametrize(
+        ("falla", "transitoria"),
+        [
+            (MensajeriaSaturada("saturada"), True),
+            (EnvioIncierto("sin respuesta"), False),
+            (MensajeRechazado("no", codigo=131047), False),
+            (CanalNoConectado("sin WhatsApp"), False),
+            (RuntimeError("falló"), False),
+        ],
+    )
+    async def test_solo_la_saturacion_es_transitoria(
+        self, falla: Exception, transitoria: bool
+    ) -> None:
+        """**Caso 28.** El mismo criterio que `api/fallas_de_canal._traducir` (U8, P1)."""
+        caso, _, _ = _caso(Canal(falla=falla))
+
+        resultado = await _avisar(caso, uuid4())
+
+        assert resultado.transitoria is transitoria
+
+    async def test_un_envio_que_salio_no_es_transitorio(self) -> None:
+        caso, _, _ = _caso(Canal())
+
+        resultado = await _avisar(caso, uuid4())
+
+        assert (resultado.enviado, resultado.transitoria) == (True, False)
+
     async def test_sin_canal_conectado_no_se_crea_ni_hilo_ni_mensaje(self) -> None:
         """**Caso 25a.** La empresa no usa el canal: llenarle la bandeja de avisos fallidos es ruido."""
         caso, conversaciones, mensajes = _caso(Canal(falla=CanalNoConectado("sin WhatsApp")))
