@@ -172,8 +172,13 @@ class RecordatorioDeTurnoORM(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
-        UniqueConstraint(
-            "turno_id", "anticipacion_min", "franja_inicio", name="uq_recordatorio_de_turno"
+        # Un índice único, como lo crea la migración 0039 (no una restricción de tabla).
+        Index(
+            "uq_recordatorio_de_turno",
+            "turno_id",
+            "anticipacion_min",
+            "franja_inicio",
+            unique=True,
         ),
     )
 
