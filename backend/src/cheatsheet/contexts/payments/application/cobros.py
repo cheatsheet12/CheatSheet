@@ -169,7 +169,18 @@ class RegenerarLink:
         link = await self._pasarela.crear_link(
             empresa_id=empresa_id, cobro=cobro, url_de_retorno=self._url_de_retorno
         )
+        anterior = cobro.link
         cobro.asignar_link(link, ahora)
+        if anterior is not None:
+            # HU-E6-03: «el sistema invalida el anterior». Reemplazar el objeto no mata la
+            # preferencia vieja en MercadoPago: el link sigue pagable hasta su vencimiento. Va
+            # **antes** de guardar: si MercadoPago no confirma, levanta `PasarelaNoDisponible`,
+            # no se guarda el link nuevo ni hay bitácora, y la preferencia nueva queda sin
+            # publicar (nadie recibe su URL). Un pago por el link viejo igual se imputa al cobro
+            # por `external_reference` (`ConfirmarPago`).
+            await self._pasarela.invalidar_link(
+                empresa_id=empresa_id, preference_id=anterior.preference_id, ahora=ahora
+            )
         await self._cobros.guardar(cobro)
 
         await self._publicador.publicar(

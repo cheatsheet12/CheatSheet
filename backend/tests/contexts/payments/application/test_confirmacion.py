@@ -134,9 +134,14 @@ class PasarelaFalsa:
         estado: str = "approved",
         preferencia: str | None = "pref-1",
         fecha_aprobacion: datetime | None = None,
+        referencia: str | None = None,
+        monto: Decimal | None = None,
     ) -> None:
         self.estado = estado
         self.preferencia = preferencia
+        #: El `external_reference` del pago (el id del cobro) y su `transaction_amount`.
+        self.referencia = referencia
+        self.monto = monto
         #: Lo que MercadoPago diría en `date_approved`. `None` es «no lo informó o no se leyó».
         self.fecha_aprobacion = fecha_aprobacion
         self.consultas = 0
@@ -172,6 +177,8 @@ class PasarelaFalsa:
             preference_id=self.preferencia,
             estado=self.estado,
             fecha_aprobacion=self.fecha_aprobacion,
+            referencia_externa=self.referencia,
+            monto=self.monto,
         )
 
     async def invalidar_link(

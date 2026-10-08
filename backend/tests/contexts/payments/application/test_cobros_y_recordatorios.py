@@ -496,6 +496,87 @@ async def test_regenerar_reemplaza_el_link_anterior() -> None:
     assert resultado.link.preference_id == "pref-2"
 
 
+class _OtraPreferencia(PasarelaFalsa):
+    """Crea siempre el link `pref-2`; el cobro de `_cobro()` arranca con `pref-1`."""
+
+    async def crear_link(
+        self, *, empresa_id: EmpresaId, cobro: Cobro, url_de_retorno: str
+    ) -> LinkDePago:
+        del empresa_id, cobro, url_de_retorno
+        return LinkDePago(preference_id="pref-2", url="https://mp.com/x2")
+
+
+async def test_regenerar_invalida_la_preferencia_anterior_en_mercadopago() -> None:
+    """Caso 11 (HU-E6-03: «el sistema invalida el anterior»). Sin esto el link viejo seguía
+    pagable hasta su vencimiento."""
+    cobros, pasarela = CobrosFalsos(), _OtraPreferencia()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    anterior = cobro.link.preference_id if cobro.link else ""
+
+    await RegenerarLink(
+        cobros=cobros, pasarela=pasarela, publicador=PublicadorFalso(), url_de_retorno=URL_RETORNO
+    ).ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=RolUsuario.OPERADOR,
+        cobro_id=cobro.id,
+        ahora=AHORA,
+    )
+
+    assert pasarela.invalidados == [anterior]
+
+
+async def test_si_la_invalidacion_falla_no_se_guarda_el_link_nuevo_ni_hay_bitacora() -> None:
+    """Caso 11. Una operación sobre plata no se hace a medias: el link nuevo nunca se publica."""
+    cobros, publicador = CobrosFalsos(), PublicadorFalso()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+
+    class NoInvalida(_OtraPreferencia):
+        async def invalidar_link(
+            self, *, empresa_id: EmpresaId, preference_id: str, ahora: datetime
+        ) -> None:
+            del empresa_id, preference_id, ahora
+            raise PasarelaNoDisponible("MercadoPago no invalido el link")
+
+    with pytest.raises(PasarelaNoDisponible):
+        await RegenerarLink(
+            cobros=cobros,
+            pasarela=NoInvalida(),
+            publicador=publicador,
+            url_de_retorno=URL_RETORNO,
+        ).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            cobro_id=cobro.id,
+            ahora=AHORA,
+        )
+
+    assert cobros.escrituras == []
+    assert publicador.eventos == []
+
+
+async def test_regenerar_un_cobro_sin_link_no_invalida_nada() -> None:
+    cobros, pasarela = CobrosFalsos(), _OtraPreferencia()
+    cobro = _cobro()
+    cobro.link = None
+    await cobros.agregar(cobro)
+
+    await RegenerarLink(
+        cobros=cobros, pasarela=pasarela, publicador=PublicadorFalso(), url_de_retorno=URL_RETORNO
+    ).ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=RolUsuario.OPERADOR,
+        cobro_id=cobro.id,
+        ahora=AHORA,
+    )
+
+    assert pasarela.invalidados == []
+
+
 async def test_cancelar_un_pagado_usa_el_texto_de_la_historia() -> None:
     cobros = CobrosFalsos()
     cobro = _cobro()

@@ -101,6 +101,10 @@ class PagoRecibido:
     #: lo informó o no se pudo leer: el dominio entonces usa el momento de la confirmación y
     #: marca la fecha como aproximada.
     fecha_aprobacion: datetime | None = None
+    #: El `external_reference` del pago: el id del cobro, que la preferencia manda y MercadoPago
+    #: propaga al pago. Es lo que ata un pago a su cobro aun cuando la preferencia cambió (link
+    #: regenerado). Texto sin interpretar: puede venir vacío o de un cobro de otra cuenta.
+    referencia_externa: str | None = None
 
     @property
     def esta_aprobado(self) -> bool:

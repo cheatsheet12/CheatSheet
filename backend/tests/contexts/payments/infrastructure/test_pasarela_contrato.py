@@ -257,6 +257,72 @@ async def test_el_monto_del_pago_sigue_leyendose_como_decimal() -> None:
     assert pago.esta_aprobado
 
 
+async def test_el_pago_real_se_ata_por_external_reference_y_no_por_la_orden() -> None:
+    """Caso 1. El cuerpo de un pago de Checkout Pro trae `external_reference` y `order`, y **no**
+    `preference_id`: `order.id` es la merchant order, no la preferencia (SDK oficial,
+    `payment/commonTypes.ts`; a confirmar en sandbox, `TODO.md` §20.17)."""
+    cobro_id = uuid4()
+    pago = await _pasarela(
+        Grabadora(
+            _pago(
+                external_reference=str(cobro_id),
+                order={"id": 98765, "type": "mercadopago"},
+                transaction_amount=1210.5,
+            )
+        )
+    ).consultar_pago(empresa_id=EMPRESA, payment_id="1")
+
+    assert pago.referencia_externa == str(cobro_id)
+    assert pago.preference_id is None
+    assert pago.monto == Decimal("1210.5")
+
+
+@pytest.mark.parametrize(
+    "campos",
+    [
+        pytest.param({}, id="ausente"),
+        pytest.param({"external_reference": None}, id="null"),
+        pytest.param({"external_reference": ""}, id="vacia"),
+    ],
+)
+async def test_una_referencia_ausente_o_vacia_es_none(campos: dict[str, Any]) -> None:
+    pago = await _pasarela(Grabadora(_pago(**campos))).consultar_pago(
+        empresa_id=EMPRESA, payment_id="1"
+    )
+
+    assert pago.referencia_externa is None
+
+
+async def test_el_preference_id_explicito_se_sigue_leyendo() -> None:
+    """Compatibilidad: si el cuerpo trae `preference_id`, se usa tal cual."""
+    pago = await _pasarela(Grabadora(_pago(preference_id=PREFERENCIA))).consultar_pago(
+        empresa_id=EMPRESA, payment_id="1"
+    )
+
+    assert pago.preference_id == PREFERENCIA
+
+
+async def test_el_simulado_informa_la_referencia_del_cobro_que_creo_el_link() -> None:
+    """El camino feliz local sigue funcionando: el doble devuelve el id del cobro."""
+    simulada = PasarelaSimulada(Entorno.LOCAL)
+    cobro = Cobro(
+        id=uuid4(),
+        empresa_id=EMPRESA,
+        cliente_id=uuid4(),
+        monto=Decimal("1210.00"),
+        descripcion="Consulta",
+        vence_el=AHORA,
+        created_at=AHORA,
+    )
+    link = await simulada.crear_link(empresa_id=EMPRESA, cobro=cobro, url_de_retorno="https://x")
+
+    pago = await simulada.consultar_pago(
+        empresa_id=EMPRESA, payment_id=f"pago-{link.preference_id}"
+    )
+
+    assert pago.referencia_externa == str(cobro.id)
+
+
 async def test_el_simulado_informa_una_fecha_de_aprobacion_real() -> None:
     """Una demo local no debe mostrar «aproximada»: el doble devuelve la hora actual en UTC."""
     antes = datetime.now(UTC)

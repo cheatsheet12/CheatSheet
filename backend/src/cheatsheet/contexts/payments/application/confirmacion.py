@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from cheatsheet.contexts.payments.application.ports import (
     PagoRecibido,
@@ -109,10 +109,26 @@ class ConfirmarPago:
         return await self._aprobar(empresa_id=empresa_id, cobro=cobro, pago=pago, ahora=ahora)
 
     async def _encontrar(self, pago: PagoRecibido) -> Cobro | None:
-        """A qué cobro corresponde. Por la preferencia, que es lo que nosotros generamos."""
-        if pago.preference_id is None:
-            return None
+        """A qué cobro corresponde: primero por `external_reference`, después por preferencia.
+
+        La referencia es el id del cobro, que la preferencia manda y MercadoPago propaga al
+        pago; sobrevive a un link regenerado, que cambia la preferencia de la fila. Se busca
+        bajo RLS: una referencia con el id de un cobro de **otra** empresa no se ve. La
+        preferencia queda por compatibilidad (el pago de Checkout Pro no la trae, §20.17).
+        """
+        cobro = await self._por_referencia(pago.referencia_externa)
+        if cobro is not None or pago.preference_id is None:
+            return cobro
         return await self._cobros.buscar_por_preference_id(pago.preference_id)
+
+    async def _por_referencia(self, referencia: str | None) -> Cobro | None:
+        if referencia is None:
+            return None
+        try:
+            cobro_id = UUID(referencia)
+        except ValueError:
+            return None
+        return await self._cobros.buscar_por_id(cobro_id)
 
     async def _aprobar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, pago: PagoRecibido, ahora: datetime

@@ -135,8 +135,10 @@ class PasarelaMercadoPago:
         )
         return PagoRecibido(
             payment_id=str(datos.get("id") or payment_id),
-            # `preference_id` no siempre viene; `external_reference` es el id del cobro y sí.
+            # El pago de Checkout Pro no trae `preference_id`: se lo ata por `external_reference`
+            # (el id del cobro). `preference_id` queda solo por compatibilidad (§20.17).
             preference_id=_preferencia_de(datos),
+            referencia_externa=_referencia_de(datos),
             estado=str(datos.get("status") or ""),
             monto=_monto_de(datos),
             fecha_aprobacion=_fecha_de_aprobacion(datos),
@@ -310,8 +312,19 @@ def _texto_de_error(respuesta: httpx.Response) -> str:
 
 
 def _preferencia_de(datos: dict[str, Any]) -> str | None:
-    valor = datos.get("preference_id") or datos.get("order", {}).get("id")
+    """El `preference_id` del cuerpo, si lo trae. **No** cae a `order.id`: ése es el id de la
+    merchant order, no el de la preferencia, y tomarlo por tal ataba el pago a nada."""
+    valor = datos.get("preference_id")
     return str(valor) if valor else None
+
+
+def _referencia_de(datos: dict[str, Any]) -> str | None:
+    """El `external_reference` del pago, o `None` si falta o está vacío."""
+    valor = datos.get("external_reference")
+    if valor is None:
+        return None
+    texto = str(valor).strip()
+    return texto or None
 
 
 def _monto_de(datos: dict[str, Any]) -> Decimal | None:

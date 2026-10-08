@@ -50,6 +50,9 @@ class PasarelaSimulada:
         self.links: dict[str, str] = {}
         self.reembolsos: list[tuple[str, Decimal]] = []
         self.invalidados: list[str] = []
+        #: El `external_reference` de cada preferencia (el id del cobro), como lo propaga
+        #: MercadoPago al pago. Separado de `links`: invalidar una preferencia no lo borra.
+        self._referencias: dict[str, str] = {}
         self._rechazan: set[str] = set()
         self._demoran: set[str] = set()
         #: Lo que ya contestó, por clave: la misma clave devuelve el mismo reembolso, como
@@ -64,6 +67,7 @@ class PasarelaSimulada:
         del empresa_id, url_de_retorno
         preferencia = f"pref-{cobro.id}"
         self.links[preferencia] = str(cobro.id)
+        self._referencias[preferencia] = str(cobro.id)
         if self.PALABRA_DE_RECHAZO in cobro.descripcion.lower():
             self._rechazan.add(preferencia)
         if self.PALABRA_DE_DEMORA in cobro.descripcion.lower():
@@ -88,9 +92,11 @@ class PasarelaSimulada:
 
     async def consultar_pago(self, *, empresa_id: EmpresaId, payment_id: str) -> PagoRecibido:
         del empresa_id
+        preferencia = self._preferencia_de(payment_id)
         return PagoRecibido(
             payment_id=payment_id,
-            preference_id=self._preferencia_de(payment_id),
+            preference_id=preferencia,
+            referencia_externa=self._referencias.get(preferencia),
             estado="approved",
             # La hora actual en UTC, para que una demo local no muestre «aproximada».
             fecha_aprobacion=datetime.now(UTC),
