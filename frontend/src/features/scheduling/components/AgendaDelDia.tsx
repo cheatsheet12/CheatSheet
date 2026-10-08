@@ -34,10 +34,11 @@ import { ErrorDeTurno, MENSAJE_SIN_TURNOS, fechaLargaDe, listarTurnos } from "..
 import type { FiltrosDeAgenda, ListadoDeTurnos, Nombrado } from "../api/turno";
 import type { Recurso } from "../api/recurso";
 import { BarraDeAgenda } from "./BarraDeAgenda";
+import { CalendarioDeMes } from "./CalendarioDeMes";
 import { CalendarioDeTurnos } from "./CalendarioDeTurnos";
 import { IconoDeCalendario, IconoDeMas, IconoDeRecurso } from "./iconos";
 import { ListaDeTurnos } from "./ListaDeTurnos";
-import { diaDe, rangoDeVista, sumarDias } from "./calendario";
+import { diaDe, rangoDeVista, sumarDias, sumarMeses } from "./calendario";
 import type { VistaDeAgenda } from "./calendario";
 import type { NombresDeAgenda } from "./nombres";
 
@@ -60,7 +61,10 @@ export interface PropsDeAgendaDelDia {
   readonly hoy?: string;
 }
 
-/** En un celular una grilla de siete columnas no se lee: las vistas de calendario pasan a lista. */
+/**
+ * En un celular una grilla de siete columnas no se lee: Semana y Día pasan a lista. El Mes sí
+ * entra —se achica a números con puntos—, así que se queda.
+ */
 const CONSULTA_DE_CELULAR = "(max-width: 720px)";
 
 function useEsCelular(): boolean {
@@ -131,7 +135,7 @@ export function AgendaDelDia({
     Boolean(filtros.estado) ||
     Boolean(filtros.desde) ||
     Boolean(filtros.hasta);
-  const enCalendario = vista !== "lista" && !celular;
+  const enCalendario = vista !== "lista" && (!celular || vista === "mes");
 
   async function cargar(
     siguienteVista: VistaDeAgenda,
@@ -186,9 +190,19 @@ export function AgendaDelDia({
     if (vista === "lista") {
       return;
     }
-    const siguiente = sumarDias(ancla, sentido * (vista === "semana" ? 7 : 1));
+    const siguiente =
+      vista === "mes"
+        ? sumarMeses(ancla, sentido)
+        : sumarDias(ancla, sentido * (vista === "semana" ? 7 : 1));
     setAncla(siguiente);
     void cargar(vista, siguiente, filtros);
+  }
+
+  /** Un día de la grilla del mes lleva a la vista Día de esa fecha. */
+  function abrirDia(dia: string): void {
+    setVista("dia");
+    setAncla(dia);
+    void cargar("dia", dia, filtros);
   }
 
   function irAHoy(): void {
@@ -248,7 +262,7 @@ export function AgendaDelDia({
         className="age-contenido"
         aria-busy={cargando}
         data-cargando={cargando ? "true" : undefined}
-        key={`${enCalendario ? vista : "lista"}-${ancla}`}
+        key={`${enCalendario ? vista : "lista"}-${vista === "mes" ? ancla.slice(0, 7) : ancla}`}
       >
         {enCalendario && (
           <>
@@ -260,15 +274,25 @@ export function AgendaDelDia({
                 onLimpiar={limpiar}
               />
             )}
-            <CalendarioDeTurnos
-              vista={vista === "dia" ? "dia" : "semana"}
-              ancla={ancla}
-              hoy={hoyDia}
-              ahora={ahora}
-              turnos={listado.turnos}
-              recursos={recursos}
-              nombres={nombres}
-            />
+            {vista === "mes" ? (
+              <CalendarioDeMes
+                ancla={ancla}
+                hoy={hoyDia}
+                turnos={listado.turnos}
+                nombres={nombres}
+                onDia={abrirDia}
+              />
+            ) : (
+              <CalendarioDeTurnos
+                vista={vista === "dia" ? "dia" : "semana"}
+                ancla={ancla}
+                hoy={hoyDia}
+                ahora={ahora}
+                turnos={listado.turnos}
+                recursos={recursos}
+                nombres={nombres}
+              />
+            )}
           </>
         )}
         {!enCalendario && cantidad > 0 && (
