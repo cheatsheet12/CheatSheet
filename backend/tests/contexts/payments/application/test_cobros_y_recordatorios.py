@@ -46,8 +46,10 @@ from cheatsheet.contexts.payments.application.ports import (
     MetricasDeCobros,
 )
 from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    MensajeListo,
     PasoDeCadena,
     PortEnvioDeRecordatorio,
+    ResultadoDeEnvio,
 )
 from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
 from cheatsheet.contexts.payments.application.recordatorios import (
@@ -102,6 +104,8 @@ class RecordatoriosFalsos:
 
     def __init__(self) -> None:
         self.guardados: list[Recordatorio] = []
+        #: El `para_actualizar` de cada `buscar_por_externo_id`: si se pidió la fila bloqueada.
+        self.busquedas_por_externo_id: list[bool] = []
 
     async def agregar(self, recordatorio: Recordatorio) -> None:
         if any(
@@ -114,6 +118,24 @@ class RecordatoriosFalsos:
     async def guardar(self, recordatorio: Recordatorio) -> None:
         pass
 
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Recordatorio | None:
+        self.busquedas_por_externo_id.append(para_actualizar)
+        return next((uno for uno in self.guardados if uno.externo_id == externo_id), None)
+
+    async def buscar_para_actualizar(self, recordatorio_id: UUID) -> Recordatorio | None:
+        return next((uno for uno in self.guardados if uno.id == recordatorio_id), None)
+
+    async def pendientes_de_reintento(self, ahora: datetime) -> list[Recordatorio]:
+        return [
+            uno
+            for uno in self.guardados
+            if uno.enviado_en is None
+            and uno.proximo_intento_en is not None
+            and uno.proximo_intento_en <= ahora
+        ]
+
     async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]:
         return [uno for uno in self.guardados if uno.cobro_id == cobro_id]
 
@@ -125,16 +147,46 @@ class RecordatoriosFalsos:
         return agrupados
 
 
+def mensaje_de_prueba(cobro: Cobro, canal: str, paso: int) -> MensajeListo:
+    """Lo que `preparar` entrega: un mensaje armado, sin datos reales."""
+    return MensajeListo(
+        cobro_id=cobro.id, paso=paso, canal=canal, telefono="5491100000000", texto="recordatorio"
+    )
+
+
+async def enviar_de_punta_a_punta(
+    envio: PortEnvioDeRecordatorio, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
+) -> ResultadoDeEnvio:
+    """`preparar` y `mandar` seguidos: lo que hace el barrido, para probar un adaptador solo."""
+    preparado = await envio.preparar(empresa_id=empresa_id, cobro=cobro, canal=canal, paso=paso)
+    if isinstance(preparado, ResultadoDeEnvio):
+        return preparado
+    return await envio.mandar(preparado)
+
+
+class RelojDePrueba:
+    """`Reloj` con el instante a mano: el de un barrido a los 4 días del vencimiento por defecto."""
+
+    def __init__(self, instante: datetime | None = None) -> None:
+        self.instante = instante or AHORA + timedelta(days=4)
+
+    def ahora(self) -> datetime:
+        return self.instante
+
+
 class EnvioFalso:
     def __init__(self) -> None:
         self.enviados: list[tuple[UUID, int, str]] = []
 
-    async def enviar(
+    async def preparar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> EstadoEntrega:
+    ) -> MensajeListo | ResultadoDeEnvio:
         del empresa_id
-        self.enviados.append((cobro.id, paso, canal))
-        return EstadoEntrega.ENVIADO
+        return mensaje_de_prueba(cobro, canal, paso)
+
+    async def mandar(self, mensaje: MensajeListo) -> ResultadoDeEnvio:
+        self.enviados.append((mensaje.cobro_id, mensaje.paso, mensaje.canal))
+        return ResultadoDeEnvio(estado=EstadoEntrega.ENVIADO)
 
 
 class AislamientoFalso:
@@ -156,6 +208,24 @@ class AislamientoFalso:
             self.deshechos += 1
             raise
         self.confirmados += 1
+
+
+class TransaccionFalsa:
+    """`PortTransaccion`: cuenta los commits y sabe si hay algo sin confirmar."""
+
+    def __init__(self) -> None:
+        self.bitacora: list[str] = []
+        self.confirmaciones = 0
+        self.sin_confirmar = False
+
+    def escribio(self, que: str) -> None:
+        self.bitacora.append(que)
+        self.sin_confirmar = True
+
+    async def confirmar(self) -> None:
+        self.confirmaciones += 1
+        self.sin_confirmar = False
+        self.bitacora.append("confirmar")
 
 
 class CadenaFalsa:
@@ -726,6 +796,8 @@ def _despachar(
     envio: PortEnvioDeRecordatorio,
     cadena: CadenaFalsa,
     aislamiento: PortAislamiento | None = None,
+    transaccion: TransaccionFalsa | None = None,
+    reloj: RelojDePrueba | None = None,
 ) -> DespacharRecordatorios:
     return DespacharRecordatorios(
         cobros=cobros,
@@ -734,6 +806,8 @@ def _despachar(
         cadena=cadena,
         publicador=PublicadorFalso(),
         aislamiento=aislamiento or AislamientoFalso(),
+        transaccion=transaccion or TransaccionFalsa(),
+        reloj=reloj or RelojDePrueba(),
     )
 
 
@@ -783,10 +857,35 @@ async def test_dos_barridos_solapados_no_mandan_el_mismo_paso_dos_veces() -> Non
     await cobros.agregar(cobro)
     despues = AHORA + timedelta(days=4)
 
-    # El primero deja la fila; el segundo la encuentra ocupada.
-    await recordatorios.agregar(
-        Recordatorio(id=uuid4(), cobro_id=cobro.id, paso=1, canal="WHATSAPP")
+    # El primero deja la fila, con su envío en curso; el segundo la encuentra ocupada.
+    en_curso = Recordatorio(id=uuid4(), cobro_id=cobro.id, paso=1, canal="WHATSAPP")
+    en_curso.iniciar_intento(despues)
+    await recordatorios.agregar(en_curso)
+
+    resultado = await _despachar(cobros, recordatorios, envio, CadenaFalsa()).ejecutar(
+        empresa_id=EMPRESA, ahora=despues
     )
+
+    assert resultado.procesados == 0
+    assert envio.enviados == []
+
+
+async def test_el_indice_unico_ataja_a_un_barrido_que_leyo_antes_que_el_otro() -> None:
+    """La segunda capa de RN-05: el barrido no vio la fila (la leyó antes), calculó el mismo paso e
+    intentó insertarlo. El índice lo rechaza y **no se manda nada**."""
+
+    class NoVeLaFila(RecordatoriosFalsos):
+        async def de_cobros(self, cobro_ids: list[UUID]) -> dict[UUID, list[Recordatorio]]:
+            del cobro_ids
+            return {}
+
+    cobros, recordatorios, envio = CobrosFalsos(), NoVeLaFila(), EnvioFalso()
+    cobro = _cobro(vence_en_dias=0)
+    await cobros.agregar(cobro)
+    despues = AHORA + timedelta(days=4)
+    en_curso = Recordatorio(id=uuid4(), cobro_id=cobro.id, paso=1, canal="WHATSAPP")
+    en_curso.iniciar_intento(despues)
+    await recordatorios.agregar(en_curso)
 
     resultado = await _despachar(cobros, recordatorios, envio, CadenaFalsa()).ejecutar(
         empresa_id=EMPRESA, ahora=despues
@@ -851,15 +950,18 @@ class EnvioQueFallaEn:
         self.llamadas = 0
         self.enviados: list[UUID] = []
 
-    async def enviar(
+    async def preparar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> EstadoEntrega:
-        del empresa_id, canal, paso
+    ) -> MensajeListo | ResultadoDeEnvio:
+        del empresa_id
+        return mensaje_de_prueba(cobro, canal, paso)
+
+    async def mandar(self, mensaje: MensajeListo) -> ResultadoDeEnvio:
         self.llamadas += 1
         if self.llamadas == self._posicion:
             raise self._error
-        self.enviados.append(cobro.id)
-        return EstadoEntrega.ENVIADO
+        self.enviados.append(mensaje.cobro_id)
+        return ResultadoDeEnvio(estado=EstadoEntrega.ENVIADO)
 
 
 async def _tres_cobros_vencidos(cobros: CobrosFalsos) -> list[Cobro]:
@@ -922,6 +1024,8 @@ async def test_un_recordatorio_fallido_se_audita_como_error_y_no_cuenta_como_des
         cadena=CadenaFalsa(),
         publicador=publicador,
         aislamiento=AislamientoFalso(),
+        transaccion=TransaccionFalsa(),
+        reloj=RelojDePrueba(),
     )
 
     resultado = await barrido.ejecutar(empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4))
@@ -971,7 +1075,9 @@ async def test_un_fallo_de_persistencia_en_un_cobro_deshace_solo_ese_cobro() -> 
         cobros, recordatorios, EnvioFalso(), CadenaFalsa(), aislamiento
     ).ejecutar(empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4))
 
-    assert aislamiento.confirmados == 2
+    # Tres savepoints por recordatorio (reservar, releer el cobro y registrar): 3 reservas + 3
+    # relecturas + 2 registros confirmados.
+    assert aislamiento.confirmados == 8
     assert aislamiento.deshechos == 1
     # Los otros dos siguieron: el barrido no se cortó en el que falló.
     assert resultado.procesados == 2
@@ -994,7 +1100,7 @@ async def test_el_log_de_un_cobro_no_persistido_no_lleva_datos_personales() -> N
             empresa_id=EMPRESA, ahora=AHORA + timedelta(days=4)
         )
 
-    eventos = [r for r in registros if r["event"] == "recordatorio_no_persistido"]
+    eventos = [r for r in registros if r["event"] == "recordatorio_resultado_no_persistido"]
     assert len(eventos) == 1
     assert eventos[0]["cobro_id"] == str(cobro.id)
     assert "Ana Diaz" not in repr(registros)

@@ -8,6 +8,7 @@ datos personales.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -37,6 +38,9 @@ from tests.contexts.payments.application.test_cobros_y_recordatorios import (
     AislamientoFalso,
     CadenaFalsa,
     RecordatoriosFalsos,
+    RelojDePrueba,
+    TransaccionFalsa,
+    enviar_de_punta_a_punta,
 )
 from tests.contexts.payments.application.test_confirmacion import CobrosFalsos, PublicadorFalso
 
@@ -76,6 +80,14 @@ class ContactosFalsos:
 CONTACTO = ContactoDeCobro(nombre=NOMBRE, telefono=TELEFONO)
 
 
+class SinPlantillas:
+    """`PlantillasAprobadas` sin ninguna aprobada: el adaptador manda su texto de fábrica."""
+
+    async def para(self, codigo: str, variables: object) -> None:
+        del codigo, variables
+        return
+
+
 class CanalGrabador:
     def __init__(self, *, falla: Exception | None = None) -> None:
         self.enviados: list[tuple[str, str]] = []
@@ -87,11 +99,19 @@ class CanalGrabador:
         self.enviados.append((telefono, texto))
         return "wamid.OK"
 
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, nombre, idioma, parametros
+        raise AssertionError("sin plantilla aprobada nunca se manda una plantilla")
+
 
 async def _enviar(
     envio: EnvioPorWhatsApp, cobro: Cobro, *, canal: str = "WHATSAPP"
 ) -> EstadoEntrega:
-    return await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal=canal, paso=1)
+    return (
+        await enviar_de_punta_a_punta(envio, empresa_id=EMPRESA, cobro=cobro, canal=canal, paso=1)
+    ).estado
 
 
 # --- Caso 16 y 17: el texto ----------------------------------------------------------------
@@ -126,7 +146,9 @@ async def test_un_cobro_sin_link_no_dice_nada_del_link_ni_none() -> None:
 async def test_el_envio_manda_el_texto_al_telefono_del_cliente_y_devuelve_enviado() -> None:
     canal = CanalGrabador()
 
-    estado = await _enviar(EnvioPorWhatsApp(canal, ContactosFalsos(CONTACTO)), _cobro())
+    estado = await _enviar(
+        EnvioPorWhatsApp(canal, ContactosFalsos(CONTACTO), SinPlantillas()), _cobro()
+    )
 
     assert estado is EstadoEntrega.ENVIADO
     assert [telefono for telefono, _ in canal.enviados] == [TELEFONO]
@@ -139,7 +161,9 @@ async def test_el_envio_manda_el_texto_al_telefono_del_cliente_y_devuelve_enviad
 async def test_un_cliente_sin_telefono_queda_fallido_sin_llamar_al_canal() -> None:
     canal = CanalGrabador()
 
-    estado = await _enviar(EnvioPorWhatsApp(canal, ContactosFalsos(None)), _cobro())
+    estado = await _enviar(
+        EnvioPorWhatsApp(canal, ContactosFalsos(None), SinPlantillas()), _cobro()
+    )
 
     assert estado is EstadoEntrega.FALLIDO
     assert canal.enviados == []
@@ -148,7 +172,7 @@ async def test_un_cliente_sin_telefono_queda_fallido_sin_llamar_al_canal() -> No
 @pytest.mark.parametrize("canal_del_paso", ["EMAIL", "PANEL"])
 async def test_un_paso_que_no_es_whatsapp_queda_fallido_con_su_log(canal_del_paso: str) -> None:
     canal = CanalGrabador()
-    envio = EnvioPorWhatsApp(canal, ContactosFalsos(CONTACTO))
+    envio = EnvioPorWhatsApp(canal, ContactosFalsos(CONTACTO), SinPlantillas())
 
     with capture_logs() as registros:
         estado = await _enviar(envio, _cobro(), canal=canal_del_paso)
@@ -169,7 +193,7 @@ async def test_un_paso_que_no_es_whatsapp_queda_fallido_con_su_log(canal_del_pas
 async def test_un_canal_que_levanta_deja_el_recordatorio_fallido_y_nunca_levanta(
     falla: Exception,
 ) -> None:
-    envio = EnvioPorWhatsApp(CanalGrabador(falla=falla), ContactosFalsos(CONTACTO))
+    envio = EnvioPorWhatsApp(CanalGrabador(falla=falla), ContactosFalsos(CONTACTO), SinPlantillas())
 
     assert await _enviar(envio, _cobro()) is EstadoEntrega.FALLIDO
 
@@ -180,7 +204,7 @@ async def test_si_el_directorio_de_contactos_levanta_tampoco_levanta_el_envio() 
             del cliente_id
             raise RuntimeError("la base se cayó")
 
-    envio = EnvioPorWhatsApp(CanalGrabador(), ContactosRotos())
+    envio = EnvioPorWhatsApp(CanalGrabador(), ContactosRotos(), SinPlantillas())
 
     assert await _enviar(envio, _cobro()) is EstadoEntrega.FALLIDO
 
@@ -192,11 +216,12 @@ async def test_ningun_log_lleva_telefono_nombre_ni_texto() -> None:
     cobro = _cobro()
     texto = texto_de_recordatorio(nombre=NOMBRE, cobro=cobro)
     casos = [
-        EnvioPorWhatsApp(CanalGrabador(), ContactosFalsos(CONTACTO)),
-        EnvioPorWhatsApp(CanalGrabador(), ContactosFalsos(None)),
+        EnvioPorWhatsApp(CanalGrabador(), ContactosFalsos(CONTACTO), SinPlantillas()),
+        EnvioPorWhatsApp(CanalGrabador(), ContactosFalsos(None), SinPlantillas()),
         EnvioPorWhatsApp(
             CanalGrabador(falla=RuntimeError(f"fallo con {TELEFONO} y {NOMBRE}")),
             ContactosFalsos(CONTACTO),
+            SinPlantillas(),
         ),
     ]
 
@@ -217,14 +242,18 @@ async def test_ningun_log_lleva_telefono_nombre_ni_texto() -> None:
 async def test_con_el_canal_simulado_el_recordatorio_queda_enviado_como_hoy() -> None:
     simulado = MensajeriaSimulada(Entorno.STAGING)
 
-    estado = await _enviar(EnvioPorWhatsApp(simulado, ContactosFalsos(CONTACTO)), _cobro())
+    estado = await _enviar(
+        EnvioPorWhatsApp(simulado, ContactosFalsos(CONTACTO), SinPlantillas()), _cobro()
+    )
 
     assert estado is EstadoEntrega.ENVIADO
     assert len(simulado.enviados) == 1
 
 
 async def test_sin_canal_en_produccion_el_recordatorio_queda_fallido() -> None:
-    estado = await _enviar(EnvioPorWhatsApp(SinCanal(), ContactosFalsos(CONTACTO)), _cobro())
+    estado = await _enviar(
+        EnvioPorWhatsApp(SinCanal(), ContactosFalsos(CONTACTO), SinPlantillas()), _cobro()
+    )
 
     assert estado is EstadoEntrega.FALLIDO
 
@@ -268,10 +297,12 @@ def _barrido(
     return DespacharRecordatorios(
         cobros=cobros,
         recordatorios=recordatorios,
-        envio=EnvioPorWhatsApp(canal, ContactosFalsos(CONTACTO)),
+        envio=EnvioPorWhatsApp(canal, ContactosFalsos(CONTACTO), SinPlantillas()),
         cadena=CadenaFalsa(),
         publicador=PublicadorFalso(),
         aislamiento=AislamientoFalso(),
+        transaccion=TransaccionFalsa(),
+        reloj=RelojDePrueba(),
     )
 
 

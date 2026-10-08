@@ -28,6 +28,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from cheatsheet.platform.database import Base
+from cheatsheet.shared.externo_id import LARGO_MAXIMO_EXTERNO_ID
 
 TABLA_CONVERSACION = "conversacion"
 TABLA_MENSAJE = "mensaje"
@@ -86,7 +87,9 @@ class MensajeORM(Base):
     #: bitácora: la regla pide distinguirlos y sin la columna no se puede.
     origen: Mapped[str | None] = mapped_column(String(12), nullable=True)
     #: La clave de idempotencia del webhook. Ver el docstring del módulo.
-    externo_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    externo_id: Mapped[str | None] = mapped_column(String(LARGO_MAXIMO_EXTERNO_ID), nullable=True)
+    #: Por qué falló un saliente: el código de Meta o una clase corta (U7, migración 0037).
+    motivo_de_falla: Mapped[str | None] = mapped_column(String(60), nullable=True)
     momento: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (Index("ix_mensaje_hilo_momento", "conversacion_id", "momento"),)

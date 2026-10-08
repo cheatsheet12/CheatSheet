@@ -341,6 +341,23 @@ class TestCancelar:
         assert [clase for clase, _ in escena.notificador.avisos] == ["cancelacion"]
         assert "cancelar_turno" in escena.publicador.acciones
 
+    async def test_el_aviso_lleva_el_cliente_del_turno(self) -> None:
+        """U7, D-U7-4: el aviso se guarda en la conversación de **ese** cliente."""
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno)
+
+        await escena.cancelar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            turno_id=turno.id,
+            ahora=AHORA,
+        )
+
+        ((_, datos),) = escena.notificador.avisos
+        assert datos.cliente_id == turno.cliente_id
+
     async def test_cancela_igual_a_un_cliente_sin_telefono(self) -> None:
         """RN-03 dice «si tiene número registrado»: sin número es un camino previsto."""
         recurso = un_recurso()

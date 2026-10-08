@@ -52,16 +52,9 @@ import {
   tonoDeEstado,
   verCobro,
 } from "../api/cobro";
-import type { DetalleDeCobro as Detalle, Recordatorio } from "../api/cobro";
-import {
-  ICONO_CHAT,
-  ICONO_RELOJ,
-  inicialesDe,
-  referenciaDeCobro,
-  tonoDeCaja,
-  tonoDeEntrega,
-  varianteDeAvatar,
-} from "./presentacion";
+import type { DetalleDeCobro as Detalle } from "../api/cobro";
+import { HitoDeRecordatorio } from "./HitoDeRecordatorio";
+import { inicialesDe, referenciaDeCobro, tonoDeCaja, varianteDeAvatar } from "./presentacion";
 import { AvisosDeReembolso, ReembolsosDeCobro } from "./ReembolsosDeCobro";
 
 export interface PropsDeDetalleDeCobro {
@@ -277,7 +270,7 @@ export function DetalleDeCobro({
             ) : (
               <ol className="cob-timeline">
                 {cobro.recordatorios.map((recordatorio) => (
-                  <Hito key={recordatorio.id} recordatorio={recordatorio} />
+                  <HitoDeRecordatorio key={recordatorio.id} recordatorio={recordatorio} />
                 ))}
               </ol>
             )}
@@ -364,31 +357,5 @@ export function DetalleDeCobro({
         </form>
       </Modal>
     </>
-  );
-}
-
-/**
- * Un eslabón de la cadena de recordatorios.
- *
- * El que todavía no salió se dibuja punteado y dice «Programado» y no un guión: la ausencia
- * de fecha significa que no salió, y eso es distinto de que haya salido y no sepamos qué pasó.
- */
-function Hito({ recordatorio }: { readonly recordatorio: Recordatorio }): JSX.Element {
-  const programado = recordatorio.enviado_en === null;
-  return (
-    <li className={`cob-hito${programado ? " cob-hito--programado" : ""}`}>
-      <span className="cob-hito__icono" aria-hidden>
-        {programado ? ICONO_RELOJ : ICONO_CHAT}
-      </span>
-      <span className="cob-hito__cuerpo">
-        <span className="cob-hito__titulo">Recordatorio {recordatorio.paso}</span>
-        <span className="cob-hito__detalle">
-          {formatearFechaHora(recordatorio.enviado_en)} · {recordatorio.canal}
-        </span>
-      </span>
-      <Badge estado={tonoDeEntrega(recordatorio.estado_entrega)}>
-        {recordatorio.estado_entrega ?? "Programado"}
-      </Badge>
-    </li>
   );
 }

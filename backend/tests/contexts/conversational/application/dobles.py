@@ -18,7 +18,8 @@ personales ni respuestas a una oferta.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta
 from uuid import UUID, uuid4
 
@@ -47,6 +48,12 @@ from cheatsheet.contexts.conversational.domain.seleccion_de_horarios import Hora
 from cheatsheet.contexts.conversational.domain.uso_de_faq import ConteoDeUsos, UsoDeFAQ
 from cheatsheet.shared.auditoria import EventoAuditable
 from cheatsheet.shared.zona_horaria import ZONA_ARGENTINA, MesCalendario
+
+
+@asynccontextmanager
+async def sin_savepoint() -> AsyncIterator[None]:
+    """El `aislar` de los tests en memoria: no hay base, así que no hay savepoint que abrir."""
+    yield
 
 
 class RepositorioConversacionEnMemoria:
@@ -83,6 +90,8 @@ class RepositorioConversacionEnMemoria:
 class RepositorioMensajeEnMemoria:
     def __init__(self, *mensajes: Mensaje) -> None:
         self.mensajes: dict[UUID, Mensaje] = {uno.id: uno for uno in mensajes}
+        #: El `para_actualizar` de cada `buscar_por_externo_id`: si se pidió la fila bloqueada.
+        self.busquedas_por_externo_id: list[bool] = []
 
     async def agregar(self, mensaje: Mensaje) -> None:
         self.mensajes[mensaje.id] = mensaje
@@ -90,7 +99,10 @@ class RepositorioMensajeEnMemoria:
     async def guardar(self, mensaje: Mensaje) -> None:
         self.mensajes[mensaje.id] = mensaje
 
-    async def buscar_por_externo_id(self, externo_id: str) -> Mensaje | None:
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Mensaje | None:
+        self.busquedas_por_externo_id.append(para_actualizar)
         return next((uno for uno in self.mensajes.values() if uno.externo_id == externo_id), None)
 
     async def del_hilo(self, conversacion_id: UUID) -> list[Mensaje]:
@@ -260,6 +272,12 @@ class MensajeriaEnMemoria:
             raise RuntimeError("WhatsApp no responde")
         self.enviados.append((telefono, texto))
         return f"wamid-{len(self.enviados)}"
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, nombre, idioma, parametros
+        raise AssertionError("el agente y el operador contestan con texto, nunca con plantilla")
 
     @property
     def textos(self) -> list[str]:

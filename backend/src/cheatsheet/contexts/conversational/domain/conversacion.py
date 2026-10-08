@@ -88,6 +88,10 @@ class EstadoEntrega(StrEnum):
     FALLIDO = "FALLIDO"
 
 
+#: El largo de la columna `mensaje.motivo_de_falla` (migración 0037).
+LARGO_MAXIMO_MOTIVO_DE_FALLA = 60
+
+
 class Intencion(StrEnum):
     """Las cuatro clases de HS-T2 RN-02, más la que admite no saber.
 
@@ -139,6 +143,9 @@ class Mensaje:
     #: El id que le puso WhatsApp. Es la clave de idempotencia del webhook, igual que
     #: `mp_payment_id` lo es del de MercadoPago (decisión D20 del épico 6).
     externo_id: str | None = None
+    #: Por qué falló un saliente: el código de Meta (`131047`) o una clase corta (`INCIERTO`).
+    #: Nunca el texto que devolvió el canal: puede traer el número.
+    motivo_de_falla: str | None = None
 
     def __post_init__(self) -> None:
         if self.direccion is DireccionMensaje.SALIENTE and self.origen is None:
@@ -146,12 +153,17 @@ class Mensaje:
             # que HU-E9-01 RN-04 pide.
             raise EntradaInvalida("Un mensaje saliente necesita saber quién lo escribió")
 
-    def marcar_entrega(self, estado: EstadoEntrega) -> None:
-        """HU-E8-04 RN-04. Sólo avanza: un `LEIDO` no vuelve a `ENVIADO`.
+    def marcar_entrega(self, estado: EstadoEntrega, *, motivo: str | None = None) -> bool:
+        """HU-E8-04 RN-04. Sólo avanza: un `LEIDO` no vuelve a `ENVIADO`. Devuelve si cambió algo.
 
         WhatsApp manda los callbacks por su cuenta y no garantiza el orden. Sin este piso, un
         `entregado` que llega tarde pisaría un `leído` que ya había llegado, y la pantalla
-        diría que el cliente no leyó algo que leyó.
+        diría que el cliente no leyó algo que leyó. **`FALLIDO` es el veredicto final** de Meta
+        sobre ese `wamid`: es el rango más alto, y nada lo reemplaza (ni otro `FALLIDO`).
+
+        El orden admite saltos (`LEIDO` sin `ENTREGADO`: Meta no manda `delivered` cuando las dos
+        cosas pasan a la vez) y la repetición exacta no cambia nada: es la idempotencia del
+        webhook. `motivo` (el código de Meta) solo se guarda al pasar a `FALLIDO`.
         """
         orden = {
             EstadoEntrega.ENVIADO: 0,
@@ -159,8 +171,13 @@ class Mensaje:
             EstadoEntrega.LEIDO: 2,
             EstadoEntrega.FALLIDO: 3,
         }
-        if self.estado_entrega is None or orden[estado] > orden[self.estado_entrega]:
-            self.estado_entrega = estado
+        if self.estado_entrega is not None and orden[estado] <= orden[self.estado_entrega]:
+            return False
+        self.estado_entrega = estado
+        if estado is EstadoEntrega.FALLIDO and motivo:
+            # Texto informativo: se corta. Nunca se corta un id.
+            self.motivo_de_falla = motivo[:LARGO_MAXIMO_MOTIVO_DE_FALLA]
+        return True
 
 
 @dataclass(slots=True)

@@ -2646,6 +2646,41 @@
   }
 }
 
+/* U6: el estado de una plantilla ante Meta, con lo que Meta dijo, y las acciones por fila. */
+.plt-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.plt-estado__motivo,
+.plt-estado__detalle,
+.plt-nota {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-600);
+}
+
+.plt-estado__aviso {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--warn);
+}
+
+.plt-acciones {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.plt-nota {
+  max-width: 28ch;
+  text-align: right;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
  * Recursos reservables (PAN-AGE-03) — tarjetas, barra de herramientas y editor
  *
@@ -5483,6 +5518,20 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-400);
+}
+
+/* Por qué un saliente no salió (U7): debajo de la burbuja, del lado del que lo mandó. */
+.cv-msg__falla {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-500);
+}
+
+.cv-msg--agente .cv-msg__falla,
+.cv-msg--operador .cv-msg__falla,
+.cv-msg--sistema .cv-msg__falla {
+  text-align: right;
 }
 
 /* Lo que el operador hace, debajo del historial: responder y cerrar. */
