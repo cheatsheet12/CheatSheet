@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 from alembic import command
 from alembic.config import Config
+from cheatsheet.platform.database import argumentos_de_conexion
 from sqlalchemy import TextClause, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -71,7 +72,10 @@ def esquema_en_0025(esquema_migrado: None) -> Iterator[None]:
 
 def _motor() -> AsyncEngine:
     """El rol dueño, que ve todas las empresas (`BYPASSRLS`, ADR-0005) y puede sembrar."""
-    return create_async_engine(os.environ["DATABASE_URL_MIGRATIONS"])
+    return create_async_engine(
+        os.environ["DATABASE_URL_MIGRATIONS"],
+        connect_args=argumentos_de_conexion(os.environ["DATABASE_URL_MIGRATIONS"]),
+    )
 
 
 CREAR_EMPRESA = text("INSERT INTO empresa (id, activa) VALUES (:id, true)")

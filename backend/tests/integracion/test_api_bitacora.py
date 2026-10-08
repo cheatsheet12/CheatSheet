@@ -30,6 +30,7 @@ from cheatsheet.contexts.observability.application.consultas import MOTIVO_SIN_A
 from cheatsheet.contexts.observability.domain.solicitud_de_soporte import (
     MENSAJE_CAMPOS_OBLIGATORIOS,
 )
+from cheatsheet.platform.database import argumentos_de_conexion
 from cheatsheet.platform.settings import Settings
 
 from tests.conftest import settings_de_prueba
@@ -383,7 +384,10 @@ async def _sesion_de_solo_lectura(http: httpx.AsyncClient, empresa_id: str) -> s
     from sqlalchemy.ext.asyncio import create_async_engine
 
     email = f"{uuid4()}@cheatsheet.ar"
-    engine = create_async_engine(os.environ["DATABASE_URL_MIGRATIONS"])
+    engine = create_async_engine(
+        os.environ["DATABASE_URL_MIGRATIONS"],
+        connect_args=argumentos_de_conexion(os.environ["DATABASE_URL_MIGRATIONS"]),
+    )
     async with engine.begin() as conexion:
         await conexion.execute(
             sql(
