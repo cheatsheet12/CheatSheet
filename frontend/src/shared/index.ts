@@ -38,9 +38,11 @@ export type { Columna, PropsDeTabla } from "@/shared/ui/Tabla";
 export {
   formatearFecha,
   formatearFechaHora,
+  formatearHora,
   formatearNumero,
   PREFERENCIAS_POR_DEFECTO,
 } from "@/shared/formato";
+export { motivoDeFalla } from "@/shared/motivos-de-falla";
 export type { PreferenciasDeFormato } from "@/shared/formato";
 export { useAccionConNavegacion } from "@/shared/navegacion";
 export type {

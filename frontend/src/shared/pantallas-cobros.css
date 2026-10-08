@@ -675,6 +675,14 @@
   display: block;
 }
 
+/* Por qué un recordatorio falló o no salió (U7): en castellano, debajo de la fecha. */
+.cob-hito__motivo {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-500);
+  display: block;
+}
+
 .cob-vacio {
   color: var(--ink-400);
   font-size: 13px;
