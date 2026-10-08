@@ -59,6 +59,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Abre el menú ⋯ de la primera fila: Editar y Eliminar viven ahí. */
+function abrirMenu(): void {
+  fireEvent.click(screen.getByRole("button", { name: /Más acciones para/ }));
+}
+
 describe("ListadoDeCategorias", () => {
   it("muestra el nombre y el ambito en palabras", () => {
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
@@ -72,14 +77,16 @@ describe("ListadoDeCategorias", () => {
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar={false} />);
 
     expect(screen.queryByRole("button", { name: "Nueva categoría" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Eliminar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Más acciones/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Eliminar" })).toBeNull();
   });
 
   it("eliminar pide confirmacion, y cancelar no borra nada", () => {
     vi.stubGlobal("confirm", vi.fn().mockReturnValue(false));
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Eliminar" }));
 
     expect(eliminarCategoria).not.toHaveBeenCalled();
   });
@@ -89,7 +96,8 @@ describe("ListadoDeCategorias", () => {
     vi.stubGlobal("confirm", confirmar);
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Eliminar" }));
 
     const texto = String(confirmar.mock.calls[0]?.[0] ?? "");
     expect(texto).toContain("pierden");
@@ -102,7 +110,8 @@ describe("ListadoDeCategorias", () => {
     listarCategorias.mockResolvedValue({ categorias: [] });
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Eliminar" }));
 
     await waitFor(() => {
       expect(eliminarCategoria).toHaveBeenCalledWith(VIP.id);
@@ -156,9 +165,42 @@ describe("ListadoDeCategorias", () => {
   it("editar precarga los datos", () => {
     render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Editar" }));
 
     expect((screen.getByLabelText(/^Nombre/) as HTMLInputElement).value).toBe("VIP");
     expect((screen.getByLabelText(/Se aplica a/) as HTMLSelectElement).value).toBe("AMBOS");
+  });
+
+  it("Eliminar y Editar están dentro del menú ⋯", () => {
+    render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
+
+    expect(screen.queryByRole("menuitem", { name: "Eliminar" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Más acciones para VIP" }));
+
+    expect(screen.getByRole("menuitem", { name: "Editar" })).toBeDefined();
+    expect(screen.getByRole("menuitem", { name: "Eliminar" })).toBeDefined();
+  });
+
+  it("la búsqueda filtra por nombre sin pedir nada a la red", () => {
+    const otra: Categoria = { ...VIP, id: "2", nombre: "Mayorista", aplica_a: "CLIENTE" };
+    render(<ListadoDeCategorias inicial={{ categorias: [VIP, otra] }} puedeEditar />);
+    expect(screen.getByText("2 categorías")).toBeDefined();
+
+    fireEvent.change(screen.getByLabelText(/Buscar/), { target: { value: "mayo" } });
+
+    expect(screen.getByText("1 categoría")).toBeDefined();
+    expect(within(screen.getByRole("table")).queryByText("VIP")).toBeNull();
+    expect(listarCategorias).not.toHaveBeenCalled();
+  });
+
+  it("una búsqueda sin resultados ofrece limpiar los filtros", () => {
+    render(<ListadoDeCategorias inicial={INICIAL} puedeEditar />);
+
+    fireEvent.change(screen.getByLabelText(/Buscar/), { target: { value: "zzz" } });
+
+    expect(screen.getByText("Ninguna categoría coincide")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+    expect(within(screen.getByRole("table")).getByText("VIP")).toBeDefined();
   });
 });

@@ -62,6 +62,8 @@ class CobrosFalsos:
         #: Los cobros que se cargaron con bloqueo de fila: todo camino que suma plata tiene que
         #: estar acá, o dos reembolsos simultáneos se pisan el acumulado.
         self.bloqueados: list[UUID] = []
+        #: Las claves de pedido que `GenerarCobro` buscó (con bloqueo, en el real).
+        self.claves_consultadas: list[UUID] = []
 
     async def agregar(self, cobro: Cobro) -> None:
         self.guardados[cobro.id] = cobro
@@ -80,6 +82,11 @@ class CobrosFalsos:
 
     async def buscar_por_payment_id(self, payment_id: str) -> Cobro | None:
         return next((c for c in self.guardados.values() if c.mp_payment_id == payment_id), None)
+
+    async def buscar_por_clave_bloqueada(self, clave: UUID) -> Cobro | None:
+        """El real toma un bloqueo consultivo y lee; acá se anota la consulta y se busca."""
+        self.claves_consultadas.append(clave)
+        return next((c for c in self.guardados.values() if c.clave_idempotencia == clave), None)
 
     async def buscar_por_preference_id(self, preference_id: str) -> Cobro | None:
         return next(

@@ -22,7 +22,16 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { Alert, Badge, Button, Campo, Modal, formatearFecha, formatearNumero } from "@/shared";
+import {
+  Alert,
+  Badge,
+  Button,
+  Campo,
+  Modal,
+  SelectorDeFecha,
+  formatearFecha,
+  formatearNumero,
+} from "@/shared";
 
 import {
   ETIQUETAS_DE_ORIGEN,
@@ -250,12 +259,11 @@ export function ReembolsosDeCobro({
             value={monto}
             onChange={(evento) => setMonto(evento.target.value)}
           />
-          <Campo
+          <SelectorDeFecha
             id="reembolso-fecha"
             etiqueta="Fecha de devolución"
-            type="date"
             value={fecha}
-            onChange={(evento) => setFecha(evento.target.value)}
+            alCambiar={setFecha}
           />
           <Campo
             id="reembolso-referencia"

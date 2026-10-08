@@ -294,3 +294,113 @@ obligación legal. Se acepta JPEG, PNG y PDF de hasta 10 MB, con límites de tie
 - `conversational` llama a `payments` por su capa de `application` (R3), nunca a su dominio.
 - Límites de intentos (D94) y de frecuencia por teléfono, e idempotencia por mensaje entregado más de
   una vez.
+
+## D99 — el estado del diálogo vive en `conversacion.dialogo`; el cliente elige entre lo que el sistema ofreció
+
+*Unidad `reserva-y-cancelacion-por-whatsapp` · HU-E8-01, HU-E8-02, HS-T2 · cierra los pendientes #5, #17 y #18*
+
+El agente ofrecía horarios y no recordaba cuáles, así que «el primero» no reservaba nada (issue #68), y
+«cancelar» se clasificaba como `TURNO` y recibía una oferta de horarios (issue #69). Arreglarlo exigía
+decidir dónde vive lo que el sistema le ofreció al cliente. Cinco decisiones, juntas porque se apoyan
+unas en otras:
+
+1. **El estado vive en una columna `conversacion.dialogo` (`jsonb`, nullable).** Un solo diálogo pendiente
+   por conversación, con su vencimiento adentro (30 minutos). En el dominio es un value object tipado
+   (`Dialogo`); el JSON existe sólo en el repositorio y lleva una clave `version`, y un JSON ilegible o de
+   una versión desconocida se lee como «sin diálogo»: **nunca se reserva ni se cancela sobre algo que no se
+   pudo leer**. Se apartó del DER, que no tiene columna para esto. Se descartaron *releer los mensajes
+   salientes* (parsear nuestro propio texto libre: cambiar una frase rompería la reserva), *Redis* (no es
+   transaccional con la reserva y un `FLUSHALL` lo pierde, el mismo motivo por el que la idempotencia del
+   webhook vive en PostgreSQL) y *una tabla aparte* (es 1 a 1 con la conversación, mismo ciclo de vida,
+   misma RLS: sería un repositorio y una política más para el mismo dato).
+2. **La respuesta a una oferta la lee un analizador determinista, no el modelo.** Con un diálogo vigente,
+   el mensaje pasa primero por `leer_respuesta` (lista cerrada con límites de palabra, como
+   `pedido_de_persona.py`). Si resuelve sin ambigüedad se actúa **sin llamar al LLM**: cero tokens, ningún
+   dato al proveedor y ninguna acción con efecto que dependa de una salida de modelo (D38). Una afirmación
+   es un mensaje que **es** un «sí» (más cortesías), no uno que lo contiene: «si hay más tarde» pregunta, no
+   confirma. Y un número, una hora o un día sólo eligen si **todo** el mensaje tiene forma de elección
+   («el segundo», «el de las 16 del viernes, por favor»): «quiero un turno el viernes» es un pedido nuevo. Los ids que se reservan o cancelan salen **sólo** del `Dialogo` que armó el sistema.
+3. **`TURNO` sigue siendo una sola intención; reservar o cancelar es una sub-acción extraída.** HS-T2 RN-02
+   enumera cuatro clases y el panel rotula la intención; un quinto valor `CANCELAR` cambiaría las dos. La
+   acción va en `pedido_de_turno.accion` (`RESERVAR`, `CANCELAR`, `REPROGRAMAR`), con el «cuándo» como
+   referencia relativa que el código resuelve en hora argentina: **el modelo no sabe qué día es hoy**.
+   Reprogramar no tiene historia: se ofrece un asesor.
+4. **Los horarios se reparten en el día.** Hasta cuatro, en índices equiespaciados (mañana y tarde), con la
+   franja o la hora que el cliente pidió, repartiendo el cupo entre varios días; sin nada en lo pedido, los
+   siete días siguientes. Antes eran siempre los tres primeros de la grilla del primer recurso (9:00, 9:30 y
+   10:00 de mañana). Cada opción guarda todos los recursos que la tenían libre y se prueba uno por uno antes
+   de decirle al cliente que se ocupó.
+5. **Los datos personales no llegan al modelo.** Antes de llamar al intérprete, el texto y el historial
+   pasan por `ocultar_datos_personales` (correos y secuencias de siete o más dígitos), y **todo saliente**
+   (agente, operador y sistema) se reemplaza por el descriptor de quien lo escribió: del hilo, al modelo
+   sólo le llega lo que escribió el cliente. Las listas de turnos, los ids y las respuestas a una oferta no
+   se le mandan (punto 2). Que también el agente vaya como descriptor se decidió al cerrar el pendiente #20.
+
+**Qué se paga.** Una columna que el DER no tiene; un diálogo que vence a los 30 minutos y obliga a repetir la
+oferta a quien tardó; un analizador de lista cerrada que no entiende todo lo que una persona puede escribir
+(lo que no entiende sigue al intérprete, no se pierde); y un savepoint por cada acción sobre la agenda
+(`AgendaViaScheduling` recibe `begin_nested`) porque la restricción de exclusión de PostgreSQL deja la
+transacción abortada. Un turno con seña no se cancela por WhatsApp: el agente avisa y escala, porque la
+política de seña no existe tipada (pendiente #6).
+
+## D100 — el horario de atención es un cuarto tipo de regla, y la empresa elige su política fuera de horario
+
+*Unidad `politica-fuera-de-horario` · HS-T2 RN-04, HU-E11-01, HU-E8-05 RN-04 · cierra el issue #71 (I-09)*
+
+El agente contestaba igual a las 3 de la mañana que a las 11, y al derivar le decía al cliente «Lo derivo con
+un asesor…» aunque nadie lo fuera a leer hasta el día siguiente. No había dónde cargar un horario ni una
+política. Nueve decisiones, juntas porque se apoyan unas en otras:
+
+1. **Cada empresa elige su política (opción (c), Luciano, 2026-10-05).** Por defecto **(a)**, `AGENTE_RESPONDE`:
+   fuera de horario el agente sigue contestando, reservando y cancelando, y sólo cambia la derivación, que
+   agrega desde cuándo lo atiende un asesor. Alternativa **(b)**, `MENSAJE_FIJO`: el agente no contesta, el
+   mensaje se registra igual y el cliente recibe un único mensaje fijo por período de cierre. **El modelo no se
+   llama** (ni los embeddings).
+2. **Vive en `business_config` como un cuarto `TipoRegla`: `HORARIO_DE_ATENCION`.** Una regla = horario, fechas
+   sin atención y política (una fila, una tarjeta, un interruptor en PAN-CFG-RN). **Se aparta del DER** en un
+   valor del enum `tipo_regla`; `regla_de_negocio.tipo` es `varchar(40)` sin CHECK, así que **no hay migración**.
+   Se descartó una tabla nueva en `conversational` (un agregado más que el DER y `architecture.md` §3 no tienen)
+   y reutilizar `AGENDA_DE_NOTIFICACION` (significa otra cosa y la toma U8). **No hace falta ADR**: el edge
+   `business_config → conversational` ya está en el Context Map, ninguna historia se modifica (HS-T2 RN-04 dice
+   «horario de atención configurado» sin fijar su forma) y es un valor más de un enum ya decidido por D24.
+3. **No es la disponibilidad de los recursos.** Ésta dice cuándo se puede *reservar*; el horario de atención,
+   cuándo *atiende* una persona el canal. Se configuran aparte (PAN-WA-02 y PAN-AGE-03), y una fecha sin
+   atención **no bloquea la agenda**: para eso se carga la excepción del recurso (HU-E7-05). La pantalla lo dice.
+4. **Semántica, por decisión de Gate 1.** Una o más franjas semiabiertas `[desde, hasta)` por día (**horario
+   cortado**), ordenadas, sin superponerse ni tocarse, sin cruzar la medianoche (`hasta` admite `24:00`); el hueco
+   entre franjas es «fuera de horario». **Fechas sin atención** cargadas a mano: el negocio cerrado las 24 horas,
+   sea el día que sea (a lo sumo 200). Todo en hora argentina: una fecha se compara con la fecha local, nunca con
+   la de UTC. El calendario automático de feriados queda fuera (depende de un tercero: pendiente #22).
+5. **JSON `version: 1`, con `fechas_cerradas` opcional al leer.** Ninguna fila existe en ningún ambiente: el tipo
+   nace acá, así que la versión 1 se define ya con franjas múltiples y fechas. Subir a `2` habría sido versionar
+   contra datos que nunca existieron. Cualquier otra versión se rechaza.
+6. **`ConsultarAtencion` es el Open Host Service.** Devuelve `EstadoDeAtencion(configurado, abierto, politica,
+   proxima_apertura, cerrado_desde)` calculado por funciones puras del dominio; `conversational` lo traduce en un
+   ACL (`HorarioViaConfiguracion`) con su propio enum de política. **Sin regla, o con la regla desactivada, la
+   empresa está «siempre abierta»** (no hay horario por defecto: inventarle uno cambiaría su agente sin que nadie
+   lo pidiera) y una regla desactivada deja de aplicarse de inmediato (HU-E11-01 RN-04). Una configuración
+   ilegible se trata como «sin horario» y se registra (`horario_ilegible`): un 500 haría que Meta reintente.
+7. **Horizonte de 366 días.** `proxima_apertura` busca hasta 366 días hacia adelante y devuelve `None` («sin
+   próxima apertura», con su texto sin fecha) si no hay ninguna; `cerrado_desde` busca hacia atrás y, si no
+   encuentra, devuelve `ahora − 366 días`. Al guardar se descartan las fechas anteriores a `hoy − 366 días`.
+8. **«Una vez por período de cierre» sin columna nueva (política (b)).** El agente ya avisó si en el hilo hay un
+   saliente `AGENTE` con `momento ≥ cerrado_desde`. Vale porque, mientras está cerrado, **todo** saliente del
+   agente lleva la información de fuera de horario: el mensaje fijo, el aviso de derivación con hora y **la
+   respuesta a un diálogo que se siguió de noche, que termina con la oración de fuera de horario** (se agrega con
+   `SalidaConPosdata`, sin tocar los pasos de turnos; es el arreglo del choque entre las preguntas 3 y 4 del
+   Gate 1). La respuesta a una oferta anterior al cierre («el primero», «sí») se sigue atendiendo sin el modelo;
+   `PEDIR_CUANDO`, que es texto libre, recibe el fijo. Los avisos `SISTEMA` y del operador no cuentan. En (b) no
+   se escala un mensaje nocturno: queda guardado en la conversación y **no aparece en la vista inicial de
+   PAN-WA-01** (filtrada por escaladas), sólo quitando el filtro.
+9. **Bitácora.** El mensaje fijo publica `responder_fuera_de_horario` con iniciador IA; un mensaje silenciado no
+   publica nada. En business_config: `alta_…` / `editar_regla_de_horario_de_atencion`.
+
+**Qué se paga.** Un valor del enum que el DER no tiene, y que **revertir la unidad con reglas
+`HORARIO_DE_ATENCION` cargadas rompe `GET /reglas` del código viejo** (`TipoRegla(fila.tipo)` levanta
+`ValueError`): hay que desactivar y borrar esas filas a mano antes. Cuatro riesgos aceptados, sin test propio:
+(1) editar el horario de noche recalcula `cerrado_desde` y puede reenviar el mensaje fijo una vez; (2) pasar de
+(a) a (b) de noche cuenta como «ya avisado» las respuestas de (a) de esa noche, que no decían que estaba cerrado;
+(3) cancelar de noche, en (b), un turno con seña manda dos salientes con la misma hora (el de la seña con la
+oración y el aviso de derivación), porque esa continuación manda texto **y** escala; (4) una fecha sin atención
+no bloquea la agenda (punto 3). Y un ajuste sobre el plan: un saliente `FALLIDO` no cuenta como «ya avisado»,
+porque el cliente nunca lo recibió y el siguiente mensaje debe reintentar.

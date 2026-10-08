@@ -146,7 +146,7 @@
 
 .log-accion:hover:not(:disabled) {
   border-color: var(--ink-300);
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 .log-accion:active:not(:disabled) {
@@ -198,7 +198,7 @@
 }
 
 .log-panel .tabla tbody tr:hover td {
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 /* --- PAN-LOG-01 · las celdas densas del prototipo ------------------------------------ */
@@ -850,7 +850,7 @@
 
 .log-aviso__accion:hover:not(:disabled) {
   color: var(--ink-900);
-  background: var(--bg);
+  background: var(--bg-soft);
   border-color: var(--line);
 }
 

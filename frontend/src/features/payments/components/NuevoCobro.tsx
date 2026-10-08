@@ -12,12 +12,14 @@
 
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Card, Select } from "@/shared";
+import { Alert, Button, Campo, Card, Select, useAccionConNavegacion } from "@/shared";
 
 import {
+  CODIGO_CLAVE_REUSADA,
   ErrorDeCobro,
   MENSAJE_MONTO_NO_POSITIVO,
   MENSAJE_SIN_CONCEPTO,
@@ -45,10 +47,19 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
   const [comprobanteId, setComprobanteId] = useState("");
   // El error recuerda de que cliente era: un rechazo del backend («el comprobante no
   // corresponde al cliente elegido») no debe quedar colgado cuando se elige otro cliente.
-  const [fallido, setFallido] = useState<{ mensaje: string; clienteId: string } | null>(null);
-  const [generando, setGenerando] = useState(false);
+  const [fallido, setFallido] = useState<{
+    mensaje: string;
+    clienteId: string;
+    claveReusada: boolean;
+  } | null>(null);
+  // **La clave identifica el pedido** (ADR-0013): una por formulario, la misma en cada envío o
+  // reintento. No se renueva al fallar ni al editar: si el primer pedido llegó pero la respuesta
+  // no (un 504 del BFF), reenviar con la misma clave encuentra el cobro en vez de crear otro.
+  const [clave, setClave] = useState(() => crypto.randomUUID());
+  const { pendiente: generando, ejecutar } = useAccionConNavegacion();
 
-  const error = fallido !== null && fallido.clienteId === clienteId ? fallido.mensaje : null;
+  const visible = fallido !== null && fallido.clienteId === clienteId ? fallido : null;
+  const error = visible !== null ? visible.mensaje : null;
   const sinCliente = clienteId === null;
   const sinConcepto = descripcion.trim() === "";
   // Al cambiar de cliente los comprobantes ofrecidos cambian, y el elegido puede ya no estar:
@@ -65,25 +76,35 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
       return;
     }
     setFallido(null);
-    setGenerando(true);
     try {
-      const cobro = await generarCobro({
-        cliente_id: clienteId,
-        monto,
-        descripcion,
-        comprobante_id: comprobanteVigente === "" ? null : comprobanteVigente,
-      });
-      // Derecho al detalle: es la pantalla que muestra el link recién generado.
-      router.push(`/cobros/${cobro.id}`);
+      await ejecutar(
+        () =>
+          generarCobro(
+            {
+              cliente_id: clienteId,
+              monto,
+              descripcion,
+              comprobante_id: comprobanteVigente === "" ? null : comprobanteVigente,
+            },
+            clave,
+          ),
+        // Derecho al detalle: es la pantalla que muestra el link recién generado. El botón
+        // sigue ocupado hasta que se muestra: un segundo clic generaría un segundo cobro.
+        (cobro, destino) => {
+          // Recién después de un éxito: si el navegador restaura esta pantalla (bfcache), un
+          // nuevo envío es un cobro nuevo y no devuelve el anterior.
+          setClave(crypto.randomUUID());
+          destino.push(`/cobros/${cobro.id}`);
+        },
+      );
     } catch (fallo) {
       // «No se pudo generar el link de pago. Intente nuevamente.» y «El monto no puede superar
       // el saldo pendiente del comprobante.» llegan por acá, con el texto del backend.
       setFallido({
         mensaje: fallo instanceof ErrorDeCobro ? fallo.message : "No se pudo generar el cobro.",
         clienteId,
+        claveReusada: fallo instanceof ErrorDeCobro && fallo.codigo === CODIGO_CLAVE_REUSADA,
       });
-    } finally {
-      setGenerando(false);
     }
   }
 
@@ -103,6 +124,12 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
           {error !== null && (
             <Alert tono="error" titulo="No se pudo generar">
               {error}
+              {visible !== null && visible.claveReusada && (
+                <>
+                  {" "}
+                  <Link href="/cobros">Ver el listado de cobros</Link>
+                </>
+              )}
             </Alert>
           )}
 

@@ -13,6 +13,7 @@
  * contenidos principales.
  */
 
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 export default function PublicLayout({ children }: { readonly children: ReactNode }): JSX.Element {
@@ -21,9 +22,14 @@ export default function PublicLayout({ children }: { readonly children: ReactNod
       {/* El imagotipo de `docs/aidlc/inputs/prototipos/imagotipo.html`: símbolo, «Cheat» en
           primario y «Sheet» en acento. */}
       <div className="acc-marca">
-        <span className="acc-marca__simbolo" aria-hidden="true">
-          CS
-        </span>
+        <Image
+          className="acc-marca__simbolo"
+          src="/logo-simbolo.png"
+          alt=""
+          width={44}
+          height={44}
+          priority
+        />
         <span className="acc-marca__texto">
           <span className="acc-marca__nombre">
             Cheat<em>Sheet</em>

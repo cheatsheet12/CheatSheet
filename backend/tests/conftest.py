@@ -148,6 +148,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         # pasara por el motivo equivocado.
         mercadopago_webhook_secret="secreto-de-prueba",
         mercadopago_url_de_retorno="http://localhost:3000/cobros",
+        mercadopago_url_de_notificaciones="http://localhost:8000",
         mercadopago_autorizacion_ttl_minutos=10,
         google_oauth_client_id="",
         google_oauth_client_secret="",

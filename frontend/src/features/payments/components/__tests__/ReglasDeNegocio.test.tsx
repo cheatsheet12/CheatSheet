@@ -80,6 +80,19 @@ describe("PAN-CFG-RN", () => {
     expect(screen.getByText("Activa")).toBeTruthy();
   });
 
+  it("lista una regla de horario de atención con su rótulo (RN-01)", () => {
+    const horario: ReglaDeNegocio = {
+      ...ESCALAMIENTO,
+      id: "rg2",
+      tipo: "HORARIO_DE_ATENCION",
+      configuracion: { version: 1, politica: "AGENTE_RESPONDE", dias: [], fechas_cerradas: [] },
+    };
+    render(<ReglasDeNegocio inicial={{ reglas: [ESCALAMIENTO, horario] }} puedeEditar />);
+
+    expect(screen.getByText("Horario de atención")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Desactivar" })).toHaveLength(2);
+  });
+
   it("desactiva en vez de eliminar (RN-04)", async () => {
     cambiarEstadoDeRegla.mockResolvedValue({ ...ESCALAMIENTO, activa: false });
     listarReglas.mockResolvedValue({ reglas: [{ ...ESCALAMIENTO, activa: false }] });

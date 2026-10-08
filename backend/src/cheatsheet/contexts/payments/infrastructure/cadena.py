@@ -13,7 +13,7 @@ una pregunta que este contexto no tiene por qué contestar.
 from __future__ import annotations
 
 from cheatsheet.contexts.business_config.application.reglas import ConsultarReglasVigentes
-from cheatsheet.contexts.payments.application.ports import PasoDeCadena
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import PasoDeCadena
 from cheatsheet.shared.empresa import EmpresaId
 
 

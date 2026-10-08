@@ -22,6 +22,8 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
+from cheatsheet.contexts.business_config.domain.horario_de_atencion import ConfiguracionDeAtencion
+from cheatsheet.contexts.business_config.domain.horario_de_atencion_json import desde_json
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida
 
@@ -47,6 +49,8 @@ class TipoRegla(StrEnum):
     ESCALAMIENTO_DE_COBRO = "ESCALAMIENTO_DE_COBRO"
     POLITICA_DE_TURNO = "POLITICA_DE_TURNO"
     AGENDA_DE_NOTIFICACION = "AGENDA_DE_NOTIFICACION"
+    #: Cuándo atiende el negocio y qué hace el agente fuera de horario (HS-T2 RN-04, D100).
+    HORARIO_DE_ATENCION = "HORARIO_DE_ATENCION"
 
 
 class CanalNotificacion(StrEnum):
@@ -190,6 +194,14 @@ class ReglaDeNegocio:
                 f"La regla {self.id} no es de escalamiento de cobro, es {self.tipo.value}"
             )
         return ConfiguracionDeEscalamiento.desde_json(self.configuracion)
+
+    def interpretada_como_atencion(self) -> ConfiguracionDeAtencion:
+        """El horario de atención, tipado. Falla si el tipo no es el que se pide."""
+        if self.tipo is not TipoRegla.HORARIO_DE_ATENCION:
+            raise EntradaInvalida(
+                f"La regla {self.id} no es un horario de atención, es {self.tipo.value}"
+            )
+        return desde_json(self.configuracion)
 
     def reconfigurar(self, configuracion: dict[str, Any], ahora: datetime) -> None:
         """Reemplaza la parametrización. La validación es de quien construye la nueva."""

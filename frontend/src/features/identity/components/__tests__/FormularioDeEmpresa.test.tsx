@@ -15,11 +15,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const empujar = vi.fn();
-const refrescar = vi.fn();
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: empujar, refresh: refrescar }),
-}));
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
+});
 
 const guardar = vi.fn();
 const consultar = vi.fn();
@@ -36,13 +35,17 @@ vi.mock("@/features/identity/api/cliente", async () => {
 
 const { FormularioDeEmpresa } = await import("@/features/identity/components/FormularioDeEmpresa");
 const { ErrorDeFormulario } = await import("@/features/identity/api/cliente");
+const { ArnesDeRouter, reiniciarRouter, resolverNavegacion, routerQueSuspende } = await import(
+  "@/shared/__tests__/router-que-suspende"
+);
+const empujar = routerQueSuspende.push;
+const refrescar = routerQueSuspende.refresh;
 
 const CUIT_VALIDO = "30-71234567-1";
 
 afterEach(() => {
   cleanup();
-  empujar.mockReset();
-  refrescar.mockReset();
+  reiniciarRouter();
   guardar.mockReset();
   consultar.mockReset();
 });
@@ -133,14 +136,14 @@ describe("PAN-ONB-02", () => {
     );
   });
 
-  it("al guardar lleva al panel", async () => {
+  it("al guardar lleva al paso 3, las integraciones, y no salta al panel", async () => {
     guardar.mockResolvedValue({ onboarding_completo: true });
     render(<FormularioDeEmpresa />);
     completarTodo();
 
     fireEvent.click(botonContinuar());
 
-    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/panel"));
+    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/configuracion/integraciones"));
   });
 
   it("un CUIT ya registrado se muestra sin sacar al usuario del formulario", async () => {
@@ -308,5 +311,50 @@ describe("FormularioDeEmpresa · padrón de ARCA", () => {
 
     await waitFor(() => expect(screen.getByText(/Guardamos los datos/)).toBeDefined());
     expect(empujar).not.toHaveBeenCalled();
+  });
+});
+
+describe("FormularioDeEmpresa, mientras la navegación tarda", () => {
+  it("onboarding: un segundo envío antes de que abran las integraciones no guarda otra vez", async () => {
+    guardar.mockResolvedValue({ onboarding_completo: true });
+    render(
+      <ArnesDeRouter>
+        <FormularioDeEmpresa />
+      </ArnesDeRouter>,
+    );
+    completarTodo();
+
+    fireEvent.click(botonContinuar());
+    await waitFor(() => expect(empujar).toHaveBeenCalledWith("/configuracion/integraciones"));
+
+    expect(botonContinuar().disabled).toBe(true);
+    fireEvent.click(botonContinuar());
+    fireEvent.submit(botonContinuar().closest("form") as HTMLFormElement);
+    expect(guardar).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(guardar).toHaveBeenCalledTimes(1);
+  });
+
+  it("edición: un segundo envío mientras la página se refresca no guarda otra vez", async () => {
+    guardar.mockResolvedValue({ onboarding_completo: true });
+    render(
+      <ArnesDeRouter>
+        <FormularioDeEmpresa modo="edicion" />
+      </ArnesDeRouter>,
+    );
+    completarTodo();
+
+    fireEvent.click(screen.getByRole("button", { name: /Guardar/ }));
+    await waitFor(() => expect(refrescar).toHaveBeenCalledTimes(1));
+
+    const boton = screen.getByRole("button", { name: /Guardar/ }) as HTMLButtonElement;
+    expect(boton.disabled).toBe(true);
+    fireEvent.click(boton);
+    fireEvent.submit(boton.closest("form") as HTMLFormElement);
+    expect(guardar).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(guardar).toHaveBeenCalledTimes(1);
   });
 });

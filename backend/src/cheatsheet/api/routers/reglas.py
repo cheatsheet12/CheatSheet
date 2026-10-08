@@ -13,6 +13,10 @@ from datetime import datetime
 from uuid import UUID
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.contexts.business_config.application.atencion import (
+    ConfigurarHorarioDeAtencion,
+    configuracion_de_atencion_desde,
+)
 from cheatsheet.contexts.business_config.application.reglas import (
     CambiarEstadoDeRegla,
     ConfigurarEscalamiento,
@@ -36,6 +40,23 @@ class PasoEntrada(BaseModel):
 
 class EscalamientoEntrada(BaseModel):
     pasos: list[PasoEntrada]
+    prioridad: int = 0
+
+
+class FranjaEntrada(BaseModel):
+    desde: str
+    hasta: str
+
+
+class DiaEntrada(BaseModel):
+    dia: int
+    franjas: list[FranjaEntrada]
+
+
+class HorarioDeAtencionEntrada(BaseModel):
+    dias: list[DiaEntrada]
+    fechas_cerradas: list[str] = []
+    politica: str = "AGENTE_RESPONDE"
     prioridad: int = 0
 
 
@@ -111,6 +132,34 @@ def _rutas(recursos: Recursos) -> APIRouter:
                 rol=rol,
                 configuracion=configuracion_desde(
                     {"pasos": [paso.model_dump() for paso in entrada.pasos]}
+                ),
+                ahora=unidad.reloj.ahora(),
+                prioridad=entrada.prioridad,
+            )
+            salida = _a_salida(regla)
+        return _exigir(salida)
+
+    @router.put("/horario-de-atencion")
+    async def configurar_horario(
+        request: Request, entrada: HorarioDeAtencionEntrada
+    ) -> ReglaSalida:
+        """HS-T2 RN-04. `PUT` porque **reemplaza**: una empresa tiene un horario de atención."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: ReglaSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = ConfiguracionDeNegocio.armar(unidad)
+            regla = await ConfigurarHorarioDeAtencion(
+                reglas=piezas.reglas, publicador=unidad.publicador
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                configuracion=configuracion_de_atencion_desde(
+                    {
+                        "dias": [dia.model_dump() for dia in entrada.dias],
+                        "fechas_cerradas": entrada.fechas_cerradas,
+                        "politica": entrada.politica,
+                    }
                 ),
                 ahora=unidad.reloj.ahora(),
                 prioridad=entrada.prioridad,

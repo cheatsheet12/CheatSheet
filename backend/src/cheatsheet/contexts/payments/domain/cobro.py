@@ -100,6 +100,9 @@ class Cobro(ReembolsosDeCobro):
     reembolso_mp_refund_id: str | None = None
     motivo_de_cancelacion: str | None = None
     updated_at: datetime | None = None
+    #: La clave que mandó el cliente al pedir este cobro (ADR-0013). `None` en los cobros
+    #: anteriores a la migración 0034: no se les inventó una.
+    clave_idempotencia: UUID | None = None
 
     def __post_init__(self) -> None:
         if not self.descripcion.strip():
@@ -234,6 +237,26 @@ class Cobro(ReembolsosDeCobro):
         return self.estado is EstadoCobro.CANCELADO and self.mp_payment_id is not None
 
     # ------------------------------------------------------------------ consultas
+
+    def es_el_mismo_pedido(
+        self,
+        *,
+        cliente_id: UUID,
+        monto: Decimal,
+        descripcion: str,
+        comprobante_id: UUID | None,
+    ) -> bool:
+        """Si un pedido repetido con la misma clave pide **este** cobro (ADR-0013, punto 5).
+
+        Compara los campos del cobro, que no cambian después de crearlo, y el monto **ya
+        redondeado**: `1210.005` y `1210.01` son el mismo pedido. Nunca pasa por `float`.
+        """
+        return (
+            self.cliente_id == cliente_id
+            and self.monto == redondear(monto)
+            and self.descripcion == descripcion
+            and self.comprobante_id == comprobante_id
+        )
 
     @property
     def esta_abierto(self) -> bool:

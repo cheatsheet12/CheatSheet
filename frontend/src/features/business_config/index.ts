@@ -8,4 +8,17 @@
  * Anything genuinely shared belongs in @/shared instead.
  */
 
-export {};
+export { HorarioDeAtencion } from "./components/HorarioDeAtencion";
+export type { PropsDeHorarioDeAtencion } from "./components/HorarioDeAtencion";
+export {
+  ErrorDeAtencion,
+  MENSAJE_SIN_HORARIO,
+  configurarHorarioDeAtencion,
+  horarioDe,
+} from "./api/atencion";
+export type {
+  ConfiguracionDeAtencion,
+  HorarioDeAtencionGuardado,
+  ListadoDeReglasCrudo,
+  PoliticaFueraDeHorario,
+} from "./api/atencion";

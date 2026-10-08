@@ -7,7 +7,7 @@ periodically, and this is the use case behind it.
 **Why polling and not Meta's webhook — decision D-d.** Meta publishes a webhook for this
 exact transition and it would be more immediate. It is not used here for three reasons,
 in order of weight: receiving it needs a public endpoint, signature validation with
-`WHATSAPP_APP_SECRET` and an approved Meta app, none of which exist yet; the webhook is a
+`WHATSAPP_WEBHOOK_SECRET` and an approved Meta app, none of which exist yet; the webhook is a
 *platform* concern, so its endpoint belongs to the conversational epic and building it
 here would be constructing another epic's infrastructure; and against a 24-to-72-hour wait
 instant notification buys nothing measurable. When that endpoint does exist, this becomes

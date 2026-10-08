@@ -12,6 +12,7 @@
 
 "use client";
 
+import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 
@@ -57,7 +58,7 @@ export function Modal({ abierto, titulo, onCerrar, children }: PropsDeModal): JS
       <div className="modal__encabezado">
         <h2 className="modal__titulo">{titulo}</h2>
         <button type="button" className="modal__cerrar" aria-label="Cerrar" onClick={onCerrar}>
-          ×
+          <X size={16} strokeWidth={2.2} aria-hidden="true" />
         </button>
       </div>
       <div className="modal__cuerpo">{children}</div>

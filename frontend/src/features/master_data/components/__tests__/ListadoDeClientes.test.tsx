@@ -91,6 +91,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Abre el menú ⋯ de la primera fila: Editar y Desactivar viven ahí adentro. */
+function abrirMenuDeFila(): void {
+  fireEvent.click(screen.getByRole("button", { name: /Más acciones para/ }));
+}
+
 describe("ListadoDeClientes", () => {
   it("muestra las cinco columnas del criterio de aceptacion", () => {
     render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
@@ -120,8 +125,9 @@ describe("ListadoDeClientes", () => {
     render(<ListadoDeClientes inicial={INICIAL} puedeEditar={false} />);
 
     expect(screen.queryByRole("button", { name: "Nuevo cliente" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Desactivar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Más acciones/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Editar" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Desactivar" })).toBeNull();
   });
 
   it("cada fila activa lleva al cliente a facturar, cobrar y agendar", () => {
@@ -219,7 +225,8 @@ describe("ListadoDeClientes", () => {
     vi.stubGlobal("confirm", vi.fn().mockReturnValue(false));
     render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+    abrirMenuDeFila();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Desactivar" }));
 
     expect(cambiarEstadoDeCliente).not.toHaveBeenCalled();
   });
@@ -230,7 +237,8 @@ describe("ListadoDeClientes", () => {
     listarClientes.mockResolvedValue({ clientes: [{ ...ROSA, activo: false }], total: 1 });
     render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+    abrirMenuDeFila();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Desactivar" }));
 
     await waitFor(() => {
       expect(cambiarEstadoDeCliente).toHaveBeenCalledWith(ROSA.id, false);
@@ -262,7 +270,8 @@ describe("ListadoDeClientes", () => {
     listarClientes.mockResolvedValue({ clientes: [{ ...ROSA, nombre: "Rosa Diaz" }], total: 1 });
     render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    abrirMenuDeFila();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Editar" }));
 
     const nombre = screen.getByLabelText(/Nombre o razón social/) as HTMLInputElement;
     expect(nombre.value).toBe("Panaderia Dona Rosa");
@@ -337,5 +346,95 @@ describe("ListadoDeClientes", () => {
     await waitFor(() => {
       expect(screen.getByText("2 clientes")).toBeDefined();
     });
+  });
+
+  it("el menú ⋯ se abre, ofrece Editar y Desactivar y se cierra con Escape", () => {
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    const disparador = screen.getByRole("button", { name: /Más acciones para Panaderia/ });
+    expect(disparador.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(disparador);
+    expect(screen.getByRole("menu")).toBeDefined();
+    expect(disparador.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("menuitem", { name: "Editar" })).toBeDefined();
+    expect(screen.getByRole("menuitem", { name: "Desactivar" })).toBeDefined();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(disparador.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("el menú ⋯ se cierra al hacer clic afuera", () => {
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    abrirMenuDeFila();
+    expect(screen.getByRole("menu")).toBeDefined();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("un cliente inactivo muestra Reactivar a la vista y Editar en el menú", () => {
+    render(
+      <ListadoDeClientes
+        inicial={{ clientes: [{ ...ROSA, activo: false }], total: 1 }}
+        puedeEditar
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Reactivar" })).toBeDefined();
+    abrirMenuDeFila();
+    expect(screen.getByRole("menuitem", { name: "Editar" })).toBeDefined();
+    expect(screen.queryByRole("menuitem", { name: "Desactivar" })).toBeNull();
+  });
+
+  it("el contador dice cuántos clientes hay, en singular y en plural", () => {
+    const { unmount } = render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+    expect(screen.getByText("1 cliente")).toBeDefined();
+    unmount();
+
+    render(
+      <ListadoDeClientes
+        inicial={{ clientes: [ROSA, { ...ROSA, id: "2", nombre: "Otro" }], total: 2 }}
+        puedeEditar
+      />,
+    );
+    expect(screen.getByText("2 clientes")).toBeDefined();
+  });
+
+  it("la búsqueda tiene un botón para limpiarla", async () => {
+    listarClientes.mockResolvedValue(INICIAL);
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).toBeNull();
+    fireEvent.change(screen.getByLabelText(/Buscar/), { target: { value: "rosa" } });
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+
+    expect((screen.getByLabelText(/Buscar/) as HTMLInputElement).value).toBe("");
+    await waitFor(() => {
+      expect(listarClientes).toHaveBeenLastCalledWith(expect.objectContaining({ texto: "" }));
+    });
+  });
+
+  it("sin clientes muestra el estado vacío con el botón para crear el primero", () => {
+    render(<ListadoDeClientes inicial={{ clientes: [], total: 0 }} puedeEditar />);
+
+    expect(screen.getByText("Todavía no hay clientes en el catálogo.")).toBeDefined();
+    // Uno en la cabecera y otro dentro del estado vacío.
+    expect(screen.getAllByRole("button", { name: "Nuevo cliente" }).length).toBe(2);
+  });
+
+  it("sin resultados por un filtro ofrece limpiarlo y no crear", async () => {
+    listarClientes.mockResolvedValue({ clientes: [], total: 0 });
+    render(<ListadoDeClientes inicial={INICIAL} puedeEditar />);
+
+    fireEvent.change(screen.getByLabelText(/Buscar/), { target: { value: "zzz" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Ningún cliente coincide")).toBeDefined();
+    });
+    expect(screen.getByRole("button", { name: "Limpiar filtros" })).toBeDefined();
   });
 });

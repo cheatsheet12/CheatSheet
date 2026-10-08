@@ -21,6 +21,7 @@ from celery import Celery
 from kombu.exceptions import KombuError
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.api.mercadopago import armar_cadena, armar_envio
 from cheatsheet.contexts.payments.application.recordatorios import (
     DespacharRecordatorios,
@@ -62,6 +63,9 @@ async def barrer_cobros(recursos: Recursos) -> int:
 async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
     """Vence y despacha, **en ese orden y en la misma transacción**.
 
+    Cada cobro del despacho corre en su propio savepoint (`piezas.aislamiento`): un fallo en el
+    cobro K no deshace las filas de los cobros 1..K-1, cuyos mensajes ya salieron.
+
     El orden importa: un cobro que vence hoy tiene que estar `VENCIDO` antes de que la cadena
     lo evalúe, o su primer recordatorio se atrasaría una corrida entera. La transacción los
     junta para que no exista un instante en que uno pasó y el otro no.
@@ -70,6 +74,9 @@ async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
     async for unidad in unidad_de_trabajo(recursos, empresa_id):
         piezas = Cobros.armar(unidad)
         ahora = unidad.reloj.ahora()
+        # El canal se arma **una vez por empresa** (ADR-0011 §2): lee la integración de esa
+        # empresa, y el barrido corre en el worker con el mismo `WHATSAPP_ADAPTADOR` que la API.
+        canal = await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id)
 
         vencidos = await VencerCobros(cobros=piezas.cobros, publicador=unidad.publicador).ejecutar(
             empresa_id=empresa_id, ahora=ahora
@@ -78,18 +85,20 @@ async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
         resultado = await DespacharRecordatorios(
             cobros=piezas.cobros,
             recordatorios=piezas.recordatorios,
-            envio=armar_envio(recursos.settings),
+            envio=armar_envio(unidad, canal=canal),
             cadena=armar_cadena(unidad),
             publicador=unidad.publicador,
+            aislamiento=piezas.aislamiento,
         ).ejecutar(empresa_id=empresa_id, ahora=ahora)
         despachados = resultado.procesados
 
-        if vencidos.procesados or despachados:
+        if vencidos.procesados or despachados or resultado.fallidos:
             logger.info(
                 "barrido_de_cobros",
                 empresa_id=str(empresa_id),
                 vencidos=vencidos.procesados,
                 recordatorios=despachados,
+                recordatorios_fallidos=resultado.fallidos,
             )
     return despachados
 

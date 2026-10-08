@@ -31,7 +31,15 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Alert, Button, Campo, Casilla, Select } from "@/shared";
+import {
+  Alert,
+  Button,
+  Campo,
+  Casilla,
+  Select,
+  SelectorDeFecha,
+  useAccionConNavegacion,
+} from "@/shared";
 
 import {
   ErrorDeTurno,
@@ -68,7 +76,7 @@ export function NuevoTurno({
   const [elegido, setElegido] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [buscando, setBuscando] = useState(false);
-  const [reservando, setReservando] = useState(false);
+  const { pendiente: reservando, ejecutar } = useAccionConNavegacion();
   const [aPosteriori, setAPosteriori] = useState(false);
   const [inicioPasado, setInicioPasado] = useState("");
   // Después de montar y no en el render: el servidor puede estar en otra zona horaria.
@@ -109,16 +117,18 @@ export function NuevoTurno({
 
   async function reservar(): Promise<void> {
     setError(null);
-    setReservando(true);
     try {
-      const turno = await reservarTurno({
-        cliente_id: clienteId,
-        servicio_id: servicioId,
-        recurso_id: recursoId,
-        inicio: inicioElegido,
-        ...(aPosteriori ? { a_posteriori: true } : {}),
-      });
-      router.push(`/agenda/${turno.id}`);
+      await ejecutar(
+        () =>
+          reservarTurno({
+            cliente_id: clienteId,
+            servicio_id: servicioId,
+            recurso_id: recursoId,
+            inicio: inicioElegido,
+            ...(aPosteriori ? { a_posteriori: true } : {}),
+          }),
+        (turno, destino) => destino.push(`/agenda/${turno.id}`),
+      );
     } catch (fallo) {
       // «El horario seleccionado no está disponible.» llega por acá cuando alguien se
       // adelantó. La lista se vuelve a pedir para que el próximo intento sirva — y el mensaje
@@ -128,8 +138,6 @@ export function NuevoTurno({
         await buscar(recursoId, servicioId, fecha);
       }
       setError(fallo instanceof ErrorDeTurno ? fallo.message : "No se pudo crear el turno.");
-    } finally {
-      setReservando(false);
     }
   }
 
@@ -208,15 +216,14 @@ export function NuevoTurno({
             onChange={(evento) => setInicioPasado(evento.target.value)}
           />
         ) : (
-          <Campo
+          <SelectorDeFecha
             id="turno-fecha"
             etiqueta="Fecha"
-            type="date"
             min={limites?.hoy}
             value={fecha}
-            onChange={(evento) => {
-              setFecha(evento.target.value);
-              void buscar(recursoId, servicioId, evento.target.value);
+            alCambiar={(valor) => {
+              setFecha(valor);
+              void buscar(recursoId, servicioId, valor);
             }}
           />
         )}

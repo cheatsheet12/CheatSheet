@@ -20,6 +20,7 @@ Dos cosas del archivo:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -27,14 +28,24 @@ from cheatsheet.contexts.conversational.application.errors import FAQInexistente
 from cheatsheet.contexts.conversational.application.ports import (
     PortEmbeddings,
     PortRepositorioFAQ,
+    PortUsosDeFAQ,
 )
 from cheatsheet.contexts.conversational.domain.faq import FAQ
+from cheatsheet.contexts.conversational.domain.uso_de_faq import (
+    SIN_USOS,
+    ConteoDeUsos,
+    Lapso,
+    MotivoSinComparacion,
+    Participacion,
+    ventana_de_comparacion,
+)
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
+from cheatsheet.shared.zona_horaria import MesCalendario
 
 logger = obtener_logger(__name__)
 
@@ -46,14 +57,94 @@ def _exigir_administrador(rol: RolUsuario) -> None:
         raise EntradaInvalida(MOTIVO_SOLO_ADMIN)
 
 
+@dataclass(frozen=True, slots=True)
+class FAQConUsos:
+    """Una FAQ con lo que se usó: el modelo de lectura de PAN-WA-02."""
+
+    faq: FAQ
+    conteo: ConteoDeUsos
+
+    @property
+    def usos_total(self) -> int:
+        return self.conteo.total(self.faq.usos_anteriores)
+
+
+@dataclass(frozen=True, slots=True)
+class Comparacion:
+    """La participación de la FAQ en los `dias` anteriores y posteriores a su última edición."""
+
+    dias: int
+    antes: Participacion
+    despues: Participacion
+
+
+@dataclass(frozen=True, slots=True)
+class DetalleDeUso:
+    """El detalle de una FAQ: o la comparación, o el motivo por el que no se puede hacer."""
+
+    faq: FAQ
+    conteo: ConteoDeUsos
+    comparacion: Comparacion | None
+    motivo: MotivoSinComparacion | None
+
+    @property
+    def usos_total(self) -> int:
+        return self.conteo.total(self.faq.usos_anteriores)
+
+
 class ListarFAQs:
     """PAN-WA-02. Todos los roles leen: el contador de usos es información del negocio."""
 
-    def __init__(self, faqs: PortRepositorioFAQ) -> None:
+    def __init__(self, faqs: PortRepositorioFAQ, usos: PortUsosDeFAQ) -> None:
         self._faqs = faqs
+        self._usos = usos
 
-    async def ejecutar(self) -> list[FAQ]:
-        return await self._faqs.listar()
+    async def ejecutar(self, *, ahora: datetime) -> list[FAQConUsos]:
+        """Ordenadas por «Este mes», después por total, después por antigüedad."""
+        conteos = await self._usos.conteos(MesCalendario.del_instante(ahora))
+        vistas = [
+            FAQConUsos(faq=faq, conteo=conteos.get(faq.id, SIN_USOS))
+            for faq in await self._faqs.listar()
+        ]
+        return sorted(
+            vistas,
+            key=lambda v: (-v.conteo.este_mes, -v.usos_total, v.faq.created_at or ahora),
+        )
+
+
+class VerUsoDeFAQ:
+    """El detalle de una FAQ: sus conteos y su participación antes y después de editarse.
+
+    **Participación** = usos de la FAQ ÷ todas las respuestas con FAQ de la empresa en el mismo
+    lapso (las de FAQ ya borradas incluidas: ADR-0012, punto 7).
+    """
+
+    def __init__(self, faqs: PortRepositorioFAQ, usos: PortUsosDeFAQ) -> None:
+        self._faqs = faqs
+        self._usos = usos
+
+    async def ejecutar(self, *, faq_id: UUID, ahora: datetime) -> DetalleDeUso:
+        faq = await _buscar(self._faqs, faq_id)
+        conteo = (await self._usos.conteos(MesCalendario.del_instante(ahora))).get(faq.id, SIN_USOS)
+        ventana = ventana_de_comparacion(
+            editada_en=faq.editada_en,
+            seguimiento_desde=faq.seguimiento_desde or faq.created_at or ahora,
+            ahora=ahora,
+        )
+        if isinstance(ventana, MotivoSinComparacion):
+            return DetalleDeUso(faq, conteo, comparacion=None, motivo=ventana)
+        comparacion = Comparacion(
+            dias=ventana.dias,
+            antes=await self._participacion(faq.id, ventana.antes),
+            despues=await self._participacion(faq.id, ventana.despues),
+        )
+        return DetalleDeUso(faq, conteo, comparacion=comparacion, motivo=None)
+
+    async def _participacion(self, faq_id: UUID, lapso: Lapso) -> Participacion:
+        return Participacion(
+            usos=await self._usos.contar(desde=lapso.desde, hasta=lapso.hasta, faq_id=faq_id),
+            total=await self._usos.contar(desde=lapso.desde, hasta=lapso.hasta, faq_id=None),
+        )
 
 
 class CrearFAQ:
@@ -92,6 +183,7 @@ class CrearFAQ:
             categoria_id=categoria_id,
             created_at=ahora,
             updated_at=ahora,
+            seguimiento_desde=ahora,
         )
         await self._faqs.agregar(faq)
         await indexar(self._faqs, self._embeddings, faq, ahora)
@@ -107,8 +199,10 @@ class EditarFAQ:
         faqs: PortRepositorioFAQ,
         embeddings: PortEmbeddings,
         publicador: PublicadorDeEventos,
+        usos: PortUsosDeFAQ,
     ) -> None:
         self._faqs = faqs
+        self._usos = usos
         self._embeddings = embeddings
         self._publicador = publicador
 
@@ -122,7 +216,7 @@ class EditarFAQ:
         pregunta: str,
         respuesta: str,
         ahora: datetime,
-    ) -> FAQ:
+    ) -> FAQConUsos:
         _exigir_administrador(rol)
         faq = await _buscar(self._faqs, faq_id)
         faq.editar(pregunta=pregunta, respuesta=respuesta, momento=ahora)
@@ -130,7 +224,8 @@ class EditarFAQ:
         if faq.embedding_obsoleto:
             await indexar(self._faqs, self._embeddings, faq, ahora)
         await _auditar(self._publicador, empresa_id, usuario_id, faq, "editar_faq", ahora)
-        return faq
+        conteos = await self._usos.conteos(MesCalendario.del_instante(ahora))
+        return FAQConUsos(faq=faq, conteo=conteos.get(faq.id, SIN_USOS))
 
 
 class EliminarFAQ:
@@ -231,4 +326,15 @@ async def _auditar(
     )
 
 
-__all__ = ["CrearFAQ", "EditarFAQ", "EliminarFAQ", "ListarFAQs", "ReindexarFAQs", "indexar"]
+__all__ = [
+    "Comparacion",
+    "CrearFAQ",
+    "DetalleDeUso",
+    "EditarFAQ",
+    "EliminarFAQ",
+    "FAQConUsos",
+    "ListarFAQs",
+    "ReindexarFAQs",
+    "VerUsoDeFAQ",
+    "indexar",
+]

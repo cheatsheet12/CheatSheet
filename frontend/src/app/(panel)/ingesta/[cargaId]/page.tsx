@@ -37,8 +37,8 @@ export default async function PaginaDeCarga({
           <p className="ing-eyebrow">Operaciones · Ingesta de datos · Detalle</p>
           <h1 className="ing-titulo">Detalle de la carga</h1>
           <p className="ing-subtitulo">
-            Qué entró, qué no, y por qué. Podés corregir las filas en tu planilla y reprocesar sólo
-            esas.
+            Qué entró, qué no, y por qué. Corregí cada fila con error desde acá, o arreglá tu
+            planilla y reprocesá sólo esas.
           </p>
         </div>
       </div>

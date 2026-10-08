@@ -102,7 +102,7 @@ export function RevisionDeMapeo({
 
   function reportar(problema: unknown): void {
     setError(
-      problema instanceof ErrorDePlanilla ? problema.message : "No se pudo completar la operacion",
+      problema instanceof ErrorDePlanilla ? problema.message : "No se pudo completar la operación",
     );
   }
 
@@ -121,7 +121,7 @@ export function RevisionDeMapeo({
   /**
    * El paso 3 del propio stepper de esta pantalla.
    *
-   * Sin esto, «El mapeo quedo confirmado. Ya podes procesar la planilla» era una
+   * Sin esto, «El mapeo quedó confirmado. Ya podés procesar la planilla» era una
    * instrucción sin destino: había que volver a Ingesta y buscar la fila. Una pantalla que
    * dice qué sigue tiene que ofrecer qué sigue.
    *
@@ -198,7 +198,7 @@ export function RevisionDeMapeo({
       celda: (entrada) => (
         <span className="ing-map-destino">
           <span className="ing-map-flecha" aria-hidden="true">
-            →
+            <Icono nombre="flecha" />
           </span>
           {/* Confirmado, el destino deja de ser un control. El dominio ya rechaza corregir
               un mapeo validado —«para cambiarlo hay que revisarlo de nuevo»—, así que dejar
@@ -289,8 +289,8 @@ export function RevisionDeMapeo({
 
       {!mapeo.propuesto_por_el_modelo && mapeo.reutilizado !== true && (
         <Alert tono="advertencia">
-          No pudimos proponerte un mapeo automatico esta vez. Asigná las columnas a mano; el sistema
-          lo va a recordar para las proximas sincronizaciones.
+          No pudimos proponerte un mapeo automático esta vez. Asigná las columnas a mano; el sistema
+          lo va a recordar para las próximas sincronizaciones.
         </Alert>
       )}
 
@@ -302,11 +302,11 @@ export function RevisionDeMapeo({
       )}
 
       {validado && (
-        <Alert tono="exito">El mapeo quedo confirmado. Ya podes procesar la planilla.</Alert>
+        <Alert tono="exito">El mapeo quedó confirmado. Ya podés procesar la planilla.</Alert>
       )}
 
       {validado && puedeEditar && (
-        <div className="ing-acciones">
+        <div className="ing-acciones ing-acciones--barra">
           <Button
             cargando={trabajando}
             disabled={trabajando}
@@ -315,6 +315,7 @@ export function RevisionDeMapeo({
             }}
           >
             Procesar la planilla
+            <Icono nombre="flecha" />
           </Button>
           <Button
             variante="secundario"
@@ -329,13 +330,15 @@ export function RevisionDeMapeo({
       )}
 
       <Card>
-        <Tabla
-          titulo="Revision del mapeo"
-          columnas={columnas}
-          filas={mapeo.entradas}
-          claveDeFila={(entrada) => entrada.columna_origen}
-          vacia="La planilla no tiene columnas para mapear."
-        />
+        <div className="ing-map-tabla">
+          <Tabla
+            titulo="Revisión del mapeo"
+            columnas={columnas}
+            filas={mapeo.entradas}
+            claveDeFila={(entrada) => entrada.columna_origen}
+            vacia="La planilla no tiene columnas para mapear."
+          />
+        </div>
 
         <div className="ing-pie">
           <span className="ing-pie__dato">
@@ -346,7 +349,7 @@ export function RevisionDeMapeo({
           </span>
           <span className="ing-pie__dato">
             <span className="ing-pie__ic ing-pie__ic--atencion" aria-hidden="true">
-              !
+              <Icono nombre="alerta" />
             </span>
             <b>{sinAsignar}</b> sin asignar · revisión manual
           </span>

@@ -10,15 +10,15 @@
  * rol y abre el formulario, así que vive donde está el estado. Antes estaba metido en la fila
  * de filtros, al lado de un `<select>`, como si crear una categoría fuera filtrar por algo.
  *
- * **Las acciones de fila son texto**, y sólo la baja lleva el rojo — en la palabra, no en un
- * borde alrededor de la palabra.
+ * **Editar y Eliminar van en el menú ⋯** (`MenuDeAcciones`); sólo «Eliminar» lleva el rojo, en
+ * la palabra y no en una caja por fila.
  */
 
 "use client";
 
 import { useState } from "react";
 
-import { Button, Modal, Select, Tabla } from "@/shared";
+import { Modal, Select, Tabla } from "@/shared";
 import type { Columna } from "@/shared";
 
 import {
@@ -35,7 +35,9 @@ import type {
   ListadoDeCategorias as Listado,
 } from "../api/categoria";
 import { FormularioDeCategoria } from "./FormularioDeCategoria";
-import { IconoDeMas } from "./iconos";
+import { AccionesDeCategoria, AmbitoDeCategoriaPastilla } from "./FilaDeCategoria";
+import { IconoDeCategoria, IconoDeCategorias, IconoDeMas } from "./iconos";
+import { AzulejoDeIcono, BuscadorConLupa, VacioDeMaestros } from "./PiezasDeMaestros";
 
 const AMBITOS: readonly { valor: string; etiqueta: string }[] = (
   Object.keys(ETIQUETAS_DE_AMBITO) as AmbitoDeCategoria[]
@@ -53,11 +55,10 @@ export function ListadoDeCategorias({
   puedeEditar,
 }: PropsDeListadoDeCategorias): JSX.Element {
   const [listado, setListado] = useState<Listado>(inicial);
+  const [texto, setTexto] = useState("");
   const [ambito, setAmbito] = useState("");
   const [edicion, setEdicion] = useState<Edicion>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const cuantas = listado.categorias.length;
 
   async function recargar(nuevoAmbito?: string): Promise<void> {
     const elegido = nuevoAmbito ?? ambito;
@@ -105,16 +106,36 @@ export function ListadoDeCategorias({
     await recargar();
   }
 
+  /** La búsqueda es local: son pocas categorías y la API no filtra por texto. */
+  const visibles = listado.categorias.filter((c) =>
+    c.nombre.toLowerCase().includes(texto.trim().toLowerCase()),
+  );
+  const cuantas = visibles.length;
+  const hayFiltros = texto !== "" || ambito !== "";
+
+  function limpiarFiltros(): void {
+    setTexto("");
+    setAmbito("");
+    void recargar("");
+  }
+
   const columnas: readonly Columna<Categoria>[] = [
     {
       clave: "nombre",
       titulo: "Nombre",
-      celda: (fila) => <span className="mae-nombre">{fila.nombre}</span>,
+      celda: (fila) => (
+        <span className="mae-persona">
+          <AzulejoDeIcono nombre={fila.nombre}>
+            <IconoDeCategoria />
+          </AzulejoDeIcono>
+          <span className="mae-nombre">{fila.nombre}</span>
+        </span>
+      ),
     },
     {
       clave: "ambito",
       titulo: "Se aplica a",
-      celda: (fila) => <span className="mae-dato">{ETIQUETAS_DE_AMBITO[fila.aplica_a]}</span>,
+      celda: (fila) => <AmbitoDeCategoriaPastilla ambito={fila.aplica_a} />,
     },
     {
       clave: "acciones",
@@ -122,22 +143,11 @@ export function ListadoDeCategorias({
       alDerecha: true,
       celda: (fila) =>
         puedeEditar ? (
-          <span className="tabla__acciones">
-            <button
-              type="button"
-              className="mae-accion"
-              onClick={() => setEdicion({ categoria: fila })}
-            >
-              Editar
-            </button>
-            <button
-              type="button"
-              className="mae-accion mae-accion--baja"
-              onClick={() => void eliminar(fila)}
-            >
-              Eliminar
-            </button>
-          </span>
+          <AccionesDeCategoria
+            categoria={fila}
+            onEditar={(categoria) => setEdicion({ categoria })}
+            onEliminar={(categoria) => void eliminar(categoria)}
+          />
         ) : null,
     },
   ];
@@ -155,20 +165,31 @@ export function ListadoDeCategorias({
         </div>
         {puedeEditar && (
           <div className="mae-encabezado__acciones">
-            <Button onClick={() => setEdicion({ categoria: undefined })}>
+            <button
+              type="button"
+              className="mae-cta"
+              onClick={() => setEdicion({ categoria: undefined })}
+            >
               <span className="mae-cta__icono" aria-hidden="true">
                 <IconoDeMas />
               </span>
               Nueva categoría
-            </Button>
+            </button>
           </div>
         )}
       </header>
 
-      <div className="mae-filtros">
+      <div className="mae-herramientas" role="search">
+        <BuscadorConLupa
+          id="dm-buscador-categorias"
+          valor={texto}
+          placeholder="Buscar por nombre"
+          onCambio={setTexto}
+        />
         <Select
           id="dm-ambito"
           etiqueta="Filtrar por ámbito"
+          etiquetaOculta
           opciones={[{ valor: "", etiqueta: "Todos los ámbitos" }, ...AMBITOS]}
           value={ambito}
           onChange={(evento) => {
@@ -176,22 +197,34 @@ export function ListadoDeCategorias({
             void recargar(evento.target.value);
           }}
         />
-      </div>
-
-      <div className="mae-barra">
-        <p className="mae-barra__cuenta">
-          <b>{cuantas}</b> {cuantas === 1 ? "categoría" : "categorías"} en el catálogo
+        <p className="mae-herramientas__cuenta" aria-live="polite">
+          {`${cuantas} ${cuantas === 1 ? "categoría" : "categorías"}`}
         </p>
       </div>
 
-      <div className="mae-panel">
-        <Tabla
-          titulo={`${cuantas} categoria${cuantas === 1 ? "" : "s"}`}
-          columnas={columnas}
-          filas={listado.categorias}
-          claveDeFila={(fila) => fila.id}
-          vacia="Todavía no creaste ninguna categoría."
-        />
+      {/* Las filas entran escalonadas con las reglas de `mae-panel--clientes`: es la misma tabla. */}
+      <div className="mae-panel mae-panel--clientes mae-panel--categorias">
+        {cuantas === 0 ? (
+          <VacioDeMaestros
+            icono={<IconoDeCategorias />}
+            hayFiltros={hayFiltros}
+            puedeEditar={puedeEditar}
+            titulo="Todavía no creaste ninguna categoría."
+            texto="Creá la primera para clasificar tus clientes y servicios."
+            tituloFiltrado="Ninguna categoría coincide"
+            etiquetaDeNuevo="Nueva categoría"
+            onNuevo={() => setEdicion({ categoria: undefined })}
+            onLimpiar={limpiarFiltros}
+          />
+        ) : (
+          <Tabla
+            titulo="Listado de categorías"
+            columnas={columnas}
+            filas={visibles}
+            claveDeFila={(fila) => fila.id}
+            vacia="Todavía no creaste ninguna categoría."
+          />
+        )}
       </div>
 
       <Modal

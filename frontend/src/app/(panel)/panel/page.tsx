@@ -21,6 +21,7 @@
  * encima de un número que cuenta otra cosa.
  */
 
+import { ArrowRight, ArrowUpRight, Bot, UserRound } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -30,15 +31,7 @@ import { ETIQUETAS_DE_MODULO, ETIQUETAS_DE_RESULTADO } from "@/features/observab
 import type { ListadoDeOperaciones, Operacion } from "@/features/observability";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
-import {
-  Alert,
-  Badge,
-  Card,
-  Tabla,
-  formatearFecha,
-  formatearFechaHora,
-  formatearNumero,
-} from "@/shared";
+import { Badge, Card, Tabla, formatearFecha, formatearFechaHora, formatearNumero } from "@/shared";
 import type { Columna } from "@/shared";
 
 import { Icono } from "./iconos";
@@ -122,9 +115,15 @@ export default async function PanelHome({
       />
 
       {tablero.sin_actividad && (
-        <Alert tono="neutral" titulo="Sin actividad">
-          {MENSAJE_SIN_ACTIVIDAD}
-        </Alert>
+        <div className="dsh-aviso" role="status">
+          <span className="dsh-aviso__ico" aria-hidden="true">
+            <Icono nombre="barras" />
+          </span>
+          <div>
+            <p className="dsh-aviso__titulo">Sin actividad</p>
+            <p className="dsh-aviso__texto">{MENSAJE_SIN_ACTIVIDAD}</p>
+          </div>
+        </div>
       )}
 
       <div className="dsh-stats dsh-stats--tres">
@@ -145,7 +144,7 @@ export default async function PanelHome({
           pie={`Período anterior · ${formatearNumero(tablero.turnos.anterior, undefined, 0)}`}
         />
         <TarjetaDeMetrica
-          icono="reloj"
+          icono="actividad"
           tono="ambar"
           etiqueta="Operaciones registradas"
           valor={cantidad(tablero.operaciones)}
@@ -173,7 +172,8 @@ export default async function PanelHome({
               </p>
             </div>
             <Link className="dsh-seccion__enlace" href="/auditoria">
-              Ver log completo →
+              Ver log completo
+              <ArrowRight size={14} strokeWidth={2.2} aria-hidden="true" />
             </Link>
           </div>
           {actividad.motivo === undefined ? (
@@ -189,7 +189,7 @@ export default async function PanelHome({
           )}
         </Card>
 
-        <div>
+        <Card>
           <div className="dsh-seccion">
             <div>
               <h2 className="dsh-seccion__titulo">Accesos directos</h2>
@@ -197,22 +197,25 @@ export default async function PanelHome({
             </div>
           </div>
           <div className="dsh-accesos">
-            {ACCESOS.map((acceso) => (
+            {ACCESOS.map((acceso, indice) => (
               <Link key={acceso.href} className="dsh-acceso" href={acceso.href}>
-                <span className="dsh-acceso__ico">
+                <span className={`dsh-acceso__ico dsh-acceso__ico--${TONOS_DE_ACCESO[indice % 3]}`}>
                   <Icono nombre={acceso.icono} />
                 </span>
-                <span>
+                <span className="dsh-acceso__texto">
                   <b className="dsh-acceso__nombre">{acceso.nombre}</b>
                   <span className="dsh-acceso__sub">{acceso.detalle}</span>
                 </span>
-                <span className="dsh-acceso__flecha" aria-hidden="true">
-                  →
-                </span>
+                <ArrowRight
+                  className="dsh-acceso__flecha"
+                  size={16}
+                  strokeWidth={2}
+                  aria-hidden="true"
+                />
               </Link>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
 
       <p className="dsh-nota">
@@ -267,7 +270,9 @@ function TarjetaDeMetrica({
         <span className={`dsh-stat__ico dsh-stat__ico--${tono}`}>
           <Icono nombre={icono} />
         </span>
-        <span className="dsh-stat__tag">{textoDeVariacion(variacion)}</span>
+        <span className="dsh-stat__tag" data-sentido={sentidoDeVariacion(variacion)}>
+          {textoDeVariacion(variacion)}
+        </span>
       </div>
       <p className="dsh-stat__label">{etiqueta}</p>
       <p className="dsh-stat__valor">{valor}</p>
@@ -289,6 +294,114 @@ function textoDeVariacion(variacion: string | null): string {
   return Number(variacion) >= 0 ? `↗ +${variacion}%` : `↘ ${variacion}%`;
 }
 
+/** Hacia dónde fue la cifra, para pintar la etiqueta: sin período anterior no hay sentido. */
+function sentidoDeVariacion(variacion: string | null): "sube" | "baja" | "neutro" {
+  if (variacion === null) {
+    return "neutro";
+  }
+  return Number(variacion) >= 0 ? "sube" : "baja";
+}
+
+/** Los tonos de los azulejos de los accesos, en rotación: seis tarjetas del mismo verde son una pared. */
+const TONOS_DE_ACCESO = ["menta", "tinta", "ambar"] as const;
+
+/** Qué dibujo lleva cada módulo en la tabla de actividad. Lo que no se conoce usa el genérico. */
+const ICONO_DE_MODULO: Readonly<Record<string, NombreDeIcono>> = {
+  billing: "documento",
+  payments: "tarjeta",
+  scheduling: "calendario",
+  spreadsheet_sync: "subir",
+  reporting: "barras",
+};
+
+/** `autorizar_comprobante` → «Autorizar comprobante»: el identificador técnico no es un título. */
+function nombreDeAccion(accion: string): string {
+  const texto = accion.replace(/_/g, " ").trim();
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/**
+ * `Comprobante:2f6d9478-3c56-…` → el tipo («Comprobante») y una referencia corta (`2f6d9478`).
+ *
+ * El identificador completo son 36 caracteres que parten la fila en dos renglones y no le
+ * dicen nada a nadie; se conserva entero en el `title` para quien lo necesite copiar.
+ */
+function partirEntidad(entidad: string): {
+  readonly tipo: string;
+  readonly referencia: string | null;
+  readonly completa: string;
+} {
+  const corte = entidad.indexOf(":");
+  if (corte === -1) {
+    return { tipo: entidad, referencia: null, completa: entidad };
+  }
+  const tipo = entidad
+    .slice(0, corte)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
+  const id = entidad.slice(corte + 1);
+  return {
+    tipo: tipo.charAt(0).toUpperCase() + tipo.slice(1),
+    referencia: /^[0-9a-f]{8}-/i.test(id) ? id.slice(0, 8) : id,
+    completa: id,
+  };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Las entidades que tienen una pantalla de detalle propia, y cómo se llega a ella con su id. */
+const DETALLE_DE_ENTIDAD: Readonly<Record<string, (id: string) => string>> = {
+  Comprobante: (id) => `/facturacion/${id}`,
+  Cobro: (id) => `/cobros/${id}`,
+  Turno: (id) => `/agenda/${id}`,
+  ProcesamientoDePlanilla: (id) => `/ingesta/${id}`,
+};
+
+/** Las que no tienen detalle por id pero sí una pantalla donde se administran. */
+const PANTALLA_DE_ENTIDAD: Readonly<Record<string, string>> = {
+  PuntoDeVenta: "/facturacion/puntos-de-venta",
+  Empresa: "/configuracion/empresa",
+  ConfiguracionDeIntegracion: "/configuracion/integraciones",
+  ReglaDeNegocio: "/configuracion/reglas",
+  PlantillaDeNotificacion: "/configuracion/plantillas",
+  SolicitudDeSoporte: "/soporte",
+  RecursoReservable: "/agenda/recursos",
+  Reporte: "/reportes",
+};
+
+/**
+ * A dónde lleva una fila de la actividad.
+ *
+ * **Siempre lleva a algún lado.** Si la entidad tiene su pantalla se va a ella; si no (o si el
+ * identificador no es el que esa pantalla espera, que es lo que pasa con datos de prueba), se
+ * va al detalle de la operación en el log, que existe para toda operación. Una fila que se ve
+ * como enlace en unas filas y no en otras enseña a no confiar en ninguna.
+ */
+function destinoDeLaOperacion(operacion: Operacion): {
+  readonly href: string;
+  readonly titulo: string;
+} {
+  const corte = operacion.entidad_afectada.indexOf(":");
+  const tipo = corte === -1 ? "" : operacion.entidad_afectada.slice(0, corte);
+  const id = corte === -1 ? "" : operacion.entidad_afectada.slice(corte + 1);
+
+  const detalle = DETALLE_DE_ENTIDAD[tipo];
+  if (detalle !== undefined && UUID.test(id)) {
+    return {
+      href: detalle(id),
+      titulo: `Ver ${partirEntidad(operacion.entidad_afectada).tipo.toLowerCase()}`,
+    };
+  }
+  const pantalla = PANTALLA_DE_ENTIDAD[tipo];
+  if (pantalla !== undefined) {
+    return {
+      href: pantalla,
+      titulo: `Ir a ${partirEntidad(operacion.entidad_afectada).tipo.toLowerCase()}`,
+    };
+  }
+  return { href: `/auditoria/${operacion.id}`, titulo: "Ver el detalle de la operación" };
+}
+
 const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
   {
     clave: "operacion",
@@ -298,10 +411,16 @@ const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
         <span
           className={`dsh-op__ico dsh-op__ico--${operacion.resultado === "error" ? "error" : "ok"}`}
         >
-          <Icono nombre={operacion.resultado === "error" ? "alerta" : "documento"} />
+          <Icono
+            nombre={
+              operacion.resultado === "error"
+                ? "alerta"
+                : (ICONO_DE_MODULO[operacion.modulo] ?? "actividad")
+            }
+          />
         </span>
         <span>
-          <b className="dsh-op__nombre">{operacion.accion}</b>
+          <b className="dsh-op__nombre">{nombreDeAccion(operacion.accion)}</b>
           <span className="dsh-op__ref">
             {ETIQUETAS_DE_MODULO[operacion.modulo] ?? operacion.modulo}
           </span>
@@ -312,14 +431,37 @@ const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
   {
     clave: "entidad",
     titulo: "Entidad afectada",
-    celda: (operacion) => (
-      <span>
-        <b className="dsh-entidad">{operacion.entidad_afectada}</b>
-        <span className="dsh-entidad__quien">
-          {operacion.iniciador === "usuario" ? "Iniciada por una persona" : "Automática"}
-        </span>
-      </span>
-    ),
+    celda: (operacion) => {
+      const entidad = partirEntidad(operacion.entidad_afectada);
+      const destino = destinoDeLaOperacion(operacion);
+      const automatica = operacion.iniciador !== "usuario";
+      return (
+        <Link className="dsh-entidad-enlace" href={destino.href} title={destino.titulo}>
+          <b className="dsh-entidad">
+            {entidad.tipo}
+            {entidad.referencia !== null && (
+              <code className="dsh-entidad__id" title={entidad.completa}>
+                {entidad.referencia}
+              </code>
+            )}
+            <ArrowUpRight
+              className="dsh-entidad__ir"
+              size={15}
+              strokeWidth={2.2}
+              aria-hidden="true"
+            />
+          </b>
+          <span className="dsh-entidad__quien">
+            {automatica ? (
+              <Bot size={13} strokeWidth={2} aria-hidden="true" />
+            ) : (
+              <UserRound size={13} strokeWidth={2} aria-hidden="true" />
+            )}
+            {automatica ? "Automática" : "Iniciada por una persona"}
+          </span>
+        </Link>
+      );
+    },
   },
   {
     clave: "resultado",
@@ -334,9 +476,16 @@ const COLUMNAS_DE_ACTIVIDAD: readonly Columna<Operacion>[] = [
     clave: "fecha",
     titulo: "Fecha y hora",
     alDerecha: true,
-    celda: (operacion) => (
-      <span className="dsh-fecha">{formatearFechaHora(operacion.timestamp)}</span>
-    ),
+    celda: (operacion) => {
+      // «15/9/26, 16:35»: la fecha arriba y la hora abajo, que se leen de un vistazo.
+      const [fecha = "", hora = ""] = formatearFechaHora(operacion.timestamp).split(", ");
+      return (
+        <span className="dsh-fecha">
+          <b>{fecha}</b>
+          <span>{hora}</span>
+        </span>
+      );
+    },
   },
 ];
 
