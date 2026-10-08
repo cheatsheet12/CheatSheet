@@ -429,6 +429,10 @@ class Settings:
     #: Cada cuántos minutos Beat concilia las plantillas de WhatsApp de cada empresa con Meta
     #: (U6). La revisión tarda hasta 24 h y la consulta cuesta una llamada por empresa.
     whatsapp_plantillas_minutos: int
+    #: Cada cuántos minutos Beat despacha el barrido de recordatorios de turno (U8, D-U8-16). 15
+    #: divide a 60: el recordatorio llega a lo sumo con un cuarto de hora de atraso respecto de su
+    #: momento ideal, y las esperas del reintento (15 y 30 min) caen en múltiplos del intervalo.
+    recordatorio_de_turno_minutos: int
     #: El secreto con el que Meta firma el webhook entrante (HS-T2). **Vacío significa que
     #: ninguna firma valida**, igual que el de MercadoPago: lo cómodo —aceptar todo mientras
     #: no haya secreto— convierte un despliegue mal configurado en un endpoint público que le
@@ -564,6 +568,7 @@ class Settings:
             # the delay to about 1% of the wait at 48 calls per number per day.
             whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
             whatsapp_plantillas_minutos=_entero("WHATSAPP_PLANTILLAS_MINUTOS", 30),
+            recordatorio_de_turno_minutos=_entero("RECORDATORIO_DE_TURNO_MINUTOS", 15),
             whatsapp_webhook_secret=_opcional("WHATSAPP_WEBHOOK_SECRET", ""),
             whatsapp_webhook_verify_token=_opcional("WHATSAPP_WEBHOOK_VERIFY_TOKEN", ""),
             dlq_barrido_minutos=_entero("DLQ_BARRIDO_MINUTOS", 15),
