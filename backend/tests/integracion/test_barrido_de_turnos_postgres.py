@@ -96,6 +96,8 @@ class _Compuerta:
         self._lista = asyncio.Event()
 
     def llegar(self) -> None:
+        if self.llegaron >= self._cuantos:
+            return  # solo cuentan las primeras llegadas: las relecturas posteriores no son la carrera
         self.llegaron += 1
         if self.llegaron >= self._cuantos:
             self._lista.set()
@@ -189,8 +191,7 @@ async def test_cuando_el_barrido_llama_al_canal_la_fila_ya_esta_confirmada_para_
         vistas.append(await _filas(sesiones, escenario.empresa_id))
         return await original(listo)
 
-    envio.mandar = mandar_mirando  # type: ignore[method-assign]
-
+    envio.mandar = mandar_mirando  # type: ignore[method-assign]  # el doble sustituye el método para mirar/forzar la carrera
     await _barrer(sesiones, escenario.empresa_id, envio, BARRIDO)
 
     (visto,) = vistas
@@ -242,8 +243,7 @@ async def test_dos_barridos_solapados_de_la_misma_empresa_mandan_una_sola_vez(
         await compuerta.esperar()
         return await preparar(turno, anticipacion_min)
 
-    envio.preparar = preparar_en_la_compuerta  # type: ignore[method-assign]
-
+    envio.preparar = preparar_en_la_compuerta  # type: ignore[method-assign]  # el doble sustituye el método para mirar/forzar la carrera
     await asyncio.gather(
         _barrer(sesiones, escenario.empresa_id, envio, BARRIDO),
         _barrer(sesiones, escenario.empresa_id, envio, BARRIDO),
@@ -278,8 +278,7 @@ async def test_dos_barridos_solapados_sobre_un_reintento_pendiente_mandan_una_so
         await compuerta.esperar()  # sigue con el candado tomado hasta que el otro lo pida
         return await preparar(turno, anticipacion_min)
 
-    envio.preparar = preparar_con_el_otro_esperando  # type: ignore[method-assign]
-
+    envio.preparar = preparar_con_el_otro_esperando  # type: ignore[method-assign]  # el doble sustituye el método para mirar/forzar la carrera
     await asyncio.gather(
         _barrer(sesiones, escenario.empresa_id, envio, cuando, compuerta.llegar),
         _barrer(sesiones, escenario.empresa_id, envio, cuando, compuerta.llegar),

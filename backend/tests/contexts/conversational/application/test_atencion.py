@@ -121,8 +121,7 @@ async def test_sin_escalamiento_tomado_se_rechaza_antes_de_consultar_el_director
         consultas.append(cliente_id)
         return await original(armado.cliente_id)
 
-    armado.directorio.telefono_de = espia  # type: ignore[method-assign]
-
+    armado.directorio.telefono_de = espia  # type: ignore[method-assign]  # el espía sustituye el método del doble
     with pytest.raises(EntradaInvalida, match="tomar el escalamiento"):
         await armado.responder()
 

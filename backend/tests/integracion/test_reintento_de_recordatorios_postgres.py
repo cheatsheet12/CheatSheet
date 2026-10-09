@@ -133,8 +133,7 @@ async def test_cuando_el_barrido_llama_a_meta_la_fila_ya_esta_confirmada_para_ot
         vistas.append(await _filas(sesiones, empresa_id))
         return await original(mensaje)
 
-    envio.mandar = mandar_mirando  # type: ignore[method-assign]
-
+    envio.mandar = mandar_mirando  # type: ignore[method-assign]  # el doble sustituye el método para mirar el envío
     await _barrer(sesiones, empresa_id, envio, DESPUES)
 
     (visto,) = vistas

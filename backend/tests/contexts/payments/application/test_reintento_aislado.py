@@ -140,8 +140,7 @@ async def test_un_cobro_sin_telefono_queda_fallido_sin_llamar_a_meta() -> None:
     async def sin_telefono(**_: object) -> MensajeListo | ResultadoDeEnvio:
         return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo="SIN_TELEFONO")
 
-    escenario.envio.preparar = sin_telefono  # type: ignore[method-assign]
-
+    escenario.envio.preparar = sin_telefono  # type: ignore[method-assign]  # el doble sustituye el método para simular el fallo
     resultado = await escenario.barrer(BARRIDO_1)
 
     assert escenario.envio.llamadas == 0
@@ -201,7 +200,7 @@ async def test_un_barrido_solapado_no_resuelve_incierta_una_reserva_con_ventana_
         )
         return await mandar_de_a(mensaje)
 
-    escenario.envio.mandar = mandar_con_un_barrido_en_medio  # type: ignore[method-assign]
+    escenario.envio.mandar = mandar_con_un_barrido_en_medio  # type: ignore[method-assign]  # el doble sustituye el método para simular el fallo
     escenario.reloj.instante = BARRIDO_1 + timedelta(minutes=40)  # A reserva 40 minutos tarde
 
     await escenario.barrido.ejecutar(empresa_id=EMPRESA, ahora=BARRIDO_1)
@@ -269,8 +268,7 @@ async def test_una_falla_al_releer_el_cobro_no_manda_y_deja_la_fila_en_curso() -
             raise DespachoNoPersistido("la base rechazó la lectura del cobro")
         return await originales(cobro_id)  # type: ignore[arg-type]
 
-    escenario.cobros.buscar_por_id = falla_la_segunda_lectura  # type: ignore[method-assign]
-
+    escenario.cobros.buscar_por_id = falla_la_segunda_lectura  # type: ignore[method-assign]  # el doble sustituye el método para simular el fallo
     await escenario.barrer(BARRIDO_1)
 
     assert escenario.envio.llamadas == 0
