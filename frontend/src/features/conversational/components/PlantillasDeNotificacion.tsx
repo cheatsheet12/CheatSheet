@@ -15,6 +15,11 @@
  * misma pantalla dos veces —una configura lo que el agente contesta, la otra lo que el sistema
  * avisa— y editar el texto de un recordatorio es querer ver los otros cinco al lado.
  *
+ * **Editar manda la plantilla a Meta** (U6): si Meta la refuta, el error trae su texto y no se
+ * guardó nada. Una plantilla en revisión, o aprobada hace menos de 24 horas, no se edita: la
+ * pantalla lo explica en vez de dejar un botón gris sin motivo. «Enviar a revisión» reenvía una
+ * sin enviar o rechazada sin tocar el texto.
+ *
  * **El listado no muestra el cuerpo.** Una columna con `Hola {{nombre}}, te esperamos…`
  * repetida seis veces es la misma frase seis veces; lo que distingue una fila de la otra es el
  * mensaje que representa, su canal y si Meta ya la aprobó.
@@ -41,17 +46,20 @@ import { useRef, useState } from "react";
 import { Alert, Button } from "@/shared";
 
 import {
-  ETIQUETAS_DE_APROBACION,
   ETIQUETAS_DE_CANAL,
   ETIQUETAS_DE_CODIGO,
   ErrorDeFaq,
+  MENSAJE_BORDE_CON_VARIABLE,
   MENSAJE_VARIABLE_INVALIDA,
   editarPlantilla,
+  empiezaOTerminaConVariable,
+  enviarARevision,
   listarPlantillas,
   nombreDeIdioma,
   variablesInvalidas,
 } from "../api/faq";
 import type { ListadoDePlantillas, Plantilla } from "../api/faq";
+import { EstadoDePlantilla, motivoDeBloqueo } from "./EstadoDePlantilla";
 
 export interface PropsDePlantillasDeNotificacion {
   readonly inicial: ListadoDePlantillas;
@@ -110,6 +118,9 @@ export function PlantillasDeNotificacion({
   const plantillas = listado.plantillas;
   const frenadas = plantillas.filter((una) => !una.puede_usarse).length;
   const invalidas = editando === null ? [] : variablesInvalidas(cuerpo, editando.variables);
+  // Meta rechaza una plantilla de WhatsApp que empieza o termina con una variable.
+  const bordeInvalido =
+    editando !== null && editando.canal === "WHATSAPP" && empiezaOTerminaConVariable(cuerpo);
 
   // Canal e idioma sólo van en la tarjeta cuando de verdad varían entre plantillas.
   const canalUnico = unicoValor(plantillas.map((una) => una.canal));
@@ -127,6 +138,19 @@ export function PlantillasDeNotificacion({
       setEditando(null);
     } catch (fallo) {
       setError(fallo instanceof ErrorDeFaq ? fallo.message : "No se pudo guardar la plantilla.");
+    } finally {
+      setTrabajando(false);
+    }
+  }
+
+  async function reenviar(plantilla: Plantilla): Promise<void> {
+    setError(null);
+    setTrabajando(true);
+    try {
+      await enviarARevision(plantilla.id);
+      setListado(await listarPlantillas());
+    } catch (fallo) {
+      setError(fallo instanceof ErrorDeFaq ? fallo.message : "No se pudo enviar la plantilla.");
     } finally {
       setTrabajando(false);
     }
@@ -193,7 +217,8 @@ export function PlantillasDeNotificacion({
             <p className="pln-aviso__titulo">Hay plantillas sin aprobar</p>
             <p className="pln-aviso__texto">
               WhatsApp exige que Meta apruebe las plantillas antes de poder enviarlas. Mientras
-              tanto, el sistema manda el texto de fábrica.
+              tanto, el sistema manda el texto de fábrica, y fuera de las 24 horas de una
+              conversación Meta no lo entrega.
             </p>
           </div>
         </div>
@@ -266,13 +291,19 @@ export function PlantillasDeNotificacion({
               </Alert>
             )}
 
+            {bordeInvalido && (
+              <Alert tono="error" titulo={MENSAJE_BORDE_CON_VARIABLE}>
+                Agregá texto antes de la primera variable y después de la última.
+              </Alert>
+            )}
+
             <div className="pln-editor__pie">
               <button type="button" className="pln-accion" onClick={() => setEditando(null)}>
                 Cancelar
               </button>
               <Button
                 type="submit"
-                disabled={invalidas.length > 0 || cuerpo.trim() === ""}
+                disabled={invalidas.length > 0 || bordeInvalido || cuerpo.trim() === ""}
                 cargando={trabajando}
               >
                 Guardar
@@ -317,6 +348,10 @@ export function PlantillasDeNotificacion({
         <ul className="pln-grilla" aria-label="Plantillas de notificación">
           {plantillas.map((una, indice) => {
             const Icono = iconoDe(una);
+            const bloqueo = motivoDeBloqueo(una, new Date());
+            const reenviable =
+              una.canal === "WHATSAPP" &&
+              (una.estado_aprobacion === "SIN_ENVIAR" || una.estado_aprobacion === "RECHAZADA");
             return (
               <li
                 key={una.id}
@@ -341,21 +376,38 @@ export function PlantillasDeNotificacion({
                 </div>
                 <p className="pln-tarjeta__cuerpo">{una.cuerpo}</p>
                 <div className="pln-tarjeta__pie">
-                  <span className="pln-estado" data-tono={una.puede_usarse ? "ok" : "atencion"}>
-                    {ETIQUETAS_DE_APROBACION[una.estado_aprobacion]}
-                  </span>
+                  <EstadoDePlantilla plantilla={una} />
                   {puedeEditar && (
-                    <button
-                      type="button"
-                      className="pln-accion"
-                      onClick={() => {
-                        setEditando(una);
-                        setCuerpo(una.cuerpo);
-                      }}
-                    >
-                      <Pencil size={14} strokeWidth={1.75} aria-hidden="true" />
-                      Editar texto
-                    </button>
+                    <div className="plt-acciones">
+                      <button
+                        type="button"
+                        className="pln-accion"
+                        disabled={bloqueo !== null}
+                        aria-describedby={bloqueo === null ? undefined : `plt-bloqueo-${una.id}`}
+                        onClick={() => {
+                          setEditando(una);
+                          setCuerpo(una.cuerpo);
+                        }}
+                      >
+                        <Pencil size={14} strokeWidth={1.75} aria-hidden="true" />
+                        Editar texto
+                      </button>
+                      {reenviable && (
+                        <button
+                          type="button"
+                          className="pln-accion"
+                          disabled={trabajando}
+                          onClick={() => void reenviar(una)}
+                        >
+                          Enviar a revisión
+                        </button>
+                      )}
+                      {bloqueo !== null && (
+                        <p className="plt-nota" id={`plt-bloqueo-${una.id}`}>
+                          {bloqueo}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </li>

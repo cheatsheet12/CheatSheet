@@ -12,6 +12,7 @@ Qué se prueba, y casi todo es sobre lo que el adaptador **no** hace:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 
 import pytest
@@ -39,6 +40,14 @@ DATOS = DatosDeAviso(
 )
 
 
+class SinPlantillas:
+    """`PlantillasAprobadas` sin ninguna aprobada: el adaptador manda su texto de fábrica."""
+
+    async def para(self, codigo: str, variables: object) -> None:
+        del codigo, variables
+        return
+
+
 class CanalGrabador:
     def __init__(self, *, falla: Exception | None = None) -> None:
         self.enviados: list[tuple[str, str]] = []
@@ -49,6 +58,12 @@ class CanalGrabador:
             raise self._falla
         self.enviados.append((telefono, texto))
         return "wamid.OK"
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, nombre, idioma, parametros
+        raise AssertionError("sin plantilla aprobada nunca se manda una plantilla")
 
 
 async def test_los_tres_textos_nombran_el_servicio_el_nombre_y_el_horario() -> None:
@@ -122,7 +137,7 @@ class TestAvisoPorWhatsApp:
     async def test_reserva_cancelacion_y_reprogramacion_mandan_su_texto_al_cliente(self) -> None:
         """**Caso 24.**"""
         canal = CanalGrabador()
-        aviso = AvisoPorWhatsApp(canal)
+        aviso = AvisoPorWhatsApp(canal, SinPlantillas())
         movido = DatosDeAviso(
             telefono=TELEFONO,
             nombre_del_cliente=NOMBRE,
@@ -148,7 +163,7 @@ class TestAvisoPorWhatsApp:
     @pytest.mark.parametrize("falla", [RuntimeError("explotó"), ValueError("raro"), OSError("red")])
     async def test_un_canal_que_levanta_no_hace_levantar_al_aviso(self, falla: Exception) -> None:
         """**Caso 23.** El turno sigue cancelado aunque el aviso no salga."""
-        aviso = AvisoPorWhatsApp(CanalGrabador(falla=falla))
+        aviso = AvisoPorWhatsApp(CanalGrabador(falla=falla), SinPlantillas())
 
         await aviso.avisar_reserva(DATOS)
         await aviso.avisar_cancelacion(DATOS)
@@ -156,7 +171,9 @@ class TestAvisoPorWhatsApp:
 
     async def test_el_log_trae_la_clase_de_aviso_y_la_excepcion_y_nada_personal(self) -> None:
         """**Caso 27.**"""
-        aviso = AvisoPorWhatsApp(CanalGrabador(falla=RuntimeError(f"falló {TELEFONO} {NOMBRE}")))
+        aviso = AvisoPorWhatsApp(
+            CanalGrabador(falla=RuntimeError(f"falló {TELEFONO} {NOMBRE}")), SinPlantillas()
+        )
 
         with capture_logs() as registros:
             await aviso.avisar_cancelacion(DATOS)
@@ -170,7 +187,7 @@ class TestAvisoPorWhatsApp:
             assert dato not in volcado
 
     async def test_un_aviso_enviado_tampoco_registra_datos_personales(self) -> None:
-        aviso = AvisoPorWhatsApp(CanalGrabador())
+        aviso = AvisoPorWhatsApp(CanalGrabador(), SinPlantillas())
 
         with capture_logs() as registros:
             await aviso.avisar_reserva(DATOS)

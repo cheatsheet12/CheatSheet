@@ -34,6 +34,7 @@ from cheatsheet.api.routers import (
     health,
     integraciones,
     planillas,
+    plantillas,
     puntos_de_venta,
     reembolsos,
     reglas,
@@ -43,6 +44,7 @@ from cheatsheet.api.routers import (
     webhooks,
     whatsapp,
 )
+from cheatsheet.contexts.business_config.application.errors import MetaNoDisponible
 from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging, obtener_logger
@@ -86,6 +88,8 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     # wins: the uniform `{error, detalle}` body has nowhere to put the id of the
     # client that already holds the CUIT, and HU-E4-01 asks the screen to offer it.
     app.add_exception_handler(ClienteDuplicado, clientes.manejar_duplicado)
+    # Meta no contestó al editar una plantilla: 503 y nada guardado (U6).
+    app.add_exception_handler(MetaNoDisponible, plantillas.manejar_meta_no_disponible)
 
     # One line per bounded context. `observability` exposes no HTTP surface yet: its
     # panel is HU-E12-01, epic 10.
@@ -105,6 +109,7 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(agenda.crear_router(recursos))
     app.include_router(reglas.crear_router(recursos))
     app.include_router(conversaciones.crear_router(recursos))
+    app.include_router(plantillas.crear_router(recursos))
     app.include_router(webhooks.crear_router(recursos))
     app.include_router(whatsapp.crear_router(recursos))
     app.include_router(reporteria.crear_router(recursos))
