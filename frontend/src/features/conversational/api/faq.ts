@@ -11,7 +11,18 @@
  */
 
 export type CanalDePlantilla = "WHATSAPP" | "EMAIL" | "PANEL";
-export type EstadoDeAprobacion = "NO_APLICA" | "PENDIENTE" | "APROBADA" | "RECHAZADA";
+/**
+ * El estado de una plantilla ante Meta (U6). `SIN_ENVIAR` es la que nunca aceptó (todavía no se
+ * mandó, o la última creación fue refutada); `PAUSADA` y `DESHABILITADA` las decide Meta.
+ */
+export type EstadoDeAprobacion =
+  | "NO_APLICA"
+  | "SIN_ENVIAR"
+  | "PENDIENTE"
+  | "APROBADA"
+  | "RECHAZADA"
+  | "PAUSADA"
+  | "DESHABILITADA";
 
 export interface Faq {
   readonly id: string;
@@ -74,6 +85,12 @@ export interface Plantilla {
   /** Las que admite ese código. La pantalla las ofrece para que nadie las adivine. */
   readonly variables: readonly string[];
   readonly puede_usarse: boolean;
+  /** Lo que Meta dijo: el código del motivo de un rechazo, su texto literal y su categoría. */
+  readonly motivo_meta: string | null;
+  readonly detalle_meta: string | null;
+  readonly categoria_en_meta: string | null;
+  /** Cuándo se puede volver a editar una aprobada (Meta lo permite una vez cada 24 h). */
+  readonly editable_desde: string | null;
 }
 
 export interface ListadoDePlantillas {
@@ -83,6 +100,12 @@ export interface ListadoDePlantillas {
 /** HU-E9-04 y HU-E11-02, palabra por palabra. */
 export const MENSAJE_CAMPOS_OBLIGATORIOS = "La pregunta y la respuesta son obligatorias.";
 export const MENSAJE_VARIABLE_INVALIDA = "La variable indicada no es válida para esta plantilla.";
+/** Meta rechaza una plantilla que empieza o termina con una variable (U6). */
+export const MENSAJE_BORDE_CON_VARIABLE =
+  "Meta no acepta una plantilla que empiece o termine con una variable.";
+/** Lo que se dice cuando Meta no contesta: el backend no guardó nada. */
+export const MENSAJE_META_NO_RESPONDE =
+  "Meta no respondió. No se guardó nada: volvé a intentarlo en un rato.";
 export const MENSAJE_SIN_FAQS =
   "Todavía no configuraste ninguna respuesta frecuente. El agente deriva a un asesor cada consulta que no puede responder.";
 export const MENSAJE_CONFIRMAR_BAJA =
@@ -147,9 +170,12 @@ export function nombreDeIdioma(codigo: string): string {
 
 export const ETIQUETAS_DE_APROBACION: Readonly<Record<EstadoDeAprobacion, string>> = {
   NO_APLICA: "No requiere aprobación",
-  PENDIENTE: "Pendiente de aprobación",
+  SIN_ENVIAR: "Sin enviar a Meta",
+  PENDIENTE: "En revisión de Meta",
   APROBADA: "Aprobada",
   RECHAZADA: "Rechazada",
+  PAUSADA: "Pausada por Meta",
+  DESHABILITADA: "Deshabilitada por Meta",
 };
 
 export class ErrorDeFaq extends Error {
@@ -165,6 +191,10 @@ interface CuerpoDeError {
 }
 
 async function fallar(respuesta: Response): Promise<never> {
+  if (respuesta.status === 503) {
+    // El BFF no reenvía el detalle de un 503 y el nombre del error no es para la pantalla.
+    throw new ErrorDeFaq(MENSAJE_META_NO_RESPONDE);
+  }
   const cuerpo = (await respuesta.json().catch(() => ({}))) as CuerpoDeError;
   throw new ErrorDeFaq(cuerpo.detalle ?? cuerpo.error ?? "No se pudo completar la operacion");
 }
@@ -236,6 +266,27 @@ export async function editarPlantilla(plantillaId: string, cuerpo: string): Prom
     await fallar(respuesta);
   }
   return (await respuesta.json()) as Plantilla;
+}
+
+/**
+ * «Enviar a revisión»: reenvía a Meta una plantilla sin enviar o rechazada, tal como está.
+ *
+ * Un 422 trae el texto de Meta; un 503 dice que no se guardó nada y que se puede reintentar.
+ */
+export async function enviarARevision(plantillaId: string): Promise<Plantilla> {
+  const respuesta = await fetch(`/api/plantillas/${plantillaId}/envio`, { method: "POST" });
+  if (!respuesta.ok) {
+    await fallar(respuesta);
+  }
+  return (await respuesta.json()) as Plantilla;
+}
+
+/**
+ * Si el texto empieza o termina con una variable, lo que Meta rechaza en una plantilla de
+ * WhatsApp. Una cortesía de la pantalla: la validación que cuenta es la del backend.
+ */
+export function empiezaOTerminaConVariable(cuerpo: string): boolean {
+  return /^\{\{[a-z_][a-z0-9_]*\}\}|\{\{[a-z_][a-z0-9_]*\}\}$/.test(cuerpo.trim());
 }
 
 /**

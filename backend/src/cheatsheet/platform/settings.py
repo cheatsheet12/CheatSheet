@@ -464,6 +464,9 @@ class Settings:
     whatsapp_graph_version: str
     whatsapp_timeout_segundos: int
     whatsapp_sondeo_minutos: int
+    #: Cada cuántos minutos Beat concilia las plantillas de WhatsApp de cada empresa con Meta
+    #: (U6). La revisión tarda hasta 24 h y la consulta cuesta una llamada por empresa.
+    whatsapp_plantillas_minutos: int
     #: El secreto con el que Meta firma el webhook entrante (HS-T2). **Vacío significa que
     #: ninguna firma valida**, igual que el de MercadoPago: lo cómodo —aceptar todo mientras
     #: no haya secreto— convierte un despliegue mal configurado en un endpoint público que le
@@ -607,6 +610,7 @@ class Settings:
             # 30 minutes against a wait Meta measures in days (HU-E2-03 RN-02): it bounds
             # the delay to about 1% of the wait at 48 calls per number per day.
             whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
+            whatsapp_plantillas_minutos=_entero("WHATSAPP_PLANTILLAS_MINUTOS", 30),
             whatsapp_webhook_secret=_opcional("WHATSAPP_WEBHOOK_SECRET", ""),
             whatsapp_webhook_verify_token=_opcional("WHATSAPP_WEBHOOK_VERIFY_TOKEN", ""),
             dlq_barrido_minutos=_entero("DLQ_BARRIDO_MINUTOS", 15),

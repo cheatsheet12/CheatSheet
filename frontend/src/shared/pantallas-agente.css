@@ -2646,6 +2646,41 @@
   }
 }
 
+/* U6: el estado de una plantilla ante Meta, con lo que Meta dijo, y las acciones por fila. */
+.plt-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.plt-estado__motivo,
+.plt-estado__detalle,
+.plt-nota {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-600);
+}
+
+.plt-estado__aviso {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--warn);
+}
+
+.plt-acciones {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.plt-nota {
+  max-width: 28ch;
+  text-align: right;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
  * Recursos reservables (PAN-AGE-03) — tarjetas, barra de herramientas y editor
  *
@@ -6069,4 +6104,9 @@
   .age-mes__ficha {
     transition: none;
   }
+}
+
+/* U6: en la tarjeta, el estado con su motivo y las acciones se alinean arriba, no al centro. */
+.pln-tarjeta .pln-tarjeta__pie {
+  align-items: flex-start;
 }
