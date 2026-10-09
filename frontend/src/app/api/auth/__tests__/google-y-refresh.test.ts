@@ -183,6 +183,66 @@ describe("POST /api/auth/refresh", () => {
     expect(cookiesBorradas).toContain("cheatsheet_session");
     expect(cookiesBorradas).toContain("cheatsheet_refresh");
   });
+
+  // A definitive "no" from the API ends the session. Not only 401: the backend answers 409 for
+  // a revoked or reused token, and 422 when the cookie is not even a token.
+  it.each([
+    [401, "SesionInvalida"],
+    [409, "SesionInvalida"],
+    [422, "EntradaInvalida"],
+  ])("un %i del backend cierra la sesión y borra las dos cookies", async (status, codigo) => {
+    almacen.set("cheatsheet_session", "un-access-viejo");
+    almacen.set("cheatsheet_refresh", "un-refresh-muerto");
+    llamarApi.mockRejectedValue(new ErrorDeApi(status, "no", codigo));
+
+    const respuesta = await postRefresh();
+
+    expect(respuesta.status).toBe(401);
+    expect(cookiesBorradas).toEqual(
+      expect.arrayContaining(["cheatsheet_session", "cheatsheet_refresh"]),
+    );
+    expect(almacen.size).toBe(0);
+  });
+
+  // An API that cannot answer says nothing about the token, so the session stays as it was and
+  // the next attempt renews normally.
+  it.each([
+    ["503", new ErrorDeApi(503, "caida", "ServicioNoDisponible")],
+    ["500", new ErrorDeApi(500, "falla", "ErrorInterno")],
+    ["un timeout de llamarApi (504)", new ErrorDeApi(504, "timeout", "TiempoAgotado")],
+    ["una red caída (TypeError)", new TypeError("fetch failed")],
+  ])("con %s conserva las dos cookies", async (_motivo, falla) => {
+    almacen.set("cheatsheet_session", "un-access-viejo");
+    almacen.set("cheatsheet_refresh", "un-refresh-vivo");
+    llamarApi.mockRejectedValue(falla);
+
+    const respuesta = await postRefresh();
+
+    expect(cookiesBorradas).toHaveLength(0);
+    expect(almacen.get("cheatsheet_session")).toBe("un-access-viejo");
+    expect(almacen.get("cheatsheet_refresh")).toBe("un-refresh-vivo");
+    expect(respuesta.status).toBe(502);
+    expect(await respuesta.json()).toEqual({ error: "ServicioNoDisponible" });
+  });
+
+  it("tras una caída, el siguiente intento rota con el refresh que quedó", async () => {
+    almacen.set("cheatsheet_refresh", "un-refresh-vivo");
+    llamarApi.mockRejectedValueOnce(new ErrorDeApi(503, "caida", "ServicioNoDisponible"));
+    llamarApi.mockResolvedValueOnce(SESION);
+
+    const caida = await postRefresh();
+    const recuperada = await postRefresh();
+
+    expect(caida.status).toBe(502);
+    expect(recuperada.status).toBe(200);
+    expect(llamarApi).toHaveBeenLastCalledWith("/auth/refresh", {
+      method: "POST",
+      body: { refresh_token: "un-refresh-vivo" },
+    });
+    expect(almacen.get("cheatsheet_session")).toBe("un-access-token");
+    expect(almacen.get("cheatsheet_refresh")).toBe("un-refresh-token");
+    expect(cookiesBorradas).toHaveLength(0);
+  });
 });
 
 describe("POST /api/auth/invitaciones/aceptar", () => {

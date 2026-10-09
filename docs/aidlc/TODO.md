@@ -138,7 +138,10 @@ Ninguna de estas bloquea el cierre. Están acá para que nadie las descubra desp
 - **`GET /auth/empresa`** se agregó para que el layout del panel sepa si el onboarding está
   completo. Cuesta una llamada por navegación. Si el panel crece, conviene un endpoint de
   «contexto de sesión» que devuelva empresa + usuario + rol de una vez, en lugar de tres.
-- **La renovación de sesión es manual, y se nota.** `/api/auth/refresh` existe y funciona, pero
+- ~~**La renovación de sesión es manual, y se nota.**~~ ✅ **Resuelta el 2026-10-05** por el commit
+  `67f2db4`: `RenovadorDeSesion` renueva cada 10 minutos y al volver a la pestaña, y manda a `/` ante
+  un 401. Se conserva el texto original porque explica por qué no fue un parche de QA.
+  `/api/auth/refresh` existe y funciona, pero
   nadie lo llama solo: **el panel te saca a los 15 minutos** aunque tengas la cookie de refresh al
   lado. Apareció en el QA del 2026-08-18, en carne propia.
   **Por qué no lo arreglé ahí mismo:** el lugar natural es el middleware de Next, y ahí hay una
@@ -680,6 +683,7 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 | 22.55 | Los tests contra PostgreSQL del tramo 1 de `entregas-de-whatsapp` (`tests/integracion/test_migracion_0038.py`: columnas, índice único parcial de `recordatorio.externo_id`, sin backfill; `test_entregas_de_recordatorio_postgres.py`: callback por `wamid` y RLS —un `wamid` de otra empresa no existe—; los dos casos nuevos de `test_conversacional_postgres.py` y `test_entregas_concurrentes_postgres.py`: dos callbacks del mismo `wamid` con dos transacciones solapadas, sin pisarse —`LEIDO` no se pisa con `ENTREGADO`, `FALLIDO` no se pisa— y `recordatorio_fallido` publicado una sola vez, sobre el `SELECT ... FOR UPDATE` y la política `aislamiento_por_cobro`) se saltearon en local (sin Docker): confirmar que pasan en la CI del PR | `entregas-de-whatsapp` (U7, tramo 1) |
 | 22.56 | Del `failed` solo se guarda el `code` de `errors[0]` (como `motivo_de_falla` / `ultimo_error`), no el `title`: es texto de un tercero. Si hace falta mostrar el título de Meta para los códigos que la pantalla no traduce (tramo 3), habría que guardarlo acotado en una columna nueva | `entregas-de-whatsapp` (U7) |
 | 22.57 | **Un `failed`/`delivered` que llega antes del commit del barrido se pierde** (hallazgo H1 del Gate 2 del tramo 1 de `entregas-de-whatsapp`). `workers/tasks_payments.py:74` abre **una** `unidad_de_trabajo` por empresa y `payments/application/recordatorios.py:230-252` inserta, manda a Meta y marca el envío dentro de ella, así que todo se confirma recién al final del barrido: un callback que llega antes del commit no encuentra la fila (`recordatorio.externo_id` todavía no existe para otra transacción), se contesta 200 con `whatsapp_estado_sin_destinatario` y **ese estado no se reaplica**. El tramo ii (reintento acotado) lo resuelve: cada recordatorio se confirma **antes** de la E/S a Meta y se actualiza después con su `wamid`. Es la parte de recordatorios del hallazgo G5/ADR-0015 (E/S a Meta con la transacción abierta); la de los avisos de turno sigue en el tramo iii | `entregas-de-whatsapp` (U7, tramo ii) |
+| 22.66 | Costo de la verificación de sesión por solicitud en staging (pregunta 1 de `revocacion-inmediata-de-sesion`): 200 llamadas a `GET /auth/empresa` con la compute de Neon despierta, con y sin la verificación, y anotar el p95 agregado por solicitud en el plan. En la base local la verificación completa da p95 2,16 ms | `revocacion-inmediata-de-sesion` |
 
 **Archivos de más de 400 líneas (CLAUDE.md §5), vistos en `limites-e-intervalo-de-turnos`.** Ya superaban el límite antes de esa unidad y no se partieron (decisión P4): `scheduling/application/turnos.py` (~520), `api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y `tests/contexts/scheduling/application/test_agenda.py` (~1180). **El router ya se partió** (`router-de-agenda-por-responsabilidad`). Siguen sin unidad: `turnos.py` (extraer `Avisador` a `application/avisador.py`; U8 modifica `turnos.py`, conviene esperar), `RecursosReservables.tsx` y `test_agenda.py`.
 
@@ -733,3 +737,25 @@ HU-E4-05.
   admite hasta 200, así que cada llamada levanta `EntradaInvalida`. Ningún test del repo lo
   ejercitaba; los de esta unidad fijan el límite en 200 con `monkeypatch`. El arreglo es de una
   línea, pero es de la unidad del write-back.
+
+## 25. Hallazgos de `revocacion-inmediata-de-sesion`
+
+Todos quedan **sin unidad** (registrados el 2026-10-09): se vieron al planificar y no se arreglaron,
+porque ninguno es de HU-E1-05 ni de HU-E1-06.
+
+- ~~**`renovarSesion` borra las dos cookies ante cualquier 5xx de `/auth/refresh`.**~~ ✅ **Resuelto el
+  2026-10-09** por `renovacion-sin-borrar-sesion` (commit `22ac0ff`): sólo un 4xx cierra la sesión; un 5xx,
+  un timeout o una red caída conservan las dos cookies. Se conserva el texto original por el contexto.
+  Estaba en
+  `frontend/src/app/api/auth/_sesion.ts` (bloque `catch`) y su comentario lo declara a propósito.
+  Una caída breve de la base que coincida con una renovación saca al usuario al ingreso, aunque su
+  sesión siga viva. No lo introduce la unidad (`/auth/refresh` es pública y no pasa por el
+  verificador por solicitud), y cambiarlo es una decisión de contrato del BFF. Se resuelve en un
+  `fix/identity-…` aparte (decisión 7 de la unidad).
+- **`SesionInvalida` responde 409 y no 401** en `/auth/refresh` y `/auth/login` (`api/errors.py` no
+  la mapea). El BFF ya lo traduce (`status < 500` → 401 y borra cookies), por eso no se ve. Cambiarlo
+  afecta al BFF y a sus tests: es una decisión de contrato. Los tests de la unidad aseveran «4xx con
+  `error == "SesionInvalida"`» y no el número, para no fijarlo.
+- **Cada navegación del panel cuesta dos lecturas a la base**, cada una con su conexión del pool: la
+  verificación del middleware y la propia `GET /auth/empresa`. Sigue valiendo la propuesta de §4 de
+  un endpoint de «contexto de sesión» que devuelva empresa + usuario + rol de una vez.

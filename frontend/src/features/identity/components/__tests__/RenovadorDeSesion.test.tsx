@@ -69,6 +69,16 @@ describe("RenovadorDeSesion (D-06)", () => {
     expect(irA).toHaveBeenCalledWith("/");
   });
 
+  it("una API caída (502) no manda al login", async () => {
+    pedir.mockResolvedValue(new Response("{}", { status: 502 }));
+    render(<RenovadorDeSesion />);
+
+    await vi.advanceTimersByTimeAsync(INTERVALO_DE_RENOVACION_MS);
+
+    expect(pedir).toHaveBeenCalledTimes(1);
+    expect(irA).not.toHaveBeenCalled();
+  });
+
   it("una falla de red no cierra la sesión", async () => {
     pedir.mockRejectedValue(new TypeError("sin red"));
     render(<RenovadorDeSesion />);
