@@ -138,7 +138,10 @@ Ninguna de estas bloquea el cierre. Están acá para que nadie las descubra desp
 - **`GET /auth/empresa`** se agregó para que el layout del panel sepa si el onboarding está
   completo. Cuesta una llamada por navegación. Si el panel crece, conviene un endpoint de
   «contexto de sesión» que devuelva empresa + usuario + rol de una vez, en lugar de tres.
-- **La renovación de sesión es manual, y se nota.** `/api/auth/refresh` existe y funciona, pero
+- ~~**La renovación de sesión es manual, y se nota.**~~ ✅ **Resuelta el 2026-10-05** por el commit
+  `67f2db4`: `RenovadorDeSesion` renueva cada 10 minutos y al volver a la pestaña, y manda a `/` ante
+  un 401. Se conserva el texto original porque explica por qué no fue un parche de QA.
+  `/api/auth/refresh` existe y funciona, pero
   nadie lo llama solo: **el panel te saca a los 15 minutos** aunque tengas la cookie de refresh al
   lado. Apareció en el QA del 2026-08-18, en carne propia.
   **Por qué no lo arreglé ahí mismo:** el lugar natural es el middleware de Next, y ahí hay una
@@ -712,3 +715,22 @@ HU-E4-05.
   admite hasta 200, así que cada llamada levanta `EntradaInvalida`. Ningún test del repo lo
   ejercitaba; los de esta unidad fijan el límite en 200 con `monkeypatch`. El arreglo es de una
   línea, pero es de la unidad del write-back.
+
+## 25. Hallazgos de `revocacion-inmediata-de-sesion`
+
+Todos quedan **sin unidad** (registrados el 2026-10-09): se vieron al planificar y no se arreglaron,
+porque ninguno es de HU-E1-05 ni de HU-E1-06.
+
+- **`renovarSesion` borra las dos cookies ante cualquier 5xx de `/auth/refresh`.** Está en
+  `frontend/src/app/api/auth/_sesion.ts` (bloque `catch`) y su comentario lo declara a propósito.
+  Una caída breve de la base que coincida con una renovación saca al usuario al ingreso, aunque su
+  sesión siga viva. No lo introduce la unidad (`/auth/refresh` es pública y no pasa por el
+  verificador por solicitud), y cambiarlo es una decisión de contrato del BFF. Se resuelve en un
+  `fix/identity-…` aparte (decisión 7 de la unidad).
+- **`SesionInvalida` responde 409 y no 401** en `/auth/refresh` y `/auth/login` (`api/errors.py` no
+  la mapea). El BFF ya lo traduce (`status < 500` → 401 y borra cookies), por eso no se ve. Cambiarlo
+  afecta al BFF y a sus tests: es una decisión de contrato. Los tests de la unidad aseveran «4xx con
+  `error == "SesionInvalida"`» y no el número, para no fijarlo.
+- **Cada navegación del panel cuesta dos lecturas a la base**, cada una con su conexión del pool: la
+  verificación del middleware y la propia `GET /auth/empresa`. Sigue valiendo la propuesta de §4 de
+  un endpoint de «contexto de sesión» que devuelva empresa + usuario + rol de una vez.

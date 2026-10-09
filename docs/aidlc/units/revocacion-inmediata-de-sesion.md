@@ -285,31 +285,34 @@ decide.
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/identity/application/ports.py` (puerto + DTO)
-- [ ] `backend/src/cheatsheet/contexts/identity/application/errors.py` (`SesionRevocada`)
-- [ ] `backend/src/cheatsheet/contexts/identity/application/verificacion_de_sesion.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/identity/application/usuarios.py` (docstring de `DesactivarUsuario`)
-- [ ] `backend/src/cheatsheet/contexts/identity/infrastructure/consulta_de_sesion.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/identity/infrastructure/seguridad.py` (docstring)
-- [ ] `backend/src/cheatsheet/api/middleware/empresa.py`
-- [ ] `backend/src/cheatsheet/api/main.py`
-- [ ] `backend/tests/contexts/identity/conftest.py` (doble `ConsultaDeUsuarioVigenteEnMemoria`)
-- [ ] `backend/tests/contexts/identity/application/test_verificacion_de_sesion.py` (nuevo)
-- [ ] `backend/tests/api/test_middleware_de_sesion.py` (nuevo; middleware con verificador falso)
-- [ ] `backend/tests/api/test_health.py` (inyecta el verificador falso; solo
+- [x] `backend/src/cheatsheet/contexts/identity/application/ports.py` (puerto + DTO)
+- [x] `backend/src/cheatsheet/contexts/identity/application/errors.py` (`SesionRevocada`)
+- [x] `backend/src/cheatsheet/contexts/identity/application/verificacion_de_sesion.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/identity/application/usuarios.py` (docstring de `DesactivarUsuario`)
+- [x] `backend/src/cheatsheet/contexts/identity/infrastructure/consulta_de_sesion.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/identity/infrastructure/seguridad.py` (docstring)
+- [x] `backend/src/cheatsheet/api/middleware/empresa.py`
+- [x] `backend/src/cheatsheet/api/main.py`
+- [x] `backend/tests/contexts/identity/conftest.py` (doble `ConsultaDeUsuarioVigenteEnMemoria`)
+- [x] `backend/tests/contexts/identity/application/test_verificacion_de_sesion.py` (nuevo)
+- [x] `backend/tests/api/test_middleware_de_sesion.py` (nuevo; middleware con verificador falso)
+- [x] `backend/tests/api/test_health.py` (inyecta el verificador falso; solo
   `test_un_error_de_dominio_se_traduce_sin_filtrar_internals` lo necesita)
-- [ ] `backend/tests/api/test_reporte_fallido_se_confirma.py` (inyecta el verificador falso en
+- [x] `backend/tests/api/test_reporte_fallido_se_confirma.py` (inyecta el verificador falso en
   `create_app`; lo necesitan las tres pruebas que pasan por `_pedir`)
-- [ ] `backend/tests/integracion/test_identidad_postgres.py` (adaptador bajo RLS, casos 14–16)
-- [ ] `backend/tests/integracion/test_api_revocacion_de_sesion.py` (nuevo; casos 17–25)
+- [x] `backend/tests/api/verificador_falso.py` (nuevo; verificador falso y token firmado compartidos por los tres archivos de `tests/api`)
+- [x] `backend/tests/contexts/identity/base_falsa.py` (nuevo; sesión falsa con demoras independientes para la toma de conexión y la consulta)
+- [x] `backend/tests/contexts/identity/infrastructure/test_verificador_de_sesion.py` (nuevo; los dos límites de tiempo, casos 9 y 27)
+- [x] `backend/tests/integracion/test_consulta_de_sesion_postgres.py` (nuevo; adaptador bajo RLS, casos 14–16). Se separó de `test_identidad_postgres.py`, que ya tenía 386 líneas y pasaba el tope de 400
+- [x] `backend/tests/integracion/test_api_revocacion_de_sesion.py` (nuevo; casos 17–25)
 
 ### Frontend
-- [ ] `frontend/src/features/identity/components/RenovadorDeSesion.tsx` (solo el comentario de las
+- [x] `frontend/src/features/identity/components/RenovadorDeSesion.tsx` (solo el comentario de las
   líneas 13-14)
 
 ### Docs
 - [ ] `docs/aidlc/units.md` (estado de la fila)
-- [ ] `docs/aidlc/TODO.md`: registrar el hallazgo 4 y el de `renovarSesion` («Fuera de esta unidad»), y
+- [x] `docs/aidlc/TODO.md`: registrar el hallazgo 4 y el de `renovarSesion` («Fuera de esta unidad»), y
   **corregir la entrada vieja de §4** («La renovación de sesión es manual, y se nota»), que sigue
   describiendo un problema que `67f2db4` resolvió el 2026-10-05 con `RenovadorDeSesion`. Se corrige en
   esta unidad y no aparte porque esta unidad ya edita `TODO.md` y cambia el mismo comportamiento que
