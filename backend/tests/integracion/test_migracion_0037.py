@@ -1,4 +1,4 @@
-"""La migración 0036: plantillas en Meta (U6, casos 28 y 29).
+"""La migración 0037: plantillas en Meta (U6, casos 28 y 29).
 
 Sube y baja sobre una base con plantillas existentes. Son síncronos a propósito, como
 `test_migracion_0034.py`: `alembic.command` arranca su propio loop de asyncio. Necesitan
@@ -114,10 +114,10 @@ def _plantilla(
 
 
 @pytest.fixture
-def esquema_en_0035(esquema_migrado: None) -> Iterator[None]:
-    """Baja a `0035`, la de `develop` (solo se deshace la de plantillas) y, pase lo que pase, deja el esquema en `head` para el resto."""
+def esquema_en_0036(esquema_migrado: None) -> Iterator[None]:
+    """Baja a `0036`, la de `develop` (solo se deshace la de plantillas) y, pase lo que pase, deja el esquema en `head` para el resto."""
     config = _config()
-    command.downgrade(config, "0035")
+    command.downgrade(config, "0036")
     try:
         yield
     finally:
@@ -148,12 +148,12 @@ def _sembrar_plantillas_viejas() -> uuid.UUID:
     return empresa_id
 
 
-def test_downgrade_deja_la_tabla_sin_las_columnas_ni_las_funciones(esquema_en_0035: None) -> None:
+def test_downgrade_deja_la_tabla_sin_las_columnas_ni_las_funciones(esquema_en_0036: None) -> None:
     assert asyncio.run(_leer(COLUMNAS)) == [(0,)]
     assert asyncio.run(_leer(FUNCIONES)) == [(0,)]
 
 
-def test_el_backfill_pasa_pendiente_a_sin_enviar_y_pone_el_nombre(esquema_en_0035: None) -> None:
+def test_el_backfill_pasa_pendiente_a_sin_enviar_y_pone_el_nombre(esquema_en_0036: None) -> None:
     """Caso 28: nadie las mandó nunca, así que «pendiente» era falso."""
     empresa_id = _sembrar_plantillas_viejas()
 
@@ -171,7 +171,7 @@ def test_el_backfill_pasa_pendiente_a_sin_enviar_y_pone_el_nombre(esquema_en_003
 
 
 def test_el_texto_de_fabrica_viejo_pasa_al_nuevo_y_el_editado_queda_igual(
-    esquema_en_0035: None,
+    esquema_en_0036: None,
 ) -> None:
     empresa_id = _sembrar_plantillas_viejas()
 
@@ -239,7 +239,7 @@ def test_el_indice_de_la_cuenta_es_unico_y_el_downgrade_lo_saca(esquema_migrado:
     assert len(definicion) == 1
     assert "UNIQUE" in str(definicion[0][0])
 
-    command.downgrade(_config(), "0035")
+    command.downgrade(_config(), "0036")
     try:
         assert asyncio.run(_leer(INDICE_WABA_UNICO)) == []
     finally:

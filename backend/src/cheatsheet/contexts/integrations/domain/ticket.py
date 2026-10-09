@@ -79,3 +79,29 @@ class TicketDeAcceso:
         """Overwrite in place. One row per `(empresa, servicio)`, as the index states."""
         self.contenido = contenido
         self.expira_en = expira_en
+
+
+@dataclass(eq=False)
+class TicketDePlataforma:
+    """One live session of **the platform certificate** with one ARCA service (ADR-0014).
+
+    Not per company: with web service delegation every company is reached through the
+    same certificate, and WSAA issues one ticket per certificate and service. A ticket
+    kept per company would make the second company to connect fail for twelve hours.
+    """
+
+    servicio: ServicioDeArca
+    contenido: CredencialCifrada
+    expira_en: datetime
+
+    def vigente(self, ahora: datetime) -> bool:
+        """Whether ARCA would still accept it."""
+        return ahora < self.expira_en
+
+    def hay_que_renovar(self, ahora: datetime, margen: timedelta = MARGEN_DE_RENOVACION) -> bool:
+        """Whether to mint a new one instead of handing this one out (see `TicketDeAcceso`)."""
+        return ahora >= self.expira_en - margen
+
+    def reemplazar(self, contenido: CredencialCifrada, expira_en: datetime) -> None:
+        self.contenido = contenido
+        self.expira_en = expira_en

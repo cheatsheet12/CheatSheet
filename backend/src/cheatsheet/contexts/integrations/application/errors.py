@@ -48,6 +48,15 @@ class ProveedorNoDisponible(RuntimeError):
     """
 
 
+class TicketTodaviaVigente(ProveedorNoDisponible):
+    """ARCA still holds a live ticket for this certificate and service, and refused another.
+
+    In the application layer so a use case can react to it without importing ARCA's
+    adapter: the reaction is "use the one already stored", and when none is stored, wait
+    for the live one to expire.
+    """
+
+
 class TicketNoDisponible(OperacionNoPermitida):
     """No usable ARCA access ticket could be produced for this company.
 
@@ -100,7 +109,7 @@ class CuentaDeWhatsAppEnUso(InvarianteViolada):
     """The WhatsApp business account is already linked to another empresa.
 
     An `InvarianteViolada` — answered as 409 — because the input is well-formed and the
-    conflict is with state that exists: the unique index of migration 0036 allows one
+    conflict is with state that exists: the unique index of migration 0037 allows one
     empresa per WABA. Without it, a second empresa registering somebody else's WABA would
     steal or block that company's template webhooks, which resolve the company from the WABA.
 

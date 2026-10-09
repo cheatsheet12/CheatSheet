@@ -32,7 +32,7 @@ from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.zona_horaria import ZONA_ARGENTINA
 
 #: Lo que cabe en las columnas de `plantilla_de_notificacion` que guardan lo que dice Meta
-#: (migración 0036). Un texto de un tercero más largo desborda la columna: se corta el motivo,
+#: (migración 0037). Un texto de un tercero más largo desborda la columna: se corta el motivo,
 #: que es informativo, y se descarta el id, que nunca se corta (uno cortado sería de otra fila).
 LARGO_MAXIMO_MOTIVO = 40
 LARGO_MAXIMO_ID_EN_META = 64

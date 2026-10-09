@@ -135,6 +135,7 @@ BORRADOS = (
     "DELETE FROM punto_de_venta",
     "DELETE FROM registro_de_auditoria",
     "DELETE FROM ticket_de_acceso",
+    "DELETE FROM ticket_de_plataforma",
     "DELETE FROM configuracion_de_integracion",
     "DELETE FROM respaldo_de_normalizacion",
     "DELETE FROM cliente_categoria",

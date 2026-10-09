@@ -1,14 +1,13 @@
-"""ARCA de punta a punta contra PostgreSQL real — casos 15 a 17, 20, 21, 22 y 26.
+"""ARCA de punta a punta contra PostgreSQL real, con delegación del web service (ADR-0014).
 
-Cuatro cosas no se pueden probar con un doble, y son las que este archivo cubre:
+Lo que no se puede probar con un doble, y este archivo cubre:
 
-- que **el ambiente no se pueda elegir desde el request** (caso 15). Es la garantía más
-  cara de esta unidad: elegirlo mal significa emitir contra el servidor equivocado;
-- que la política RLS impida que una empresa lea o renueve el ticket de otra — un ticket es
-  una sesión viva, y leer el ajeno es hablarle a ARCA como esa otra empresa;
-- que el token quede **cifrado** en la base y no salga por ninguna respuesta;
-- que dos servicios de ARCA convivan como dos filas, que es lo que la unidad siguiente
-  necesita.
+- que **el ambiente no se pueda elegir desde el request** (caso 15): elegirlo mal significa
+  emitir contra el servidor equivocado;
+- que **la CUIT por la que se pregunta a ARCA salga de los datos de la empresa y nunca del
+  cuerpo del pedido**: con delegación, esa CUIT decide en nombre de quién se factura;
+- que el ticket de la plataforma quede **cifrado** en su tabla, sea **uno por servicio para
+  todas las empresas**, y no salga por ninguna respuesta.
 
 ARCA sigue simulada, siempre. Homologación también tiene límites de uso, y un test que
 consume un ticket de 12 horas rompe el que corre después.
@@ -28,7 +27,6 @@ import pytest
 import pytest_asyncio
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.api.main import create_app
-from cheatsheet.contexts.integrations.application.tickets import ObtenerTicketDeAcceso
 from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
 from cheatsheet.platform.settings import Settings
@@ -37,7 +35,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.conftest import settings_de_prueba
-from tests.contexts.integrations.conftest_arca import CUIT_DE_PRUEBA, bundle
 from tests.integracion.conftest import requiere_base
 
 pytestmark = [requiere_base, pytest.mark.integration]
@@ -89,17 +86,48 @@ def _empresa_de(token: str) -> EmpresaId:
     return EmpresaId(UUID(json.loads(base64.urlsafe_b64decode(payload + relleno))["empresa_id"]))
 
 
+CUIT_DE_LA_EMPRESA = "30000000015"
+OTRA_CUIT = "30000000023"
+#: Empieza con `PREFIJO_SIN_DELEGACION`: el simulador responde que no delegó.
+CUIT_SIN_DELEGACION = "30999999006"
+
+
+async def _completar_empresa(
+    cliente: httpx.AsyncClient, token: str, cuit: str = CUIT_DE_LA_EMPRESA
+) -> None:
+    respuesta = await cliente.put(
+        "/auth/empresa",
+        headers=_auth(token),
+        json={
+            "razon_social": "Estudio Ejemplo SRL",
+            "cuit": cuit,
+            "condicion_iva": "RESPONSABLE_INSCRIPTO",
+            "nombre_responsable": "Laura Ejemplo",
+            "email_contacto": "admin@estudio-ejemplo.test",
+        },
+    )
+    assert respuesta.status_code == 200, respuesta.text
+
+
 async def _conectar_arca(
-    cliente: httpx.AsyncClient, token: str, credencial: bytes | None = None, **parametros: str
+    cliente: httpx.AsyncClient, token: str, contenido: str = "", **parametros: str
 ) -> httpx.Response:
     return await cliente.put(
         "/integraciones/ARCA/conexion",
         headers=_auth(token),
         json={
-            "contenido": base64.b64encode(credencial or bundle()).decode(),
+            "contenido": base64.b64encode(contenido.encode()).decode(),
             "parametros": parametros,
         },
     )
+
+
+async def _empresa_con_arca(cliente: httpx.AsyncClient, email: str, cuit: str) -> str:
+    token = await _registrar(cliente, email)
+    await _completar_empresa(cliente, token, cuit)
+    respuesta = await _conectar_arca(cliente, token)
+    assert respuesta.status_code == 200, respuesta.text
+    return token
 
 
 def _tarjeta(cuerpo: dict[str, object], sistema: str) -> dict[str, object]:
@@ -108,22 +136,23 @@ def _tarjeta(cuerpo: dict[str, object], sistema: str) -> dict[str, object]:
     return next(i for i in integraciones if i["sistema"] == sistema)
 
 
-# ----------------------------------------------------------------- casos 16 y 17
+# ----------------------------------------------------------------- conectar = verificar la delegación
 
 
 @pytest.mark.asyncio
-async def test_conectar_arca_con_credenciales_validas_deja_conectada(
+async def test_una_empresa_que_delego_queda_conectada_y_se_audita(
     cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
 ) -> None:
-    """Caso 16, y el primer criterio de aceptación."""
+    """Primer criterio de aceptación de HU-E2-01 con ADR-0014."""
     token = await _registrar(cliente, "ana@empresa.com")
+    await _completar_empresa(cliente, token)
 
     respuesta = await _conectar_arca(cliente, token)
 
     assert respuesta.status_code == 200, respuesta.text
     vista = respuesta.json()
     assert vista["estado"] == "CONECTADO"
-    assert CUIT_DE_PRUEBA in str(vista["etiqueta"])
+    assert "30-00000001-5" in str(vista["etiqueta"])
     async with engine_dueno.begin() as conexion:
         filas = await conexion.execute(
             text("SELECT count(*) FROM registro_de_auditoria WHERE modulo = 'integrations'")
@@ -132,35 +161,56 @@ async def test_conectar_arca_con_credenciales_validas_deja_conectada(
 
 
 @pytest.mark.asyncio
-async def test_un_certificado_vencido_no_escribe_ninguna_fila(
+async def test_una_empresa_que_no_delego_no_escribe_ninguna_fila(
     cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
 ) -> None:
-    """Caso 17, y el segundo criterio: se indica el error y queda sin conectar."""
+    """Segundo criterio: se indica el error y queda sin conectar."""
     token = await _registrar(cliente, "ana@empresa.com")
+    await _completar_empresa(cliente, token, CUIT_SIN_DELEGACION)
 
-    respuesta = await _conectar_arca(cliente, token, credencial=bundle(vence_en_dias=-1))
+    respuesta = await _conectar_arca(cliente, token)
 
     assert respuesta.status_code == 422, respuesta.text
-    assert "vencio" in respuesta.text
+    assert "no registra" in respuesta.text
     async with engine_dueno.begin() as conexion:
         filas = await conexion.execute(text("SELECT count(*) FROM configuracion_de_integracion"))
         assert filas.scalar_one() == 0
 
 
 @pytest.mark.asyncio
-async def test_una_credencial_ilegible_se_rechaza(cliente: httpx.AsyncClient) -> None:
+async def test_sin_cuit_cargada_no_se_puede_verificar(cliente: httpx.AsyncClient) -> None:
     token = await _registrar(cliente, "ana@empresa.com")
 
-    respuesta = await _conectar_arca(cliente, token, credencial=b"esto no es un certificado")
+    respuesta = await _conectar_arca(cliente, token)
 
     assert respuesta.status_code == 422, respuesta.text
+    assert "CUIT valido" in respuesta.text
+
+
+@pytest.mark.asyncio
+async def test_la_cuit_del_pedido_se_ignora_y_vale_la_de_la_empresa(
+    cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
+) -> None:
+    """**La garantía de ADR-0014.** La CUIT decide en nombre de quién se factura: si el
+    cuerpo del pedido pudiera elegirla, cualquier Administrador apuntaría el certificado de
+    la plataforma a otra empresa."""
+    token = await _registrar(cliente, "ana@empresa.com")
+    await _completar_empresa(cliente, token)
+
+    respuesta = await _conectar_arca(cliente, token, contenido=OTRA_CUIT, cuit=OTRA_CUIT)
+
+    assert respuesta.status_code == 200, respuesta.text
+    async with engine_dueno.begin() as conexion:
+        filas = await conexion.execute(
+            text("SELECT parametros->>'cuit' FROM configuracion_de_integracion")
+        )
+        assert filas.scalar_one() == CUIT_DE_LA_EMPRESA
 
 
 @pytest.mark.asyncio
 async def test_la_tarjeta_muestra_el_ambiente_y_el_estado(cliente: httpx.AsyncClient) -> None:
     """Cuarto criterio de aceptación de HU-E2-01."""
-    token = await _registrar(cliente, "ana@empresa.com")
-    await _conectar_arca(cliente, token)
+    token = await _empresa_con_arca(cliente, "ana@empresa.com", CUIT_DE_LA_EMPRESA)
 
     listado = await cliente.get("/integraciones", headers=_auth(token))
 
@@ -177,14 +227,10 @@ async def test_la_tarjeta_muestra_el_ambiente_y_el_estado(cliente: httpx.AsyncCl
 async def test_el_ambiente_no_se_puede_elegir_desde_el_request(
     cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
 ) -> None:
-    """Caso 15. **La garantía más cara de esta unidad.**
-
-    Una empresa que pudiera elegir el ambiente podría creer que está facturando mientras
-    practica — o, peor, emitir un comprobante real e irreversible desde un despliegue de
-    prueba. Se manda `ambiente: PRODUCCION` a propósito y se verifica que el sistema lo
-    ignore: sale de `APP_ENV` y de ningún otro lado.
-    """
+    """Caso 15. **La garantía más cara de esta unidad.** Sale de `APP_ENV` y de ningún
+    otro lado: se manda `ambiente: PRODUCCION` a propósito y se verifica que se ignore."""
     token = await _registrar(cliente, "ana@empresa.com")
+    await _completar_empresa(cliente, token)
 
     respuesta = await _conectar_arca(cliente, token, ambiente="PRODUCCION")
 
@@ -195,38 +241,31 @@ async def test_el_ambiente_no_se_puede_elegir_desde_el_request(
         assert filas.scalar_one() == "HOMOLOGACION"
 
 
-# ----------------------------------------------------------------- casos 20, 21 y 22
+# ----------------------------------------------------------------- el ticket de la plataforma
 
 
-async def _ticket(
-    recursos: Recursos, empresa_id: EmpresaId, servicio: ServicioDeArca
-) -> tuple[bytes, object]:
-    obtenido: tuple[bytes, object] = (b"", None)
+async def _ticket(recursos: Recursos, empresa_id: EmpresaId, servicio: ServicioDeArca) -> bytes:
+    obtenido = b""
     async for unidad in unidad_de_trabajo(recursos, empresa_id):
         piezas = Integraciones.armar(unidad.sesion, recursos.settings)
-        vigente = await ObtenerTicketDeAcceso(
-            integraciones=piezas.integraciones,
-            tickets=piezas.tickets,
-            cifrado=piezas.cifrado,
-            adaptadores=piezas.adaptadores,
-            reloj=unidad.reloj,
-        ).ejecutar(empresa_id=empresa_id, servicio=servicio)
-        obtenido = (vigente.contenido, vigente.expira_en)
+        obtenido = (await piezas.tickets_de_plataforma.ejecutar(servicio)).contenido
     return obtenido
 
 
 @pytest.mark.asyncio
-async def test_conectar_guarda_el_ticket_cifrado(
-    cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
+async def test_el_ticket_de_plataforma_se_guarda_cifrado(
+    cliente: httpx.AsyncClient, recursos: Recursos, engine_dueno: AsyncEngine
 ) -> None:
-    """Caso 20. Y el ticket queda guardado porque ARCA no da un segundo mientras viva."""
-    token = await _registrar(cliente, "ana@empresa.com")
+    token = await _empresa_con_arca(cliente, "ana@empresa.com", CUIT_DE_LA_EMPRESA)
 
-    await _conectar_arca(cliente, token)
+    await _ticket(recursos, _empresa_de(token), ServicioDeArca.WSFE)
 
     async with engine_dueno.begin() as conexion:
         filas = await conexion.execute(
-            text("SELECT servicio, contenido_cifrado, algoritmo FROM ticket_de_acceso")
+            text(
+                "SELECT servicio, contenido_cifrado, algoritmo FROM ticket_de_plataforma"
+                " WHERE servicio = 'wsfe'"
+            )
         )
         servicio, contenido, algoritmo = filas.one()
     assert servicio == "wsfe"
@@ -235,96 +274,62 @@ async def test_conectar_guarda_el_ticket_cifrado(
 
 
 @pytest.mark.asyncio
-async def test_el_ticket_guardado_al_conectar_se_reusa(
+async def test_dos_empresas_usan_el_mismo_ticket_de_plataforma(
     cliente: httpx.AsyncClient, recursos: Recursos, engine_dueno: AsyncEngine
 ) -> None:
-    """Sin esto, pedir un ticket justo después de conectar chocaría con la regla de ARCA."""
-    token = await _registrar(cliente, "ana@empresa.com")
-    await _conectar_arca(cliente, token)
-    empresa_id = _empresa_de(token)
+    """WSAA da un ticket por certificado y servicio: uno por empresa fallaría 12 horas."""
+    token_a = await _empresa_con_arca(cliente, "ana@empresa-a.com", CUIT_DE_LA_EMPRESA)
+    token_b = await _empresa_con_arca(cliente, "beto@empresa-b.com", OTRA_CUIT)
 
-    contenido, _ = await _ticket(recursos, empresa_id, ServicioDeArca.WSFE)
+    primero = await _ticket(recursos, _empresa_de(token_a), ServicioDeArca.WSFE)
+    segundo = await _ticket(recursos, _empresa_de(token_b), ServicioDeArca.WSFE)
 
-    assert contenido.startswith(b"TICKET-SIMULADO")
+    assert primero == segundo
     async with engine_dueno.begin() as conexion:
-        filas = await conexion.execute(text("SELECT count(*) FROM ticket_de_acceso"))
-        assert filas.scalar_one() == 1  # se reusó, no se acumuló
+        # Conectar ya consultó el padrón, que tiene su propio ticket: se cuentan los de WSFE.
+        filas = await conexion.execute(
+            text("SELECT count(*) FROM ticket_de_plataforma WHERE servicio = 'wsfe'")
+        )
+        assert filas.scalar_one() == 1
 
 
 @pytest.mark.asyncio
 async def test_dos_servicios_conviven_como_dos_filas(
     cliente: httpx.AsyncClient, recursos: Recursos, engine_dueno: AsyncEngine
 ) -> None:
-    """Caso 22. Es lo que `padron-y-datos-fiscales` va a necesitar."""
-    token = await _registrar(cliente, "ana@empresa.com")
-    await _conectar_arca(cliente, token)
-    empresa_id = _empresa_de(token)
+    token = await _empresa_con_arca(cliente, "ana@empresa.com", CUIT_DE_LA_EMPRESA)
 
-    await _ticket(recursos, empresa_id, ServicioDeArca.PADRON_A5)
+    await _ticket(recursos, _empresa_de(token), ServicioDeArca.WSFE)
+    await _ticket(recursos, _empresa_de(token), ServicioDeArca.PADRON_A5)
 
     async with engine_dueno.begin() as conexion:
-        filas = await conexion.execute(text("SELECT servicio FROM ticket_de_acceso"))
-        # Ordenado en Python: la colación de PostgreSQL trata el guion bajo de una forma
-        # que no vale la pena atar a un test.
+        filas = await conexion.execute(text("SELECT servicio FROM ticket_de_plataforma"))
         assert sorted(f[0] for f in filas.all()) == ["ws_sr_padron_a5", "wsfe"]
 
 
+# ----------------------------------------------------------------- caso 26 y verificación
+
+
 @pytest.mark.asyncio
-async def test_una_empresa_no_ve_ni_renueva_el_ticket_de_otra(
+async def test_ni_la_marca_ni_el_ticket_salen_por_la_api(
     cliente: httpx.AsyncClient, recursos: Recursos
 ) -> None:
-    """Caso 21. Un ticket es una sesión viva: leer el ajeno es hablarle a ARCA como ella."""
-    token_a = await _registrar(cliente, "ana@empresa-a.com")
-    token_b = await _registrar(cliente, "beto@empresa-b.com")
-    await _conectar_arca(cliente, token_a)
-    empresa_b = _empresa_de(token_b)
+    token = await _empresa_con_arca(cliente, "ana@empresa.com", CUIT_DE_LA_EMPRESA)
+    await _ticket(recursos, _empresa_de(token), ServicioDeArca.WSFE)
 
-    # B no tiene ARCA conectada, así que no hay ticket que darle — y menos el de A.
-    from cheatsheet.contexts.integrations.application.errors import TicketNoDisponible
-
-    with pytest.raises(TicketNoDisponible):
-        await _ticket(recursos, empresa_b, ServicioDeArca.WSFE)
-
-    listado_b = await cliente.get("/integraciones", headers=_auth(token_b))
-    assert _tarjeta(listado_b.json(), "ARCA")["configurada"] is False
-
-
-# ----------------------------------------------------------------- caso 26
-
-
-@pytest.mark.asyncio
-async def test_ni_la_clave_privada_ni_el_ticket_salen_por_la_api(
-    cliente: httpx.AsyncClient, engine_dueno: AsyncEngine
-) -> None:
-    """Caso 26. La clave privada es la identidad fiscal de la empresa."""
-    token = await _registrar(cliente, "ana@empresa.com")
-    credencial = bundle()
-
-    conexion_json = await _conectar_arca(cliente, token, credencial=credencial)
     listado = await cliente.get("/integraciones", headers=_auth(token))
     verificacion = await cliente.post("/integraciones/verificacion", headers=_auth(token))
 
-    for cuerpo in (conexion_json.text, listado.text, verificacion.text):
-        assert "PRIVATE KEY" not in cuerpo
-        assert "BEGIN CERTIFICATE" not in cuerpo
+    for cuerpo in (listado.text, verificacion.text):
         assert "TICKET-SIMULADO" not in cuerpo
-
-    async with engine_dueno.begin() as sesion:
-        filas = await sesion.execute(
-            text("SELECT credencial_contenido_cifrado FROM configuracion_de_integracion")
-        )
-        guardada = bytes(filas.scalar_one())
-    assert b"PRIVATE KEY" not in guardada
-    assert credencial not in guardada
+        assert "delegacion-arca" not in cuerpo
 
 
 @pytest.mark.asyncio
-async def test_verificar_arca_no_abre_ningun_socket_y_deja_conectada(
+async def test_verificar_una_delegacion_vigente_la_deja_conectada(
     cliente: httpx.AsyncClient,
 ) -> None:
-    """Decisión D-e: el chequeo en vivo lee el certificado, no llama a WSAA."""
-    token = await _registrar(cliente, "ana@empresa.com")
-    await _conectar_arca(cliente, token)
+    token = await _empresa_con_arca(cliente, "ana@empresa.com", CUIT_DE_LA_EMPRESA)
 
     respuesta = await cliente.post("/integraciones/verificacion", headers=_auth(token))
 
@@ -332,14 +337,30 @@ async def test_verificar_arca_no_abre_ningun_socket_y_deja_conectada(
     assert _tarjeta(respuesta.json(), "ARCA")["estado"] == "CONECTADO"
 
 
+# ----------------------------------------------------------------- cambio de CUIT
+
+
 @pytest.mark.asyncio
-async def test_un_certificado_por_vencer_se_ve_en_atencion(cliente: httpx.AsyncClient) -> None:
-    """Caso 23 de punta a punta: se conecta con 20 días de vida y la pantalla lo dice."""
-    token = await _registrar(cliente, "ana@empresa.com")
-    await _conectar_arca(cliente, token, credencial=bundle(vence_en_dias=20))
+async def test_cambiar_la_cuit_de_la_empresa_desconecta_arca(cliente: httpx.AsyncClient) -> None:
+    """Hallazgo de la prueba local del 08/10: si ARCA quedaba conectada con la CUIT vieja, el
+    comprobante saldría impreso con la nueva y autorizado en ARCA con la anterior."""
+    token = await _empresa_con_arca(cliente, "ana@empresa.com", CUIT_DE_LA_EMPRESA)
 
-    respuesta = await cliente.post("/integraciones/verificacion", headers=_auth(token))
+    await _completar_empresa(cliente, token, OTRA_CUIT)
 
-    tarjeta = _tarjeta(respuesta.json(), "ARCA")
-    assert tarjeta["estado"] == "ATENCION"
-    assert "vence en" in str(tarjeta["detalle"])
+    listado = await cliente.get("/integraciones", headers=_auth(token))
+    tarjeta = _tarjeta(listado.json(), "ARCA")
+    assert tarjeta["estado"] == "NO_CONECTADO"
+    assert "30-00000002-3" in str(tarjeta["detalle"]) or "30000000023" in str(tarjeta["detalle"])
+
+
+@pytest.mark.asyncio
+async def test_guardar_la_empresa_sin_cambiar_la_cuit_no_toca_arca(
+    cliente: httpx.AsyncClient,
+) -> None:
+    token = await _empresa_con_arca(cliente, "ana@empresa.com", CUIT_DE_LA_EMPRESA)
+
+    await _completar_empresa(cliente, token, CUIT_DE_LA_EMPRESA)
+
+    listado = await cliente.get("/integraciones", headers=_auth(token))
+    assert _tarjeta(listado.json(), "ARCA")["estado"] == "CONECTADO"

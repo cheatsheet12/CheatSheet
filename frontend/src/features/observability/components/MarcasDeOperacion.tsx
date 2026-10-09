@@ -10,6 +10,24 @@
  * conversa y lo que configura — que es la distinción que alguien hace escaneando la tabla.
  */
 
+import {
+  BookOpen,
+  Bot,
+  CalendarDays,
+  ChartColumn,
+  CreditCard,
+  FileSpreadsheet,
+  MessageCircle,
+  Plug,
+  ReceiptText,
+  ScrollText,
+  Settings2,
+  ShieldCheck,
+  User,
+  Users,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
 import { PREFERENCIAS_POR_DEFECTO } from "@/shared";
 
 import { ETIQUETAS_DE_INICIADOR, ETIQUETAS_DE_MODULO } from "../api/bitacora";
@@ -27,11 +45,26 @@ const FAMILIA_DE_MODULO: Readonly<Record<string, string>> = {
   master_data: "acento",
 };
 
-/** Dos letras en monoespaciada, como el prototipo. Nunca son el único indicio: van con texto. */
-const SIGLA_DE_INICIADOR: Readonly<Record<IniciadorDeOperacion, string>> = {
-  usuario: "US",
-  sistema: "SY",
-  ia: "IA",
+/** Un icono por módulo: se reconoce más rápido que un punto de color y que una palabra. */
+const ICONO_DE_MODULO: Readonly<Record<string, LucideIcon>> = {
+  billing: ReceiptText,
+  payments: CreditCard,
+  spreadsheet_sync: FileSpreadsheet,
+  conversational: MessageCircle,
+  scheduling: CalendarDays,
+  reporting: ChartColumn,
+  observability: ScrollText,
+  master_data: Users,
+  identity: ShieldCheck,
+  integrations: Plug,
+  business_config: Settings2,
+  reference_data: BookOpen,
+};
+
+const ICONO_DE_INICIADOR: Readonly<Record<IniciadorDeOperacion, LucideIcon>> = {
+  usuario: User,
+  sistema: Settings2,
+  ia: Bot,
 };
 
 export interface PropsDeMarcaDeModulo {
@@ -39,11 +72,13 @@ export interface PropsDeMarcaDeModulo {
 }
 
 export function MarcaDeModulo({ modulo }: PropsDeMarcaDeModulo): JSX.Element {
-  const familia = FAMILIA_DE_MODULO[modulo];
-  const tono = familia === undefined ? "" : ` log-modulo__punto--${familia}`;
+  const familia = FAMILIA_DE_MODULO[modulo] ?? "neutro";
+  const Icono = ICONO_DE_MODULO[modulo] ?? ScrollText;
   return (
     <span className="log-modulo">
-      <span className={`log-modulo__punto${tono}`} aria-hidden="true" />
+      <span className={`log-modulo__icono log-modulo__icono--${familia}`} aria-hidden="true">
+        <Icono size={15} strokeWidth={2} />
+      </span>
       {ETIQUETAS_DE_MODULO[modulo] ?? modulo}
     </span>
   );
@@ -54,10 +89,11 @@ export interface PropsDeMarcaDeIniciador {
 }
 
 export function MarcaDeIniciador({ iniciador }: PropsDeMarcaDeIniciador): JSX.Element {
+  const Icono = ICONO_DE_INICIADOR[iniciador];
   return (
     <span className={`log-por log-por--${iniciador}`}>
       <span className="log-por__tag" aria-hidden="true">
-        {SIGLA_DE_INICIADOR[iniciador]}
+        <Icono size={14} strokeWidth={2.2} />
       </span>
       <span>{ETIQUETAS_DE_INICIADOR[iniciador]}</span>
     </span>
