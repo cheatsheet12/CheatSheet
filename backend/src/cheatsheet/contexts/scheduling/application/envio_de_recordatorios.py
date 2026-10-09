@@ -35,9 +35,8 @@ Ningún log lleva el nombre, el teléfono ni el texto; solo ids, la anticipació
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from datetime import datetime
-from enum import StrEnum
 from typing import TypeVar
 from uuid import UUID, uuid4
 
@@ -50,46 +49,33 @@ from cheatsheet.contexts.scheduling.application.ports_de_recordatorios import (
     ResultadoDelEnvio,
     SinTelefono,
 )
+from cheatsheet.contexts.scheduling.application.registro_de_recordatorios import (
+    ACCION_DE_BITACORA,
+    Desenlace,
+    motivo_de_agenda,
+    motivo_de_descarte,
+    publicar_descarte,
+    publicar_resultado,
+)
 from cheatsheet.contexts.scheduling.domain.recordatorio_de_turno import (
     AGENDA_APAGADA,
     ANTICIPACION_SUPERADA,
-    FRANJA_CAMBIADA,
     INCIERTO,
     SIN_TELEFONO,
     TURNO_CERRADO,
-    TURNO_EMPEZADO,
     RecordatorioDeTurno,
     ResultadoDeRecordatorio,
 )
 from cheatsheet.contexts.scheduling.domain.turno import Turno
 from cheatsheet.platform.telemetry import obtener_logger
-from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
+from cheatsheet.shared.auditoria import Resultado
 from cheatsheet.shared.clock import Reloj
-from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.transaccion import DespachoNoPersistido, PortAislamiento, PortTransaccion
 
 logger = obtener_logger(__name__)
 
 _T = TypeVar("_T")
-
-#: Lo que escribe la bitácora: `usuario_id=None` dice que actuó el sistema (el barrido).
-ACCION_DE_BITACORA = "enviar_recordatorio_de_turno"
-
-
-class Desenlace(StrEnum):
-    """Cómo terminó el trato con una fila o un turno, para los contadores del barrido."""
-
-    SALIO = "SALIO"
-    FALLO = "FALLO"
-    EN_REINTENTO = "EN_REINTENTO"
-    OMITIDO = "OMITIDO"
-    DESCARTADO = "DESCARTADO"
-    #: No se mandó nada ni se cambió el resultado (otro barrido la tenía, o nada la hacía caber).
-    NADA = "NADA"
-    #: No se pudo registrar lo que pasó: la fila queda «en curso» y se resolverá `INCIERTO` al vencer
-    #: su ventana. Nunca se reenvía.
-    SIN_REGISTRAR = "SIN_REGISTRAR"
 
 
 class EnvioDeRecordatorios:
@@ -163,16 +149,22 @@ class EnvioDeRecordatorios:
     # ------------------------------------------------------------------ fila existente
 
     async def retomar(
-        self, *, recordatorio_id: UUID, ahora: datetime, agenda_apagada: bool = False
+        self,
+        *,
+        recordatorio_id: UUID,
+        ahora: datetime,
+        agenda_apagada: bool = False,
+        vigentes: Collection[int] | None = None,
     ) -> Desenlace:
         """Toma una fila ya existente que le toca a este barrido: su ventana venció o su espera se cumplió.
 
         La relee **bloqueada**: si otro barrido la tomó mientras tanto, ya no le toca y se deja.
-        `ahora` solo decide si le toca; lo que se escribe sale del reloj real. Con la agenda apagada
-        no se reintenta nada: la fila se descarta.
+        `ahora` solo decide si le toca; lo que se escribe sale del reloj real. Con la agenda apagada,
+        sin su anticipación entre las `vigentes` o con una más cercana ya registrada, no se reintenta
+        nada: la fila se descarta.
         """
         tomada = await self._reservado(
-            lambda: self._tomar(recordatorio_id, ahora, agenda_apagada),
+            lambda: self._tomar(recordatorio_id, ahora, agenda_apagada, vigentes),
             recordatorio_id=str(recordatorio_id),
         )
         if isinstance(tomada, Desenlace):
@@ -212,7 +204,11 @@ class EnvioDeRecordatorios:
         return resultado
 
     async def _tomar(
-        self, recordatorio_id: UUID, ahora: datetime, agenda_apagada: bool
+        self,
+        recordatorio_id: UUID,
+        ahora: datetime,
+        agenda_apagada: bool,
+        vigentes: Collection[int] | None,
     ) -> tuple[RecordatorioDeTurno, RecordatorioListo] | Desenlace:
         """Decide qué hacer con la fila bloqueada. Devuelve el intento a mandar, o cómo terminó."""
         recordatorio = await self._recordatorios.buscar_para_actualizar(recordatorio_id)
@@ -232,16 +228,13 @@ class EnvioDeRecordatorios:
             return Desenlace.FALLO
         if not recordatorio.reintento_vencido(ahora):
             return Desenlace.NADA
-        if agenda_apagada:
-            recordatorio.descartar(real, AGENDA_APAGADA)
-            await self._recordatorios.guardar(recordatorio)
-            return Desenlace.DESCARTADO
+        motivo = await self._motivo_de_agenda(recordatorio, agenda_apagada, vigentes)
+        if motivo is not None:
+            return await self._descartar(recordatorio, real, motivo)
         turno = await self._turnos.releer(recordatorio.turno_id)
-        motivo = _motivo_de_descarte(turno, recordatorio, real)
+        motivo = motivo_de_descarte(turno, recordatorio, real)
         if turno is None or motivo is not None:
-            recordatorio.descartar(real, motivo or TURNO_CERRADO)
-            await self._recordatorios.guardar(recordatorio)
-            return Desenlace.DESCARTADO
+            return await self._descartar(recordatorio, real, motivo or TURNO_CERRADO)
         # Se prepara **antes** de escribir: si la lectura falla, la fila queda como estaba y el
         # barrido siguiente la retoma.
         preparado = await self._envio.preparar(turno, recordatorio.anticipacion_min)
@@ -252,6 +245,27 @@ class EnvioDeRecordatorios:
         recordatorio.iniciar_intento(self._reloj.ahora())
         await self._recordatorios.guardar(recordatorio)
         return recordatorio, preparado
+
+    async def _motivo_de_agenda(
+        self,
+        recordatorio: RecordatorioDeTurno,
+        agenda_apagada: bool,
+        vigentes: Collection[int] | None,
+    ) -> str | None:
+        """La agenda (apagada, sin esa anticipación) o una hermana más cercana la dejan sin objeto."""
+        if agenda_apagada:
+            return AGENDA_APAGADA
+        del_turno = await self._recordatorios.de_turnos([recordatorio.turno_id])
+        return motivo_de_agenda(recordatorio, del_turno, vigentes)
+
+    async def _descartar(
+        self, recordatorio: RecordatorioDeTurno, real: datetime, motivo: str
+    ) -> Desenlace:
+        """Cierra la fila `DESCARTADO` con su log y su evento de bitácora (nada personal)."""
+        recordatorio.descartar(real, motivo)
+        await self._recordatorios.guardar(recordatorio)
+        await publicar_descarte(self._publicador, recordatorio, real)
+        return Desenlace.DESCARTADO
 
     # ------------------------------------------------------------------ mandar y registrar
 
@@ -290,11 +304,10 @@ class EnvioDeRecordatorios:
             async with self._aislamiento.aislar():
                 turno = await self._turnos.releer(recordatorio.turno_id)
                 real = self._reloj.ahora()
-                motivo = _motivo_de_descarte(turno, recordatorio, real)
+                motivo = motivo_de_descarte(turno, recordatorio, real)
                 if turno is not None and motivo is None:
                     return None
-                recordatorio.descartar(real, motivo or TURNO_CERRADO)
-                await self._recordatorios.guardar(recordatorio)
+                await self._descartar(recordatorio, real, motivo or TURNO_CERRADO)
             await self._transaccion.confirmar()
         except DespachoNoPersistido:
             logger.warning(
@@ -321,8 +334,23 @@ class EnvioDeRecordatorios:
             return ResultadoDelEnvio(enviado=False, falla="ERROR")
 
     async def _registrar(
-        self, recordatorio: RecordatorioDeTurno, resultado: ResultadoDelEnvio
+        self, reservada: RecordatorioDeTurno, resultado: ResultadoDelEnvio
     ) -> Desenlace:
+        """Escribe el resultado **solo si la fila sigue siendo la que este barrido reservó**.
+
+        La relee bloqueada: un barrido lento no pisa el `FALLIDO` `INCIERTO` que otro dejó al vencer la
+        ventana, ni el intento que otro retomó. Si ya no le pertenece, su resultado se descarta y
+        nunca se reenvía (el mensaje ya salió o no; eso no se sabe y no se repite).
+        """
+        recordatorio = await self._recordatorios.buscar_para_actualizar(reservada.id)
+        if recordatorio is None or not _sigue_reservada(recordatorio, reservada):
+            logger.warning(
+                "recordatorio_de_turno_resultado_descartado",
+                turno_id=str(reservada.turno_id),
+                anticipacion_min=reservada.anticipacion_min,
+                intentos=reservada.intentos,
+            )
+            return Desenlace.NADA
         ahora = self._reloj.ahora()  # el de ahora, no el del inicio del barrido (S2)
         if resultado.enviado:
             recordatorio.marcar_enviado(ahora)
@@ -343,6 +371,7 @@ class EnvioDeRecordatorios:
             return Desenlace.EN_REINTENTO
         if recordatorio.resultado is ResultadoDeRecordatorio.DESCARTADO:
             # La espera del reintento caía después de la hora del turno: ya no tiene sentido.
+            await publicar_descarte(self._publicador, recordatorio, ahora)
             return Desenlace.DESCARTADO
         await self._publicar(recordatorio, ahora, Resultado.ERROR)
         return Desenlace.FALLO
@@ -350,36 +379,12 @@ class EnvioDeRecordatorios:
     async def _publicar(
         self, recordatorio: RecordatorioDeTurno, ahora: datetime, resultado: Resultado
     ) -> None:
-        """`enviar_recordatorio_de_turno`: **una vez por recordatorio**, al terminar.
-
-        Un intento intermedio que espera su reintento no es una falla de la bitácora. Sin datos
-        personales: el sistema actuó (`usuario_id=None`) y la entidad es el turno.
-        """
-        await self._publicador.publicar(
-            EventoAuditable(
-                evento_id=uuid4(),
-                empresa_id=EmpresaId(recordatorio.empresa_id),
-                ocurrido_en=ahora,
-                usuario_id=None,
-                modulo=Modulo.SCHEDULING,
-                accion=ACCION_DE_BITACORA,
-                entidad_afectada=f"Turno:{recordatorio.turno_id}",
-                resultado=resultado,
-            )
-        )
+        await publicar_resultado(self._publicador, recordatorio, ahora, resultado)
 
 
-def _motivo_de_descarte(
-    turno: Turno | None, recordatorio: RecordatorioDeTurno, ahora: datetime
-) -> str | None:
-    """Por qué una fila que esperaba ya no corresponde, o `None` si sigue vigente (D-U8-4)."""
-    if turno is None or not turno.esta_abierto:
-        return TURNO_CERRADO
-    if turno.franja.inicio != recordatorio.franja_inicio:
-        return FRANJA_CAMBIADA
-    if ahora >= recordatorio.franja_inicio:
-        return TURNO_EMPEZADO
-    return None
+def _sigue_reservada(actual: RecordatorioDeTurno, reservada: RecordatorioDeTurno) -> bool:
+    """La fila sigue «en curso» y es el mismo intento que este barrido reservó."""
+    return actual.envio_en_curso and actual.intentos == reservada.intentos
 
 
 __all__ = ["ACCION_DE_BITACORA", "Desenlace", "EnvioDeRecordatorios"]

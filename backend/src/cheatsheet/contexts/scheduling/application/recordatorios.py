@@ -13,7 +13,9 @@ fecha que se escribe sale del reloj real (`EnvioDeRecordatorios`). Dos pasadas:
 
 **Agenda apagada (Gate 1, pregunta 1).** Una regla de agenda desactivada es la decisión explícita de
 no avisar: no se manda nada nuevo, no se reintenta lo que esperaba (queda `DESCARTADO`
-`AGENDA_APAGADA`) y lo que estaba en curso se resuelve `INCIERTO`, sin reenviar.
+`AGENDA_APAGADA`) y lo que estaba en curso se resuelve `INCIERTO`, sin reenviar. Lo mismo vale para
+una **anticipación quitada** de la agenda (`ANTICIPACION_QUITADA`) y para un reintento lejano cuando
+ya hay una fila más cercana del mismo turno (`ANTICIPACION_SUPERADA`).
 
 **Agenda malformada (D-U8-5).** Si la fila de la regla no se puede interpretar, se deja un log
 (`recordatorios_de_turno_agenda_invalida`, solo con `empresa_id` y `regla_id`) y se saltea **esa
@@ -109,19 +111,22 @@ class EnviarRecordatoriosDeTurno:
             )
             return ResultadoDeBarrido()
         contadores = _Contadores()
-        tocados = await self._pendientes(ahora, apagada=not anticipaciones, contadores=contadores)
+        tocados = await self._pendientes(ahora, anticipaciones, contadores)
         if anticipaciones:
             await self._nuevos(ahora, anticipaciones, tocados, contadores)
         return contadores.resultado()
 
     async def _pendientes(
-        self, ahora: datetime, *, apagada: bool, contadores: _Contadores
+        self, ahora: datetime, anticipaciones: tuple[int, ...], contadores: _Contadores
     ) -> set[UUID]:
         """Pasada 1. Devuelve los turnos que tocó, para que la pasada 2 los deje."""
         tocados: set[UUID] = set()
         for pendiente in await self._recordatorios.pendientes(ahora):
             desenlace = await self._envio.retomar(
-                recordatorio_id=pendiente.id, ahora=ahora, agenda_apagada=apagada
+                recordatorio_id=pendiente.id,
+                ahora=ahora,
+                agenda_apagada=not anticipaciones,
+                vigentes=anticipaciones,
             )
             tocados.add(pendiente.turno_id)
             contadores.sumar(desenlace)

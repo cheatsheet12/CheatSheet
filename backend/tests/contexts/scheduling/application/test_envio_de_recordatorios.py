@@ -132,7 +132,9 @@ class TestLosTresTiempos:
         assert e.envio.enviados == []
         assert e.fila.resultado is ResultadoDeRecordatorio.DESCARTADO
         assert e.fila.ultimo_error == "TURNO_CERRADO"
-        assert e.publicador.eventos == []
+        (evento,) = e.publicador.eventos  # el descarte deja su evento de bitácora
+        assert isinstance(evento, EventoAuditable)
+        assert evento.detalle == {"motivo": "TURNO_CERRADO"}
 
 
 class TestElReintento:
@@ -229,7 +231,9 @@ class TestElReintento:
         assert resultado.descartados == 1
         assert e.fila.resultado is ResultadoDeRecordatorio.DESCARTADO
         assert e.fila.ultimo_error == "TURNO_EMPEZADO"
-        assert e.publicador.eventos == []
+        (evento,) = e.publicador.eventos  # el descarte deja su evento de bitácora
+        assert isinstance(evento, EventoAuditable)
+        assert evento.detalle == {"motivo": "TURNO_EMPEZADO"}
 
     async def test_cancelado_con_un_reintento_pendiente_se_descarta(self) -> None:
         """**Caso 19.** `TURNO_CERRADO`, sin llamar al canal."""
