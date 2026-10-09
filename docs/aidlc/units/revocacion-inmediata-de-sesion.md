@@ -409,7 +409,10 @@ cambios, se corre igual), el Gate 2 incluye:
 Gate 1 aprobado el 2026-10-09 por Luciano, con las recomendaciones:
 
 1. **Mecanismo**: consulta por clave primaria en cada solicitud, sin caché. El costo se mide en la base
-   local y en staging; los dos números se anotan acá al cerrar el Gate 2.
+   local y en staging. **Base local (2026-10-09, PostgreSQL 16 en Docker):** la verificación completa
+   (`BEGIN`, `set_config`, `SELECT` por PK, `COMMIT`) da p50 1,73 ms y p95 2,16 ms en 200 llamadas;
+   `EXPLAIN (ANALYZE)`: `Index Scan using usuario_pkey`, 0,03 ms de ejecución. Debajo del umbral de 5 ms.
+   **Staging:** solo puede medirse con el despliegue; queda en `docs/aidlc/TODO.md` §22.66.
 2. **Base caída o lenta**: fail-closed con 503. 3 s sobre la consulta del usuario; la toma de conexión
    conserva `TIMEOUT_DE_CONEXION_SEGUNDOS` (10 s); sin reintento.
 3. **Granularidad**: por usuario.
