@@ -25,7 +25,10 @@ from __future__ import annotations
 from typing import Protocol
 
 import jwt
-from cheatsheet.contexts.identity.application.errors import SesionRevocada
+from cheatsheet.contexts.identity.application.errors import (
+    SesionRevocada,
+    VerificacionNoDisponible,
+)
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import IdentidadVigente
 from cheatsheet.contexts.identity.infrastructure.seguridad import decodificar_acceso
 from cheatsheet.platform.settings import Settings
@@ -33,7 +36,6 @@ from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId, empresa_id_desde, usuario_id_desde
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
@@ -83,17 +85,13 @@ RUTAS_PUBLICAS = frozenset(
 PREFIJOS_PUBLICOS: tuple[str, ...] = ("/webhooks/", "/contador/")
 
 
-#: What can go wrong when the check cannot reach the database or the database does not answer
-#: in time. Enumerated on purpose: anything else is a bug, and a bug must not be dressed up
-#: as an outage. None of these ever turns into a 200.
-ERRORES_DE_INFRAESTRUCTURA = (SQLAlchemyError, OSError, TimeoutError)
-
-
 class VerificadorDeSesion(Protocol):
     """Turns a token's claims into the identity the database vouches for right now.
 
-    Raises `SesionRevocada` when the user may no longer operate. Any other failure is an
-    infrastructure error and the middleware answers 503.
+    Raises `SesionRevocada` when the user may no longer operate, and `VerificacionNoDisponible`
+    when the check could not run (the database is down or slow). The adapter translates its
+    own driver's errors, so this module knows nothing about any of them. Anything else is a
+    bug, and a bug answers 500.
     """
 
     async def verificar(
@@ -163,10 +161,10 @@ class EmpresaMiddleware(BaseHTTPMiddleware):
             # The reason goes to the log and never into the response. No token, no email.
             logger.info("sesion_revocada", motivo=revocada.motivo.value, ruta=request.url.path)
             return _sin_sesion()
-        except ERRORES_DE_INFRAESTRUCTURA as error:
+        except VerificacionNoDisponible as error:
             logger.error(
                 "verificacion_de_sesion_no_disponible",
-                tipo=type(error).__name__,
+                tipo=type(error.causa).__name__,
                 ruta=request.url.path,
                 exc_info=error,
             )

@@ -96,6 +96,20 @@ class SesionRevocada(SesionInvalida):
         self.motivo = motivo
 
 
+class VerificacionNoDisponible(RuntimeError):
+    """The per-request session check could not run: the database did not answer.
+
+    **Not a `SesionInvalida`, and not an `ErrorDeDominio`**: the session was not found
+    revoked, the system just cannot tell. Mixing the two would turn an outage into a mass
+    sign-out. Answered as 503, fail-closed. The original failure is `causa` (and the
+    exception chain), kept for the log and never put in a response.
+    """
+
+    def __init__(self, causa: BaseException) -> None:
+        super().__init__(f"No se pudo verificar la sesion ({type(causa).__name__})")
+        self.causa = causa
+
+
 class OAuthFallido(ErrorDeDominio):
     """Google did not return a usable profile."""
 

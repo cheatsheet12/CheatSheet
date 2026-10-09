@@ -12,12 +12,17 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import uuid4
 
+import asyncpg  # type: ignore[import-untyped]  # asyncpg ships no stubs or py.typed
 import httpx
 import pytest
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
 from cheatsheet.api.middleware import empresa
-from cheatsheet.contexts.identity.application.errors import MotivoDeRevocacion, SesionRevocada
+from cheatsheet.contexts.identity.application.errors import (
+    MotivoDeRevocacion,
+    SesionRevocada,
+    VerificacionNoDisponible,
+)
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import IdentidadVigente
 from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.platform.settings import Settings
@@ -196,7 +201,10 @@ async def test_el_verificador_recibe_las_reclamaciones_firmadas_del_token():
     ids=["OSError", "SQLAlchemyError", "TimeoutError"],
 )
 async def test_si_la_verificacion_no_puede_correr_es_un_503_y_la_ruta_no_corre(error: Exception):
-    app, settings, ejecuciones = _app(VerificadorDeSesionFalso(error=error))
+    """The adapter translates its driver's failures into `VerificacionNoDisponible`."""
+    app, settings, ejecuciones = _app(
+        VerificadorDeSesionFalso(error=VerificacionNoDisponible(error))
+    )
 
     async with _cliente(app) as cliente:
         respuesta = await cliente.get(_RUTA, headers=_bearer(token_firmado(settings)))
@@ -357,7 +365,7 @@ async def test_una_verificacion_que_no_pudo_correr_se_registra_como_error(
 ):
     espia = _LoggerEspia()
     monkeypatch.setattr(empresa, "logger", espia)
-    error = OSError("conexion rechazada")
+    error = VerificacionNoDisponible(OSError("conexion rechazada"))
     app, settings, _ = _app(VerificadorDeSesionFalso(error=error))
     token = token_firmado(settings)
 
@@ -372,3 +380,76 @@ async def test_una_verificacion_que_no_pudo_correr_se_registra_como_error(
         )
     ]
     assert token not in str(espia.registros)
+
+
+# ----------------- errores de conexión del driver y filas corruptas, con el cableado real
+
+
+def _app_con_base_falsa(escenario: EscenarioDeBase) -> tuple[FastAPI, Settings, list[str]]:
+    settings = settings_de_prueba()
+    app = create_app(settings, _recursos(settings, sesiones=fabrica_de_sesiones(escenario)))
+    router, ejecuciones = _router()
+    app.include_router(router)
+    return app, settings, ejecuciones
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        asyncpg.exceptions.CannotConnectNowError("the database system is starting up"),
+        asyncpg.exceptions.TooManyConnectionsError("sorry, too many clients already"),
+        asyncpg.exceptions.InvalidPasswordError("password authentication failed"),
+        asyncpg.InterfaceError("connection is closed"),
+    ],
+    ids=lambda e: type(e).__name__,
+)
+async def test_un_error_de_conexion_del_driver_es_un_503_y_no_un_500(error: Exception):
+    """asyncpg raises these at connect time and SQLAlchemy does not wrap them, so they are
+    neither `SQLAlchemyError` nor `OSError`. A Neon restart looks exactly like this."""
+    escenario = EscenarioDeBase(fila=None, error_de_conexion=error)
+    app, settings, ejecuciones = _app_con_base_falsa(escenario)
+
+    async with _cliente(app, raise_app_exceptions=False) as cliente:
+        respuesta = await cliente.get(_RUTA, headers=_bearer(token_firmado(settings)))
+
+    assert respuesta.status_code == 503
+    assert respuesta.json() == _NO_DISPONIBLE
+    assert ejecuciones == []
+    assert (escenario.abiertas, escenario.cerradas) == (0, 1)
+
+
+@pytest.mark.asyncio
+async def test_el_503_registra_el_tipo_original_del_error(monkeypatch: pytest.MonkeyPatch):
+    espia = _LoggerEspia()
+    monkeypatch.setattr(empresa, "logger", espia)
+    error = asyncpg.exceptions.CannotConnectNowError("the database system is starting up")
+    app, settings, _ = _app_con_base_falsa(EscenarioDeBase(fila=None, error_de_conexion=error))
+
+    async with _cliente(app, raise_app_exceptions=False) as cliente:
+        await cliente.get(_RUTA, headers=_bearer(token_firmado(settings)))
+
+    assert [(nivel, evento, campos["tipo"]) for nivel, evento, campos in espia.registros] == [
+        ("error", "verificacion_de_sesion_no_disponible", "CannotConnectNowError")
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("campo", ["estado", "rol"])
+async def test_una_fila_corrupta_es_un_500_nunca_un_2xx_y_cierra_la_sesion(campo: str):
+    """Pinned on purpose: a value outside the enums is a data-integrity error, not an outage.
+    It stays fail-closed (500), it is not dressed up as 401 or 503, and the connection is
+    returned."""
+    empresa_id = EmpresaId(uuid4())
+    escenario = EscenarioDeBase(fila=fila(empresa_id, **{campo: "BASURA"}))
+    app, settings, ejecuciones = _app_con_base_falsa(escenario)
+
+    async with _cliente(app, raise_app_exceptions=False) as cliente:
+        respuesta = await cliente.get(
+            _RUTA, headers=_bearer(token_firmado(settings, empresa_id=empresa_id))
+        )
+
+    assert respuesta.status_code == 500
+    assert ejecuciones == []
+    assert (escenario.abiertas, escenario.cerradas) == (0, 1)
+    assert escenario.reversiones == 1

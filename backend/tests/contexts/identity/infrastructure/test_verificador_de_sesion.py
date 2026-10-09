@@ -10,8 +10,14 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import asyncpg  # type: ignore[import-untyped]  # asyncpg ships no stubs or py.typed
 import pytest
-from cheatsheet.contexts.identity.application.errors import MotivoDeRevocacion, SesionRevocada
+from cheatsheet.contexts.identity.application.errors import (
+    MotivoDeRevocacion,
+    SesionInvalida,
+    SesionRevocada,
+    VerificacionNoDisponible,
+)
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import IdentidadVigente
 from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
@@ -20,6 +26,7 @@ from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
 )
 from cheatsheet.platform.database import TIMEOUT_DE_CONEXION_SEGUNDOS
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from sqlalchemy.exc import SQLAlchemyError
 
 from tests.contexts.identity.base_falsa import EscenarioDeBase, fabrica_de_sesiones, fila
 
@@ -72,10 +79,12 @@ async def test_una_consulta_mas_lenta_que_el_limite_es_un_timeout_y_libera_la_co
     empresa_id = EmpresaId(uuid4())
     escenario = EscenarioDeBase(fila=fila(empresa_id), demora_de_consulta=DEMORA)
 
-    with pytest.raises(TimeoutError):
+    with pytest.raises(VerificacionNoDisponible) as error:
         await _verificador(escenario).verificar(
             usuario_id=UsuarioId(uuid4()), empresa_id_del_token=empresa_id
         )
+
+    assert isinstance(error.value.__cause__, TimeoutError)
 
     assert escenario.reversiones == 1
     assert escenario.confirmaciones == 0
@@ -116,3 +125,43 @@ def test_el_limite_de_la_consulta_es_mas_corto_que_el_de_la_conexion():
     request of the day on a suspended database is a 503 again."""
     assert TIMEOUT_DE_CONSULTA_SEGUNDOS == 3.0
     assert TIMEOUT_DE_CONSULTA_SEGUNDOS < TIMEOUT_DE_CONEXION_SEGUNDOS
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        asyncpg.exceptions.CannotConnectNowError("the database system is starting up"),
+        asyncpg.InterfaceError("connection is closed"),
+        OSError("conexion rechazada"),
+        SQLAlchemyError("base caida"),
+    ],
+    ids=lambda e: type(e).__name__,
+)
+async def test_un_fallo_de_infraestructura_se_traduce_y_conserva_la_causa(error: Exception):
+    empresa_id = EmpresaId(uuid4())
+    escenario = EscenarioDeBase(fila=fila(empresa_id), error_de_conexion=error)
+
+    with pytest.raises(VerificacionNoDisponible) as capturado:
+        await _verificador(escenario).verificar(
+            usuario_id=UsuarioId(uuid4()), empresa_id_del_token=empresa_id
+        )
+
+    assert capturado.value.__cause__ is error
+    assert capturado.value.causa is error
+    assert not isinstance(capturado.value, SesionInvalida)
+    assert (escenario.abiertas, escenario.cerradas) == (0, 1)
+
+
+@pytest.mark.asyncio
+async def test_una_fila_corrupta_no_se_disfraza_de_caida():
+    """A `rol` outside the enum is a data-integrity error: it escapes as `ValueError`."""
+    empresa_id = EmpresaId(uuid4())
+    escenario = EscenarioDeBase(fila=fila(empresa_id, rol="BASURA"))
+
+    with pytest.raises(ValueError, match="BASURA"):
+        await _verificador(escenario).verificar(
+            usuario_id=UsuarioId(uuid4()), empresa_id_del_token=empresa_id
+        )
+
+    assert (escenario.abiertas, escenario.cerradas) == (0, 1)

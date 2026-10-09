@@ -7,23 +7,38 @@ Two classes, because they answer two different questions:
   uses, how long each step may take, and, above all, that the connection is given back
   before the request goes on.
 
-**Two time limits, one per step (`CLAUDE.md` §5), and they are not interchangeable.**
-Taking a connection is bounded by `TIMEOUT_DE_CONEXION_SEGUNDOS` (10 s), the limit the whole
-system already uses and the reason it is not shorter: a managed database suspends idle
-compute, and waking it takes longer than three seconds. The user query, with the connection
-already in hand, is bounded by `TIMEOUT_DE_CONSULTA_SEGUNDOS`. A primary-key read that takes
-longer than that is a degraded database, not a sleeping one. Wrapping both in the short
-limit would turn the first request of every morning into a 503. There is no retry: it would
-not save a cold start and it would double the wait during an outage.
+**What bounds each step (`CLAUDE.md` §5), and what does not.**
+
+- *Connecting* is bounded by `TIMEOUT_DE_CONEXION_SEGUNDOS` (10 s), but that is only
+  asyncpg's connect timeout: a managed database suspends idle compute and waking it takes
+  longer than three seconds, which is why it is not shorter.
+- *Waiting for a free pooled connection* is SQLAlchemy's `pool_timeout` (30 s by default;
+  `crear_engine` does not configure it, and this unit does not change it).
+- The `set_config` and `COMMIT` round trips have no limit of their own.
+- *The user query*, with the connection in hand, is bounded by `TIMEOUT_DE_CONSULTA_SEGUNDOS`.
+  A primary-key read that takes longer than that is a degraded database, not a sleeping one.
+  Wrapping the whole check in that short limit would turn the first request of every morning
+  into a 503. There is no retry: it would not save a cold start and would double the wait
+  during an outage.
+
+Every one of those failures is **fail-closed**: `verificar` raises `VerificacionNoDisponible`
+and the middleware answers 503. That includes the asyncpg errors raised at connect time
+(`CannotConnectNowError` while a database restarts, `TooManyConnectionsError`,
+`InterfaceError`), which SQLAlchemy does not wrap. A **corrupt row** (a `rol` or `estado`
+outside the enums) is deliberately *not* translated: it is a data-integrity error, not an
+outage, and it escapes as `ValueError` (a 500, never a 2xx).
 """
 
 from __future__ import annotations
 
 import asyncio
 
+import asyncpg  # type: ignore[import-untyped]  # asyncpg ships no stubs or py.typed
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from cheatsheet.contexts.identity.application.errors import VerificacionNoDisponible
 from cheatsheet.contexts.identity.application.ports import EstadoActualDelUsuario
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import (
     IdentidadVigente,
@@ -36,6 +51,17 @@ from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 
 #: Seconds the user query may take once the connection is held. See the module docstring.
 TIMEOUT_DE_CONSULTA_SEGUNDOS = 3.0
+
+#: Failures of the database or the path to it. `SesionRevocada` is none of these, so it
+#: passes through untouched. asyncpg's own errors are listed because SQLAlchemy does not wrap
+#: the ones raised while connecting.
+ERRORES_DE_INFRAESTRUCTURA = (
+    SQLAlchemyError,
+    OSError,
+    TimeoutError,
+    asyncpg.PostgresError,
+    asyncpg.InterfaceError,
+)
 
 
 class ConsultaDeUsuarioVigentePostgres:
@@ -85,10 +111,16 @@ class VerificadorDeSesionPostgres:
     async def verificar(
         self, *, usuario_id: UsuarioId, empresa_id_del_token: EmpresaId
     ) -> IdentidadVigente:
+        try:
+            return await self._consultar(usuario_id, empresa_id_del_token)
+        except ERRORES_DE_INFRAESTRUCTURA as error:
+            raise VerificacionNoDisponible(error) from error
+
+    async def _consultar(
+        self, usuario_id: UsuarioId, empresa_id_del_token: EmpresaId
+    ) -> IdentidadVigente:
         # The signed `empresa_id` is what scopes the session, so Row-Level Security limits
         # the lookup to that company; the use case then compares the stored one anyway.
-        # Taking the connection (the `set_config` inside) is bounded by the engine's own
-        # connection timeout, not by the shorter limit below.
         async with sesion_de_empresa(self._sesiones, empresa_id_del_token) as sesion:
             caso = VerificarSesionVigente(consulta=ConsultaDeUsuarioVigentePostgres(sesion))
             async with asyncio.timeout(self._timeout_de_consulta):

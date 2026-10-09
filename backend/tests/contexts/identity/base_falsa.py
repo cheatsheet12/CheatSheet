@@ -33,6 +33,8 @@ class EscenarioDeBase:
     confirmaciones: int = 0
     reversiones: int = 0
     empresas_anunciadas: list[str] = field(default_factory=list)
+    #: Raised when the connection is taken, the way a driver does at connect time.
+    error_de_conexion: BaseException | None = None
 
 
 class _Resultado:
@@ -63,6 +65,8 @@ class SesionFalsa:
             assert parametros is not None
             self._e.empresas_anunciadas.append(parametros["valor"])
             await asyncio.sleep(self._e.demora_de_conexion)
+            if self._e.error_de_conexion is not None:
+                raise self._e.error_de_conexion
             return _Resultado(None)
         await asyncio.sleep(self._e.demora_de_consulta)
         return _Resultado(self._e.fila)
