@@ -9,6 +9,7 @@ from pathlib import Path
 
 from local_ci.context import build_env
 from local_ci.execution import resolve_argv, use_utf8_console
+from local_ci.steps_frontend import format_args
 from local_ci.steps_static import installed_gitleaks_version, pinned_gitleaks_version
 
 
@@ -80,3 +81,12 @@ def test_the_real_workflow_still_pins_a_gitleaks_version() -> None:
 def test_the_installed_version_ignores_the_v_prefix_and_newline() -> None:
     assert installed_gitleaks_version("v8.30.1\n") == "8.30.1"
     assert installed_gitleaks_version("8.21.2") == "8.21.2"
+
+
+def test_an_autocrlf_checkout_lets_prettier_accept_crlf_on_disk() -> None:
+    assert format_args("true\n") == ("run", "format:check", "--", "--end-of-line", "auto")
+
+
+def test_any_other_checkout_runs_the_ci_format_check_unchanged() -> None:
+    assert format_args("") == ("run", "format:check")
+    assert format_args("input") == ("run", "format:check")

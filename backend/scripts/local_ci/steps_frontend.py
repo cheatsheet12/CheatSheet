@@ -21,8 +21,21 @@ def run_install(ctx: Context) -> Outcome:
     return _npm(ctx, "ci")
 
 
+def format_args(autocrlf: str) -> tuple[str, ...]:
+    """`npm run format:check` arguments for this checkout's line-ending setting.
+
+    With `core.autocrlf=true` the working copy has CRLF while the commit (and CI's Linux
+    checkout) has LF, so prettier's default `endOfLine: lf` flags every file on disk.
+    `--end-of-line auto` checks everything else, and git normalizes the endings on commit.
+    """
+    base = ("run", "format:check")
+    if autocrlf.strip().lower() == "true":
+        return (*base, "--", "--end-of-line", "auto")
+    return base
+
+
 def run_format(ctx: Context) -> Outcome:
-    return _npm(ctx, "run", "format:check")
+    return _npm(ctx, *format_args(ctx.git("config", "core.autocrlf").output))
 
 
 def run_lint(ctx: Context) -> Outcome:
