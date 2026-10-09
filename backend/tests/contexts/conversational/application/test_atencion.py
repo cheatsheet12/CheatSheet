@@ -158,3 +158,24 @@ async def test_camino_feliz_guarda_el_mensaje_del_operador_y_audita() -> None:
     assert mensaje.estado_entrega is EstadoEntrega.ENVIADO
     assert armado.mensajes.mensajes[mensaje.id] is mensaje
     assert armado.publicador.acciones == ["responder_como_operador"]
+
+
+@pytest.mark.parametrize(
+    "externo_id", [pytest.param("", id="vacio"), pytest.param("w" * 161, id="demasiado-largo")]
+)
+async def test_un_wamid_que_no_sirve_se_guarda_como_sin_id(externo_id: str) -> None:
+    armado = _Armado()
+    armado.mensajeria = _CanalConId(externo_id)  # type: ignore[assignment]
+
+    saliente = await armado.responder()
+
+    assert saliente.externo_id is None
+
+
+class _CanalConId:
+    async def enviar(self, *, telefono: str, texto: str) -> str:
+        del telefono, texto
+        return self._externo_id
+
+    def __init__(self, externo_id: str) -> None:
+        self._externo_id = externo_id

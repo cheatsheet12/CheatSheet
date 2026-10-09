@@ -239,7 +239,8 @@ async def test_el_recordatorio_aprobado_sale_como_template_con_monto_en_formato_
         _canal(meta), _Contactos(), _plantillas(_aprobada("recordatorio_de_cobro"))
     )
 
-    estado = await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1)
+    resultado = await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1)
+    estado = resultado.estado
 
     assert estado is EstadoEntrega.ENVIADO
     cuerpo = meta.cuerpo()

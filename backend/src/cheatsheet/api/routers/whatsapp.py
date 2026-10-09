@@ -50,10 +50,15 @@ from cheatsheet.api.conversacional import (
     armar_transcriptor,
 )
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.api.entregas import (
+    EstadosSinAplicarPorFallaTransitoria,
+    aplicar_estados_de_entrega,
+)
 from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.api.whatsapp_notificaciones import (
     EstadoDePlantillaNotificado,
     cuerpo_de,
+    estados_de_entrega,
     estados_de_plantillas,
     hay_mensajes,
 )
@@ -142,6 +147,7 @@ def _rutas_de_la_app(recursos: Recursos) -> APIRouter:
         if hay_mensajes(cuerpo):
             logger.warning("whatsapp_mensajes_en_la_url_de_la_app")
         await _aplicar_estados_de_plantillas(recursos, estados_de_plantillas(cuerpo))
+        await aplicar_estados_de_entrega(recursos, estados_de_entrega(cuerpo))
         return Response(status_code=status.HTTP_200_OK)
 
     return router
@@ -175,20 +181,28 @@ def _rutas(recursos: Recursos) -> APIRouter:
             logger.warning("whatsapp_firma_invalida", empresa=str(empresa_id))
             return Response(status_code=status.HTTP_200_OK)
 
-        # El estado de una plantilla se rutea por la WABA, no por `empresa_id` (ver el docstring).
+        # El estado de una plantilla y los callbacks de entrega se rutean por la WABA, no por
+        # `empresa_id` (ver el docstring).
         cuerpo = cuerpo_de(crudo)
+        sin_aplicar: EstadosSinAplicarPorFallaTransitoria | None = None
         if cuerpo is not None:
             await _aplicar_estados_de_plantillas(recursos, estados_de_plantillas(cuerpo))
-
-        entrantes = _mensajes_de(crudo)
-        if not entrantes:
-            # Meta manda también callbacks de estado de entrega y notificaciones de sistema.
-            # No traer mensajes no es un error: es la mayoría del tráfico.
-            return Response(status_code=status.HTTP_200_OK)
+            try:
+                await aplicar_estados_de_entrega(
+                    recursos, estados_de_entrega(cuerpo), empresa_de_la_url=EmpresaId(empresa_id)
+                )
+            except EstadosSinAplicarPorFallaTransitoria as falla:
+                # La base falló por algo pasajero: los mensajes del cliente se procesan igual y
+                # el 500 (para que Meta reintente) sale al final.
+                sin_aplicar = falla
 
         empresa = EmpresaId(empresa_id)
-        for entrante in entrantes:
+        # Meta manda también callbacks de estado de entrega y notificaciones de sistema.
+        # No traer mensajes no es un error: es la mayoría del tráfico.
+        for entrante in _mensajes_de(crudo):
             await _procesar(recursos, empresa, entrante)
+        if sin_aplicar is not None:
+            raise sin_aplicar
         return Response(status_code=status.HTTP_200_OK)
 
     return router
@@ -277,8 +291,7 @@ def _mensajes_de(crudo: bytes) -> list[MensajeEntrante]:
     **Todo campo se lee defensivamente.** El cuerpo lo manda un tercero: una forma inesperada
     tiene que producir una lista vacía y un 200, no un 500 que Meta reintenta durante horas.
 
-    Los `statuses` —los callbacks de entrega y lectura— **no se procesan acá todavía**: están
-    anotados en los pendientes del épico.
+    Los `statuses` —los callbacks de entrega y lectura— los procesa `api/entregas.py` (U7).
     """
     import json
 

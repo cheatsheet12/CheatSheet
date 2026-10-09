@@ -116,7 +116,7 @@ class CanalGrabador:
 
 
 async def _enviar(envio: EnvioPorWhatsApp, cobro: Cobro) -> EstadoEntrega:
-    return await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1)
+    return (await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1)).estado
 
 
 # --- Caso 2: con la plantilla aprobada, sale como plantilla ---------------------------------------------
