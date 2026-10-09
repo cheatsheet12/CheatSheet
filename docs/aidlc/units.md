@@ -55,7 +55,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cobros y recordatorios | cobro-por-transferencia | payments | HU-E6-08 | reembolsos-parciales-y-manuales | — | — | pendiente |
 | Agenda y recursos | turnos-no-en-el-pasado | scheduling | HU-E7-06, HU-E7-02, HU-E8-01 | — | Luciano | feature/scheduling-turnos-no-en-el-pasado | mergeada |
 | Agenda y recursos | limites-e-intervalo-de-turnos | scheduling | HU-E7-04, HU-E7-06 | turnos-no-en-el-pasado | Luciano | feature/scheduling-limites-e-intervalo-de-turnos | mergeada |
-| Agenda y recursos | router-de-agenda-por-responsabilidad | scheduling | HU-E7-01 … HU-E7-06 (referencia) | — | Luciano | fix/scheduling-router-de-agenda-por-responsabilidad | en curso |
+| Agenda y recursos | router-de-agenda-por-responsabilidad | scheduling | HU-E7-01 … HU-E7-06 (referencia) | — | Luciano | fix/scheduling-router-de-agenda-por-responsabilidad | en revisión |
 | Agente de WhatsApp y atención humana | comprobante-por-whatsapp | conversational | HU-E8-06, HU-E8-05 | cobro-por-transferencia | — | — | pendiente |
 | Agente de WhatsApp y atención humana | usos-de-faq-por-periodo | conversational | HU-E9-04 | ADR-0012 | Luciano | feature/conversational-usos-de-faq-por-periodo | mergeada |
 | Agente de WhatsApp y atención humana | reserva-y-cancelacion-por-whatsapp | conversational | HU-E8-01, HU-E8-02, HS-T2 | ajustes-menores-del-agente | Luciano | feature/conversational-reserva-y-cancelacion-por-whatsapp | mergeada |

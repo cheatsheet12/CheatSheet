@@ -107,7 +107,7 @@ caracterización ~60). Dos commits: `test(scheduling): pin the agenda router's r
 |---|---|---|
 | 1 · Plan | 2026-10-09 | aprobado con todas las decisiones (D1–D5) según la recomendación |
 | 2 · Verificación | 2026-10-09 | aprobado por el responsable de la fase; revisión independiente sin bloqueantes. ruff, mypy y pytest en verde en local (2370 pasan, 525 omitidos por requerir PostgreSQL o Redis). La confirmación de los 30 casos de `test_api_agenda.py` queda para la CI del PR o para Docker local |
-| 3 · PR | | |
+| 3 · PR | 2026-10-09 | PR a `develop`. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
 
