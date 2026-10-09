@@ -8,6 +8,7 @@ piece without touching the use cases.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,18 +21,27 @@ from cheatsheet.contexts.integrations.application.ports import (
     PortRepositorioIntegraciones,
     PortRepositorioTickets,
 )
+from cheatsheet.contexts.integrations.application.tickets_de_plataforma import (
+    ObtenerTicketDePlataforma,
+)
+from cheatsheet.contexts.integrations.infrastructure.arca.firma import leer_credencial
 from cheatsheet.contexts.integrations.infrastructure.autorizaciones import (
     MemoriaDeAutorizacionRedis,
 )
 from cheatsheet.contexts.integrations.infrastructure.cifrado import CifradoAesGcm
 from cheatsheet.contexts.integrations.infrastructure.email_integracion import AvisoPorEmail
-from cheatsheet.contexts.integrations.infrastructure.registro import RegistroDeAdaptadores
+from cheatsheet.contexts.integrations.infrastructure.registro import (
+    RegistroDeAdaptadores,
+    emisor_de_arca,
+)
 from cheatsheet.contexts.integrations.infrastructure.repositories import (
     RepositorioIntegracionesSQL,
+    RepositorioTicketsDePlataformaSQL,
     RepositorioTicketsSQL,
 )
 from cheatsheet.platform.email import crear_transporte
 from cheatsheet.platform.settings import Settings
+from cheatsheet.shared.clock import RelojDelSistema
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,14 +52,27 @@ class Integraciones:
     tickets: PortRepositorioTickets
     cifrado: PortCifradoDeCredenciales
     adaptadores: PortRegistroDeAdaptadores
+    #: ADR-0014: the platform certificate's ticket, bound to this request's transaction.
+    tickets_de_plataforma: ObtenerTicketDePlataforma
 
     @classmethod
     def armar(cls, sesion: AsyncSession, settings: Settings) -> Integraciones:
+        cifrado = CifradoAesGcm(settings.secrets_encryption_key)
+        reloj = RelojDelSistema()
+        tickets_de_plataforma = ObtenerTicketDePlataforma(
+            tickets=RepositorioTicketsDePlataformaSQL(sesion),
+            cifrado=cifrado,
+            emisor=emisor_de_arca(settings, reloj),
+            credencial=settings.arca_credencial_plataforma,
+            reloj=reloj,
+            margen=timedelta(minutes=settings.arca_margen_renovacion_minutos),
+        )
         return cls(
             integraciones=RepositorioIntegracionesSQL(sesion),
             tickets=RepositorioTicketsSQL(sesion),
-            cifrado=CifradoAesGcm(settings.secrets_encryption_key),
-            adaptadores=registro_de_adaptadores(settings),
+            cifrado=cifrado,
+            adaptadores=RegistroDeAdaptadores.desde_settings(settings, tickets_de_plataforma),
+            tickets_de_plataforma=tickets_de_plataforma,
         )
 
 
@@ -77,3 +100,13 @@ def crear_aviso(settings: Settings) -> PortAvisoDeIntegracion:
     Process-lifetime, like `crear_enviador` in identity: it holds no transaction.
     """
     return AvisoPorEmail(crear_transporte(settings), settings.app_base_url)
+
+
+def cuit_de_plataforma(settings: Settings) -> str:
+    """The CUIT of the platform certificate (ADR-0014): who asks ARCA's registry.
+
+    Empty with the simulator, which has no certificate and authenticates nothing.
+    """
+    if not settings.arca_credencial_plataforma:
+        return ""
+    return leer_credencial(settings.arca_credencial_plataforma).cuit

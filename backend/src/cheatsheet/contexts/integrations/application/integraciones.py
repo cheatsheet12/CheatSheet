@@ -239,7 +239,7 @@ class VerificarConexiones:
             await self._integraciones.guardar(configuracion)
             if cambio is not None:
                 await self._publicador.publicar(
-                    _evento_auditable(
+                    evento_auditable(
                         cambio,
                         empresa_id=empresa_id,
                         usuario_id=usuario_id,
@@ -367,7 +367,7 @@ class ConectarIntegracion:
 
         if cambio is not None:
             await self._publicador.publicar(
-                _evento_auditable(
+                evento_auditable(
                     cambio,
                     empresa_id=empresa_id,
                     usuario_id=usuario_id,
@@ -408,7 +408,7 @@ class ConectarIntegracion:
                 await self._tickets.guardar(existente)
 
 
-def _evento_auditable(
+def evento_auditable(
     cambio: CambioDeEstado,
     *,
     empresa_id: EmpresaId,
