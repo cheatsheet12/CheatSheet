@@ -79,20 +79,20 @@ ronda los 60 caracteres y el webhook está firmado (HMAC), así que el caso es d
 
 ## Archivos a tocar
 
-- [ ] `backend/src/cheatsheet/api/routers/whatsapp.py`
-- [ ] `backend/tests/api/test_webhook_entrante_robustez.py` (nuevo; mismo estilo que
+- [x] `backend/src/cheatsheet/api/routers/whatsapp.py`
+- [x] `backend/tests/api/test_webhook_entrante_robustez.py` (nuevo; mismo estilo que
       `test_webhook_estados_robustez.py` de U7, sin base)
-- [ ] `docs/aidlc/TODO.md` (§22.58 → resuelta) · `docs/aidlc/units.md` (fila)
+- [x] `docs/aidlc/TODO.md` (§22.58 → resuelta) · `docs/aidlc/units.md` (fila)
 
 ## Casos de prueba (TDD: cada uno RED antes del cambio)
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED** — `id` de 161 caracteres: hoy pasa a `MensajeEntrante`; después, `_mensajes_de` lo omite | unit | pendiente |
-| 2 | `id` de exactamente 160 caracteres se procesa (borde) | unit | pendiente |
-| 3 | **RED** — `id` vacío: hoy pasa; después se omite | unit | pendiente |
-| 4 | Notificación con uno inutilizable y uno válido → 200 y el válido llega al caso de uso una vez | API (montaje en memoria) | pendiente |
-| 5 | El log del descarte lleva largo y motivo, y no lleva id, teléfono ni texto (`capture_logs`) | API | pendiente |
+| 1 | **RED** — `id` de 161 caracteres: hoy pasa a `MensajeEntrante`; después, `_mensajes_de` lo omite | unit | hecho |
+| 2 | `id` de exactamente 160 caracteres se procesa (borde) | unit | hecho |
+| 3 | **RED** — `id` vacío: hoy pasa; después se omite | unit | hecho |
+| 4 | Notificación con uno inutilizable y uno válido → 200 y el válido llega al caso de uso una vez | API (montaje en memoria) | hecho |
+| 5 | El log del descarte lleva largo y motivo, y no lleva id, teléfono ni texto (`capture_logs`) | API | hecho |
 
 ## Decisiones para el responsable
 
