@@ -670,7 +670,7 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 
 Hallazgos de `router-de-agenda-por-responsabilidad` (sin unidad, sólo reportados; la unidad no cambia comportamiento):
 
-- **Las fábricas de rutas pasan de 50 líneas.** `rutas_de_recursos` (62), `_rutas_de_configuracion` (68), `_rutas_de_excepciones` (48), `rutas_de_turnos` (115) y `_rutas_de_gestion` (85): el patrón de cierres por fábrica es el de todos los routers y la unidad lo conserva (decisión D2). Achicarlas es otra decisión, que alcanza a todos los routers.
+- **Las fábricas de rutas pasan de 50 líneas.** `rutas_de_recursos` (61), `_rutas_de_configuracion` (67), `_rutas_de_excepciones` (47), `rutas_de_turnos` (114) y `_rutas_de_gestion` (85): el patrón de cierres por fábrica es el de todos los routers y la unidad lo conserva (decisión D2). Achicarlas es otra decisión, que alcanza a todos los routers.
 - **`_actor` y `_exigir` están duplicados en al menos ocho routers** (`bitacora.py`, `categorias.py`, `clientes.py`, `conversaciones.py`, …); en la agenda viven ahora en `agenda_forma.py` como `actor` y `exigir`. Unificarlos en un módulo compartido de `api/` es una unidad aparte.
 - **`scheduling/application/turnos.py` (~520 líneas) sigue sobre el límite**: la extracción de `Avisador` queda para después de U8, que lo modifica (`Avisador.recordatorio`, `franja_asignada_en`).
 

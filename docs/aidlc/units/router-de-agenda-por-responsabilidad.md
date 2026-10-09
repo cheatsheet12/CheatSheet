@@ -29,8 +29,8 @@ estado.
 | `agenda.py:62-128` · `129-201` | Modelos de entrada (8) y de salida (9) |
 | `agenda.py:203-298` | Conversiones (`_a_recurso`, `_a_turno`, `_patrones`, `_tipo_de_recurso`, `_excepcion`) y ayudantes (`_actor`, `_rango`, `_exigir`) |
 | `agenda.py:300-305` | `crear_router`: incluye `/recursos` y `/turnos` |
-| `agenda.py:307-486` | Recursos: `_rutas_de_recursos` (62 líneas) incluye `_rutas_de_configuracion` (68) y `_rutas_de_excepciones` (48) con prefijo `/{recurso_id}` (`365-366`) |
-| `agenda.py:488-688` | Turnos: `_rutas_de_turnos` (115 líneas) incluye `_rutas_de_gestion` (85) con prefijo `/{turno_id}` (`600`) |
+| `agenda.py:307-486` | Recursos: `_rutas_de_recursos` (61 líneas) incluye `_rutas_de_configuracion` (67) y `_rutas_de_excepciones` (47) con prefijo `/{recurso_id}` (`365-366`) |
+| `agenda.py:488-688` | Turnos: `_rutas_de_turnos` (114 líneas) incluye `_rutas_de_gestion` (85) con prefijo `/{turno_id}` (`600`) |
 | `agenda.py:521` vs `557` | **`GET /turnos/disponibilidad` se registra antes que `GET /turnos/{turno_id}`.** Si se invierte el orden al mover, «disponibilidad» se toma como `turno_id` y contesta 422 |
 | `api/main.py:23-24,105` | Único consumidor: `agenda.crear_router(recursos)` |
 | `api/routers/tablero_salida.py:1-8` | Precedente: la forma HTTP del tablero salió de `reporteria.py` «porque ya pasaba de las 500 líneas» |
@@ -79,18 +79,18 @@ los tests de la API de agenda sólo corren contra PostgreSQL.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Caracterización: la tabla (método, ruta, código de estado, modelo de respuesta) de todas las rutas de `crear_router` es la esperada — verde sobre el código actual | unit (sin base) | pendiente |
-| 2 | `GET /turnos/disponibilidad` está registrada antes que `GET /turnos/{turno_id}` | unit | pendiente |
-| 3 | Después de partir: 1 y 2 siguen verdes; `ruff`, `mypy --strict`, `pytest` limpios | suite | pendiente |
-| 4 | `tests/integracion/test_api_agenda.py` (30 casos) verde en la CI | integración (CI) | pendiente |
-| 5 | Ningún módulo nuevo pasa las 400 líneas | revisión | pendiente |
+| 1 | Caracterización: la tabla (método, ruta, código de estado, modelo de respuesta) de todas las rutas de `crear_router` es la esperada — verde sobre el código actual | unit (sin base) | verificado en local |
+| 2 | `GET /turnos/disponibilidad` está registrada antes que `GET /turnos/{turno_id}` | unit | verificado en local |
+| 3 | Después de partir: 1 y 2 siguen verdes; `ruff`, `mypy --strict`, `pytest` limpios | suite | verificado en local |
+| 4 | `tests/integracion/test_api_agenda.py` (30 casos) verde en la CI | integración (CI) | pendiente (CI) |
+| 5 | Ningún módulo nuevo pasa las 400 líneas | revisión | verificado en local |
 
 ## Decisiones para el responsable
 
 | # | Pregunta | Recomendación |
 |---|---|---|
 | D1 | ¿Módulos planos (`agenda_*.py`) o subpaquete `api/routers/agenda/`? | **Planos.** Sigue el precedente de `tablero_salida.py`, `main.py` no cambia y no se agrega un directorio |
-| D2 | ¿Además del archivo, bajar cada fábrica de rutas a ≤ 50 líneas (hoy 62, 68, 48, 115 y 85)? | **No en esta unidad.** El patrón de cierres por fábrica es el de todos los routers; cambiarlo es otra decisión. Se registra en el TODO como hallazgo |
+| D2 | ¿Además del archivo, bajar cada fábrica de rutas a ≤ 50 líneas (hoy 61, 67, 47, 114 y 85)? | **No en esta unidad.** El patrón de cierres por fábrica es el de todos los routers; cambiarlo es otra decisión. Se registra en el TODO como hallazgo |
 | D3 | ¿Agregar la prueba de caracterización de rutas, que corre sin base? | **Sí.** Es la única red local: los 30 tests de la API sólo corren en la CI |
 | D4 | ¿Bajo qué épico se registra, siendo trabajo sin historia? | Épico «Agenda y recursos», con las HUs del router como referencia, igual que las unidades `fix/…` anteriores |
 | D5 | ¿Empezar ya o esperar a U7/U8? | **Ya.** Ninguna rama en curso toca el archivo; esperar sólo agrega riesgo de que alguien lo toque |
@@ -106,7 +106,7 @@ caracterización ~60). Dos commits: `test(scheduling): pin the agenda router's r
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-09 | aprobado con todas las decisiones (D1–D5) según la recomendación |
-| 2 · Verificación | | pendiente: ruff, mypy y pytest en verde en local (2370 pasan, 525 omitidos por requerir PostgreSQL o Redis); falta el veredicto del responsable y la CI de `test_api_agenda.py` |
+| 2 · Verificación | 2026-10-09 | aprobado por el responsable de la fase; revisión independiente sin bloqueantes. ruff, mypy y pytest en verde en local (2370 pasan, 525 omitidos por requerir PostgreSQL o Redis). La confirmación de los 30 casos de `test_api_agenda.py` queda para la CI del PR o para Docker local |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
