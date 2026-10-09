@@ -15,6 +15,7 @@ from cheatsheet.platform.database import Base
 
 TABLA_CONFIGURACION = "configuracion_de_integracion"
 TABLA_TICKET = "ticket_de_acceso"
+TABLA_TICKET_DE_PLATAFORMA = "ticket_de_plataforma"
 
 
 class ConfiguracionDeIntegracionORM(Base):
@@ -81,6 +82,21 @@ class TicketDeAccesoORM(Base):
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
     empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
     servicio: Mapped[str] = mapped_column(String(30), nullable=False)
+    contenido_cifrado: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    algoritmo: Mapped[str] = mapped_column(String(40), nullable=False)
+    expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class TicketDePlataformaORM(Base):
+    """One live session of the platform certificate per ARCA service (ADR-0014).
+
+    **No `empresa_id`, and therefore no Row-Level Security**: it holds no company's data,
+    and every company is reached through it. Encrypted exactly like `ticket_de_acceso`.
+    """
+
+    __tablename__ = TABLA_TICKET_DE_PLATAFORMA
+
+    servicio: Mapped[str] = mapped_column(String(30), primary_key=True)
     contenido_cifrado: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     algoritmo: Mapped[str] = mapped_column(String(40), nullable=False)
     expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

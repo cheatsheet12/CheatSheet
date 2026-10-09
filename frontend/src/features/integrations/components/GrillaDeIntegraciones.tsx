@@ -75,6 +75,8 @@ export interface PropsDeGrilla {
   readonly puedeConectar: boolean;
   /** Absent on an ordinary visit; present only on the way back from the provider. */
   readonly retorno?: RetornoDeAutorizacion | null;
+  /** ADR-0014: the CUIT companies delegate ARCA's web service to. */
+  readonly cuitDeCheatsheet?: string | null;
 }
 
 /**
@@ -89,6 +91,7 @@ export function GrillaDeIntegraciones({
   inicial,
   puedeConectar,
   retorno = null,
+  cuitDeCheatsheet = null,
 }: PropsDeGrilla): JSX.Element {
   const [listado, setListado] = useState<ListadoDeIntegraciones>(inicial);
   const [ocupada, setOcupada] = useState<SistemaExterno | "verificacion" | null>(null);
@@ -226,7 +229,8 @@ export function GrillaDeIntegraciones({
         </Button>
       </header>
 
-      {error !== null ? <Alert tono="error">{error}</Alert> : null}
+      {/* With a form open the error belongs inside it: behind the modal nobody reads it. */}
+      {error !== null && formulario === null ? <Alert tono="error">{error}</Alert> : null}
       {avisoFiscal !== null ? (
         <Alert tono="advertencia" titulo="Revisá los datos fiscales">
           {avisoFiscal}
@@ -258,6 +262,7 @@ export function GrillaDeIntegraciones({
           setFormulario(null);
         }}
       >
+        {error !== null ? <Alert tono="error">{error}</Alert> : null}
         <FormularioDeWhatsApp
           enviando={ocupada === "WHATSAPP"}
           onEnviar={(token, parametros) => {
@@ -276,10 +281,14 @@ export function GrillaDeIntegraciones({
           setFormulario(null);
         }}
       >
+        {error !== null ? <Alert tono="error">{error}</Alert> : null}
         <FormularioDeArca
           enviando={ocupada === "ARCA"}
-          onEnviar={(bundle) => {
-            void enviarConexion("ARCA", aBase64(bundle), {});
+          cuitDeCheatsheet={cuitDeCheatsheet ?? null}
+          onEnviar={() => {
+            // ADR-0014: nothing to send. The server takes the company's CUIT from its own
+            // fiscal data and asks ARCA about the delegation.
+            void enviarConexion("ARCA", "", {});
           }}
           onCancelar={() => {
             setFormulario(null);

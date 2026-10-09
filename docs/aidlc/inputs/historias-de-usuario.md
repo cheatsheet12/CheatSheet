@@ -307,7 +307,7 @@ Esta épica agrupa las historias relativas a la conexión y validación de los s
 
 **Reglas de negocio**
 
-* RN-01: La conexión con ARCA requiere las credenciales fiscales (certificado y clave) asociadas al CUIT de la empresa. El sistema las almacena cifradas, conforme al atributo credencial_contenido_cifrado de la entidad ConfiguraciónDeIntegración.
+* RN-01: La conexión con ARCA requiere que la empresa haya delegado el web service «Facturación Electrónica» en la CUIT de CheatSheet, desde el Administrador de Relaciones de Clave Fiscal. CheatSheet opera con su propio certificado en representación de la CUIT de la empresa; la empresa no carga certificados. *(Corregida el 08/10/2026 por [ADR-0014](../../adr/0014-arca-web-service-delegation.md). Decía: «requiere las credenciales fiscales (certificado y clave) asociadas al CUIT de la empresa. El sistema las almacena cifradas».)*
 * RN-02: El sistema valida las credenciales contra ARCA antes de marcar la integración como activa. Credenciales inválidas dejan la integración en estado no conectado.
 * RN-03: La integración registra el ambiente (homologación o producción) en el que opera.
 * RN-04: Si las credenciales expiran o son revocadas, el sistema marca la integración como inactiva y notifica al administrador.
@@ -316,10 +316,12 @@ Esta épica agrupa las historias relativas a la conexión y validación de los s
 
 | Cuando | Espero | Referencia |
 | :---- | :---- | :---- |
-| Ingreso credenciales fiscales válidas | El sistema las valida contra ARCA y marca la integración como “Conectada” | PAN-CFG-INT |
-| Ingreso credenciales inválidas | El sistema muestra “Las credenciales no pudieron validarse contra ARCA.” y mantiene la integración como no conectada | PAN-CFG-INT |
-| Las credenciales expiran con posterioridad | El sistema marca la integración como inactiva y me notifica | PAN-CFG-INT |
+| Delegué el servicio y toco «Verificar delegación» | El sistema confirma la delegación contra ARCA y marca la integración como “Conectada” | PAN-CFG-INT |
+| Verifico sin haber delegado el servicio | El sistema indica que ARCA no registra la delegación y mantiene la integración como no conectada | PAN-CFG-INT |
+| La delegación se revoca con posterioridad | El sistema marca la integración como inactiva en la siguiente verificación | PAN-CFG-INT |
 | Consulto el estado de la integración ARCA | Veo el ambiente configurado y el estado actual de la conexión | PAN-CFG-INT |
+
+*Criterios 1 a 3 corregidos el 08/10/2026 por ADR-0014: con delegación no hay credenciales que ingresar ni que venzan por empresa.*
 
 ## **HU-E2-02 — Conectar cuenta de MercadoPago**
 
