@@ -29,6 +29,7 @@ from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega
 from cheatsheet.contexts.payments.infrastructure.envio import (
     EnvioPorWhatsApp,
     texto_de_recordatorio,
+    variables_de_recordatorio,
 )
 from cheatsheet.platform.settings import Entorno
 from cheatsheet.shared.empresa import EmpresaId
@@ -117,17 +118,32 @@ async def test_el_texto_lleva_nombre_concepto_monto_con_dos_decimales_y_el_link(
 
     assert NOMBRE in texto
     assert "Consulta de septiembre" in texto
-    assert "$ 1234.50" in texto
+    assert "$ 1.234,50" in texto
     assert LINK.url in texto
 
 
 @pytest.mark.parametrize(
     ("monto", "esperado"),
-    [("0.005", "0.01"), ("10.004", "10.00"), ("2.675", "2.68"), ("1210", "1210.00")],
+    [("0.005", "0,01"), ("10.004", "10,00"), ("2.675", "2,68"), ("1210", "1.210,00")],
 )
 async def test_el_monto_se_redondea_half_up_con_decimal(monto: str, esperado: str) -> None:
     # `Cobro` ya redondea al crearse; el texto no puede reintroducir un `float` ni otro modo.
     assert f"$ {esperado}." in texto_de_recordatorio(nombre=NOMBRE, cobro=_cobro(monto=monto))
+
+
+async def test_el_texto_y_la_plantilla_dicen_el_monto_de_la_misma_manera() -> None:
+    cobro = _cobro(monto="1234.5")
+
+    texto = texto_de_recordatorio(nombre=NOMBRE, cobro=cobro)
+    variables = variables_de_recordatorio(nombre=NOMBRE, cobro=cobro)
+
+    assert f"por $ {variables['monto']}." in texto
+
+
+async def test_el_texto_con_link_termina_igual_que_el_de_fabrica() -> None:
+    texto = texto_de_recordatorio(nombre=NOMBRE, cobro=_cobro())
+
+    assert texto.endswith(f"Podés pagarlo acá: {LINK.url} Gracias.")
 
 
 async def test_un_cobro_sin_link_no_dice_nada_del_link_ni_none() -> None:
@@ -135,7 +151,7 @@ async def test_un_cobro_sin_link_no_dice_nada_del_link_ni_none() -> None:
 
     assert "None" not in texto
     assert "pagarlo" not in texto
-    assert texto.endswith("$ 1210.00.")
+    assert texto.endswith("$ 1.210,00. Gracias.")
 
 
 async def test_el_envio_manda_el_texto_al_telefono_del_cliente_y_devuelve_enviado() -> None:
