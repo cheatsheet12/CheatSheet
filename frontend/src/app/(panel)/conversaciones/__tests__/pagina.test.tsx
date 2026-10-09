@@ -98,6 +98,10 @@ const PLANTILLA = {
   estado_aprobacion: "APROBADA",
   variables: ["nombre", "fecha"],
   puede_usarse: true,
+  motivo_meta: null,
+  detalle_meta: null,
+  categoria_en_meta: null,
+  editable_desde: null,
 };
 
 /** Contesta según la ruta: estas páginas piden dos cosas distintas cada una. */

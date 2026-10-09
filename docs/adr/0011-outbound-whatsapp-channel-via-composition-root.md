@@ -83,8 +83,10 @@ The detail needed to implement it without asking again:
    at the app-level webhook URL and are routed to the company by its WhatsApp Business Account id
    (a lookup published by `integrations`), with a periodic reconciliation against Meta as the
    safety net. The claim that Meta offers no per-account override for this field was not
-   re-verified when this ADR was accepted: Gate 1 of `entregas-de-whatsapp` checks it against
-   Meta's current documentation. If an override exists, only the mechanism changes (the status
+   re-verified when this ADR was accepted: `entregas-de-whatsapp` (U7) checks it against Meta, and
+   since that needs the test app it is recorded as pending in `TODO.md` §22.53; delivery statuses
+   are routed by WABA on both URLs, so the code does not depend on the answer. If an override
+   exists, only the mechanism changes (the status
    still reaches the context through the composition root); the decision does not.
    Either way, routing a status to a payments reminder or to a template is a call
    from the composition root to that context's `application/`, not from `conversational` to
@@ -106,7 +108,7 @@ The detail needed to implement it without asking again:
 
 | Upstream | Downstream | Type | What flows |
 | --- | --- | --- | --- |
-| `conversational` | payments, scheduling, business_config | C/S, wired only in the composition root | The WhatsApp channel to Meta: send a text or an approved template and get Meta's message id back; submit a template and read its approval status |
+| `conversational` | payments, scheduling, business_config | C/S, wired only in the composition root | The WhatsApp channel to Meta: send a text or an approved template and get Meta's message id back; submit a template and read its approval status; for scheduling notices, record the outgoing message in the customer's conversation (owned by `conversational`) |
 
 ## Alternatives considered
 
