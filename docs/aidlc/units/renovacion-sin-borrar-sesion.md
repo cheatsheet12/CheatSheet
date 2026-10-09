@@ -135,4 +135,8 @@ Chica: ~10 líneas de producción, ~110 de tests, docs. Un commit `fix(identity)
 
 ## Decisiones tomadas durante la unidad
 
-- (vacío)
+- D1: todo 4xx (`status < 500`) cierra la sesión, como hoy.
+- D2: ante timeout o error de red se conservan las cookies.
+- D3: `/api/auth/renovar` con la API caída va a `/` con las cookies intactas.
+- D4: sin aviso al usuario ni espaciado extra de reintentos.
+- La rama se apila sobre `revocacion-inmediata-de-sesion` (`c0e926c`); se mergea `develop` cuando esa unidad entre.
