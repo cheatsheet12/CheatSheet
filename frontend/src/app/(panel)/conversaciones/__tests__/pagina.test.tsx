@@ -119,6 +119,9 @@ function porRuta(ruta: string): unknown {
   if (ruta.startsWith("/reglas")) {
     return { reglas: [] };
   }
+  if (ruta.startsWith("/integraciones")) {
+    return { integraciones: [{ sistema: "WHATSAPP", estado: "CONECTADO" }] };
+  }
   return { plantillas: [PLANTILLA] };
 }
 
@@ -220,6 +223,58 @@ describe("PaginaDeFaqs y PaginaDePlantillas", () => {
     expect(faqs).toContain("Horarios de atención");
     expect(faqs).not.toContain("Guardar");
     expect(renderToString(await PaginaDePlantillas())).not.toContain("Editar texto");
+  });
+
+  describe("la advertencia del recordatorio de turno", () => {
+    const SIN_APROBAR = { ...PLANTILLA, estado_aprobacion: "PENDIENTE", puede_usarse: false };
+    const AGENDA_APAGADA = {
+      id: "r1",
+      tipo: "AGENDA_DE_NOTIFICACION",
+      activa: false,
+      prioridad: 0,
+      configuracion: { recordatorios: [{ horas_antes: 24 }] },
+    };
+
+    function servir(respuestas: { reglas?: unknown[]; integraciones?: unknown[] }): void {
+      llamarApi.mockImplementation((ruta: string) => {
+        if (ruta.startsWith("/plantillas")) {
+          return Promise.resolve({ plantillas: [SIN_APROBAR] });
+        }
+        if (ruta.startsWith("/reglas")) {
+          return Promise.resolve({ reglas: respuestas.reglas ?? [] });
+        }
+        return Promise.resolve({
+          integraciones: respuestas.integraciones ?? [{ sistema: "WHATSAPP", estado: "CONECTADO" }],
+        });
+      });
+    }
+
+    it("aparece con la plantilla sin aprobar, los recordatorios activos y WhatsApp conectado", async () => {
+      leerClaims.mockReturnValue(CLAIMS_ADMIN);
+      servir({});
+
+      expect(renderToString(await PaginaDePlantillas())).toContain(
+        "Los recordatorios de turno pueden no llegar",
+      );
+    });
+
+    it("no aparece con la agenda desactivada", async () => {
+      leerClaims.mockReturnValue(CLAIMS_ADMIN);
+      servir({ reglas: [AGENDA_APAGADA] });
+
+      expect(renderToString(await PaginaDePlantillas())).not.toContain(
+        "Los recordatorios de turno pueden no llegar",
+      );
+    });
+
+    it("no aparece sin WhatsApp conectado", async () => {
+      leerClaims.mockReturnValue(CLAIMS_ADMIN);
+      servir({ integraciones: [{ sistema: "WHATSAPP", estado: "NO_CONECTADO" }] });
+
+      expect(renderToString(await PaginaDePlantillas())).not.toContain(
+        "Los recordatorios de turno pueden no llegar",
+      );
+    });
   });
 
   it("redirigen sin sesion", async () => {
