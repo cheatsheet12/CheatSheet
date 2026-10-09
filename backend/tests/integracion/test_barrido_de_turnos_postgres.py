@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta
 
 import pytest
@@ -33,9 +33,14 @@ from cheatsheet.contexts.scheduling.application.ports import ServicioAgendable
 from cheatsheet.contexts.scheduling.application.ports_de_recordatorios import (
     RecordatorioListo,
     ResultadoDelEnvio,
+    SinTelefono,
 )
 from cheatsheet.contexts.scheduling.application.recordatorios import EnviarRecordatoriosDeTurno
-from cheatsheet.contexts.scheduling.domain.recordatorio_de_turno import VENTANA_DE_ENVIO
+from cheatsheet.contexts.scheduling.domain.recordatorio_de_turno import (
+    VENTANA_DE_ENVIO,
+    RecordatorioDeTurno,
+)
+from cheatsheet.contexts.scheduling.domain.turno import Turno
 from cheatsheet.contexts.scheduling.infrastructure.recordatorio_por_whatsapp import (
     RecordatorioPorWhatsApp,
 )
@@ -78,14 +83,54 @@ FILAS = text(
 MENSAJES = text("SELECT externo_id, origen, direccion FROM mensaje WHERE externo_id = :wamid")
 
 
+class _Compuerta:
+    """Un punto de encuentro: retiene a quien llega hasta que llegan `cuantos`, o vence el tiempo.
+
+    Es lo que fuerza la carrera: sin él, `gather` puede correr un barrido entero antes de que el otro
+    arranque y el candado nunca se ejercita. El tiempo de espera evita que un test colgado cuelgue la CI.
+    """
+
+    def __init__(self, cuantos: int = 2) -> None:
+        self._cuantos = cuantos
+        self.llegaron = 0
+        self._lista = asyncio.Event()
+
+    def llegar(self) -> None:
+        self.llegaron += 1
+        if self.llegaron >= self._cuantos:
+            self._lista.set()
+
+    async def esperar(self) -> None:
+        await asyncio.wait_for(self._lista.wait(), timeout=15)
+
+
+class _RecordatoriosVigilados(RepositorioRecordatoriosDeTurnoPostgres):
+    """Avisa cada vez que un barrido pide la fila **bloqueada**, antes de que la base lo haga esperar."""
+
+    def __init__(self, sesion: AsyncSession, al_pedir_el_bloqueo: Callable[[], None]) -> None:
+        super().__init__(sesion)
+        self._al_pedir_el_bloqueo = al_pedir_el_bloqueo
+
+    async def buscar_para_actualizar(
+        self, recordatorio_id: uuid.UUID
+    ) -> RecordatorioDeTurno | None:
+        self._al_pedir_el_bloqueo()
+        return await super().buscar_para_actualizar(recordatorio_id)
+
+
 def _barrido(
     sesion: AsyncSession,
     empresa_id: EmpresaId,
     envio: EnvioGuionado | RecordatorioPorWhatsApp,
     ahora: datetime,
+    al_pedir_el_bloqueo: Callable[[], None] | None = None,
 ) -> EnviarRecordatoriosDeTurno:
     turnos = RepositorioTurnoPostgres(sesion)
-    recordatorios = RepositorioRecordatoriosDeTurnoPostgres(sesion)
+    recordatorios = (
+        RepositorioRecordatoriosDeTurnoPostgres(sesion)
+        if al_pedir_el_bloqueo is None
+        else _RecordatoriosVigilados(sesion, al_pedir_el_bloqueo)
+    )
     return EnviarRecordatoriosDeTurno(
         turnos=turnos,
         recordatorios=recordatorios,
@@ -107,9 +152,10 @@ async def _barrer(
     empresa_id: EmpresaId,
     envio: EnvioGuionado,
     ahora: datetime,
+    al_pedir_el_bloqueo: Callable[[], None] | None = None,
 ) -> None:
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
-        await _barrido(sesion, empresa_id, envio, ahora).ejecutar(
+        await _barrido(sesion, empresa_id, envio, ahora, al_pedir_el_bloqueo).ejecutar(
             empresa_id=empresa_id, ahora=ahora
         )
 
@@ -179,15 +225,31 @@ async def test_el_reintento_actualiza_la_misma_fila(
 async def test_dos_barridos_solapados_de_la_misma_empresa_mandan_una_sola_vez(
     sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
 ) -> None:
-    """**Caso 30.** Los dos workers encuentran el mismo turno a la vez: gana el índice único."""
+    """**Caso 30.** Los dos workers encuentran el mismo turno a la vez: gana el índice único.
+
+    El primero que llega a `preparar` espera al segundo: así **los dos** leyeron «no hay fila» antes de
+    que alguno inserte, y la clave única es lo único que decide quién manda.
+    """
     escenario = await _con_un_turno(sesiones, engine_dueno)
     envio = EnvioGuionado(TransaccionFalsa(), enviado(), enviado())
+    compuerta = _Compuerta()
+    preparar = envio.preparar
+
+    async def preparar_en_la_compuerta(
+        turno: Turno, anticipacion_min: int
+    ) -> RecordatorioListo | SinTelefono:
+        compuerta.llegar()
+        await compuerta.esperar()
+        return await preparar(turno, anticipacion_min)
+
+    envio.preparar = preparar_en_la_compuerta  # type: ignore[method-assign]
 
     await asyncio.gather(
         _barrer(sesiones, escenario.empresa_id, envio, BARRIDO),
         _barrer(sesiones, escenario.empresa_id, envio, BARRIDO),
     )
 
+    assert compuerta.llegaron == 2  # los dos llegaron: la carrera existió
     assert len(envio.enviados) == 1
     (fila,) = await _filas(sesiones, escenario.empresa_id)
     assert fila[2] == "ENVIADO"
@@ -196,19 +258,34 @@ async def test_dos_barridos_solapados_de_la_misma_empresa_mandan_una_sola_vez(
 async def test_dos_barridos_solapados_sobre_un_reintento_pendiente_mandan_una_sola_vez(
     sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
 ) -> None:
-    """**Caso 30**, la otra mitad: la fila espera su reintento y la relee bloqueada el que llega."""
+    """**Caso 30**, la otra mitad: la fila espera su reintento y la relee bloqueada el que llega.
+
+    El que tiene el candado espera, **dentro de él**, a que el otro lo pida: el otro queda bloqueado en
+    la base, y al soltarse relee una fila que ya no le toca. Sin `FOR UPDATE` los dos la verían vencida.
+    """
     escenario = await _con_un_turno(sesiones, engine_dueno)
     await _barrer(
         sesiones, escenario.empresa_id, EnvioGuionado(TransaccionFalsa(), transitoria()), BARRIDO
     )
     envio = EnvioGuionado(TransaccionFalsa(), enviado(), enviado())
     cuando = BARRIDO + timedelta(minutes=15)
+    compuerta = _Compuerta()
+    preparar = envio.preparar
+
+    async def preparar_con_el_otro_esperando(
+        turno: Turno, anticipacion_min: int
+    ) -> RecordatorioListo | SinTelefono:
+        await compuerta.esperar()  # sigue con el candado tomado hasta que el otro lo pida
+        return await preparar(turno, anticipacion_min)
+
+    envio.preparar = preparar_con_el_otro_esperando  # type: ignore[method-assign]
 
     await asyncio.gather(
-        _barrer(sesiones, escenario.empresa_id, envio, cuando),
-        _barrer(sesiones, escenario.empresa_id, envio, cuando),
+        _barrer(sesiones, escenario.empresa_id, envio, cuando, compuerta.llegar),
+        _barrer(sesiones, escenario.empresa_id, envio, cuando, compuerta.llegar),
     )
 
+    assert compuerta.llegaron == 2  # los dos pidieron el candado
     assert len(envio.enviados) == 1
     (fila,) = await _filas(sesiones, escenario.empresa_id)
     assert (fila[1], fila[2]) == (2, "ENVIADO")
