@@ -56,4 +56,38 @@ describe("PAN-CFG-NOT — advertencia del recordatorio de turno", () => {
 
     expect(screen.getByText(MENSAJE_RECORDATORIO_SIN_APROBAR)).toBeTruthy();
   });
+
+  it("no aparece si los recordatorios están apagados en la agenda", () => {
+    render(
+      <AdvertenciaDeRecordatorio
+        plantillas={[{ ...RECORDATORIO, estado_aprobacion: "PENDIENTE", puede_usarse: false }]}
+        recordatoriosActivos={false}
+      />,
+    );
+
+    expect(screen.queryByText(MENSAJE_RECORDATORIO_SIN_APROBAR)).toBeNull();
+  });
+
+  it("no aparece si WhatsApp no está conectado", () => {
+    render(
+      <AdvertenciaDeRecordatorio
+        plantillas={[{ ...RECORDATORIO, estado_aprobacion: "PENDIENTE", puede_usarse: false }]}
+        whatsappConectado={false}
+      />,
+    );
+
+    expect(screen.queryByText(MENSAJE_RECORDATORIO_SIN_APROBAR)).toBeNull();
+  });
+
+  it("aparece si los recordatorios están activos y WhatsApp conectado", () => {
+    render(
+      <AdvertenciaDeRecordatorio
+        plantillas={[{ ...RECORDATORIO, estado_aprobacion: "RECHAZADA", puede_usarse: false }]}
+        recordatoriosActivos
+        whatsappConectado
+      />,
+    );
+
+    expect(screen.getByText(MENSAJE_RECORDATORIO_SIN_APROBAR)).toBeTruthy();
+  });
 });

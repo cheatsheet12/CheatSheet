@@ -5,7 +5,9 @@
  * de 24 h casi nunca cae dentro de esa ventana: si `recordatorio_de_turno` no está aprobada, el
  * recordatorio falla (error 131047 de Meta) para casi todos los clientes. La pantalla lo dice.
  *
- * Se apoya en el estado que el listado ya trae desde U6; no pide nada más.
+ * Se apoya en el estado que el listado ya trae desde U6. **No avisa de lo que no va a pasar**: con los
+ * recordatorios apagados en la agenda, o sin WhatsApp conectado, no se manda ninguno y la advertencia
+ * sería ruido. La ruta, que compone las features (R5), decide esos dos datos y los pasa ya resueltos.
  */
 
 import type { Plantilla } from "../api/faq";
@@ -20,11 +22,20 @@ export const MENSAJE_RECORDATORIO_SIN_APROBAR =
 
 export interface PropsDeAdvertenciaDeRecordatorio {
   readonly plantillas: readonly Plantilla[];
+  /** La agenda de la empresa tiene los recordatorios encendidos. Sin dato, se asume que sí. */
+  readonly recordatoriosActivos?: boolean;
+  /** La empresa tiene WhatsApp conectado. Sin dato, se asume que sí. */
+  readonly whatsappConectado?: boolean;
 }
 
 export function AdvertenciaDeRecordatorio({
   plantillas,
+  recordatoriosActivos = true,
+  whatsappConectado = true,
 }: PropsDeAdvertenciaDeRecordatorio): JSX.Element | null {
+  if (!recordatoriosActivos || !whatsappConectado) {
+    return null;
+  }
   const recordatorio = plantillas.find(
     (plantilla) => plantilla.codigo === CODIGO_DEL_RECORDATORIO && plantilla.canal === "WHATSAPP",
   );
