@@ -10,8 +10,10 @@
  * A renewal the API refuses (expired, revoked, reused) ends the session and sends the
  * person to the login, which is the only honest thing left to do.
  *
- * The access token stays short on purpose: a role change or a deactivation still takes
- * effect within fifteen minutes.
+ * The access token stays short on purpose, but its lifetime is no longer what bounds a role
+ * change or a deactivation: the API checks the user against the database on every request,
+ * so both take effect on the next one. What a stale token still affects is only which
+ * buttons the interface draws, until the next renewal.
  */
 
 "use client";
