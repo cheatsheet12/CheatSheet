@@ -7,7 +7,7 @@ porque RLS ya acota. **`agregar` es donde la idempotencia llega al código**: el
 deje abortada la transacción del barrido.
 
 `empresas_con_turnos_por_recordar` es el fan-out entre empresas: llama a la función
-`SECURITY DEFINER` de la migración 0039, que devuelve solo ids.
+`SECURITY DEFINER` de la migración 0040, que devuelve solo ids.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from cheatsheet.contexts.scheduling.domain.recordatorio_de_turno import (
 )
 from cheatsheet.contexts.scheduling.infrastructure.models import RecordatorioDeTurnoORM
 
-#: El nombre que pone la migración 0039. Se compara contra el texto del `IntegrityError` porque
+#: El nombre que pone la migración 0040. Se compara contra el texto del `IntegrityError` porque
 #: asyncpg no expone el nombre de la restricción de forma tipada.
 INDICE_UNICO = "uq_recordatorio_de_turno"
 

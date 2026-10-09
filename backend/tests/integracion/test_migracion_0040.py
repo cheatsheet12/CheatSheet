@@ -1,4 +1,4 @@
-"""La migración 0039: `turno.franja_asignada_en` y la tabla `recordatorio_de_turno`.
+"""La migración 0040: `turno.franja_asignada_en` y la tabla `recordatorio_de_turno`.
 
 Fija lo que la migración promete y el código no puede garantizar solo:
 
@@ -9,7 +9,7 @@ Fija lo que la migración promete y el código no puede garantizar solo:
   incluye las empresas con un recordatorio sin terminar y excluye los turnos cerrados;
 - que sube y baja limpio.
 
-Son síncronos a propósito, como `test_migracion_0038.py`: `alembic.command` arranca su propio
+Son síncronos a propósito, como `test_migracion_0039.py`: `alembic.command` arranca su propio
 loop de asyncio. Necesitan PostgreSQL: se saltean sin base y corren en CI.
 """
 
@@ -50,7 +50,7 @@ CREAR_RECURSO = text(
     "intervalo_entre_turnos_min) "
     "VALUES (:id, :empresa_id, 'ESPACIO', 'Consultorio', true, :ahora, 0)"
 )
-#: Sin `franja_asignada_en`: es el turno tal como lo insertaría el esquema de la 0038.
+#: Sin `franja_asignada_en`: es el turno tal como lo insertaría el esquema de la 0039.
 CREAR_TURNO_VIEJO = text(
     "INSERT INTO turno (id, empresa_id, cliente_id, servicio_id, recurso_id, franja_inicio, "
     "franja_duracion_min, estado, canal_reserva, created_at, updated_at) "
@@ -223,9 +223,9 @@ class Empresa:
 
 @pytest.fixture
 def esquema_en_0038(esquema_migrado: None) -> Iterator[None]:
-    """Baja a `0038` y, pase lo que pase, deja el esquema en `head` para el resto."""
+    """Baja a `0039` y, pase lo que pase, deja el esquema en `head` para el resto."""
     config = _config()
-    command.downgrade(config, "0038")
+    command.downgrade(config, "0039")
     try:
         yield
     finally:

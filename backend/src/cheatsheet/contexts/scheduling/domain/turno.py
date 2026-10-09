@@ -190,7 +190,7 @@ class Turno:
     #: imponen (HU-E7-06 RN-07), y la base deja esos turnos fuera de `excl_turno_recurso_intervalo`.
     intervalo_posterior_min: int | None = 0
     #: Cuándo se fijó la franja **actual**: al reservar o en la última reprogramación (migración
-    #: 0039). `updated_at` no sirve, también se mueve al confirmar. Un recordatorio cuyo momento
+    #: 0040). `updated_at` no sirve, también se mueve al confirmar. Un recordatorio cuyo momento
     #: cae antes de esto ya estaba vencido cuando la franja se fijó, y no se manda.
     franja_asignada_en: datetime | None = None
 

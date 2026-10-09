@@ -133,7 +133,7 @@ class TurnoORM(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    #: Cuándo se fijó la franja actual (migración 0039): reservar o reprogramar.
+    #: Cuándo se fijó la franja actual (migración 0040): reservar o reprogramar.
     franja_asignada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
@@ -145,7 +145,7 @@ class TurnoORM(Base):
 
 
 class RecordatorioDeTurnoORM(Base):
-    """Un recordatorio de turno (migración 0039).
+    """Un recordatorio de turno (migración 0040).
 
     **`uq_recordatorio_de_turno` es la idempotencia**: una fila por `(turno, anticipación,
     franja)`, y el índice es lo que impide mandar dos veces el mismo aviso aunque dos barridos se
@@ -172,7 +172,7 @@ class RecordatorioDeTurnoORM(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
-        # Un índice único, como lo crea la migración 0039 (no una restricción de tabla).
+        # Un índice único, como lo crea la migración 0040 (no una restricción de tabla).
         Index(
             "uq_recordatorio_de_turno",
             "turno_id",
