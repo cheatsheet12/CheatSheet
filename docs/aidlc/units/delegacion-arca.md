@@ -59,3 +59,28 @@ y los ajustes de `test_api_empresa_padron.py`, `test_api_clientes.py` y la grill
    después `ARCA_ADAPTADOR=arca`: con ARCA real y sin la credencial, la API y el worker no arrancan.
    Staging hoy corre ARCA simulada, así que el merge solo no rompe nada.
 3. En el panel, Integraciones › ARCA › «Verificar delegación».
+
+## Segunda parte — hallazgos del 08/10/2026 a la noche
+
+**Prueba local con ARCA simulada.** Funcionaron el onboarding con «Validar contra ARCA» antes de
+conectar ARCA, «Continuar» al paso 3, «Verificar delegación» (conectada) y el rechazo de una CUIT
+sin delegar. Dos defectos encontrados y corregidos en esta rama:
+
+- **Mayor:** cambiar la CUIT de la empresa dejaba ARCA conectada con la anterior. Ahora la
+  desconecta (`InvalidarDelegacionPorCambioDeCuit`) y queda en la bitácora.
+- **Menor:** el error de una verificación rechazada quedaba detrás del modal. Ahora se ve adentro.
+
+**Padrón real de homologación**, consultado con el certificado de plataforma:
+
+| CUIT | Respuesta |
+|---|---|
+| `30000000015` (Estudio Ejemplo SRL, ficticia) | No existe |
+| `20222222223` (cliente ficticio) | No existe |
+| `33693450239` (ARCA) | Existe con datos de prueba: «PRUEBA F713 WEB 2», sin condición de IVA |
+
+Por eso se agrega **`ARCA_PADRON_ADAPTADOR`**: en staging el padrón queda simulado y WSFE real, así
+los datos ficticios de `etapa-6/reglas.md` §6 sirven en todo el panel y la facturación obtiene
+un CAE real. En producción el padrón simulado no arranca.
+
+Pendiente para el 09/10 desde las 07:51 (cuando vence el ticket de WSFE de la prueba del 08/10):
+verificar si ARCA homologación da CAE a un emisor que no existe en su padrón (`30000000015`).

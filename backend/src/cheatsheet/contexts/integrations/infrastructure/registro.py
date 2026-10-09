@@ -205,8 +205,13 @@ def _par_de_whatsapp(settings: Settings) -> ParDeAdaptadores:
 
 
 def emisor_de_arca(settings: Settings, reloj: Reloj) -> PortEmisorDeTickets:
-    """Who mints the platform's access tickets: WSAA, or the stand-in (ADR-0014)."""
-    if settings.arca_adaptador is AdaptadorDeArca.SIMULADO:
+    """Who mints the platform's access tickets: WSAA, or the stand-in (ADR-0014).
+
+    WSAA as soon as either WSFE or the padrón is real: a fabricated ticket sent to a real
+    service is refused.
+    """
+    reales = {settings.arca_adaptador, settings.arca_padron_adaptador}
+    if AdaptadorDeArca.ARCA not in reales:
         return ArcaSimuladoPorDelegacion(
             entorno=settings.entorno,
             reloj=reloj,
@@ -239,7 +244,10 @@ def _par_de_arca(
             aviso=timedelta(days=settings.arca_aviso_vencimiento_dias),
         )
         return ParDeAdaptadores(
-            conector=simulado, verificador=simulado, emisor=simulado, padron=simulado
+            conector=simulado,
+            verificador=simulado,
+            emisor=emisor_de_arca(settings, reloj),
+            padron=_padron_de_arca(settings, reloj, _url_del_padron(settings)),
         )
 
     consulta = ConsultaDeDelegacion(
@@ -250,22 +258,34 @@ def _par_de_arca(
         ),
         tickets,
     )
-    # The padrón lives on a different host from WSAA and splits its environments the same
-    # way, so the choice is made once, here, from the same flag.
-    url_padron = (
-        settings.arca_padron_url_produccion
-        if settings.es_produccion
-        else settings.arca_padron_url_homologacion
-    )
     return ParDeAdaptadores(
         conector=ConectorDelegacionArca(consulta),
         verificador=VerificadorDelegacionArca(consulta),
         emisor=emisor_de_arca(settings, reloj),
-        padron=ClientePadronA5(
-            ConfiguracionPadron(
-                url=url_padron, timeout_segundos=float(settings.arca_timeout_segundos)
-            )
-        ),
+        padron=_padron_de_arca(settings, reloj, _url_del_padron(settings)),
+    )
+
+
+def _url_del_padron(settings: Settings) -> str:
+    """The padrón lives on a different host from WSAA and splits its environments the same
+    way, so the choice comes from the same flag."""
+    return (
+        settings.arca_padron_url_produccion
+        if settings.es_produccion
+        else settings.arca_padron_url_homologacion
+    )
+
+
+def _padron_de_arca(settings: Settings, reloj: Reloj, url: str) -> PortConsultaDePadron:
+    """ARCA's registry, or the stand-in when `ARCA_PADRON_ADAPTADOR=simulado` (staging)."""
+    if settings.arca_padron_adaptador is AdaptadorDeArca.SIMULADO:
+        return ArcaSimuladoPorDelegacion(
+            entorno=settings.entorno,
+            reloj=reloj,
+            aviso=timedelta(days=settings.arca_aviso_vencimiento_dias),
+        )
+    return ClientePadronA5(
+        ConfiguracionPadron(url=url, timeout_segundos=float(settings.arca_timeout_segundos))
     )
 
 

@@ -126,6 +126,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         # The simulator, and hosts that do not resolve: a test that ever reached the
         # network would fail loudly instead of quietly talking to ARCA.
         arca_adaptador=AdaptadorDeArca.SIMULADO,
+        arca_padron_adaptador=AdaptadorDeArca.SIMULADO,
         arca_wsaa_url_homologacion="https://wsaahomo.invalid/ws/services/LoginCms",
         arca_wsaa_url_produccion="https://wsaa.invalid/ws/services/LoginCms",
         arca_padron_url_homologacion="https://padronhomo.invalid/personaServiceA5",

@@ -351,6 +351,26 @@ def _credencial_de_plataforma(adaptador: AdaptadorDeArca) -> bytes:
         ) from exc
 
 
+def _adaptador_del_padron(entorno: Entorno, arca: AdaptadorDeArca) -> AdaptadorDeArca:
+    """`ARCA_PADRON_ADAPTADOR`: defaults to whatever ARCA is, and is never simulated in
+    production — a company validated against an invented registry would invoice on the
+    strength of a fiscal condition nobody checked."""
+    crudo = _opcional("ARCA_PADRON_ADAPTADOR", "")
+    if not crudo:
+        return arca
+    try:
+        adaptador = AdaptadorDeArca(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"ARCA_PADRON_ADAPTADOR debe ser 'arca' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeArca.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "ARCA_PADRON_ADAPTADOR=simulado no es valido en produccion: el padron tiene que ser el de ARCA."
+        )
+    return adaptador
+
+
 def _adaptador_de_arca(entorno: Entorno) -> AdaptadorDeArca:
     """Defaults to the simulator outside production, and is forbidden inside it."""
     crudo = _opcional("ARCA_ADAPTADOR", "")
@@ -498,6 +518,10 @@ class Settings:
     dlq_max_intentos: int
     whatsapp_sondeo_maximo_dias: int
     arca_adaptador: AdaptadorDeArca
+    #: ARCA's taxpayer registry, switched apart from WSFE. In `staging` it stays simulated:
+    #: the homologación registry does not know the fictitious CUITs every test company uses
+    #: (checked 2026-10-08), while invoicing goes to ARCA for a real CAE.
+    arca_padron_adaptador: AdaptadorDeArca
     arca_wsaa_url_homologacion: str
     arca_wsaa_url_produccion: str
     arca_padron_url_homologacion: str
@@ -537,6 +561,7 @@ class Settings:
         redis_url = _requerida("REDIS_URL")
         mercadopago = _adaptador_de_mercadopago(entorno)
         arca = _adaptador_de_arca(entorno)
+        arca_padron = _adaptador_del_padron(entorno, arca)
         return cls(
             entorno=entorno,
             database_url=_requerida("DATABASE_URL"),
@@ -612,7 +637,10 @@ class Settings:
             # answers about is polled forever.
             whatsapp_sondeo_maximo_dias=_entero("WHATSAPP_SONDEO_MAXIMO_DIAS", 7),
             arca_adaptador=arca,
-            arca_credencial_plataforma=_credencial_de_plataforma(arca),
+            arca_padron_adaptador=arca_padron,
+            arca_credencial_plataforma=_credencial_de_plataforma(
+                AdaptadorDeArca.ARCA if AdaptadorDeArca.ARCA in (arca, arca_padron) else arca
+            ),
             # Two separate hosts, unlike Meta. Which one is used comes from `APP_ENV`, so
             # the environment decides whether a document is a rehearsal or irreversible.
             arca_wsaa_url_homologacion=_opcional(

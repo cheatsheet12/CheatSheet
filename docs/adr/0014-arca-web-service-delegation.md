@@ -73,7 +73,14 @@ CUIT. Companies no longer upload certificates.**
    `cuitRepresentada` = the platform's own CUIT. It no longer requires the company to have
    connected ARCA first — which also lets step 2 of the onboarding validate the CUIT
    (difference D-08 of the identity test script).
-7. **Production delegation:** each company, once, in *Administrador de Relaciones de Clave
+7. **The padrón has its own switch, `ARCA_PADRON_ADAPTADOR`** (defaults to `ARCA_ADAPTADOR`,
+   never `simulado` in production). Asked for real on 2026-10-08, the homologación registry
+   answered «does not exist» for the fictitious test CUITs (`30000000015`, `20222222223`) and
+   returned test data even for a public CUIT (`33693450239` → «PRUEBA F713 WEB 2», no VAT
+   status). So `staging` runs a **simulated padrón with a real WSFE**: every test company keeps
+   fictitious data and invoicing still gets a real CAE. The real padrón was proven separately
+   by that query.
+8. **Production delegation:** each company, once, in *Administrador de Relaciones de Clave
    Fiscal* › Nueva relación › ARCA › WebServices › «Facturación Electrónica» › Representante:
    CheatSheet's CUIT. CheatSheet then accepts it in «Aceptación de Designación».
    **Homologación:** the platform owner authorizes each test CUIT in WSASS › «Crear
