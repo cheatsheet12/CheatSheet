@@ -1,0 +1,696 @@
+/*
+ * PAN-REP-02 — Paquete contable (`/configuracion/paquete-contable`).
+ *
+ * Prefijo `pqt-`: es de esta pantalla y de ninguna otra. Reutiliza los tokens del panel
+ * (`--ink-*`, `--line`, `--accent-*`) y sólo pone el verde en detalles chicos: el tinte de un
+ * icono, un punto de estado, un tilde y el botón primario. Nada de rellenos grandes.
+ */
+
+.pqt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.pqt__col {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.pqt__aside {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--space-4));
+  min-width: 0;
+}
+
+/* --- Tarjeta ------------------------------------------------------------------------- */
+
+.pqt-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: pqt-entra 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  transition:
+    box-shadow 0.2s ease-out,
+    border-color 0.2s ease-out;
+}
+
+.pqt-card:hover {
+  border-color: var(--ink-300);
+  box-shadow:
+    0 2px 4px rgb(30 30 46 / 5%),
+    0 14px 32px rgb(30 30 46 / 8%);
+}
+
+.pqt__col > .pqt-card:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.pqt__aside .pqt-card {
+  animation-delay: 0.04s;
+}
+
+@keyframes pqt-entra {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pqt-card__cab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.pqt-card__ic {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.pqt-card__ic svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pqt-card__titulo {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--ink-900);
+}
+
+.pqt-card__cuerpo {
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-6);
+}
+
+/* --- Estado del envío ---------------------------------------------------------------- */
+
+.pqt-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.pqt-estado--activo {
+  color: var(--ink-700);
+}
+
+.pqt-estado__punto {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink-300);
+}
+
+.pqt-estado--activo .pqt-estado__punto {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-050);
+}
+
+/* --- Campos -------------------------------------------------------------------------- */
+
+.pqt-dia .campo__control {
+  max-width: 11rem;
+}
+
+.pqt-email .campo__control {
+  max-width: 30rem;
+}
+
+.pqt-con-icono .campo__control {
+  padding-left: 40px;
+  background-repeat: no-repeat;
+  background-position: 13px center;
+  background-size: 17px 17px;
+}
+
+.pqt-con-icono--dia .campo__control {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a9c' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+}
+
+.pqt-con-icono--mail .campo__control {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a9c' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='4' width='20' height='16' rx='2'/%3E%3Cpath d='m22 7-10 6L2 7'/%3E%3C/svg%3E");
+}
+
+.pqt-con-icono .campo__control:disabled {
+  background-color: var(--bg-soft);
+}
+
+/* --- Grupos de opciones como baldosas ------------------------------------------------ */
+
+.pqt-grupo {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.pqt-grupo legend {
+  padding: 0;
+  margin-bottom: var(--space-3);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+}
+
+.pqt-opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--space-3);
+}
+
+.pqt-opciones--formato {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 200px));
+}
+
+.pqt-opcion {
+  position: relative;
+  display: block;
+  cursor: pointer;
+}
+
+/* La casilla real queda en el DOM, invisible y encima de la baldosa. */
+.pqt-opcion__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.pqt-opcion__caja {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--ink-700);
+  font-size: 13.5px;
+  font-weight: 600;
+  transition:
+    border-color 0.15s ease-out,
+    background-color 0.15s ease-out,
+    transform 0.15s ease-out,
+    box-shadow 0.15s ease-out;
+}
+
+.pqt-opcion__ic {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--bg-soft);
+  color: var(--ink-500);
+  transition:
+    background-color 0.15s ease-out,
+    color 0.15s ease-out;
+}
+
+.pqt-opcion__ic svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pqt-opcion__texto {
+  flex: 1;
+  min-width: 0;
+}
+
+.pqt-opcion__tilde {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  color: transparent;
+  transition:
+    background-color 0.15s ease-out,
+    border-color 0.15s ease-out,
+    color 0.15s ease-out;
+}
+
+.pqt-opcion__tilde svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+}
+
+.pqt-opcion:hover .pqt-opcion__input:not(:disabled) + .pqt-opcion__caja {
+  border-color: var(--ink-300);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(30 30 46 / 7%);
+}
+
+.pqt-opcion__input:checked + .pqt-opcion__caja {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-050) 40%, var(--card));
+  color: var(--ink-900);
+}
+
+.pqt-opcion__input:checked + .pqt-opcion__caja .pqt-opcion__ic {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.pqt-opcion__input:checked + .pqt-opcion__caja .pqt-opcion__tilde {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink-900);
+}
+
+.pqt-opcion__input:focus-visible + .pqt-opcion__caja {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pqt-opcion__input:disabled,
+.pqt-opcion__input:disabled + .pqt-opcion__caja {
+  cursor: not-allowed;
+}
+
+.pqt-opcion__input:disabled + .pqt-opcion__caja {
+  opacity: 0.6;
+  background: var(--bg-soft);
+}
+
+/* --- Pie de acciones ----------------------------------------------------------------- */
+
+.pqt-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  background: var(--bg-soft);
+  border-top: 1px solid var(--line-2);
+}
+
+.pqt-pie__prueba {
+  margin-left: auto;
+}
+
+/* «Desactivar envío» es discreto hasta que se lo apunta: ahí avisa que apaga algo. */
+.pqt-pie__baja .boton {
+  box-shadow: none;
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-500);
+}
+
+.pqt-pie__baja .boton:hover:not(:disabled) {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 35%, var(--card));
+  background: color-mix(in srgb, var(--err) 6%, var(--card));
+}
+
+/* --- Acceso del contador ------------------------------------------------------------- */
+
+.pqt-nota {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-500);
+}
+
+.pqt-invitar {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.pqt-invitar .boton {
+  justify-self: start;
+}
+
+.pqt-contador {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pqt-contador__avatar {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.pqt-contador__datos {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.pqt-contador__email {
+  margin: 0;
+  max-width: 100%;
+  font-weight: 600;
+  color: var(--ink-900);
+  overflow-wrap: anywhere;
+}
+
+.pqt-datos {
+  margin: 0;
+  padding: 0 var(--space-4);
+  background: var(--bg-soft);
+  border-radius: var(--radius-control);
+}
+
+/* --- Paquetes generados -------------------------------------------------------------- */
+
+.pqt-cuenta {
+  margin-left: auto;
+  min-width: 28px;
+  padding: 2px 10px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-600);
+  background: var(--line-2);
+  border-radius: 999px;
+}
+
+.pqt-tabla-caja {
+  overflow-x: auto;
+}
+
+.pqt-tabla {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pqt-tabla th {
+  padding: 12px var(--space-6);
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.pqt-tabla td {
+  padding: 14px var(--space-6);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.pqt-tabla tbody tr {
+  transition: background-color 0.15s ease-out;
+}
+
+.pqt-tabla tbody tr:hover {
+  background: color-mix(in srgb, var(--bg-soft) 70%, var(--card));
+}
+
+.pqt-tabla tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.pqt-tabla .pqt-tabla__der {
+  text-align: right;
+}
+
+.pqt-periodo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pqt-periodo__mes {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  border-radius: 11px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  line-height: 1.1;
+}
+
+.pqt-periodo__mes b {
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.pqt-periodo__mes small {
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.pqt-periodo__texto {
+  display: grid;
+}
+
+.pqt-periodo__texto b {
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+.pqt-periodo__texto small {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.pqt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pqt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--ink-600);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.pqt-chip b {
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.pqt-sin {
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.pqt-descarga {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  text-decoration: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  transition:
+    color 0.15s ease-out,
+    border-color 0.15s ease-out,
+    background-color 0.15s ease-out,
+    transform 0.15s ease-out;
+}
+
+.pqt-descarga svg {
+  width: 15px;
+  height: 15px;
+}
+
+.pqt-descarga:hover {
+  color: var(--accent-700);
+  border-color: var(--accent);
+  background: var(--accent-050);
+  transform: translateY(-1px);
+}
+
+.pqt-descarga:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- Vacío --------------------------------------------------------------------------- */
+
+.pqt-vacio {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+}
+
+.pqt-vacio p {
+  margin: 0;
+  color: var(--ink-500);
+}
+
+.pqt-vacio__ic {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--ink-300);
+  color: var(--ink-400);
+}
+
+.pqt-vacio__ic svg {
+  width: 26px;
+  height: 26px;
+}
+
+/* --- Movimiento reducido ------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .pqt-card {
+    animation: none;
+  }
+
+  .pqt-card,
+  .pqt-opcion__caja,
+  .pqt-opcion__ic,
+  .pqt-opcion__tilde,
+  .pqt-descarga,
+  .pqt-tabla tbody tr {
+    transition: none;
+  }
+
+  .pqt-opcion:hover .pqt-opcion__input:not(:disabled) + .pqt-opcion__caja,
+  .pqt-descarga:hover {
+    transform: none;
+  }
+}
+
+/* --- Angosto ------------------------------------------------------------------------- */
+
+@media (max-width: 1200px) {
+  .pqt {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pqt__aside {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .pqt-card__cab,
+  .pqt-card__cuerpo,
+  .pqt-pie {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .pqt-opciones,
+  .pqt-opciones--formato {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pqt-pie > *,
+  .pqt-pie__baja .boton,
+  .pqt-pie__prueba .boton {
+    width: 100%;
+  }
+
+  .pqt-pie__prueba {
+    margin-left: 0;
+  }
+
+  .pqt-dia .campo__control,
+  .pqt-email .campo__control {
+    max-width: none;
+  }
+
+  /* La tabla se apila: cada fila es una tarjetita con sus tres datos. */
+  .pqt-tabla thead {
+    display: none;
+  }
+
+  .pqt-tabla,
+  .pqt-tabla tbody,
+  .pqt-tabla tr,
+  .pqt-tabla td {
+    display: block;
+  }
+
+  .pqt-tabla tr {
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--line-2);
+  }
+
+  .pqt-tabla tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .pqt-tabla td {
+    padding: 6px 0;
+    border: 0;
+  }
+
+  .pqt-tabla .pqt-tabla__der {
+    text-align: left;
+    padding-top: var(--space-3);
+  }
+}
