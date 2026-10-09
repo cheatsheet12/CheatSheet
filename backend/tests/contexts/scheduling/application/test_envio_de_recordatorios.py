@@ -107,6 +107,7 @@ class TestLosTresTiempos:
             None,
         )
         assert evento.entidad_afectada == f"Turno:{uno.id}"
+        assert evento.detalle == {"desenlace": "ENVIADO"}  # distinguible de un descarte
 
     async def test_cancelado_entre_reservar_y_mandar_se_descarta_sin_llamar_al_canal(self) -> None:
         """**Caso 19.**"""
@@ -124,7 +125,7 @@ class TestLosTresTiempos:
             e.turnos.agregar(cancelado(uno))
             return listo
 
-        e.envio.preparar = preparar_y_cancelar  # type: ignore[method-assign, assignment]
+        e.envio.preparar = preparar_y_cancelar  # type: ignore[method-assign, assignment]  # el doble sustituye el método
 
         resultado = await e.barrer()
 
@@ -134,7 +135,7 @@ class TestLosTresTiempos:
         assert e.fila.ultimo_error == "TURNO_CERRADO"
         (evento,) = e.publicador.eventos  # el descarte deja su evento de bitácora
         assert isinstance(evento, EventoAuditable)
-        assert evento.detalle == {"motivo": "TURNO_CERRADO"}
+        assert evento.detalle == {"desenlace": "DESCARTADO", "motivo": "TURNO_CERRADO"}
 
 
 class TestElReintento:
@@ -233,7 +234,7 @@ class TestElReintento:
         assert e.fila.ultimo_error == "TURNO_EMPEZADO"
         (evento,) = e.publicador.eventos  # el descarte deja su evento de bitácora
         assert isinstance(evento, EventoAuditable)
-        assert evento.detalle == {"motivo": "TURNO_EMPEZADO"}
+        assert evento.detalle == {"desenlace": "DESCARTADO", "motivo": "TURNO_EMPEZADO"}
 
     async def test_cancelado_con_un_reintento_pendiente_se_descarta(self) -> None:
         """**Caso 19.** `TURNO_CERRADO`, sin llamar al canal."""
@@ -326,7 +327,7 @@ class TestLoQueLaBaseRechaza:
                 raise DespachoNoPersistido("la base rechazó el despacho")
             await original(recordatorio)
 
-        e.recordatorios.agregar = agregar_con_un_rechazo  # type: ignore[method-assign]
+        e.recordatorios.agregar = agregar_con_un_rechazo  # type: ignore[method-assign]  # el doble simula el rechazo
 
         resultado = await e.barrer()
 

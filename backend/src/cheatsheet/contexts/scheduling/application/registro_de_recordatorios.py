@@ -32,6 +32,12 @@ logger = obtener_logger(__name__)
 #: Lo que escribe la bitácora: `usuario_id=None` dice que actuó el sistema (el barrido).
 ACCION_DE_BITACORA = "enviar_recordatorio_de_turno"
 
+#: `detalle["desenlace"]` de la bitácora: separa lo que salió de lo que se descartó (que además lleva
+#: `detalle["motivo"]`) sin tener que mirar el resultado.
+ENVIADO = "ENVIADO"
+FALLIDO = "FALLIDO"
+DESCARTADO = "DESCARTADO"
+
 
 class Desenlace(StrEnum):
     """Cómo terminó el trato con una fila o un turno, para los contadores del barrido."""
@@ -88,7 +94,11 @@ async def publicar_descarte(
         motivo=motivo,
     )
     await publicar_resultado(
-        publicador, recordatorio, ahora, Resultado.COMPLETADO, detalle={"motivo": motivo}
+        publicador,
+        recordatorio,
+        ahora,
+        Resultado.COMPLETADO,
+        detalle={"desenlace": DESCARTADO, "motivo": motivo},
     )
 
 
@@ -131,6 +141,9 @@ def motivo_de_agenda(
 
 __all__ = [
     "ACCION_DE_BITACORA",
+    "DESCARTADO",
+    "ENVIADO",
+    "FALLIDO",
     "Desenlace",
     "motivo_de_agenda",
     "motivo_de_descarte",

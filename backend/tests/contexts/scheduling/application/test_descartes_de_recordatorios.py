@@ -28,6 +28,7 @@ from cheatsheet.contexts.scheduling.domain.recordatorio_de_turno import (
     ANTICIPACION_QUITADA,
     ANTICIPACION_SUPERADA,
     INCIERTO,
+    TURNO_CERRADO,
     VENTANA_DE_ENVIO,
     ResultadoDeRecordatorio,
 )
@@ -39,6 +40,7 @@ from tests.contexts.scheduling.application.dobles_de_recordatorios import (
     VENTANA_DE_24H,
     AgendaFalsa,
     Escenario,
+    cancelado,
     escenario,
     transitoria,
     turno,
@@ -86,10 +88,35 @@ class TestElResultadoNoPisaAOtroBarrido:
         assert e.fila.resultado is ResultadoDeRecordatorio.FALLIDO
         assert e.fila.ultimo_error == INCIERTO
         assert e.publicador.eventos == []
-        assert [u["event"] for u in logs if "resultado_descartado" in u["event"]] == [
-            "recordatorio_de_turno_resultado_descartado"
+        (descartado,) = [
+            u for u in logs if u["event"] == "recordatorio_de_turno_resultado_descartado"
         ]
+        assert descartado["enviado"] is True
+        assert descartado["falla"] is None
         assert len(e.envio.enviados) == 1
+
+    async def test_el_log_del_resultado_descartado_dice_la_clase_de_la_falla(self) -> None:
+        e = escenario(transitoria("SATURADA"))
+        e.turnos.agregar(turno())
+        e.envio._al_enviar = lambda: _resolverla_otro_barrido(e)
+
+        with capture_logs() as logs:
+            await e.barrer()
+
+        (descartado,) = [
+            u for u in logs if u["event"] == "recordatorio_de_turno_resultado_descartado"
+        ]
+        assert descartado["enviado"] is False
+        assert descartado["falla"] == "SATURADA"
+        assert set(descartado) <= {
+            "event",
+            "log_level",
+            "turno_id",
+            "anticipacion_min",
+            "intentos",
+            "enviado",
+            "falla",
+        }
 
     async def test_un_barrido_lento_no_pisa_un_reintento_que_otro_ya_retomo(self) -> None:
         e = escenario()
@@ -156,6 +183,25 @@ class TestUnaAnticipacionQuitadaDeLaAgenda:
         assert e.fila.ultimo_error == ANTICIPACION_QUITADA
 
 
+class TestElEstadoDelTurnoPrimaSobreLaAgenda:
+    async def test_un_turno_cancelado_con_la_anticipacion_quitada_se_descarta_por_turno_cerrado(
+        self,
+    ) -> None:
+        e = escenario(transitoria(), agenda=AgendaFalsa(24))
+        uno = turno()
+        e.turnos.agregar(uno)
+        await e.barrer()
+        assert e.fila.esperando_reintento
+        e.turnos.agregar(cancelado(uno))
+        e.barrido._agenda = AgendaFalsa(2)  # y además la empresa quitó las 24 h
+
+        resultado = await e.barrer(VENTANA_DE_24H + QUINCE_MIN)
+
+        assert resultado.descartados == 1
+        assert e.fila.resultado is ResultadoDeRecordatorio.DESCARTADO
+        assert e.fila.ultimo_error == TURNO_CERRADO
+
+
 class TestTodoDescarteSeRegistra:
     async def test_agenda_apagada_deja_log_y_evento_sin_datos_personales(self) -> None:
         e = escenario(transitoria(), agenda=AgendaFalsa(24))
@@ -176,6 +222,6 @@ class TestTodoDescarteSeRegistra:
         (evento,) = e.publicador.eventos
         assert isinstance(evento, EventoAuditable)
         assert evento.resultado is Resultado.COMPLETADO
-        assert evento.detalle == {"motivo": AGENDA_APAGADA}
+        assert evento.detalle == {"desenlace": "DESCARTADO", "motivo": AGENDA_APAGADA}
         assert evento.entidad_afectada == f"Turno:{e.fila.turno_id}"
         assert evento.usuario_id is None

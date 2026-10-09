@@ -51,6 +51,8 @@ from cheatsheet.contexts.scheduling.application.ports_de_recordatorios import (
 )
 from cheatsheet.contexts.scheduling.application.registro_de_recordatorios import (
     ACCION_DE_BITACORA,
+    ENVIADO,
+    FALLIDO,
     Desenlace,
     motivo_de_agenda,
     motivo_de_descarte,
@@ -219,7 +221,7 @@ class EnvioDeRecordatorios:
             # Un envío empezó y nunca registró su resultado: Meta pudo haberlo aceptado.
             recordatorio.fallar(real, INCIERTO)
             await self._recordatorios.guardar(recordatorio)
-            await self._publicar(recordatorio, real, Resultado.ERROR)
+            await self._publicar(recordatorio, real, Resultado.ERROR, FALLIDO)
             logger.warning(
                 "recordatorio_de_turno_envio_perdido",
                 turno_id=str(recordatorio.turno_id),
@@ -228,13 +230,15 @@ class EnvioDeRecordatorios:
             return Desenlace.FALLO
         if not recordatorio.reintento_vencido(ahora):
             return Desenlace.NADA
-        motivo = await self._motivo_de_agenda(recordatorio, agenda_apagada, vigentes)
-        if motivo is not None:
-            return await self._descartar(recordatorio, real, motivo)
+        # El estado del turno es el motivo más fuerte: un turno cancelado se cerró por eso, aunque
+        # además la agenda haya cambiado.
         turno = await self._turnos.releer(recordatorio.turno_id)
         motivo = motivo_de_descarte(turno, recordatorio, real)
         if turno is None or motivo is not None:
             return await self._descartar(recordatorio, real, motivo or TURNO_CERRADO)
+        motivo = await self._motivo_de_agenda(recordatorio, agenda_apagada, vigentes)
+        if motivo is not None:
+            return await self._descartar(recordatorio, real, motivo)
         # Se prepara **antes** de escribir: si la lectura falla, la fila queda como estaba y el
         # barrido siguiente la retoma.
         preparado = await self._envio.preparar(turno, recordatorio.anticipacion_min)
@@ -349,13 +353,15 @@ class EnvioDeRecordatorios:
                 turno_id=str(reservada.turno_id),
                 anticipacion_min=reservada.anticipacion_min,
                 intentos=reservada.intentos,
+                enviado=resultado.enviado,
+                falla=resultado.falla,  # solo el código de la falla, nunca texto del cliente
             )
             return Desenlace.NADA
         ahora = self._reloj.ahora()  # el de ahora, no el del inicio del barrido (S2)
         if resultado.enviado:
             recordatorio.marcar_enviado(ahora)
             await self._recordatorios.guardar(recordatorio)
-            await self._publicar(recordatorio, ahora, Resultado.COMPLETADO)
+            await self._publicar(recordatorio, ahora, Resultado.COMPLETADO, ENVIADO)
             return Desenlace.SALIO
         hay_reintento = recordatorio.registrar_falla(
             ahora, codigo=resultado.falla or "ERROR", transitoria=resultado.transitoria
@@ -373,13 +379,19 @@ class EnvioDeRecordatorios:
             # La espera del reintento caía después de la hora del turno: ya no tiene sentido.
             await publicar_descarte(self._publicador, recordatorio, ahora)
             return Desenlace.DESCARTADO
-        await self._publicar(recordatorio, ahora, Resultado.ERROR)
+        await self._publicar(recordatorio, ahora, Resultado.ERROR, FALLIDO)
         return Desenlace.FALLO
 
     async def _publicar(
-        self, recordatorio: RecordatorioDeTurno, ahora: datetime, resultado: Resultado
+        self,
+        recordatorio: RecordatorioDeTurno,
+        ahora: datetime,
+        resultado: Resultado,
+        desenlace: str,
     ) -> None:
-        await publicar_resultado(self._publicador, recordatorio, ahora, resultado)
+        await publicar_resultado(
+            self._publicador, recordatorio, ahora, resultado, detalle={"desenlace": desenlace}
+        )
 
 
 def _sigue_reservada(actual: RecordatorioDeTurno, reservada: RecordatorioDeTurno) -> bool:
