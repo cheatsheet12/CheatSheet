@@ -44,7 +44,7 @@ from cheatsheet.contexts.payments.application.ports_envio import (
     PortContactoDeCliente,
 )
 from cheatsheet.contexts.payments.domain.cobro import Cobro
-from cheatsheet.contexts.payments.domain.dinero import formatear_es_ar, redondear
+from cheatsheet.contexts.payments.domain.dinero import formatear_es_ar
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.empresa import EmpresaId
@@ -117,17 +117,18 @@ def variables_de_recordatorio(*, nombre: str, cobro: Cobro) -> dict[str, str]:
 def texto_de_recordatorio(*, nombre: str, cobro: Cobro) -> str:
     """El texto de fabrica de `recordatorio_de_cobro`.
 
-    El monto sale con dos decimales y `ROUND_HALF_UP` (`Decimal`, nunca `float`). La linea del
-    link va solo si el cobro tiene uno activo: un cobro por transferencia no tiene, y mandar
-    «Podes pagarlo aca: None» seria peor que no decirlo.
+    Dice lo mismo que `DE_FABRICA["recordatorio_de_cobro"]`, con el monto en el mismo formato
+    argentino que el parametro de la plantilla (`formatear_es_ar`: `$ 1.234,50`, `Decimal` y
+    `ROUND_HALF_UP`, nunca `float`). La linea del link va solo si el cobro tiene uno activo: un
+    cobro por transferencia no tiene, y mandar «Podes pagarlo aca: None» seria peor que no decirlo.
     """
     texto = (
         f"Hola {nombre}, te recordamos el pago de {cobro.descripcion} "
-        f"por $ {redondear(cobro.monto):.2f}."
+        f"por $ {formatear_es_ar(cobro.monto)}."
     )
     if cobro.tiene_link_activo and cobro.link is not None:
         texto += f" Podés pagarlo acá: {cobro.link.url}"
-    return texto
+    return f"{texto} Gracias."
 
 
 class EnvioPorWhatsApp:
