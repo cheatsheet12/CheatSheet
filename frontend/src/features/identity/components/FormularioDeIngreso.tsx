@@ -20,7 +20,15 @@
 
 import { useState } from "react";
 
-import { Alert, Button, Campo, Casilla, Stepper, useAccionConNavegacion } from "@/shared";
+import {
+  Alert,
+  Button,
+  Campo,
+  CampoDeContrasena,
+  Casilla,
+  Stepper,
+  useAccionConNavegacion,
+} from "@/shared";
 
 import { ErrorDeFormulario, ingresar, registrar } from "../api/cliente";
 import { PASOS_DEL_ONBOARDING } from "./pasos";
@@ -134,10 +142,9 @@ export function FormularioDeIngreso(): JSX.Element {
               />
             )}
 
-            <Campo
+            <CampoDeContrasena
               id="contrasena"
               etiqueta="Contraseña"
-              type="password"
               autoComplete={registrando ? "new-password" : "current-password"}
               required
               error={errores.contrasena}
