@@ -1,6 +1,6 @@
 /**
- * Todo lo que se alcanza sin sesión: el ingreso (PAN-ONB-01), el paso 2 del onboarding
- * (PAN-ONB-02), la aceptación de una invitación y el acceso del contador.
+ * Lo que se alcanza sin sesión y no tiene maqueta de dos columnas: hoy, el acceso del
+ * contador. El ingreso vive en `(ingreso)`; el onboarding y la invitación, en `(alta)`.
  *
  * **Estas pantallas no tienen el shell del panel, y por eso tienen maqueta propia.** Sin
  * sesión no hay barra lateral ni topbar, porque no hay a dónde navegar: quien llega está

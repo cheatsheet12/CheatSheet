@@ -5764,3 +5764,289 @@
     transform: none;
   }
 }
+
+/* ── Vista Mes · la grilla de los días del mes ────────────────────────────
+ *
+ * Siete columnas iguales, de lunes a domingo. Los colores por estado reusan las mismas
+ * variables (--age-c, --age-f, --age-t) que el bloque del calendario. En un celular las fichas
+ * se esconden y quedan el número y unos puntos de color. */
+
+.age-mes {
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.age-mes__cabecera,
+.age-mes__fila {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.age-mes__cabecera {
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.age-mes__semana {
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.age-mes__fila + .age-mes__fila {
+  border-top: 1px solid var(--line);
+}
+
+.age-mes__dia {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  min-height: 118px;
+  padding: 6px 6px 8px;
+  cursor: pointer;
+  background: var(--card);
+  transition: background-color 0.14s ease;
+}
+
+.age-mes__dia + .age-mes__dia {
+  border-left: 1px solid var(--line);
+}
+
+.age-mes__dia:hover {
+  background: var(--bg-soft);
+}
+
+.age-mes__dia[data-afuera="true"] {
+  background: var(--bg-soft);
+}
+
+.age-mes__dia[data-afuera="true"] .age-mes__encabezado,
+.age-mes__dia[data-afuera="true"] .age-mes__fichas {
+  opacity: 0.5;
+}
+
+.age-mes__encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.age-mes__numero {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease;
+}
+
+.age-mes__dia:hover .age-mes__numero {
+  color: var(--ink-900);
+  background: var(--line);
+}
+
+.age-mes__dia[data-hoy="true"] .age-mes__numero {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.age-mes__numero:focus-visible,
+.age-mes__mas:focus-visible,
+.age-mes__ficha:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.age-mes__cuenta {
+  min-width: 20px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  color: var(--ink-500);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.age-mes__dia:hover .age-mes__cuenta {
+  background: var(--card);
+}
+
+.age-mes__fichas {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.age-mes__ficha {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  text-decoration: none;
+  color: var(--age-t);
+  background: var(--age-f);
+  border-left: 3px solid var(--age-c);
+  border-radius: 4px;
+  transition: filter 0.14s ease;
+}
+
+.age-mes__ficha:hover {
+  filter: brightness(0.96);
+}
+
+.age-mes__ficha-hora {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.age-mes__ficha-nombre {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.age-mes__ficha[data-estado="CANCELADO"] .age-mes__ficha-nombre {
+  text-decoration: line-through;
+}
+
+.age-mes__ficha[data-estado="RESERVADO"],
+.age-mes__punto[data-estado="RESERVADO"] {
+  --age-c: var(--alert);
+  --age-f: var(--warn-bg);
+  --age-t: var(--warn);
+}
+
+.age-mes__ficha[data-estado="CONFIRMADO"],
+.age-mes__punto[data-estado="CONFIRMADO"] {
+  --age-c: var(--accent);
+  --age-f: var(--accent-050);
+  --age-t: var(--accent-700);
+}
+
+.age-mes__ficha[data-estado="COMPLETADO"],
+.age-mes__punto[data-estado="COMPLETADO"] {
+  --age-c: var(--info);
+  --age-f: var(--info-bg);
+  --age-t: var(--info);
+}
+
+.age-mes__ficha[data-estado="NO_SHOW"],
+.age-mes__punto[data-estado="NO_SHOW"] {
+  --age-c: var(--err);
+  --age-f: var(--err-bg);
+  --age-t: var(--err);
+}
+
+.age-mes__ficha[data-estado="CANCELADO"],
+.age-mes__punto[data-estado="CANCELADO"] {
+  --age-c: var(--ink-300);
+  --age-f: var(--bg-soft);
+  --age-t: var(--ink-400);
+}
+
+.age-mes__mas {
+  align-self: flex-start;
+  padding: 1px 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-700);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.age-mes__mas:hover {
+  background: var(--accent-050);
+}
+
+.age-mes__puntos {
+  display: none;
+}
+
+.age-mes__punto {
+  width: 6px;
+  height: 6px;
+  background: var(--age-c);
+  border-radius: 50%;
+}
+
+.age-mes__ayuda {
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--ink-400);
+  background: var(--bg-soft);
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 720px) {
+  .age-mes__semana {
+    padding: 8px 0;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .age-mes__dia {
+    align-items: center;
+    gap: 4px;
+    min-height: 56px;
+    padding: 6px 2px;
+  }
+
+  .age-mes__encabezado {
+    justify-content: center;
+  }
+
+  .age-mes__cuenta,
+  .age-mes__fichas,
+  .age-mes__mas,
+  .age-mes__ayuda {
+    display: none;
+  }
+
+  .age-mes__puntos {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .age-mes__dia,
+  .age-mes__numero,
+  .age-mes__ficha {
+    transition: none;
+  }
+}

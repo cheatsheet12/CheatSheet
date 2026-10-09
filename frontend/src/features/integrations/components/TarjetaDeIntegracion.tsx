@@ -9,8 +9,17 @@
 
 "use client";
 
-import { Badge, Button } from "@/shared";
-import type { EstadoDeBadge } from "@/shared";
+import {
+  CircleDashed,
+  CreditCard,
+  FileSpreadsheet,
+  MessageCircle,
+  ReceiptText,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { CSSProperties } from "react";
+
+import { Button } from "@/shared";
 
 import type { Ambiente, EstadoDeConexion, SistemaExterno } from "../api/cliente";
 
@@ -56,11 +65,14 @@ export const SISTEMAS: Readonly<Record<SistemaExterno, DescripcionDeSistema>> = 
   },
 };
 
-const TONO: Readonly<Record<EstadoDeConexion, EstadoDeBadge>> = {
-  CONECTADO: "ok",
-  PENDIENTE: "pendiente",
-  ATENCION: "atencion",
-  NO_CONECTADO: "error",
+//: Solo presentación: el ícono de cada sistema. El color de marca queda como un matiz
+//: del recuadro, no como un relleno.
+const ICONO: Readonly<Record<SistemaExterno, LucideIcon>> = {
+  ARCA: ReceiptText,
+  MERCADOPAGO: CreditCard,
+  WHATSAPP: MessageCircle,
+  GOOGLE_SHEETS: FileSpreadsheet,
+  EXCEL_ONLINE: FileSpreadsheet,
 };
 
 const TEXTO: Readonly<Record<EstadoDeConexion, string>> = {
@@ -115,13 +127,20 @@ export function TarjetaDeIntegracion({
   );
   const subtitulo = partes.length > 0 ? partes.join(" · ") : null;
 
+  const Icono = ICONO[sistema];
+  const alertado = estado === "ATENCION" || estado === "PENDIENTE";
+
   return (
-    <article className={`int-card${estado === "CONECTADO" ? " is-on" : ""}`}>
-      <div className="int-card__top">
-        <span className="int-logo" style={{ background: info.color }} aria-hidden="true">
-          {info.sigla}
+    <article className="itg-card" data-estado={estado}>
+      <div className="itg-card__top">
+        <span
+          className="itg-card__icono"
+          style={{ "--itg-marca": info.color } as CSSProperties}
+          aria-hidden="true"
+        >
+          <Icono size={22} strokeWidth={1.75} />
         </span>
-        <div>
+        <div className="itg-card__titulo">
           <b>{info.nombre}</b>
           {/* The verified name identifies *which* account is connected, which matters more
               to the reader than the environment; the environment follows it.
@@ -129,13 +148,17 @@ export function TarjetaDeIntegracion({
               Both go in **one** span joined by the panel's separator. Two adjacent inline
               spans render with nothing between them — the card read
               «vence 2027-09-08Homologación», one word made of two facts. */}
-          {subtitulo !== null ? <span className="int-card__sub">{subtitulo}</span> : null}
+          {subtitulo !== null ? <span className="itg-card__sub">{subtitulo}</span> : null}
         </div>
+        <span className="itg-estado" data-estado={estado}>
+          {TEXTO[estado]}
+        </span>
       </div>
-      <p>{info.descripcion}</p>
-      {detalle !== null ? <p className="int-card__detalle">{detalle}</p> : null}
-      <div className="int-card__foot">
-        <Badge estado={TONO[estado]}>{TEXTO[estado]}</Badge>
+      <p className="itg-card__desc">{info.descripcion}</p>
+      {detalle !== null ? (
+        <p className={`itg-card__detalle${alertado ? " is-alerta" : ""}`}>{detalle}</p>
+      ) : null}
+      <div className="itg-card__foot">
         {conectable && puedeConectar && !enEspera ? (
           <Button
             variante="secundario"
@@ -147,7 +170,12 @@ export function TarjetaDeIntegracion({
             {accion}
           </Button>
         ) : null}
-        {!conectable ? <span className="int-card__pronto">Disponible próximamente</span> : null}
+        {!conectable ? (
+          <span className="itg-card__pronto">
+            <CircleDashed size={14} aria-hidden="true" />
+            <span>Disponible próximamente</span>
+          </span>
+        ) : null}
       </div>
     </article>
   );

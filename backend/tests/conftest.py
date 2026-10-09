@@ -126,6 +126,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         # The simulator, and hosts that do not resolve: a test that ever reached the
         # network would fail loudly instead of quietly talking to ARCA.
         arca_adaptador=AdaptadorDeArca.SIMULADO,
+        arca_padron_adaptador=AdaptadorDeArca.SIMULADO,
         arca_wsaa_url_homologacion="https://wsaahomo.invalid/ws/services/LoginCms",
         arca_wsaa_url_produccion="https://wsaa.invalid/ws/services/LoginCms",
         arca_padron_url_homologacion="https://padronhomo.invalid/personaServiceA5",
@@ -133,6 +134,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         arca_timeout_segundos=1,
         arca_margen_renovacion_minutos=30,
         arca_aviso_vencimiento_dias=30,
+        arca_credencial_plataforma=b"",
         # The simulator again, and a host that does not resolve. The application
         # credentials are placeholders: nothing in the suite exchanges a real code.
         mercadopago_adaptador=AdaptadorDeMercadoPago.SIMULADO,
