@@ -35,7 +35,7 @@ from cheatsheet.contexts.integrations.infrastructure.models import (
 )
 from cheatsheet.shared.empresa import EmpresaId
 
-#: The unique index of migration 0036: one WhatsApp business account, one empresa.
+#: The unique index of migration 0037: one WhatsApp business account, one empresa.
 INDICE_WABA_UNICO = "uq_integracion_waba"
 MENSAJE_CUENTA_EN_USO = (
     "Esa cuenta de WhatsApp Business ya está vinculada a otra empresa. "
