@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import uuid4
 
-import asyncpg  # type: ignore[import-untyped]  # asyncpg ships no stubs or py.typed
+import asyncpg
 import httpx
 import pytest
 from cheatsheet.api.dependencies import Recursos

@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import asyncio
 
-import asyncpg  # type: ignore[import-untyped]  # asyncpg ships no stubs or py.typed
+import asyncpg
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker

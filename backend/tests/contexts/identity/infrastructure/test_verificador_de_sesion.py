@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import asyncpg  # type: ignore[import-untyped]  # asyncpg ships no stubs or py.typed
+import asyncpg
 import pytest
 from cheatsheet.contexts.identity.application.errors import (
     MotivoDeRevocacion,
