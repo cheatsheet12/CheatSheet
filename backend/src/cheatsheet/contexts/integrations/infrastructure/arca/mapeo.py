@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from cheatsheet.contexts.integrations.application.errors import (
     ConexionRechazada,
     ProveedorNoDisponible,
+    TicketTodaviaVigente,
 )
 from cheatsheet.contexts.integrations.domain.valores import CLAVE_CUIT as CLAVE_CUIT
 from cheatsheet.contexts.integrations.domain.valores import EstadoDeConexion
@@ -48,7 +49,7 @@ RECHAZOS: dict[str, str] = {
 TRANSITORIOS = frozenset({"coe.notAuthorized", "cms.internalError", "soapenv:Server"})
 
 
-class YaAutenticado(RuntimeError):
+class YaAutenticado(TicketTodaviaVigente):
     """ARCA still holds a live ticket for this CUIT and service.
 
     Its own type because the caller's reaction is neither "reject" nor "retry": it is
