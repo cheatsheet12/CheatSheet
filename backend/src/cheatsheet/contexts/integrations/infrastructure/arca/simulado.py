@@ -37,11 +37,21 @@ from cheatsheet.contexts.integrations.application.ports import (
     TicketEmitido,
 )
 from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
-from cheatsheet.contexts.integrations.domain.valores import EstadoDeConexion, SistemaExterno
+from cheatsheet.contexts.integrations.domain.valores import (
+    CLAVE_CUIT,
+    EstadoDeConexion,
+    SistemaExterno,
+)
 from cheatsheet.contexts.integrations.infrastructure.arca import firma
 from cheatsheet.contexts.integrations.infrastructure.arca.adaptadores import (
     SERVICIO_DE_VALIDACION,
     parametros_de_la_credencial,
+)
+from cheatsheet.contexts.integrations.infrastructure.arca.delegacion import (
+    MENSAJE_SIN_DELEGACION,
+    cuit_del_material,
+    formatear,
+    resultado_delegado,
 )
 from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import estado_por_vencimiento
 from cheatsheet.contexts.integrations.infrastructure.arca.padron import leer_persona
@@ -63,6 +73,10 @@ PREFIJO_INEXISTENTE = "20000000"
 
 #: Reserved for a tax id that exists and is no longer in force.
 PREFIJO_INACTIVO = "20999999"
+
+#: Reserved for a company that has **not** delegated the web service to CheatSheet
+#: (ADR-0014), so the rejection can be demonstrated without a real ARCA.
+PREFIJO_SIN_DELEGACION = "30999999"
 
 #: The prefixes ARCA gives to individuals. Everything else is a company, and the two get
 #: different shapes of answer — which is the difference the real parser has to handle.
@@ -131,6 +145,42 @@ class ArcaSimulado:
             )
         estado, detalle = estado_por_vencimiento(fiscal.vence_en, self._reloj.ahora(), self._aviso)
         return ResultadoDeVerificacion(estado, detalle, parametros_de_la_credencial(fiscal))
+
+
+class ArcaSimuladoPorDelegacion(ArcaSimulado):
+    """The stand-in under ADR-0014: companies delegate, the platform holds the certificate.
+
+    Connecting reads the company's CUIT and answers as ARCA would about its delegation; a
+    CUIT starting with `PREFIJO_SIN_DELEGACION` has not delegated. There is no platform
+    certificate in a simulated deployment, so minting a ticket reads no credential.
+    """
+
+    async def emitir(self, credencial: bytes, servicio: ServicioDeArca) -> TicketEmitido:
+        del credencial  # no platform certificate exists in a simulated deployment
+        return TicketEmitido(
+            servicio=servicio,
+            contenido=f"{PREFIJO_SIMULADO}-{secrets.token_hex(8)}\n{PREFIJO_SIMULADO}".encode(),
+            expira_en=self._reloj.ahora() + DURACION_DEL_TICKET,
+        )
+
+    async def conectar(self, material: MaterialDeConexion) -> ResultadoDeConexion:
+        cuit = cuit_del_material(material)
+        if cuit.startswith(PREFIJO_SIN_DELEGACION):
+            raise ConexionRechazada(MENSAJE_SIN_DELEGACION.format(cuit=formatear(cuit)))
+        return resultado_delegado(cuit)
+
+    async def verificar(
+        self, credencial: bytes, parametros: dict[str, Any]
+    ) -> ResultadoDeVerificacion:
+        del credencial
+        cuit = "".join(c for c in str(parametros.get(CLAVE_CUIT, "")) if c.isdigit())
+        if not cuit or cuit.startswith(PREFIJO_SIN_DELEGACION):
+            return ResultadoDeVerificacion(
+                EstadoDeConexion.NO_CONECTADO, MENSAJE_SIN_DELEGACION.format(cuit=cuit)
+            )
+        return ResultadoDeVerificacion(
+            EstadoDeConexion.CONECTADO, None, resultado_delegado(cuit).parametros
+        )
 
 
 def _respuesta_simulada(cuit: str) -> str:

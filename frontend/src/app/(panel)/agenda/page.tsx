@@ -20,7 +20,7 @@
 import { redirect } from "next/navigation";
 
 import type { ListadoDeClientesRespuesta } from "@/features/master_data";
-import { AgendaDelDia } from "@/features/scheduling";
+import { AgendaDelDia, diaDe, rangoDeVista } from "@/features/scheduling";
 import type { ListadoDeRecursos, ListadoDeTurnos, ServicioAgendable } from "@/features/scheduling";
 import { llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
@@ -35,8 +35,14 @@ export default async function PaginaDeAgenda(): Promise<JSX.Element> {
     redirect("/");
   }
 
+  // La agenda abre en la vista de mes: los turnos que se piden son los de las semanas que dibuja
+  // la grilla, con los días de los meses vecinos, y no la lista por defecto.
+  const ahora = new Date().toISOString();
+  const { desde, hasta } = rangoDeVista("mes", diaDe(ahora));
+  const consulta = `?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`;
+
   const [turnos, recursos, servicios, clientes] = await Promise.all([
-    llamarApi<ListadoDeTurnos>("/turnos"),
+    llamarApi<ListadoDeTurnos>(`/turnos${consulta}`),
     llamarApi<ListadoDeRecursos>("/recursos"),
     llamarApi<readonly ServicioAgendable[]>("/recursos/servicios"),
     llamarApi<ListadoDeClientesRespuesta>("/clientes"),
@@ -45,10 +51,11 @@ export default async function PaginaDeAgenda(): Promise<JSX.Element> {
   return (
     <AgendaDelDia
       inicial={turnos}
+      vistaInicial="mes"
       recursos={recursos.recursos}
       servicios={servicios}
       clientes={clientes.clientes}
-      hoy={new Date().toISOString()}
+      hoy={ahora}
       puedeGestionar={claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR"}
     />
   );

@@ -32,6 +32,8 @@ import {
   rangoLegible,
   repartirEnCarriles,
   semanaDe,
+  semanasDelMes,
+  sumarMeses,
 } from "../calendario";
 
 const { AgendaDelDia } = await import("@/features/scheduling/components/AgendaDelDia");
@@ -117,6 +119,40 @@ describe("calendario.ts", () => {
     });
     expect(rangoLegible("semana", "2026-10-06")).toBe("5 – 11 de octubre");
     expect(rangoLegible("semana", "2026-10-29")).toContain("26 oct");
+  });
+
+  it("arma las semanas del mes: octubre de 2026 empieza en jueves y ocupa cinco filas", () => {
+    const semanas = semanasDelMes("2026-10-15");
+    expect(semanas).toHaveLength(5);
+    expect(semanas[0]).toEqual([
+      "2026-09-28",
+      "2026-09-29",
+      "2026-09-30",
+      "2026-10-01",
+      "2026-10-02",
+      "2026-10-03",
+      "2026-10-04",
+    ]);
+    expect(semanas[4]?.[6]).toBe("2026-11-01");
+    // Un mes de febrero que empieza en lunes y tiene 28 días cabe en cuatro filas.
+    expect(semanasDelMes("2027-02-10")).toHaveLength(4);
+    // Noviembre de 2026 empieza en domingo: la primera fila es casi toda de octubre y son seis.
+    expect(semanasDelMes("2026-11-10")).toHaveLength(6);
+  });
+
+  it("suma meses sin pasarse del último día y cruza el año", () => {
+    expect(sumarMeses("2026-10-31", 1)).toBe("2026-11-30");
+    expect(sumarMeses("2026-01-31", 1)).toBe("2026-02-28");
+    expect(sumarMeses("2026-12-15", 1)).toBe("2027-01-15");
+    expect(sumarMeses("2026-01-15", -1)).toBe("2025-12-15");
+  });
+
+  it("el rango del mes cubre las semanas completas de la grilla y se lee «mes de año»", () => {
+    expect(rangoDeVista("mes", "2026-10-06")).toEqual({
+      desde: "2026-09-28T00:00:00-03:00",
+      hasta: "2026-11-02T00:00:00-03:00",
+    });
+    expect(rangoLegible("mes", "2026-10-06")).toBe("octubre de 2026");
   });
 
   it("escribe Hoy y Mañana en el encabezado de cada día", () => {
@@ -272,5 +308,114 @@ describe("Agenda · vistas", () => {
 
     expect(await screen.findAllByRole("group", { name: /de octubre$/ })).toHaveLength(7);
     expect(await screen.findByText("No hay turnos para el período seleccionado.")).toBeTruthy();
+  });
+});
+
+describe("Agenda · vista Mes", () => {
+  const delMes = (id: string, dia: string, hora: number): Turno =>
+    turno(
+      id,
+      `${dia}T${String(hora).padStart(2, "0")}:00:00+00:00`,
+      `${dia}T${String(hora + 1).padStart(2, "0")}:00:00+00:00`,
+    );
+
+  it("pide las semanas visibles y dibuja una celda por día, con hoy marcado", async () => {
+    listarTurnos.mockResolvedValue({ turnos: [A, C] });
+    render(<AgendaDelDia inicial={{ turnos: [] }} {...props} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mes" }));
+
+    await waitFor(() => {
+      expect(listarTurnos).toHaveBeenCalledWith({
+        desde: "2026-09-28T00:00:00-03:00",
+        hasta: "2026-11-02T00:00:00-03:00",
+      });
+    });
+    expect(screen.getByText("octubre de 2026")).toBeTruthy();
+    expect(await screen.findAllByRole("gridcell")).toHaveLength(35);
+    expect(screen.getByRole("gridcell", { name: "martes 6 de octubre" }).dataset.hoy).toBe("true");
+    expect(screen.getByRole("gridcell", { name: "lunes 28 de septiembre" }).dataset.afuera).toBe(
+      "true",
+    );
+    const dia = within(screen.getByRole("gridcell", { name: "martes 6 de octubre" }));
+    expect(dia.getByRole("link", { name: /^10:00, Ana Pérez/ }).getAttribute("href")).toBe(
+      "/agenda/a",
+    );
+  });
+
+  it("con `vistaInicial` en mes abre directo en la grilla, sin pasar por la lista", async () => {
+    render(<AgendaDelDia inicial={{ turnos: [A] }} vistaInicial="mes" {...props} />);
+
+    expect(screen.getByText("octubre de 2026")).toBeTruthy();
+    expect(await screen.findAllByRole("gridcell")).toHaveLength(35);
+    expect(listarTurnos).not.toHaveBeenCalled();
+  });
+
+  it("navega por mes con ‹ y › y vuelve con Hoy", async () => {
+    listarTurnos.mockResolvedValue({ turnos: [] });
+    render(<AgendaDelDia inicial={{ turnos: [] }} {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mes" }));
+    await waitFor(() => expect(listarTurnos).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Período siguiente" }));
+    await waitFor(() => {
+      expect(listarTurnos).toHaveBeenLastCalledWith({
+        desde: "2026-10-26T00:00:00-03:00",
+        hasta: "2026-12-07T00:00:00-03:00",
+      });
+    });
+    expect(screen.getByText("noviembre de 2026")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hoy" }));
+    expect(await screen.findByText("octubre de 2026")).toBeTruthy();
+  });
+
+  it("un clic en un día lleva a la vista Día de esa fecha", async () => {
+    listarTurnos.mockResolvedValue({ turnos: [C] });
+    render(<AgendaDelDia inicial={{ turnos: [] }} {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mes" }));
+    const celda = await screen.findByRole("gridcell", { name: "miércoles 7 de octubre" });
+
+    fireEvent.click(celda);
+
+    await waitFor(() => {
+      expect(listarTurnos).toHaveBeenLastCalledWith({
+        desde: "2026-10-07T00:00:00-03:00",
+        hasta: "2026-10-08T00:00:00-03:00",
+      });
+    });
+    expect(screen.getByText("miércoles 7 de octubre")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Día" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("muestra tres fichas por día y «+N más» para el resto, que también abre el día", async () => {
+    const cinco = [10, 11, 12, 13, 14].map((hora) => delMes(`m${hora}`, "2026-10-14", hora));
+    listarTurnos.mockResolvedValue({ turnos: cinco });
+    render(<AgendaDelDia inicial={{ turnos: [] }} {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mes" }));
+
+    const celda = within(await screen.findByRole("gridcell", { name: "miércoles 14 de octubre" }));
+    expect(celda.getAllByRole("link")).toHaveLength(3);
+    fireEvent.click(celda.getByRole("button", { name: "+2 más" }));
+
+    await waitFor(() => {
+      expect(listarTurnos).toHaveBeenLastCalledWith({
+        desde: "2026-10-14T00:00:00-03:00",
+        hasta: "2026-10-15T00:00:00-03:00",
+      });
+    });
+  });
+
+  it("un clic en una ficha no cambia de vista: abre el turno", async () => {
+    listarTurnos.mockResolvedValue({ turnos: [A] });
+    render(<AgendaDelDia inicial={{ turnos: [] }} {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mes" }));
+    const ficha = await screen.findByRole("link", { name: /^10:00, Ana Pérez/ });
+    listarTurnos.mockClear();
+
+    fireEvent.click(ficha);
+
+    expect(listarTurnos).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Mes" }).getAttribute("aria-pressed")).toBe("true");
   });
 });

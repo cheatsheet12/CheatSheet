@@ -1,0 +1,371 @@
+/* ── PAN-CFG-RN · reglas de negocio (prefijo rgl-) ───────────────────────────
+ *
+ * Dos tarjetas con encabezado de ícono y la cadena de recordatorios dibujada como una línea
+ * de tiempo: el origen es el vencimiento, porque los días se cuentan desde ahí, y cada paso
+ * cuelga de esa línea. El verde queda en los detalles (punto, ícono, foco, botón primario).
+ */
+.rgl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rgl-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+  animation: rgl-entra 0.4s ease both;
+  animation-delay: calc(var(--rgl-i, 0) * 90ms);
+}
+
+.rgl-card__cab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.rgl-card__titulo {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rgl-icono {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.rgl-intro {
+  margin: 0 0 var(--space-6);
+  max-width: 62ch;
+  font-size: 13.5px;
+  color: var(--ink-600);
+}
+
+.rgl-intro strong {
+  color: var(--ink-900);
+}
+
+/* ── Estado vacío ── */
+.rgl-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  background: var(--bg-soft);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-control);
+}
+
+.rgl-vacio__icono {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--accent-700);
+}
+
+.rgl-vacio__texto {
+  margin: 0;
+  max-width: 40ch;
+  font-size: 13.5px;
+  color: var(--ink-600);
+}
+
+.rgl-vacio__fichas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rgl-vacio__fichas li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-700);
+}
+
+.rgl-vacio__fichas svg {
+  color: var(--accent-700);
+}
+
+/* ── Línea de tiempo ── */
+.rgl-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 760px;
+}
+
+.rgl-linea {
+  display: flex;
+  flex-direction: column;
+}
+
+.rgl-origen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.rgl-origen__punto,
+.rgl-paso__punto {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+}
+
+.rgl-origen__punto {
+  background: var(--ink-900);
+  color: #fff;
+}
+
+.rgl-origen__texto {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.rgl-pasos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rgl-paso {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: var(--space-4);
+  padding-bottom: var(--space-3);
+  animation: rgl-entra 0.35s ease both;
+}
+
+/* El hilo que une cada punto con el siguiente; baja desde el origen y sigue hasta «Agregar». */
+.rgl-paso::before,
+.rgl-agregar::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: -12px;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+
+.rgl-paso:first-child::before {
+  top: -12px;
+}
+
+.rgl-paso__punto {
+  background: var(--accent-050);
+  color: var(--accent-700);
+  border: 2px solid var(--accent);
+  margin-top: 14px;
+}
+
+.rgl-paso__caja {
+  padding: var(--space-3) var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.rgl-paso__caja:hover {
+  transform: translateY(-1px);
+  border-color: var(--ink-300);
+  box-shadow: var(--shadow);
+}
+
+.rgl-paso__campos {
+  display: grid;
+  grid-template-columns: 190px minmax(160px, 220px) max-content;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.rgl-paso .campo {
+  margin-bottom: 0;
+}
+
+.rgl-paso__resumen {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--line);
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.rgl-paso__resumen svg {
+  color: var(--accent-700);
+}
+
+/* «Quitar»: callado hasta que se lo apunta, y entonces rojo. */
+.rgl-paso .boton {
+  gap: 6px;
+  box-shadow: none;
+  background: transparent;
+  color: var(--ink-500);
+}
+
+.rgl-paso .boton:hover:not(:disabled) {
+  background: var(--err-bg);
+  border-color: var(--err);
+  color: var(--err);
+}
+
+.rgl-paso .boton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rgl-agregar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: flex-start;
+  margin-left: 44px;
+  min-height: 40px;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-600);
+  background: transparent;
+  border: 1.5px dashed var(--ink-300);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    color 0.14s ease,
+    background 0.14s ease;
+}
+
+.rgl-agregar::before {
+  left: -31px;
+  top: -12px;
+  bottom: 50%;
+}
+
+.rgl-agregar:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-700);
+  background: var(--accent-050);
+}
+
+.rgl-agregar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rgl-agregar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rgl-nota {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  background: var(--bg-soft);
+  border-radius: var(--radius-control);
+}
+
+.rgl-pie {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-2);
+}
+
+@keyframes rgl-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .rgl-card {
+    padding: 18px 16px;
+  }
+
+  .rgl-paso__campos {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .rgl-agregar {
+    align-self: stretch;
+  }
+
+  .rgl-pie .boton {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rgl-card,
+  .rgl-paso {
+    animation: none;
+  }
+
+  .rgl-paso__caja,
+  .rgl-agregar {
+    transition: none;
+  }
+
+  .rgl-paso__caja:hover {
+    transform: none;
+  }
+}
