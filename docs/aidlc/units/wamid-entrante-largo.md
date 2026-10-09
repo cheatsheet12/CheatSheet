@@ -111,7 +111,7 @@ Chica: ~15 líneas de producción, ~80 de tests, docs. Un commit `fix(conversati
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-09 | Aprobado por Luciano con las recomendaciones D1–D3 |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-09 | Aprobado por Luciano. RED observado en 4 de 5 casos; ruff, mypy, pytest y arquitectura en verde. El CI local completo se corre en el Gate 3, cuando U7 entre a `develop` |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
