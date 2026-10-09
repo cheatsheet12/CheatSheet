@@ -5,7 +5,7 @@
 > Origen: revisión del profesor de 2026-09, [ADR-0009](../../adr/0009-review-adjustments-scope-change.md),
 > decisión D84 (`docs/aidlc/units.md`). La rama sale de `develop`.
 >
-> **Estado al 2026-10-09: en curso, Gate 1 aprobado.** El plan quedó escrito el
+> **Estado al 2026-10-09: en curso, Gate 2 aprobado.** El plan quedó escrito el
 > 2026-09-29, se actualizó a `develop` el 2026-10-02 (hallazgo 3, pregunta 6 y caso 25) y **se revalidó
 > contra `develop` en `cc4fe5b` el 2026-10-09**: `identity/`, `platform/database.py`, `api/main.py`,
 > `api/errors.py`, `api/dependencies.py` y `api/middleware/empresa.py` no cambiaron; `api/routers/auth.py`
@@ -401,7 +401,7 @@ cambios, se corre igual), el Gate 2 incluye:
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-09 | Aprobado por Luciano con las recomendaciones de las preguntas 1 a 5 |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-09 | Aprobado por Luciano. CI local COMPLETE en `8a0044a` (integración contra PostgreSQL incluida); verificador independiente sin agujeros, su defecto (500 en vez de 503 ante errores de conexión de asyncpg) corregido en `d91cd23` con RED observado |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
