@@ -92,6 +92,9 @@ module = [
     # Draws the printable representation of a `Comprobante` (HU-E5-02 RN-03). Ships no
     # stubs and has no stub package.
     "reportlab.*",
+    # The PostgreSQL driver: its exceptions are translated at the session-check adapter
+    # (connect-time errors SQLAlchemy does not wrap). Ships no stubs or py.typed.
+    "asyncpg.*",
 ]
 ignore_missing_imports = true
 
