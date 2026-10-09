@@ -98,7 +98,7 @@ commit `test(conversational): split the hand-written doubles by responsibility`.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-09 | Aprobado por Luciano con las recomendaciones D1–D4 |
-| 2 · Verificación | | |
+| 2 · Verificación | 2026-10-09 | Aprobado por Luciano. Mismos 3450 tests recolectados antes y después; ruff, mypy, pytest y arquitectura en verde; ningún cambio en `backend/src/`. El CI local completo se corre en el Gate 3, cuando U7 entre a `develop` |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
