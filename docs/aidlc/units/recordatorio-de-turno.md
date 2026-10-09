@@ -546,6 +546,7 @@ PostgreSQL en la CI.
 | 1 · Revisión del tramo 1 | 2026-10-08 | Correcciones aprobadas por Luciano: prioridad negativa al actualizar la agenda (422), nombre accesible de cada «Quitar», casos de PostgreSQL para prioridad, reactivación y 422, y la nota del caso 36 para el barrido |
 | 2 · Verificación del tramo 1 | 2026-10-08 | **Aprobado por Luciano el 08/10.** El tramo 2 se apila en `feature/scheduling-recordatorio-de-turno-modelo` |
 | 2 · Verificación del tramo 2 | 2026-10-08 | **Aprobado por Luciano el 08/10 con correcciones**: regla «más cercana registrada supera a las viejas» documentada y probada; backfill `now()`; nota de `EXPLAIN` para el tramo 3; modelo ORM alineado con el índice único |
+| 2 · Verificación del tramo 3 | 2026-10-08 | **Aprobado por Luciano el 08/10 con las correcciones 1 a 6 y las respuestas (a) y (b)** (ver «Gate 2 del tramo 3»). Commits: `013b84c`, `45e9608`, `060f152`, `770e90b` |
 | 3 · PR | | |
 
 ## Progreso
@@ -634,6 +635,32 @@ modelo ORM declara `uq_recordatorio_de_turno` como `Index(..., unique=True)`, ig
   convierte las entradas de Beat que tocan la base a crontab alineado al minuto 0): la entrada
   `recordar-turnos` debe pasar a `alineado(...)` (15 divide a 60) y `RECORDATORIO_DE_TURNO_MINUTOS` debe
   sumarse a la validación de arranque de los `*_MINUTOS`.
+
+**Gate 2 del tramo 3 · correcciones aprobadas el 2026-10-08.**
+
+1. El registro del resultado (fase 3) relee la fila **bloqueada** (`buscar_para_actualizar`) y escribe
+   solo si sigue «en curso» con el mismo `intentos` que ese barrido reservó; si no, loguea
+   `recordatorio_de_turno_resultado_descartado` y descarta el resultado (nunca reenvía). Así un barrido
+   lento no pisa el `FALLIDO` `INCIERTO` de otro. Las piezas de bitácora y vigencia pasaron a
+   `application/registro_de_recordatorios.py` para que `envio_de_recordatorios.py` quede bajo 400 líneas.
+2. `recordar_empresa` ya no hace `return` dentro del `async for` de la unidad de trabajo: la empresa sin
+   WhatsApp termina el bucle y la unidad se cierra (commit y devolución de la conexión).
+3. Las pruebas de PostgreSQL de barridos solapados fuerzan la carrera con una compuerta
+   (`asyncio.Event`): los dos barridos llegan a `preparar` antes de insertar (filas nuevas) y el que
+   tiene el candado espera, dentro de él, a que el otro lo pida (reintentos).
+4. Un reintento lejano no sale después de uno cercano: si el mismo turno ya tiene una fila de una
+   anticipación más cercana, la pendiente queda `DESCARTADO` con `ANTICIPACION_SUPERADA`. No hay `CHECK`
+   sobre los motivos, así que la migración 0039 no cambia.
+5. Todo descarte deja el log `recordatorio_de_turno_descartado` (ids, anticipación y motivo) y el evento
+   de bitácora `enviar_recordatorio_de_turno` con resultado completado y `detalle={"motivo": ...}`,
+   sin datos personales.
+6. `AdvertenciaDeRecordatorio` no se muestra con los recordatorios apagados ni sin WhatsApp conectado;
+   la ruta de PAN-CFG-NOT resuelve los dos datos con `GET /reglas` y `GET /integraciones`.
+
+- (a) Confirmado: `AGENDA_APAGADA` descarta los reintentos pendientes. Además, una fila pendiente cuya
+  anticipación se **quitó** de la agenda queda `DESCARTADO` con el motivo nuevo `ANTICIPACION_QUITADA`.
+- (b) Las empresas sin integración de WhatsApp siguen en el fan-out de `empresas_con_turnos_por_recordar`:
+  registrado como pendiente en `TODO.md` §25.
 
 ## Decisiones tomadas durante la unidad
 

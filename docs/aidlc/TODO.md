@@ -746,3 +746,11 @@ HU-E4-05.
   aplicó a la agenda: usar `ReglaDeNegocio.cambiar_prioridad` (que valida) antes de reconfigurar,
   con su prueba de caso de uso. Sin unidad: no se tocó en `recordatorio-de-turno` para no
   ensanchar el alcance.
+- **Las empresas sin integración de WhatsApp siguen en el fan-out del barrido de recordatorios.**
+  `empresas_con_turnos_por_recordar` devuelve toda empresa con un turno abierto por recordar, tenga o no
+  WhatsApp conectado, así que cada 15 minutos se encola una tarea `scheduling.recordar_empresa` que arma
+  el canal, ve `SinCanal` y sale con `recordatorios_de_turno_sin_canal` (D-U8-13). No crea filas ni
+  hilos, pero ocupa un worker y una conexión por empresa y corrida. Trabajo futuro, a elegir: excluirlas
+  en la propia función `SECURITY DEFINER` (unir con la integración `WHATSAPP` conectada), o correr la
+  pasada 1 en modo «solo resolver» (sin llamar a Meta) para esas empresas. Sin unidad: fuera del alcance
+  del Gate 2 del tramo 3.
