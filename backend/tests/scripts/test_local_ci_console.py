@@ -9,6 +9,7 @@ from pathlib import Path
 
 from local_ci.context import build_env
 from local_ci.execution import resolve_argv, use_utf8_console
+from local_ci.steps_static import installed_gitleaks_version, pinned_gitleaks_version
 
 
 def test_the_verified_checkout_goes_first_on_pythonpath() -> None:
@@ -56,3 +57,26 @@ def test_a_stream_that_cannot_be_reconfigured_is_left_alone() -> None:
     stream.write("\u25cb")
 
     assert stream.getvalue() == "\u25cb"
+
+
+def test_the_pinned_gitleaks_version_is_read_from_the_workflow() -> None:
+    workflow = (
+        "      - name: Install gitleaks\n"
+        "        run: |\n"
+        "          VERSION=8.21.2\n"
+        '          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}"\n'
+    )
+    assert pinned_gitleaks_version(workflow) == "8.21.2"
+
+
+def test_the_real_workflow_still_pins_a_gitleaks_version() -> None:
+    # If ci.yml stops pinning, the local scan silently stops matching CI.
+    workflow = (Path(__file__).resolve().parents[3] / ".github/workflows/ci.yml").read_text(
+        encoding="utf-8"
+    )
+    assert pinned_gitleaks_version(workflow) is not None
+
+
+def test_the_installed_version_ignores_the_v_prefix_and_newline() -> None:
+    assert installed_gitleaks_version("v8.30.1\n") == "8.30.1"
+    assert installed_gitleaks_version("8.21.2") == "8.21.2"

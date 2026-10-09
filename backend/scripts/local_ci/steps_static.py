@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 import os
 import py_compile
+import re
+import tarfile
+import tempfile
 from pathlib import Path
 
 from local_ci.context import Context, outcome_of
@@ -131,9 +134,46 @@ def run_guards_behaviour(ctx: Context) -> Outcome:
     )
 
 
+def pinned_gitleaks_version(workflow: str) -> str | None:
+    """The gitleaks version ci.yml installs, or None if the workflow no longer pins one."""
+    match = re.search(r"Install gitleaks.*?VERSION=([0-9][0-9.]*)", workflow, re.DOTALL)
+    return match.group(1) if match else None
+
+
+def installed_gitleaks_version(output: str) -> str:
+    return output.strip().removeprefix("v")
+
+
+def _gitleaks_version_error(ctx: Context) -> str | None:
+    """Rule sets change between releases (8.2x started decoding base64, which flags the
+    encoded fixtures in test_guards.sh), so only CI's own version gives CI's answer."""
+    workflow = (ctx.root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    pinned = pinned_gitleaks_version(workflow)
+    found = installed_gitleaks_version(
+        ctx.runner(["gitleaks", "version"], cwd=ctx.root, env=ctx.env, echo=False).output
+    )
+    if pinned is None or found == pinned:
+        return None
+    return f"gitleaks {found} is installed, ci.yml pins {pinned}: install {pinned} to match CI."
+
+
 def run_secret_scan(ctx: Context) -> Outcome:
-    argv = ["gitleaks", "detect", "--source", ".", "--no-git", "--redact", "-v"]
-    return outcome_of(ctx.run(argv), " ".join(argv))
+    """Scan exactly the committed tree, which is what CI's checkout contains: untracked
+    caches (.mypy_cache, node_modules) hold vendored strings that look like keys."""
+    command = "gitleaks detect --source <git archive HEAD> --no-git --redact -v"
+    version_error = _gitleaks_version_error(ctx)
+    if version_error:
+        return Outcome(1, version_error, command)
+    with tempfile.TemporaryDirectory(prefix="local-ci-gitleaks-") as scratch:
+        archive = Path(scratch) / "head.tar"
+        export = Path(scratch) / "tree"
+        packed = ctx.git("archive", "--format=tar", "-o", str(archive), "HEAD")
+        if packed.exit_code != 0:
+            return Outcome(packed.exit_code, packed.output, command)
+        with tarfile.open(archive) as tar:
+            tar.extractall(export, filter="data")
+        argv = ["gitleaks", "detect", "--source", str(export), "--no-git", "--redact", "-v"]
+        return outcome_of(ctx.run(argv), command)
 
 
 STATIC_STEPS: tuple[Step, ...] = (
@@ -206,7 +246,7 @@ STATIC_STEPS: tuple[Step, ...] = (
         "Credential detection (gitleaks)",
         True,
         run_secret_scan,
-        "gitleaks detect --source . --no-git --redact -v",
+        "gitleaks (CI's pinned version) detect on the committed tree",
         tools=("gitleaks",),
     ),
 )
