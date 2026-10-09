@@ -220,7 +220,7 @@ def crear_router(recursos: Recursos) -> APIRouter:
                 empresa_id=empresa_id,
                 rol=rol,
                 sistema=sistema,
-                contenido=_decodificar(entrada.contenido),
+                contenido=await _contenido(unidad, recursos, sistema, empresa_id, entrada),
                 parametros=dict(entrada.parametros),
                 usuario_id=usuario_id,
                 direccion_ip=_ip(request),
@@ -322,6 +322,28 @@ async def _revalidar_datos_fiscales(
         direccion_ip=_ip(request),
     )
     return aviso.motivo if aviso is not None else None
+
+
+async def _contenido(
+    unidad: UnidadDeTrabajo,
+    recursos: Recursos,
+    sistema: SistemaExterno,
+    empresa_id: EmpresaId,
+    entrada: ConexionEntrada,
+) -> bytes:
+    """What the connector validates. **For ARCA it is never what the request sent.**
+
+    Under ADR-0014 connecting ARCA verifies that the company delegated the web service to
+    CheatSheet, and the CUIT decides on whose behalf documents will be issued. So it comes
+    from the company's own data in `identity` — unique across companies — and the body is
+    ignored. Taking it from the request would let any Administrator point the platform
+    certificate at another company's CUIT.
+    """
+    if sistema is not SistemaExterno.ARCA:
+        return _decodificar(entrada.contenido)
+    empresa = await Identidad.armar(unidad, recursos.settings).empresas.buscar_por_id(empresa_id)
+    cuit = empresa.cuit if empresa is not None else None
+    return str(cuit.valor if cuit is not None else "").encode()
 
 
 def _exigir(valor: _T | None) -> _T:

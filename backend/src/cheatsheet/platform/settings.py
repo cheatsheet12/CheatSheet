@@ -17,6 +17,7 @@ Real values travel over a private encrypted channel, never through the repositor
 
 from __future__ import annotations
 
+import base64
 import os
 from dataclasses import dataclass
 from enum import StrEnum
@@ -333,6 +334,43 @@ def _adaptador_de_whatsapp(entorno: Entorno) -> AdaptadorDeWhatsApp:
     return adaptador
 
 
+def _credencial_de_plataforma(adaptador: AdaptadorDeArca) -> bytes:
+    """`ARCA_CREDENCIAL_PLATAFORMA`: base64 of the PEM certificate plus its PEM key (ADR-0014).
+
+    Required as soon as ARCA is real: without it no company can be reached. Base64 because
+    a PEM bundle is several lines, and an environment variable is one.
+    """
+    if adaptador is not AdaptadorDeArca.ARCA:
+        return b""
+    crudo = _requerida("ARCA_CREDENCIAL_PLATAFORMA")
+    try:
+        return base64.b64decode(crudo, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise ConfiguracionFaltante(
+            "ARCA_CREDENCIAL_PLATAFORMA debe ser el certificado y la clave PEM en base64"
+        ) from exc
+
+
+def _adaptador_del_padron(entorno: Entorno, arca: AdaptadorDeArca) -> AdaptadorDeArca:
+    """`ARCA_PADRON_ADAPTADOR`: defaults to whatever ARCA is, and is never simulated in
+    production — a company validated against an invented registry would invoice on the
+    strength of a fiscal condition nobody checked."""
+    crudo = _opcional("ARCA_PADRON_ADAPTADOR", "")
+    if not crudo:
+        return arca
+    try:
+        adaptador = AdaptadorDeArca(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"ARCA_PADRON_ADAPTADOR debe ser 'arca' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeArca.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "ARCA_PADRON_ADAPTADOR=simulado no es valido en produccion: el padron tiene que ser el de ARCA."
+        )
+    return adaptador
+
+
 def _adaptador_de_arca(entorno: Entorno) -> AdaptadorDeArca:
     """Defaults to the simulator outside production, and is forbidden inside it."""
     crudo = _opcional("ARCA_ADAPTADOR", "")
@@ -480,6 +518,10 @@ class Settings:
     dlq_max_intentos: int
     whatsapp_sondeo_maximo_dias: int
     arca_adaptador: AdaptadorDeArca
+    #: ARCA's taxpayer registry, switched apart from WSFE. In `staging` it stays simulated:
+    #: the homologación registry does not know the fictitious CUITs every test company uses
+    #: (checked 2026-10-08), while invoicing goes to ARCA for a real CAE.
+    arca_padron_adaptador: AdaptadorDeArca
     arca_wsaa_url_homologacion: str
     arca_wsaa_url_produccion: str
     arca_padron_url_homologacion: str
@@ -487,6 +529,9 @@ class Settings:
     arca_timeout_segundos: int
     arca_margen_renovacion_minutos: int
     arca_aviso_vencimiento_dias: int
+    #: ADR-0014. The platform certificate and its private key, PEM, one after the other.
+    #: Empty only with the simulator: with ARCA real it is how every company is reached.
+    arca_credencial_plataforma: bytes
     mercadopago_adaptador: AdaptadorDeMercadoPago
     mercadopago_client_id: str
     mercadopago_client_secret: str
@@ -515,6 +560,8 @@ class Settings:
         entorno = Entorno(_opcional("APP_ENV", Entorno.LOCAL.value))
         redis_url = _requerida("REDIS_URL")
         mercadopago = _adaptador_de_mercadopago(entorno)
+        arca = _adaptador_de_arca(entorno)
+        arca_padron = _adaptador_del_padron(entorno, arca)
         return cls(
             entorno=entorno,
             database_url=_requerida("DATABASE_URL"),
@@ -589,7 +636,11 @@ class Settings:
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.
             whatsapp_sondeo_maximo_dias=_entero("WHATSAPP_SONDEO_MAXIMO_DIAS", 7),
-            arca_adaptador=_adaptador_de_arca(entorno),
+            arca_adaptador=arca,
+            arca_padron_adaptador=arca_padron,
+            arca_credencial_plataforma=_credencial_de_plataforma(
+                AdaptadorDeArca.ARCA if AdaptadorDeArca.ARCA in (arca, arca_padron) else arca
+            ),
             # Two separate hosts, unlike Meta. Which one is used comes from `APP_ENV`, so
             # the environment decides whether a document is a rehearsal or irreversible.
             arca_wsaa_url_homologacion=_opcional(

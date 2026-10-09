@@ -15,7 +15,7 @@ import { PREFERENCIAS_POR_DEFECTO } from "@/shared";
 
 import type { Turno } from "../api/turno";
 
-export type VistaDeAgenda = "lista" | "semana" | "dia";
+export type VistaDeAgenda = "lista" | "semana" | "dia" | "mes";
 
 const ZONA = PREFERENCIAS_POR_DEFECTO.zonaHoraria;
 const IDIOMA = PREFERENCIAS_POR_DEFECTO.idioma;
@@ -102,9 +102,47 @@ export function rangoDeVista(
   vista: Exclude<VistaDeAgenda, "lista">,
   ancla: string,
 ): { readonly desde: string; readonly hasta: string } {
+  if (vista === "mes") {
+    // Las semanas completas que dibuja la grilla, con los días de los meses vecinos.
+    const semanas = semanasDelMes(ancla);
+    const ultima = semanas[semanas.length - 1] ?? [];
+    return {
+      desde: `${semanas[0]?.[0] ?? ancla}T00:00:00${DESFASE}`,
+      hasta: `${sumarDias(ultima[6] ?? ancla, 1)}T00:00:00${DESFASE}`,
+    };
+  }
   const desde = vista === "semana" ? lunesDe(ancla) : ancla;
   const hasta = sumarDias(desde, vista === "semana" ? 7 : 1);
   return { desde: `${desde}T00:00:00${DESFASE}`, hasta: `${hasta}T00:00:00${DESFASE}` };
+}
+
+/** El primer día (`AAAA-MM-01`) del mes que contiene a `dia`. */
+export function primeroDelMes(dia: string): string {
+  return `${dia.slice(0, 7)}-01`;
+}
+
+/** Suma meses conservando el día; si el mes de destino es más corto cae en su último día. */
+export function sumarMeses(dia: string, cantidad: number): string {
+  const [anio = 0, mes = 1, numero = 1] = dia.split("-").map(Number);
+  const total = anio * 12 + (mes - 1) + cantidad;
+  const anioNuevo = Math.floor(total / 12);
+  const mesNuevo = (total % 12) + 1;
+  const ultimo = new Date(Date.UTC(anioNuevo, mesNuevo, 0)).getUTCDate();
+  return `${anioNuevo}-${dosDigitos(mesNuevo)}-${dosDigitos(Math.min(numero, ultimo))}`;
+}
+
+/**
+ * Las semanas (lunes a domingo) que cubren el mes de `ancla`: cinco o seis filas, con los
+ * días de los meses vecinos que completan la primera y la última.
+ */
+export function semanasDelMes(ancla: string): readonly (readonly string[])[] {
+  const primero = primeroDelMes(ancla);
+  const ultimo = sumarDias(sumarMeses(primero, 1), -1);
+  const semanas: (readonly string[])[] = [];
+  for (let lunes = lunesDe(primero); lunes <= ultimo; lunes = sumarDias(lunes, 7)) {
+    semanas.push(semanaDe(lunes));
+  }
+  return semanas;
 }
 
 function formatear(dia: string, opciones: Intl.DateTimeFormatOptions): string {
@@ -136,6 +174,9 @@ export function encabezadoDeDia(dia: string, hoy: string): string {
 export function rangoLegible(vista: Exclude<VistaDeAgenda, "lista">, ancla: string): string {
   if (vista === "dia") {
     return diaLargo(ancla);
+  }
+  if (vista === "mes") {
+    return `${formatear(ancla, { month: "long" })} de ${formatear(ancla, { year: "numeric" })}`;
   }
   const lunes = lunesDe(ancla);
   const domingo = sumarDias(lunes, 6);

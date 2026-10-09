@@ -31,6 +31,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { ReactNode } from "react";
+import { BadgeCheck, Building2, ScanSearch, ShieldCheck } from "lucide-react";
 
 import { Alert, Button, Campo, Select, Stepper, useAccionConNavegacion } from "@/shared";
 
@@ -253,6 +255,18 @@ export function FormularioDeEmpresa({
    * queda en el medio de una columna de campos y separa por abajo. Es la misma respuesta
    * con dos aires distintos, no dos bloques.
    */
+  const botonValidarConIcono = cuitOk ? (
+    <Button
+      type="button"
+      variante="secundario"
+      cargando={consultando}
+      onClick={() => void validar()}
+    >
+      <ScanSearch size={16} aria-hidden="true" />
+      Validar contra ARCA
+    </Button>
+  ) : null;
+
   const respuestaDelPadron = (clase: string): JSX.Element => (
     <>
       {consulta !== null && (
@@ -343,59 +357,85 @@ export function FormularioDeEmpresa({
   // El título lo pone la página: repetirlo en la tarjeta daría dos encabezados iguales
   // seguidos, que es lo que hacía antes.
   if (!enOnboarding) {
+    // Presentación pura: compara lo tipeado con lo que llegó del servidor. No decide nada.
+    const hayCambios =
+      razonSocial !== (iniciales?.razon_social ?? "") ||
+      normalizarCuit(cuit) !== normalizarCuit(iniciales?.cuit ?? "") ||
+      condicionIva !== (iniciales?.condicion_iva ?? CONDICIONES[0].valor) ||
+      nombreResponsable !== (iniciales?.nombre_responsable ?? "") ||
+      emailContacto !== (iniciales?.email_contacto ?? "");
+    const verificado = consulta?.estado === "ENCONTRADO";
+
     return (
       <>
         {avisos}
-        <div className="cfg-panel">
-          <div className="cfg-panel__cab">
-            <h2 className="cfg-panel__titulo">Datos fiscales</h2>
-            {/* El CUIT con guiones vive acá, en la cabecera, y no dentro del campo: el
-                campo es editable y reescribirlo mientras alguien tipea mueve el cursor por
-                debajo de su mano. Acá se lee de un vistazo y en el formato en el que se
-                dicta por teléfono. */}
-            {cuitOk ? (
-              <p className="cfg-panel__cuenta">CUIT {formatearCuit(cuit)}</p>
-            ) : (
-              <p className="cfg-panel__nota">Se imprimen en cada comprobante</p>
-            )}
+        <div className="emp-pagina">
+          {/* El CUIT con guiones vive acá, en la cabecera, y no dentro del campo: el campo
+              es editable y reescribirlo mientras alguien tipea mueve el cursor por debajo
+              de su mano. Acá se lee de un vistazo y en el formato en el que se dicta por
+              teléfono. */}
+          <div className="emp-resumen">
+            <span className="emp-resumen__avatar" aria-hidden="true">
+              {inicialesDe(razonSocial)}
+            </span>
+            <div className="emp-resumen__texto">
+              <p className="emp-resumen__nombre">
+                {razonSocial.trim() === "" ? "Empresa sin nombre" : razonSocial}
+              </p>
+              <p className="emp-resumen__cuit">
+                {cuitOk ? `CUIT ${formatearCuit(cuit)}` : "Se imprimen en cada comprobante"}
+              </p>
+            </div>
+            <span className="emp-insignia">{etiquetaDeCondicion(condicionIva)}</span>
           </div>
 
           <form onSubmit={(evento) => void enviar(evento)} noValidate>
-            <section className="cfg-seccion">
-              <h3 className="cfg-seccion__titulo">Identificación ante ARCA</h3>
-              <p className="cfg-seccion__nota">
-                El CUIT y la condición con la que se emite. Validalos contra el padrón antes de
-                facturar: un comprobante mal identificado no se corrige, se anula.
-              </p>
-
+            <SeccionEmp
+              icono={<ShieldCheck size={18} aria-hidden="true" />}
+              titulo="Identificación ante ARCA"
+              nota="El CUIT y la condición con la que se emite. Validalos contra el padrón antes de facturar: un comprobante mal identificado no se corrige, se anula."
+              indice={0}
+            >
               <div className="cfg-campos">
                 {/* El botón va pegado al campo que valida. Suelto entre «Condición IVA» y
                     «Razón social» no pertenecía a ninguno de los dos. */}
                 <div className="cfg-cuit cfg-campos__ancho">
                   {campoCuit}
-                  {botonValidar}
+                  {botonValidarConIcono}
+                  {verificado && (
+                    <span className="emp-verificado">
+                      <BadgeCheck size={16} aria-hidden="true" />
+                      Verificado
+                    </span>
+                  )}
                 </div>
                 {campoCondicion}
               </div>
 
               {respuestaDelPadron("cfg-aviso")}
-            </section>
+            </SeccionEmp>
 
-            <section className="cfg-seccion">
-              <h3 className="cfg-seccion__titulo">Quién figura y a quién escribirle</h3>
-              <p className="cfg-seccion__nota">
-                La razón social sale impresa en el comprobante. El email es al que llegan los avisos
-                de facturación.
-              </p>
-
+            <SeccionEmp
+              icono={<Building2 size={18} aria-hidden="true" />}
+              titulo="Quién figura y a quién escribirle"
+              nota="La razón social sale impresa en el comprobante. El email es al que llegan los avisos de facturación."
+              indice={1}
+            >
               <div className="cfg-campos">
                 <div className="cfg-campos__ancho">{campoRazonSocial}</div>
                 {campoResponsable}
                 {campoEmail}
               </div>
-            </section>
+            </SeccionEmp>
 
-            <div className="cfg-panel__pie">
+            <div className="emp-pie">
+              <p
+                className={
+                  hayCambios ? "emp-pie__estado emp-pie__estado--activo" : "emp-pie__estado"
+                }
+              >
+                {hayCambios ? "Hay cambios sin guardar" : "Todo al día"}
+              </p>
               <Button type="submit" cargando={enviando} disabled={!completo}>
                 Guardar
               </Button>
@@ -511,4 +551,39 @@ function textoDeSugerencia(sugerencia: Sugerencia): string {
 
 function etiquetaDeCondicion(valor: string): string {
   return CONDICIONES.find((condicion) => condicion.valor === valor)?.texto ?? valor;
+}
+
+/** Iniciales para el avatar de la cabecera: hasta dos letras, o un guion si no hay nombre. */
+function inicialesDe(nombre: string): string {
+  const letras = nombre
+    .trim()
+    .split(/\s+/)
+    .filter((palabra) => palabra !== "")
+    .slice(0, 2)
+    .map((palabra) => palabra.charAt(0).toUpperCase());
+  return letras.length === 0 ? "—" : letras.join("");
+}
+
+interface PropsDeSeccionEmp {
+  readonly icono: ReactNode;
+  readonly titulo: string;
+  readonly nota: string;
+  readonly indice: number;
+  readonly children: ReactNode;
+}
+
+/** Sección del panel: ícono, título y nota a la izquierda; los campos a la derecha. */
+function SeccionEmp({ icono, titulo, nota, indice, children }: PropsDeSeccionEmp): JSX.Element {
+  return (
+    <section className="emp-seccion" style={{ animationDelay: `${(indice + 1) * 70}ms` }}>
+      <header className="emp-seccion__lado">
+        <span className="emp-seccion__icono">{icono}</span>
+        <div>
+          <h3 className="emp-seccion__titulo">{titulo}</h3>
+          <p className="emp-seccion__nota">{nota}</p>
+        </div>
+      </header>
+      <div className="emp-seccion__cuerpo">{children}</div>
+    </section>
+  );
 }

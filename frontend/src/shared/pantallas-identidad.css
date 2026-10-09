@@ -1434,3 +1434,236 @@
     transform: none;
   }
 }
+
+/* ── Datos de la empresa (prefijo `emp-`) ─────────────────────────────────────
+ *
+ * Sólo presentación de Configuración → Empresa. Una cabecera que resume a quién se
+ * edita, y secciones de dos columnas: a la izquierda qué pregunta contestan, a la
+ * derecha los campos. El verde es un detalle (ícono, tilde, botón), nunca un fondo. */
+
+.emp-pagina {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.emp-resumen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 18px 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: emp-entrar 260ms ease-out both;
+}
+
+.emp-resumen__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--ink-900);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+
+.emp-resumen__texto {
+  min-width: 0;
+  flex: 1;
+}
+
+.emp-resumen__nombre {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emp-resumen__cuit {
+  margin: 2px 0 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.emp-insignia {
+  flex: none;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--ink-700);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.emp-pagina form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.emp-seccion {
+  display: grid;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+  gap: var(--space-8);
+  padding: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  transition: border-color 160ms ease;
+  animation: emp-entrar 280ms ease-out both;
+}
+
+.emp-seccion:hover,
+.emp-seccion:focus-within {
+  border-color: var(--ink-300);
+}
+
+.emp-seccion__lado {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.emp-seccion__icono {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.emp-seccion__titulo {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.emp-seccion__nota {
+  margin: var(--space-1) 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-500);
+}
+
+.emp-seccion__cuerpo {
+  min-width: 0;
+}
+
+.emp-verificado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--touch-min);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-700);
+}
+
+.emp-resumen ~ form .boton svg,
+.emp-seccion .boton svg {
+  flex: none;
+  margin-right: 6px;
+}
+
+.emp-pie {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  position: sticky;
+  bottom: var(--space-4);
+  padding: 14px 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: emp-entrar 300ms ease-out both;
+  animation-delay: 210ms;
+}
+
+.emp-pie__estado {
+  margin: 0 auto 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+.emp-pie__estado--activo {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+.emp-pie__estado--activo::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--alert);
+}
+
+@keyframes emp-entrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .emp-seccion {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .emp-resumen {
+    flex-wrap: wrap;
+  }
+
+  .emp-resumen__texto {
+    flex-basis: calc(100% - 48px - var(--space-4));
+  }
+
+  .emp-resumen__cuit {
+    white-space: nowrap;
+  }
+
+  .emp-insignia {
+    margin-left: 64px;
+  }
+
+  .emp-seccion,
+  .emp-resumen,
+  .emp-pie {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emp-resumen,
+  .emp-seccion,
+  .emp-pie {
+    animation: none;
+    transition: none;
+  }
+}
