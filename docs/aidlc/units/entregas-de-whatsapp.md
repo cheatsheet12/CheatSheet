@@ -695,7 +695,7 @@ existentes (`test_reintento_de_recordatorios_postgres.py`, `test_barrido_de_reco
 - **El badge de entrega de los recordatorios conserva el enum** (`ENVIADO`, `FALLIDO`…) como antes: D-U7-7
   pide castellano solo para el hilo.
 - **Los avisos de turno siguen haciendo E/S a Meta dentro de la transacción del panel** (hallazgo
-  G5/ADR-0014, como dice el tramo 2: «los avisos de turno, tramo iii, siguen como estaban»): este tramo no lo
+  G5/ADR-0015, como dice el tramo 2: «los avisos de turno, tramo iii, siguen como estaban»): este tramo no lo
   agrava ni lo resuelve. Consecuencia: un `delivered` que llegara antes del commit del request del panel no
   encuentra el mensaje (`whatsapp_estado_sin_destinatario`) y ese aviso queda en `ENVIADO`. Pendiente en
   `TODO.md` §22.64.
