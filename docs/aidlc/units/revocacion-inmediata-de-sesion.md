@@ -402,7 +402,7 @@ cambios, se corre igual), el Gate 2 incluye:
 |---|---|---|
 | 1 · Plan | 2026-10-09 | Aprobado por Luciano con las recomendaciones de las preguntas 1 a 5 |
 | 2 · Verificación | 2026-10-09 | Aprobado por Luciano. CI local COMPLETE en `8a0044a` (integración contra PostgreSQL incluida); verificador independiente sin agujeros, su defecto (500 en vez de 503 ante errores de conexión de asyncpg) corregido en `d91cd23` con RED observado |
-| 3 · PR | | |
+| 3 · PR | 2026-10-09 | PR a `develop`. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
 
