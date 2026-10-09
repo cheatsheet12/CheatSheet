@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import io
+import shutil
 import subprocess
 import sys
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TextIO
 
 DEFAULT_TIMEOUT_S = 1800.0
 
@@ -18,6 +21,29 @@ class CommandResult:
     exit_code: int
     output: str
     duration_s: float
+
+
+def use_utf8_console(stream: TextIO) -> None:
+    """Make the console accept any character a child prints.
+
+    Redirected output on Windows defaults to the ANSI code page (cp1252), and one
+    character it cannot encode (gitleaks prints U+25CB) kills the thread that relays the
+    child's output, failing a step that passed.
+    """
+    if isinstance(stream, io.TextIOWrapper):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+def resolve_argv(
+    argv: Sequence[str], which: Callable[[str], str | None] = shutil.which
+) -> list[str]:
+    """Replace the command name with the executable PATH resolves it to.
+
+    On Windows `npm` is `npm.cmd`, and CreateProcess does not apply PATHEXT, so the bare
+    name never starts. An unknown name is left as is, so the launch error names it.
+    """
+    found = which(argv[0])
+    return [found, *argv[1:]] if found else list(argv)
 
 
 def emit(text: str = "") -> None:
@@ -42,7 +68,7 @@ def run_command(
     started = time.monotonic()
     try:
         proc = subprocess.Popen(  # noqa: S603 - argv is built by this tool, never a shell string
-            list(argv),
+            resolve_argv(argv),
             cwd=cwd,
             env=dict(env),
             stdin=subprocess.PIPE if stdin_text is not None else subprocess.DEVNULL,

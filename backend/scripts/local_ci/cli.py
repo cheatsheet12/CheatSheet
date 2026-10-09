@@ -12,7 +12,7 @@ from pathlib import Path
 
 from local_ci.catalog import CATALOGUE
 from local_ci.context import Context, build_env
-from local_ci.execution import emit
+from local_ci.execution import emit, use_utf8_console
 from local_ci.model import EXIT_USAGE, decide_verdict, exit_code_for
 from local_ci.runner import run_steps
 from local_ci.selection import UnknownStepError, select_steps
@@ -35,6 +35,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--target-branch", default="develop", help="PR target (default: develop)")
     parser.add_argument("--base-ref", default="origin/develop", help="ref commits are checked from")
     parser.add_argument("--output", type=Path, help="also write the summary to this file")
+    parser.add_argument(
+        "--root",
+        type=Path,
+        help="checkout to verify (default: the one this script lives in), e.g. another worktree",
+    )
     return parser.parse_args(argv)
 
 
@@ -60,6 +65,7 @@ def build_meta(ctx: Context) -> RunMeta:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    use_utf8_console(sys.stdout)
     args = parse_args(argv)
     if args.list:
         print_catalogue()
@@ -70,9 +76,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stderr.write(f"error: {error}\n")
         return EXIT_USAGE
 
+    root = args.root.resolve() if args.root else repo_root()
     ctx = Context(
-        root=repo_root(),
-        env=build_env(os.environ),
+        root=root,
+        env=build_env(os.environ, root),
         target_branch=args.target_branch,
         base_ref=args.base_ref,
     )

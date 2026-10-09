@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import shutil
 import sys
 from collections.abc import Callable, Mapping, Sequence
@@ -44,12 +45,20 @@ def find_bash(which: Callable[[str], str | None], platform: str) -> str | None:
     return which("bash")
 
 
-def build_env(base: Mapping[str, str]) -> dict[str, str]:
+def build_env(base: Mapping[str, str], root: Path | None = None) -> dict[str, str]:
     """The child environment: the parent's, minus service URLs, plus CI's test values.
+
+    With `root`, the checkout's own `backend/src` goes first on PYTHONPATH: a virtual
+    environment shared between worktrees has its editable install pointing at one of
+    them, and without this every other worktree would be tested against that code.
 
     Nothing is read from or written to any .env file.
     """
     env = {k: v for k, v in base.items() if not k.startswith(_STRIPPED_PREFIXES)}
+    if root is not None:
+        source = str(root / "backend" / "src")
+        inherited = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = os.pathsep.join([source, inherited] if inherited else [source])
     host = f"localhost:{DB_PORT}/{DB_NAME}"
     env["DATABASE_URL"] = f"postgresql+asyncpg://{APP_ROLE}:{DB_PASSWORD}@{host}"
     env["DATABASE_URL_MIGRATIONS"] = f"postgresql+asyncpg://{OWNER_ROLE}:{DB_PASSWORD}@{host}"

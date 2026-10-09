@@ -11,6 +11,7 @@ python backend/scripts/run_local_ci.py --list          # steps, required or opti
 python backend/scripts/run_local_ci.py --only ruff-check mypy      # a subset (+ prerequisites)
 python backend/scripts/run_local_ci.py --skip frontend-build
 python backend/scripts/run_local_ci.py --keep-containers --output summary.md
+python backend/scripts/run_local_ci.py --root ../other-worktree   # verify another checkout
 ```
 
 ## Before the first run
@@ -30,6 +31,9 @@ python backend/scripts/run_local_ci.py --keep-containers --output summary.md
   `APP_ENV=test` pointing at the local containers. Any ambient value is discarded; no `.env`
   file is read or written. The run aborts if a target host is not local.
 - A missing tool is `SKIPPED` with the reason, never `PASS`.
+- Child processes import `cheatsheet` from the verified checkout: its `backend/src` goes first
+  on `PYTHONPATH`, because a virtual environment shared between worktrees has its editable
+  install pointing at only one of them.
 - Exit codes: `0` complete, `1` a step failed, `2` bad arguments, `3` nothing failed but a
   required step was skipped or not run (this includes `--only` subsets).
 - The verdict is `COMPLETE` only if every required step passed. `worktree-clean` fails if
