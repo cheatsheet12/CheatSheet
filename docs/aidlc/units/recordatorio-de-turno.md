@@ -650,7 +650,7 @@ modelo ORM declara `uq_recordatorio_de_turno` como `Index(..., unique=True)`, ig
    tiene el candado espera, dentro de él, a que el otro lo pida (reintentos).
 4. Un reintento lejano no sale después de uno cercano: si el mismo turno ya tiene una fila de una
    anticipación más cercana, la pendiente queda `DESCARTADO` con `ANTICIPACION_SUPERADA`. No hay `CHECK`
-   sobre los motivos, así que la migración 0039 no cambia.
+   sobre los motivos, así que la migración 0040 no cambia.
 5. Todo descarte deja el log `recordatorio_de_turno_descartado` (ids, anticipación y motivo) y el evento
    de bitácora `enviar_recordatorio_de_turno` con resultado completado y
    `detalle={"desenlace": "DESCARTADO", "motivo": ...}`, sin datos personales. Los eventos de envío
