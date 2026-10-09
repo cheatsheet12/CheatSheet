@@ -23,6 +23,7 @@ from fastapi import APIRouter, FastAPI
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from tests.api.verificador_falso import VerificadorDeSesionFalso
 from tests.conftest import INSTANTE_FIJO, settings_de_prueba
 
 
@@ -190,7 +191,10 @@ async def test_un_token_invalido_no_abre_la_puerta(parchar_sondas):
 async def test_un_error_de_dominio_se_traduce_sin_filtrar_internals(parchar_sondas):
     parchar_sondas(base_ok=True, redis_ok=True)
     settings = _settings()
-    app = create_app(settings, _recursos(settings))
+    # The token below names a user that is stored nowhere, and this test has no database.
+    # The session check is not what is under test, so a verifier that vouches for it is
+    # injected through the seam; the middleware still decodes and validates the signature.
+    app = create_app(settings, _recursos(settings), VerificadorDeSesionFalso())
     app.include_router(_router_de_prueba())
 
     async with _cliente(app) as cliente:
