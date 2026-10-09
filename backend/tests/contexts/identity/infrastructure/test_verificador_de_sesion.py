@@ -8,10 +8,6 @@ which timeout and not about how fast a machine is.
 
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass, field
-from types import SimpleNamespace
-from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -24,7 +20,8 @@ from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
 )
 from cheatsheet.platform.database import TIMEOUT_DE_CONEXION_SEGUNDOS
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from tests.contexts.identity.base_falsa import EscenarioDeBase, fabrica_de_sesiones, fila
 
 #: The scaled-down query limit, and a delay that is clearly beyond it but well under any
 #: real limit.
@@ -32,70 +29,8 @@ LIMITE = 0.05
 DEMORA = 0.15
 
 
-@dataclass
-class _Escenario:
-    """What the fake database does, and what it saw."""
-
-    fila: Any
-    demora_de_conexion: float = 0.0
-    demora_de_consulta: float = 0.0
-    abiertas: int = 0
-    cerradas: int = 0
-    confirmaciones: int = 0
-    reversiones: int = 0
-    empresas_anunciadas: list[str] = field(default_factory=list)
-
-
-class _Resultado:
-    def __init__(self, fila: Any) -> None:
-        self._fila = fila
-
-    def one_or_none(self) -> Any:
-        return self._fila
-
-
-class _SesionFalsa:
-    """Just enough of `AsyncSession` for `sesion_de_empresa` and the query adapter."""
-
-    def __init__(self, escenario: _Escenario) -> None:
-        self._e = escenario
-
-    async def __aenter__(self) -> _SesionFalsa:
-        self._e.abiertas += 1
-        return self
-
-    async def __aexit__(self, *_: object) -> None:
-        self._e.abiertas -= 1
-        self._e.cerradas += 1
-
-    async def execute(self, sentencia: Any, parametros: dict[str, str] | None = None) -> _Resultado:
-        if "set_config" in str(sentencia):
-            # Taking the connection: the step the engine's own 10 s limit protects.
-            assert parametros is not None
-            self._e.empresas_anunciadas.append(parametros["valor"])
-            await asyncio.sleep(self._e.demora_de_conexion)
-            return _Resultado(None)
-        await asyncio.sleep(self._e.demora_de_consulta)
-        return _Resultado(self._e.fila)
-
-    async def commit(self) -> None:
-        self._e.confirmaciones += 1
-
-    async def rollback(self) -> None:
-        self._e.reversiones += 1
-
-
-def _verificador(escenario: _Escenario) -> VerificadorDeSesionPostgres:
-    def fabrica() -> _SesionFalsa:
-        return _SesionFalsa(escenario)
-
-    return VerificadorDeSesionPostgres(
-        cast("async_sessionmaker[AsyncSession]", fabrica), timeout_de_consulta=LIMITE
-    )
-
-
-def _fila(empresa_id: EmpresaId, *, rol: str = "OPERADOR", estado: str = "ACTIVO") -> Any:
-    return SimpleNamespace(empresa_id=empresa_id, rol=rol, estado=estado)
+def _verificador(escenario: EscenarioDeBase) -> VerificadorDeSesionPostgres:
+    return VerificadorDeSesionPostgres(fabrica_de_sesiones(escenario), timeout_de_consulta=LIMITE)
 
 
 @pytest.mark.asyncio
@@ -104,7 +39,7 @@ async def test_devuelve_el_rol_de_la_fila_y_entrega_la_conexion_antes_de_volver(
     route runs afterwards and must not find the pool short of the connection the check held."""
     empresa_id = EmpresaId(uuid4())
     usuario_id = UsuarioId(uuid4())
-    escenario = _Escenario(fila=_fila(empresa_id))
+    escenario = EscenarioDeBase(fila=fila(empresa_id))
 
     identidad = await _verificador(escenario).verificar(
         usuario_id=usuario_id, empresa_id_del_token=empresa_id
@@ -121,7 +56,7 @@ async def test_devuelve_el_rol_de_la_fila_y_entrega_la_conexion_antes_de_volver(
 async def test_la_sesion_se_abre_para_la_empresa_firmada_en_el_token():
     """Row-Level Security is scoped by the claim; the use case then compares the row to it."""
     empresa_id = EmpresaId(uuid4())
-    escenario = _Escenario(fila=_fila(empresa_id))
+    escenario = EscenarioDeBase(fila=fila(empresa_id))
 
     await _verificador(escenario).verificar(
         usuario_id=UsuarioId(uuid4()), empresa_id_del_token=empresa_id
@@ -135,7 +70,7 @@ async def test_una_consulta_mas_lenta_que_el_limite_es_un_timeout_y_libera_la_co
     """Case 9. Connection in hand, the query exceeds its limit: an error the middleware turns
     into a 503, with the transaction rolled back and the connection returned."""
     empresa_id = EmpresaId(uuid4())
-    escenario = _Escenario(fila=_fila(empresa_id), demora_de_consulta=DEMORA)
+    escenario = EscenarioDeBase(fila=fila(empresa_id), demora_de_consulta=DEMORA)
 
     with pytest.raises(TimeoutError):
         await _verificador(escenario).verificar(
@@ -152,7 +87,7 @@ async def test_una_toma_de_conexion_lenta_pero_dentro_de_su_limite_no_es_un_erro
     """Case 27. A database waking up takes longer than the query limit to hand over a
     connection. That wait is not under the short limit, so the request is verified."""
     empresa_id = EmpresaId(uuid4())
-    escenario = _Escenario(fila=_fila(empresa_id), demora_de_conexion=DEMORA)
+    escenario = EscenarioDeBase(fila=fila(empresa_id), demora_de_conexion=DEMORA)
 
     identidad = await _verificador(escenario).verificar(
         usuario_id=UsuarioId(uuid4()), empresa_id_del_token=empresa_id
@@ -165,7 +100,7 @@ async def test_una_toma_de_conexion_lenta_pero_dentro_de_su_limite_no_es_un_erro
 @pytest.mark.asyncio
 async def test_una_sesion_revocada_revierte_y_libera_la_conexion():
     empresa_id = EmpresaId(uuid4())
-    escenario = _Escenario(fila=_fila(empresa_id, estado="INACTIVO"))
+    escenario = EscenarioDeBase(fila=fila(empresa_id, estado="INACTIVO"))
 
     with pytest.raises(SesionRevocada) as error:
         await _verificador(escenario).verificar(
