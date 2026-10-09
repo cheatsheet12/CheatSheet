@@ -94,6 +94,15 @@ export function agendaDe(listado: ListadoDeReglasCrudo): AgendaGuardada | null {
   return elegida === undefined ? null : guardadaDe(elegida);
 }
 
+/**
+ * Si la empresa manda recordatorios de turno. Sin agenda rige el de por defecto (encendido); con una,
+ * hace falta que esté activa **y** tenga al menos una anticipación: sin ninguna no sale nada, igual
+ * que en el backend.
+ */
+export function recordatoriosEncendidos(agenda: AgendaGuardada | null): boolean {
+  return agenda === null || (agenda.activa && agenda.recordatorios.length > 0);
+}
+
 async function fallar(respuesta: Response): Promise<never> {
   const cuerpo = (await respuesta.json().catch(() => ({}))) as CuerpoDeError;
   throw new ErrorDeAgenda(cuerpo.detalle ?? cuerpo.error ?? "No se pudo guardar la agenda.");

@@ -11,7 +11,7 @@
 
 import { redirect } from "next/navigation";
 
-import { agendaDe } from "@/features/business_config";
+import { agendaDe, recordatoriosEncendidos } from "@/features/business_config";
 import type { ListadoDeReglasCrudo } from "@/features/business_config";
 import { AdvertenciaDeRecordatorio, PlantillasDeNotificacion } from "@/features/conversational";
 import type { ListadoDePlantillas } from "@/features/conversational";
@@ -48,7 +48,7 @@ export default async function PaginaDePlantillas(): Promise<JSX.Element> {
   ]);
   // Sin regla de agenda rige el recordatorio por defecto: encendido. Es el backend quien decide.
   const agenda = reglas === null ? null : agendaDe(reglas);
-  const recordatoriosActivos = agenda === null || agenda.activa;
+  const recordatoriosActivos = reglas === null || recordatoriosEncendidos(agenda);
   const whatsappConectado =
     integraciones === null ||
     integraciones.integraciones.some((i) => i.sistema === "WHATSAPP" && i.estado === "CONECTADO");

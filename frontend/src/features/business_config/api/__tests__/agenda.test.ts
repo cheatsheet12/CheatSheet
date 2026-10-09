@@ -9,7 +9,13 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ErrorDeAgenda, agendaDe, configurarAgenda, leerConfiguracionDeAgenda } from "../agenda";
+import {
+  ErrorDeAgenda,
+  agendaDe,
+  configurarAgenda,
+  leerConfiguracionDeAgenda,
+  recordatoriosEncendidos,
+} from "../agenda";
 import type { ReglaCruda } from "../atencion";
 
 const REGLA: ReglaCruda = {
@@ -133,5 +139,30 @@ describe("configurarAgenda", () => {
     await expect(configurarAgenda([{ horas_antes: 24 }])).rejects.toThrow(
       "No se pudo guardar la agenda.",
     );
+  });
+});
+
+describe("recordatoriosEncendidos", () => {
+  const guardada = (activa: boolean, horas: number[]) => ({
+    reglaId: "rg1",
+    prioridad: 0,
+    activa,
+    recordatorios: horas.map((horas_antes) => ({ horas_antes })),
+  });
+
+  it("sin agenda rige el recordatorio por defecto: encendido", () => {
+    expect(recordatoriosEncendidos(null)).toBe(true);
+  });
+
+  it("una agenda activa con anticipaciones está encendida", () => {
+    expect(recordatoriosEncendidos(guardada(true, [24]))).toBe(true);
+  });
+
+  it("una agenda apagada está apagada", () => {
+    expect(recordatoriosEncendidos(guardada(false, [24]))).toBe(false);
+  });
+
+  it("una agenda activa sin ninguna anticipación está apagada (igual que en el backend)", () => {
+    expect(recordatoriosEncendidos(guardada(true, []))).toBe(false);
   });
 });
