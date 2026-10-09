@@ -546,7 +546,7 @@ PostgreSQL en la CI.
 | 1 · Revisión del tramo 1 | 2026-10-08 | Correcciones aprobadas por Luciano: prioridad negativa al actualizar la agenda (422), nombre accesible de cada «Quitar», casos de PostgreSQL para prioridad, reactivación y 422, y la nota del caso 36 para el barrido |
 | 2 · Verificación del tramo 1 | 2026-10-08 | **Aprobado por Luciano el 08/10.** El tramo 2 se apila en `feature/scheduling-recordatorio-de-turno-modelo` |
 | 2 · Verificación del tramo 2 | 2026-10-08 | **Aprobado por Luciano el 08/10 con correcciones**: regla «más cercana registrada supera a las viejas» documentada y probada; backfill `now()`; nota de `EXPLAIN` para el tramo 3; modelo ORM alineado con el índice único |
-| 2 · Verificación del tramo 3 | 2026-10-08 | **Aprobado por Luciano el 08/10 con las correcciones 1 a 6 y las respuestas (a) y (b)** (ver «Gate 2 del tramo 3»). Commits: `013b84c`, `45e9608`, `060f152`, `770e90b` |
+| 2 · Verificación del tramo 3 | 2026-10-08 | **Aprobado por Luciano el 08/10 con las correcciones 1 a 6 y las respuestas (a) y (b)** (ver «Gate 2 del tramo 3»). Commits: `013b84c`, `45e9608`, `060f152`, `770e90b`, `9c10849`, `c42b088`, `7f24732`, `9e614cf`, `ded6200`, `f6cbf63` y el de documentación de la revisión posterior |
 | 3 · PR | | |
 
 ## Progreso
@@ -652,10 +652,23 @@ modelo ORM declara `uq_recordatorio_de_turno` como `Index(..., unique=True)`, ig
    anticipación más cercana, la pendiente queda `DESCARTADO` con `ANTICIPACION_SUPERADA`. No hay `CHECK`
    sobre los motivos, así que la migración 0039 no cambia.
 5. Todo descarte deja el log `recordatorio_de_turno_descartado` (ids, anticipación y motivo) y el evento
-   de bitácora `enviar_recordatorio_de_turno` con resultado completado y `detalle={"motivo": ...}`,
-   sin datos personales.
+   de bitácora `enviar_recordatorio_de_turno` con resultado completado y
+   `detalle={"desenlace": "DESCARTADO", "motivo": ...}`, sin datos personales. Los eventos de envío
+   llevan `detalle={"desenlace": "ENVIADO"}` (o `"FALLIDO"`), para distinguirlos de los descartes.
 6. `AdvertenciaDeRecordatorio` no se muestra con los recordatorios apagados ni sin WhatsApp conectado;
    la ruta de PAN-CFG-NOT resuelve los dos datos con `GET /reglas` y `GET /integraciones`.
+
+7. **Revisión posterior (09/10, commits `9e614cf`, `ded6200`, `f6cbf63`).** La compuerta de la prueba
+   de PostgreSQL de reintentos cuenta solo los dos primeros pedidos del candado (la relectura de la
+   fase 3 ya no la desbalancea); el estado del turno (`TURNO_CERRADO`, `FRANJA_CAMBIADA`,
+   `TURNO_EMPEZADO`) se evalúa antes que los motivos de agenda; el log
+   `recordatorio_de_turno_resultado_descartado` incluye `enviado` y el código de falla; la ruta de
+   plantillas considera apagados los recordatorios de una agenda activa sin anticipaciones (igual que
+   el backend); cada `# type: ignore[method-assign]` de las pruebas lleva su justificación. Las filas
+   que quedan sin resolver sin canal o con agenda mal formada: pendiente en `TODO.md` §25.
+
+   Commits de las correcciones del tramo 3 en orden: `013b84c`, `45e9608`, `060f152`, `770e90b`,
+   `9c10849`, `c42b088`, `7f24732`, `9e614cf`, `ded6200`, `f6cbf63`.
 
 - (a) Confirmado: `AGENDA_APAGADA` descarta los reintentos pendientes. Además, una fila pendiente cuya
   anticipación se **quitó** de la agenda queda `DESCARTADO` con el motivo nuevo `ANTICIPACION_QUITADA`.

@@ -754,3 +754,10 @@ HU-E4-05.
   en la propia función `SECURITY DEFINER` (unir con la integración `WHATSAPP` conectada), o correr la
   pasada 1 en modo «solo resolver» (sin llamar a Meta) para esas empresas. Sin unidad: fuera del alcance
   del Gate 2 del tramo 3.
+- **Las filas de recordatorio quedan sin resolver (en curso) mientras la empresa no tiene canal de
+  WhatsApp o su agenda está mal formada.** La pasada 1 del barrido (la que resuelve ventanas vencidas
+  como `INCIERTO` y retoma reintentos) no corre cuando no hay canal (`SinCanal`, D-U8-13) ni cuando la
+  agenda es inválida (`recordatorios_de_turno_agenda_invalida`): el barrido sale antes. Una fila «en
+  curso» o con reintento pendiente de esa empresa queda tal cual hasta que el canal o la agenda se
+  arreglen. No se manda nada de más (es seguro), pero el estado queda desactualizado. Trabajo futuro:
+  correr la pasada 1 en modo «solo resolver» (sin llamar a Meta) también en esos casos. Sin unidad.
