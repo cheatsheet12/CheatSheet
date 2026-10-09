@@ -103,8 +103,8 @@ guard de host, que una herramienta faltante es SKIPPED).
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-08 | pedido por Luciano; este plan se escribió junto con la implementación, a pedido expreso |
-| 2 · Verificación | | pendiente: los pasos con Docker, `jq`, `gitleaks` y Node no se pudieron ejecutar todavía |
-| 3 · PR | | no se hace push ni PR hasta que Luciano lo pida |
+| 2 · Verificación | 2026-10-09 | Aprobado por Luciano. Corrida completa con Docker, `jq`, `gitleaks` 8.21.2 y Node: veredicto COMPLETE sobre tres ramas y un fallo real detectado en otra. Los cuatro defectos de Windows de la primera corrida se corrigieron con tests (`90befda`, `3eb8eaa`, `eeb4c39`) |
+| 3 · PR | 2026-10-09 | PR abierto; se mergea cuando el equipo acepte el ADR-0016 en el PR |
 
 ## Decisiones tomadas durante la unidad
 
