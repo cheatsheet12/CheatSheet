@@ -17,7 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cheatsheet.contexts.integrations.application.errors import CuentaDeWhatsAppEnUso
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
-from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca, TicketDeAcceso
+from cheatsheet.contexts.integrations.domain.ticket import (
+    ServicioDeArca,
+    TicketDeAcceso,
+    TicketDePlataforma,
+)
 from cheatsheet.contexts.integrations.domain.valores import (
     Ambiente,
     CredencialCifrada,
@@ -27,6 +31,7 @@ from cheatsheet.contexts.integrations.domain.valores import (
 from cheatsheet.contexts.integrations.infrastructure.models import (
     ConfiguracionDeIntegracionORM,
     TicketDeAccesoORM,
+    TicketDePlataformaORM,
 )
 from cheatsheet.shared.empresa import EmpresaId
 
@@ -273,3 +278,47 @@ async def empresas_con_integracion_de_mercadopago(sesion: AsyncSession) -> list[
         text("SELECT empresa_id FROM empresas_con_integracion_de_mercadopago()")
     )
     return [EmpresaId(valor) for (valor,) in filas.all()]
+
+
+class RepositorioTicketsDePlataformaSQL:
+    """Implements `PortRepositorioTicketsDePlataforma` (ADR-0014).
+
+    `buscar_para_renovar` takes a row lock (`FOR UPDATE`) so two requests minting at once
+    queue behind each other instead of both asking WSAA, which would hand a ticket to one
+    and `coe.alreadyAuthenticated` to the other.
+    """
+
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._sesion = sesion
+
+    async def buscar_para_renovar(self, servicio: ServicioDeArca) -> TicketDePlataforma | None:
+        consulta = (
+            select(TicketDePlataformaORM)
+            .where(TicketDePlataformaORM.servicio == servicio.value)
+            .with_for_update()
+        )
+        fila = (await self._sesion.execute(consulta)).scalar_one_or_none()
+        if fila is None:
+            return None
+        return TicketDePlataforma(
+            servicio=ServicioDeArca(fila.servicio),
+            contenido=CredencialCifrada(contenido=fila.contenido_cifrado, algoritmo=fila.algoritmo),
+            expira_en=fila.expira_en,
+        )
+
+    async def guardar(self, ticket: TicketDePlataforma) -> None:
+        fila = await self._sesion.get(TicketDePlataformaORM, ticket.servicio.value)
+        if fila is None:
+            self._sesion.add(
+                TicketDePlataformaORM(
+                    servicio=ticket.servicio.value,
+                    contenido_cifrado=ticket.contenido.contenido,
+                    algoritmo=ticket.contenido.algoritmo,
+                    expira_en=ticket.expira_en,
+                )
+            )
+        else:
+            fila.contenido_cifrado = ticket.contenido.contenido
+            fila.algoritmo = ticket.contenido.algoritmo
+            fila.expira_en = ticket.expira_en
+        await self._sesion.flush()

@@ -48,6 +48,15 @@ class ProveedorNoDisponible(RuntimeError):
     """
 
 
+class TicketTodaviaVigente(ProveedorNoDisponible):
+    """ARCA still holds a live ticket for this certificate and service, and refused another.
+
+    In the application layer so a use case can react to it without importing ARCA's
+    adapter: the reaction is "use the one already stored", and when none is stored, wait
+    for the live one to expire.
+    """
+
+
 class TicketNoDisponible(OperacionNoPermitida):
     """No usable ARCA access ticket could be produced for this company.
 

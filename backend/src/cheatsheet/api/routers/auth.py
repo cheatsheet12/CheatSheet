@@ -45,6 +45,10 @@ from cheatsheet.contexts.identity.infrastructure.resolucion import (
     empresa_de_refresh,
 )
 from cheatsheet.contexts.identity.infrastructure.seguridad import hashear_token_opaco
+from cheatsheet.contexts.integrations.application.delegacion import (
+    InvalidarDelegacionPorCambioDeCuit,
+)
+from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.roles import RolUsuario
@@ -456,6 +460,18 @@ def _rutas_autenticadas(recursos: Recursos) -> APIRouter:
                 nombre_responsable=entrada.nombre_responsable,
                 email_contacto=Email(entrada.email_contacto),
                 ahora=unidad.reloj.ahora(),
+                direccion_ip=_ip(request),
+            )
+            # ADR-0014: the CUIT decides on whose behalf ARCA authorises. A changed CUIT
+            # leaves ARCA not connected until its delegation is verified again.
+            await InvalidarDelegacionPorCambioDeCuit(
+                integraciones=Integraciones.armar(unidad.sesion, recursos.settings).integraciones,
+                publicador=unidad.publicador,
+            ).ejecutar(
+                empresa_id=empresa_id,
+                cuit=entrada.cuit,
+                ahora=unidad.reloj.ahora(),
+                usuario_id=usuario_id,
                 direccion_ip=_ip(request),
             )
             resultado = {"onboarding_completo": empresa.onboarding_completo}
