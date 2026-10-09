@@ -542,7 +542,7 @@ de H5.
   intentos >= 0`, índice parcial `ix_recordatorio_reintento`); sin backfill. `RepositorioRecordatoriosPostgres`
   pasó a `repositorio_recordatorio.py` (`repositories.py` superaba las 400 líneas). Sin tablas nuevas: `BORRADOS`
   no cambia.
-- **Cierra la parte de recordatorios de G5/ADR-0014** (E/S a Meta con la transacción abierta): ninguna
+- **Cierra la parte de recordatorios de G5/ADR-0015** (E/S a Meta con la transacción abierta): ninguna
   llamada a Meta de un recordatorio corre con escrituras sin confirmar ni locks (N1: tras `confirmar()` se
   abre una transacción nueva y vacía; no es «sin transacción abierta»). Los otros contextos (y los avisos de
   turno, tramo iii) siguen como estaban.
