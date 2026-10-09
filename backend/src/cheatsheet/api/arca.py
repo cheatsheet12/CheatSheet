@@ -17,7 +17,6 @@ bound to the current transaction.
 
 from __future__ import annotations
 
-from datetime import timedelta
 from uuid import UUID
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
@@ -43,7 +42,9 @@ from cheatsheet.contexts.integrations.application.errors import (
 )
 from cheatsheet.contexts.integrations.application.ports import PortRepositorioIntegraciones
 from cheatsheet.contexts.integrations.application.ticket import desempaquetar
-from cheatsheet.contexts.integrations.application.tickets import ObtenerTicketDeAcceso
+from cheatsheet.contexts.integrations.application.tickets_de_plataforma import (
+    ObtenerTicketDePlataforma,
+)
 from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
 from cheatsheet.contexts.integrations.domain.valores import SistemaExterno
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
@@ -56,9 +57,9 @@ from cheatsheet.platform.settings import AdaptadorDeCatalogos, Settings
 from cheatsheet.platform.wsfe import CredencialDeWsfe, PortCredencialesDeWsfe
 from cheatsheet.shared.empresa import EmpresaId
 
-#: The key under which the ARCA integration stores the CUIT extracted from the certificate
-#: when the company connected. Named here because this is the seam that translates
-#: `integrations`' vocabulary into WSFEv1's.
+#: The key under which the ARCA integration stores the company's CUIT, recorded when its
+#: delegation was verified (ADR-0014). It goes in `<Auth><Cuit>`: on whose behalf the
+#: platform certificate speaks.
 CLAVE_CUIT = "cuit"
 
 
@@ -78,7 +79,7 @@ class CredencialesDesdeIntegraciones:
     def __init__(
         self,
         *,
-        tickets: ObtenerTicketDeAcceso,
+        tickets: ObtenerTicketDePlataforma,
         integraciones: PortRepositorioIntegraciones,
         puntos: RepositorioPuntoDeVentaPostgres,
     ) -> None:
@@ -90,17 +91,15 @@ class CredencialesDesdeIntegraciones:
         configuracion = await self._integraciones.buscar(empresa_id, SistemaExterno.ARCA)
         if configuracion is None:
             # The ordinary case straight out of onboarding, not an anomaly: the company has
-            # not loaded its certificate yet.
+            # not verified its delegation yet.
             raise ArcaNoDisponible("La empresa no tiene conectada la integracion con ARCA")
 
         cuit = str(configuracion.parametros.get(CLAVE_CUIT, "")).strip()
         if not cuit:
-            raise ArcaNoDisponible("La integracion con ARCA no tiene el CUIT del certificado")
+            raise ArcaNoDisponible("La integracion con ARCA no tiene el CUIT de la empresa")
 
         try:
-            ticket = await self._tickets.ejecutar(
-                empresa_id=empresa_id, servicio=ServicioDeArca.WSFE
-            )
+            ticket = await self._tickets.ejecutar(ServicioDeArca.WSFE)
             token, sign = desempaquetar(ticket.contenido)
         except (TicketNoDisponible, ProveedorNoDisponible) as exc:
             raise ArcaNoDisponible(f"No se pudo obtener el ticket de ARCA: {exc}") from exc
@@ -114,7 +113,7 @@ class CredencialesDesdeIntegraciones:
 
 
 def armar_credenciales(unidad: UnidadDeTrabajo, settings: Settings) -> PortCredencialesDeWsfe:
-    """The company's WSFEv1 token, sign and CUIT, resolved through `integrations`.
+    """The platform's WSFEv1 token and sign, and the company's CUIT (ADR-0014).
 
     The ticket use case is inside the same transaction because obtaining one may have to
     mint one, and minting one persists it: ARCA refuses a second ticket while the first is
@@ -123,14 +122,7 @@ def armar_credenciales(unidad: UnidadDeTrabajo, settings: Settings) -> PortCrede
     """
     piezas = Integraciones.armar(unidad.sesion, settings)
     return CredencialesDesdeIntegraciones(
-        tickets=ObtenerTicketDeAcceso(
-            integraciones=piezas.integraciones,
-            tickets=piezas.tickets,
-            cifrado=piezas.cifrado,
-            adaptadores=piezas.adaptadores,
-            reloj=unidad.reloj,
-            margen=timedelta(minutes=settings.arca_margen_renovacion_minutos),
-        ),
+        tickets=piezas.tickets_de_plataforma,
         integraciones=piezas.integraciones,
         puntos=RepositorioPuntoDeVentaPostgres(unidad.sesion),
     )

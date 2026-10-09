@@ -15,7 +15,11 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
-from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca, TicketDeAcceso
+from cheatsheet.contexts.integrations.domain.ticket import (
+    ServicioDeArca,
+    TicketDeAcceso,
+    TicketDePlataforma,
+)
 from cheatsheet.contexts.integrations.domain.valores import (
     CredencialCifrada,
     EstadoDeConexion,
@@ -45,6 +49,17 @@ class PortRepositorioTickets(Protocol):
     async def buscar(
         self, empresa_id: EmpresaId, servicio: ServicioDeArca
     ) -> TicketDeAcceso | None: ...
+
+
+class PortRepositorioTicketsDePlataforma(Protocol):
+    """Where the platform certificate's sessions live, one per service (ADR-0014).
+
+    `buscar_para_renovar` locks the row: two requests minting at once would get one ticket
+    and one `coe.alreadyAuthenticated`, and the second would have nothing to use.
+    """
+
+    async def buscar_para_renovar(self, servicio: ServicioDeArca) -> TicketDePlataforma | None: ...
+    async def guardar(self, ticket: TicketDePlataforma) -> None: ...
 
 
 class PortCifradoDeCredenciales(Protocol):

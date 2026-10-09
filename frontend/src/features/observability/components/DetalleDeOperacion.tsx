@@ -20,11 +20,14 @@
 
 "use client";
 
+import { CircleAlert, ScrollText } from "lucide-react";
+
 import { Alert, Badge, formatearFechaHora } from "@/shared";
 import type { EstadoDeBadge } from "@/shared";
 
 import { ETIQUETAS_DE_MODULO, ETIQUETAS_DE_RESULTADO } from "../api/bitacora";
 import type { DetalleDeOperacion as Detalle, Operacion } from "../api/bitacora";
+import { nombreDeAccion } from "./formato";
 import { MarcaDeIniciador } from "./MarcasDeOperacion";
 import { TimelineDeEjecucion } from "./TimelineDeEjecucion";
 
@@ -71,13 +74,28 @@ export function DetalleDeOperacion({ detalle }: PropsDeDetalleDeOperacion): JSX.
       )}
 
       <section className="log-tarjeta">
-        <p className="log-cabecera__linea">
-          <Badge estado="pendiente">
-            {ETIQUETAS_DE_MODULO[operacion.modulo] ?? operacion.modulo}
-          </Badge>
-        </p>
-        <h2 className="log-cabecera__titulo">{operacion.accion}</h2>
-        <p className="log-cabecera__sub">{operacion.entidad_afectada}</p>
+        <div className="log-cabecera">
+          <span
+            className={`log-cabecera__icono${operacion.resultado === "error" ? " log-cabecera__icono--error" : ""}`}
+            aria-hidden="true"
+          >
+            {operacion.resultado === "error" ? (
+              <CircleAlert size={26} strokeWidth={1.8} />
+            ) : (
+              <ScrollText size={26} strokeWidth={1.8} />
+            )}
+          </span>
+          <div className="log-cabecera__texto">
+            <p className="log-cabecera__linea">
+              <Badge estado="pendiente">
+                {ETIQUETAS_DE_MODULO[operacion.modulo] ?? operacion.modulo}
+              </Badge>
+            </p>
+            <h2 className="log-cabecera__titulo">{nombreDeAccion(operacion.accion)}</h2>
+            <code className="log-cabecera__codigo">{operacion.accion}</code>
+            <p className="log-cabecera__sub">{operacion.entidad_afectada}</p>
+          </div>
+        </div>
 
         <div className="log-meta">
           <div>
