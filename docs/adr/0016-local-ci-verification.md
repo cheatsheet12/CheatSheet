@@ -1,4 +1,4 @@
-# ADR-0015 — Verify locally with the full CI summary while hosted CI is unavailable
+# ADR-0016 — Verify locally with the full CI summary while hosted CI is unavailable
 
 - **Status:** Proposed
 - **Date:** 2026-10-08

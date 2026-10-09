@@ -25,4 +25,4 @@ Every fixed bug starts with the test that reproduces it.
 
 To run the whole CI pipeline locally (PostgreSQL, Redis, RLS checks, coverage, frontend)
 see [`../scripts/local_ci/README.md`](../scripts/local_ci/README.md) and
-[ADR-0015](../../docs/adr/0015-local-ci-verification.md).
+[ADR-0016](../../docs/adr/0016-local-ci-verification.md).

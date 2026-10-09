@@ -2,7 +2,7 @@
 
 Runs, on your machine, the steps that [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)
 runs, and prints a Markdown summary you can paste into a Pull Request. Why it exists and when
-a summary counts as verification: [ADR-0015](../../../docs/adr/0015-local-ci-verification.md)
+a summary counts as verification: [ADR-0016](../../../docs/adr/0016-local-ci-verification.md)
 (Proposed).
 
 ```bash

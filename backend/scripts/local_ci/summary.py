@@ -71,6 +71,6 @@ def render_summary(results: Sequence[StepResult], verdict: Verdict, meta: RunMet
     lines += _failure_blocks(results)
     lines.append(
         "Reproduce: `python backend/scripts/run_local_ci.py` "
-        "(see docs/adr/0015-local-ci-verification.md)."
+        "(see docs/adr/0016-local-ci-verification.md)."
     )
     return "\n".join(lines) + "\n"

@@ -76,7 +76,7 @@ guard de host, que una herramienta faltante es SKIPPED).
 - [x] `backend/scripts/local_ci/*.py`, `backend/scripts/local_ci/README.md`
 - [x] `backend/scripts/run_local_ci.py`
 - [x] `backend/tests/scripts/test_local_ci_pure.py`
-- [x] `docs/adr/0015-local-ci-verification.md` (+ índice en `docs/adr/README.md`)
+- [x] `docs/adr/0016-local-ci-verification.md` (+ índice en `docs/adr/README.md`)
 - [x] `pyproject.toml` (`pythonpath`, `mypy_path`)
 - [x] `docs/aidlc/units/infra-ci-local.md`
 - [x] `backend/tests/README.md` (enlace)
@@ -108,7 +108,7 @@ guard de host, que una herramienta faltante es SKIPPED).
 
 ## Decisiones tomadas durante la unidad
 
-- ADR propuesto como **0015**: el 0014 ya lo usa `origin/feature/infra-adr-temporizadores-de-beat`.
+- ADR propuesto como **0016**: el 0014 es la delegación de ARCA (ya en `develop`) y el 0015 lo reserva `origin/feature/infra-adr-temporizadores-de-beat`.
 - Sin fila en `units.md`: se siguió el precedente de las otras unidades `infra-*` (ver arriba).
 - `mypy` recibe la lista de archivos por stdin y no por argumentos: la línea de comandos de Windows
   no admite los ~330 archivos que CI pasa con `xargs`.
