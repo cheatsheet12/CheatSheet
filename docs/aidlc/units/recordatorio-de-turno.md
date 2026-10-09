@@ -86,8 +86,8 @@ En U7 (`origin/feature/conversational-entregas-de-whatsapp-avisos`):
   la familia `empresas_con_*`. El «novena» del informe no se sostiene: los docstrings del repo ya
   numeran de forma inconsistente (0022 dice «novena», 0038 dice «octava»). El código nuevo no lleva
   ordinal.
-- **G5 (P9):** el ADR-0014 (#101) trata solo de Beat persistente (RedBeat + crontab). **No resuelve
-  G5** (E/S a Meta con la transacción abierta). Las referencias «G5/ADR-0014» de U6, U7 y
+- **G5 (P9):** el ADR-0015 (#101) trata solo de Beat persistente (RedBeat + crontab). **No resuelve
+  G5** (E/S a Meta con la transacción abierta). Las referencias «G5/ADR-0015» de U6, U7 y
   `TODO.md` §22.57/§22.64 están mal; corregirlas es de esas unidades, no de esta (se avisa, no se toca).
 
 ## Decisiones aprobadas para este Gate 1
@@ -111,7 +111,7 @@ recomendaron**. Numeración: la decisión *n* del informe es **D-U8-(7+n)**.
 
 **Premisas del plan del 04/10 que cambiaron:** P1 (falta `transitoria`), P3 (el orden INSERT → Meta →
 UPDATE es el defecto H1 de U7, §22.57), P4 (el barrido no tiene actor), P5 (`SinCanal` falla tarde),
-P6 (patrón `atencion.py`), P7/P8 (0039; ordinal corregido arriba), P9 (ADR-0014 no resuelve G5) y P12
+P6 (patrón `atencion.py`), P7/P8 (0039; ordinal corregido arriba), P9 (ADR-0015 no resuelve G5) y P12
 (módulos nuevos). Siguen valiendo: plantilla `recordatorio_de_turno` y sus variables,
 `variables_de_aviso`, la lógica D-U8-3/D-U8-4 y el descriptor del SISTEMA para el intérprete.
 
@@ -378,7 +378,7 @@ futura, si hiciera falta, solo podría tocar filas con `franja_inicio < now()`.
 | **3 · Barrido y envío** | `feature/scheduling-recordatorio-de-turno-barrido` | Extracción a `shared/`; `transitoria` en conversational; caso de uso en tres tiempos; adaptadores; `api/recordatorios_de_turno.py`; worker, Beat, settings; advertencia PAN-CFG-NOT; tests de caso de uso e integración; pendientes #7 y #11 | ~1.100 | Tramo 2 y **U7 mergeada** |
 
 **Orden de merge del épico:** U6 → U7 (i, ii, iii) → U8 (1 → 2 → 3). El tramo 1 puede adelantarse a U7.
-ADR-0014 no bloquea.
+ADR-0015 no bloquea.
 
 ## Archivos a tocar
 
@@ -467,7 +467,7 @@ PostgreSQL en la CI.
   plantillas: si `recordatorio_de_turno` no está aprobada, el recordatorio queda `FALLIDO` (permanente,
   sin reintento) para casi todos los clientes, porque un recordatorio de 24 h casi nunca cae dentro de
   la ventana. Mitigación: advertencia en PAN-CFG-NOT y nota explícita en el PR.
-- **G5 no lo resuelve el ADR-0014.** U8 no lo agrava: la llamada a Meta corre sin escrituras sin
+- **G5 no lo resuelve el ADR-0015.** U8 no lo agrava: la llamada a Meta corre sin escrituras sin
   confirmar ni locks (D-U8-10). Queda la **ventana residual** de §22.60 (milisegundos entre la respuesta
   de Meta y el commit del tiempo 3, en los que un callback no encuentra el `wamid`); es la misma que la
   de los recordatorios de cobro y se mide con la app de prueba.
