@@ -74,8 +74,13 @@ export type ResultadoDeRenovacion =
  *
  * **A rejected rotation clears both cookies.** The backend treats a reused token as
  * theft and revokes the whole family; leaving the browser holding a dead one would loop
- * it through renewal on every request. A 5xx clears them too: nothing better can be done
- * with a session the API cannot vouch for.
+ * it through renewal on every request. "Rejected" is any 4xx: the API answered, and the
+ * answer is about the token (revoked and reused ones come back as 409, not 401).
+ *
+ * **An API that cannot answer clears nothing.** A 5xx, a timeout or a dropped connection
+ * says nothing about the token, so both cookies stay as they were and the next attempt
+ * renews normally. The access cookie stays too: it expires on its own, and deleting it
+ * would only trigger a navigation renewal against the same outage.
  */
 export async function renovarSesion(): Promise<ResultadoDeRenovacion> {
   const refresh = leerRefresh();
@@ -91,11 +96,12 @@ export async function renovarSesion(): Promise<ResultadoDeRenovacion> {
     guardarRefresh(sesion.refresh_token);
     return { tipo: "renovada", onboardingCompleto: sesion.onboarding_completo };
   } catch (error) {
-    cerrarSesion();
-    borrarRefresh();
-    return error instanceof ErrorDeApi && error.status < 500
-      ? { tipo: "rechazada" }
-      : { tipo: "caida" };
+    if (error instanceof ErrorDeApi && error.status < 500) {
+      cerrarSesion();
+      borrarRefresh();
+      return { tipo: "rechazada" };
+    }
+    return { tipo: "caida" };
   }
 }
 
