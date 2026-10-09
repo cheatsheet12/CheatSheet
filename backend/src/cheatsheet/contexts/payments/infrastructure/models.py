@@ -163,11 +163,11 @@ class RecordatorioORM(Base):
     enviado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     estado_entrega: Mapped[str | None] = mapped_column(String(20), nullable=True)
     #: El `wamid` con el que Meta aceptó el mensaje: así un callback `statuses[]` encuentra su
-    #: recordatorio (U7, migración 0037). Único en todo el sistema, no solo por empresa.
+    #: recordatorio (U7, migración 0038). Único en todo el sistema, no solo por empresa.
     externo_id: Mapped[str | None] = mapped_column(String(LARGO_MAXIMO_EXTERNO_ID), nullable=True)
     #: Por qué falló el envío: un código de Meta o una clase corta (`INCIERTO`, `SIN_CANAL`...).
     ultimo_error: Mapped[str | None] = mapped_column(String(60), nullable=True)
-    #: Cuántos envíos **empezaron** (U7, migración 0038): se cuenta antes de llamar a Meta.
+    #: Cuántos envíos **empezaron** (U7, migración 0039): se cuenta antes de llamar a Meta.
     intentos: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     #: Mientras un envío está en curso, cuándo se lo da por perdido; mientras espera un reintento,
     #: cuándo toca. Índice parcial `ix_recordatorio_reintento`.

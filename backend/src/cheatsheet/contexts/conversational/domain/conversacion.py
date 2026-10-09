@@ -88,7 +88,7 @@ class EstadoEntrega(StrEnum):
     FALLIDO = "FALLIDO"
 
 
-#: El largo de la columna `mensaje.motivo_de_falla` (migración 0037).
+#: El largo de la columna `mensaje.motivo_de_falla` (migración 0038).
 LARGO_MAXIMO_MOTIVO_DE_FALLA = 60
 
 

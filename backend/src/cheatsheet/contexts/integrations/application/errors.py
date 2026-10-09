@@ -109,7 +109,7 @@ class CuentaDeWhatsAppEnUso(InvarianteViolada):
     """The WhatsApp business account is already linked to another empresa.
 
     An `InvarianteViolada` — answered as 409 — because the input is well-formed and the
-    conflict is with state that exists: the unique index of migration 0036 allows one
+    conflict is with state that exists: the unique index of migration 0037 allows one
     empresa per WABA. Without it, a second empresa registering somebody else's WABA would
     steal or block that company's template webhooks, which resolve the company from the WABA.
 

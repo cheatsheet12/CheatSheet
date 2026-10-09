@@ -1,6 +1,6 @@
 """One WhatsApp business account, one empresa (G4 of the Gate 2 of `plantillas-de-whatsapp-en-meta`).
 
-What a double cannot prove: that the unique partial index of migration 0036 stops a second
+What a double cannot prove: that the unique partial index of migration 0037 stops a second
 empresa from registering a WABA that is already linked, across tenants and through RLS, and that
 the repository turns that into `CuentaDeWhatsAppEnUso`. They need PostgreSQL: skipped without a
 database, run in CI.

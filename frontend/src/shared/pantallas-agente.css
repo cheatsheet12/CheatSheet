@@ -6119,3 +6119,8 @@
     transition: none;
   }
 }
+
+/* U6: en la tarjeta, el estado con su motivo y las acciones se alinean arriba, no al centro. */
+.pln-tarjeta .pln-tarjeta__pie {
+  align-items: flex-start;
+}
