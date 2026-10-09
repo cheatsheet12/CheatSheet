@@ -31,9 +31,7 @@ from cheatsheet.contexts.scheduling.application.turnos import (
     VerAgenda,
     VerTurno,
 )
-from cheatsheet.contexts.scheduling.domain.recurso import (
-    ZONA_DE_LA_AGENDA,
-)
+from cheatsheet.contexts.scheduling.domain.recurso import ZONA_DE_LA_AGENDA
 from cheatsheet.contexts.scheduling.domain.turno import EstadoTurno
 from cheatsheet.contexts.scheduling.infrastructure.ensamblado import Agenda
 from fastapi import APIRouter, Query, Request, status
