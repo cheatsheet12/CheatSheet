@@ -1,6 +1,6 @@
 """A WhatsApp business account belongs to one empresa (unit `plantillas-de-whatsapp-en-meta`, G4).
 
-The unique index of migration 0036 is the guard; this proves the repository turns *that* index's
+The unique index of migration 0037 is the guard; this proves the repository turns *that* index's
 violation into a domain error answered as 409, and lets every other violation through untouched.
 The index itself is proven against PostgreSQL in `tests/integracion/test_waba_unica_postgres.py`.
 """

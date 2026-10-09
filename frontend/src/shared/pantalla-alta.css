@@ -1,0 +1,217 @@
+/*
+ * El alta de una cuenta (onboarding paso 2 e invitación). Reutiliza la maqueta `lgn-*` del
+ * ingreso; acá sólo vive lo propio: el stepper vertical de la columna izquierda y el pulido
+ * del formulario. Prefijo `alta-`. El movimiento se apaga con `prefers-reduced-motion`
+ * (la regla `.lgn *` de `pantalla-de-ingreso.css` ya cubre todo lo que cuelga de `.alta`).
+ */
+
+/* ── Stepper vertical ─────────────────────────────────────────────────────────────────── */
+.alta-pasos {
+  display: grid;
+  gap: 0;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.alta-paso {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink-400);
+  animation: lgn-entra 0.6s calc(0.32s + var(--i) * 0.09s) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* El hilo que une un paso con el siguiente. */
+.alta-paso:not(:last-child) {
+  margin-bottom: 14px;
+}
+
+.alta-paso:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 32px;
+  top: 100%;
+  width: 2px;
+  height: 14px;
+  background: var(--line);
+}
+
+.alta-paso--hecho:not(:last-child)::after {
+  background: var(--accent);
+}
+
+.alta-paso__marca {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-400);
+}
+
+.alta-paso__texto strong {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--ink-500);
+}
+
+.alta-paso__texto small {
+  display: block;
+  margin-top: 1px;
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+.alta-paso--hecho .alta-paso__marca {
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+  color: var(--accent-700);
+}
+
+.alta-paso--hecho .alta-paso__texto strong {
+  color: var(--ink-900);
+}
+
+.alta-paso--actual {
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px rgb(30 30 46 / 8%);
+}
+
+.alta-paso--actual .alta-paso__marca {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--color-text-on-dark);
+}
+
+.alta-paso--actual .alta-paso__texto strong {
+  color: var(--ink-900);
+}
+
+.alta-paso--actual .alta-paso__texto small {
+  color: var(--ink-500);
+}
+
+.alta-paso__flecha {
+  margin-left: auto;
+  flex: none;
+  color: var(--accent-700);
+}
+
+/* ── Por qué se pide cada dato ────────────────────────────────────────────────────────── */
+.alta-nota {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px dashed var(--ink-300);
+  animation: lgn-entra 0.6s calc(0.32s + var(--i) * 0.09s) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.alta-nota__titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-700);
+}
+
+.alta-nota ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-500);
+}
+
+/* ── Columna del formulario ───────────────────────────────────────────────────────────── */
+.alta .lgn-form__contenido {
+  max-width: 30rem;
+}
+
+.alta .onb-titulo {
+  margin: 0 0 8px;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.alta .onb-sub {
+  margin: 0 0 28px;
+  font-size: 15px;
+}
+
+/* En escritorio el stepper, «PASO 2 DE 3» y la barra viven en la columna izquierda. En
+   pantallas angostas esa columna desaparece y el formulario recupera los suyos. */
+@media (width > 960px) {
+  .alta .onb-stepper,
+  .alta .onb-etiqueta,
+  .alta .onb-progreso {
+    display: none;
+  }
+}
+
+.alta .acc-accion {
+  margin-top: 20px;
+}
+
+.alta .onb-proteccion {
+  border: 1px solid var(--accent-100);
+  border-radius: 12px;
+}
+
+/* Entrada escalonada de los bloques del formulario. */
+.alta form > * {
+  animation: lgn-entra 0.5s calc(0.2s + var(--n, 0) * 0.06s) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.alta form > :nth-child(2) {
+  --n: 1;
+}
+
+.alta form > :nth-child(3) {
+  --n: 2;
+}
+
+.alta form > :nth-child(4) {
+  --n: 3;
+}
+
+.alta form > :nth-child(5) {
+  --n: 4;
+}
+
+.alta form > :nth-child(n + 6) {
+  --n: 5;
+}
+
+/* ── Registro: la casilla de términos ─────────────────────────────────────────────────── */
+/* Con un texto largo la etiqueta no entraba junto a la casilla y caía debajo. Se le da
+   base cero para que ocupe el resto de la fila; el error sigue bajando a su propia línea. */
+.lgn-form .acc-terminos .campo--casilla {
+  align-items: flex-start;
+  line-height: 1.5;
+}
+
+.lgn-form .acc-terminos .campo--casilla input {
+  margin-top: 2px;
+}
+
+.lgn-form .acc-terminos .campo--casilla label {
+  flex: 1 1 0;
+  min-width: 0;
+}

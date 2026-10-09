@@ -1,7 +1,7 @@
 """Appointment reminders: when a slot was fixed, and one row per reminder (`recordatorio-de-turno`).
 
-Revision ID: 0039
-Revises: 0038
+Revision ID: 0040
+Revises: 0039
 
 1. **`turno.franja_asignada_en`** (`timestamptz NOT NULL`): when the *current* slot was fixed, at
    booking or at the last reschedule. `updated_at` cannot say it (it also moves on confirmation).
@@ -39,8 +39,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0039"
-down_revision: str | None = "0038"
+revision: str = "0040"
+down_revision: str | None = "0039"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

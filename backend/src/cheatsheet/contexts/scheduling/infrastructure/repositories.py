@@ -280,7 +280,7 @@ class RepositorioTurnoPostgres:
     async def abiertos_con_inicio_entre(self, desde: datetime, hasta: datetime) -> list[Turno]:
         """Los turnos abiertos con `desde < inicio <= hasta`, por inicio (el barrido de avisos).
 
-        Lee `ix_turno_abierto_inicio`, el índice parcial de la migración 0039. Los abiertos son
+        Lee `ix_turno_abierto_inicio`, el índice parcial de la migración 0040. Los abiertos son
         `RESERVADO` y `CONFIRMADO`: la misma condición que el índice.
         """
         # Los estados van como **literales** y no como parámetros enlazados: con parámetros,
@@ -354,7 +354,7 @@ def _a_fila(turno: Turno, fila: TurnoORM) -> TurnoORM:
     fila.created_at = turno.created_at or datetime.now(tz=ZONA_DE_LA_AGENDA)
     fila.updated_at = turno.updated_at or fila.created_at
     # Respaldo de un `Turno` armado sin el campo (la aplicación siempre lo fija): en un alta es el
-    # mismo instante que la inserción. Los turnos que ya existían los resuelve la migración 0039.
+    # mismo instante que la inserción. Los turnos que ya existían los resuelve la migración 0040.
     fila.franja_asignada_en = turno.franja_asignada_en or fila.created_at
     return fila
 

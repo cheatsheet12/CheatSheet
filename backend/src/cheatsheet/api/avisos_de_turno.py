@@ -12,7 +12,7 @@ necesita un `CanalConFallasTraducidas` como el de `payments`: el motivo viaja co
 **El mensaje se escribe en un savepoint** (`sesion.begin_nested`) dentro de la transacción de la
 operación del panel: si la base lo rechaza, el turno queda cancelado igual y el adaptador de
 `scheduling` deja `aviso_de_turno_sin_registrar`. El envío a Meta, que ya ocurrió, no se repite. La
-E/S a Meta sigue corriendo dentro de esa transacción (hallazgo G5 / ADR-0014): este cambio no la
+E/S a Meta sigue corriendo dentro de esa transacción (hallazgo G5 / ADR-0015): este cambio no la
 agrava ni la resuelve para los avisos de turno.
 """
 

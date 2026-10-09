@@ -3,7 +3,7 @@
 **Por qué tres tiempos.** El barrido corre en la unidad de trabajo de la empresa, que confirma recién
 al final. Si insertaba la fila, llamaba a Meta y guardaba el resultado todo ahí adentro, un callback
 `failed` o `delivered` que llegara antes del commit no encontraba la fila y se perdía (H1,
-`TODO.md` §22.57), y la llamada a Meta corría con escrituras sin confirmar (G5, ADR-0014). Ahora:
+`TODO.md` §22.57), y la llamada a Meta corría con escrituras sin confirmar (G5, ADR-0015). Ahora:
 
 1. **Reservar** (transacción corta): se **prepara** el mensaje (lee el contacto y la plantilla) y se
    escribe la fila con el intento ya contado (`intentos = n`, `proximo_intento_en = reloj.ahora() +

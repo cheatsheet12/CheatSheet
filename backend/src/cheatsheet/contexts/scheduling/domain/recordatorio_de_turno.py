@@ -1,7 +1,7 @@
 """`RecordatorioDeTurno` — un aviso de un turno y la regla de cuándo corresponde mandarlo.
 
 Una fila por `(turno, anticipación, franja)`. **La idempotencia vive en el índice único de la
-migración 0039**, no en una ventana de tiempo: el mismo criterio que D25 en cobros. El estado de
+migración 0040**, no en una ventana de tiempo: el mismo criterio que D25 en cobros. El estado de
 entrega (enviado, entregado, leído) no se duplica acá: vive en el mensaje `SISTEMA` del hilo.
 
 Estados de una fila, por sus columnas (`resultado` / `intentos` / `proximo_intento_en` /

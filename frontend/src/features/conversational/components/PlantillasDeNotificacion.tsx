@@ -27,10 +27,23 @@
 
 "use client";
 
+import {
+  Bell,
+  CalendarCheck,
+  CalendarClock,
+  CalendarSync,
+  CalendarX,
+  CreditCard,
+  Info,
+  MessageCircle,
+  MessageSquareText,
+  Pencil,
+  TriangleAlert,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
 
-import { Alert, Button, Tabla } from "@/shared";
-import type { Columna } from "@/shared";
+import { Alert, Button } from "@/shared";
 
 import {
   ETIQUETAS_DE_CANAL,
@@ -64,6 +77,20 @@ function nombreDe(plantilla: Plantilla): string {
   return ETIQUETAS_DE_CODIGO[plantilla.codigo] ?? plantilla.codigo;
 }
 
+/** El ícono de cada mensaje, por su código; uno genérico para el que no se conozca. */
+const ICONOS_DE_CODIGO: Readonly<Record<string, LucideIcon>> = {
+  turno_confirmado: CalendarCheck,
+  turno_cancelado: CalendarX,
+  turno_reprogramado: CalendarSync,
+  recordatorio_de_turno: CalendarClock,
+  recordatorio_de_cobro: Bell,
+  cobro_generado: CreditCard,
+};
+
+function iconoDe(plantilla: Plantilla): LucideIcon {
+  return ICONOS_DE_CODIGO[plantilla.codigo] ?? MessageSquareText;
+}
+
 /**
  * El único valor de una columna, o `null` si hay más de uno.
  *
@@ -95,7 +122,7 @@ export function PlantillasDeNotificacion({
   const bordeInvalido =
     editando !== null && editando.canal === "WHATSAPP" && empiezaOTerminaConVariable(cuerpo);
 
-  // Canal e idioma sólo son columna cuando de verdad varían entre filas.
+  // Canal e idioma sólo van en la tarjeta cuando de verdad varían entre plantillas.
   const canalUnico = unicoValor(plantillas.map((una) => una.canal));
   const idiomaUnico = unicoValor(plantillas.map((una) => una.idioma));
 
@@ -154,96 +181,16 @@ export function PlantillasDeNotificacion({
     });
   }
 
-  // Sin permiso de edición la columna no existe, en vez de existir con el encabezado puesto
-  // y las celdas en blanco: una columna vacía se lee como datos que faltan.
-  const acciones: Columna<Plantilla> = {
-    clave: "acciones",
-    titulo: "Acciones",
-    alDerecha: true,
-    celda: (fila) => {
-      const bloqueo = motivoDeBloqueo(fila, new Date());
-      const reenviable =
-        fila.canal === "WHATSAPP" &&
-        (fila.estado_aprobacion === "SIN_ENVIAR" || fila.estado_aprobacion === "RECHAZADA");
-      return (
-        <div className="plt-acciones">
-          <button
-            type="button"
-            className="plt-accion"
-            disabled={bloqueo !== null}
-            aria-describedby={bloqueo === null ? undefined : `plt-bloqueo-${fila.id}`}
-            onClick={() => {
-              setEditando(fila);
-              setCuerpo(fila.cuerpo);
-            }}
-          >
-            Editar texto
-          </button>
-          {reenviable && (
-            <button
-              type="button"
-              className="plt-accion"
-              disabled={trabajando}
-              onClick={() => void reenviar(fila)}
-            >
-              Enviar a revisión
-            </button>
-          )}
-          {bloqueo !== null && (
-            <p className="plt-nota" id={`plt-bloqueo-${fila.id}`}>
-              {bloqueo}
-            </p>
-          )}
-        </div>
-      );
-    },
-  };
-
-  const columnas: readonly Columna<Plantilla>[] = [
-    {
-      clave: "codigo",
-      titulo: "Mensaje",
-      celda: (fila) => <span className="plt-nombre">{nombreDe(fila)}</span>,
-    },
-    // `WHATSAPP` y `es_AR` nunca se imprimen crudos: es la misma doctrina que aplica
-    // `nombreDe` al código, y no había razón para que estas dos columnas quedaran afuera.
-    ...(canalUnico !== null
-      ? []
-      : [
-          {
-            clave: "canal",
-            titulo: "Canal",
-            celda: (fila: Plantilla) => (
-              <span className="plt-canal">{ETIQUETAS_DE_CANAL[fila.canal]}</span>
-            ),
-          },
-        ]),
-    ...(idiomaUnico !== null
-      ? []
-      : [
-          {
-            clave: "idioma",
-            titulo: "Idioma",
-            celda: (fila: Plantilla) => (
-              <span className="plt-idioma">{nombreDeIdioma(fila.idioma)}</span>
-            ),
-          },
-        ]),
-    {
-      clave: "estado",
-      titulo: "Estado",
-      celda: (fila) => <EstadoDePlantilla plantilla={fila} />,
-    },
-    ...(puedeEditar ? [acciones] : []),
-  ];
-
   return (
     <>
-      <header className="plt-encabezado">
+      <header className="pln-encabezado">
+        <span className="pln-encabezado__icono" aria-hidden="true">
+          <MessageSquareText size={22} strokeWidth={1.75} />
+        </span>
         <div>
-          <p className="plt-encabezado__eyebrow">Configuración · Notificaciones</p>
+          <p className="pln-encabezado__eyebrow">Configuración · Notificaciones</p>
           <h1>Plantillas de notificación</h1>
-          <p className="plt-encabezado__intro">
+          <p className="pln-encabezado__intro">
             Los mensajes que el sistema manda a tus clientes. Podés editar el texto y usar las
             variables que cada uno admite; el sistema las reemplaza al enviar.
           </p>
@@ -259,50 +206,61 @@ export function PlantillasDeNotificacion({
       {frenadas > 0 && (
         // RN-04: una plantilla de WhatsApp sin aprobar no se puede usar por ese canal. Decirlo
         // acá evita que alguien edite el texto y se pregunte por qué el cliente no recibe nada.
-        <Alert tono="advertencia" titulo="Hay plantillas sin aprobar">
-          WhatsApp exige que Meta apruebe las plantillas antes de poder enviarlas. Mientras tanto,
-          el sistema manda el texto de fábrica, y fuera de las 24 horas de una conversación Meta no
-          lo entrega.
-        </Alert>
+        <div className="pln-aviso" role="status">
+          <TriangleAlert
+            className="pln-aviso__icono"
+            size={18}
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
+          <div>
+            <p className="pln-aviso__titulo">Hay plantillas sin aprobar</p>
+            <p className="pln-aviso__texto">
+              WhatsApp exige que Meta apruebe las plantillas antes de poder enviarlas. Mientras
+              tanto, el sistema manda el texto de fábrica, y fuera de las 24 horas de una
+              conversación Meta no lo entrega.
+            </p>
+          </div>
+        </div>
       )}
 
       {editando !== null && (
-        <section className="plt-editor" aria-labelledby="plt-editor-titulo">
-          <header className="plt-editor__head">
+        <section className="pln-editor" aria-labelledby="pln-editor-titulo">
+          <header className="pln-editor__head">
             <div>
-              <p className="plt-editor__eyebrow">Editando el texto</p>
-              <h2 className="plt-editor__titulo" id="plt-editor-titulo">
+              <p className="pln-editor__eyebrow">Editando el texto</p>
+              <h2 className="pln-editor__titulo" id="pln-editor-titulo">
                 {nombreDe(editando)}
               </h2>
             </div>
-            <span className="plt-editor__meta">
+            <span className="pln-editor__meta">
               {ETIQUETAS_DE_CANAL[editando.canal]} · {nombreDeIdioma(editando.idioma)}
             </span>
           </header>
 
           <form
-            className="plt-editor__cuerpo"
+            className="pln-editor__cuerpo"
             onSubmit={(evento) => {
               evento.preventDefault();
               void guardar();
             }}
           >
-            <div className="plt-vars">
-              <p className="plt-vars__titulo" id="plt-vars-titulo">
+            <div className="pln-vars">
+              <p className="pln-vars__titulo" id="pln-vars-titulo">
                 Variables disponibles
               </p>
-              <p className="plt-vars__ayuda">
+              <p className="pln-vars__ayuda">
                 Van entre llaves dobles y el sistema las reemplaza al enviar; una que no esté en
                 esta lista no se puede guardar. Tocá una para insertarla donde tengas el cursor.
               </p>
               {/* La lista lleva nombre accesible: es la respuesta a «¿qué puedo escribir acá?»,
                   y sin él se anuncia como «lista, 4 elementos» al lado de un cuadro de texto. */}
-              <ul className="plt-vars__lista" aria-labelledby="plt-vars-titulo">
+              <ul className="pln-vars__lista" aria-labelledby="pln-vars-titulo">
                 {editando.variables.map((una) => (
                   <li key={una}>
                     <button
                       type="button"
-                      className="plt-var"
+                      className="pln-var"
                       onClick={() => insertarVariable(una)}
                     >{`{{${una}}}`}</button>
                   </li>
@@ -320,7 +278,7 @@ export function PlantillasDeNotificacion({
               <textarea
                 id="plantilla-cuerpo"
                 ref={area}
-                className="campo__control plt-area"
+                className="campo__control pln-area"
                 rows={5}
                 value={cuerpo}
                 onChange={(evento) => setCuerpo(evento.target.value)}
@@ -339,8 +297,8 @@ export function PlantillasDeNotificacion({
               </Alert>
             )}
 
-            <div className="plt-editor__pie">
-              <button type="button" className="plt-accion" onClick={() => setEditando(null)}>
+            <div className="pln-editor__pie">
+              <button type="button" className="pln-accion" onClick={() => setEditando(null)}>
                 Cancelar
               </button>
               <Button
@@ -355,39 +313,108 @@ export function PlantillasDeNotificacion({
         </section>
       )}
 
-      <div className="plt-barra">
-        <p className="plt-barra__cuenta">
+      <div className="pln-resumen">
+        <p className="pln-resumen__cuenta">
           <b>{plantillas.length}</b> {plantillas.length === 1 ? "plantilla" : "plantillas"} ·{" "}
           <b>{frenadas}</b> {frenadas === 1 ? "espera" : "esperan"} la aprobación de Meta
         </p>
-        {/* Lo que todas comparten, dicho una vez. Doce celdas con el mismo valor no son
-            información: son ancho que le falta a la columna que sí varía. */}
+        {/* Lo que todas comparten, dicho una vez: repetido en cada tarjeta no es información. */}
         {(canalUnico !== null || idiomaUnico !== null) && (
-          <p className="plt-barra__constante">
-            {canalUnico !== null && (
-              <>
-                Todas por <b>{ETIQUETAS_DE_CANAL[canalUnico]}</b>
-              </>
-            )}
-            {canalUnico !== null && idiomaUnico !== null && ", "}
-            {idiomaUnico !== null && (
-              <>
-                en <b>{nombreDeIdioma(idiomaUnico)}</b>
-              </>
-            )}
+          <p className="pln-resumen__constante">
+            <MessageCircle size={14} strokeWidth={1.75} aria-hidden="true" />
+            <span>
+              {canalUnico !== null && (
+                <>
+                  Todas por <b>{ETIQUETAS_DE_CANAL[canalUnico]}</b>
+                </>
+              )}
+              {canalUnico !== null && idiomaUnico !== null && ", "}
+              {idiomaUnico !== null && (
+                <>
+                  en <b>{nombreDeIdioma(idiomaUnico)}</b>
+                </>
+              )}
+            </span>
           </p>
         )}
       </div>
 
-      <div className="plt-panel">
-        <Tabla
-          titulo="Plantillas de notificación"
-          columnas={columnas}
-          filas={plantillas}
-          claveDeFila={(fila) => fila.id}
-          vacia="No hay plantillas configuradas."
-        />
-      </div>
+      {plantillas.length === 0 ? (
+        <p className="pln-vacia">
+          <Info size={16} strokeWidth={1.75} aria-hidden="true" />
+          No hay plantillas configuradas.
+        </p>
+      ) : (
+        <ul className="pln-grilla" aria-label="Plantillas de notificación">
+          {plantillas.map((una, indice) => {
+            const Icono = iconoDe(una);
+            const bloqueo = motivoDeBloqueo(una, new Date());
+            const reenviable =
+              una.canal === "WHATSAPP" &&
+              (una.estado_aprobacion === "SIN_ENVIAR" || una.estado_aprobacion === "RECHAZADA");
+            return (
+              <li
+                key={una.id}
+                className="pln-tarjeta"
+                data-seleccionada={editando?.id === una.id ? "si" : undefined}
+                style={{ animationDelay: `${Math.min(indice, 8) * 40}ms` }}
+              >
+                <div className="pln-tarjeta__cabeza">
+                  <span className="pln-tarjeta__icono" aria-hidden="true">
+                    <Icono size={20} strokeWidth={1.75} />
+                  </span>
+                  <div className="pln-tarjeta__titulos">
+                    <span className="pln-nombre">{nombreDe(una)}</span>
+                    {(canalUnico === null || idiomaUnico === null) && (
+                      <span className="pln-tarjeta__meta">
+                        {canalUnico === null && ETIQUETAS_DE_CANAL[una.canal]}
+                        {canalUnico === null && idiomaUnico === null && " · "}
+                        {idiomaUnico === null && nombreDeIdioma(una.idioma)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="pln-tarjeta__cuerpo">{una.cuerpo}</p>
+                <div className="pln-tarjeta__pie">
+                  <EstadoDePlantilla plantilla={una} />
+                  {puedeEditar && (
+                    <div className="plt-acciones">
+                      <button
+                        type="button"
+                        className="pln-accion"
+                        disabled={bloqueo !== null}
+                        aria-describedby={bloqueo === null ? undefined : `plt-bloqueo-${una.id}`}
+                        onClick={() => {
+                          setEditando(una);
+                          setCuerpo(una.cuerpo);
+                        }}
+                      >
+                        <Pencil size={14} strokeWidth={1.75} aria-hidden="true" />
+                        Editar texto
+                      </button>
+                      {reenviable && (
+                        <button
+                          type="button"
+                          className="pln-accion"
+                          disabled={trabajando}
+                          onClick={() => void reenviar(una)}
+                        >
+                          Enviar a revisión
+                        </button>
+                      )}
+                      {bloqueo !== null && (
+                        <p className="plt-nota" id={`plt-bloqueo-${una.id}`}>
+                          {bloqueo}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </>
   );
 }
