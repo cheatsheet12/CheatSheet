@@ -28,6 +28,7 @@ from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 from cheatsheet.workers import (
     tasks_billing,
+    tasks_business_config,
     tasks_conversational,
     tasks_integrations,
     tasks_observability,
@@ -249,7 +250,7 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
     """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 10
+    assert len(entradas) == 11
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
@@ -278,6 +279,10 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
         # ocurre nunca -- y la pantalla seguiria mostrando una fecha de proximo envio que no
         # va a cumplirse, que es la forma mas silenciosa de fallar.
         tasks_reporting.NOMBRE_BARRIDO,
+        # U6: concilia las plantillas de WhatsApp con Meta. Sin esta entrada, una plantilla
+        # cuyo webhook de estado no llegó (no admite override por cuenta) quedaria
+        # `PENDIENTE` para siempre y los recordatorios saldrian como texto.
+        tasks_business_config.NOMBRE_BARRIDO,
     }
 
 

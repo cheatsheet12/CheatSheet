@@ -28,6 +28,8 @@ from cheatsheet.contexts.conversational.domain.uso_de_faq import ConteoDeUsos, U
 from cheatsheet.contexts.conversational.infrastructure.canal import EmbeddingsSimulados
 from cheatsheet.contexts.conversational.infrastructure.repositories import (
     RepositorioFAQPostgres,
+)
+from cheatsheet.contexts.conversational.infrastructure.repositorio_mensaje import (
     RepositorioMensajePostgres,
 )
 from cheatsheet.contexts.conversational.infrastructure.usos_de_faq import (
