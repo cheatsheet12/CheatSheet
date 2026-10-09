@@ -612,7 +612,7 @@ de verdad si se quiere otro valor. Registrar en la app de Meta la URL `/webhooks
 |---|---|---|
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. Condición cumplida el 2026-10-05 (ADR-0011 aceptado, [#62](https://github.com/cheatsheet12/CheatSheet/pull/62)); revalidado contra develop `2b96b4a` el 2026-10-06; **Gate 1 cerrado, ya se puede escribir código** |
 | 2 · Verificación | 2026-10-07 | Aprobado por Luciano (G1), con G3 y G4 corregidos antes del PR |
-| 3 · PR | | |
+| 3 · PR | 2026-10-09 | [#109](https://github.com/cheatsheet12/CheatSheet/pull/109). GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`backend/scripts/run_local_ci.py`, ADR-0016 propuesto), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
 
