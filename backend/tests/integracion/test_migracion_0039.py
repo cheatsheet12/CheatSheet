@@ -1,8 +1,8 @@
-"""La migración 0038: columnas e índice del reintento de recordatorios (U7, tramo ii).
+"""La migración 0039: columnas e índice del reintento de recordatorios (U7, tramo ii).
 
 Solo columnas e índice, **sin backfill** (D1 de la revalidación): una fila vieja queda con
 `intentos = 0` y sin `proximo_intento_en`; nada la reescribe. Son síncronos a propósito, como
-`test_migracion_0036.py`: `alembic.command` arranca su propio loop de asyncio. Necesitan
+`test_migracion_0037.py`: `alembic.command` arranca su propio loop de asyncio. Necesitan
 PostgreSQL: se saltean sin base y corren en CI.
 """
 
@@ -111,23 +111,23 @@ def _sembrar_cobro() -> uuid.UUID:
 
 
 @pytest.fixture
-def esquema_en_0037(esquema_migrado: None) -> Iterator[None]:
-    """Baja a `0037` y, pase lo que pase, deja el esquema en `head` para el resto."""
+def esquema_en_0038(esquema_migrado: None) -> Iterator[None]:
+    """Baja a `0038` y, pase lo que pase, deja el esquema en `head` para el resto."""
     config = _config()
-    command.downgrade(config, "0037")
+    command.downgrade(config, "0038")
     try:
         yield
     finally:
         command.upgrade(config, "head")
 
 
-def test_downgrade_deja_la_tabla_sin_las_columnas_ni_el_indice(esquema_en_0037: None) -> None:
+def test_downgrade_deja_la_tabla_sin_las_columnas_ni_el_indice(esquema_en_0038: None) -> None:
     assert asyncio.run(_leer(COLUMNAS)) == [(0,)]
     assert asyncio.run(_leer(INDICE)) == []
     assert asyncio.run(_leer(FUNCION)) == []
 
 
-def test_sube_sin_backfill_y_la_fila_vieja_queda_sin_intentos(esquema_en_0037: None) -> None:
+def test_sube_sin_backfill_y_la_fila_vieja_queda_sin_intentos(esquema_en_0038: None) -> None:
     """Una fila sin `enviado_en` no se toca: reescribirla podría reenviar lo que sí salió."""
     cobro_id = _sembrar_cobro()
     recordatorio_id = uuid.uuid4()

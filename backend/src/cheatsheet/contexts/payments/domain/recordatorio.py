@@ -75,7 +75,7 @@ class Recordatorio:
     externo_id: str | None = None
     #: Por qué falló: un código de Meta o una clase corta. Nunca el texto que devolvió el canal.
     ultimo_error: str | None = None
-    #: Cuántos intentos de envío **empezaron** (U7, migración 0038). Se cuenta al empezar, no al
+    #: Cuántos intentos de envío **empezaron** (U7, migración 0039). Se cuenta al empezar, no al
     #: terminar: si el proceso muere a mitad del envío, el intento ya figura.
     intentos: int = 0
     #: Según el estado de la fila: cuándo vence el envío en curso, o cuándo toca el reintento.

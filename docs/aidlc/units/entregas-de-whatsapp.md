@@ -367,7 +367,7 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 | 28 | Ningún log de los módulos nuevos contiene `recipient_id`, teléfono ni texto del aviso | unit (captura de logs) | parcial · tramo 1 (webhook de estados; faltan los avisos, tramo 3) |
 | 36 | **H1** — Cuando el barrido llama a Meta la fila del recordatorio ya está confirmada y vista por otra transacción; ninguna llamada a Meta corre con escrituras sin confirmar; el orden es reservar, confirmar, mandar, registrar, confirmar | caso de uso + integración (CI) | hecho (caso de uso) · escrito (CI) · tramo 2 |
 | 37 | Caídas del proceso: reserva que la base no confirma → no se manda; resultado que la base no guarda → la fila queda «en curso» y vencida su ventana se resuelve `INCIERTO`, nunca se reenvía; envío en curso dentro de su ventana → no se toca | caso de uso | hecho · tramo 2 |
-| 38 | Migración 0038: columnas `intentos` y `proximo_intento_en`, índice **parcial**, sin backfill, `intentos >= 0`; y la función `SECURITY DEFINER` `empresas_con_recordatorios_en_espera()` (existe, `prosecdef`, solo la app la ejecuta, el downgrade la quita) | migración (CI) | escrito · tramo 2 (corre en CI) |
+| 38 | Migración 0039: columnas `intentos` y `proximo_intento_en`, índice **parcial**, sin backfill, `intentos >= 0`; y la función `SECURITY DEFINER` `empresas_con_recordatorios_en_espera()` (existe, `prosecdef`, solo la app la ejecuta, el downgrade la quita) | migración (CI) | escrito · tramo 2 (corre en CI) |
 | 39 | **S1** — La lectura del contacto y la plantilla es `preparar`, **antes** de reservar; un error de base ahí no deja fila, no voltea a los demás cobros y el barrido siguiente lo retoma (nunca `INCIERTO`); lo mismo para un reintento (la fila queda como estaba); `mandar` no lee la base | caso de uso + adaptador | hecho · Gate 2 del tramo 2 |
 | 40 | **S1 (CI)** — Un error real de PostgreSQL (`SELECT 1 / 0`) al preparar, dentro del savepoint de la reserva, no aborta la transacción: los otros cobros salen | integración (CI) | escrito · Gate 2 del tramo 2 (corre en CI) |
 | 41 | **S2** — Cada reserva mide su ventana (30 min) desde su propio instante (reloj real); lo que se registra lleva el instante del registro; un barrido solapado no resuelve `INCIERTO` una reserva con ventana vigente | caso de uso | hecho · Gate 2 del tramo 2 |
@@ -538,7 +538,7 @@ de H5.
   salió, `ERROR` si quedó `FALLIDO`, incluido un envío perdido); un intento intermedio que espera su reintento
   no publica nada (solo un log `recordatorio_reintento_programado`). `recordatorio_fallido` sigue siendo el
   del callback `failed` (`RegistrarEntregaDeRecordatorio`), una sola vez.
-- Migración **0038** (`intentos integer NOT NULL DEFAULT 0`, `proximo_intento_en timestamptz`, `CHECK
+- Migración **0039** (`intentos integer NOT NULL DEFAULT 0`, `proximo_intento_en timestamptz`, `CHECK
   intentos >= 0`, índice parcial `ix_recordatorio_reintento`); sin backfill. `RepositorioRecordatoriosPostgres`
   pasó a `repositorio_recordatorio.py` (`repositories.py` superaba las 400 líneas). Sin tablas nuevas: `BORRADOS`
   no cambia.
@@ -567,7 +567,7 @@ de H5.
 **Evidencia RED (TDD):** observado antes de implementar: dominio (`ImportError` de `COBRO_CERRADO`), clasificación
 transitoria (11 tests fallaban) y los 18 tests de caso de uso (`TypeError`: el barrido no aceptaba
 `transaccion`). **No se observó RED** en: el refactor de `repositorio_recordatorio.py` (movimiento puro), el
-adaptador `ConfirmacionDeLaUnidad` (su test unitario se escribió junto con él), la migración 0038 y
+adaptador `ConfirmacionDeLaUnidad` (su test unitario se escribió junto con él), la migración 0039 y
 `test_reintento_de_recordatorios_postgres.py` (necesitan PostgreSQL: solo corren en la CI; `TODO.md` §22.59) y los
 cambios a `test_barrido_de_recordatorios_postgres.py`.
 
@@ -600,7 +600,7 @@ cambios a `test_barrido_de_recordatorios_postgres.py`.
 - **N2, relectura del cobro.** Después del commit de la reserva y antes de llamar a Meta se relee el cobro
   (en su savepoint); si se pagó o cerró, se descarta la fila con la regla de siempre (`COBRO_CERRADO`) y no
   se manda. Si esa lectura falla en la base, no se manda y la fila queda «en curso».
-- **N3, el reparto.** La migración **0038** (aún sin mergear) agrega la función `SECURITY DEFINER`
+- **N3, el reparto.** La migración **0039** (aún sin mergear) agrega la función `SECURITY DEFINER`
   `empresas_con_recordatorios_en_espera()` (la octava, misma forma que `empresas_con_cobros_abiertos()`:
   ids y nada más, `REVOKE` a `PUBLIC`, `EXECUTE` a `cheatsheet_app`): `recordatorio` no tiene `empresa_id`,
   así que une con `cobro` y filtra por `enviado_en IS NULL AND proximo_intento_en IS NOT NULL` (lee el
@@ -637,7 +637,7 @@ N2 (se anula la relectura → fallan los dos casos del caso 42), S1 (se prepara 
 fallan tres del caso 39) y S2 (la reserva usa una hora atrasada → fallan la ventana propia y el barrido
 solapado). **No se observó RED ni GREEN** en lo que necesita PostgreSQL (solo corre en la CI): el caso 40 y
 el caso 44 de `test_reintento_de_recordatorios_postgres.py`, y las dos aserciones nuevas de
-`test_migracion_0038.py` (la función); y se ajustaron para el reloj y para `mandar` los tests de CI ya
+`test_migracion_0039.py` (la función); y se ajustaron para el reloj y para `mandar` los tests de CI ya
 existentes (`test_reintento_de_recordatorios_postgres.py`, `test_barrido_de_recordatorios_postgres.py`).
 
 ## Decisiones tomadas durante la unidad
@@ -701,7 +701,7 @@ existentes (`test_reintento_de_recordatorios_postgres.py`, `test_barrido_de_reco
     registrar; `VENTANA_DE_ENVIO` pasa a **30 minutos** (menor que el barrido horario).
   - **N2** — Se relee el cobro después de la reserva y no se manda si se pagó o cerró (se descarta).
   - **N3** — El reparto incluye las empresas con recordatorios esperando o en curso (función
-    `SECURITY DEFINER` en la 0038, que aún no se mergeó).
+    `SECURITY DEFINER` en la 0039, que aún no se mergeó).
   - **N7** — A lo sumo un recordatorio por cobro por barrido.
   - **N1** — La afirmación exacta es «sin escrituras sin confirmar ni locks (y sin leer la base) durante la
     llamada a Meta», no «sin transacción abierta».
