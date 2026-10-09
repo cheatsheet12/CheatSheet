@@ -176,7 +176,7 @@ Antes de desplegar, porque un valor inválido tumba **ambos** servicios en bucle
 |---|---|---|
 | 1 · Plan | 2026-10-08 | **aprobado** |
 | 2 · Verificación | 2026-10-08 | **aprobado con correcciones**: checklist previo al despliegue, alinear entradas diarias y `PARAMETROS_FISCALES_HORAS`, Health Check Path como ítem explícito |
-| 3 · PR | | |
+| 3 · PR | 2026-10-09 | PR a `develop`. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR. El despliegue a staging y la configuración de Render los hace el responsable con `docs/staging-deployment.md` |
 
 ## Decisiones tomadas durante la unidad
 
