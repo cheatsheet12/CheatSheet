@@ -62,11 +62,11 @@ la suite completa de `backend/tests` pasa igual antes y después, con el mismo n
 
 ## Archivos a tocar
 
-- [ ] `backend/tests/contexts/conversational/application/dobles.py` (queda como fachada)
-- [ ] `backend/tests/contexts/conversational/application/dobles_persistencia.py` · `dobles_modelos.py` · `dobles_colaboradores.py` · `dobles_agenda.py` (nuevos)
-- [ ] `backend/tests/contexts/conversational/application/horario_fijo.py` (docstring, línea 1)
-- [ ] Los 21 importadores **sólo si** D1 = migrar imports
-- [ ] `docs/aidlc/units.md` (fila)
+- [x] `backend/tests/contexts/conversational/application/dobles.py` (queda como fachada)
+- [x] `backend/tests/contexts/conversational/application/dobles_persistencia.py` · `dobles_modelos.py` · `dobles_colaboradores.py` · `dobles_agenda.py` (nuevos)
+- [x] `backend/tests/contexts/conversational/application/horario_fijo.py` (docstring, línea 1)
+- [x] Los 21 importadores: no se tocan (D1 = fachada)
+- [x] `docs/aidlc/units.md` (fila)
 
 ## Casos de prueba
 
@@ -74,10 +74,10 @@ TDD no aplica en sentido estricto (no hay comportamiento nuevo). La red es la su
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Antes de mover: `pytest backend/tests` verde y número de tests recolectados anotado | suite | pendiente |
-| 2 | Después: mismo número de tests, todos verdes; `mypy` y `ruff` limpios | suite | pendiente |
-| 3 | Ningún módulo `dobles*.py` pasa las 400 líneas | revisión | pendiente |
-| 4 | `git diff -M` muestra los cuerpos de los dobles como movidos, sin cambios | revisión | pendiente |
+| 1 | Antes de mover: `pytest backend/tests` verde y número de tests recolectados anotado (562 en `conversational`, 3450 en toda la suite) | suite | verde |
+| 2 | Después: mismo número de tests, todos verdes; `mypy` y `ruff` limpios (562 y 3450; mismos ids salvo los uuid aleatorios de `test_webhook_estados`) | suite | verde |
+| 3 | Ningún módulo `dobles*.py` pasa las 400 líneas (49 · 130 · 79 · 75 · 203) | revisión | verde |
+| 4 | Los cuerpos de los dobles se copiaron sin cambios (mismas líneas del original, sólo cabeceras e imports nuevos) | revisión | verde |
 
 ## Decisiones para el responsable
 
@@ -107,4 +107,6 @@ commit `test(conversational): split the hand-written doubles by responsibility`.
 - D2: cuatro módulos (persistencia, modelos, colaboradores, agenda).
 - D3: se parte sobre el código de U7 (rama apilada sobre el tramo iii); se mergea `develop` cuando U7 entre.
 - D4: épico «Agente de WhatsApp y atención humana», HU `HS-T2` como referencia.
+- La fachada agrega `sin_savepoint` a su `__all__`: los importadores ya lo usaban sin que estuviera listado, y reexportarlo sin listarlo haría fallar `ruff` (F401).
+- No había entrada en `TODO.md` sobre el tamaño de `dobles.py`, así que no se marca nada como resuelto allí.
 
