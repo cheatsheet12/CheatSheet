@@ -13,10 +13,16 @@ Lo que se fija acá:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import replace
 from datetime import timedelta
 
 import pytest
+import structlog
+from cheatsheet.contexts.scheduling.application import (
+    envio_de_recordatorios,
+    registro_de_recordatorios,
+)
 from cheatsheet.contexts.scheduling.domain.recordatorio_de_turno import (
     AGENDA_APAGADA,
     ANTICIPACION_QUITADA,
@@ -37,10 +43,22 @@ from tests.contexts.scheduling.application.dobles_de_recordatorios import (
     transitoria,
     turno,
 )
+from tests.logs import logger_nuevo
 
 pytestmark = pytest.mark.asyncio
 
 QUINCE_MIN = timedelta(minutes=15)
+
+
+@pytest.fixture(autouse=True)
+def _logger(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Un logger nuevo y **sin filtro de nivel**: otro test pudo dejar la configuración en WARNING."""
+    anterior = structlog.get_config()["wrapper_class"]
+    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(0))
+    for modulo in (registro_de_recordatorios, envio_de_recordatorios):
+        logger_nuevo(monkeypatch, modulo)
+    yield
+    structlog.configure(wrapper_class=anterior)
 
 
 def _resolverla_otro_barrido(e: Escenario) -> None:
