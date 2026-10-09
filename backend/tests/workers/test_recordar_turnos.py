@@ -126,12 +126,15 @@ class TestLaTareaDeUnaEmpresa:
         self, monkeypatch: pytest.MonkeyPatch, empresa: EmpresaId, canal: object
     ) -> list[object]:
         armados: list[object] = []
+        self.cierres: list[str] = []
 
         async def unidad_de_trabajo(
             _recursos: object, empresa_id: EmpresaId
         ) -> AsyncIterator[_Unidad]:
             assert empresa_id == empresa
             yield _Unidad(None, None, RelojFijo(INSTANTE_FIJO))
+            # Lo que sigue al `yield` es el cierre de la unidad (commit y devolución de la conexión).
+            self.cierres.append("cerrada")
 
         async def armar_mensajeria(
             _unidad: object, _settings: object, *, empresa_id: EmpresaId
@@ -170,6 +173,9 @@ class TestLaTareaDeUnaEmpresa:
 
         assert enviados == 0
         assert armados == []
+        # Salir con `return` desde adentro del `async for` dejaba el generador suspendido, con la
+        # conexión sacada del pool, hasta que lo recogiera el recolector.
+        assert self.cierres == ["cerrada"]
         (registro,) = [u for u in logs if u["event"] == "recordatorios_de_turno_sin_canal"]
         assert registro["empresa_id"] == str(empresa)
 

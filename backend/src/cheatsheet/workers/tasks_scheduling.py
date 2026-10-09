@@ -79,7 +79,9 @@ async def recordar_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
         canal = await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id)
         if sin_canal_conectado(canal):
             logger.info("recordatorios_de_turno_sin_canal", empresa_id=str(empresa_id))
-            return 0
+            # Sin `return` acá: salir de un `async for` deja el generador suspendido, con la
+            # conexión sacada del pool. Se termina el bucle y la unidad se cierra sola.
+            continue
         resultado = await armar_recordatorios_de_turno(
             unidad, empresa_id=empresa_id, canal=canal
         ).ejecutar(empresa_id=empresa_id, ahora=unidad.reloj.ahora())
