@@ -741,7 +741,10 @@ HU-E4-05.
 Todos quedan **sin unidad** (registrados el 2026-10-09): se vieron al planificar y no se arreglaron,
 porque ninguno es de HU-E1-05 ni de HU-E1-06.
 
-- **`renovarSesion` borra las dos cookies ante cualquier 5xx de `/auth/refresh`.** Está en
+- ~~**`renovarSesion` borra las dos cookies ante cualquier 5xx de `/auth/refresh`.**~~ ✅ **Resuelto el
+  2026-10-09** por `renovacion-sin-borrar-sesion` (commit `22ac0ff`): sólo un 4xx cierra la sesión; un 5xx,
+  un timeout o una red caída conservan las dos cookies. Se conserva el texto original por el contexto.
+  Estaba en
   `frontend/src/app/api/auth/_sesion.ts` (bloque `catch`) y su comentario lo declara a propósito.
   Una caída breve de la base que coincida con una renovación saca al usuario al ingreso, aunque su
   sesión siga viva. No lo introduce la unidad (`/auth/refresh` es pública y no pasa por el

@@ -10,7 +10,8 @@
  *
  * **A rejected rotation clears both cookies.** The backend treats a reused token as
  * theft and revokes the whole family; leaving the browser holding a dead one would loop
- * it through this endpoint on every request.
+ * it through this endpoint on every request. If the API merely could not answer, the
+ * cookies stay and the response is a 502 that the caller must not read as a dead session.
  */
 
 import { NextResponse } from "next/server";
@@ -25,7 +26,7 @@ export async function POST(): Promise<NextResponse> {
     case "renovada":
       return NextResponse.json({ onboarding_completo: resultado.onboardingCompleto });
     case "caida":
-      return NextResponse.json({ error: "SesionInvalida" }, { status: 502 });
+      return NextResponse.json({ error: "ServicioNoDisponible" }, { status: 502 });
     case "sin-refresh":
     case "rechazada":
       return NextResponse.json({ error: "SesionInvalida" }, { status: 401 });
