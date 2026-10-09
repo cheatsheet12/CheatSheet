@@ -73,10 +73,10 @@ comentario de `RenovadorDeSesion.tsx:13-14`, que esta unidad no modifica.
 
 ## Archivos a tocar
 
-- [ ] `frontend/src/app/api/auth/_sesion.ts` · `frontend/src/app/api/auth/refresh/route.ts`
-- [ ] `frontend/src/app/api/auth/__tests__/google-y-refresh.test.ts` · `.../__tests__/renovar.test.ts`
-- [ ] `frontend/src/features/identity/components/__tests__/RenovadorDeSesion.test.tsx`
-- [ ] `docs/aidlc/TODO.md` (§25, primer punto → resuelto) · `docs/aidlc/units.md` (fila)
+- [x] `frontend/src/app/api/auth/_sesion.ts` · `frontend/src/app/api/auth/refresh/route.ts`
+- [x] `frontend/src/app/api/auth/__tests__/google-y-refresh.test.ts` · `.../__tests__/renovar.test.ts`
+- [x] `frontend/src/features/identity/components/__tests__/RenovadorDeSesion.test.tsx`
+- [x] `docs/aidlc/TODO.md` (§25, primer punto → resuelto) · `docs/aidlc/units.md` (fila)
 
 ## Casos de prueba (TDD: vitest, `npm run test`; RED antes del cambio)
 
@@ -85,17 +85,17 @@ Mismo patrón que los tests existentes: `next/headers` falso con `almacen`/`cook
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED** — `POST /api/auth/refresh`, API 503: responde 502 `ServicioNoDisponible`, `cookiesBorradas` vacío, refresh y acceso siguen en `almacen` | unit (ruta) | pendiente |
-| 2 | **RED** — ídem con 500 `ErrorInterno` | unit (ruta) | pendiente |
-| 3 | **RED** — ídem con `ErrorDeApi(504)` (el timeout de `llamarApi`) | unit (ruta) | pendiente |
-| 4 | **RED** — ídem con `TypeError` (red caída) | unit (ruta) | pendiente |
-| 5 | **RED** — `GET /api/auth/renovar`, API 503: redirige a `/` y no borra el refresh | unit (ruta) | pendiente |
-| 6 | **RED** — 503 y después éxito: el segundo intento rota con el refresh viejo y escribe el par nuevo | unit (ruta) | pendiente |
-| 7 | 409 `SesionInvalida` → 401 y borra las dos cookies (regresión) | unit (ruta) | pendiente |
-| 8 | 401 → 401 y borra las dos (ya cubierto en `renovar.test.ts:92`; se agrega en refresh) | unit (ruta) | pendiente |
-| 9 | 422 (cuerpo inválido) → 401 y borra las dos | unit (ruta) | pendiente |
-| 10 | Éxito → 200 y escribe las dos cookies (ya cubierto, `google-y-refresh.test.ts:161`) | unit (ruta) | pendiente |
-| 11 | `RenovadorDeSesion` ante un 502 no redirige (caracterización; pasa hoy) | unit (jsdom) | pendiente |
+| 1 | **RED** — `POST /api/auth/refresh`, API 503: responde 502 `ServicioNoDisponible`, `cookiesBorradas` vacío, refresh y acceso siguen en `almacen` | unit (ruta) | hecho |
+| 2 | **RED** — ídem con 500 `ErrorInterno` | unit (ruta) | hecho |
+| 3 | **RED** — ídem con `ErrorDeApi(504)` (el timeout de `llamarApi`) | unit (ruta) | hecho |
+| 4 | **RED** — ídem con `TypeError` (red caída) | unit (ruta) | hecho |
+| 5 | **RED** — `GET /api/auth/renovar`, API 503: redirige a `/` y no borra el refresh | unit (ruta) | hecho |
+| 6 | **RED** — 503 y después éxito: el segundo intento rota con el refresh viejo y escribe el par nuevo | unit (ruta) | hecho |
+| 7 | 409 `SesionInvalida` → 401 y borra las dos cookies (regresión) | unit (ruta) | hecho |
+| 8 | 401 → 401 y borra las dos (ya cubierto en `renovar.test.ts:92`; se agrega en refresh) | unit (ruta) | hecho |
+| 9 | 422 (cuerpo inválido) → 401 y borra las dos | unit (ruta) | hecho |
+| 10 | Éxito → 200 y escribe las dos cookies (ya cubierto, `google-y-refresh.test.ts:161`) | unit (ruta) | hecho |
+| 11 | `RenovadorDeSesion` ante un 502 no redirige (caracterización; pasa hoy) | unit (jsdom) | hecho |
 
 ## Verificación (Gate 2)
 
