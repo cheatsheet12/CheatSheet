@@ -106,12 +106,12 @@ caracterización ~60). Dos commits: `test(scheduling): pin the agenda router's r
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-09 | aprobado con todas las decisiones (D1–D5) según la recomendación |
-| 2 · Verificación | | |
+| 2 · Verificación | | pendiente: ruff, mypy y pytest en verde en local (2370 pasan, 525 omitidos por requerir PostgreSQL o Redis); falta el veredicto del responsable y la CI de `test_api_agenda.py` |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
 
-- (vacío)
+- Casos 1, 2, 3 y 5 verificados en local; el 4 corre en la CI. Archivos nuevos: 29, 252, 218 y 254 líneas.
 
 ---
 
