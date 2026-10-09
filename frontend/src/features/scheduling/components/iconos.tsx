@@ -58,6 +58,16 @@ export function IconoDeFlecha({
   );
 }
 
+/** La grilla de días de la vista Mes. */
+export function IconoDeMes(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path d="M3.5 9.5h17M9.2 9.5v10M14.8 9.5v10M3.5 14.5h17" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** Las tres filas de la vista Lista. */
 export function IconoDeLista(): JSX.Element {
   return (
