@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from cheatsheet.shared.errors import (
     EntradaInvalida,
     ErrorDeDominio,
@@ -68,6 +70,30 @@ class SesionInvalida(ErrorDeDominio):
 
 class ReusoDeRefreshDetectado(SesionInvalida):
     """A used token came back. Treated as theft: the whole family is revoked."""
+
+
+class MotivoDeRevocacion(StrEnum):
+    """Why a validly signed access token no longer authorizes anything.
+
+    For the structured log only. It is **never** part of a response: whoever holds a stolen
+    token must not learn whether the user was deactivated, deleted or moved.
+    """
+
+    USUARIO_INEXISTENTE = "usuario_inexistente"
+    USUARIO_INACTIVO = "usuario_inactivo"
+    EMPRESA_NO_COINCIDE = "empresa_no_coincide"
+
+
+class SesionRevocada(SesionInvalida):
+    """The access token is genuine, but its user can no longer operate (HU-E1-05, HU-E1-06).
+
+    Raised by the per-request check when the user is gone, is not exactly `ACTIVO`, or no
+    longer belongs to the company the token names. Answered as 401, like a missing token.
+    """
+
+    def __init__(self, motivo: MotivoDeRevocacion) -> None:
+        super().__init__(motivo.value)
+        self.motivo = motivo
 
 
 class OAuthFallido(ErrorDeDominio):
