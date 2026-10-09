@@ -26,6 +26,7 @@ import httpx
 import pytest
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
+from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.contexts.identity.infrastructure.seguridad import EmisorDeTokensJWT
 from cheatsheet.contexts.reporting.application.errors import GeneracionFallida
 from cheatsheet.contexts.reporting.application.ports import FilaDeReporte
@@ -35,6 +36,7 @@ from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from fastapi import FastAPI
 
+from tests.api.verificador_falso import VerificadorDeSesionFalso
 from tests.conftest import INSTANTE_FIJO, settings_de_prueba
 from tests.contexts.reporting.application.dobles import (
     ArchivosEnMemoria,
@@ -80,6 +82,8 @@ class _Escenario:
     reportes: RepositorioReportesEnMemoria
     settings: Settings
     app: FastAPI
+    #: Vouches for the token's user (no database here); `_pedir` sets the role it answers.
+    verificador: VerificadorDeSesionFalso
 
 
 def _armar(monkeypatch: pytest.MonkeyPatch, *, filas: list[FilaDeReporte]) -> _Escenario:
@@ -117,7 +121,9 @@ def _armar(monkeypatch: pytest.MonkeyPatch, *, filas: list[FilaDeReporte]) -> _E
         redis=None,  # type: ignore[arg-type]
         reloj=RelojFijo(INSTANTE_FIJO),
     )
-    return _Escenario(estado, reportes, settings, create_app(settings, recursos))
+    verificador = VerificadorDeSesionFalso()
+    app = create_app(settings, recursos, verificador)
+    return _Escenario(estado, reportes, settings, app, verificador)
 
 
 def _autorizacion(settings: Settings, rol: str) -> dict[str, str]:
@@ -133,6 +139,7 @@ def _autorizacion(settings: Settings, rol: str) -> dict[str, str]:
 
 
 async def _pedir(escenario: _Escenario, rol: str = "ADMINISTRADOR") -> httpx.Response:
+    escenario.verificador.rol = RolUsuario(rol)
     transporte = httpx.ASGITransport(app=escenario.app)
     async with httpx.AsyncClient(transport=transporte, base_url="http://test") as cliente:
         return await cliente.post(

@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from cheatsheet.contexts.identity.application.ports import (
+    EstadoActualDelUsuario,
     MensajeDeInvitacion,
     PerfilDeGoogle,
     TokenEmitido,
@@ -96,6 +97,27 @@ class RepositorioUsuarioEnMemoria:
             for u in self.usuarios.values()
             if u.empresa_id == empresa_id and u.es_administrador_activo
         )
+
+
+class ConsultaDeUsuarioVigenteEnMemoria:
+    """What the database would answer for the per-request session check.
+
+    A missing key stands for "no row": a deleted user, or one that Row-Level Security hides
+    because it belongs to another company.
+    """
+
+    def __init__(self) -> None:
+        self.estados: dict[UsuarioId, EstadoActualDelUsuario] = {}
+        self.consultas = 0
+
+    def registrar(self, usuario: Usuario) -> None:
+        self.estados[usuario.id] = EstadoActualDelUsuario(
+            empresa_id=usuario.empresa_id, rol=usuario.rol, estado=usuario.estado
+        )
+
+    async def estado_actual(self, usuario_id: UsuarioId) -> EstadoActualDelUsuario | None:
+        self.consultas += 1
+        return self.estados.get(usuario_id)
 
 
 class RepositorioInvitacionEnMemoria:
@@ -303,6 +325,7 @@ __all__ = [
     "CUIT_INVALIDO",
     "CUIT_VALIDO",
     "INSTANTE_FIJO",
+    "ConsultaDeUsuarioVigenteEnMemoria",
     "EmisorDeTokensFalso",
     "EnviadorDeEmailFalso",
     "HasherFalso",

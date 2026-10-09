@@ -138,7 +138,10 @@ Ninguna de estas bloquea el cierre. Están acá para que nadie las descubra desp
 - **`GET /auth/empresa`** se agregó para que el layout del panel sepa si el onboarding está
   completo. Cuesta una llamada por navegación. Si el panel crece, conviene un endpoint de
   «contexto de sesión» que devuelva empresa + usuario + rol de una vez, en lugar de tres.
-- **La renovación de sesión es manual, y se nota.** `/api/auth/refresh` existe y funciona, pero
+- ~~**La renovación de sesión es manual, y se nota.**~~ ✅ **Resuelta el 2026-10-05** por el commit
+  `67f2db4`: `RenovadorDeSesion` renueva cada 10 minutos y al volver a la pestaña, y manda a `/` ante
+  un 401. Se conserva el texto original porque explica por qué no fue un parche de QA.
+  `/api/auth/refresh` existe y funciona, pero
   nadie lo llama solo: **el panel te saca a los 15 minutos** aunque tengas la cookie de refresh al
   lado. Apareció en el QA del 2026-08-18, en carne propia.
   **Por qué no lo arreglé ahí mismo:** el lugar natural es el middleware de Next, y ahí hay una
@@ -684,6 +687,7 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 | 22.59 | Los tests contra PostgreSQL del tramo 2 de `entregas-de-whatsapp` (`tests/integracion/test_migracion_0039.py`: columnas, índice parcial `ix_recordatorio_reintento`, `intentos >= 0`, sin backfill; `test_reintento_de_recordatorios_postgres.py`: la fila está confirmada y vista por otra transacción cuando el barrido llama a Meta, el reintento es un `UPDATE` de la misma fila, dos barridos solapados mandan una vez —`SELECT ... FOR UPDATE`— y un envío perdido se resuelve `INCIERTO`; los casos reescritos de `test_barrido_de_recordatorios_postgres.py`, y los del Gate 2: un error real de PostgreSQL al preparar dentro del savepoint de la reserva no aborta la transacción —`SELECT 1 / 0`—, `empresas_con_recordatorios_en_espera()` devuelve la empresa cuyo único cobro se cerró con un reintento esperando, y la función de `test_migracion_0039.py` es `SECURITY DEFINER` con `EXECUTE` solo para la app) se saltearon en local (sin Docker): confirmar que pasan en la CI del PR. Verificar también que `ConfirmacionDeLaUnidad` (commit y nuevo `set_config`) deja la sesión con RLS activa para la empresa tras cada confirmación | `entregas-de-whatsapp` (U7, tramo ii) |
 | 22.60 | **Ventana residual de H1.** Aun con la fila confirmada antes de Meta, el `wamid` se guarda recién cuando Meta contesta: un callback que llegara en esos milisegundos no lo encontraría (`whatsapp_estado_sin_destinatario`) y se perdería. Medir con la app de prueba cuánto tarda el primer `statuses[]` tras la respuesta del envío; si fuera una pérdida real, la salida es mandar un dato de correlación a Meta antes de la llamada (`biz_opaque_callback_data` con el id de la fila) y rutear por él, descartado hasta ahora en D-U7-1. Los recordatorios que quedan «en curso» (caída o resultado no guardado) se resuelven `INCIERTO` sin `wamid` y **sus `delivered`/`failed` posteriores no pueden coincidir nunca con una fila**: ese es el argumento más fuerte para adoptar el dato de correlación (argumento de la revisión del Gate 2, 2026-10-07) | `entregas-de-whatsapp` (U7, tramo ii) |
 | 22.61 | **Clasificación transitoria contra Meta.** Que los códigos que hoy el canal trata como saturación (5xx, 429, throttling) sean los que Meta resuelve esperando, y que ningún 4xx permanente se clasifique como `MensajeriaSaturada` (se reintentaría 3 veces en ≈ 3 h). También si conviene una espera mayor para 131049 («healthy ecosystem»: Meta frena el mensaje por un día). Se decide con los códigos reales de la app de prueba | `entregas-de-whatsapp` (U7, tramo ii) |
+| 22.66 | Costo de la verificación de sesión por solicitud en staging (pregunta 1 de `revocacion-inmediata-de-sesion`): 200 llamadas a `GET /auth/empresa` con la compute de Neon despierta, con y sin la verificación, y anotar el p95 agregado por solicitud en el plan. En la base local la verificación completa da p95 2,16 ms | `revocacion-inmediata-de-sesion` |
 
 **Archivos de más de 400 líneas (CLAUDE.md §5), vistos en `limites-e-intervalo-de-turnos`.** Ya superaban el límite antes de esa unidad y no se partieron (decisión P4): `scheduling/application/turnos.py` (~520), `api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y `tests/contexts/scheduling/application/test_agenda.py` (~1180). Una unidad aparte puede extraer `Avisador` a `application/avisador.py` y partir el router en uno de recursos y uno de turnos.
 
@@ -731,3 +735,22 @@ HU-E4-05.
   admite hasta 200, así que cada llamada levanta `EntradaInvalida`. Ningún test del repo lo
   ejercitaba; los de esta unidad fijan el límite en 200 con `monkeypatch`. El arreglo es de una
   línea, pero es de la unidad del write-back.
+
+## 25. Hallazgos de `revocacion-inmediata-de-sesion`
+
+Todos quedan **sin unidad** (registrados el 2026-10-09): se vieron al planificar y no se arreglaron,
+porque ninguno es de HU-E1-05 ni de HU-E1-06.
+
+- **`renovarSesion` borra las dos cookies ante cualquier 5xx de `/auth/refresh`.** Está en
+  `frontend/src/app/api/auth/_sesion.ts` (bloque `catch`) y su comentario lo declara a propósito.
+  Una caída breve de la base que coincida con una renovación saca al usuario al ingreso, aunque su
+  sesión siga viva. No lo introduce la unidad (`/auth/refresh` es pública y no pasa por el
+  verificador por solicitud), y cambiarlo es una decisión de contrato del BFF. Se resuelve en un
+  `fix/identity-…` aparte (decisión 7 de la unidad).
+- **`SesionInvalida` responde 409 y no 401** en `/auth/refresh` y `/auth/login` (`api/errors.py` no
+  la mapea). El BFF ya lo traduce (`status < 500` → 401 y borra cookies), por eso no se ve. Cambiarlo
+  afecta al BFF y a sus tests: es una decisión de contrato. Los tests de la unidad aseveran «4xx con
+  `error == "SesionInvalida"`» y no el número, para no fijarlo.
+- **Cada navegación del panel cuesta dos lecturas a la base**, cada una con su conexión del pool: la
+  verificación del middleware y la propia `GET /auth/empresa`. Sigue valiendo la propuesta de §4 de
+  un endpoint de «contexto de sesión» que devuelva empresa + usuario + rol de una vez.
