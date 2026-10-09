@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada, OperacionNoPermitida
 
 
 class PermisoDenegado(OperacionNoPermitida):
@@ -102,4 +102,16 @@ class AutorizacionInvalida(EntradaInvalida):
     application layer instead of at the HTTP edge: without it, anyone who gets an
     Administrator to open a crafted link attaches *their* MercadoPago account to somebody
     else's company, and every payment link of epic 6 collects into the wrong account.
+    """
+
+
+class CuentaDeWhatsAppEnUso(InvarianteViolada):
+    """The WhatsApp business account is already linked to another empresa.
+
+    An `InvarianteViolada` — answered as 409 — because the input is well-formed and the
+    conflict is with state that exists: the unique index of migration 0037 allows one
+    empresa per WABA. Without it, a second empresa registering somebody else's WABA would
+    steal or block that company's template webhooks, which resolve the company from the WABA.
+
+    The message never names the other empresa: that would leak who uses the platform.
     """

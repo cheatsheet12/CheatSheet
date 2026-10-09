@@ -30,6 +30,7 @@ from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     PasoDeCadena,
     PortCadenaDeEscalamiento,
     PortEnvioDeRecordatorio,
+    ResultadoDeEnvio,
 )
 from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
 from cheatsheet.contexts.payments.domain.cobro import Cobro
@@ -228,7 +229,7 @@ class DespacharRecordatorios:
             return None
 
         try:
-            estado = await self._envio.enviar(
+            resultado = await self._envio.enviar(
                 empresa_id=empresa_id, cobro=cobro, canal=paso.canal, paso=numero
             )
         except Exception as exc:  # noqa: BLE001 — ver abajo
@@ -243,9 +244,10 @@ class DespacharRecordatorios:
                 paso=numero,
                 causa=type(exc).__name__,
             )
-            estado = EstadoEntrega.FALLIDO
-        recordatorio.marcar_enviado(ahora)
-        recordatorio.marcar_entrega(estado)
+            resultado = ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo="ERROR")
+        estado = resultado.estado
+        recordatorio.marcar_enviado(ahora, externo_id=resultado.externo_id)
+        recordatorio.marcar_entrega(estado, motivo=resultado.codigo)
         await self._recordatorios.guardar(recordatorio)
 
         await self._publicador.publicar(

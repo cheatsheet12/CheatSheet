@@ -54,6 +54,7 @@ from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 from cheatsheet.shared.events import PublicadorDeEventos
+from cheatsheet.shared.externo_id import externo_id_o_ninguno
 from cheatsheet.shared.roles import RolUsuario
 
 MOTIVO_SIN_PERMISO = "Solo un Administrador u Operador puede atender conversaciones"
@@ -232,7 +233,9 @@ class ResponderComoOperador:
 
         externo_id: str | None = None
         try:
-            externo_id = await self._mensajeria.enviar(telefono=telefono, texto=texto)
+            externo_id = externo_id_o_ninguno(
+                await self._mensajeria.enviar(telefono=telefono, texto=texto)
+            )
         except Exception as exc:
             # A diferencia del agente, acá **sí** se levanta: un operador que apretó «Enviar»
             # tiene que enterarse de que el mensaje no salió. El agente puede seguir sin su

@@ -1,4 +1,4 @@
-"""Superficie HTTP del canal conversacional (HU-E9-01, HU-E9-02, HU-E11-02).
+"""Superficie HTTP del canal conversacional (HU-E9-01, HU-E9-02).
 
 `EmpresaMiddleware` ya puso la empresa, el usuario y el rol en `request.state`. El rol se pasa
 al caso de uso en vez de comprobarlo acá, por lo que dicen los demás routers y probó PRU-09.
@@ -8,6 +8,8 @@ entra sin sesión y el middleware lo tiene que dejar pasar.
 
 Las rutas de las FAQ (HU-E9-04) viven en `respuestas_frecuentes.py` y se montan acá, bajo el
 mismo prefijo `/faqs`.
+
+Las plantillas de notificación (HU-E11-02) viven en `plantillas.py`.
 
 **No hay `DELETE` en este módulo.** Una conversación es el registro de lo que se le dijo a un
 cliente y un escalamiento cerrado es un caso atendido. (La única baja real del sistema, la de una
@@ -27,13 +29,6 @@ from cheatsheet.api.conversacional import (
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.api.routers.respuestas_frecuentes import rutas_de_faqs
-from cheatsheet.contexts.business_config.application.plantillas import (
-    EditarPlantilla,
-    ListarPlantillas,
-    variables_conocidas,
-)
-from cheatsheet.contexts.business_config.domain.plantilla import PlantillaDeNotificacion
-from cheatsheet.contexts.business_config.infrastructure.ensamblado import ConfiguracionDeNegocio
 from cheatsheet.contexts.conversational.application.atencion import (
     CerrarEscalamiento,
     ListarConversaciones,
@@ -63,10 +58,6 @@ class CierreEntrada(BaseModel):
     devolver_al_agente: bool
     #: HU-E9-01 RN-05: el operador puede corregir la clasificación antes de devolver.
     clasificacion: str | None = None
-
-
-class PlantillaEntrada(BaseModel):
-    cuerpo: str
 
 
 # -- salidas --------------------------------------------------------------------------
@@ -105,23 +96,6 @@ class ListadoDeConversaciones(BaseModel):
     conversaciones: list[ConversacionSalida]
 
 
-class PlantillaSalida(BaseModel):
-    id: UUID
-    codigo: str
-    canal: str
-    idioma: str
-    cuerpo: str
-    estado_aprobacion: str
-    #: Las variables que admite, para que la pantalla las ofrezca en vez de que alguien las
-    #: adivine y se coma el 422 del tercer criterio.
-    variables: list[str]
-    puede_usarse: bool
-
-
-class ListadoDePlantillas(BaseModel):
-    plantillas: list[PlantillaSalida]
-
-
 def _a_conversacion(vista: VistaDeConversacion) -> ConversacionSalida:
     escalamiento = vista.escalamiento
     return ConversacionSalida(
@@ -147,19 +121,6 @@ def _a_mensaje(mensaje: Mensaje) -> MensajeSalida:
         intencion=mensaje.intencion.value if mensaje.intencion else None,
         estado_entrega=mensaje.estado_entrega.value if mensaje.estado_entrega else None,
         origen=mensaje.origen.value if mensaje.origen else None,
-    )
-
-
-def _a_plantilla(plantilla: PlantillaDeNotificacion) -> PlantillaSalida:
-    return PlantillaSalida(
-        id=plantilla.id,
-        codigo=plantilla.codigo,
-        canal=plantilla.canal.value,
-        idioma=plantilla.idioma,
-        cuerpo=plantilla.cuerpo,
-        estado_aprobacion=plantilla.estado_aprobacion.value,
-        variables=sorted(variables_conocidas(plantilla.codigo)),
-        puede_usarse=plantilla.puede_usarse,
     )
 
 
@@ -190,7 +151,6 @@ def crear_router(recursos: Recursos) -> APIRouter:
     router.include_router(_rutas_de_conversaciones(recursos), prefix="/conversaciones")
     router.include_router(_rutas_de_escalamientos(recursos), prefix="/escalamientos")
     router.include_router(rutas_de_faqs(recursos), prefix="/faqs")
-    router.include_router(_rutas_de_plantillas(recursos), prefix="/plantillas")
     return router
 
 
@@ -325,49 +285,6 @@ def _rutas_de_escalamientos(recursos: Recursos) -> APIRouter:
                 piezas.conversaciones, piezas.mensajes, piezas.escalamientos
             ).ejecutar(escalamiento.conversacion_id)
             salida = _a_conversacion(vista)
-        return _exigir(salida)
-
-    return router
-
-
-def _rutas_de_plantillas(recursos: Recursos) -> APIRouter:
-    """PAN-CFG-NOT (HU-E11-02). Todos leen; sólo el Administrador edita.
-
-    **No hay alta ni baja.** Los códigos los define el sistema, y `ListarPlantillas` siembra
-    las que falten la primera vez que alguien entra.
-    """
-    router = APIRouter()
-
-    @router.get("")
-    async def listar(request: Request) -> ListadoDePlantillas:
-        empresa_id, _, _ = _actor(request)
-        salida: ListadoDePlantillas | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = ConfiguracionDeNegocio.armar(unidad)
-            plantillas = await ListarPlantillas(piezas.plantillas).ejecutar(
-                empresa_id=empresa_id, ahora=unidad.reloj.ahora()
-            )
-            salida = ListadoDePlantillas(plantillas=[_a_plantilla(una) for una in plantillas])
-        return _exigir(salida)
-
-    @router.put("/{plantilla_id}")
-    async def editar(
-        request: Request, plantilla_id: UUID, entrada: PlantillaEntrada
-    ) -> PlantillaSalida:
-        """Segundo y tercer criterio: guarda con variables válidas, rechaza con la frase."""
-        empresa_id, usuario_id, rol = _actor(request)
-        salida: PlantillaSalida | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = ConfiguracionDeNegocio.armar(unidad)
-            plantilla = await EditarPlantilla(piezas.plantillas, unidad.publicador).ejecutar(
-                empresa_id=empresa_id,
-                usuario_id=usuario_id,
-                rol=rol,
-                plantilla_id=plantilla_id,
-                cuerpo=entrada.cuerpo,
-                ahora=unidad.reloj.ahora(),
-            )
-            salida = _a_plantilla(plantilla)
         return _exigir(salida)
 
     return router

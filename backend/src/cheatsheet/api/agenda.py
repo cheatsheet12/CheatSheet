@@ -19,6 +19,7 @@ transacción y a la empresa del pedido. Es la misma conclusión de `mercadopago.
 from __future__ import annotations
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
+from cheatsheet.api.plantillas_salientes import armar_plantillas_aprobadas
 from cheatsheet.contexts.master_data.infrastructure.repositories import (
     RepositorioClientePostgres,
     RepositorioServicioPostgres,
@@ -56,7 +57,7 @@ def armar_directorio(unidad: UnidadDeTrabajo, *, empresa_id: EmpresaId) -> PortD
     return ClientesViaMasterData(RepositorioClientePostgres(unidad.sesion), empresa_id=empresa_id)
 
 
-def armar_notificador(canal: CanalDeTexto) -> PortNotificadorDeTurnos:
+def armar_notificador(unidad: UnidadDeTrabajo, *, canal: CanalDeTexto) -> PortNotificadorDeTurnos:
     """Por dónde sale el aviso de un turno: WhatsApp, por el canal que el llamador ya armó.
 
     **El canal llega armado** (ADR-0011 §2): `api/mensajeria.armar_mensajeria` lo arma una vez por
@@ -64,7 +65,7 @@ def armar_notificador(canal: CanalDeTexto) -> PortNotificadorDeTurnos:
     su propio `Avisador` con un notificador silencioso (`api/conversacional.py`), porque confirma
     en la conversación.
     """
-    return AvisoPorWhatsApp(canal)
+    return AvisoPorWhatsApp(canal, armar_plantillas_aprobadas(unidad))
 
 
 def armar_avisador(
@@ -78,7 +79,7 @@ def armar_avisador(
     return Avisador(
         clientes=armar_directorio(unidad, empresa_id=empresa_id),
         servicios=armar_catalogo(unidad, empresa_id=empresa_id, rol=rol),
-        notificador=armar_notificador(canal),
+        notificador=armar_notificador(unidad, canal=canal),
     )
 
 

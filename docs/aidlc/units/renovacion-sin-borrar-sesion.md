@@ -131,7 +131,7 @@ Chica: ~10 líneas de producción, ~110 de tests, docs. Un commit `fix(identity)
 |---|---|---|
 | 1 · Plan | 2026-10-09 | Aprobado por Luciano con las recomendaciones D1–D4 |
 | 2 · Verificación | 2026-10-09 | Aprobado por Luciano. RED observado en 6 tests (cookies borradas ante 503, 500, 504 y error de red); lint, typecheck y tests del frontend en verde, `app/api/auth` con 100 % de cobertura. El CI local completo se corre en el Gate 3, cuando revocación entre a `develop` |
-| 3 · PR | | |
+| 3 · PR | 2026-10-09 | PR a `develop`. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
 

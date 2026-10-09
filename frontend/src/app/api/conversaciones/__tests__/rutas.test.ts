@@ -42,6 +42,7 @@ const rutaFaq = await import("@/app/api/faqs/[faqId]/route");
 const rutaUsoDeFaq = await import("@/app/api/faqs/[faqId]/uso/route");
 const rutaPlantillas = await import("@/app/api/plantillas/route");
 const rutaPlantilla = await import("@/app/api/plantillas/[plantillaId]/route");
+const rutaEnvioDePlantilla = await import("@/app/api/plantillas/[plantillaId]/envio/route");
 
 function pedido(cuerpo: unknown = {}, metodo = "POST"): Request {
   return new Request("http://test/api/conversaciones", {
@@ -78,9 +79,10 @@ describe("sin sesión", () => {
       rutaUsoDeFaq.GET(lectura(), { params: { faqId: "f1" } }),
       rutaPlantillas.GET(),
       rutaPlantilla.PUT(pedido({ cuerpo: "x" }, "PUT"), { params: { plantillaId: "p1" } }),
+      rutaEnvioDePlantilla.POST(pedido(), { params: { plantillaId: "p1" } }),
     ]);
 
-    expect(respuestas.map((respuesta) => respuesta.status)).toEqual(Array(12).fill(401));
+    expect(respuestas.map((respuesta) => respuesta.status)).toEqual(Array(13).fill(401));
     expect(llamarApi).not.toHaveBeenCalled();
   });
 });
@@ -239,5 +241,41 @@ describe("las plantillas", () => {
 
     expect(respuesta.status).toBe(422);
     expect((await respuesta.json()).detalle).toContain("no es válida");
+  });
+});
+
+describe("enviar una plantilla a revisión de Meta", () => {
+  it("es un POST sin cuerpo: qué plantilla sale de la ruta y quién la reenvía, de la sesión", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockResolvedValue({ id: "p1", estado_aprobacion: "PENDIENTE" });
+
+    const respuesta = await rutaEnvioDePlantilla.POST(pedido(), {
+      params: { plantillaId: "p1" },
+    });
+
+    expect(respuesta.status).toBe(200);
+    expect(llamarApi).toHaveBeenCalledWith("/plantillas/p1/envio", {
+      method: "POST",
+      body: {},
+    });
+  });
+
+  it("no ofrece ningún otro método", () => {
+    expect(Object.keys(rutaEnvioDePlantilla).filter((nombre) => /^[A-Z]+$/.test(nombre))).toEqual([
+      "POST",
+    ]);
+  });
+
+  it("el texto de Meta llega con un 422 y un 503 llega sin detalle", async () => {
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockRejectedValueOnce(new ErrorDeApi(422, "Texto de Meta", "MetaRechazoLaPlantilla"));
+    const rechazada = await rutaEnvioDePlantilla.POST(pedido(), { params: { plantillaId: "p1" } });
+    llamarApi.mockRejectedValueOnce(new ErrorDeApi(503, "interno", "MetaNoDisponible"));
+    const caida = await rutaEnvioDePlantilla.POST(pedido(), { params: { plantillaId: "p1" } });
+
+    expect(rechazada.status).toBe(422);
+    expect((await rechazada.json()).detalle).toBe("Texto de Meta");
+    expect(caida.status).toBe(503);
+    expect((await caida.json()).detalle).toBeUndefined();
   });
 });
