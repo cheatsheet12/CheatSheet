@@ -21,7 +21,7 @@ from uuid import UUID
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.externo_id import externo_id_o_ninguno
 
-#: El largo de la columna `recordatorio.ultimo_error` (migración 0037).
+#: El largo de la columna `recordatorio.ultimo_error` (migración 0038).
 LARGO_MAXIMO_ULTIMO_ERROR = 60
 
 

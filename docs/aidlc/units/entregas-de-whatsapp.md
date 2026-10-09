@@ -29,14 +29,14 @@ Hallazgos verificados contra el código por una revalidación de solo lectura.
   no hay cambio en `agente.py`; el caso 26 queda solo como test de regresión.
 - `PortMensajeria.enviar_plantilla`, `ConsultarPlantillaParaEnviar` y `api/plantillas_salientes.py`
   existen. Las rutas `/webhooks/whatsapp` (app) y por empresa ya rutean plantillas por WABA con
-  `empresas_de_la_cuenta_de_whatsapp`. `uq_integracion_waba` (0036) es único: hay 0 o 1 empresa por
+  `empresas_de_la_cuenta_de_whatsapp`. `uq_integracion_waba` (0037) es único: hay 0 o 1 empresa por
   WABA. El agente usa `_NotificadorSilencioso`. El único llamador de `armar_avisador`/`armar_notificador`
   es `api/routers/agenda.py:579-649` (688 líneas: no debe crecer).
 
 **Correcciones al plan:**
 
-- La migración es la **0037** (`down_revision="0036"`) y su test es
-  `tests/integracion/test_migracion_0037.py`.
+- La migración es la **0038** (`down_revision="0037"`) y su test es
+  `tests/integracion/test_migracion_0038.py`.
 - Citas movidas: `whatsapp.py` `_mensajes_de` ~274-303; `Mensaje.marcar_entrega`
   `conversacion.py:149-163`; `buscar_por_externo_id` `repositories.py:148-151`;
   `PortEnvioDeRecordatorio` en `payments/application/ports_de_recordatorios.py:17-25`; `_hilo_de`
@@ -60,7 +60,7 @@ Hallazgos verificados contra el código por una revalidación de solo lectura.
   `RepositorioMensajePostgres` a su propio módulo), `atencion.py` 391, `conversational/application/ports.py`
   381, `payments/application/recordatorios.py` 285 (el reintento va en un `reintentos.py` aparte),
   `payments/infrastructure/repositories.py` 353, `cobros.py` 385.
-- El hallazgo del ADR-0014 (E/S a Meta con la transacción abierta) no cambia y no se agrava.
+- El hallazgo del ADR-0015 (E/S a Meta con la transacción abierta) no cambia y no se agrava.
 - Verificar RLS en la búsqueda de `recordatorio` por `externo_id` en el caso PostgreSQL.
 
 **Cierre y tamaño:** el #73 se cierra recién tras U8 (lista U5, U6, U7 y U8). U7 cierra los pendientes
@@ -149,7 +149,7 @@ Sin verificar → `TODO.md` §25 (al final).
   una unidad de trabajo por empresa y confirma recién al final, así que un `failed` o `delivered` que
   llega antes del commit no encuentra la fila, se contesta 200 y se pierde. El tramo ii confirma cada
   recordatorio **antes** de la E/S a Meta y lo actualiza después (con ello también resuelve la parte de
-  recordatorios del hallazgo G5/ADR-0014); queda registrado en `TODO.md` §22.57.
+  recordatorios del hallazgo G5/ADR-0015); queda registrado en `TODO.md` §22.57.
 - **Alternativa descartada — `biz_opaque_callback_data`** con «payments:<id>» para rutear sin buscar
   en dos tablas: igual hace falta guardar el `wamid` (idempotencia, la respuesta del envío), es un dato
   más que mantener en tres adaptadores y no aporta nada que dos búsquedas por índice no den.
@@ -361,7 +361,7 @@ callback (serían tres por mensaje); el cambio a `FALLIDO` de un recordatorio s�
 | 26 | Historial del intérprete: un `SISTEMA` se reemplaza por el descriptor; el texto con nombre no llega al intérprete | unit | pendiente · tramo 3 (solo regresión: el descriptor ya existe) |
 | 27 | Respuesta del cliente a un aviso → el agente procesa en la misma conversación (RN-03) | integración | pendiente · tramo 3 |
 | 28 | Ningún log de los módulos nuevos contiene `recipient_id`, teléfono ni texto del aviso | unit (captura de logs) | parcial · tramo 1 (webhook de estados; faltan los avisos, tramo 3) |
-| 29 | Migración 0037: columnas e índice único **parcial** de `externo_id` (sin backfill, D1) | migración (CI) | escrito · tramo 1 (corre en CI) |
+| 29 | Migración 0038: columnas e índice único **parcial** de `externo_id` (sin backfill, D1) | migración (CI) | escrito · tramo 1 (corre en CI) |
 | 30 | PAN-COB-02: «Reintentando · intento n de 3», motivos traducidos; hilo con estado en castellano y motivo | unit (Vitest) | pendiente · tramo 3 |
 | 31 | `guard_architecture --scan` y `test_guards.sh` pasan | gate | hecho · tramo 1 (`guard_architecture`; `test_guards.sh` pendiente: falta `jq`) |
 | 32 | Dos callbacks del mismo `wamid` solapados (dos transacciones) no se pisan: `LEIDO` no se pisa con `ENTREGADO`, `FALLIDO` no se pisa, y `recordatorio_fallido` se publica una vez (H2) | integración (CI) | escrito · tramo 1 (corre en CI) |
@@ -427,15 +427,15 @@ uno se apila sobre el anterior y se mergea a `develop` en ese orden.
 - Raíz (D2): `api/fallas_de_canal.py` (`CanalConFallasTraducidas`) traduce los errores tipados del canal a
   `payments.FallaDelCanal(codigo)`; `armar_envio` lo usa. **Para `scheduling` se hará en el tramo 3**, cuando
   los avisos se registren.
-- Migración **0037**: `recordatorio.externo_id` + `ultimo_error` + índice único parcial, `mensaje.motivo_de_falla`.
+- Migración **0038**: `recordatorio.externo_id` + `ultimo_error` + índice único parcial, `mensaje.motivo_de_falla`.
   Sin backfill (D1).
 - `mensaje`: `RepositorioMensajePostgres` pasó a `repositorio_mensaje.py` (el módulo estaba en 400/400).
 - ADR-0011 (puntos 5 y 8) y `architecture.md` §4 enmendados (D5); pendientes en `TODO.md` §22.53 a §22.56.
 
 **Decisiones del tramo 1**
 
-- **Las columnas `intentos` y `proximo_intento_en` no están en la 0037**: nada del tramo 1 las usa. Las agrega
-  el tramo 2 (migración 0038), así cada PR trae solo el esquema que ejerce.
+- **Las columnas `intentos` y `proximo_intento_en` no están en la 0038**: nada del tramo 1 las usa. Las agrega
+  el tramo 2 (migración 0039), así cada PR trae solo el esquema que ejerce.
 - **Del `failed` se guarda solo el `code`**, no el `title` (texto de un tercero, §22.56). Sin código, el motivo
   queda vacío y la pantalla dirá «sin detalle».
 - **Un `wamid` sin destinatario se loguea en `warning`** (sin el id): si el id del envío no coincidiera con el de
@@ -464,19 +464,19 @@ uno se apila sobre el anterior y se mergea a `develop` en ese orden.
 - **H5:** `pytestmark` asyncio solo en los tests async de `test_fallos_tipados_del_canal.py` (cero
   warnings propios); `test_webhook_estados.py` (475 líneas) partido en `test_webhook_estados.py`,
   `test_webhook_estados_robustez.py`, `test_clasificacion_de_fallas_de_estados.py` y el montaje
-  `montaje_webhook_estados.py`; la 0037 verifica que el índice es parcial (`WHERE`); el caso 5 cubre también
+  `montaje_webhook_estados.py`; la 0038 verifica que el índice es parcial (`WHERE`); el caso 5 cubre también
   el lado `mensaje` y el 14 también el lado `recordatorio`.
 
 **Evidencia RED (TDD):** observado en colección (`ImportError` del símbolo inexistente) antes de implementar en
 cada bloque: dominio y casos de uso de `conversational`, dominio/casos de uso/adaptador de `payments`, el
 envoltorio de la raíz, el parser y el webhook de estados. **No se observó RED** en: el refactor de
-`repositorio_mensaje.py` (movimiento puro), `test_migracion_0037.py`, `test_entregas_de_recordatorio_postgres.py`
+`repositorio_mensaje.py` (movimiento puro), `test_migracion_0038.py`, `test_entregas_de_recordatorio_postgres.py`
 y los dos casos agregados a `test_conversacional_postgres.py` (necesitan PostgreSQL: solo corren en la CI).
 
 **Correcciones del Gate 2:** RED observado (el test falla antes de implementar) en H3 (dominio, canal,
 agente y operador), H2 (los casos de uso piden la fila bloqueada) y H4 (los tres casos nuevos del webhook).
 **No se observó RED** en: `test_entregas_concurrentes_postgres.py` y la aserción de índice parcial de
-`test_migracion_0037.py` (necesitan PostgreSQL: solo corren en la CI; §22.55) y en el movimiento de tests
+`test_migracion_0038.py` (necesitan PostgreSQL: solo corren en la CI; §22.55) y en el movimiento de tests
 de H5.
 
 ## Decisiones tomadas durante la unidad
@@ -485,7 +485,7 @@ de H5.
 - Gate 1 revalidado y aprobado por Luciano (2026-10-07):
   - **D1** — Se elimina el backfill de «filas trabadas»: la premisa es falsa (`recordatorios.py:221-249`
     inserta, envía y marca enviado en un solo savepoint) y un backfill podría reenviar un recordatorio
-    que sí salió. La migración 0037 trae solo columnas e índices. El caso 29 se actualiza.
+    que sí salió. La migración 0038 trae solo columnas e índices. El caso 29 se actualiza.
   - **D2** — Las clases de falla se traducen en la raíz de composición: wrappers en `api/` (patrón
     `_RevisionViaMeta`, `api/mensajeria.py:196-244`) que capturan los errores tipados de conversational
     (`MensajeriaSaturada`, `MensajeRechazado`, `EnvioIncierto`, `CanalNoConectado`, con `.codigo`,
@@ -507,7 +507,7 @@ de H5.
     `failed`/`delivered` que llega antes del commit no encuentra la fila, recibe 200 y se pierde: la
     afirmación «no se pierde nada» de D-U7-1 era falsa para los recordatorios. El tramo ii confirma cada
     recordatorio antes de la E/S a Meta y lo actualiza después (resuelve también la parte de recordatorios
-    del hallazgo G5/ADR-0014). Pendiente en `TODO.md` §22.57.
+    del hallazgo G5/ADR-0015). Pendiente en `TODO.md` §22.57.
   - **H2** — la búsqueda de los callbacks bloquea la fila (`SELECT ... FOR UPDATE`) y hay un test de CI con
     dos transacciones.
   - **H3** — un `wamid` vacío o más largo que la columna se guarda como `None`, nunca cortado; el paso se da
@@ -525,8 +525,8 @@ de H5.
   - **H5** — ver «Correcciones del Gate 2» arriba.
   - **Un `failed` que llega después de `read`/`delivered` se acepta y es terminal** (D-U7-2): se verifica
     contra Meta en `TODO.md` §22.54.
-  - **(a)** `intentos` y `proximo_intento_en` van a la migración **0038** en el tramo ii (`down_revision =
-    "0037"`, su propio test de migración en la CI, sin backfill).
+  - **(a)** `intentos` y `proximo_intento_en` van a la migración **0039** en el tramo ii (`down_revision =
+    "0038"`, su propio test de migración en la CI, sin backfill).
   - **(b)** Del `failed` se guarda solo `errors[0].code`, nunca el `title` (texto de un tercero); §22.56 es la
     salida si hace falta mostrarlo.
   - **(c)** El `wamid` sin destinatario se sigue registrando en nivel `warning`.
