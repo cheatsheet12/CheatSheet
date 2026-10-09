@@ -157,6 +157,7 @@ traceability with the design documents and with ARCA itself.
 | `PortEmisionFiscal` | ARCA via PyAfipWs (WSFEv1, SOAP) — ADR-012 | `billing` |
 | `PortCobro` | MercadoPago (REST) | `payments` |
 | `PortMensajeria` | WhatsApp Cloud API. Also consumed by `payments` (`EnvioPorWhatsApp`) and `scheduling` (`AvisoPorWhatsApp`) through a local structural `Protocol`, wired only in the composition root (`api/mensajeria.py`) — [ADR-0011](adr/0011-outbound-whatsapp-channel-via-composition-root.md) | `conversational` |
+| `PortRevisionDeMeta` | Meta Business Management API (`message_templates` of the company's WABA): create, edit and read the state of the six WhatsApp templates. Declared by `business_config`; the adapter lives in the composition root (`api/mensajeria.py`) over the client in `conversational/infrastructure/plantillas_meta.py`, and translates its typed errors to `business_config`'s — [ADR-0011](adr/0011-outbound-whatsapp-channel-via-composition-root.md) §4 | `business_config` |
 | `PortPlanilla` (read + write-back) | Google Sheets / Excel Online | `spreadsheet_sync` |
 | `PortModeloDeLenguaje` | LLM provider (mapping, intent, embeddings) | `spreadsheet_sync`, `conversational` |
 | `PortTranscripcion` | Audio transcription service | `conversational` |

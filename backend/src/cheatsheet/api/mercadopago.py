@@ -21,6 +21,7 @@ fila de la empresa actual. Es la misma conclusión a la que llegó `arca.py`.
 from __future__ import annotations
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
+from cheatsheet.api.plantillas_salientes import armar_plantillas_aprobadas
 from cheatsheet.contexts.billing.infrastructure.repositorio_comprobante import (
     RepositorioComprobantePostgres,
 )
@@ -160,11 +161,12 @@ def armar_envio(unidad: UnidadDeTrabajo, *, canal: CanalDeTexto) -> PortEnvioDeR
     """Por dónde sale un recordatorio: WhatsApp, por el canal que el llamador ya armó.
 
     **El canal llega armado** (ADR-0011 §2): `api/mensajeria.armar_mensajeria` lo arma una vez
-    por unidad de trabajo, y este módulo no depende de `conversational`. Fuera de producción el
+    por unidad de trabajo, y este módulo no depende de `conversational`. La plantilla aprobada
+    del recordatorio, si la hay, llega de `business_config` (`armar_plantillas_aprobadas`). Fuera de producción el
     canal puede ser el simulado, y entonces el recordatorio queda `ENVIADO` sin salir de la
     máquina; en producción sin WhatsApp conectado es `SinCanal` y queda `FALLIDO`.
     """
-    return EnvioPorWhatsApp(canal, armar_contactos(unidad))
+    return EnvioPorWhatsApp(canal, armar_contactos(unidad), armar_plantillas_aprobadas(unidad))
 
 
 __all__ = [

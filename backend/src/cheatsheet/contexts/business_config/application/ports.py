@@ -7,6 +7,8 @@ que ya no existe.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
@@ -42,6 +44,64 @@ class PortRepositorioReglas(Protocol):
 __all__ = ["PortRepositorioReglas"]
 
 
+@dataclass(frozen=True, slots=True)
+class RespuestaDeMeta:
+    """Lo que Meta contesta al crear o editar una plantilla. `estado` es su vocabulario."""
+
+    meta_plantilla_id: str
+    estado: str
+    categoria: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EstadoEnMeta:
+    """Una plantilla tal como está en la WABA de la empresa."""
+
+    meta_plantilla_id: str
+    nombre: str
+    idioma: str
+    estado: str
+    categoria: str | None = None
+    motivo: str | None = None
+    cuerpo: str | None = None
+
+
+class PortRevisionDeMeta(Protocol):
+    """La WABA de la empresa, vista desde las plantillas (U6, ADR-0011 §4).
+
+    La forma estrecha que `business_config` necesita de Meta: crear, editar y leer. Quien la
+    implementa es la raíz de composición, sobre el cliente de `conversational`, y traduce sus
+    errores a los de este contexto: `MetaRechazoLaPlantilla`, `MetaNoDisponible` y
+    `MetaNoConectada`. Este contexto no importa `conversational`.
+    """
+
+    async def crear(
+        self, *, nombre: str, idioma: str, cuerpo: str, ejemplos: Mapping[str, str]
+    ) -> RespuestaDeMeta: ...
+
+    async def editar(
+        self, *, meta_plantilla_id: str, cuerpo: str, ejemplos: Mapping[str, str]
+    ) -> RespuestaDeMeta: ...
+
+    @property
+    def estados_completos(self) -> bool:
+        """Si `estados()` es **toda** la verdad de la WABA o solo lo que el doble recuerda.
+
+        Quien deduce algo de lo que **falta** (G3: una aprobada que Meta ya no lista) solo puede
+        hacerlo cuando esto es verdadero. El doble de desarrollo no recuerda nada y devuelve vacío:
+        ahí que falte no dice nada.
+        """
+        ...
+
+    async def estados(self) -> list[EstadoEnMeta]:
+        """Todas las plantillas de la WABA (paginado del otro lado).
+
+        **O la lista entera o un error**: una lectura cortada (páginas de más, una respuesta que no
+        es una lista) levanta `MetaNoDisponible`, nunca devuelve una parte como si fuera el todo.
+        """
+        ...
+
+
 class PortRepositorioPlantillas(Protocol):
     """Persistencia de plantillas de notificacion (HU-E11-02), siempre dentro de una empresa.
 
@@ -60,8 +120,18 @@ class PortRepositorioPlantillas(Protocol):
         """La plantilla vigente para ese codigo, o `None`.
 
         `None` es un camino previsto y no un error: el adaptador que la pedia usa su texto de
-        fabrica. Ver `ResolverPlantilla`.
+        fabrica. Ver `ConsultarPlantillaParaEnviar`.
         """
+        ...
+
+    async def buscar_por_meta_id(self, meta_plantilla_id: str) -> PlantillaDeNotificacion | None:
+        """La plantilla de esta empresa con ese id de Meta: lo que trae el webhook."""
+        ...
+
+    async def buscar_por_nombre_en_meta(
+        self, nombre: str, idioma: str
+    ) -> PlantillaDeNotificacion | None:
+        """La que se llama así en Meta. La conciliación la usa para no crear una dos veces."""
         ...
 
     async def listar(self) -> list[PlantillaDeNotificacion]: ...

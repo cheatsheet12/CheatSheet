@@ -18,7 +18,7 @@ personales ni respuestas a una oferta.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time, timedelta
 from uuid import UUID, uuid4
 
@@ -260,6 +260,12 @@ class MensajeriaEnMemoria:
             raise RuntimeError("WhatsApp no responde")
         self.enviados.append((telefono, texto))
         return f"wamid-{len(self.enviados)}"
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, nombre, idioma, parametros
+        raise AssertionError("el agente y el operador contestan con texto, nunca con plantilla")
 
     @property
     def textos(self) -> list[str]:

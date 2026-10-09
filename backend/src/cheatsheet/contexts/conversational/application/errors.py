@@ -73,7 +73,24 @@ class _FalloDeCanal(MensajeriaNoDisponible):
 
 
 class MensajeRechazado(_FalloDeCanal):
-    """Permanente: Meta contestó y no lo va a aceptar aunque se reintente."""
+    """Permanente: Meta contestó y no lo va a aceptar aunque se reintente.
+
+    Las plantillas agregan `subcodigo` y `mensaje_para_el_usuario` (el `error_user_msg` de Meta,
+    que habla de **nuestro** texto): un envío de mensaje nunca los llena, porque ese texto puede
+    traer el número.
+    """
+
+    def __init__(
+        self,
+        mensaje: str,
+        *,
+        codigo: int | None = None,
+        subcodigo: int | None = None,
+        mensaje_para_el_usuario: str | None = None,
+    ) -> None:
+        super().__init__(mensaje, codigo=codigo)
+        self.subcodigo = subcodigo
+        self.mensaje_para_el_usuario = mensaje_para_el_usuario
 
 
 class MensajeriaSaturada(_FalloDeCanal):

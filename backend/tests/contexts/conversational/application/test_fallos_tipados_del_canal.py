@@ -7,6 +7,7 @@ excepciones nuevas **heredan de `MensajeriaNoDisponible`**, así que ninguno de 
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -38,6 +39,12 @@ class CanalQueFalla:
 
     async def enviar(self, *, telefono: str, texto: str) -> str:
         del telefono, texto
+        raise self._error
+
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, nombre, idioma, parametros
         raise self._error
 
 
