@@ -75,8 +75,8 @@ con TLS verificado en todas las conexiones de los tests.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-08 | aprobado |
-| 2 · Verificación | | |
-| 3 · PR | | |
+| 2 · Verificación | 2026-10-08 | Aprobado por Luciano |
+| 3 · PR | 2026-10-09 | PR a `develop`. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
 - ¿Dónde corre la suite de integración sin CI? → **Rama `integracion` de Neon**, base
