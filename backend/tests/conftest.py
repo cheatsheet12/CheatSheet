@@ -117,6 +117,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         whatsapp_graph_version="v21.0",
         whatsapp_timeout_segundos=1,
         whatsapp_sondeo_minutos=30,
+        whatsapp_plantillas_minutos=30,
         # Un secreto de prueba, no vacio: con la cadena vacia **ninguna firma vale** (HS-T2),
         # asi que dejarlo en blanco haria que el test del camino feliz del webhook pasara por
         # el motivo equivocado.

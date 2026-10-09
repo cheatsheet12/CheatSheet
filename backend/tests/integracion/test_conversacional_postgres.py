@@ -26,7 +26,9 @@ import pytest
 from cheatsheet.contexts.conversational.domain.conversacion import (
     Conversacion,
     DireccionMensaje,
+    EstadoEntrega,
     Mensaje,
+    OrigenDelMensaje,
     TipoContenido,
 )
 from cheatsheet.contexts.conversational.domain.dialogo import (
@@ -51,6 +53,8 @@ from cheatsheet.contexts.conversational.infrastructure.repositories import (
     RepositorioConversacionPostgres,
     RepositorioEscalamientoPostgres,
     RepositorioFAQPostgres,
+)
+from cheatsheet.contexts.conversational.infrastructure.repositorio_mensaje import (
     RepositorioMensajePostgres,
 )
 from cheatsheet.platform.database import sesion_de_empresa
@@ -281,6 +285,45 @@ class TestIdempotenciaDelWebhook:
         async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
             cuantos = await sesion.execute(text("SELECT count(*) FROM mensaje"))
         assert cuantos.scalar_one() == 2
+
+    async def test_el_estado_de_entrega_y_su_motivo_sobreviven_al_guardado(
+        self, sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+    ) -> None:
+        """U7: el callback `failed` encuentra el mensaje por su `wamid` y deja el motivo."""
+        escenario = await _escenario(engine_dueno, sesiones)
+        saliente = escenario.mensaje(externo_id="wamid-saliente")
+        saliente.direccion = DireccionMensaje.SALIENTE
+        saliente.origen = OrigenDelMensaje.AGENTE
+        saliente.estado_entrega = EstadoEntrega.ENVIADO
+        async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+            await RepositorioMensajePostgres(sesion).agregar(saliente)
+
+        async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+            repositorio = RepositorioMensajePostgres(sesion)
+            encontrado = await repositorio.buscar_por_externo_id("wamid-saliente")
+            assert encontrado is not None
+            encontrado.marcar_entrega(EstadoEntrega.FALLIDO, motivo="131047")
+            await repositorio.guardar(encontrado)
+
+        async with sesion_de_empresa(sesiones, escenario.empresa_id) as sesion:
+            leido = await RepositorioMensajePostgres(sesion).buscar_por_externo_id("wamid-saliente")
+        assert leido is not None
+        assert leido.estado_entrega is EstadoEntrega.FALLIDO
+        assert leido.motivo_de_falla == "131047"
+
+    async def test_el_wamid_de_otra_empresa_no_se_encuentra(
+        self, sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+    ) -> None:
+        """U7, caso 10 del lado de `mensaje`: RLS hace que un `wamid` ajeno no exista."""
+        una = await _escenario(engine_dueno, sesiones)
+        otra = await _escenario(engine_dueno, sesiones)
+        async with sesion_de_empresa(sesiones, una.empresa_id) as sesion:
+            await RepositorioMensajePostgres(sesion).agregar(una.mensaje(externo_id="wamid-de-a"))
+
+        async with sesion_de_empresa(sesiones, otra.empresa_id) as sesion:
+            ajeno = await RepositorioMensajePostgres(sesion).buscar_por_externo_id("wamid-de-a")
+
+        assert ajeno is None
 
 
 class TestAislamiento:

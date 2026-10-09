@@ -180,6 +180,8 @@ Antes de desplegar, porque un valor inválido tumba **ambos** servicios en bucle
 
 ## Decisiones tomadas durante la unidad
 
+- **Al mergear `develop` (2026-10-09):** `plantillas-de-whatsapp-en-meta` (U6) había agregado la entrada de Beat `conciliar-plantillas-de-whatsapp` con un `timedelta` y `WHATSAPP_PLANTILLAS_MINUTOS` sin validar. Se la alinea como a las demás (`alineado(...)`, `_intervalo_en_minutos`), sus dos tests pasan a afirmar la alineación y el rechazo de 0 al arrancar, y `docs/staging-deployment.md` la suma a la lista (staging: 120).
+
 - ¿Se alinean las entradas diarias y `PARAMETROS_FISCALES_HORAS`? → **Sí** (Gate 2, 2026-10-08;
   revierte el «No» del Gate 1): una entrada con `timedelta` despierta la base en un instante propio
   y rompe la regla de que todas disparen juntas. `PARAMETROS_FISCALES_HORAS` se valida al arrancar

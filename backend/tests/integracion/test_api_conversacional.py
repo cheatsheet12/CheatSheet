@@ -521,7 +521,7 @@ class TestPlantillas:
         guardada = await cliente_http.put(
             f"/plantillas/{plantilla['id']}",
             headers=_auth(token),
-            json={"cuerpo": "{{nombre}}: te esperamos el {{fecha}}."},
+            json={"cuerpo": "Hola {{nombre}}: te esperamos el {{fecha}}."},
         )
 
         assert guardada.status_code == 200, guardada.text

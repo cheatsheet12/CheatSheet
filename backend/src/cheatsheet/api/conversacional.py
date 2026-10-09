@@ -24,7 +24,6 @@ from cheatsheet.api.agenda import armar_directorio as armar_directorio_de_avisos
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.api.padron import armar_padron_de_clientes
 from cheatsheet.contexts.business_config.application.atencion import ConsultarAtencion
-from cheatsheet.contexts.business_config.application.plantillas import ResolverPlantilla
 from cheatsheet.contexts.business_config.infrastructure.ensamblado import (
     ConfiguracionDeNegocio,
 )
@@ -34,7 +33,6 @@ from cheatsheet.contexts.conversational.application.ports import (
     PortEmbeddings,
     PortHorarioDeAtencion,
     PortInterprete,
-    PortPlantillas,
     PortTranscriptor,
 )
 from cheatsheet.contexts.conversational.infrastructure.acl import (
@@ -179,37 +177,11 @@ def armar_horario_de_atencion(
     return HorarioViaConfiguracion(consulta, empresa_id=empresa_id)
 
 
-def armar_plantillas(unidad: UnidadDeTrabajo) -> PortPlantillas:
-    """Los textos salientes configurables (HU-E11-02).
-
-    Devuelve `None` por código no configurado, y el adaptador usa su texto de fábrica — ver
-    `ResolverPlantilla`.
-    """
-    caso = ResolverPlantilla(ConfiguracionDeNegocio.armar(unidad).plantillas)
-    return _PlantillasViaConfiguracion(caso)
-
-
-class _PlantillasViaConfiguracion:
-    """`PortPlantillas`, respaldado por el caso de uso publicado de `business_config`.
-
-    Una clase de cinco líneas y no el caso de uso directo: la firma de `ResolverPlantilla`
-    coincide con la del puerto por ahora, y hacer que `conversational` dependa de esa
-    coincidencia sería atarle su contrato a los parámetros de otro contexto.
-    """
-
-    def __init__(self, caso: ResolverPlantilla) -> None:
-        self._caso = caso
-
-    async def resolver(self, codigo: str, variables: dict[str, str]) -> str | None:
-        return await self._caso.ejecutar(codigo, variables)
-
-
 __all__ = [
     "armar_agenda",
     "armar_directorio",
     "armar_embeddings",
     "armar_horario_de_atencion",
     "armar_interprete",
-    "armar_plantillas",
     "armar_transcriptor",
 ]

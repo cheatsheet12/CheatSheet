@@ -13,28 +13,36 @@ Dos cosas del archivo:
   las que faltan con el texto de fábrica. Sembrarlas en el alta de la empresa habría atado un
   épico a otro y habría dejado sin plantillas a las empresas creadas antes de este épico.
 
-- **`ResolverPlantilla` devuelve `None` cuando no hay nada configurado**, y el llamador usa su
-  texto por defecto. Un canal que se queda mudo porque falta una fila es peor que uno que
+- **`ConsultarPlantillaParaEnviar` dice qué hacer cuando no hay nada usable**, y el llamador usa
+  su texto por defecto. Un canal que se queda mudo porque falta una fila es peor que uno que
   manda el texto de fábrica.
 """
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from cheatsheet.contexts.business_config.application.ports import PortRepositorioPlantillas
+from cheatsheet.contexts.business_config.domain.estados_de_meta import (
+    EVENTOS_QUE_SE_RELEEN,
+    estado_desde_evento,
+    estado_desde_nodo,
+)
 from cheatsheet.contexts.business_config.domain.plantilla import (
+    PATRON_DE_VARIABLE,
     VARIABLES_POR_CODIGO,
-    EstadoDeAprobacion,
     PlantillaDeNotificacion,
 )
 from cheatsheet.contexts.business_config.domain.regla import CanalNotificacion
-from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
-from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.platform.telemetry import obtener_logger
+from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida
-from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
+
+logger = obtener_logger(__name__)
 
 MOTIVO_SOLO_ADMIN = "Solo un Administrador puede administrar las plantillas"
 
@@ -66,11 +74,12 @@ DE_FABRICA: dict[str, tuple[CanalNotificacion, str]] = {
     "recordatorio_de_cobro": (
         CanalNotificacion.WHATSAPP,
         "Hola {{nombre}}, te recordamos el pago de {{concepto}} por $ {{monto}}. "
-        "Podés pagarlo acá: {{link}}",
+        "Podés pagarlo acá: {{link}} Gracias.",
     ),
     "cobro_generado": (
         CanalNotificacion.WHATSAPP,
-        "Hola {{nombre}}, te dejamos el link para pagar {{concepto}} por $ {{monto}}: {{link}}",
+        "Hola {{nombre}}, te dejamos el link para pagar {{concepto}} por $ {{monto}}: "
+        "{{link}} Gracias.",
     ),
 }
 
@@ -79,7 +88,7 @@ DE_FABRICA: dict[str, tuple[CanalNotificacion, str]] = {
 IDIOMA_POR_DEFECTO = "es_AR"
 
 
-def _exigir_administrador(rol: RolUsuario) -> None:
+def exigir_administrador(rol: RolUsuario) -> None:
     if rol is not RolUsuario.ADMINISTRADOR:
         raise EntradaInvalida(MOTIVO_SOLO_ADMIN)
 
@@ -100,22 +109,16 @@ class ListarPlantillas:
         existentes = await self._plantillas.listar()
         conocidos = {una.codigo for una in existentes}
         faltantes = [
-            PlantillaDeNotificacion(
+            # `SIN_ENVIAR` y no `PENDIENTE` ni `APROBADA`: nadie se la mandó todavía a Meta, y
+            # decir otra cosa sería afirmar algo que sólo el proveedor puede afirmar.
+            PlantillaDeNotificacion.nueva(
                 id=uuid4(),
                 empresa_id=empresa_id,
                 codigo=codigo,
                 canal=canal,
                 idioma=IDIOMA_POR_DEFECTO,
                 cuerpo=cuerpo,
-                # `PENDIENTE` y no `APROBADA`: nadie le preguntó todavía a Meta, y decir que
-                # está aprobada sería afirmar algo que sólo el proveedor puede afirmar.
-                estado_aprobacion=(
-                    EstadoDeAprobacion.PENDIENTE
-                    if canal is CanalNotificacion.WHATSAPP
-                    else EstadoDeAprobacion.NO_APLICA
-                ),
-                created_at=ahora,
-                updated_at=ahora,
+                ahora=ahora,
             )
             for codigo, (canal, cuerpo) in DE_FABRICA.items()
             if codigo not in conocidos
@@ -125,69 +128,119 @@ class ListarPlantillas:
         return sorted([*existentes, *faltantes], key=lambda una: una.codigo)
 
 
-class EditarPlantilla:
-    """HU-E11-02, segundo y tercer criterio.
+#: Meta no acepta saltos de línea ni tabulaciones dentro de un valor de parámetro (regla conocida,
+#: sin verificar en la documentación consultada: `docs/aidlc/TODO.md` §22.47).
+SALTOS_Y_TABULACIONES = re.compile(r"[\r\n\t]+")
 
-    La validación de variables la hace el agregado, con la frase de la historia. No se repite
-    acá: dos lugares que validan lo mismo son dos lugares que pueden dejar de estar de acuerdo.
+
+def limpiar_valor(valor: str) -> str:
+    """Un valor listo para viajar como parámetro: sin saltos de línea ni tabulaciones."""
+    return SALTOS_Y_TABULACIONES.sub(" ", valor).strip()
+
+
+@dataclass(frozen=True, slots=True)
+class PlantillaParaEnviar:
+    """Lo que un adaptador necesita para mandar una plantilla aprobada (OHS de `business_config`).
+
+    `parametros` son **solo** las variables que el cuerpo usa (Meta exige la cantidad exacta, error
+    132000). `texto` es el cuerpo resuelto, para guardarlo como lo que se mandó.
     """
 
-    def __init__(
-        self, plantillas: PortRepositorioPlantillas, publicador: PublicadorDeEventos
-    ) -> None:
-        self._plantillas = plantillas
-        self._publicador = publicador
-
-    async def ejecutar(
-        self,
-        *,
-        empresa_id: EmpresaId,
-        usuario_id: UsuarioId,
-        rol: RolUsuario,
-        plantilla_id: UUID,
-        cuerpo: str,
-        ahora: datetime,
-    ) -> PlantillaDeNotificacion:
-        _exigir_administrador(rol)
-        plantilla = await self._plantillas.buscar_por_id(plantilla_id)
-        if plantilla is None:
-            raise EntradaInvalida("La plantilla no existe")
-        plantilla.editar(cuerpo, ahora)
-        await self._plantillas.guardar(plantilla)
-        await self._publicador.publicar(
-            EventoAuditable(
-                evento_id=uuid4(),
-                empresa_id=empresa_id,
-                usuario_id=usuario_id,
-                ocurrido_en=ahora,
-                modulo=Modulo.BUSINESS_CONFIG,
-                accion="editar_plantilla",
-                entidad_afectada=f"PlantillaDeNotificacion:{plantilla.id}",
-                resultado=Resultado.COMPLETADO,
-            )
-        )
-        return plantilla
+    nombre_en_meta: str
+    idioma: str
+    parametros: dict[str, str]
+    texto: str
 
 
-class ResolverPlantilla:
-    """El texto listo para mandar, o `None` si no hay plantilla usable.
+class ConsultarPlantillaParaEnviar:
+    """La plantilla **aprobada** de un código, lista para mandar, o `None`.
 
-    `None` cubre los tres casos que para el llamador significan lo mismo: no existe, no está
-    aprobada, o el código no está configurado. En los tres, el adaptador manda su texto de
-    fábrica — ver el docstring del módulo.
+    `None` cubre lo que para el adaptador significa lo mismo: no existe, no está aprobada por Meta,
+    no es de WhatsApp o el llamador no pasó una variable que el cuerpo usa. En todos, el adaptador
+    manda su texto de fábrica. Una plantilla no aprobada no se usa jamás (RN-04).
     """
 
     def __init__(self, plantillas: PortRepositorioPlantillas) -> None:
         self._plantillas = plantillas
 
-    async def ejecutar(self, codigo: str, variables: dict[str, str]) -> str | None:
+    async def ejecutar(self, codigo: str, variables: dict[str, str]) -> PlantillaParaEnviar | None:
         plantilla = await self._plantillas.buscar_por_codigo(codigo)
-        if plantilla is None or not plantilla.puede_usarse:
+        if plantilla is None or not plantilla.es_de_whatsapp or not plantilla.puede_usarse:
             return None
-        try:
-            return plantilla.resolver(variables)
-        except EntradaInvalida:
+        usadas = list(dict.fromkeys(PATRON_DE_VARIABLE.findall(plantilla.cuerpo)))
+        if any(variable not in variables for variable in usadas):
+            logger.warning("plantilla_con_variables_sin_valor", codigo=codigo)
             return None
+        limpias = {variable: limpiar_valor(variables[variable]) for variable in usadas}
+        return PlantillaParaEnviar(
+            nombre_en_meta=plantilla.nombre_en_meta or plantilla.codigo,
+            idioma=plantilla.idioma,
+            parametros=limpias,
+            texto=plantilla.resolver(limpias),
+        )
+
+
+class ActualizarEstadoDesdeMeta:
+    """Aplica un estado que Meta informó (webhook o conciliación) a la plantilla de la empresa.
+
+    **Idempotente**: el mismo estado dos veces es un efecto, y uno más viejo que el aplicado no
+    retrocede (lo decide el agregado). Sin rol: lo llama el webhook o el barrido, como
+    `ConsultarReglasVigentes`. Devuelve si cambió algo.
+    """
+
+    def __init__(self, plantillas: PortRepositorioPlantillas) -> None:
+        self._plantillas = plantillas
+
+    async def ejecutar(
+        self,
+        *,
+        estado: str,
+        momento: datetime,
+        es_evento: bool,
+        meta_plantilla_id: str | None = None,
+        nombre: str | None = None,
+        idioma: str | None = None,
+        motivo: str | None = None,
+        detalle: str | None = None,
+    ) -> bool:
+        plantilla = await self._buscar(meta_plantilla_id, nombre, idioma)
+        if plantilla is None:
+            logger.info("plantilla_de_meta_sin_fila_nuestra")
+            return False
+        if es_evento and estado in EVENTOS_QUE_SE_RELEEN:
+            logger.info("plantilla_estado_meta_se_relee", estado=estado)
+            return False
+        nuevo = estado_desde_evento(estado) if es_evento else estado_desde_nodo(estado)
+        if nuevo is None:
+            logger.warning("plantilla_estado_meta_desconocido", estado=estado)
+            return False
+        if meta_plantilla_id and plantilla.meta_plantilla_id != meta_plantilla_id:
+            plantilla.vincular_con_meta(meta_plantilla_id)
+        cambio = plantilla.aplicar_respuesta_de_meta(
+            nuevo, motivo=motivo, detalle=detalle, momento=momento
+        )
+        await self._plantillas.guardar(plantilla)
+        return cambio
+
+    async def _buscar(
+        self, meta_plantilla_id: str | None, nombre: str | None, idioma: str | None
+    ) -> PlantillaDeNotificacion | None:
+        if meta_plantilla_id:
+            plantilla = await self._plantillas.buscar_por_meta_id(meta_plantilla_id)
+            if plantilla is not None:
+                return plantilla
+        if nombre and idioma:
+            plantilla = await self._plantillas.buscar_por_nombre_en_meta(nombre, idioma)
+            if (
+                plantilla is not None
+                and meta_plantilla_id
+                and plantilla.meta_plantilla_id not in (None, meta_plantilla_id)
+            ):
+                # Mismo nombre, otro id: es otra plantilla de Meta, no la que tenemos vinculada.
+                logger.warning("plantilla_de_meta_con_otro_id")
+                return None
+            return plantilla
+        return None
 
 
 def variables_conocidas(codigo: str) -> frozenset[str]:
@@ -198,8 +251,12 @@ def variables_conocidas(codigo: str) -> frozenset[str]:
 __all__ = [
     "DE_FABRICA",
     "IDIOMA_POR_DEFECTO",
-    "EditarPlantilla",
+    "MOTIVO_SOLO_ADMIN",
+    "ActualizarEstadoDesdeMeta",
+    "ConsultarPlantillaParaEnviar",
     "ListarPlantillas",
-    "ResolverPlantilla",
+    "PlantillaParaEnviar",
+    "exigir_administrador",
+    "limpiar_valor",
     "variables_conocidas",
 ]

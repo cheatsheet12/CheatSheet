@@ -61,6 +61,14 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
             "schedule": alineado(settings.whatsapp_sondeo_minutos),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
+        # U6. La conciliación de las plantillas de WhatsApp con Meta: la red de seguridad del
+        # webhook de estado de plantillas, que no admite override por cuenta. Misma escala que el
+        # sondeo de verificación de número, porque la revisión de Meta tarda hasta 24 h.
+        "conciliar-plantillas-de-whatsapp": {
+            "task": "business_config.conciliar_plantillas",
+            "schedule": alineado(settings.whatsapp_plantillas_minutos),
+            "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
+        },
         "revisar-vencimientos-de-credenciales": {
             "task": "integrations.revisar_vencimientos",
             "schedule": alineado(MINUTOS_POR_DIA),

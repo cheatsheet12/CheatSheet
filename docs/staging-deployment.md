@@ -91,6 +91,16 @@ and the OAuth2 `state` memory, the idempotency registry and half of `/health` li
 | `WHATSAPP_WEBHOOK_SECRET` | The **App Secret** of the Meta app, which signs `X-Hub-Signature-256` on every inbound notification |
 | `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | The token typed when the webhook URL is registered in the Meta app |
 
+**Two webhook URLs, and they are not interchangeable** (`plantillas-de-whatsapp-en-meta`). Incoming
+messages arrive at the per-company URL, `/webhooks/whatsapp/{empresa_id}` (set per account with
+`POST /{waba_id}/subscribed_apps` and `override_callback_uri`). **Template status updates
+(`message_template_status_update`) do not support callback overrides**: they arrive at the **app-level URL**,
+`/webhooks/whatsapp`, which is the one registered in the Meta app's webhook settings, and the app must be
+**subscribed to the `message_template_status_update` field**. The event is routed by the WABA id it carries,
+never by the URL. Both URLs use the same `WHATSAPP_WEBHOOK_SECRET` and `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. If the
+subscription is missing nothing breaks: the periodic reconciliation (below) reads the same state, only up to
+`WHATSAPP_PLANTILLAS_MINUTOS` later ([`aidlc/TODO.md`](aidlc/TODO.md) §22.45).
+
 > **Without `WHATSAPP_WEBHOOK_SECRET` every WhatsApp notification is discarded with a 200** (D49,
 > pending #3 of epic 8): the signature can never match an empty secret, and the 200 stops Meta from
 > retrying. The two `WHATSAPP_WEBHOOK_*` values are only needed once a Meta app exists
@@ -167,6 +177,10 @@ The worker also needs `WHATSAPP_ADAPTADOR`, with **the same value as the API**: 
 sweep runs here and has to pick the same channel the API does (`simulado` on staging). It does not
 need the two `WHATSAPP_WEBHOOK_*` values, which only the API reads.
 
+`WHATSAPP_PLANTILLAS_MINUTOS` (default `30`) is read **only by the worker**, whose embedded Beat reconciles each
+company's WhatsApp templates with Meta (queue `integrations_sync`). It is not in `render.yaml`: the default
+is fine, and the dashboard is the source of truth if a different value is wanted.
+
 > **`SECRETS_ENCRYPTION_KEY` must be character-for-character the same as the API's.** Integration
 > credentials are encrypted with it. A worker with a different key fails every ARCA authorisation
 > with `CredencialIlegible` while the stored row looks perfectly healthy.
@@ -217,8 +231,8 @@ exhausts the month in about 17 days. Two things kept it awake, and both are fixe
 Both the API and the worker read these settings at startup, so a bad value crashes **both**
 services into a boot loop. Check **both** Render services (API and worker), not just the worker:
 
-- [ ] `WHATSAPP_SONDEO_MINUTOS`, `DLQ_BARRIDO_MINUTOS`, `SYNC_PLANILLAS_MINUTOS` and
-  `BILLING_RECONCILIACION_MINUTOS`, if set, are one of: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60,
+- [ ] `WHATSAPP_SONDEO_MINUTOS`, `WHATSAPP_PLANTILLAS_MINUTOS`, `DLQ_BARRIDO_MINUTOS`,
+  `SYNC_PLANILLAS_MINUTOS` and `BILLING_RECONCILIACION_MINUTOS`, if set, are one of: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60,
   120, 180, 240, 360, 480, 720, 1440. Unset is fine (the defaults are valid).
 - [ ] `PARAMETROS_FISCALES_HORAS`, if set, is one of: 1, 2, 3, 4, 6, 8, 12, 24. Unset is fine.
 - [ ] API service -> Settings -> **Health Check Path** is `/health/live`. Without this the health
@@ -233,6 +247,7 @@ running Beat) in the Render dashboard:
 | `BILLING_RECONCILIACION_MINUTOS` | 5 | 60 | A voucher whose ARCA answer was lost waits up to an hour to be reconciled instead of five minutes |
 | `DLQ_BARRIDO_MINUTOS` | 15 | 120 | A task that ran out of retries is retired to the dead-letter state up to two hours later |
 | `WHATSAPP_SONDEO_MINUTOS` | 30 | 120 | A WhatsApp number's Meta verification result is noticed up to two hours later |
+| `WHATSAPP_PLANTILLAS_MINUTOS` | 30 | 120 | A template status change whose Meta webhook was lost is reconciled up to two hours later |
 | `SYNC_PLANILLAS_MINUTOS` | 60 | 240 | A live spreadsheet is re-read every four hours instead of every hour |
 
 With these values every sweep lands on an even hour or on a multiple of four, so the compute wakes

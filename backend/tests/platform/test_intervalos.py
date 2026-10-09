@@ -46,6 +46,7 @@ def test_un_intervalo_que_no_se_alinea_se_rechaza_en_vez_de_redondearse(minutos:
     "variable",
     [
         "WHATSAPP_SONDEO_MINUTOS",
+        "WHATSAPP_PLANTILLAS_MINUTOS",
         "DLQ_BARRIDO_MINUTOS",
         "SYNC_PLANILLAS_MINUTOS",
         "BILLING_RECONCILIACION_MINUTOS",
