@@ -60,15 +60,15 @@ Neon suspende el compute tras 5 minutos sin conexiones. Dos cosas lo mantenían 
   literales de `barrer-cobros` (60) y `reindexar-faqs` (360). Tras la corrección de Gate 2
   (2026-10-08) **también** se alinean las tres entradas diarias (00:00) y
   `PARAMETROS_FISCALES_HORAS` (horas × 60; debe ser 1, 2, 3, 4, 6, 8, 12 o 24; falla al arrancar si
-  no). Ver ADR-0014 abajo.
+  no). Ver ADR-0015 abajo.
 - **C. `/health/live`.** Responde `200 {"estado": "ok"}` sin tocar PostgreSQL ni Redis, es público
   como `/health`. `/health` queda como comprobación completa (readiness) y la sigue usando el
   sondeo posterior al despliegue de CI. `render.yaml` pasa a `healthCheckPath: /health/live`.
 - **D. Documentación.** `docs/staging-deployment.md` (§3 paso 7 y nueva §4 bis.4) y este plan.
 
-### Relación con el ADR-0014 (propuesto, PR #101) y con la unidad `temporizadores-de-beat`
+### Relación con el ADR-0015 (propuesto, PR #101) y con la unidad `temporizadores-de-beat`
 
-El ADR-0014 persiste el estado de Beat con RedBeat y mueve a `crontab` solo las **tres entradas
+El ADR-0015 persiste el estado de Beat con RedBeat y mueve a `crontab` solo las **tres entradas
 diarias**. Su punto 5 dice que las entradas de intervalo siguen con `timedelta`, «every shorter
 entry (5 min to 1 h)». **Esta unidad contradice ese punto en parte**: convierte a `crontab` las
 entradas de menos de un día que tocan la base. No es una contradicción de fondo:
@@ -81,7 +81,7 @@ entradas de menos de un día que tocan la base. No es una contradicción de fond
   de la unidad `temporizadores-de-beat` (horas ART, `timezone`, RedBeat) se pisa. Si esa unidad
   cambia la `timezone` de Celery a Argentina (UTC−3, sin horario de verano), los instantes de esta
   unidad se corren 3 h pero **siguen alineados entre sí**, que es lo único que importa acá.
-- **Acción para la otra unidad:** al implementar el ADR-0014, ajustar su punto 5 (o sumar una
+- **Acción para la otra unidad:** al implementar el ADR-0015, ajustar su punto 5 (o sumar una
   nota) para reflejar que las entradas sub-diarias que tocan la base están ancladas con
   `alineado()`. Esta unidad no edita el ADR.
 
