@@ -25,6 +25,7 @@ from cheatsheet.contexts.conversational.infrastructure.canal import (
     MensajeriaWhatsApp,
     SinCanal,
 )
+from cheatsheet.shared.externo_id import LARGO_MAXIMO_EXTERNO_ID
 from structlog.testing import capture_logs
 
 pytestmark = pytest.mark.asyncio
@@ -317,3 +318,19 @@ async def test_sin_canal_levanta_canal_no_conectado_y_no_toca_la_red() -> None:
 
     assert isinstance(salida.value, MensajeriaNoDisponible)
     assert TELEFONO not in str(salida.value)
+
+
+async def test_un_wamid_que_no_entra_en_la_columna_se_devuelve_vacio_y_se_loguea_sin_el_id() -> (
+    None
+):
+    largo = "w" * (LARGO_MAXIMO_EXTERNO_ID + 1)
+
+    with capture_logs() as registros:
+        wamid = await _canal(Servidor(_ok(largo)), Esperas()).enviar(telefono=TELEFONO, texto=TEXTO)
+
+    # El mensaje salió: no es un fracaso. Un id cortado coincidiría con otro mensaje.
+    assert wamid == ""
+    avisos = [r for r in registros if r["event"] == "whatsapp_id_de_mensaje_demasiado_largo"]
+    assert len(avisos) == 1
+    assert avisos[0]["log_level"] == "warning"
+    assert largo not in repr(registros)

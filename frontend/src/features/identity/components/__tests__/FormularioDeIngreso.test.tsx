@@ -55,6 +55,30 @@ describe("PAN-ONB-01 — ingreso", () => {
     expect(screen.queryByLabelText(/Términos/)).toBeNull();
   });
 
+  it("la contraseña se oculta por defecto y el botón la muestra y la vuelve a ocultar", () => {
+    render(<FormularioDeIngreso />);
+    escribir(/Contraseña/, "una-contrasena");
+    const campo = screen.getByLabelText(/Contraseña/);
+
+    expect(campo.getAttribute("type")).toBe("password");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+    expect(campo.getAttribute("type")).toBe("text");
+    expect((campo as HTMLInputElement).value).toBe("una-contrasena");
+
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar contraseña" }));
+    expect(campo.getAttribute("type")).toBe("password");
+  });
+
+  it("mostrar la contraseña no envía el formulario", () => {
+    render(<FormularioDeIngreso />);
+    escribir(/Contraseña/, "una-contrasena");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar contraseña" }));
+
+    expect(ingresar).not.toHaveBeenCalled();
+  });
+
   it("una contraseña corta muestra el mensaje de RN-01 y no llama a la API", () => {
     render(<FormularioDeIngreso />);
     escribir(/Email/, "ana@empresa.com");

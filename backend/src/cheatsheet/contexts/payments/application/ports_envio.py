@@ -12,6 +12,20 @@ from typing import Protocol
 from uuid import UUID
 
 
+class FallaDelCanal(Exception):
+    """El canal de WhatsApp no aceptó el mensaje, con el motivo ya traducido (U7, D2).
+
+    Es la excepción **de `payments`**: la raíz de composición traduce los errores tipados de
+    `conversational` a esta (R3), y el adaptador de envío la lee sin importar a ese contexto.
+    `codigo` es un código de Meta (`"131047"`) o una clase corta (`"INCIERTO"`); nunca el texto del
+    error, que puede traer el número.
+    """
+
+    def __init__(self, codigo: str) -> None:
+        super().__init__(codigo)
+        self.codigo = codigo
+
+
 @dataclass(frozen=True, slots=True)
 class ContactoDeCobro:
     """A quién se le escribe un recordatorio: el nombre y el teléfono, nada más."""
@@ -48,4 +62,4 @@ class PortAislamiento(Protocol):
     def aislar(self) -> AbstractAsyncContextManager[None]: ...
 
 
-__all__ = ["ContactoDeCobro", "PortAislamiento", "PortContactoDeCliente"]
+__all__ = ["ContactoDeCobro", "FallaDelCanal", "PortAislamiento", "PortContactoDeCliente"]
