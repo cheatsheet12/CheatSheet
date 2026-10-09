@@ -5,7 +5,7 @@
 > Origen: revisión del profesor de 2026-09, [ADR-0009](../../adr/0009-review-adjustments-scope-change.md),
 > decisión D84 (`docs/aidlc/units.md`). La rama sale de `develop`.
 >
-> **Estado al 2026-10-09: pendiente, Gate 1 listo para presentar.** El plan quedó escrito el
+> **Estado al 2026-10-09: en curso, Gate 1 aprobado.** El plan quedó escrito el
 > 2026-09-29, se actualizó a `develop` el 2026-10-02 (hallazgo 3, pregunta 6 y caso 25) y **se revalidó
 > contra `develop` en `cc4fe5b` el 2026-10-09**: `identity/`, `platform/database.py`, `api/main.py`,
 > `api/errors.py`, `api/dependencies.py` y `api/middleware/empresa.py` no cambiaron; `api/routers/auth.py`
@@ -397,17 +397,25 @@ cambios, se corre igual), el Gate 2 incluye:
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
+| 1 · Plan | 2026-10-09 | Aprobado por Luciano con las recomendaciones de las preguntas 1 a 5 |
 | 2 · Verificación | | |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
-*(Se completa al aprobar el Gate 1, con la respuesta a cada pregunta de arriba. Propuestas: 1 consulta por
-PK sin caché, con la medición en la base local y en staging; 2 fail-closed con 503, 3 s sobre la consulta
-y 10 s (el timeout de conexión existente) sobre la toma de conexión, sin reintento; 3 por usuario; 4 se
-acepta la reactivación con token vigente; 5 mismo 401 que «sin token»; 6 ya no aplica.)*
 
-*Ninguna de estas propuestas requiere un ADR: ninguna cambia el esquema de autenticación (pregunta 1), y
-la revisión de la pregunta 2 solo reparte límites de tiempo dentro de la misma verificación. Haría falta
-uno si la respuesta a la pregunta 1 fuera «caché» o «versión de sesión en el token», o la de la pregunta
-3 fuera «por sesión».*
+Gate 1 aprobado el 2026-10-09 por Luciano, con las recomendaciones:
+
+1. **Mecanismo**: consulta por clave primaria en cada solicitud, sin caché. El costo se mide en la base
+   local y en staging; los dos números se anotan acá al cerrar el Gate 2.
+2. **Base caída o lenta**: fail-closed con 503. 3 s sobre la consulta del usuario; la toma de conexión
+   conserva `TIMEOUT_DE_CONEXION_SEGUNDOS` (10 s); sin reintento.
+3. **Granularidad**: por usuario.
+4. **Reactivación**: se acepta que un token vigente vuelva a valer con el rol actual; queda fijado por el
+   caso 21.
+5. **Respuesta**: el mismo 401 y el mismo cuerpo que «sin token»; el motivo va solo al log.
+6. Ya no aplica (hallazgo 3 resuelto en `develop`).
+7. **Hallazgo previo, fuera de alcance**: `renovarSesion` borra las dos cookies ante cualquier 5xx de
+   `/auth/refresh`, así que una caída de la base durante la renovación saca al usuario. Se anota en
+   `docs/aidlc/TODO.md` y se resuelve en un `fix/identity-…` aparte.
+
+Ninguna decisión requiere un ADR: ninguna cambia el esquema de autenticación.
