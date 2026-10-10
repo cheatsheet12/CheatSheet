@@ -13,6 +13,10 @@ from datetime import datetime
 from uuid import UUID
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.contexts.business_config.application.agenda import (
+    ConfigurarAgendaDeNotificacion,
+    configuracion_de_agenda_desde,
+)
 from cheatsheet.contexts.business_config.application.atencion import (
     ConfigurarHorarioDeAtencion,
     configuracion_de_atencion_desde,
@@ -60,6 +64,15 @@ class HorarioDeAtencionEntrada(BaseModel):
     prioridad: int = 0
 
 
+class RecordatorioEntrada(BaseModel):
+    horas_antes: int
+
+
+class AgendaDeNotificacionEntrada(BaseModel):
+    recordatorios: list[RecordatorioEntrada]
+    prioridad: int = 0
+
+
 class EstadoEntrada(BaseModel):
     activa: bool
 
@@ -99,6 +112,7 @@ def _actor(request: Request) -> tuple[EmpresaId, UsuarioId, RolUsuario]:
 def crear_router(recursos: Recursos) -> APIRouter:
     router = APIRouter(tags=["business_config"])
     router.include_router(_rutas(recursos), prefix="/reglas")
+    router.include_router(_rutas_de_reglas_tipadas(recursos), prefix="/reglas")
     return router
 
 
@@ -139,6 +153,35 @@ def _rutas(recursos: Recursos) -> APIRouter:
             salida = _a_salida(regla)
         return _exigir(salida)
 
+    @router.put("/{regla_id}/estado")
+    async def cambiar_estado(
+        request: Request, regla_id: UUID, entrada: EstadoEntrada
+    ) -> ReglaSalida:
+        """RN-04. Desactivar deja de aplicar de inmediato, sin tocar lo ya procesado."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: ReglaSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = ConfiguracionDeNegocio.armar(unidad)
+            regla = await CambiarEstadoDeRegla(
+                reglas=piezas.reglas, publicador=unidad.publicador
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                regla_id=regla_id,
+                activa=entrada.activa,
+                ahora=unidad.reloj.ahora(),
+            )
+            salida = _a_salida(regla)
+        return _exigir(salida)
+
+    return router
+
+
+def _rutas_de_reglas_tipadas(recursos: Recursos) -> APIRouter:
+    """Las reglas con formulario propio: cada una reemplaza, no acumula."""
+    router = APIRouter()
+
     @router.put("/horario-de-atencion")
     async def configurar_horario(
         request: Request, entrada: HorarioDeAtencionEntrada
@@ -167,24 +210,26 @@ def _rutas(recursos: Recursos) -> APIRouter:
             salida = _a_salida(regla)
         return _exigir(salida)
 
-    @router.put("/{regla_id}/estado")
-    async def cambiar_estado(
-        request: Request, regla_id: UUID, entrada: EstadoEntrada
+    @router.put("/agenda")
+    async def configurar_agenda(
+        request: Request, entrada: AgendaDeNotificacionEntrada
     ) -> ReglaSalida:
-        """RN-04. Desactivar deja de aplicar de inmediato, sin tocar lo ya procesado."""
+        """HU-E11-01. `PUT` porque **reemplaza**: una empresa tiene una agenda de recordatorios."""
         empresa_id, usuario_id, rol = _actor(request)
         salida: ReglaSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = ConfiguracionDeNegocio.armar(unidad)
-            regla = await CambiarEstadoDeRegla(
+            regla = await ConfigurarAgendaDeNotificacion(
                 reglas=piezas.reglas, publicador=unidad.publicador
             ).ejecutar(
                 empresa_id=empresa_id,
                 usuario_id=usuario_id,
                 rol=rol,
-                regla_id=regla_id,
-                activa=entrada.activa,
+                configuracion=configuracion_de_agenda_desde(
+                    {"recordatorios": [uno.model_dump() for uno in entrada.recordatorios]}
+                ),
                 ahora=unidad.reloj.ahora(),
+                prioridad=entrada.prioridad,
             )
             salida = _a_salida(regla)
         return _exigir(salida)
