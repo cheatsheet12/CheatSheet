@@ -4,10 +4,13 @@
 and a silent downgrade of the work factor is exactly the kind of regression nobody
 notices. Writing them down makes the cost a decision the repository owns.
 
-**The access token is a JWT; the refresh token is not.** A JWT cannot be revoked before
-it expires — that is the trade for not hitting the database on every request, and it is
-acceptable for 15 minutes. A refresh token lives for days and must be revocable the
-instant a theft is detected, so it is an opaque random string with a row behind it.
+**The access token is a JWT; the refresh token is not.** A JWT cannot be revoked by
+itself, so it is not trusted for more than *who is asking*: on every request the
+middleware asks the database whether that user still exists, is `ACTIVO` and which role
+they hold now (`VerificarSesionVigente`). A deactivation or a role change therefore takes
+effect on the next request, and the 15-minute lifetime only bounds how long a token can be
+presented at all. A refresh token lives for days and must be revocable the instant a theft
+is detected, so it is an opaque random string with a row behind it.
 """
 
 from __future__ import annotations

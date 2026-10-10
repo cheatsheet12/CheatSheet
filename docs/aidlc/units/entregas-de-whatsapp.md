@@ -419,7 +419,7 @@ uno se apila sobre el anterior y se mergea a `develop` en ese orden.
 |---|---|---|
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. **Cierra cuando el equipo acepte el ADR-0011** ([#62](https://github.com/cheatsheet12/CheatSheet/pull/62)); hasta entonces no se escribe código |
 | 2 · Verificación | 2026-10-07 | Tramo 1 aprobado por Luciano (correcciones H2 a H5 incluidas; H1 pasa al tramo ii). Hallazgo fuera de U7: un `wamid` entrante de más de 160 caracteres desborda su columna (`TODO.md` §22.58). Tramo 2 aprobado por Luciano el mismo día (correcciones S1, S2, N2, N3 y N7 incluidas; ventana de envío de 30 min). Tramo 3 aprobado por Luciano el mismo día (correcciones S1 a S4 y N2 de la revisión independiente incluidas; la E/S a Meta de los avisos de turno dentro de la transacción del panel queda en `TODO.md` §22.64) |
-| 3 · PR | | |
+| 3 · PR | 2026-10-09 | Un PR por tramo, en orden i → ii → iii. GitHub Actions sin cuota hasta el 2026-11-01: cada PR se verificó con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 > Bloqueado para cerrar el Gate 1 hasta que el ADR-0011 esté aceptado (con el agregado de D-U7-4) y
 > U5 y U6 mergeadas.

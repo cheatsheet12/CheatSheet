@@ -5,11 +5,17 @@
 > Origen: revisión del profesor de 2026-09, [ADR-0009](../../adr/0009-review-adjustments-scope-change.md),
 > decisión D84 (`docs/aidlc/units.md`). La rama sale de `develop`.
 >
-> **Estado al 2026-10-02: pendiente, con el Gate 1 sin abrir.** El plan quedó escrito el 2026-09-29 y
-> se actualizó a `develop` el 2026-10-02 (hallazgo 3, pregunta 6 y caso 25: ver abajo). Antes de abrir el
-> Gate 1 hay que resolver **la pregunta 1 (decisión C1)**: cumplir D84 (consultar el usuario en la base
-> en cada solicitud, sin caché, con 503 si la base no responde) o mantener la ventana de 15 minutos del
-> JWT y documentarla como desvío de D84. La recomendación es cumplir D84.
+> **Estado al 2026-10-09: en curso, Gate 2 aprobado.** El plan quedó escrito el
+> 2026-09-29, se actualizó a `develop` el 2026-10-02 (hallazgo 3, pregunta 6 y caso 25) y **se revalidó
+> contra `develop` en `cc4fe5b` el 2026-10-09**: `identity/`, `platform/database.py`, `api/main.py`,
+> `api/errors.py`, `api/dependencies.py` y `api/middleware/empresa.py` no cambiaron; `api/routers/auth.py`
+> solo sumó la delegación de ARCA en `PUT /auth/empresa`; la última migración es la 0036 y la unidad no
+> agrega ninguna. La revalidación corrigió el hallazgo 5 (un segundo archivo de tests), la pregunta 2
+> (arranque en frío de Neon), el umbral de costo de la pregunta 1, la sección de frontend (dos
+> comentarios, no código) y «Fuera de esta unidad» (la renovación automática del panel ya existe).
+> Al abrir el Gate 1 hay que resolver **la pregunta 1 (decisión C1)**: cumplir D84 (consultar el
+> usuario en la base en cada solicitud, sin caché, con 503 si la base no responde) o mantener la
+> ventana de 15 minutos del JWT y documentarla como desvío de D84. La recomendación es cumplir D84.
 >
 > **Toca autenticación.** El Gate 2 de esta unidad incluye un **verificador independiente** (un agente
 > distinto del que implementa, sin el contexto de la implementación), además de las verificaciones
@@ -30,7 +36,8 @@ revocan: la unidad lo deja probado de punta a punta.
 - **Contexto dueño**: `identity`. El middleware vive en `api/` (raíz de composición) y no decide nada:
   llama a un caso de uso de `identity`.
 - **Capas**: aplicación (caso de uso + puerto) e infraestructura (adaptador PostgreSQL) de `identity`,
-  más `api/middleware` y el armado en `create_app`. Dominio y frontend no cambian.
+  más `api/middleware` y el armado en `create_app`. El dominio no cambia; en el frontend solo se corrige
+  un comentario (ver «Frontend»).
 - **Sin integraciones externas ni migraciones.** Redis no participa (ver pregunta 1).
 
 ### Hallazgos — el código contradice a las historias o a sí mismo
@@ -65,10 +72,19 @@ revocan: la unidad lo deja probado de punta a punta.
    que `/auth/refresh` con un token inválido o de un usuario desactivado responde **409**, no 401. El BFF
    ya lo traduce (`status < 500` → 401 y borra cookies), por eso no se ve. No se cambia acá (ver «Fuera
    de esta unidad»); los tests aseveran «4xx con `error == "SesionInvalida"`», no el número.
-5. **HALLAZGO de alcance de tests.** `tests/api/test_health.py::_autorizacion` firma un JWT válido para un
-   `usuario_id` inventado y con `Recursos` sin base (`sesiones=None`). Con la verificación por solicitud
-   esas pruebas darían 401/503. Se adaptan inyectando un verificador falso (ver Diseño). Los demás
-   `test_api_*` obtienen su token registrándose de verdad, así que el usuario existe y no cambian.
+5. **HALLAZGO de alcance de tests.** Dos archivos firman un JWT válido para un `usuario_id` inventado
+   (`uuid4()`) y arman la app con `Recursos` sin base (`sesiones=None`); con la verificación por
+   solicitud darían 401/503:
+   - `tests/api/test_health.py`: `_autorizacion` solo la usa
+     `test_un_error_de_dominio_se_traduce_sin_filtrar_internals`. Las demás pruebas del archivo no
+     mandan token o mandan uno inválido (el caso 11 ya cubre que ese no llega al verificador).
+   - `tests/api/test_reporte_fallido_se_confirma.py`: `_autorizacion` (vía `_pedir`) la usan las tres
+     pruebas que llaman a la ruta (`test_un_fallo_de_generacion_…`, `test_un_periodo_sin_datos_…` y
+     `test_un_rechazo_por_rol_…`, esta última con rol `SOLO_LECTURA`, que el verificador falso tiene
+     que devolver tal cual).
+
+   Se adaptan inyectando un verificador falso (ver Diseño). Los `test_api_*` de `tests/integracion/`
+   obtienen su token registrándose de verdad, así que el usuario existe y no cambian.
 
 ## Las preguntas que el mapa dejó para este Gate
 
@@ -81,9 +97,16 @@ revocan: la unidad lo deja probado de punta a punta.
   resuelve con versiones y compare-and-set: mucha más superficie de ataque que la consulta que se quiere
   ahorrar.
 - **Costo medido, no supuesto** (D84 lo pide): una lectura por PK en `usuario` (índice de la clave
-  primaria; RLS agrega `empresa_id = current_setting(...)`), sobre un pool que ya existe. Al implementar
-  se mide con `EXPLAIN (ANALYZE)` y 200 llamadas en la base local, y se anota el número en «Decisiones».
-  Umbral para reabrir la pregunta: p95 > 5 ms por consulta o una carga que sature el pool.
+  primaria; RLS agrega `empresa_id = current_setting(...)`), sobre un pool que ya existe. Se mide en
+  **dos lugares**, y los dos números se anotan en «Decisiones»:
+  - **Base local**: `EXPLAIN (ANALYZE)` y 200 llamadas. Umbral para reabrir la pregunta: p95 > 5 ms por
+    consulta o una carga que sature el pool.
+  - **Staging (Neon)**: ahí el costo dominante no es la consulta sino los viajes de red de cada
+    verificación (ping del pool por `pool_pre_ping=True`, `set_config`, `SELECT`, `COMMIT`). Se miden
+    200 llamadas a `GET /auth/empresa` con la compute despierta, con y sin verificación, y se anota el
+    p95 agregado por solicitud. No hay umbral fijo: el número se presenta en el Gate 2 y la pregunta se
+    reabre si el usuario lo considera inaceptable. Si solo puede medirse después del despliegue, queda
+    anotado en `docs/aidlc/TODO.md` §22 y el Gate 2 lo dice.
 - **No agrega un modo de falla nuevo**: toda ruta protegida ya necesita la base. Con Redis (caché) sí
   aparece uno (ver pregunta 2).
 - **No cambia el esquema de autenticación**: el JWT se emite, se firma y viaja igual; el refresh opaco
@@ -95,7 +118,15 @@ revocan: la unidad lo deja probado de punta a punta.
   «la siguiente solicitud» depende de a cuál instancia le toca.
 
 ### 2. Si la verificación no puede ejecutarse (base caída o lenta): ¿cerrado o abierto?
-**Recomendación: cerrado, con 503 y no con 401.**
+**Recomendación: cerrado, con 503 y no con 401. El límite de 3 s acota solo la consulta del usuario;
+la toma de la conexión conserva el timeout de conexión de 10 s que ya existe, sin reintentos.**
+
+*Revisado el 2026-10-09.* La versión anterior ponía 3 s sobre toda la verificación. Staging corre en
+Neon, que suspende la compute ociosa ([ADR-0005](../../adr/0005-staging-database-neon.md),
+«Consequences»: la primera solicitud tras un período sin uso es lenta), y `platform/database.py` fija
+`TIMEOUT_DE_CONEXION_SEGUNDOS = 10` justamente porque despertarla lleva más de dos segundos. Con 3 s
+sobre todo, la primera solicitud después de un rato sin uso daría 503, y el layout del panel llama a
+`/auth/empresa` en cada navegación: el panel fallaría al abrirlo cada mañana.
 
 - **Abierto está descartado**: aceptar el token cuando no se puede verificar es exactamente la ventana
   que la unidad cierra, y un atacante con token robado la provoca cargando la base.
@@ -103,9 +134,21 @@ revocan: la unidad lo deja probado de punta a punta.
   (`estadoDeEmpresa` en `(panel)/layout.tsx` trata todo 4xx como «sin sesión») sacara a todos los usuarios
   a la pantalla de ingreso durante una caída. Con 503 el layout propaga el error (>= 500 se relanza) y la
   sesión sobrevive a la caída.
-- **Timeout explícito de 3 s** sobre la verificación (`CLAUDE.md` §5). El timeout de conexión de la base
-  es 10 s (`TIMEOUT_DE_CONEXION_SEGUNDOS`); esperar 10 s en cada solicitud durante una caída agotaría los
-  workers. Vencido el timeout: 503.
+- **Dos límites explícitos, uno por tramo** (`CLAUDE.md` §5), ambos fail-closed con 503:
+  - **Tomar la conexión** (el `set_config` de `sesion_de_empresa`, que es donde la sesión la pide al
+    pool): la acota `TIMEOUT_DE_CONEXION_SEGUNDOS = 10`, el mismo límite que ya rige para cualquier ruta.
+    No se redefine ni se envuelve en otro más corto: es el valor elegido para que Neon alcance a
+    despertar. Si la base está caída, una ruta protegida ya espera hoy hasta 10 s por su propia conexión;
+    la verificación ocupa ese lugar (si falla, la ruta no corre), así que el peor caso por solicitud no
+    empeora.
+  - **La consulta del usuario** (`SELECT empresa_id, rol, estado …`): **3 s** con `asyncio.timeout`,
+    ya con la conexión en mano. Una lectura por PK que tarda más que eso es una base degradada, no
+    una compute dormida.
+- **Sin reintento.** Se descartó «reintentar una vez la toma de conexión con 3 s»: no salva el arranque
+  en frío (el segundo intento también necesita más de 3 s) y durante una caída duplica la espera.
+- Con el pool agotado, la espera por una conexión libre la fija `pool_timeout` de SQLAlchemy (30 s por
+  defecto; `crear_engine` no lo configura). Vale igual hoy para cualquier ruta y no se toca acá; el
+  verificador independiente lo tiene a la vista.
 - **Redis caído**: no tiene efecto, porque la unidad no usa Redis (un test lo prueba). Es una ventaja
   concreta de la pregunta 1.
 - Las rutas públicas y `/health` no pasan por la verificación, así que el healthcheck sigue informando.
@@ -166,8 +209,10 @@ Sin cambios. `Usuario`, `EstadoUsuario` y `RolUsuario` ya expresan lo necesario 
 - `infrastructure/consulta_de_sesion.py` (nuevo): `ConsultaDeUsuarioVigentePostgres(sesion)` — un
   `SELECT empresa_id, rol, estado FROM usuario WHERE id = :id`, sin `FOR UPDATE` (no bloquea nada).
   Corre bajo RLS: el `WHERE` de la política ya limita a la empresa del token.
-- `VerificadorDeSesionPostgres(sesiones, timeout)` (mismo archivo): abre `sesion_de_empresa(sesiones,
-  empresa_id_del_token)`, arma el adaptador y el caso de uso, y **cierra la sesión antes de devolver**.
+- `VerificadorDeSesionPostgres(sesiones, timeout_de_consulta)` (mismo archivo): abre
+  `sesion_de_empresa(sesiones, empresa_id_del_token)` (la toma de conexión queda bajo el timeout de
+  conexión de 10 s, pregunta 2), arma el adaptador y el caso de uso, acota **solo la consulta** con
+  `asyncio.timeout(timeout_de_consulta)` y **cierra la sesión antes de devolver**.
   El middleware **nunca retiene una conexión mientras corre la ruta** (`call_next`): doblaría el consumo
   del pool y bajo carga produciría interbloqueos por agotamiento.
 - Es un `empresa_id` firmado el que fija `app.current_empresa`: el token es de confianza en su firma, pero
@@ -182,7 +227,8 @@ Sin cambios. `Usuario`, `EstadoUsuario` y `RolUsuario` ya expresan lo necesario 
   `{"error": "ServicioNoDisponible", "detalle": "No pudimos verificar tu sesion. Reintenta en unos segundos."}`,
   con log de nivel error.
 - `create_app(settings, recursos, verificador=None)`: por defecto arma `VerificadorDeSesionPostgres` con
-  `recursos.sesiones`; los tests lo reemplazan por uno falso. Es la costura que evita depender de una base.
+  `recursos.sesiones`; los tests lo reemplazan por uno falso. Es la costura que evita depender de una base,
+  y la usan los dos archivos del hallazgo 5 (`test_health.py` y `test_reporte_fallido_se_confirma.py`).
 - Rutas públicas (`RUTAS_PUBLICAS`, `PREFIJOS_PUBLICOS`): **sin cambios**. `/auth/refresh` y `/auth/login`
   ya rechazan a un usuario inactivo dentro de su caso de uso.
 
@@ -191,17 +237,30 @@ Ninguno. Los demás contextos reciben el rol vigente por `request.state`, como h
 no pasan por el middleware y quedan igual (ver «Fuera de esta unidad»).
 
 ### Frontend
-**No aplica, con una comprobación.** El panel ya trata un 4xx de `/auth/empresa` como sesión inválida y
-redirige a `/`; un 503 se propaga como error. La interfaz sigue leyendo el rol de los claims del token
-solo para dibujar botones (`leerClaims`, documentado como no-decisión): el backend decide.
+**Sin cambios de comportamiento; un comentario se corrige.** El panel ya trata un 4xx de `/auth/empresa`
+como sesión inválida y redirige a `/`; un 503 se propaga como error. La interfaz sigue leyendo el rol de
+los claims del token solo para dibujar botones (`leerClaims`, documentado como no-decisión): el backend
+decide.
+
+- **Sin bucle de redirección** (comprobado en el código): ante un 401 del middleware, `(panel)/layout.tsx`
+  redirige a `/` **sin borrar las cookies**, y ni `(ingreso)/layout.tsx` ni `(ingreso)/page.tsx` redirigen
+  cuando hay cookie de sesión (`FormularioDeIngreso` solo navega después de un ingreso exitoso). La
+  cookie de acceso vieja queda hasta su `maxAge` (15 min, `lib/session.ts`); cada intento de volver al
+  panel repite el 401 y vuelve a `/`. No es un riesgo: el token ya no autoriza nada.
+- **Comentario que deja de ser cierto**: `features/identity/components/RenovadorDeSesion.tsx:13-14`
+  («a role change or a deactivation still takes effect within fifteen minutes»). Con esta unidad surte
+  efecto en la siguiente solicitud. Se corrige el comentario; el código no cambia.
+- **Comentario revisado y que sigue siendo cierto**: `(panel)/layout.tsx:12-14` habla de no llevar
+  `onboarding_completo` en el JWT, no de rol ni de estado; la unidad no lo vuelve falso y no se toca.
 
 ## Infraestructura
 
 - **Migraciones**: **No aplica.** La consulta usa la clave primaria de `usuario`; no hay columnas ni
   índices nuevos.
 - **Trabajo asíncrono**: No aplica.
-- **Configuración**: No aplica. El timeout de 3 s es una constante con nombre en el módulo del verificador;
-  no se agrega variable de entorno ni cambia ningún `.env.example`.
+- **Configuración**: No aplica. El timeout de 3 s de la consulta es una constante con nombre en el
+  módulo del verificador; la toma de conexión usa `TIMEOUT_DE_CONEXION_SEGUNDOS` sin cambios. No se agrega
+  variable de entorno ni cambia ningún `.env.example`.
 - **Integraciones externas**: No aplica. (PostgreSQL ya es dependencia; la llamada lleva timeout explícito
   y el fallo se maneja fail-closed, ver pregunta 2. Redis: no se usa.)
 
@@ -217,32 +276,47 @@ solo para dibujar botones (`leerClaims`, documentado como no-decisión): el back
 - [x] *(propio de esta unidad)* Autenticación y autorización — revocación efectiva en la siguiente
   solicitud, rol tomado de la base, y **fail-closed** ante base caída o lenta: casos 1–4, 6–9, 17–21
 - [x] *(propio de esta unidad)* Carreras y dependencias de infraestructura — refresh vivo insertado tras
-  la desactivación, y Redis sin efecto: casos 12 y 23
+  la desactivación, Redis sin efecto y arranque en frío de Neon sin 503: casos 12, 23 y 27
+- [x] *(propio de esta unidad)* Costo por navegación — cada navegación del panel pasa a costar **dos
+  lecturas** a la base: la verificación del middleware y la propia `GET /auth/empresa`
+  (`api/routers/auth.py`, `ver_empresa`), cada una con su conexión del pool. Se mide en la pregunta 1 y
+  no se optimiza en esta unidad (`docs/aidlc/TODO.md` §4 ya propone un endpoint de «contexto de sesión»)
 
 ## Archivos a tocar
 
 ### Backend
-- [ ] `backend/src/cheatsheet/contexts/identity/application/ports.py` (puerto + DTO)
-- [ ] `backend/src/cheatsheet/contexts/identity/application/errors.py` (`SesionRevocada`)
-- [ ] `backend/src/cheatsheet/contexts/identity/application/verificacion_de_sesion.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/identity/application/usuarios.py` (docstring de `DesactivarUsuario`)
-- [ ] `backend/src/cheatsheet/contexts/identity/infrastructure/consulta_de_sesion.py` (nuevo)
-- [ ] `backend/src/cheatsheet/contexts/identity/infrastructure/seguridad.py` (docstring)
-- [ ] `backend/src/cheatsheet/api/middleware/empresa.py`
-- [ ] `backend/src/cheatsheet/api/main.py`
-- [ ] `backend/tests/contexts/identity/conftest.py` (doble `ConsultaDeUsuarioVigenteEnMemoria`)
-- [ ] `backend/tests/contexts/identity/application/test_verificacion_de_sesion.py` (nuevo)
-- [ ] `backend/tests/api/test_middleware_de_sesion.py` (nuevo; middleware con verificador falso)
-- [ ] `backend/tests/api/test_health.py` (inyecta el verificador falso en las pruebas con token)
-- [ ] `backend/tests/integracion/test_identidad_postgres.py` (adaptador bajo RLS, casos 14–16)
-- [ ] `backend/tests/integracion/test_api_revocacion_de_sesion.py` (nuevo; casos 17–25)
+- [x] `backend/src/cheatsheet/contexts/identity/application/ports.py` (puerto + DTO)
+- [x] `backend/src/cheatsheet/contexts/identity/application/errors.py` (`SesionRevocada`)
+- [x] `backend/src/cheatsheet/contexts/identity/application/verificacion_de_sesion.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/identity/application/usuarios.py` (docstring de `DesactivarUsuario`)
+- [x] `backend/src/cheatsheet/contexts/identity/infrastructure/consulta_de_sesion.py` (nuevo)
+- [x] `backend/src/cheatsheet/contexts/identity/infrastructure/seguridad.py` (docstring)
+- [x] `backend/src/cheatsheet/api/middleware/empresa.py`
+- [x] `backend/src/cheatsheet/api/main.py`
+- [x] `backend/tests/contexts/identity/conftest.py` (doble `ConsultaDeUsuarioVigenteEnMemoria`)
+- [x] `backend/tests/contexts/identity/application/test_verificacion_de_sesion.py` (nuevo)
+- [x] `backend/tests/api/test_middleware_de_sesion.py` (nuevo; middleware con verificador falso)
+- [x] `backend/tests/api/test_health.py` (inyecta el verificador falso; solo
+  `test_un_error_de_dominio_se_traduce_sin_filtrar_internals` lo necesita)
+- [x] `backend/tests/api/test_reporte_fallido_se_confirma.py` (inyecta el verificador falso en
+  `create_app`; lo necesitan las tres pruebas que pasan por `_pedir`)
+- [x] `backend/tests/api/verificador_falso.py` (nuevo; verificador falso y token firmado compartidos por los tres archivos de `tests/api`)
+- [x] `backend/tests/contexts/identity/base_falsa.py` (nuevo; sesión falsa con demoras independientes para la toma de conexión y la consulta)
+- [x] `backend/tests/contexts/identity/infrastructure/test_verificador_de_sesion.py` (nuevo; los dos límites de tiempo, casos 9 y 27)
+- [x] `backend/tests/integracion/test_consulta_de_sesion_postgres.py` (nuevo; adaptador bajo RLS, casos 14–16). Se separó de `test_identidad_postgres.py`, que ya tenía 386 líneas y pasaba el tope de 400
+- [x] `backend/tests/integracion/test_api_revocacion_de_sesion.py` (nuevo; casos 17–25)
 
 ### Frontend
-No aplica.
+- [x] `frontend/src/features/identity/components/RenovadorDeSesion.tsx` (solo el comentario de las
+  líneas 13-14)
 
 ### Docs
 - [ ] `docs/aidlc/units.md` (estado de la fila)
-- [ ] `docs/aidlc/TODO.md` (para registrar el hallazgo 4)
+- [x] `docs/aidlc/TODO.md`: registrar el hallazgo 4 y el de `renovarSesion` («Fuera de esta unidad»), y
+  **corregir la entrada vieja de §4** («La renovación de sesión es manual, y se nota»), que sigue
+  describiendo un problema que `67f2db4` resolvió el 2026-10-05 con `RenovadorDeSesion`. Se corrige en
+  esta unidad y no aparte porque esta unidad ya edita `TODO.md` y cambia el mismo comportamiento que
+  esa entrada describe; se marca como resuelta citando el commit, sin borrarla
 
 ## Casos de prueba
 
@@ -258,7 +332,7 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 | 6 | RED: verificador lanza `SesionRevocada` → 401 con el mismo cuerpo que «sin token» | unit (API) | pendiente |
 | 7 | RED: `request.state.rol` es el del verificador (token ADMINISTRADOR, base OPERADOR → la ruta ve OPERADOR) | unit (API) | pendiente |
 | 8 | RED: `OSError` / `SQLAlchemyError` en el verificador → 503, nunca 200 ni 401 (fail-closed) | unit (API) | pendiente |
-| 9 | RED: verificador que excede 3 s → 503 | unit (API) | pendiente |
+| 9 | RED: la consulta del usuario que excede 3 s (con la conexión ya tomada) → 503 | unit | pendiente |
 | 10 | `/health`, `/auth/login`, `/webhooks/…`, `/contador/…` no invocan al verificador | unit (API) | pendiente |
 | 11 | Token de firma mala, expirado o sin `Bearer` → 401 sin invocar al verificador | unit (API) | pendiente |
 | 12 | RED: con un Redis que falla ante cualquier uso, una sesión válida sigue autenticando | unit (API) | pendiente |
@@ -275,7 +349,8 @@ Modo: **test primero**. Los casos marcados RED tienen que fallar antes de tocar 
 | 23 | Un refresh vivo creado **después** de la desactivación (carrera con `RefrescarSesion`) es rechazado al usarse | integración (API) | pendiente |
 | 24 | Regresión: un usuario desactivado no puede iniciar sesión con su contraseña | integración (API) | pendiente |
 | 25 | ~~Caracterización del hallazgo 3~~: ya cubierto en `develop` por `test_api_sesiones.py` y `test_refresh_concurrente.py`. Esta unidad solo verifica que sigan verdes con el verificador por solicitud | integración (API) | guarda existente |
-| 26 | Las pruebas existentes de `tests/api/test_health.py` siguen verdes con el verificador inyectado | unit (API) | pendiente |
+| 26 | Las pruebas existentes de `tests/api/test_health.py` y `tests/api/test_reporte_fallido_se_confirma.py` siguen verdes con el verificador falso inyectado (hallazgo 5) | unit (API) | pendiente |
+| 27 | RED: una toma de conexión que tarda más de 3 s y menos de 10 s (Neon despertando) **no** da 503: la solicitud se verifica y responde normalmente | unit | pendiente |
 
 ## Verificación de esta unidad (Gate 2)
 
@@ -287,7 +362,10 @@ cambios, se corre igual), el Gate 2 incluye:
   infraestructura y deja pasar? ¿el 503 puede convertirse en 200 por un reintento o por el manejador
   genérico de `api/errors.py`? ¿el middleware retiene una conexión durante `call_next`? ¿el `empresa_id`
   de `app.current_empresa` sale de un valor sin verificar?
-- La medición de costo de la pregunta 1, con su número.
+- La medición de costo de la pregunta 1, con sus dos números (base local y staging), o la constancia de
+  que el de staging quedó en `docs/aidlc/TODO.md` §22.
+- Que el límite de 3 s acota solo la consulta y no la toma de conexión (caso 27), para que el primer
+  ingreso del día en staging no dé 503.
 - Que las pruebas de sesión ya existentes (caso 25) siguen verdes.
 
 ## Fuera de esta unidad
@@ -302,20 +380,48 @@ cambios, se corre igual), el Gate 2 incluye:
   usuario; si alguna llegara a hacerlo, tendría que llamar al mismo caso de uso.
 - **Desactivar una empresa entera**: no existe el caso de uso (`empresa.activa` no se escribe en ningún
   camino), así que no hay nada que revocar.
-- **Renovación automática de sesión en el panel** (`docs/aidlc/TODO.md` §4): sigue manual.
+- ~~Renovación automática de sesión en el panel~~: ya existe. `67f2db4` (2026-10-05) agregó
+  `RenovadorDeSesion`, que renueva cada 10 minutos y al volver a la pestaña, y manda a `/` ante un 401.
+  La entrada de `docs/aidlc/TODO.md` §4 que la da por manual quedó vieja y se corrige en esta unidad
+  (ver «Archivos a tocar > Docs»).
 - **Interfaz**: los botones que dibuja `leerClaims` siguen leyendo el rol del token hasta la próxima
-  renovación; solo afecta lo que se ve, no lo que se permite.
+  renovación, que con `RenovadorDeSesion` ocurre a lo sumo a los ~10 minutos (o antes, al volver a la
+  pestaña); solo afecta lo que se ve, no lo que se permite.
+- **HALLAZGO informado, preexistente: una caída de la base durante la renovación cierra la sesión.**
+  `renovarSesion` (`frontend/src/app/api/auth/_sesion.ts`, bloque `catch`) borra las dos cookies ante
+  **cualquier** error de `/auth/refresh`, incluido un 5xx (su comentario lo declara a propósito). Una
+  caída breve de la base que coincida con una renovación saca al usuario al ingreso, aunque su sesión
+  siga viva. No lo introduce esta unidad (`/auth/refresh` es pública y no pasa por el verificador) y
+  cambiarlo es otra decisión de contrato del BFF: se registra en `docs/aidlc/TODO.md` y no se arregla
+  acá (`CLAUDE.md` §8).
 - **HU-E1-03 y HU-E1-08** (términos y privacidad) son de `terminos-y-privacidad`.
 
 ## Registro
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | | |
-| 2 · Verificación | | |
-| 3 · PR | | |
+| 1 · Plan | 2026-10-09 | Aprobado por Luciano con las recomendaciones de las preguntas 1 a 5 |
+| 2 · Verificación | 2026-10-09 | Aprobado por Luciano. CI local COMPLETE en `8a0044a` (integración contra PostgreSQL incluida); verificador independiente sin agujeros, su defecto (500 en vez de 503 ante errores de conexión de asyncpg) corregido en `d91cd23` con RED observado |
+| 3 · PR | 2026-10-09 | PR a `develop`. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
-*(Se completa al aprobar el Gate 1, con la respuesta a cada pregunta de arriba. Propuestas: 1 consulta por
-PK sin caché; 2 fail-closed con 503 y timeout de 3 s; 3 por usuario; 4 se acepta la reactivación con token
-vigente; 5 mismo 401 que «sin token»; 6 ya no aplica.)*
+
+Gate 1 aprobado el 2026-10-09 por Luciano, con las recomendaciones:
+
+1. **Mecanismo**: consulta por clave primaria en cada solicitud, sin caché. El costo se mide en la base
+   local y en staging. **Base local (2026-10-09, PostgreSQL 16 en Docker):** la verificación completa
+   (`BEGIN`, `set_config`, `SELECT` por PK, `COMMIT`) da p50 1,73 ms y p95 2,16 ms en 200 llamadas;
+   `EXPLAIN (ANALYZE)`: `Index Scan using usuario_pkey`, 0,03 ms de ejecución. Debajo del umbral de 5 ms.
+   **Staging:** solo puede medirse con el despliegue; queda en `docs/aidlc/TODO.md` §22.66.
+2. **Base caída o lenta**: fail-closed con 503. 3 s sobre la consulta del usuario; la toma de conexión
+   conserva `TIMEOUT_DE_CONEXION_SEGUNDOS` (10 s); sin reintento.
+3. **Granularidad**: por usuario.
+4. **Reactivación**: se acepta que un token vigente vuelva a valer con el rol actual; queda fijado por el
+   caso 21.
+5. **Respuesta**: el mismo 401 y el mismo cuerpo que «sin token»; el motivo va solo al log.
+6. Ya no aplica (hallazgo 3 resuelto en `develop`).
+7. **Hallazgo previo, fuera de alcance**: `renovarSesion` borra las dos cookies ante cualquier 5xx de
+   `/auth/refresh`, así que una caída de la base durante la renovación saca al usuario. Se anota en
+   `docs/aidlc/TODO.md` y se resuelve en un `fix/identity-…` aparte.
+
+Ninguna decisión requiere un ADR: ninguna cambia el esquema de autenticación.

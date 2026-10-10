@@ -12,7 +12,12 @@ from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.invitacion import Invitacion
 from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
-from cheatsheet.contexts.identity.domain.valores import Email, HashDeContrasena
+from cheatsheet.contexts.identity.domain.valores import (
+    Email,
+    EstadoUsuario,
+    HashDeContrasena,
+    RolUsuario,
+)
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.fiscal import CondicionIVA
 
@@ -93,6 +98,33 @@ class PortRepositorioUsuario(Protocol):
 
     async def contar_administradores_activos(self, empresa_id: EmpresaId) -> int:
         """HU-E1-05 RN-02. Counts `ADMINISTRADOR` **and** `ACTIVO`, never a pending invite."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class EstadoActualDelUsuario:
+    """The three columns that decide whether a session may operate, as the database has them now.
+
+    Not a `Usuario`: the check runs on **every authenticated request**, and hydrating the
+    aggregate would also read the preferences document it never looks at.
+    """
+
+    empresa_id: EmpresaId
+    rol: RolUsuario
+    estado: EstadoUsuario
+
+
+class PortConsultaDeUsuarioVigente(Protocol):
+    """Reads the current state of one user, for the per-request session check.
+
+    A port of its own and not one more method of `PortRepositorioUsuario`: it is read-only,
+    it is called far more often than anything else in the context, and it must stay a single
+    cheap statement. Folding it into the repository would invite someone to make it hydrate
+    the aggregate "for consistency".
+    """
+
+    async def estado_actual(self, usuario_id: UsuarioId) -> EstadoActualDelUsuario | None:
+        """`None` when there is no such user **in the company the session is scoped to**."""
         ...
 
 

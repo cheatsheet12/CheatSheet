@@ -545,7 +545,7 @@ PostgreSQL en la CI.
 | 1 · Revisión del tramo 1 | 2026-10-08 | Correcciones aprobadas por Luciano: prioridad negativa al actualizar la agenda (422), nombre accesible de cada «Quitar», casos de PostgreSQL para prioridad, reactivación y 422, y la nota del caso 36 para el barrido |
 | 2 · Verificación del tramo 1 | 2026-10-08 | **Aprobado por Luciano el 08/10.** El tramo 2 se apila en `feature/scheduling-recordatorio-de-turno-modelo` |
 | 2 · Verificación del tramo 2 | 2026-10-08 | **Aprobado por Luciano el 08/10 con correcciones**: regla «más cercana registrada supera a las viejas» documentada y probada; backfill `now()`; nota de `EXPLAIN` para el tramo 3; modelo ORM alineado con el índice único |
-| 3 · PR | | |
+| 3 · PR | 2026-10-10 | Un PR por tramo, en orden 1 → 2 → 3. GitHub Actions sin cuota hasta el 2026-11-01: cada PR se verificó con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Progreso
 
@@ -566,7 +566,7 @@ PostgreSQL en la CI.
 - `ReglaDeNegocio.cambiar_prioridad` valida con la misma regla que la construcción;
   `ConfigurarAgendaDeNotificacion` la usa al actualizar, antes de tocar la regla, así que `PUT
   /reglas/agenda` con prioridad negativa responde 422 también sobre una regla existente (antes, 500).
-  El mismo defecto en `atencion.py` y en escalamiento queda registrado en `TODO.md` §25.
+  El mismo defecto en `atencion.py` y en escalamiento queda registrado en `TODO.md` §26.
 - Cada botón «Quitar» de la agenda tiene `aria-label` «Quitar recordatorio N».
 - Tres casos nuevos en `test_agenda_de_notificacion_postgres.py` (se saltean sin base, corren en la CI).
 - Caso 36 y la nota de D-U8-5 sobre la regla malformada, para los tramos 2 y 3.

@@ -485,7 +485,7 @@ usa la misma escala (`WHATSAPP_SONDEO_MINUTOS`).
 | 21 | Adaptador de cobros sin plantilla aprobada → texto **de fábrica del adaptador** (no el cuerpo editado). (Meta 131047 → `FALLIDO` ya está cubierto por U5; el código queda en el log del canal) | unit | verde, RED observado (`test_envio_con_plantilla.py`) |
 | 22 | Adaptador de turnos: los tres avisos usan su código; `fecha` y `hora` salen por separado y en hora argentina (`2026-10-15T13:30Z` → «15/10/2026», «10:30»; la conversión ya la prueba el caso 33 de U5) | unit | verde (`test_avisos_con_plantilla.py`); sin RED separado |
 | 23 | Solo se mandan los parámetros que el cuerpo usa (un cuerpo editado sin `{{recurso}}` no lo manda: 132000) | unit | verde (`test_consulta_y_estado.py`, `test_plantillas_salientes.py`) |
-| 24 | Monto `1234.5` → «1.234,50» (ver «Pregunta abierta Q1»); cobro sin link → parámetro no vacío | unit | verde (`test_envio_con_plantilla.py`); Q1 sigue abierta |
+| 24 | Monto `1234.5` → «1.234,50» (ver «Pregunta abierta Q1»); cobro sin link → parámetro no vacío | unit | verde (`test_envio_con_plantilla.py`); Q1 decidida el 2026-10-07 (ver «Pregunta abierta») |
 | 25 | Valor con salto de línea → espacio | unit | verde (`test_consulta_y_estado.py`): el saneo vive en `ConsultarPlantillaParaEnviar`, un solo lugar |
 | 26 | `enviar_plantilla`: forma del `POST` (`type: template`, `parameter_name`); un caso por clase de error usando el bucle compartido (503 ×3, 132001, timeout incierto: ya probados en `test_canal.py`); 132000/132012/132015/132016 parametrizados como permanentes | contrato | verde, RED observado (`test_canal_plantillas.py`) |
 | 27 | Ningún log de los módulos nuevos contiene teléfono, cuerpo, parámetros, token ni `error_user_msg` (patrón de captura de logs de U5) | unit (captura de logs) | verde (`test_canal_plantillas.py`, `test_plantillas_meta.py`, `test_envio_con_plantilla.py`) |
@@ -571,6 +571,8 @@ decidido y esta unidad no toca el texto ni el caso 16 de U5.** Recomendación: u
 (« $ 1.234,50») para ambos caminos; es el formato que lee un cliente argentino y el cambio es un
 formateador más el test 16 de U5. Lo decide Luciano; si se acepta, se hace en un cambio aparte.
 
+**Decidida (2026-10-07, Luciano): un solo formateador es-AR** para los dos caminos. Se hizo en un cambio aparte, `fix/payments-monto-en-formato-argentino`: `texto_de_recordatorio` usa `formatear_es_ar` (el mismo del parámetro de la plantilla) y dice «$ 1.234,50», y su texto termina en « Gracias.» como `DE_FABRICA`. Cierra `TODO.md` §22.52.
+
 ## Estado de la implementación (2026-10-06)
 
 Rama `feature/business_config-plantillas-de-whatsapp-en-meta`, un commit por unidad de trabajo, cada uno
@@ -612,7 +614,7 @@ de verdad si se quiere otro valor. Registrar en la app de Meta la URL `/webhooks
 |---|---|---|
 | 1 · Plan | 2026-10-04 | Aprobado por Luciano con las recomendaciones de las preguntas. Condición cumplida el 2026-10-05 (ADR-0011 aceptado, [#62](https://github.com/cheatsheet12/CheatSheet/pull/62)); revalidado contra develop `2b96b4a` el 2026-10-06; **Gate 1 cerrado, ya se puede escribir código** |
 | 2 · Verificación | 2026-10-07 | Aprobado por Luciano (G1), con G3 y G4 corregidos antes del PR |
-| 3 · PR | | |
+| 3 · PR | 2026-10-09 | [#109](https://github.com/cheatsheet12/CheatSheet/pull/109). GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`backend/scripts/run_local_ci.py`, ADR-0016 propuesto), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
 
