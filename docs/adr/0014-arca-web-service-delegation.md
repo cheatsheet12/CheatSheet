@@ -79,8 +79,13 @@ CUIT. Companies no longer upload certificates.**
    returned test data even for a public CUIT (`33693450239` → «PRUEBA F713 WEB 2», no VAT
    status). So `staging` runs a **simulated padrón with a real WSFE**: every test company keeps
    fictitious data and invoicing still gets a real CAE. The real padrón was proven separately
-   by that query.
-8. **Production delegation:** each company, once, in *Administrador de Relaciones de Clave
+   by that query. **Confirmed on 2026-10-10:** homologación granted a CAE to `30000000015`
+   on point of sale 1, although its registry does not know that CUIT. A simulated padrón
+   asks WSAA for no ticket.
+8. **Points of sale are checked against ARCA only in production.** Homologación keeps no
+   registry of them (`FEParamGetPtosVenta` → `602 Sin Resultados` for the same company it
+   then gave a CAE), so outside production the alta of a point uses the stand-in's list.
+9. **Production delegation:** each company, once, in *Administrador de Relaciones de Clave
    Fiscal* › Nueva relación › ARCA › WebServices › «Facturación Electrónica» › Representante:
    CheatSheet's CUIT. CheatSheet then accepts it in «Aceptación de Designación».
    **Homologación:** the platform owner authorizes each test CUIT in WSASS › «Crear

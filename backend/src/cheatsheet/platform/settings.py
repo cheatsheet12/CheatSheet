@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -358,6 +359,10 @@ def _adaptador_de_whatsapp(entorno: Entorno) -> AdaptadorDeWhatsApp:
     return adaptador
 
 
+#: The end of one PEM block glued to the start of the next.
+_JUNTURA_PEM = re.compile(rb"-----(?=-----BEGIN )")
+
+
 def _credencial_de_plataforma(adaptador: AdaptadorDeArca) -> bytes:
     """`ARCA_CREDENCIAL_PLATAFORMA`: base64 of the PEM certificate plus its PEM key (ADR-0014).
 
@@ -368,11 +373,15 @@ def _credencial_de_plataforma(adaptador: AdaptadorDeArca) -> bytes:
         return b""
     crudo = _requerida("ARCA_CREDENCIAL_PLATAFORMA")
     try:
-        return base64.b64decode(crudo, validate=True)
+        bundle = base64.b64decode(crudo, validate=True)
     except (ValueError, TypeError) as exc:
         raise ConfiguracionFaltante(
             "ARCA_CREDENCIAL_PLATAFORMA debe ser el certificado y la clave PEM en base64"
         ) from exc
+    # The certificate WSASS hands out ends without a newline, so `cat crt key` glues
+    # `-----END CERTIFICATE-----` to `-----BEGIN PRIVATE KEY-----` and the key no longer
+    # parses -- with an error that blames the key. Found on 2026-10-10 with the real one.
+    return _JUNTURA_PEM.sub(b"-----\n", bundle)
 
 
 def _adaptador_del_padron(entorno: Entorno, arca: AdaptadorDeArca) -> AdaptadorDeArca:

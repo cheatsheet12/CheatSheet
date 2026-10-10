@@ -38,3 +38,18 @@ def test_una_credencial_que_no_es_base64_se_rechaza(monkeypatch: pytest.MonkeyPa
 
 def test_con_el_simulador_no_hace_falta() -> None:
     assert _credencial_de_plataforma(AdaptadorDeArca.SIMULADO) == b""
+
+
+def test_un_certificado_sin_salto_final_no_pega_la_clave(monkeypatch: pytest.MonkeyPatch) -> None:
+    """El certificado de WSASS termina sin salto de línea: `cat crt key` pegaba los bloques.
+
+    Visto el 10/10/2026 con el certificado real: la API decía que la clave estaba cifrada.
+    """
+    pegado = (
+        b"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE----------BEGIN PRIVATE KEY-----"
+    )
+    monkeypatch.setenv("ARCA_CREDENCIAL_PLATAFORMA", base64.b64encode(pegado).decode())
+
+    assert _credencial_de_plataforma(AdaptadorDeArca.ARCA) == (
+        b"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n-----BEGIN PRIVATE KEY-----"
+    )
