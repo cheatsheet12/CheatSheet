@@ -767,7 +767,7 @@ porque ninguno es de HU-E1-05 ni de HU-E1-06.
   verificación del middleware y la propia `GET /auth/empresa`. Sigue valiendo la propuesta de §4 de
   un endpoint de «contexto de sesión» que devuelva empresa + usuario + rol de una vez.
 
-## 26. Hallazgos de `terminos-y-privacidad`
+## 27. Hallazgos de `terminos-y-privacidad`
 
 Registrados el 2026-10-10; ninguno se arregla en esta unidad (CLAUDE.md §8).
 
@@ -776,5 +776,3 @@ Registrados el 2026-10-10; ninguno se arregla en esta unidad (CLAUDE.md §8).
   (invitación y Google a su propio módulo) es un refactor con riesgo propio y merece su PR.
 - **El enlace «¿Olvidaste tu contraseña?» (`FormularioDeIngreso.tsx`) apunta a `/recuperar`, que no tiene
   ruta** y responde 404, igual que `/terminos` hasta este tramo. Es de otra historia.
-- **`docs/aidlc/units.md` marca `renovacion-sin-borrar-sesion` «en revisión»**, pero el PR #118 ya está en
-  `develop` (`e9916a5`).
