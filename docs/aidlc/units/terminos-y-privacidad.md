@@ -522,8 +522,8 @@ de rol. Hacer una excepción acá dejaría la bitácora inconsistente sin que ni
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-10 | Aprobado por Luciano con las recomendaciones de las preguntas 1–12. Tres tramos apilados; la migración toma el número libre al implementar (0041 si `recordatorio-de-turno` entra antes) |
-| 2 · Verificación | | |
-| 3 · PR | | |
+| 2 · Verificación del tramo 1 | 2026-10-10 | Aprobado por Luciano. RED observado en cada caso; ruff, mypy, pytest (2977, sin PostgreSQL), frontend (1237), lint, typecheck, prettier y guards en verde. Hallazgos renumerados a `TODO.md` §27. El tramo 2 se apila en `feature/identity-terminos-y-privacidad-alta` |
+| 3 · PR | 2026-10-10 | Un PR por tramo, en orden 1 → 2 → 3. GitHub Actions sin cuota hasta el 2026-11-01: cada PR se verifica con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
 
