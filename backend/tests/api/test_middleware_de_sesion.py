@@ -34,13 +34,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from tests.api.verificador_falso import VerificadorDeSesionFalso, token_firmado
-from tests.conftest import INSTANTE_FIJO, settings_de_prueba
+from tests.conftest import INSTANTE_CON_TEXTOS_VIGENTES, settings_de_prueba
 from tests.contexts.identity.base_falsa import EscenarioDeBase, fabrica_de_sesiones, fila
 
-#: After the first published legal texts (2026-10-10). The wiring tests build the real
-#: verifier, which looks up the versions in force, and the fixed clock must be a day on which
-#: the real catalogue has one.
-CON_TEXTOS_VIGENTES = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+CON_TEXTOS_VIGENTES = INSTANTE_CON_TEXTOS_VIGENTES
 _RUTA = "/prueba/yo"
 _SIN_SESION = {"error": "NoAutenticado", "detalle": "Se requiere iniciar sesion."}
 _NO_DISPONIBLE = {
@@ -83,7 +80,7 @@ def _recursos(
     *,
     redis: object | None = None,
     sesiones: async_sessionmaker[AsyncSession] | None = None,
-    instante: datetime = INSTANTE_FIJO,
+    instante: datetime = INSTANTE_CON_TEXTOS_VIGENTES,
 ) -> Recursos:
     return Recursos(
         settings=settings,

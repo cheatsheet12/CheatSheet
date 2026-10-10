@@ -6,6 +6,7 @@ decides: the role, the status and the company.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -17,14 +18,19 @@ from cheatsheet.contexts.identity.application.errors import (
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import (
     IdentidadVigente,
     VerificarSesionVigente,
+    VersionesEnVigor,
+    versiones_en_vigor,
 )
 from cheatsheet.contexts.identity.domain.legal import CatalogoLegal, DocumentoLegal
 from cheatsheet.contexts.identity.domain.valores import EstadoUsuario, RolUsuario
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import InvarianteViolada
 
 from tests.conftest import INSTANTE_FIJO
 from tests.contexts.identity.conftest import (
+    VERSION_DE_PRIVACIDAD,
+    VERSION_DE_TERMINOS,
     CatalogoLegalEnMemoria,
     ConsultaDeUsuarioVigenteEnMemoria,
     usuario_de_prueba,
@@ -38,12 +44,28 @@ def consulta() -> ConsultaDeUsuarioVigenteEnMemoria:
     return ConsultaDeUsuarioVigenteEnMemoria()
 
 
-def _caso(consulta: ConsultaDeUsuarioVigenteEnMemoria) -> VerificarSesionVigente:
-    return VerificarSesionVigente(
-        consulta=consulta,
-        catalogo=CatalogoLegal(CatalogoLegalEnMemoria().versiones()),
-        reloj=RelojFijo(INSTANTE_FIJO),
+def _versiones() -> VersionesEnVigor:
+    return versiones_en_vigor(
+        CatalogoLegal(CatalogoLegalEnMemoria().versiones()), RelojFijo(INSTANTE_FIJO)
     )
+
+
+class _Caso:
+    """The use case with the versions in force already looked up, as its caller hands them."""
+
+    def __init__(self, consulta: ConsultaDeUsuarioVigenteEnMemoria) -> None:
+        self._caso = VerificarSesionVigente(consulta=consulta)
+
+    async def ejecutar(
+        self, *, usuario_id: UsuarioId, empresa_id_del_token: EmpresaId
+    ) -> IdentidadVigente:
+        return await self._caso.ejecutar(
+            usuario_id=usuario_id, empresa_id_del_token=empresa_id_del_token, versiones=_versiones()
+        )
+
+
+def _caso(consulta: ConsultaDeUsuarioVigenteEnMemoria) -> _Caso:
+    return _Caso(consulta)
 
 
 async def test_un_usuario_activo_opera_con_el_rol_de_la_base_y_no_el_del_token(
@@ -201,3 +223,16 @@ async def test_una_sesion_revocada_no_calcula_pendientes(
 
     with pytest.raises(SesionRevocada):
         await _caso(consulta).ejecutar(usuario_id=usuario.id, empresa_id_del_token=empresa_id)
+
+
+async def test_las_versiones_en_vigor_salen_del_catalogo_y_del_reloj():
+    assert _versiones() == VersionesEnVigor(
+        terminos=VERSION_DE_TERMINOS, privacidad=VERSION_DE_PRIVACIDAD
+    )
+
+
+async def test_sin_version_vigente_de_un_documento_no_hay_versiones_en_vigor():
+    antes_de_todo = RelojFijo(datetime(2024, 1, 1, 12, 0, tzinfo=UTC))
+
+    with pytest.raises(InvarianteViolada):
+        versiones_en_vigor(CatalogoLegal(CatalogoLegalEnMemoria().versiones()), antes_de_todo)

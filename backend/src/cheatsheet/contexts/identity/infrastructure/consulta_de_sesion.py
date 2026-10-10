@@ -43,6 +43,7 @@ from cheatsheet.contexts.identity.application.ports import EstadoActualDelUsuari
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import (
     IdentidadVigente,
     VerificarSesionVigente,
+    versiones_en_vigor,
 )
 from cheatsheet.contexts.identity.domain.legal import CatalogoLegal
 from cheatsheet.contexts.identity.domain.valores import EstadoUsuario, RolUsuario
@@ -152,16 +153,16 @@ class VerificadorDeSesionPostgres:
     async def _consultar(
         self, usuario_id: UsuarioId, empresa_id_del_token: EmpresaId
     ) -> IdentidadVigente:
+        # Before the connection: a catalogue with nothing in force must not cost one per request.
+        versiones = versiones_en_vigor(self._catalogo, self._reloj)
         # The signed `empresa_id` is what scopes the session, so Row-Level Security limits
         # the lookup to that company; the use case then compares the stored one anyway.
         async with sesion_de_empresa(self._sesiones, empresa_id_del_token) as sesion:
-            caso = VerificarSesionVigente(
-                consulta=ConsultaDeUsuarioVigentePostgres(sesion),
-                catalogo=self._catalogo,
-                reloj=self._reloj,
-            )
+            caso = VerificarSesionVigente(consulta=ConsultaDeUsuarioVigentePostgres(sesion))
             async with asyncio.timeout(self._timeout_de_consulta):
                 identidad = await caso.ejecutar(
-                    usuario_id=usuario_id, empresa_id_del_token=empresa_id_del_token
+                    usuario_id=usuario_id,
+                    empresa_id_del_token=empresa_id_del_token,
+                    versiones=versiones,
                 )
         return identidad

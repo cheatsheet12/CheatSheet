@@ -46,19 +46,38 @@ from cheatsheet.api.routers import (
     whatsapp,
 )
 from cheatsheet.contexts.business_config.application.errors import MetaNoDisponible
+from cheatsheet.contexts.identity.application.verificacion_de_sesion import versiones_en_vigor
 from cheatsheet.contexts.identity.domain.legal import CatalogoLegal
 from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
     VerificadorDeSesionPostgres,
 )
 from cheatsheet.contexts.identity.infrastructure.legal.catalogo import catalogo_publicado
 from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
-from cheatsheet.platform.settings import Settings
+from cheatsheet.platform.settings import ConfiguracionFaltante, Settings
 from cheatsheet.platform.telemetry import configurar_logging, obtener_logger
+from cheatsheet.shared.errors import InvarianteViolada
 
 logger = obtener_logger(__name__)
 
 TITULO = "CheatSheet API"
 VERSION = "0.1.0"
+
+
+def _catalogo_con_versiones_vigentes(recursos: Recursos) -> CatalogoLegal:
+    """The published catalogue, refusing to boot when a document has no version in force today.
+
+    Without this the first authenticated request would fail inside the session check, and so
+    would every one after it. Uses the application's own clock, so a test clock is honoured.
+    """
+    catalogo = CatalogoLegal(catalogo_publicado().versiones())
+    try:
+        versiones_en_vigor(catalogo, recursos.reloj)
+    except InvarianteViolada as error:
+        raise ConfiguracionFaltante(
+            f"El catalogo legal no tiene una version vigente hoy: {error}. "
+            "Publique el texto o corrija su fecha de vigencia antes de arrancar."
+        ) from error
+    return catalogo
 
 
 def create_app(
@@ -79,11 +98,10 @@ def create_app(
     settings = settings or Settings.desde_entorno()
     configurar_logging(settings)
     recursos = recursos or Recursos.crear(settings)
+    # Built once with the process: the per-request check only looks versions up in it.
+    catalogo = _catalogo_con_versiones_vigentes(recursos)
     verificador = verificador or VerificadorDeSesionPostgres(
-        recursos.sesiones,
-        # Built once with the process: the per-request check only looks versions up in it.
-        catalogo=CatalogoLegal(catalogo_publicado().versiones()),
-        reloj=recursos.reloj,
+        recursos.sesiones, catalogo=catalogo, reloj=recursos.reloj
     )
 
     @asynccontextmanager
