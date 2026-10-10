@@ -10,7 +10,11 @@ from uuid import UUID
 
 from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.invitacion import Invitacion
-from cheatsheet.contexts.identity.domain.legal import DocumentoLegal, VersionDeDocumento
+from cheatsheet.contexts.identity.domain.legal import (
+    AceptacionLegal,
+    DocumentoLegal,
+    VersionDeDocumento,
+)
 from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import (
@@ -259,4 +263,14 @@ class PortCatalogoLegal(Protocol):
 
     def texto(self, documento: DocumentoLegal, version: str) -> str:
         """The text of one published version. `KeyError` if it was never published."""
+        ...
+
+
+class PortRepositorioAceptacionLegal(Protocol):
+    """Where acceptances are recorded (HU-E1-08 RN-02). Only `INSERT` and `SELECT`: evidence."""
+
+    async def agregar(self, aceptacion: AceptacionLegal) -> None: ...
+
+    async def acepto(self, usuario_id: UsuarioId, documento: DocumentoLegal, version: str) -> bool:
+        """Whether this user already accepted exactly this version of this document."""
         ...

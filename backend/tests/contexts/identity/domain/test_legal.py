@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import date
+from dataclasses import FrozenInstanceError
+from datetime import UTC, date, datetime
+from uuid import uuid4
 
 import pytest
 from cheatsheet.contexts.identity.domain.legal import (
+    AceptacionLegal,
     CatalogoLegal,
     DocumentoLegal,
     VersionDeDocumento,
 )
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 
 
@@ -107,3 +111,55 @@ def test_el_identificador_de_version_tiene_formato_n_punto_n(version: str):
 
 def test_el_identificador_acepta_el_formato_n_punto_n():
     assert _version("12.34", date(2026, 1, 1)).version == "12.34"
+
+
+# ------------------------------------------------------------------------------ case 11
+
+
+def _aceptacion(**cambios: object) -> AceptacionLegal:
+    datos: dict[str, object] = {
+        "empresa_id": EmpresaId(uuid4()),
+        "usuario_id": UsuarioId(uuid4()),
+        "documento": DocumentoLegal.PRIVACIDAD,
+        "version": "1.0",
+        "fecha_aceptacion": datetime(2026, 10, 10, 15, 0, tzinfo=UTC),
+    }
+    datos.update(cambios)
+    return AceptacionLegal.registrar(**datos)  # type: ignore[arg-type]
+
+
+def test_una_aceptacion_guarda_documento_version_y_fecha():
+    aceptacion = _aceptacion()
+
+    assert aceptacion.documento is DocumentoLegal.PRIVACIDAD
+    assert aceptacion.version == "1.0"
+    assert aceptacion.fecha_aceptacion == datetime(2026, 10, 10, 15, 0, tzinfo=UTC)
+    assert aceptacion.usuario_id is not None
+
+
+def test_la_aceptacion_es_inmutable():
+    with pytest.raises(FrozenInstanceError):
+        _aceptacion().version = "2.0"  # type: ignore[misc]
+
+
+def test_la_fecha_de_aceptacion_lleva_zona_horaria():
+    with pytest.raises(EntradaInvalida):
+        _aceptacion(fecha_aceptacion=datetime.now(UTC).replace(tzinfo=None))
+
+
+@pytest.mark.parametrize("version", ["", "1", "v1.0", "1.0.1", "1." + "0" * 30])
+def test_la_aceptacion_exige_una_version_con_el_formato_del_catalogo(version: str):
+    with pytest.raises(EntradaInvalida):
+        _aceptacion(version=version)
+
+
+def test_la_privacidad_exige_usuario():
+    with pytest.raises(EntradaInvalida):
+        _aceptacion(usuario_id=None)
+
+
+def test_los_terminos_pueden_no_tener_usuario():
+    """Only the backfill leaves it empty: nobody can say who accepted a text that never existed."""
+    aceptacion = _aceptacion(documento=DocumentoLegal.TERMINOS, usuario_id=None)
+
+    assert aceptacion.usuario_id is None

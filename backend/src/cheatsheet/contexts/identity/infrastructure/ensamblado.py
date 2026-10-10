@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
+from cheatsheet.contexts.identity.application.aceptaciones import RegistradorDeAceptaciones
 from cheatsheet.contexts.identity.application.ports import (
     PortEmisorDeTokens,
     PortEnvioDeEmail,
@@ -26,10 +27,14 @@ from cheatsheet.contexts.identity.application.ports import (
     PortTokenDeInvitacion,
 )
 from cheatsheet.contexts.identity.application.sesiones import EmisorDeSesiones
+from cheatsheet.contexts.identity.infrastructure.aceptaciones import (
+    RepositorioAceptacionLegalPostgres,
+)
 from cheatsheet.contexts.identity.infrastructure.email_invitacion import (
     EnviadorDeConsola,
     EnviadorSMTP,
 )
+from cheatsheet.contexts.identity.infrastructure.legal.catalogo import catalogo_publicado
 from cheatsheet.contexts.identity.infrastructure.oauth_falso import ProveedorOAuthSimulado
 from cheatsheet.contexts.identity.infrastructure.oauth_google import (
     ConfiguracionOAuthGoogle,
@@ -66,6 +71,7 @@ class Identidad:
     tokens_de_invitacion: PortTokenDeInvitacion
     emisor: EmisorDeSesiones
     vida_invitacion: timedelta
+    registrador: RegistradorDeAceptaciones
 
     @classmethod
     def armar(cls, unidad: UnidadDeTrabajo, settings: Settings) -> Identidad:
@@ -88,6 +94,11 @@ class Identidad:
                 vida_refresh=timedelta(days=settings.refresh_ttl_dias),
             ),
             vida_invitacion=timedelta(days=settings.invitacion_ttl_dias),
+            registrador=RegistradorDeAceptaciones(
+                catalogo=catalogo_publicado(),
+                aceptaciones=RepositorioAceptacionLegalPostgres(unidad.sesion),
+                publicador=unidad.publicador,
+            ),
         )
 
 

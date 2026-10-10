@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO, VERSION_DE_PRIVACIDAD
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -107,7 +108,12 @@ def _miembro(cuerpo: dict[str, Any]) -> Miembro:
 async def _registrar(cliente: httpx.AsyncClient, email: str) -> Miembro:
     respuesta = await cliente.post(
         "/auth/registro",
-        json={"email": email, "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": email,
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert respuesta.status_code == 201, respuesta.text
     return _miembro(respuesta.json())
@@ -137,6 +143,7 @@ async def _incorporar(
             "token": despachador.tareas[-1]["kwargs"]["token"],
             "nombre": "Beto Gomez",
             "contrasena": CONTRASENA,
+            "version_privacidad": VERSION_DE_PRIVACIDAD,
         },
     )
     assert aceptacion.status_code == 201, aceptacion.text

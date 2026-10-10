@@ -3,7 +3,7 @@
 HU-E1-03 (terms and conditions) and HU-E1-08 (privacy policy) both rest on the same idea:
 a text is published under a **version**, and the version is what a person accepts. This
 module is the catalogue of those versions. It knows nothing about where the texts are kept
-(`infrastructure/legal/`) or who accepted what (a later slice).
+(`infrastructure/legal/`); who accepted what is `AceptacionLegal`.
 
 **One current version per document (HU-E1-08 RN-01).** The current one is the version with
 the greatest `vigente_desde` that is not in the future. Two versions of the same document
@@ -17,14 +17,23 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from enum import StrEnum
+from uuid import UUID, uuid4
 
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 
 #: Same shape and width as `empresa.terminos_version` (DER): `N.N`, at most 20 characters.
 LARGO_MAXIMO_DE_VERSION = 20
 _FORMATO_DE_VERSION = re.compile(r"\d+\.\d+")
+
+
+def validar_identificador_de_version(version: str) -> str:
+    """Shared by the catalogue and by the record of an acceptance, so they cannot drift."""
+    if len(version) > LARGO_MAXIMO_DE_VERSION or not _FORMATO_DE_VERSION.fullmatch(version):
+        raise EntradaInvalida(f"El identificador de version '{version}' debe tener el formato N.N")
+    return version
 
 
 class DocumentoLegal(StrEnum):
@@ -46,12 +55,56 @@ class VersionDeDocumento:
     borrador: bool = False
 
     def __post_init__(self) -> None:
-        if len(self.version) > LARGO_MAXIMO_DE_VERSION or not _FORMATO_DE_VERSION.fullmatch(
-            self.version
-        ):
+        validar_identificador_de_version(self.version)
+
+
+@dataclass(frozen=True, slots=True)
+class AceptacionLegal:
+    """One person (or company) accepting one version of one document (HU-E1-08 RN-02).
+
+    Evidence, so it is immutable and never edited: the table behind it only takes inserts.
+    Lives outside the `Empresa` and `Usuario` aggregates, like `Invitacion`: it has its own
+    identity and nothing in either aggregate needs to change to accept it.
+
+    `usuario_id` is mandatory for the privacy policy, which a *person* accepts. It is empty
+    only for terms recorded by the backfill of migration 0041, when the audit log could not
+    say who registered the company; saying "unknown" beats inventing a name.
+    """
+
+    id: UUID
+    empresa_id: EmpresaId
+    usuario_id: UsuarioId | None
+    documento: DocumentoLegal
+    version: str
+    fecha_aceptacion: datetime
+
+    def __post_init__(self) -> None:
+        validar_identificador_de_version(self.version)
+        if self.fecha_aceptacion.tzinfo is None:
+            raise EntradaInvalida("La fecha de aceptacion debe llevar zona horaria")
+        if self.usuario_id is None and self.documento is not DocumentoLegal.TERMINOS:
             raise EntradaInvalida(
-                f"El identificador de version '{self.version}' debe tener el formato N.N"
+                f"La aceptacion de {self.documento.value} requiere el usuario que la dio"
             )
+
+    @classmethod
+    def registrar(
+        cls,
+        *,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId | None,
+        documento: DocumentoLegal,
+        version: str,
+        fecha_aceptacion: datetime,
+    ) -> AceptacionLegal:
+        return cls(
+            id=uuid4(),
+            empresa_id=empresa_id,
+            usuario_id=usuario_id,
+            documento=documento,
+            version=version,
+            fecha_aceptacion=fecha_aceptacion,
+        )
 
 
 class CatalogoLegal:

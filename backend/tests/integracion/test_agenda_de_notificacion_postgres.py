@@ -28,6 +28,7 @@ from cheatsheet.workers import tasks_identity
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO, VERSION_DE_PRIVACIDAD
 from tests.integracion.test_api_usuarios import DespachadorEspia
 
 pytestmark = [requiere_base, pytest.mark.integration, pytest.mark.asyncio]
@@ -72,7 +73,12 @@ def _auth(token: str) -> dict[str, str]:
 async def _registrar(http: httpx.AsyncClient, email: str) -> str:
     respuesta = await http.post(
         "/auth/registro",
-        json={"email": email, "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": email,
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert respuesta.status_code == 201, respuesta.text
     return str(respuesta.json()["access_token"])
@@ -93,6 +99,7 @@ async def _operador(
             "token": despachador.tareas[0]["kwargs"]["token"],
             "nombre": "Beto Gomez",
             "contrasena": CONTRASENA,
+            "version_privacidad": VERSION_DE_PRIVACIDAD,
         },
     )
     assert aceptacion.status_code == 201, aceptacion.text

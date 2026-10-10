@@ -15,6 +15,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import uuid4
 
+from cheatsheet.contexts.identity.application.aceptaciones import (
+    Consentimiento,
+    RegistradorDeAceptaciones,
+)
 from cheatsheet.contexts.identity.application.errors import EmailYaRegistrado
 from cheatsheet.contexts.identity.application.ports import (
     PortHashDeContrasena,
@@ -49,11 +53,13 @@ class RegistrarEmpresa:
         usuarios: PortRepositorioUsuario,
         hasher: PortHashDeContrasena,
         publicador: PublicadorDeEventos,
+        registrador: RegistradorDeAceptaciones,
     ) -> None:
         self._empresas = empresas
         self._usuarios = usuarios
         self._hasher = hasher
         self._publicador = publicador
+        self._registrador = registrador
 
     async def ejecutar(
         self,
@@ -62,20 +68,19 @@ class RegistrarEmpresa:
         email: Email,
         contrasena: str,
         nombre: str,
-        version_terminos: str,
+        consentimiento: Consentimiento | None,
         ahora: datetime,
         direccion_ip: str | None = None,
     ) -> EmpresaRegistrada:
         validar_contrasena_en_claro(contrasena)
+        # HU-E1-03 RN-02: acceptance is part of completing the registration, not a later
+        # step, and the backend is what insists on it. Checked before anything is created.
+        aceptado = self._registrador.exigir_consentimiento(consentimiento, ahora)
         if await self._usuarios.buscar_por_email(email) is not None:
             raise EmailYaRegistrado(f"Ya existe una cuenta con el email {email}")
 
         empresa = Empresa(id=empresa_id)
-        # HU-E1-03 RN-02: acceptance is part of completing the registration, not a
-        # later step. A company that exists without accepted terms would be a company
-        # operating outside the contract it never signed.
-        empresa.aceptar_terminos(version_terminos, ahora)
-
+        empresa.aceptar_terminos(aceptado.version_terminos, ahora)
         usuario = Usuario(
             id=UsuarioId(uuid4()),
             empresa_id=empresa_id,
@@ -89,6 +94,14 @@ class RegistrarEmpresa:
         await self._empresas.agregar(empresa)
         await self._usuarios.agregar(usuario)
         await self._publicar(empresa_id, usuario, ahora, direccion_ip, "registrar_empresa")
+        # The company's state (above) and the evidence (here) go in the same transaction:
+        # a company without accepted terms would operate outside a contract it never signed.
+        await self._registrador.registrar_alta(
+            usuario=usuario,
+            consentimiento=aceptado,
+            ahora=ahora,
+            direccion_ip=direccion_ip,
+        )
         return EmpresaRegistrada(empresa=empresa, usuario=usuario)
 
     async def _publicar(
@@ -128,10 +141,12 @@ class RegistrarConGoogle:
         empresas: PortRepositorioEmpresa,
         usuarios: PortRepositorioUsuario,
         publicador: PublicadorDeEventos,
+        registrador: RegistradorDeAceptaciones,
     ) -> None:
         self._empresas = empresas
         self._usuarios = usuarios
         self._publicador = publicador
+        self._registrador = registrador
 
     async def ejecutar(
         self,
@@ -139,15 +154,16 @@ class RegistrarConGoogle:
         empresa_id: EmpresaId,
         email: Email,
         nombre: str,
-        version_terminos: str,
+        consentimiento: Consentimiento | None,
         ahora: datetime,
         direccion_ip: str | None = None,
     ) -> EmpresaRegistrada:
+        aceptado = self._registrador.exigir_consentimiento(consentimiento, ahora)
         if await self._usuarios.buscar_por_email(email) is not None:
             raise EmailYaRegistrado(f"Ya existe una cuenta con el email {email}")
 
         empresa = Empresa(id=empresa_id)
-        empresa.aceptar_terminos(version_terminos, ahora)
+        empresa.aceptar_terminos(aceptado.version_terminos, ahora)
         usuario = Usuario(
             id=UsuarioId(uuid4()),
             empresa_id=empresa_id,
@@ -171,5 +187,11 @@ class RegistrarConGoogle:
                 usuario_id=usuario.id,
                 direccion_ip=direccion_ip,
             )
+        )
+        await self._registrador.registrar_alta(
+            usuario=usuario,
+            consentimiento=aceptado,
+            ahora=ahora,
+            direccion_ip=direccion_ip,
         )
         return EmpresaRegistrada(empresa=empresa, usuario=usuario)

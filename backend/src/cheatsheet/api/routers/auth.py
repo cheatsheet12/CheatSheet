@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.api.padron import armar_padron
+from cheatsheet.api.routers.legal import ConsentimientoEntrada, consentimiento_de
 from cheatsheet.contexts.identity.application.errors import (
     CredencialesInvalidas,
     InvitacionInvalida,
@@ -62,6 +63,7 @@ class RegistroEntrada(BaseModel):
     email: str
     contrasena: str = Field(min_length=LARGO_MINIMO_CONTRASENA)
     nombre: str
+    consentimiento: ConsentimientoEntrada | None = None
 
 
 class LoginEntrada(BaseModel):
@@ -77,12 +79,17 @@ class AceptacionEntrada(BaseModel):
     token: str
     nombre: str
     contrasena: str = Field(min_length=LARGO_MINIMO_CONTRASENA)
+    version_privacidad: str | None = None
 
 
 class GoogleEntrada(BaseModel):
-    """The authorization code Google handed to the browser, relayed by the BFF."""
+    """The authorization code Google handed to the browser, relayed by the BFF.
+
+    `consentimiento` is only needed when the account is new (HU-E1-08 RN-03).
+    """
 
     codigo: str
+    consentimiento: ConsentimientoEntrada | None = None
 
 
 class DatosDeEmpresaEntrada(BaseModel):
@@ -179,12 +186,13 @@ def _rutas_de_alta(recursos: Recursos) -> APIRouter:
                 usuarios=piezas.usuarios,
                 hasher=piezas.hasher,
                 publicador=unidad.publicador,
+                registrador=piezas.registrador,
             ).ejecutar(
                 empresa_id=empresa_id,
                 email=Email(entrada.email),
                 contrasena=entrada.contrasena,
                 nombre=entrada.nombre,
-                version_terminos=recursos.settings.terminos_version_vigente,
+                consentimiento=consentimiento_de(entrada.consentimiento),
                 ahora=unidad.reloj.ahora(),
                 direccion_ip=_ip(request),
             )
@@ -328,10 +336,12 @@ def _rutas_de_invitacion(recursos: Recursos) -> APIRouter:
                 hasher=piezas.hasher,
                 emisor=piezas.emisor,
                 publicador=unidad.publicador,
+                registrador=piezas.registrador,
             ).ejecutar(
                 token=entrada.token,
                 nombre=entrada.nombre,
                 contrasena=entrada.contrasena,
+                version_privacidad=entrada.version_privacidad,
                 ahora=unidad.reloj.ahora(),
                 direccion_ip=_ip(request),
             )
@@ -368,11 +378,12 @@ def _rutas_de_invitacion(recursos: Recursos) -> APIRouter:
                         empresas=piezas.empresas,
                         usuarios=piezas.usuarios,
                         publicador=unidad.publicador,
+                        registrador=piezas.registrador,
                     ).ejecutar(
                         empresa_id=empresa_id,
                         email=perfil.email,
                         nombre=perfil.nombre,
-                        version_terminos=recursos.settings.terminos_version_vigente,
+                        consentimiento=consentimiento_de(entrada.consentimiento),
                         ahora=unidad.reloj.ahora(),
                         direccion_ip=_ip(request),
                     )

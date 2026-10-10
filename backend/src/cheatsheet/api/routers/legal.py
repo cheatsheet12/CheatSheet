@@ -15,13 +15,14 @@ from __future__ import annotations
 from datetime import date
 
 from cheatsheet.api.dependencies import Recursos
+from cheatsheet.contexts.identity.application.aceptaciones import Consentimiento
 from cheatsheet.contexts.identity.application.legal import (
     ConsultarDocumentoVigente,
     ConsultarVersionesVigentes,
     DocumentoPublicado,
 )
 from cheatsheet.contexts.identity.domain.legal import DocumentoLegal, VersionDeDocumento
-from cheatsheet.contexts.identity.infrastructure.legal.catalogo import CatalogoLegalEnArchivos
+from cheatsheet.contexts.identity.infrastructure.legal.catalogo import catalogo_publicado
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -63,10 +64,29 @@ class VigentesSalida(BaseModel):
     privacidad: VersionSalida
 
 
+class ConsentimientoEntrada(BaseModel):
+    """What the two unticked-by-default boxes send back (HU-E1-08 RN-03).
+
+    Each field is the version the person was shown, or absent when the box was not ticked.
+    The backend decides what absent or stale means; the form only transports it.
+    """
+
+    version_terminos: str | None = None
+    version_privacidad: str | None = None
+
+
+def consentimiento_de(entrada: ConsentimientoEntrada | None) -> Consentimiento | None:
+    if entrada is None:
+        return None
+    return Consentimiento(
+        version_terminos=entrada.version_terminos, version_privacidad=entrada.version_privacidad
+    )
+
+
 def crear_router(recursos: Recursos) -> APIRouter:
     """Build the legal router bound to the process resources."""
     router = APIRouter(prefix="/legal", tags=["legal"])
-    catalogo = CatalogoLegalEnArchivos()
+    catalogo = catalogo_publicado()
     documento_vigente = ConsultarDocumentoVigente(catalogo=catalogo, reloj=recursos.reloj)
     versiones_vigentes = ConsultarVersionesVigentes(catalogo=catalogo, reloj=recursos.reloj)
 

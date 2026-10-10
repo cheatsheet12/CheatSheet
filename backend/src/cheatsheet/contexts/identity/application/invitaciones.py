@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
+from cheatsheet.contexts.identity.application.aceptaciones import RegistradorDeAceptaciones
 from cheatsheet.contexts.identity.application.autorizacion import exigir_administrador
 from cheatsheet.contexts.identity.application.errors import (
     EmailYaRegistrado,
@@ -244,6 +245,7 @@ class AceptarInvitacion:
         hasher: PortHashDeContrasena,
         emisor: EmisorDeSesiones,
         publicador: PublicadorDeEventos,
+        registrador: RegistradorDeAceptaciones,
     ) -> None:
         self._usuarios = usuarios
         self._invitaciones = invitaciones
@@ -251,6 +253,7 @@ class AceptarInvitacion:
         self._hasher = hasher
         self._emisor = emisor
         self._publicador = publicador
+        self._registrador = registrador
 
     async def ejecutar(
         self,
@@ -258,10 +261,15 @@ class AceptarInvitacion:
         token: str,
         nombre: str,
         contrasena: str,
+        version_privacidad: str | None,
         ahora: datetime,
         direccion_ip: str | None = None,
     ) -> Sesion:
         validar_contrasena_en_claro(contrasena)
+        # HU-E1-08 RN-04: the invitee accepts the privacy policy and nothing else; the terms
+        # were accepted by the company. Checked before the token, so a person who forgot the
+        # box is told so without learning anything about the invitation.
+        privacidad = self._registrador.exigir_privacidad(version_privacidad, ahora)
         invitacion = await self._invitaciones.buscar_por_hash(self._tokens.hashear(token))
         if invitacion is None or not invitacion.es_utilizable(ahora):
             raise InvitacionInvalida("La invitacion no es valida o ya fue utilizada")
@@ -276,6 +284,9 @@ class AceptarInvitacion:
         invitacion.aceptar(ahora)
         await self._usuarios.guardar(usuario)
         await self._invitaciones.guardar(invitacion)
+        await self._registrador.registrar_privacidad(
+            usuario=usuario, version=privacidad, ahora=ahora, direccion_ip=direccion_ip
+        )
         # The executor is the invited person themself: this is the one action of the
         # cycle that nobody else can perform.
         await publicar_cambio(

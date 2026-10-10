@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 
 pytestmark = [requiere_base, pytest.mark.integration, pytest.mark.asyncio]
 
@@ -77,7 +78,12 @@ async def _empresa_con_cobro(
 ) -> tuple[str, uuid.UUID]:
     registro = await http.post(
         "/auth/registro",
-        json={"email": "ana@empresa.com", "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": "ana@empresa.com",
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert registro.status_code == 201, registro.text
     token = str(registro.json()["access_token"])

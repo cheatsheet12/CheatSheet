@@ -173,6 +173,8 @@ BORRADOS = (
     "DELETE FROM categoria_empresa",
     "DELETE FROM servicio",
     "DELETE FROM cliente",
+    # `aceptacion_legal` apunta a `usuario` y a `empresa` con RESTRICT: antes que los dos.
+    "DELETE FROM aceptacion_legal",
     "DELETE FROM invitacion",
     "DELETE FROM refresh_token",
     "DELETE FROM usuario",
