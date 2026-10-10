@@ -34,6 +34,7 @@ from cheatsheet.contexts.scheduling.domain.recurso import (
     TipoRecurso,
 )
 from cheatsheet.contexts.scheduling.domain.turno import (
+    ESTADOS_ABIERTOS,
     ESTADOS_QUE_OCUPAN_LA_FRANJA,
     MENSAJE_HORARIO_OCUPADO,
     EstadoTurno,
@@ -276,6 +277,22 @@ class RepositorioTurnoPostgres:
         filas = (await self._sesion.execute(sentencia)).scalars().all()
         return [_a_dominio(fila) for fila in filas]
 
+    async def abiertos_con_inicio_entre(self, desde: datetime, hasta: datetime) -> list[Turno]:
+        """Los turnos abiertos con `desde < inicio <= hasta`, por inicio (el barrido de avisos).
+
+        Lee `ix_turno_abierto_inicio`, el índice parcial de la migración 0040. Los abiertos son
+        `RESERVADO` y `CONFIRMADO`: la misma condición que el índice.
+        """
+        sentencia = (
+            select(TurnoORM)
+            .where(TurnoORM.estado.in_([estado.value for estado in ESTADOS_ABIERTOS]))
+            .where(TurnoORM.franja_inicio > desde)
+            .where(TurnoORM.franja_inicio <= hasta)
+            .order_by(TurnoORM.franja_inicio, TurnoORM.id)
+        )
+        filas = (await self._sesion.execute(sentencia)).scalars().all()
+        return [_a_dominio(fila) for fila in filas]
+
     async def _flush_o_ocupado(self) -> None:
         try:
             await self._sesion.flush()
@@ -302,6 +319,7 @@ def _a_dominio(fila: TurnoORM) -> Turno:
         created_at=fila.created_at,
         updated_at=fila.updated_at,
         intervalo_posterior_min=fila.intervalo_posterior_min,
+        franja_asignada_en=fila.franja_asignada_en,
     )
 
 
@@ -319,6 +337,9 @@ def _a_fila(turno: Turno, fila: TurnoORM) -> TurnoORM:
     fila.intervalo_posterior_min = turno.intervalo_posterior_min
     fila.created_at = turno.created_at or datetime.now(tz=ZONA_DE_LA_AGENDA)
     fila.updated_at = turno.updated_at or fila.created_at
+    # Respaldo de un `Turno` armado sin el campo (la aplicación siempre lo fija): en un alta es el
+    # mismo instante que la inserción. Los turnos que ya existían los resuelve la migración 0040.
+    fila.franja_asignada_en = turno.franja_asignada_en or fila.created_at
     return fila
 
 
