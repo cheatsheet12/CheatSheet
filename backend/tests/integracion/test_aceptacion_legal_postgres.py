@@ -218,6 +218,23 @@ async def test_el_repositorio_no_falla_ante_un_duplicado_y_dice_que_no_escribio_
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("documento", [DocumentoLegal.PRIVACIDAD, DocumentoLegal.TERMINOS])
+async def test_el_repositorio_no_traga_un_conflicto_que_no_es_el_del_indice(
+    sesiones: async_sessionmaker[AsyncSession],
+    engine_dueno: AsyncEngine,
+    documento: DocumentoLegal,
+):
+    """The conflict target is named: a repeated primary key is a bug, not "already accepted"."""
+    empresa_id, usuario_id = await _sembrar_usuario(engine_dueno)
+    primera = _aceptacion(empresa_id, usuario_id, documento, version="1.0")
+    await _guardar(sesiones, empresa_id, primera)
+
+    mismo_id = replace(_aceptacion(empresa_id, usuario_id, documento, "2.0"), id=primera.id)
+    with pytest.raises(IntegrityError, match="aceptacion_legal_pkey"):
+        await _guardar(sesiones, empresa_id, mismo_id)
+
+
+@pytest.mark.asyncio
 async def test_la_misma_version_de_terminos_dos_veces_para_una_empresa_se_rechaza(
     sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
 ):
