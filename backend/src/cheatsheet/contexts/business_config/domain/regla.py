@@ -22,6 +22,9 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
+from cheatsheet.contexts.business_config.domain.agenda_de_notificacion import (
+    ConfiguracionDeAgenda,
+)
 from cheatsheet.contexts.business_config.domain.horario_de_atencion import ConfiguracionDeAtencion
 from cheatsheet.contexts.business_config.domain.horario_de_atencion_json import desde_json
 from cheatsheet.shared.empresa import EmpresaId
@@ -165,6 +168,11 @@ ESCALAMIENTO_POR_DEFECTO = ConfiguracionDeEscalamiento(
 )
 
 
+def _exigir_prioridad_valida(prioridad: int) -> None:
+    if prioridad < 0:
+        raise EntradaInvalida("La prioridad de una regla no puede ser negativa")
+
+
 @dataclass(slots=True)
 class ReglaDeNegocio:
     """Una regla parametrizable de una empresa.
@@ -184,8 +192,7 @@ class ReglaDeNegocio:
     updated_at: datetime | None = None
 
     def __post_init__(self) -> None:
-        if self.prioridad < 0:
-            raise EntradaInvalida("La prioridad de una regla no puede ser negativa")
+        _exigir_prioridad_valida(self.prioridad)
 
     def interpretada_como_escalamiento(self) -> ConfiguracionDeEscalamiento:
         """La configuración, tipada. Falla si el tipo no es el que se pide."""
@@ -202,6 +209,19 @@ class ReglaDeNegocio:
                 f"La regla {self.id} no es un horario de atención, es {self.tipo.value}"
             )
         return desde_json(self.configuracion)
+
+    def interpretada_como_agenda(self) -> ConfiguracionDeAgenda:
+        """La agenda de notificación, tipada. Falla si el tipo no es el que se pide."""
+        if self.tipo is not TipoRegla.AGENDA_DE_NOTIFICACION:
+            raise EntradaInvalida(
+                f"La regla {self.id} no es una agenda de notificación, es {self.tipo.value}"
+            )
+        return ConfiguracionDeAgenda.desde_json(self.configuracion)
+
+    def cambiar_prioridad(self, prioridad: int) -> None:
+        """Reemplaza la prioridad con la misma regla que la construcción (no negativa)."""
+        _exigir_prioridad_valida(prioridad)
+        self.prioridad = prioridad
 
     def reconfigurar(self, configuracion: dict[str, Any], ahora: datetime) -> None:
         """Reemplaza la parametrización. La validación es de quien construye la nueva."""
