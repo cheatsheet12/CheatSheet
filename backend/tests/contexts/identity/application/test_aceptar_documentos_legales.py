@@ -284,3 +284,21 @@ async def test_una_empresa_inexistente_falla_al_aceptar_terminos(
         )
 
     assert not aceptaciones.aceptaciones
+
+
+@pytest.mark.parametrize(
+    "orden", [(TERMINOS_NUEVOS, PRIVACIDAD_NUEVA), (PRIVACIDAD_NUEVA, TERMINOS_NUEVOS)]
+)
+async def test_el_orden_de_escritura_no_depende_del_orden_en_que_llegan_los_documentos(
+    empresas, aceptaciones, registrador, orden
+):
+    """Two concurrent requests with opposite orders would otherwise lock in opposite orders."""
+    empresa_id = await _empresa_con_terminos(empresas, "1.0")
+    caso = _caso(empresas, aceptaciones, registrador)
+
+    await _aceptar(caso, empresa_id, RolUsuario.ADMINISTRADOR, *orden)
+
+    assert [a.documento for a in aceptaciones.aceptaciones] == [
+        DocumentoLegal.PRIVACIDAD,
+        DocumentoLegal.TERMINOS,
+    ]

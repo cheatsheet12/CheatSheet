@@ -241,7 +241,9 @@ class AceptarDocumentosLegales:
                     rol, "Solo un Administrador puede aceptar los términos de la empresa"
                 )
             self._registrador.exigir_vigente(aceptado.documento, aceptado.version, ahora)
-        for aceptado in dict.fromkeys(documentos):
+        # Always the same order, whatever the client sent: two concurrent requests that wrote
+        # in opposite orders would each hold the lock the other waits for.
+        for aceptado in sorted(set(documentos), key=lambda a: (a.documento.value, a.version)):
             if aceptado.documento is DocumentoLegal.TERMINOS:
                 await self._terminos(empresa_id, usuario_id, aceptado.version, ahora, direccion_ip)
             else:
