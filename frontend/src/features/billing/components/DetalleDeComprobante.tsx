@@ -261,6 +261,9 @@ export function DetalleDeComprobante({
           claveDeFila={(fila) => fila.id}
           vacia="Este comprobante no tiene items."
         />
+        {comprobante.leyenda !== null && (
+          <p className="fac-det-items__leyenda">{comprobante.leyenda}</p>
+        )}
       </section>
 
       <dl className="fac-det-resumen">

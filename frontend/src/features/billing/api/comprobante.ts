@@ -45,6 +45,8 @@ export interface Comprobante {
   readonly cae: string | null;
   readonly cae_vence_el: string | null;
   readonly motivo_de_rechazo: string | null;
+  /** HU-E5-03 RN-13: the legend a Factura A to a Monotributista must carry. */
+  readonly leyenda: string | null;
   readonly subtotal: string;
   readonly total_iva: string;
   readonly total: string;
