@@ -36,6 +36,7 @@ from uuid import UUID, uuid4
 
 from cheatsheet.contexts.conversational.application.errors import (
     CanalNoConectado,
+    MensajeriaSaturada,
     motivo_de_falla_de,
 )
 from cheatsheet.contexts.conversational.application.ports import (
@@ -85,6 +86,11 @@ class ResultadoDeNotificacion:
     llamador lo registra. Nunca es verdadero por `SIN_CANAL`, que no guarda nada a propósito.
     `causa` es entonces la **clase** de la excepción que impidió guardar (`type(exc).__name__`),
     nunca su texto: puede traer el teléfono. Es `None` si se guardó.
+
+    `transitoria` dice si vale otro intento más tarde: solo la saturación de Meta lo es (el mismo
+    criterio que `api/fallas_de_canal._traducir`). Un rechazo permanente o un resultado incierto
+    (timeout de lectura: Meta pudo haberlo aceptado) no. Los avisos de turno lo ignoran (D6 de U7);
+    el recordatorio de turno lo usa para reintentar (U8, D-U8-8).
     """
 
     enviado: bool
@@ -92,6 +98,7 @@ class ResultadoDeNotificacion:
     falla: str | None = None
     sin_registrar: bool = False
     causa: str | None = None
+    transitoria: bool = False
 
 
 class NotificarAlCliente:
@@ -122,6 +129,7 @@ class NotificarAlCliente:
     ) -> ResultadoDeNotificacion:
         externo_id: str | None = None
         motivo: str | None = None
+        transitoria = False
         try:
             externo_id = externo_id_o_ninguno(await self._mandar(telefono, envio))
         except CanalNoConectado as sin_canal:
@@ -131,6 +139,7 @@ class NotificarAlCliente:
             # puerto lo implementan adaptadores que levantan lo que su SDK levante; enumerarlos
             # acoplaría este caso de uso a su infraestructura. Sólo el motivo corto, nunca el texto.
             motivo = motivo_de_falla_de(fallo)
+            transitoria = isinstance(fallo, MensajeriaSaturada)
         estado = EstadoEntrega.ENVIADO if motivo is None else EstadoEntrega.FALLIDO
         causa_de_no_guardar = await self._guardar(
             empresa_id, cliente_id, envio, estado, externo_id, motivo, ahora
@@ -141,6 +150,7 @@ class NotificarAlCliente:
             falla=motivo,
             sin_registrar=causa_de_no_guardar is not None,
             causa=causa_de_no_guardar,
+            transitoria=transitoria,
         )
 
     async def _mandar(self, telefono: str, envio: EnvioDeAviso) -> str:

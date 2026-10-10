@@ -17,7 +17,11 @@ import pytest
 from cheatsheet.api.agenda import armar_notificador
 from cheatsheet.api.avisos_de_turno import CanalDeAvisosViaConversacion, armar_canal_de_avisos
 from cheatsheet.api.dependencies import UnidadDeTrabajo
-from cheatsheet.contexts.conversational.application.errors import CanalNoConectado
+from cheatsheet.contexts.conversational.application.errors import (
+    CanalNoConectado,
+    EnvioIncierto,
+    MensajeriaSaturada,
+)
 from cheatsheet.contexts.conversational.application.notificaciones import NotificarAlCliente
 from cheatsheet.contexts.conversational.domain.conversacion import (
     EstadoEntrega,
@@ -231,3 +235,16 @@ async def test_si_el_mensaje_no_se_guarda_el_resultado_lleva_la_clase_de_la_caus
     assert (resultado.enviado, resultado.sin_registrar) == (True, True)
     assert resultado.causa == "RuntimeError"
     assert TELEFONO not in repr(resultado)
+
+
+async def test_el_adaptador_propaga_si_la_falla_es_transitoria() -> None:
+    """**Caso 28.** La saturación de Meta llega a `scheduling` como transitoria; el resto no."""
+    saturada, _, _ = _adaptador(_Canal(falla=MensajeriaSaturada("saturada")))
+    incierta, _, _ = _adaptador(_Canal(falla=EnvioIncierto("sin respuesta")))
+    envio = EnvioParaAviso(texto="Tu turno")
+
+    transitorio = await saturada.notificar(cliente_id=uuid4(), telefono=TELEFONO, envio=envio)
+    definitivo = await incierta.notificar(cliente_id=uuid4(), telefono=TELEFONO, envio=envio)
+
+    assert (transitorio.falla, transitorio.transitoria) == ("SATURADA", True)
+    assert (definitivo.falla, definitivo.transitoria) == ("INCIERTO", False)

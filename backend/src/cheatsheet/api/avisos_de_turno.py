@@ -72,6 +72,7 @@ class CanalDeAvisosViaConversacion:
             falla=resultado.falla,
             sin_registrar=resultado.sin_registrar,
             causa=resultado.causa,
+            transitoria=resultado.transitoria,
         )
 
 

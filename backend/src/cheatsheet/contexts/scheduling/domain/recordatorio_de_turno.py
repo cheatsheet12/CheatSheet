@@ -45,6 +45,10 @@ TURNO_CERRADO = "TURNO_CERRADO"
 FRANJA_CAMBIADA = "FRANJA_CAMBIADA"
 TURNO_EMPEZADO = "TURNO_EMPEZADO"
 INCIERTO = "INCIERTO"
+#: La empresa apagó los recordatorios (regla de agenda desactivada) mientras la fila esperaba.
+AGENDA_APAGADA = "AGENDA_APAGADA"
+#: La empresa quitó de la agenda la anticipación de una fila que esperaba su reintento.
+ANTICIPACION_QUITADA = "ANTICIPACION_QUITADA"
 
 
 class ResultadoDeRecordatorio(StrEnum):
@@ -235,8 +239,10 @@ def que_corresponde(
 
 
 __all__ = [
+    "AGENDA_APAGADA",
     "ANTICIPACION_MAXIMA_MIN",
     "ANTICIPACION_MINIMA_MIN",
+    "ANTICIPACION_QUITADA",
     "ANTICIPACION_SUPERADA",
     "ESPERA_BASE",
     "FRANJA_CAMBIADA",

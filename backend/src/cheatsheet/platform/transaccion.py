@@ -1,22 +1,32 @@
-"""Confirmar a mitad del barrido de recordatorios, sin perder la empresa (U7, D-U7-3, H1).
+"""Adaptadores SQLAlchemy del envío en tres tiempos, compartidos por `payments` y `scheduling`.
 
-`PortTransaccion` sobre la sesión de la unidad de trabajo. `sesion_de_empresa` declara la empresa con
-`set_config(..., true)` (el `SET LOCAL`), que **muere con el commit**: sin volver a declararla, la
+Viven en `platform/` (dueño de la sesión de base de datos) y no en un contexto: ninguno los
+duplica y R3/R4 se cumplen. Implementan los `Protocol` de `shared/transaccion.py`.
+
+**`ConfirmacionDeLaUnidad`** (U7, D-U7-3, H1): `PortTransaccion` sobre la sesión de la unidad de trabajo.
+`sesion_de_empresa` declara la empresa con `set_config(..., true)` (el `SET LOCAL`), que **muere con el commit**: sin volver a declararla, la
 primera consulta después de confirmar correría sin empresa y RLS no mostraría nada (o rechazaría
 la escritura). Por eso el commit y la nueva declaración van juntos, en este único lugar.
 
 `expire_on_commit=False` (`platform/database.py`): los objetos ya leídos siguen usables.
+
+**`AislamientoConSavepoint`** (U5, H1): `async with sesion.begin_nested()` es un `SAVEPOINT`: si algo
+adentro falla, la base vuelve al punto donde empezó el bloque y el resto de la transacción sigue
+viva. Mismo patrón que `observability/infrastructure/repository.py`.
 """
 
 from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cheatsheet.contexts.payments.application.errors import DespachoNoPersistido
 from cheatsheet.platform.database import GUC_EMPRESA
 from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.transaccion import DespachoNoPersistido
 
 
 class ConfirmacionDeLaUnidad:
@@ -53,4 +63,23 @@ class ConfirmacionDeLaUnidad:
         )
 
 
-__all__ = ["ConfirmacionDeLaUnidad"]
+class AislamientoConSavepoint:
+    """`PortAislamiento`: un savepoint por bloque."""
+
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._sesion = sesion
+
+    @asynccontextmanager
+    async def aislar(self) -> AsyncIterator[None]:
+        try:
+            async with self._sesion.begin_nested():
+                yield
+        except SQLAlchemyError as exc:
+            # El savepoint ya se deshizo al salir del `async with` de arriba. No se copia el
+            # texto de la excepción: puede traer los valores de la fila.
+            raise DespachoNoPersistido(
+                f"La base rechazó el despacho ({type(exc).__name__})"
+            ) from exc
+
+
+__all__ = ["AislamientoConSavepoint", "ConfirmacionDeLaUnidad"]

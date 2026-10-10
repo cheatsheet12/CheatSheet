@@ -32,10 +32,10 @@ from cheatsheet.contexts.payments.infrastructure.repositories import (
     empresas_con_cobros_abiertos,
     empresas_con_recordatorios_en_espera,
 )
-from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import sesion_sin_empresa
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
+from cheatsheet.platform.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.workers.celery_app import Cola, crear_celery
 from cheatsheet.workers.ejecucion import ejecutar_tarea

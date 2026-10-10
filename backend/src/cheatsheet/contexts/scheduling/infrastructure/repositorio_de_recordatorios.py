@@ -58,6 +58,14 @@ class RepositorioRecordatoriosDeTurnoPostgres:
         _a_fila(recordatorio, fila)
         await self._sesion.flush()
 
+    async def buscar_para_actualizar(self, recordatorio_id: UUID) -> RecordatorioDeTurno | None:
+        # `populate_existing`: si la fila ya está en la sesión (la leyó `pendientes`), el bloqueo
+        # tiene que traer también su estado actual, no el que ya estaba cargado.
+        fila = await self._sesion.get(
+            RecordatorioDeTurnoORM, recordatorio_id, with_for_update=True, populate_existing=True
+        )
+        return _a_dominio(fila) if fila is not None else None
+
     async def de_turnos(self, turno_ids: list[UUID]) -> list[RecordatorioDeTurno]:
         if not turno_ids:
             return []

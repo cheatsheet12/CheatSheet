@@ -25,7 +25,6 @@ from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
 from cheatsheet.contexts.payments.application.recordatorios import DespacharRecordatorios
 from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.recordatorio import VENTANA_DE_ENVIO
-from cheatsheet.contexts.payments.infrastructure.aislamiento import AislamientoConSavepoint
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     RepositorioCobroPostgres,
     empresas_con_cobros_abiertos,
@@ -34,8 +33,8 @@ from cheatsheet.contexts.payments.infrastructure.repositories import (
 from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
-from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import sesion_de_empresa, sesion_sin_empresa
+from cheatsheet.platform.transaccion import AislamientoConSavepoint, ConfirmacionDeLaUnidad
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text
@@ -134,8 +133,7 @@ async def test_cuando_el_barrido_llama_a_meta_la_fila_ya_esta_confirmada_para_ot
         vistas.append(await _filas(sesiones, empresa_id))
         return await original(mensaje)
 
-    envio.mandar = mandar_mirando  # type: ignore[method-assign]
-
+    envio.mandar = mandar_mirando  # type: ignore[method-assign]  # el doble sustituye el método para mirar el envío
     await _barrer(sesiones, empresa_id, envio, DESPUES)
 
     (visto,) = vistas

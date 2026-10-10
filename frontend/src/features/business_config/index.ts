@@ -10,7 +10,13 @@
 
 export { AgendaDeNotificacion } from "./components/AgendaDeNotificacion";
 export type { PropsDeAgendaDeNotificacion } from "./components/AgendaDeNotificacion";
-export { ErrorDeAgenda, MENSAJE_SIN_AGENDA, agendaDe, configurarAgenda } from "./api/agenda";
+export {
+  ErrorDeAgenda,
+  MENSAJE_SIN_AGENDA,
+  agendaDe,
+  configurarAgenda,
+  recordatoriosEncendidos,
+} from "./api/agenda";
 export type { AgendaGuardada, ConfiguracionDeAgenda, RecordatorioDeAgenda } from "./api/agenda";
 export { HorarioDeAtencion } from "./components/HorarioDeAtencion";
 export type { PropsDeHorarioDeAtencion } from "./components/HorarioDeAtencion";
