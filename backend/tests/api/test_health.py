@@ -84,6 +84,55 @@ async def test_health_responde_ok_con_las_dependencias_arriba(parchar_sondas):
 
 
 @pytest.mark.asyncio
+async def test_health_live_responde_200_sin_tocar_la_base_ni_redis(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The platform probe must not wake a serverless database every few seconds.
+
+    The engine and Redis are None and every probe raises: any attempt to use them fails
+    the request, so a 200 proves liveness touches neither.
+    """
+
+    async def prohibida(_dependencia: object) -> bool:
+        raise AssertionError("la liveness no puede tocar una dependencia")
+
+    monkeypatch.setattr("cheatsheet.api.routers.health.verificar_conexion", prohibida)
+    monkeypatch.setattr("cheatsheet.api.routers.health.verificar_redis", prohibida)
+    app = create_app(_settings(), _recursos(_settings()))
+
+    async with _cliente(app) as cliente:
+        respuesta = await cliente.get("/health/live")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == {"estado": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_health_live_no_exige_empresa():
+    """Reachable without a session, like `/health`."""
+    app = create_app(_settings(), _recursos(_settings()))
+
+    async with _cliente(app) as cliente:
+        respuesta = await cliente.get("/health/live")
+
+    assert respuesta.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_health_sigue_siendo_la_comprobacion_completa(parchar_sondas):
+    """`/health/live` does not replace readiness: `/health` still answers 503 when down."""
+    parchar_sondas(base_ok=False, redis_ok=False)
+    app = create_app(_settings(), _recursos(_settings()))
+
+    async with _cliente(app) as cliente:
+        viva = await cliente.get("/health/live")
+        lista = await cliente.get("/health")
+
+    assert viva.status_code == 200
+    assert lista.status_code == 503
+
+
+@pytest.mark.asyncio
 async def test_health_responde_503_si_la_base_esta_caida(parchar_sondas):
     """503 and not 200: a load balancer must take the instance out of rotation."""
     parchar_sondas(base_ok=False, redis_ok=True)

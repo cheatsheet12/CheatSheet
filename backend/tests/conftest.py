@@ -186,6 +186,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         llm_timeout_segundos=1.0,
         llm_max_tokens=1024,
         sync_planillas_minutos=60,
+        billing_reconciliacion_minutos=5,
         # The simulator and hosts that do not resolve: a test that ever reached WSFEv1
         # would fail loudly instead of quietly asking ARCA for a catalogue.
         catalogos_fiscales_adaptador=AdaptadorDeCatalogos.SIMULADO,
