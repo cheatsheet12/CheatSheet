@@ -18,8 +18,10 @@ transacción y a la empresa del pedido. Es la misma conclusión de `mercadopago.
 
 from __future__ import annotations
 
+from cheatsheet.api.avisos_de_turno import armar_canal_de_avisos
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.api.plantillas_salientes import armar_plantillas_aprobadas
+from cheatsheet.contexts.conversational.application.ports import PortMensajeria
 from cheatsheet.contexts.master_data.infrastructure.repositories import (
     RepositorioClientePostgres,
     RepositorioServicioPostgres,
@@ -30,7 +32,7 @@ from cheatsheet.contexts.scheduling.application.ports import (
     PortNotificadorDeTurnos,
 )
 from cheatsheet.contexts.scheduling.application.turnos import Avisador
-from cheatsheet.contexts.scheduling.infrastructure.avisos import AvisoPorWhatsApp, CanalDeTexto
+from cheatsheet.contexts.scheduling.infrastructure.avisos import AvisoPorWhatsApp
 from cheatsheet.contexts.scheduling.infrastructure.catalogo import (
     CatalogoViaMasterData,
     ClientesViaMasterData,
@@ -57,15 +59,24 @@ def armar_directorio(unidad: UnidadDeTrabajo, *, empresa_id: EmpresaId) -> PortD
     return ClientesViaMasterData(RepositorioClientePostgres(unidad.sesion), empresa_id=empresa_id)
 
 
-def armar_notificador(unidad: UnidadDeTrabajo, *, canal: CanalDeTexto) -> PortNotificadorDeTurnos:
+def armar_notificador(
+    unidad: UnidadDeTrabajo, *, empresa_id: EmpresaId, canal: PortMensajeria
+) -> PortNotificadorDeTurnos:
     """Por dónde sale el aviso de un turno: WhatsApp, por el canal que el llamador ya armó.
+
+    **El aviso queda guardado** como mensaje del sistema en la conversación del cliente (U7,
+    D-U7-4): `api/avisos_de_turno.py` ata el `CanalDeAvisos` de `scheduling` con
+    `NotificarAlCliente`, con el savepoint de esta unidad para la escritura.
 
     **El canal llega armado** (ADR-0011 §2): `api/mensajeria.armar_mensajeria` lo arma una vez por
     unidad de trabajo y este módulo no depende de `conversational`. El agente **no** usa esto: arma
     su propio `Avisador` con un notificador silencioso (`api/conversacional.py`), porque confirma
     en la conversación.
     """
-    return AvisoPorWhatsApp(canal, armar_plantillas_aprobadas(unidad))
+    return AvisoPorWhatsApp(
+        armar_canal_de_avisos(unidad, empresa_id=empresa_id, canal=canal),
+        armar_plantillas_aprobadas(unidad),
+    )
 
 
 def armar_avisador(
@@ -73,13 +84,13 @@ def armar_avisador(
     *,
     empresa_id: EmpresaId,
     rol: RolUsuario,
-    canal: CanalDeTexto,
+    canal: PortMensajeria,
 ) -> Avisador:
     """Las tres piezas del aviso, atadas: cliente, servicio y canal."""
     return Avisador(
         clientes=armar_directorio(unidad, empresa_id=empresa_id),
         servicios=armar_catalogo(unidad, empresa_id=empresa_id, rol=rol),
-        notificador=armar_notificador(unidad, canal=canal),
+        notificador=armar_notificador(unidad, empresa_id=empresa_id, canal=canal),
     )
 
 

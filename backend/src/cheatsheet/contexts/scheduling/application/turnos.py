@@ -151,6 +151,7 @@ class Avisador:
             return None
         nombre, telefono = contacto
         return DatosDeAviso(
+            cliente_id=turno.cliente_id,
             telefono=telefono,
             nombre_del_cliente=nombre,
             servicio=servicio or await self._nombre_de_servicio(turno.servicio_id),

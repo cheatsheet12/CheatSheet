@@ -42,7 +42,8 @@ import {
   registrarReembolso,
   tieneReembolsos,
 } from "../api/cobro";
-import type { DetalleDeCobro as Detalle, Reembolso } from "../api/cobro";
+import type { DetalleDeCobro as Detalle } from "../api/cobro";
+import type { Reembolso } from "../api/reembolso";
 
 function mensajeDe(fallo: unknown, porDefecto: string): string {
   return fallo instanceof ErrorDeCobro ? fallo.message : porDefecto;

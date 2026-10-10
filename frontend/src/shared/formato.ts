@@ -87,6 +87,25 @@ export function formatearFecha(
   );
 }
 
+/** Sólo la hora (`16:05`, de 0 a 23), en la zona del usuario. */
+export function formatearHora(
+  iso: string | null,
+  preferencias: PreferenciasDeFormato = PREFERENCIAS_POR_DEFECTO,
+): string {
+  const fecha = aFecha(iso);
+  if (fecha === null) {
+    return "—";
+  }
+  return determinista(
+    new Intl.DateTimeFormat(preferencias.idioma, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: preferencias.zonaHoraria,
+    }).format(fecha),
+  );
+}
+
 /**
  * A decimal that arrived as a string.
  *

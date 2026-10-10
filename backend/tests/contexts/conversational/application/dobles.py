@@ -18,7 +18,8 @@ personales ni respuestas a una oferta.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta
 from uuid import UUID, uuid4
 
@@ -47,6 +48,12 @@ from cheatsheet.contexts.conversational.domain.seleccion_de_horarios import Hora
 from cheatsheet.contexts.conversational.domain.uso_de_faq import ConteoDeUsos, UsoDeFAQ
 from cheatsheet.shared.auditoria import EventoAuditable
 from cheatsheet.shared.zona_horaria import ZONA_ARGENTINA, MesCalendario
+
+
+@asynccontextmanager
+async def sin_savepoint() -> AsyncIterator[None]:
+    """El `aislar` de los tests en memoria: no hay base, así que no hay savepoint que abrir."""
+    yield
 
 
 class RepositorioConversacionEnMemoria:
