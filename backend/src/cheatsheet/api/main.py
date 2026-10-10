@@ -33,6 +33,7 @@ from cheatsheet.api.routers import (
     correccion,
     health,
     integraciones,
+    legal,
     planillas,
     plantillas,
     puntos_de_venta,
@@ -108,6 +109,7 @@ def create_app(
     # panel is HU-E12-01, epic 10.
     app.include_router(health.crear_router(recursos))
     app.include_router(auth.crear_router(recursos))
+    app.include_router(legal.crear_router(recursos))
     app.include_router(usuarios.crear_router(recursos))
     app.include_router(integraciones.crear_router(recursos))
     app.include_router(clientes.crear_router(recursos))

@@ -63,6 +63,11 @@ RUTAS_PUBLICAS = frozenset(
         # HU-E1-04: the invited person has no session — obtaining one is what accepting
         # gives them. The token in the body is the credential.
         "/auth/invitaciones/aceptar",
+        # HU-E1-03 RN-05, HU-E1-08 RN-06: the texts must be readable by someone who has not
+        # signed up yet. Exact paths, never the `/legal/` prefix.
+        "/legal/terminos",
+        "/legal/privacidad",
+        "/legal/vigentes",
     }
 )
 
