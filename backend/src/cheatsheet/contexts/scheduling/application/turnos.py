@@ -151,6 +151,7 @@ class Avisador:
             return None
         nombre, telefono = contacto
         return DatosDeAviso(
+            cliente_id=turno.cliente_id,
             telefono=telefono,
             nombre_del_cliente=nombre,
             servicio=servicio or await self._nombre_de_servicio(turno.servicio_id),
@@ -276,6 +277,7 @@ class ReservarTurno:
                 created_at=ahora,
                 updated_at=ahora,
                 intervalo_posterior_min=recurso.intervalo_entre_turnos_min,
+                franja_asignada_en=ahora,
             )
         # Puede levantar `FranjaOcupada`: es la restricción de exclusión hablando, y es la
         # única afirmación confiable de que el horario estaba libre.
@@ -400,7 +402,9 @@ class ReprogramarTurno:
         try:
             # Cada turno guarda el intervalo que se aplicó (RN-08); la corrección a posteriori
             # no lo respeta ni lo impone.
-            turno.reprogramar(franja, None if a_posteriori else recurso.intervalo_entre_turnos_min)
+            turno.reprogramar(
+                franja, None if a_posteriori else recurso.intervalo_entre_turnos_min, ahora
+            )
         except InvarianteViolada as exc:
             raise TurnoNoModificable(str(exc)) from exc
         turno.updated_at = ahora

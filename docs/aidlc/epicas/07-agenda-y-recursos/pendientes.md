@@ -113,11 +113,11 @@ Lo que todavía **no** existe es el camino inverso —que aprobar el cobro confi
 porque confirmar un turno es lo que hace el cliente (pendiente #2) y el ACL de `payments` hacia
 `scheduling` se arma en el épico que introduzca el flujo completo de la seña.
 
-### 11. El recordatorio de turno no existe · **épico 8**
+### 11. ~~El recordatorio de turno no existe~~ · **cerrado por `recordatorio-de-turno` (U8)**
 
 `AGENDA_DE_NOTIFICACION` es el tercer `TipoRegla` y es lo que va a gobernar «recordale al
 cliente el turno de mañana». No hay barrido de Beat en este épico y es a propósito: sin canal
-real de WhatsApp, un barrido escribiría recordatorios en un log.
+real de WhatsApp, un barrido escribiría recordatorios en un log. **Cerrado:** el barrido `scheduling.recordar_turnos` corre cada 15 minutos (`RECORDATORIO_DE_TURNO_MINUTOS`).
 
 ---
 

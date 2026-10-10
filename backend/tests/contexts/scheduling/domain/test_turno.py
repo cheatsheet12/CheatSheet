@@ -35,6 +35,7 @@ from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 
 INICIO = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
+AHORA = datetime(2026, 9, 7, 12, 0, tzinfo=UTC)
 
 
 def turno(**cambios: object) -> Turno:
@@ -209,20 +210,43 @@ class TestTransiciones:
         uno = turno()
         uno.confirmar()
 
-        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 0)
+        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 0, AHORA)
 
         assert _estado(uno) is EstadoTurno.CONFIRMADO
         assert uno.franja.inicio == INICIO + timedelta(days=1)
         assert "REPROGRAMADO" not in EstadoTurno.__members__
 
+    def test_reprogramar_fija_de_nuevo_cuando_se_asigno_la_franja(self) -> None:
+        """Es lo que usa el recordatorio para no avisar de un turno movido dentro de su ventana."""
+        uno = turno(franja_asignada_en=AHORA - timedelta(days=3))
+        movido_en = AHORA + timedelta(hours=1)
+
+        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 0, movido_en)
+
+        assert uno.franja_asignada_en == movido_en
+
+    def test_la_carga_a_posteriori_nace_con_la_franja_asignada_ahora(self) -> None:
+        ahora = INICIO + timedelta(days=1)
+        uno = Turno.registrar_a_posteriori(
+            id=uuid4(),
+            empresa_id=EmpresaId(uuid4()),
+            cliente_id=uuid4(),
+            servicio_id=uuid4(),
+            recurso_id=uuid4(),
+            franja=Franja(inicio=INICIO, duracion_min=60),
+            ahora=ahora,
+        )
+
+        assert uno.franja_asignada_en == ahora
+
     def test_reprogramar_actualiza_el_intervalo_aplicado(self) -> None:
         uno = turno(intervalo_posterior_min=0)
 
-        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 15)
+        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 15, AHORA)
         assert uno.intervalo_posterior_min == 15
 
         # La corrección a posteriori no respeta el intervalo: queda en `None`.
-        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=2), duracion_min=60), None)
+        uno.reprogramar(Franja(inicio=INICIO + timedelta(days=2), duracion_min=60), None, AHORA)
         assert uno.intervalo_posterior_min is None
 
     def test_un_turno_nuevo_nace_con_intervalo_cero(self) -> None:
@@ -233,7 +257,7 @@ class TestTransiciones:
         uno.cancelar()
 
         with pytest.raises(InvarianteViolada):
-            uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 0)
+            uno.reprogramar(Franja(inicio=INICIO + timedelta(days=1), duracion_min=60), 0, AHORA)
 
     def test_un_turno_cancelado_no_vuelve(self) -> None:
         uno = turno()

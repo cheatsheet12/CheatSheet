@@ -17,8 +17,6 @@ from cheatsheet.contexts.payments.application.ports import (
     PortRepositorioRecordatorios,
     PortRepositorioReembolso,
 )
-from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
-from cheatsheet.contexts.payments.infrastructure.aislamiento import AislamientoConSavepoint
 from cheatsheet.contexts.payments.infrastructure.repositories import RepositorioCobroPostgres
 from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
@@ -26,6 +24,8 @@ from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import
 from cheatsheet.contexts.payments.infrastructure.repositorio_reembolso import (
     RepositorioReembolsoPostgres,
 )
+from cheatsheet.platform.transaccion import AislamientoConSavepoint
+from cheatsheet.shared.transaccion import PortAislamiento
 
 
 @dataclass(frozen=True, slots=True)

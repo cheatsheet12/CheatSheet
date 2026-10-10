@@ -73,11 +73,11 @@ con seña** —avisa que lo deriva y escala con el motivo «Cancelación de turn
 seña se cancelan sin anticipación mínima, como desde el panel. Cuando exista la política tipada, el agente
 la aplica.
 
-### 7. `AGENDA_DE_NOTIFICACION` tampoco
+### 7. ~~`AGENDA_DE_NOTIFICACION` tampoco~~ · **cerrado por `recordatorio-de-turno` (U8)**
 
 El tercer `TipoRegla`, que gobernaría «recordale al cliente el turno de mañana» (HU-E8-04
 RN-02). El canal ya existe ahora (U5), así que el barrido es posible; falta la regla que diga cuándo.
-**Lo hace la unidad `recordatorio-de-turno` (U8)**, que depende de U6 (plantillas).
+**Lo hizo la unidad `recordatorio-de-turno` (U8)**: regla tipada (tramo 1), tabla y modelo (tramo 2) y barrido de Beat cada 15 minutos con envío en tres tiempos (tramo 3).
 
 ### 8. No hay índice `ivfflat` sobre `faq.embedding_vector`
 

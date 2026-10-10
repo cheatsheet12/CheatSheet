@@ -126,6 +126,7 @@ const DEL_CLIENTE: Mensaje = {
   intencion: "TURNO",
   estado_entrega: null,
   origen: null,
+  motivo_de_falla: null,
 };
 
 const DEL_AGENTE: Mensaje = {
@@ -137,6 +138,7 @@ const DEL_AGENTE: Mensaje = {
   intencion: null,
   estado_entrega: "ENVIADO",
   origen: "AGENTE",
+  motivo_de_falla: null,
 };
 
 const DEL_OPERADOR: Mensaje = { ...DEL_AGENTE, id: "m3", origen: "OPERADOR", contenido: "Hola!" };

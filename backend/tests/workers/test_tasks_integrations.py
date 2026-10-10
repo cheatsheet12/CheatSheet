@@ -36,6 +36,7 @@ from cheatsheet.workers import (
     tasks_payments,
     tasks_reference_data,
     tasks_reporting,
+    tasks_scheduling,
     tasks_spreadsheet,
 )
 from cheatsheet.workers.base import EjecutorIdempotente
@@ -260,7 +261,7 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
     """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 11
+    assert len(entradas) == 12
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
@@ -293,6 +294,9 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
         # cuyo webhook de estado no llegó (no admite override por cuenta) quedaria
         # `PENDIENTE` para siempre y los recordatorios saldrian como texto.
         tasks_business_config.NOMBRE_BARRIDO,
+        # U8: despacha el recordatorio de turno de cada empresa con un turno por recordar. Sin
+        # esta entrada HU-E8-04 no se cumple: nadie recordaría un turno.
+        tasks_scheduling.NOMBRE_BARRIDO,
     }
 
 

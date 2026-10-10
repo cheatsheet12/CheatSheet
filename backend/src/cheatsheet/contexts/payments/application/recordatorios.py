@@ -27,7 +27,6 @@ from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     PortCadenaDeEscalamiento,
     PortEnvioDeRecordatorio,
 )
-from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento, PortTransaccion
 from cheatsheet.contexts.payments.application.reintentos import Desenlace, EnvioConReintento
 from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.recordatorio import Recordatorio, proximo_paso
@@ -36,6 +35,7 @@ from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.clock import Reloj
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import PublicadorDeEventos
+from cheatsheet.shared.transaccion import PortAislamiento, PortTransaccion
 
 logger = obtener_logger(__name__)
 

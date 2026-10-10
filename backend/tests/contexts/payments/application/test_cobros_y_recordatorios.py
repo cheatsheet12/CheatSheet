@@ -51,7 +51,6 @@ from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     PortEnvioDeRecordatorio,
     ResultadoDeEnvio,
 )
-from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
 from cheatsheet.contexts.payments.application.recordatorios import (
     DespacharRecordatorios,
     VencerCobros,
@@ -62,6 +61,7 @@ from cheatsheet.shared.auditoria import EventoAuditable, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.roles import RolUsuario
+from cheatsheet.shared.transaccion import PortAislamiento
 
 from tests.contexts.payments.application.test_confirmacion import (
     CLIENTE,
