@@ -37,6 +37,7 @@ from cheatsheet.contexts.payments.infrastructure.envio import (
 from cheatsheet.shared.empresa import EmpresaId
 from structlog.testing import capture_logs
 
+from tests.contexts.payments.application.test_cobros_y_recordatorios import enviar_de_punta_a_punta
 from tests.logs import logger_nuevo
 
 pytestmark = pytest.mark.asyncio
@@ -116,7 +117,11 @@ class CanalGrabador:
 
 
 async def _enviar(envio: EnvioPorWhatsApp, cobro: Cobro) -> EstadoEntrega:
-    return (await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1)).estado
+    return (
+        await enviar_de_punta_a_punta(
+            envio, empresa_id=EMPRESA, cobro=cobro, canal="WHATSAPP", paso=1
+        )
+    ).estado
 
 
 # --- Caso 2: con la plantilla aprobada, sale como plantilla ---------------------------------------------

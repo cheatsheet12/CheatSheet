@@ -5520,6 +5520,20 @@
   color: var(--ink-400);
 }
 
+/* Por qué un saliente no salió (U7): debajo de la burbuja, del lado del que lo mandó. */
+.cv-msg__falla {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-500);
+}
+
+.cv-msg--agente .cv-msg__falla,
+.cv-msg--operador .cv-msg__falla,
+.cv-msg--sistema .cv-msg__falla {
+  text-align: right;
+}
+
 /* Lo que el operador hace, debajo del historial: responder y cerrar. */
 .cv-respuesta {
   padding: 12px 20px 14px;

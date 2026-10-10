@@ -40,8 +40,10 @@ from cheatsheet.contexts.payments.domain.cobro import (
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     RepositorioCobroPostgres,
-    RepositorioRecordatoriosPostgres,
     empresas_con_cobros_abiertos,
+)
+from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
+    RepositorioRecordatoriosPostgres,
 )
 from cheatsheet.contexts.payments.infrastructure.repositorio_reembolso import (
     RepositorioReembolsoPostgres,

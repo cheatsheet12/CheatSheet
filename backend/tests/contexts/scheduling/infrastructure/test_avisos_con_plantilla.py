@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 from cheatsheet.contexts.scheduling.application.ports import DatosDeAviso
@@ -21,13 +22,17 @@ from cheatsheet.contexts.scheduling.infrastructure.avisos import (
     texto_de_reserva,
 )
 
+from .canal_de_avisos_falso import CanalDeAvisosFalso
+
 pytestmark = pytest.mark.asyncio
 
 TELEFONO = "5491112345678"
 NOMBRE = "Ana Diaz"
+CLIENTE = uuid4()
 
 # 13:30 UTC es 10:30 en Buenos Aires (UTC-3, sin horario de verano).
 DATOS = DatosDeAviso(
+    cliente_id=CLIENTE,
     telefono=TELEFONO,
     nombre_del_cliente=NOMBRE,
     servicio="Corte",
@@ -35,6 +40,7 @@ DATOS = DatosDeAviso(
     inicio=datetime(2026, 10, 15, 13, 30, tzinfo=UTC),
 )
 MOVIDO = DatosDeAviso(
+    cliente_id=CLIENTE,
     telefono=TELEFONO,
     nombre_del_cliente=NOMBRE,
     servicio="Corte",
@@ -49,6 +55,7 @@ class _Aprobada:
     nombre_en_meta: str
     idioma: str
     parametros: Mapping[str, str]
+    texto: str
 
 
 class PlantillasFalsas:
@@ -60,28 +67,12 @@ class PlantillasFalsas:
         self.pedidos.append((codigo, dict(variables)))
         if codigo not in self._aprobadas:
             return None
-        return _Aprobada(nombre_en_meta=codigo, idioma="es_AR", parametros=dict(variables))
-
-
-class CanalGrabador:
-    def __init__(self, *, falla: Exception | None = None) -> None:
-        self.textos: list[tuple[str, str]] = []
-        self.plantillas: list[tuple[str, str, str, dict[str, str]]] = []
-        self._falla = falla
-
-    async def enviar(self, *, telefono: str, texto: str) -> str:
-        if self._falla is not None:
-            raise self._falla
-        self.textos.append((telefono, texto))
-        return "wamid.TEXTO"
-
-    async def enviar_plantilla(
-        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
-    ) -> str:
-        if self._falla is not None:
-            raise self._falla
-        self.plantillas.append((telefono, nombre, idioma, dict(parametros)))
-        return "wamid.PLANTILLA"
+        return _Aprobada(
+            nombre_en_meta=codigo,
+            idioma="es_AR",
+            parametros=dict(variables),
+            texto=f"cuerpo resuelto de {codigo}",
+        )
 
 
 TODAS = ("turno_confirmado", "turno_cancelado", "turno_reprogramado")
@@ -89,7 +80,7 @@ TODAS = ("turno_confirmado", "turno_cancelado", "turno_reprogramado")
 
 async def test_los_tres_avisos_usan_su_codigo_de_plantilla() -> None:
     """Caso 22."""
-    canal = CanalGrabador()
+    canal = CanalDeAvisosFalso()
     aviso = AvisoPorWhatsApp(canal, PlantillasFalsas(*TODAS))
 
     await aviso.avisar_reserva(DATOS)
@@ -106,7 +97,7 @@ async def test_fecha_y_hora_salen_por_separado_y_en_hora_argentina() -> None:
     """Caso 22: `2026-10-15T13:30Z` → «15/10/2026» y «10:30» (la conversión la prueba U5, caso 33)."""
     plantillas = PlantillasFalsas(*TODAS)
 
-    await AvisoPorWhatsApp(CanalGrabador(), plantillas).avisar_reserva(DATOS)
+    await AvisoPorWhatsApp(CanalDeAvisosFalso(), plantillas).avisar_reserva(DATOS)
 
     (pedido,) = plantillas.pedidos
     assert pedido == (
@@ -124,7 +115,7 @@ async def test_fecha_y_hora_salen_por_separado_y_en_hora_argentina() -> None:
 async def test_la_reprogramacion_lleva_tambien_el_horario_anterior_separado() -> None:
     plantillas = PlantillasFalsas(*TODAS)
 
-    await AvisoPorWhatsApp(CanalGrabador(), plantillas).avisar_reprogramacion(MOVIDO)
+    await AvisoPorWhatsApp(CanalDeAvisosFalso(), plantillas).avisar_reprogramacion(MOVIDO)
 
     (_, variables) = plantillas.pedidos[0]
     assert (variables["fecha"], variables["hora"]) == ("15/10/2026", "10:30")
@@ -134,7 +125,7 @@ async def test_la_reprogramacion_lleva_tambien_el_horario_anterior_separado() ->
 async def test_una_reprogramacion_sin_horario_anterior_no_inventa_las_variables_de_antes() -> None:
     plantillas = PlantillasFalsas()
 
-    await AvisoPorWhatsApp(CanalGrabador(), plantillas).avisar_reprogramacion(DATOS)
+    await AvisoPorWhatsApp(CanalDeAvisosFalso(), plantillas).avisar_reprogramacion(DATOS)
 
     (_, variables) = plantillas.pedidos[0]
     assert "fecha_anterior" not in variables
@@ -144,6 +135,7 @@ async def test_una_reprogramacion_sin_horario_anterior_no_inventa_las_variables_
 async def test_cerca_de_medianoche_el_dia_tambien_se_convierte() -> None:
     plantillas = PlantillasFalsas()
     tarde = DatosDeAviso(
+        cliente_id=CLIENTE,
         telefono=TELEFONO,
         nombre_del_cliente=NOMBRE,
         servicio="Corte",
@@ -151,14 +143,14 @@ async def test_cerca_de_medianoche_el_dia_tambien_se_convierte() -> None:
         inicio=datetime(2026, 10, 16, 2, 30, tzinfo=UTC),
     )
 
-    await AvisoPorWhatsApp(CanalGrabador(), plantillas).avisar_reserva(tarde)
+    await AvisoPorWhatsApp(CanalDeAvisosFalso(), plantillas).avisar_reserva(tarde)
 
     (_, variables) = plantillas.pedidos[0]
     assert (variables["fecha"], variables["hora"]) == ("15/10/2026", "23:30")
 
 
 async def test_sin_plantilla_aprobada_sale_el_texto_de_fabrica_de_cada_aviso() -> None:
-    canal = CanalGrabador()
+    canal = CanalDeAvisosFalso()
     aviso = AvisoPorWhatsApp(canal, PlantillasFalsas())
 
     await aviso.avisar_reserva(DATOS)
@@ -174,7 +166,7 @@ async def test_sin_plantilla_aprobada_sale_el_texto_de_fabrica_de_cada_aviso() -
 
 
 async def test_solo_la_aprobada_sale_como_plantilla_y_las_demas_como_texto() -> None:
-    canal = CanalGrabador()
+    canal = CanalDeAvisosFalso()
     aviso = AvisoPorWhatsApp(canal, PlantillasFalsas("turno_cancelado"))
 
     await aviso.avisar_reserva(DATOS)
@@ -186,9 +178,22 @@ async def test_solo_la_aprobada_sale_como_plantilla_y_las_demas_como_texto() -> 
 
 async def test_un_fallo_de_la_plantilla_no_levanta() -> None:
     aviso = AvisoPorWhatsApp(
-        CanalGrabador(falla=RuntimeError(f"falló {TELEFONO} {NOMBRE}")), PlantillasFalsas(*TODAS)
+        CanalDeAvisosFalso(falla=RuntimeError(f"falló {TELEFONO} {NOMBRE}")),
+        PlantillasFalsas(*TODAS),
     )
 
     await aviso.avisar_reserva(DATOS)
     await aviso.avisar_cancelacion(DATOS)
     await aviso.avisar_reprogramacion(MOVIDO)
+
+
+async def test_la_plantilla_viaja_con_su_texto_resuelto_para_guardarlo_en_el_hilo() -> None:
+    """U7: lo que se guarda en la conversación es lo que el cliente lee, no el texto de fábrica."""
+    canal = CanalDeAvisosFalso()
+
+    await AvisoPorWhatsApp(canal, PlantillasFalsas("turno_cancelado")).avisar_cancelacion(DATOS)
+
+    (notificacion,) = canal.notificaciones
+    assert notificacion.nombre_de_plantilla == "turno_cancelado"
+    assert notificacion.texto == "cuerpo resuelto de turno_cancelado"
+    assert notificacion.cliente_id == CLIENTE

@@ -39,6 +39,9 @@ from tests.contexts.payments.application.test_cobros_y_recordatorios import (
     AislamientoFalso,
     CadenaFalsa,
     RecordatoriosFalsos,
+    RelojDePrueba,
+    TransaccionFalsa,
+    enviar_de_punta_a_punta,
 )
 from tests.contexts.payments.application.test_confirmacion import CobrosFalsos, PublicadorFalso
 
@@ -107,7 +110,9 @@ class CanalGrabador:
 async def _enviar(
     envio: EnvioPorWhatsApp, cobro: Cobro, *, canal: str = "WHATSAPP"
 ) -> EstadoEntrega:
-    return (await envio.enviar(empresa_id=EMPRESA, cobro=cobro, canal=canal, paso=1)).estado
+    return (
+        await enviar_de_punta_a_punta(envio, empresa_id=EMPRESA, cobro=cobro, canal=canal, paso=1)
+    ).estado
 
 
 # --- Caso 16 y 17: el texto ----------------------------------------------------------------
@@ -312,6 +317,8 @@ def _barrido(
         cadena=CadenaFalsa(),
         publicador=PublicadorFalso(),
         aislamiento=AislamientoFalso(),
+        transaccion=TransaccionFalsa(),
+        reloj=RelojDePrueba(),
     )
 
 

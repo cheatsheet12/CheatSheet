@@ -255,6 +255,16 @@ class PortRepositorioRecordatorios(Protocol):
         """
         ...
 
+    async def buscar_para_actualizar(self, recordatorio_id: UUID) -> Recordatorio | None:
+        """La fila **bloqueada y releída** (U7, D-U7-3): quien la toma para un intento decide sobre
+        lo que otro barrido dejó confirmado, y dos barridos solapados no mandan lo mismo."""
+        ...
+
+    async def pendientes_de_reintento(self, ahora: datetime) -> list[Recordatorio]:
+        """Las filas sin enviar con `proximo_intento_en <= ahora`: un reintento que toca, o un
+        envío en curso cuya ventana venció (resultado incierto)."""
+        ...
+
     async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]: ...
 
     async def de_cobros(self, cobro_ids: list[UUID]) -> dict[UUID, list[Recordatorio]]:

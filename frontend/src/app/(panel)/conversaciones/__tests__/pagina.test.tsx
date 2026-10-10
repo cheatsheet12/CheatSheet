@@ -74,6 +74,7 @@ const HILO = {
       intencion: "TURNO",
       estado_entrega: null,
       origen: null,
+      motivo_de_falla: null,
     },
   ],
 };

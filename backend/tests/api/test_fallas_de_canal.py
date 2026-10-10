@@ -96,6 +96,10 @@ async def test_el_adaptador_de_recordatorios_deja_el_codigo_de_meta_a_traves_del
     from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorWhatsApp
     from cheatsheet.shared.empresa import EmpresaId
 
+    from tests.contexts.payments.application.test_cobros_y_recordatorios import (
+        enviar_de_punta_a_punta,
+    )
+
     class Contactos:
         async def contacto_de(self, cliente_id: UUID) -> ContactoDeCobro:
             del cliente_id
@@ -124,7 +128,9 @@ async def test_el_adaptador_de_recordatorios_deja_el_codigo_de_meta_a_traves_del
         SinPlantillas(),
     )
 
-    resultado = await envio.enviar(empresa_id=empresa, cobro=cobro, canal="WHATSAPP", paso=1)
+    resultado = await enviar_de_punta_a_punta(
+        envio, empresa_id=empresa, cobro=cobro, canal="WHATSAPP", paso=1
+    )
 
     assert resultado.estado is EstadoEntrega.FALLIDO
     assert resultado.codigo == "131047"

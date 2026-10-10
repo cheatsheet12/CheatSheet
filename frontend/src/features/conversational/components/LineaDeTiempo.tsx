@@ -10,7 +10,14 @@
  * El cliente va a la izquierda, gris suave; agente y operador a la derecha, como WhatsApp.
  */
 
-import { ETIQUETAS_DE_INTENCION, ETIQUETAS_DE_ORIGEN, horaDeMensaje } from "../api/conversacion";
+import { motivoDeFalla } from "@/shared";
+
+import {
+  ETIQUETAS_DE_ENTREGA,
+  ETIQUETAS_DE_INTENCION,
+  ETIQUETAS_DE_ORIGEN,
+  horaDeMensaje,
+} from "../api/conversacion";
 import type { Mensaje } from "../api/conversacion";
 import { IconoDeDestello, IconoDeOperador } from "./iconos";
 import { agruparPorDia } from "./vista";
@@ -46,9 +53,14 @@ function MensajeBurbuja({ mensaje }: { readonly mensaje: Mensaje }): JSX.Element
         {mensaje.intencion !== null && <> · {ETIQUETAS_DE_INTENCION[mensaje.intencion]}</>}
         {mensaje.tipo_contenido === "AUDIO" && <> · nota de voz transcripta</>}
         {mensaje.estado_entrega !== null && (
-          <span className="cv-msg__entrega">{mensaje.estado_entrega}</span>
+          <span className="cv-msg__entrega">
+            {ETIQUETAS_DE_ENTREGA[mensaje.estado_entrega] ?? mensaje.estado_entrega}
+          </span>
         )}
       </p>
+      {mensaje.estado_entrega === "FALLIDO" && (
+        <p className="cv-msg__falla">{motivoDeFalla(mensaje.motivo_de_falla)}</p>
+      )}
     </li>
   );
 }

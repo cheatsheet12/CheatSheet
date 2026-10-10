@@ -4,6 +4,11 @@ It reports on the two dependencies whose absence makes the process useless rathe
 than merely degraded: the database and Redis. It answers 503 when either is down, so
 a load balancer takes the instance out instead of routing traffic into a wall.
 
+`/health/live` is the platform's liveness probe: it answers 200 while the process is up and
+touches neither PostgreSQL nor Redis. A platform probe fires every few seconds, and on a
+serverless database that keeps the compute awake around the clock; `/health` stays the full
+readiness check for the post-deploy poll and for humans.
+
 It says nothing about versions, hostnames or connection strings. A healthcheck is
 reachable without authentication, so everything it prints is public.
 """
@@ -30,6 +35,10 @@ logger = obtener_logger(__name__)
 FALLAS_DE_DEPENDENCIA = (SQLAlchemyError, RedisError, OSError, TimeoutError)
 
 
+class EstadoDeVida(BaseModel):
+    estado: Literal["ok"]
+
+
 class EstadoDeSalud(BaseModel):
     estado: Literal["ok", "degradado"]
     base_de_datos: bool
@@ -47,6 +56,10 @@ async def _probar(prueba: Awaitable[bool], nombre: str) -> bool:
 def crear_router(recursos: Recursos) -> APIRouter:
     """Build the health router bound to the process resources."""
     router = APIRouter(tags=["health"])
+
+    @router.get("/health/live", response_model=EstadoDeVida)
+    async def health_live() -> EstadoDeVida:
+        return EstadoDeVida(estado="ok")
 
     @router.get("/health", response_model=EstadoDeSalud)
     async def health(response: Response) -> EstadoDeSalud:
