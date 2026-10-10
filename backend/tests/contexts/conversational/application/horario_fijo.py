@@ -1,4 +1,4 @@
-"""`HorarioFijo` — el doble de `PortHorarioDeAtencion` (aparte: `dobles.py` ya pasa de 400 líneas).
+"""`HorarioFijo` — el doble de `PortHorarioDeAtencion` (aparte, fuera de los `dobles_*.py`).
 
 **No calcula nada del horario**: eso es de `business_config` y se prueba allá. Se le dicen los
 **períodos de cierre** como pares `(cerrado_desde, proxima_apertura)` y responde «cerrado» dentro de
