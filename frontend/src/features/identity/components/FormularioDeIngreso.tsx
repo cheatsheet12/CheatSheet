@@ -4,11 +4,20 @@
  * The messages are the ones the behaviour annotations prescribe, word for word
  * (`docs/aidlc/inputs/prototipos/anotaciones-comportamiento.html`).
  *
- * **The terms checkbox appears only when registering.** The annotations list it among
- * the screen's mandatory fields, but HU-E1-03 RN-02 ties the acceptance to *completing
- * the registration* — asking someone to re-accept the contract every time they sign in
- * would be noise, and the re-acceptance that RN-03 does require is a different flow,
- * triggered by a version change.
+ * **The two consent boxes appear only when registering.** HU-E1-03 RN-02 ties the
+ * acceptance to *completing the registration* — asking someone to re-accept the contract
+ * every time they sign in would be noise, and the re-acceptance that RN-03 does require is
+ * a different flow, triggered by a version change. They are two boxes, not one (HU-E1-08
+ * RN-03): the terms bind the company, the privacy policy binds the person.
+ *
+ * **"Continuar con Google" asks for the same two boxes** when the form is in sign-up mode
+ * (HU-E1-08 criterion 3): without both it does not navigate. The versions travel to the BFF
+ * in the URL, and the BFF carries them through Google's round trip in a cookie. Signing in
+ * with an existing account needs none of it; a new account that arrives without consent is
+ * sent back here (`errorInicial`) and the API refuses to create it.
+ *
+ * The versions come from the server (`/legal/vigentes`, read by the page). The form only
+ * transports them: which ones are in force, and whether they are acceptable, is the API's.
  *
  * **El stepper aparece sólo al registrarse, y esa es una decisión, no un olvido.** El
  * prototipo dibuja los tres pasos sobre las tres pantallas del flujo, pero quien vuelve a
@@ -20,17 +29,17 @@
 
 import { useState } from "react";
 
-import {
-  Alert,
-  Button,
-  Campo,
-  CampoDeContrasena,
-  Casilla,
-  Stepper,
-  useAccionConNavegacion,
-} from "@/shared";
+import { Alert, Button, Campo, CampoDeContrasena, Stepper, useAccionConNavegacion } from "@/shared";
 
 import { ErrorDeFormulario, ingresar, registrar } from "../api/cliente";
+import type { VersionesVigentes } from "../api/cliente";
+import {
+  MENSAJE_DE_PRIVACIDAD,
+  hayErrores,
+  validarConsentimiento,
+} from "../validacion/consentimiento";
+import type { Aceptaciones, ErroresDeConsentimiento } from "../validacion/consentimiento";
+import { CasillasLegales } from "./CasillasLegales";
 import { EnlacesLegales } from "./EnlacesLegales";
 import { PASOS_DEL_ONBOARDING } from "./pasos";
 
@@ -38,32 +47,85 @@ const LARGO_MINIMO_CONTRASENA = 8;
 
 type Modo = "ingresar" | "registrarse";
 
-interface Errores {
+interface Errores extends ErroresDeConsentimiento {
   readonly contrasena?: string;
-  readonly terminos?: string;
   readonly general?: string;
 }
 
-export function FormularioDeIngreso(): JSX.Element {
-  const [modo, setModo] = useState<Modo>("ingresar");
+const SIN_TEXTOS =
+  "No pudimos cargar los textos legales vigentes. Recargá la página para registrarte.";
+const TEXTOS_ACTUALIZADOS =
+  "Actualizamos los textos legales. Recargá la página, leelos y volvé a aceptarlos.";
+
+export interface PropsDeFormularioDeIngreso {
+  /** The versions in force, or `null` when the page could not read them. */
+  readonly versiones: VersionesVigentes | null;
+  /** Why the Google flow sent the person back here (`?error=` of the BFF redirect). */
+  readonly errorInicial?: string | undefined;
+}
+
+/** A new Google account that arrived without consent comes back to the sign-up form. */
+function erroresIniciales(errorInicial: string | undefined): Errores {
+  if (errorInicial === "ConsentimientoRequerido") {
+    return { privacidad: MENSAJE_DE_PRIVACIDAD };
+  }
+  return errorInicial === "VersionLegalDesactualizada" ? { general: TEXTOS_ACTUALIZADOS } : {};
+}
+
+function direccionDeGoogle(versiones: VersionesVigentes | null, listo: boolean): string {
+  if (!listo || versiones === null) {
+    return "/api/auth/google";
+  }
+  const parametros = new URLSearchParams({
+    terminos: versiones.terminos.version,
+    privacidad: versiones.privacidad.version,
+  });
+  return `/api/auth/google?${parametros.toString()}`;
+}
+
+export function FormularioDeIngreso({
+  versiones,
+  errorInicial,
+}: PropsDeFormularioDeIngreso): JSX.Element {
+  const volviendoDeGoogle =
+    errorInicial === "ConsentimientoRequerido" || errorInicial === "VersionLegalDesactualizada";
+  const [modo, setModo] = useState<Modo>(volviendoDeGoogle ? "registrarse" : "ingresar");
   const [email, setEmail] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [nombre, setNombre] = useState("");
-  const [acepta, setAcepta] = useState(false);
-  const [errores, setErrores] = useState<Errores>({});
+  const [aceptaciones, setAceptaciones] = useState<Aceptaciones>({
+    terminos: false,
+    privacidad: false,
+  });
+  const [errores, setErrores] = useState<Errores>(erroresIniciales(errorInicial));
   const { pendiente: enviando, ejecutar } = useAccionConNavegacion();
 
   const registrando = modo === "registrarse";
+  const consentimientoCompleto = aceptaciones.terminos && aceptaciones.privacidad;
 
   const validar = (): Errores => {
-    const encontrados: Errores = {};
-    if (contrasena.length < LARGO_MINIMO_CONTRASENA) {
-      return { ...encontrados, contrasena: "La contraseña debe tener al menos 8 caracteres." };
-    }
-    if (registrando && !acepta) {
-      return { ...encontrados, terminos: "Debés aceptar los Términos y Condiciones." };
+    const encontrados: Errores = {
+      ...(contrasena.length < LARGO_MINIMO_CONTRASENA
+        ? { contrasena: "La contraseña debe tener al menos 8 caracteres." }
+        : {}),
+      ...(registrando ? validarConsentimiento(aceptaciones, true) : {}),
+    };
+    if (registrando && versiones === null && !hayErrores(encontrados)) {
+      return { ...encontrados, general: SIN_TEXTOS };
     }
     return encontrados;
+  };
+
+  /** Google sign-up needs the same two boxes as the form; sign-in needs none. */
+  const alIrAGoogle = (evento: React.MouseEvent): void => {
+    if (!registrando) {
+      return;
+    }
+    const faltantes = validarConsentimiento(aceptaciones, true);
+    if (hayErrores(faltantes) || versiones === null) {
+      evento.preventDefault();
+      setErrores(hayErrores(faltantes) ? faltantes : { general: SIN_TEXTOS });
+    }
   };
 
   const enviar = async (evento: React.FormEvent): Promise<void> => {
@@ -77,7 +139,17 @@ export function FormularioDeIngreso(): JSX.Element {
     try {
       await ejecutar(
         () =>
-          registrando ? registrar({ email, contrasena, nombre }) : ingresar({ email, contrasena }),
+          registrando && versiones !== null
+            ? registrar({
+                email,
+                contrasena,
+                nombre,
+                consentimiento: {
+                  version_terminos: versiones.terminos.version,
+                  version_privacidad: versiones.privacidad.version,
+                },
+              })
+            : ingresar({ email, contrasena }),
         // RN-04: the dashboard stays closed until the onboarding is complete.
         (resultado, router) =>
           router.push(resultado.onboarding_completo ? "/panel" : "/onboarding/empresa"),
@@ -164,20 +236,11 @@ export function FormularioDeIngreso(): JSX.Element {
           )}
 
           {registrando && (
-            <div className="acc-terminos">
-              <Casilla
-                id="terminos"
-                checked={acepta}
-                error={errores.terminos}
-                onChange={(evento) => setAcepta(evento.target.checked)}
-              >
-                Acepto los{" "}
-                <a className="acc-enlace" href="/terminos" target="_blank" rel="noreferrer">
-                  Términos y Condiciones
-                </a>{" "}
-                y la Política de Privacidad del servicio.
-              </Casilla>
-            </div>
+            <CasillasLegales
+              aceptaciones={aceptaciones}
+              onCambio={setAceptaciones}
+              errores={errores}
+            />
           )}
 
           <div className="acc-accion">
@@ -192,7 +255,11 @@ export function FormularioDeIngreso(): JSX.Element {
         {/* El único proveedor externo de identidad que la plataforma acepta hoy. El enlace
             va a nuestra propia ruta: el `client_id` y el `state` los arma el servidor, así
             que acá no viaja ningún secreto. */}
-        <a className="acc-google" href="/api/auth/google">
+        <a
+          className="acc-google"
+          href={direccionDeGoogle(versiones, registrando && consentimientoCompleto)}
+          onClick={alIrAGoogle}
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path
               fill="#4285F4"

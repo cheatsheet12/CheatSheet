@@ -33,5 +33,6 @@ export type {
   RolUsuario,
   Suscripciones,
   UsuarioDeLaEmpresa,
+  VersionesVigentes,
 } from "./api/cliente";
 export { errorDeCuit, esCuitValido, formatearCuit, normalizarCuit } from "./validacion/cuit";
