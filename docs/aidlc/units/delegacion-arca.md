@@ -82,5 +82,27 @@ Por eso se agrega **`ARCA_PADRON_ADAPTADOR`**: en staging el padrón queda simul
 los datos ficticios de `etapa-6/reglas.md` §6 sirven en todo el panel y la facturación obtiene
 un CAE real. En producción el padrón simulado no arranca.
 
-Pendiente para el 09/10 desde las 07:51 (cuando vence el ticket de WSFE de la prueba del 08/10):
-verificar si ARCA homologación da CAE a un emisor que no existe en su padrón (`30000000015`).
+## Tercera parte — prueba con ARCA real, 10/10/2026
+
+API local con `ARCA_ADAPTADOR=arca`, `CATALOGOS_FISCALES_ADAPTADOR=wsfe` y padrón simulado, contra
+homologación, con el certificado de plataforma.
+
+| Paso | Resultado |
+|---|---|
+| Onboarding › «Validar contra ARCA» (padrón simulado) | OK, pero pidió un ticket real a WSAA |
+| Integraciones › ARCA › «Verificar delegación» | **Conectado** (WSAA + `FECompUltimoAutorizado` reales) |
+| `FEParamGetPtosVenta` para `30000000015` | `602 Sin Resultados` → el alta del punto de venta 1 se rechazó |
+| `FECAESolicitar` directo, Factura B, PtoVta 1, consumidor final, $121 | **`Resultado A`, CAE otorgado** (vto. 20/10/2026) |
+
+Conclusión: **homologación da CAE a la empresa ficticia aunque no exista en su padrón**, así que
+staging puede facturar de verdad sin datos fiscales reales. Tres defectos encontrados y corregidos
+en `fix/integrations-arca-real-en-homologacion`:
+
+- **Mayor:** homologación no lleva registro de puntos de venta, y el alta los pide (HU-E5-05
+  RN-03): en staging no se podía dar de alta ninguno. Fuera de producción se usa la habilitación
+  simulada (1 a 5 habilitados, 99 bloqueado); en producción sigue siendo la de ARCA.
+- **Menor:** con el padrón simulado, la consulta igual pedía un ticket real a WSAA para
+  `ws_sr_padron_a5`. Ahora usa `TicketDePadronSimulado`, que no sale del proceso ni se guarda.
+- **Menor:** el certificado que entrega WSASS termina sin salto de línea; `cat crt key` pegaba
+  los bloques PEM y la API informaba «la clave privada no es un PEM sin cifrar». La configuración
+  ahora separa los bloques pegados, y `.env.example` muestra el comando con `echo`.

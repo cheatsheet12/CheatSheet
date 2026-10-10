@@ -35,6 +35,7 @@ from cheatsheet.contexts.integrations.application.ports import (
     ResultadoDeConexion,
     ResultadoDeVerificacion,
     TicketEmitido,
+    TicketVigente,
 )
 from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
 from cheatsheet.contexts.integrations.domain.valores import (
@@ -180,6 +181,27 @@ class ArcaSimuladoPorDelegacion(ArcaSimulado):
             )
         return ResultadoDeVerificacion(
             EstadoDeConexion.CONECTADO, None, resultado_delegado(cuit).parametros
+        )
+
+
+class TicketDePadronSimulado:
+    """The padrón's ticket when the padrón is simulated and WSFE is not (ADR-0014 point 7).
+
+    A simulated registry authenticates nothing, so asking WSAA for its ticket only adds a
+    way to fail: an outage, or a WSASS authorization nobody created, would break a lookup
+    that never leaves the process. Nothing is persisted either — a fabricated ticket in
+    `ticket_de_plataforma` would be sent to the real padrón the day it is switched on.
+    """
+
+    def __init__(self, *, entorno: Entorno, reloj: Reloj) -> None:
+        _rechazar_en_produccion(entorno)
+        self._reloj = reloj
+
+    async def ejecutar(self, servicio: ServicioDeArca) -> TicketVigente:
+        return TicketVigente(
+            servicio=servicio,
+            contenido=f"{PREFIJO_SIMULADO}-{secrets.token_hex(8)}".encode(),
+            expira_en=self._reloj.ahora() + DURACION_DEL_TICKET,
         )
 
 
