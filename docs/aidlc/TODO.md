@@ -138,7 +138,10 @@ Ninguna de estas bloquea el cierre. Están acá para que nadie las descubra desp
 - **`GET /auth/empresa`** se agregó para que el layout del panel sepa si el onboarding está
   completo. Cuesta una llamada por navegación. Si el panel crece, conviene un endpoint de
   «contexto de sesión» que devuelva empresa + usuario + rol de una vez, en lugar de tres.
-- **La renovación de sesión es manual, y se nota.** `/api/auth/refresh` existe y funciona, pero
+- ~~**La renovación de sesión es manual, y se nota.**~~ ✅ **Resuelta el 2026-10-05** por el commit
+  `67f2db4`: `RenovadorDeSesion` renueva cada 10 minutos y al volver a la pestaña, y manda a `/` ante
+  un 401. Se conserva el texto original porque explica por qué no fue un parche de QA.
+  `/api/auth/refresh` existe y funciona, pero
   nadie lo llama solo: **el panel te saca a los 15 minutos** aunque tengas la cookie de refresh al
   lado. Apareció en el QA del 2026-08-18, en carne propia.
   **Por qué no lo arreglé ahí mismo:** el lugar natural es el middleware de Next, y ahí hay una
@@ -664,7 +667,7 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 | 22.39 | Punta a punta en staging: registrar `/webhooks/whatsapp/{empresa}` con `WHATSAPP_WEBHOOK_SECRET` y `WHATSAPP_WEBHOOK_VERIFY_TOKEN` cargados en Render (pendiente #3 del épico 8). Sin el secreto, toda notificación se descarta con 200 (D49) | `canal-real-de-whatsapp` (config) / `entregas-de-whatsapp` |
 | 22.40 | Cantidad de destinatarios que admite el número de prueba, para planificar la prueba con menos clientes si hace falta | `canal-real-de-whatsapp` (U5–U8) |
 | 22.41 | Los tests contra PostgreSQL de `canal-real-de-whatsapp` (casos 2 y 3 del plan: `tests/integracion/test_barrido_de_recordatorios_postgres.py`, el barrido sin duplicados y el duplicado que ya no envenena la transacción) y `bash .claude/hooks/test_guards.sh` (caso 32; falta `jq` en la máquina de desarrollo) se saltearon en local: confirmar que pasan en la CI del PR | `canal-real-de-whatsapp` |
-| 22.42 | `backend/src/cheatsheet/api/routers/agenda.py` tiene 688 líneas (límite de CLAUDE.md §5: 400). Ya superaba el límite antes de `canal-real-de-whatsapp` (684 líneas) y la unidad no lo partió: hace falta una unidad propia que lo divida por responsabilidad (hallazgo de la revisión independiente de la unidad) | unidad propia, sin asignar |
+| ~~22.42~~ | ✅ **Resuelta por `router-de-agenda-por-responsabilidad`** (2026-10-09). `api/routers/agenda.py` (688 líneas) se partió en `agenda.py` (29), `agenda_forma.py` (252), `agenda_recursos.py` (218) y `agenda_turnos.py` (254), sin cambio de rutas ni de orden; la tabla de rutas queda fijada por `tests/api/test_rutas_de_agenda.py` | `router-de-agenda-por-responsabilidad` |
 | 22.43 | Estado inmediato tras `POST /{template_id}` sobre una aprobada: ¿sigue `APPROVED` mientras revisa, o pasa a `PENDING`? y si se puede enviar mientras tanto. U6 la trata como `PENDIENTE` hasta que el webhook o la conciliación lo confirmen | `plantillas-de-whatsapp-en-meta` (U6) |
 | 22.44 | Código y forma del error de «nombre ya existe en ese idioma» al crear. U6 lo detecta por `error_subcode` 2388023 (`canal_errores.SUBCODIGOS_NOMBRE_EN_USO`, **sin verificar**): si es otro, el versionado del nombre no se dispara y la plantilla queda `SIN_ENVIAR` con el texto de Meta a la vista | `plantillas-de-whatsapp-en-meta` (U6) |
 | 22.45 | Que la app de Meta reciba `message_template_status_update` en su URL (`/webhooks/whatsapp`, campo suscripto en el panel de la app). Si no llega, solo funciona la conciliación: hasta `WHATSAPP_PLANTILLAS_MINUTOS` de demora, nada se rompe | `plantillas-de-whatsapp-en-meta` (U6) |
@@ -687,8 +690,15 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 | 22.62 | Los tests contra PostgreSQL del tramo 3 de `entregas-de-whatsapp` (`tests/integracion/test_avisos_de_turno_postgres.py`: el aviso queda en una conversación `ACTIVA` del cliente y un segundo se agrega al mismo hilo; un rechazo de Meta deja el mensaje `FALLIDO` con su motivo; un `wamid` repetido —viola `uq_mensaje_externo_id`— se deshace en el savepoint real sin abortar la transacción de la operación y el resultado trae `sin_registrar`; el aviso de una empresa no existe para otra) se saltearon en local (sin Docker): confirmar que pasan en la CI del PR | `entregas-de-whatsapp` (U7, tramo iii) |
 | 22.63 | **Verificación en el navegador, en staging de Render** (no se levanta la app en local): (a) PAN-COB-02 con un recordatorio esperando reintento («Reintentando · intento n de 3 · próximo hh:mm»), uno `FALLIDO` con cada motivo traducido y uno descartado; (b) el hilo de una conversación con un aviso de turno enviado, entregado, leído y fallido (estado en castellano y motivo); (c) cancelar un turno desde el panel con un cliente sin conversación y comprobar que aparece un hilo nuevo con el aviso como «Sistema». También confirmar con la app de prueba que el `wamid` de un aviso por **plantilla** coincide con el `id` de su `statuses[]` (ver 22.54). `lucide-react` faltaba solo en el entorno local: con `npm ci` la suite de frontend corre completa (`tsc` limpio, Vitest 98/98 archivos, 1233 pruebas), así que lo único pendiente de este ítem es la verificación en el navegador | `entregas-de-whatsapp` (U7, tramo iii) |
 | 22.64 | **Un `delivered`/`failed` de un aviso de turno que llega antes del commit del request del panel se pierde** (misma clase que 22.57, parte de los avisos de turno del hallazgo G5/ADR-0015). `AvisoPorWhatsApp` manda por Meta **dentro** de la transacción de cancelar/reprogramar/reservar y el mensaje del sistema se confirma recién al final del request: un callback que llegara antes no encuentra el `wamid` (`whatsapp_estado_sin_destinatario`) y el aviso queda `ENVIADO` para siempre. La salida es mandar el aviso **después** del commit (o confirmar el mensaje antes de la E/S, como hace el barrido de recordatorios): cambia el orden de la operación del panel, así que necesita su propia unidad y una decisión sobre qué pasa si el commit del turno falla después de que el aviso salió. Medir con la app de prueba cuánto tarda el primer `statuses[]` tras la respuesta del envío: si es mayor que la duración de un request del panel, la pérdida es teórica | `entregas-de-whatsapp` (U7, tramo iii) |
+| 22.66 | Costo de la verificación de sesión por solicitud en staging (pregunta 1 de `revocacion-inmediata-de-sesion`): 200 llamadas a `GET /auth/empresa` con la compute de Neon despierta, con y sin la verificación, y anotar el p95 agregado por solicitud en el plan. En la base local la verificación completa da p95 2,16 ms | `revocacion-inmediata-de-sesion` |
 
-**Archivos de más de 400 líneas (CLAUDE.md §5), vistos en `limites-e-intervalo-de-turnos`.** Ya superaban el límite antes de esa unidad y no se partieron (decisión P4): `scheduling/application/turnos.py` (~520), `api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y `tests/contexts/scheduling/application/test_agenda.py` (~1180). Una unidad aparte puede extraer `Avisador` a `application/avisador.py` y partir el router en uno de recursos y uno de turnos.
+**Archivos de más de 400 líneas (CLAUDE.md §5), vistos en `limites-e-intervalo-de-turnos`.** Ya superaban el límite antes de esa unidad y no se partieron (decisión P4): `scheduling/application/turnos.py` (~520), `api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y `tests/contexts/scheduling/application/test_agenda.py` (~1180). **El router ya se partió** (`router-de-agenda-por-responsabilidad`). Siguen sin unidad: `turnos.py` (extraer `Avisador` a `application/avisador.py`; U8 modifica `turnos.py`, conviene esperar), `RecursosReservables.tsx` y `test_agenda.py`.
+
+Hallazgos de `router-de-agenda-por-responsabilidad` (sin unidad, sólo reportados; la unidad no cambia comportamiento):
+
+- **Las fábricas de rutas pasan de 50 líneas.** `rutas_de_recursos` (61), `_rutas_de_configuracion` (67), `_rutas_de_excepciones` (47), `rutas_de_turnos` (114) y `_rutas_de_gestion` (85): el patrón de cierres por fábrica es el de todos los routers y la unidad lo conserva (decisión D2). Achicarlas es otra decisión, que alcanza a todos los routers.
+- **`_actor` y `_exigir` están duplicados en al menos ocho routers** (`bitacora.py`, `categorias.py`, `clientes.py`, `conversaciones.py`, …); en la agenda viven ahora en `agenda_forma.py` como `actor` y `exigir`. Unificarlos en un módulo compartido de `api/` es una unidad aparte.
+- **`scheduling/application/turnos.py` (~520 líneas) sigue sobre el límite**: la extracción de `Avisador` queda para después de U8, que lo modifica (`Avisador.recordatorio`, `franja_asignada_en`).
 
 ## 23. Hallazgos y verificaciones de `correccion-de-datos-existentes`
 
@@ -734,3 +744,25 @@ HU-E4-05.
   admite hasta 200, así que cada llamada levanta `EntradaInvalida`. Ningún test del repo lo
   ejercitaba; los de esta unidad fijan el límite en 200 con `monkeypatch`. El arreglo es de una
   línea, pero es de la unidad del write-back.
+
+## 25. Hallazgos de `revocacion-inmediata-de-sesion`
+
+Todos quedan **sin unidad** (registrados el 2026-10-09): se vieron al planificar y no se arreglaron,
+porque ninguno es de HU-E1-05 ni de HU-E1-06.
+
+- ~~**`renovarSesion` borra las dos cookies ante cualquier 5xx de `/auth/refresh`.**~~ ✅ **Resuelto el
+  2026-10-09** por `renovacion-sin-borrar-sesion` (commit `22ac0ff`): sólo un 4xx cierra la sesión; un 5xx,
+  un timeout o una red caída conservan las dos cookies. Se conserva el texto original por el contexto.
+  Estaba en
+  `frontend/src/app/api/auth/_sesion.ts` (bloque `catch`) y su comentario lo declara a propósito.
+  Una caída breve de la base que coincida con una renovación saca al usuario al ingreso, aunque su
+  sesión siga viva. No lo introduce la unidad (`/auth/refresh` es pública y no pasa por el
+  verificador por solicitud), y cambiarlo es una decisión de contrato del BFF. Se resuelve en un
+  `fix/identity-…` aparte (decisión 7 de la unidad).
+- **`SesionInvalida` responde 409 y no 401** en `/auth/refresh` y `/auth/login` (`api/errors.py` no
+  la mapea). El BFF ya lo traduce (`status < 500` → 401 y borra cookies), por eso no se ve. Cambiarlo
+  afecta al BFF y a sus tests: es una decisión de contrato. Los tests de la unidad aseveran «4xx con
+  `error == "SesionInvalida"`» y no el número, para no fijarlo.
+- **Cada navegación del panel cuesta dos lecturas a la base**, cada una con su conexión del pool: la
+  verificación del middleware y la propia `GET /auth/empresa`. Sigue valiendo la propuesta de §4 de
+  un endpoint de «contexto de sesión» que devuelva empresa + usuario + rol de una vez.

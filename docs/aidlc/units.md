@@ -15,6 +15,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cimientos, identidad y bitácora | usuarios-y-preferencias | identity | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07 | identidad-y-onboarding | Cristian | feature/identity-cimientos-identidad-y-bitacora | mergeada |
 | Cimientos, identidad y bitácora | revocacion-por-reuso | identity | HU-E1-01 | — | Luciano | fix/identity-revocacion-por-reuso | mergeada |
 | Cimientos, identidad y bitácora | refresh-concurrente | identity | HU-E1-01 | revocacion-por-reuso | Luciano | fix/identity-refresh-concurrente | mergeada |
+| Cimientos, identidad y bitácora | infra-computo-de-staging | observability | — (unidad técnica) | — | Luciano | fix/infra-computo-de-staging | mergeada |
 | Conexión con los servicios externos | mecanismo-de-integraciones | integrations | HU-E2-05 | — | Cristian | feature/integrations-mecanismo-de-integraciones | mergeada |
 | Conexión con los servicios externos | conexion-whatsapp | integrations | HU-E2-03 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-whatsapp | mergeada |
 | Conexión con los servicios externos | conexion-arca | integrations | HU-E2-01 | mecanismo-de-integraciones | Cristian | feature/integrations-conexion-arca | mergeada |
@@ -40,7 +41,8 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Reportería y paquete contable | paquete-fallido-visible | reporting | HU-E10-04 | reporte-fallido-persistido | — | — | pendiente |
 | Panel de auditoría y notificaciones | panel-de-auditoria-y-notificaciones | observability | HU-E12-01, HU-E12-02, HU-E11-03, HU-E9-03 | reporteria-y-paquete-contable | vichen12 | feature/observability-panel-de-auditoria | mergeada |
 | Cobros y recordatorios | cancelacion-invalida-el-link | payments | HU-E6-04, HS-T1 | cobros-y-recordatorios | Cristian | fix/payments-cancelacion-invalida-el-link | en revisión |
-| Cimientos, identidad y bitácora | revocacion-inmediata-de-sesion | identity | HU-E1-05, HU-E1-06 | — | Luciano | — | pendiente |
+| Cimientos, identidad y bitácora | revocacion-inmediata-de-sesion | identity | HU-E1-05, HU-E1-06 | — | Luciano | feature/identity-revocacion-inmediata-de-sesion | mergeada |
+| Cimientos, identidad y bitácora | renovacion-sin-borrar-sesion | identity | HU-E1-01 | revocacion-inmediata-de-sesion | Luciano | fix/identity-renovacion-sin-borrar-sesion | mergeada |
 | Cimientos, identidad y bitácora | terminos-y-privacidad | identity | HU-E1-03, HU-E1-08 | — | — | — | pendiente |
 | Catálogo de clientes y servicios | duracion-de-servicios | master_data | HU-E4-02 | — | Luciano | feature/master_data-duracion-de-servicios | mergeada |
 | Catálogo de clientes y servicios | normalizacion-de-datos | master_data | HU-E4-05, HU-E4-01, HU-E3-03, HU-E3-04, HU-E3-07 | — | Luciano | feature/master_data-normalizacion-de-datos | mergeada |
@@ -55,6 +57,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cobros y recordatorios | cobro-por-transferencia | payments | HU-E6-08 | reembolsos-parciales-y-manuales | — | — | pendiente |
 | Agenda y recursos | turnos-no-en-el-pasado | scheduling | HU-E7-06, HU-E7-02, HU-E8-01 | — | Luciano | feature/scheduling-turnos-no-en-el-pasado | mergeada |
 | Agenda y recursos | limites-e-intervalo-de-turnos | scheduling | HU-E7-04, HU-E7-06 | turnos-no-en-el-pasado | Luciano | feature/scheduling-limites-e-intervalo-de-turnos | mergeada |
+| Agenda y recursos | router-de-agenda-por-responsabilidad | scheduling | HU-E7-01 … HU-E7-06 (referencia) | — | Luciano | fix/scheduling-router-de-agenda-por-responsabilidad | mergeada |
 | Agente de WhatsApp y atención humana | comprobante-por-whatsapp | conversational | HU-E8-06, HU-E8-05 | cobro-por-transferencia | — | — | pendiente |
 | Agente de WhatsApp y atención humana | usos-de-faq-por-periodo | conversational | HU-E9-04 | ADR-0012 | Luciano | feature/conversational-usos-de-faq-por-periodo | mergeada |
 | Agente de WhatsApp y atención humana | reserva-y-cancelacion-por-whatsapp | conversational | HU-E8-01, HU-E8-02, HS-T2 | ajustes-menores-del-agente | Luciano | feature/conversational-reserva-y-cancelacion-por-whatsapp | mergeada |
@@ -72,6 +75,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | recordatorio-de-turno | scheduling | HU-E8-04, HU-E11-01 | plantillas-de-whatsapp-en-meta, entregas-de-whatsapp | Luciano | — | pendiente |
 | Agente de WhatsApp y atención humana | dobles-de-conversational-por-responsabilidad | conversational | HS-T2 | entregas-de-whatsapp | Luciano | fix/conversational-dobles-por-responsabilidad | en curso |
 | Cobros y recordatorios | recordatorio-por-email | payments | HS-T3 | canal-real-de-whatsapp | Luciano | — | pendiente |
+| Cimientos, identidad y bitácora | integracion-en-neon | tests de integración (`backend/tests/integracion`, transversal) | — | — | Luciano | feature/infra-integracion-en-neon | en revisión |
 
 
 ---

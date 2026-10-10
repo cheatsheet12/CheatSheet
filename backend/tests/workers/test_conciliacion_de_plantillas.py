@@ -17,7 +17,7 @@ from uuid import uuid4
 
 import pytest
 from cheatsheet.contexts.business_config.application.conciliacion import ResumenDeConciliacion
-from cheatsheet.platform.settings import Settings
+from cheatsheet.platform.settings import ConfiguracionFaltante, Settings
 from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.workers import tasks_business_config
@@ -36,21 +36,29 @@ class _Recursos:
 
 
 async def test_beat_programa_la_conciliacion_con_el_intervalo_configurado() -> None:
-    settings = replace(settings_de_prueba(), whatsapp_plantillas_minutos=45)
+    settings = replace(settings_de_prueba(), whatsapp_plantillas_minutos=20)
 
     entrada = programacion(settings)["conciliar-plantillas-de-whatsapp"]
 
     assert entrada["task"] == tasks_business_config.NOMBRE_BARRIDO
-    assert entrada["schedule"].total_seconds() == 45 * 60
+    # Anchored to the wall clock like every other Beat entry, so the staging database can sleep.
+    assert entrada["schedule"].minute == set(range(0, 60, 20))
     assert entrada["options"]["queue"] == "integrations_sync"
 
 
-async def test_un_intervalo_de_cero_no_programa_una_corrida_continua() -> None:
-    settings = replace(settings_de_prueba(), whatsapp_plantillas_minutos=0)
+async def test_un_intervalo_de_cero_no_llega_a_beat_porque_falla_al_arrancar(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Before, 0 was floored to one minute at schedule time; now the boot refuses it outright."""
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost/db")
+    monkeypatch.setenv("DATABASE_URL_MIGRATIONS", "postgresql+asyncpg://u:p@localhost/db")
+    monkeypatch.setenv("JWT_SECRET", "x" * 40)
+    monkeypatch.setenv("SECRETS_ENCRYPTION_KEY", "k" * 44)
+    monkeypatch.setenv("WHATSAPP_PLANTILLAS_MINUTOS", "0")
 
-    entrada = programacion(settings)["conciliar-plantillas-de-whatsapp"]
-
-    assert entrada["schedule"].total_seconds() == 60
+    with pytest.raises(ConfiguracionFaltante, match="WHATSAPP_PLANTILLAS_MINUTOS"):
+        Settings.desde_entorno()
 
 
 async def test_el_barrido_encola_una_tarea_por_empresa_con_whatsapp_conectado(

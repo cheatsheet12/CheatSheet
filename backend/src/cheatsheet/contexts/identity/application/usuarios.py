@@ -182,11 +182,13 @@ class CambiarRolDeUsuario:
 class DesactivarUsuario:
     """HU-E1-06.
 
-    **Revoking the refresh tokens is what makes RN-01 true.** Without it, "loses access
-    immediately" would mean "loses access when the access token expires", and the person
-    just removed would keep operating for the rest of its lifetime. Doing better than
-    minutes would mean checking the database on every request, which is the cost a short
-    JWT exists to avoid.
+    **Two mechanisms make RN-01 true, and they cover different tokens.** Revoking the
+    refresh tokens stops the person from obtaining a *new* access token. The access token
+    already in their hands stops working on its very next request, because the middleware
+    asks the database about the user on every request (`VerificarSesionVigente`) and an
+    `INACTIVO` user is refused. Neither alone is enough: without the first they could sign
+    back in through a refresh, and without the second they would keep operating until the
+    token expired.
     """
 
     def __init__(
