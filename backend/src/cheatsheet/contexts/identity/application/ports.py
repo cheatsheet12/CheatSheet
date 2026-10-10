@@ -272,5 +272,8 @@ class PortRepositorioAceptacionLegal(Protocol):
     async def agregar(self, aceptacion: AceptacionLegal) -> None: ...
 
     async def acepto(self, usuario_id: UsuarioId, documento: DocumentoLegal, version: str) -> bool:
-        """Whether this user already accepted exactly this version of this document."""
+        """Whether this user already accepted exactly this version of this document.
+
+        For slice 3: `AceptarDocumentosLegales` uses it to stay idempotent per version.
+        """
         ...
