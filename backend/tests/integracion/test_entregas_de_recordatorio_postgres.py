@@ -15,7 +15,7 @@ from datetime import timedelta
 import pytest
 from cheatsheet.contexts.payments.application.entregas import RegistrarEntregaDeRecordatorio
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
-from cheatsheet.contexts.payments.infrastructure.repositories import (
+from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
 from cheatsheet.platform.database import sesion_de_empresa

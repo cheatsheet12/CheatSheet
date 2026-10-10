@@ -24,6 +24,10 @@ from cheatsheet.contexts.payments.infrastructure.envio import (
 )
 from cheatsheet.shared.empresa import EmpresaId
 
+from tests.contexts.payments.application.test_cobros_y_recordatorios import (
+    enviar_de_punta_a_punta,
+)
+
 pytestmark = pytest.mark.asyncio
 
 AHORA = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
@@ -89,7 +93,9 @@ class ConPlantilla:
 
 
 async def _enviar(envio: EnvioPorWhatsApp, canal: str = "WHATSAPP") -> ResultadoDeEnvio:
-    return await envio.enviar(empresa_id=EMPRESA, cobro=_cobro(), canal=canal, paso=1)
+    return await enviar_de_punta_a_punta(
+        envio, empresa_id=EMPRESA, cobro=_cobro(), canal=canal, paso=1
+    )
 
 
 async def test_un_texto_enviado_devuelve_el_wamid_del_canal() -> None:

@@ -18,10 +18,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from cheatsheet.contexts.payments.application.errors import (
-    DespachoNoPersistido,
-    RecordatorioDuplicado,
-)
 from cheatsheet.contexts.payments.application.ports import (
     PortRepositorioCobro,
     PortRepositorioRecordatorios,
@@ -30,17 +26,14 @@ from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
     PasoDeCadena,
     PortCadenaDeEscalamiento,
     PortEnvioDeRecordatorio,
-    ResultadoDeEnvio,
 )
-from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento
+from cheatsheet.contexts.payments.application.ports_envio import PortAislamiento, PortTransaccion
+from cheatsheet.contexts.payments.application.reintentos import Desenlace, EnvioConReintento
 from cheatsheet.contexts.payments.domain.cobro import Cobro
-from cheatsheet.contexts.payments.domain.recordatorio import (
-    EstadoEntrega,
-    Recordatorio,
-    proximo_paso,
-)
+from cheatsheet.contexts.payments.domain.recordatorio import Recordatorio, proximo_paso
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
+from cheatsheet.shared.clock import Reloj
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.events import PublicadorDeEventos
 
@@ -60,6 +53,8 @@ class ResultadoDeBarrido:
     #: índice único no los reenvíe) pero **no** cuentan como `procesados`: un barrido que
     #: «despachó» lo que nunca salió esconde justo el incidente que hay que mirar.
     fallidos: int = 0
+    #: Envíos transitoriamente fallidos que quedaron esperando otro intento (U7, D-U7-3).
+    reintentos: int = 0
 
 
 class VencerCobros:
@@ -108,25 +103,28 @@ class VencerCobros:
 
 
 class DespacharRecordatorios:
-    """HS-T3 — manda el paso que corresponde de cada cadena abierta.
+    """HS-T3 — manda el paso que corresponde de cada cadena abierta, y retoma los que esperan.
 
     **La idempotencia es el `paso`** (decisión **D25**), y se defiende en dos capas: el
     dominio calcula cuál falta, y el índice único `(cobro_id, paso)` rechaza el segundo
     despacho del mismo. La segunda existe porque dos barridos solapados pasan la primera.
 
-    **Un fallo de un cobro no aborta el barrido ni deshace a los demás** (U5, H1). El barrido
-    corre en una sola transacción por empresa, y si la excepción de un cobro la volteara, las
-    filas de los cobros anteriores —cuyos mensajes ya salieron— se perderían y la hora siguiente
-    los mandaría de nuevo. Por eso:
+    Dos pasadas por empresa (U7, D-U7-3), cada ítem en su propio savepoint:
 
-    - cada cobro corre en su propio **savepoint** (`aislamiento`): si la base rechaza algo,
-      sólo se deshacen las filas de ese cobro;
-    - el envío va protegido: si el adaptador levanta (el contrato dice que no debe), el paso
-      queda registrado `FALLIDO` con fecha, y el índice único no lo deja salir de nuevo.
+    1. **Retomar** las filas que esperan un reintento o cuyo envío en curso venció
+       (`EnvioConReintento.reintentar_pendientes`), incluidas las de cobros que ya se cerraron
+       (se descartan).
+    2. **Pasos nuevos**: el que falta de cada cobro abierto. Una fila ya existente de ese paso se
+       toca solo si **nunca empezó** un envío; si está en curso o esperando, es de la pasada 1.
 
-    Un único caso residual de reenvío: si la base falla **después** de que el mensaje salió y
-    **antes** de liberar el savepoint de ese cobro, sus filas se deshacen y ese cobro (sólo ése)
-    se reenvía en el barrido siguiente.
+    **Cada recordatorio confirma su fila antes de hablar con Meta y su resultado después**
+    (`PortTransaccion`; ver `reintentos.py`): un callback no se pierde por llegar antes del
+    commit del barrido, y ninguna llamada a Meta corre con escrituras sin confirmar ni locks.
+    **A lo sumo un recordatorio por cobro por corrida** (N7): lo que la pasada 1 tocó no se vuelve
+    a evaluar en la 2.
+
+    **Un fallo de un cobro no aborta el barrido ni deshace a los demás** (U5, H1): cada ítem tiene
+    su savepoint, y lo que la base rechaza solo deshace ese ítem.
     """
 
     def __init__(
@@ -138,55 +136,65 @@ class DespacharRecordatorios:
         cadena: PortCadenaDeEscalamiento,
         publicador: PublicadorDeEventos,
         aislamiento: PortAislamiento,
+        transaccion: PortTransaccion,
+        reloj: Reloj,
     ) -> None:
         self._cobros = cobros
         self._recordatorios = recordatorios
-        self._envio = envio
         self._cadena = cadena
-        self._publicador = publicador
-        self._aislamiento = aislamiento
+        self._envio = EnvioConReintento(
+            cobros=cobros,
+            recordatorios=recordatorios,
+            envio=envio,
+            publicador=publicador,
+            aislamiento=aislamiento,
+            transaccion=transaccion,
+            reloj=reloj,
+        )
 
     async def ejecutar(self, *, empresa_id: EmpresaId, ahora: datetime) -> ResultadoDeBarrido:
+        retomados = await self._envio.reintentar_pendientes(empresa_id=empresa_id, ahora=ahora)
+        desenlaces = [desenlace for _, desenlace in retomados]
+        # N7: un cobro que ya tuvo su recordatorio en la pasada 1 no recibe otro en esta corrida.
+        ya_tocados = {
+            cobro_id for cobro_id, desenlace in retomados if desenlace is not Desenlace.NADA
+        }
+
         abiertos = await self._cobros.abiertos()
-        if not abiertos:
-            return ResultadoDeBarrido(procesados=0)
-
-        cadena = await self._cadena.pasos(empresa_id=empresa_id)
-        # Una sola consulta para todos: una por cobro serían N+1 sobre una tabla que crece con
-        # cada recordatorio enviado.
-        por_cobro = await self._recordatorios.de_cobros([cobro.id for cobro in abiertos])
-
-        despachados = 0
-        fallidos = 0
-        for cobro in abiertos:
-            try:
-                async with self._aislamiento.aislar():
-                    salio = await self._despachar_uno(
+        if abiertos:
+            cadena = await self._cadena.pasos(empresa_id=empresa_id)
+            # Una sola consulta para todos: una por cobro serían N+1 sobre una tabla que crece con
+            # cada recordatorio enviado. Se lee **después** de la pasada 1, que pudo cambiarlas.
+            por_cobro = await self._recordatorios.de_cobros([cobro.id for cobro in abiertos])
+            for cobro in abiertos:
+                if cobro.id in ya_tocados:
+                    continue
+                desenlaces.append(
+                    await self._despachar_uno(
                         empresa_id=empresa_id,
                         cobro=cobro,
                         previos=por_cobro.get(cobro.id, []),
                         cadena=cadena,
                         ahora=ahora,
                     )
-            except DespachoNoPersistido:
-                # Sin datos del cliente ni del error: sólo qué cobro. Se deshizo lo de este
-                # cobro; los anteriores siguen confirmados y el barrido sigue.
-                logger.warning("recordatorio_no_persistido", cobro_id=str(cobro.id))
-                continue
-            if salio is EstadoEntrega.FALLIDO:
-                fallidos += 1
-            elif salio is not None:
-                despachados += 1
+                )
 
-        if despachados or fallidos:
+        despachados = desenlaces.count(Desenlace.SALIO)
+        fallidos = desenlaces.count(Desenlace.FALLO)
+        reintentos = desenlaces.count(Desenlace.EN_REINTENTO)
+        if despachados or fallidos or reintentos:
             logger.info(
                 "recordatorios_despachados",
                 empresa_id=str(empresa_id),
                 cantidad=despachados,
                 fallidos=fallidos,
+                reintentos=reintentos,
             )
         return ResultadoDeBarrido(
-            procesados=despachados, evaluados=len(abiertos), fallidos=fallidos
+            procesados=despachados,
+            evaluados=len(abiertos),
+            fallidos=fallidos,
+            reintentos=reintentos,
         )
 
     async def _despachar_uno(
@@ -197,13 +205,10 @@ class DespacharRecordatorios:
         previos: list[Recordatorio],
         cadena: tuple[PasoDeCadena, ...],
         ahora: datetime,
-    ) -> EstadoEntrega | None:
-        """Devuelve cómo terminó el envío, o `None` si no intentó ninguno.
-
-        Nunca levanta: un cobro roto no frena a los demás.
-        """
+    ) -> Desenlace:
+        """Devuelve cómo terminó el trato con el cobro. Nunca levanta: un cobro roto no frena a los demás."""
         if not cobro.recibe_recordatorios:  # pragma: no cover - `abiertos` ya los filtra
-            return None
+            return Desenlace.NADA
 
         # Contando desde 1: `paso` es una columna que alguien va a leer en una consulta, y
         # «paso 0» no significa nada para quien la mire.
@@ -212,61 +217,24 @@ class DespacharRecordatorios:
         if paso is None:
             # La cadena se terminó. No es un error: hay un tope de pasos a propósito, y una
             # deuda que sigue impaga después del último recordatorio es un problema humano.
-            return None
+            return Desenlace.NADA
 
         # **El día cero es el vencimiento**, no la creación del cobro. Es lo que hace legible
         # una cadena de «a los 3, a los 7, a los 15» y lo que la historia describe.
         if (ahora - cobro.vence_el).days < paso.dias:
-            return None
+            return Desenlace.NADA
 
-        recordatorio = Recordatorio(id=uuid4(), cobro_id=cobro.id, paso=numero, canal=paso.canal)
-        try:
-            await self._recordatorios.agregar(recordatorio)
-        except RecordatorioDuplicado:
-            # Otro barrido llegó primero. **No es un error**: significa «esto ya salió», que
-            # es exactamente lo que RN-05 pide garantizar.
-            logger.info("recordatorio_ya_despachado", cobro_id=str(cobro.id), paso=numero)
-            return None
-
-        try:
-            resultado = await self._envio.enviar(
-                empresa_id=empresa_id, cobro=cobro, canal=paso.canal, paso=numero
+        existente = next((uno for uno in previos if uno.paso == numero), None)
+        if existente is None:
+            return await self._envio.enviar_nuevo(
+                empresa_id=empresa_id, cobro=cobro, canal=paso.canal, numero=numero
             )
-        except Exception as exc:  # noqa: BLE001 — ver abajo
-            # `Exception` es lo que `CLAUDE.md` §5 prohíbe en general, y acá está acotado por el
-            # motivo: el puerto lo implementan adaptadores que podrían levantar cualquier cosa,
-            # y su contrato dice que no deben. Es defensa en profundidad (igual que
-            # `SalidaAlCliente`): el paso queda `FALLIDO` con fecha y el índice `(cobro_id,
-            # paso)` no lo deja salir otra vez. Sólo la clase de la excepción, nunca su texto.
-            logger.warning(
-                "recordatorio_envio_fallido",
-                cobro_id=str(cobro.id),
-                paso=numero,
-                causa=type(exc).__name__,
+        if existente.sin_intentar:
+            return await self._envio.retomar(
+                empresa_id=empresa_id, recordatorio_id=existente.id, ahora=ahora
             )
-            resultado = ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo="ERROR")
-        estado = resultado.estado
-        recordatorio.marcar_enviado(ahora, externo_id=resultado.externo_id)
-        recordatorio.marcar_entrega(estado, motivo=resultado.codigo)
-        await self._recordatorios.guardar(recordatorio)
-
-        await self._publicador.publicar(
-            EventoAuditable(
-                evento_id=uuid4(),
-                empresa_id=empresa_id,
-                ocurrido_en=ahora,
-                usuario_id=None,
-                modulo=Modulo.PAYMENTS,
-                accion="enviar_recordatorio",
-                entidad_afectada=f"Cobro:{cobro.id}",
-                # El envío fallido igual deja la fila (el índice único la necesita), pero la
-                # bitácora no puede decir que salió.
-                resultado=(
-                    Resultado.ERROR if estado is EstadoEntrega.FALLIDO else Resultado.COMPLETADO
-                ),
-            )
-        )
-        return estado
+        # En curso, esperando su reintento o descartada: de la pasada 1, o ya no se manda.
+        return Desenlace.NADA
 
 
 class VerRecordatorios:
