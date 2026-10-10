@@ -19,7 +19,7 @@ from fastapi import FastAPI
 
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.errors import registrar_manejadores
-from cheatsheet.api.middleware.empresa import EmpresaMiddleware
+from cheatsheet.api.middleware.empresa import EmpresaMiddleware, VerificadorDeSesion
 from cheatsheet.api.routers import (
     agenda,
     auth,
@@ -45,6 +45,9 @@ from cheatsheet.api.routers import (
     whatsapp,
 )
 from cheatsheet.contexts.business_config.application.errors import MetaNoDisponible
+from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
+    VerificadorDeSesionPostgres,
+)
 from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging, obtener_logger
@@ -55,15 +58,25 @@ TITULO = "CheatSheet API"
 VERSION = "0.1.0"
 
 
-def create_app(settings: Settings | None = None, recursos: Recursos | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    recursos: Recursos | None = None,
+    verificador: VerificadorDeSesion | None = None,
+) -> FastAPI:
     """Build the application.
 
-    Both arguments exist for tests: passing `recursos` skips creating a real engine
+    All three arguments exist for tests: passing `recursos` skips creating a real engine
     and a real Redis client, which is what lets an API test run without either.
+
+    `verificador` is the seam of the per-request session check. By default it reads the
+    user from PostgreSQL, so a test that signs a token for a user that is not in a database
+    gets a 401, which is the point. A test that exercises something *behind* the middleware
+    and has no database injects a fake that vouches for the identity.
     """
     settings = settings or Settings.desde_entorno()
     configurar_logging(settings)
     recursos = recursos or Recursos.crear(settings)
+    verificador = verificador or VerificadorDeSesionPostgres(recursos.sesiones)
 
     @asynccontextmanager
     async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
@@ -82,7 +95,7 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
         redoc_url=None,
     )
 
-    app.add_middleware(EmpresaMiddleware, settings=settings)
+    app.add_middleware(EmpresaMiddleware, settings=settings, verificador=verificador)
     registrar_manejadores(app)
     # More specific than the generic domain handler, and registered after it so it
     # wins: the uniform `{error, detalle}` body has nowhere to put the id of the
