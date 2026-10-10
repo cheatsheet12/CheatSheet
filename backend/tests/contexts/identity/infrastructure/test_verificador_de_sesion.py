@@ -19,16 +19,20 @@ from cheatsheet.contexts.identity.application.errors import (
     VerificacionNoDisponible,
 )
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import IdentidadVigente
+from cheatsheet.contexts.identity.domain.legal import CatalogoLegal
 from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
     TIMEOUT_DE_CONSULTA_SEGUNDOS,
     VerificadorDeSesionPostgres,
 )
 from cheatsheet.platform.database import TIMEOUT_DE_CONEXION_SEGUNDOS
+from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from sqlalchemy.exc import SQLAlchemyError
 
+from tests.conftest import INSTANTE_FIJO
 from tests.contexts.identity.base_falsa import EscenarioDeBase, fabrica_de_sesiones, fila
+from tests.contexts.identity.conftest import CatalogoLegalEnMemoria
 
 #: The scaled-down query limit, and a delay that is clearly beyond it but well under any
 #: real limit.
@@ -37,7 +41,12 @@ DEMORA = 0.15
 
 
 def _verificador(escenario: EscenarioDeBase) -> VerificadorDeSesionPostgres:
-    return VerificadorDeSesionPostgres(fabrica_de_sesiones(escenario), timeout_de_consulta=LIMITE)
+    return VerificadorDeSesionPostgres(
+        fabrica_de_sesiones(escenario),
+        catalogo=CatalogoLegal(CatalogoLegalEnMemoria().versiones()),
+        reloj=RelojFijo(INSTANTE_FIJO),
+        timeout_de_consulta=LIMITE,
+    )
 
 
 @pytest.mark.asyncio

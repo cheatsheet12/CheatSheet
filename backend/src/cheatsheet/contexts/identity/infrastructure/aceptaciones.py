@@ -7,6 +7,7 @@ Only `INSERT` and `SELECT`: the application role has no `UPDATE` or `DELETE` on 
 from __future__ import annotations
 
 from sqlalchemy import exists, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cheatsheet.contexts.identity.domain.legal import AceptacionLegal, DocumentoLegal
@@ -18,9 +19,16 @@ class RepositorioAceptacionLegalPostgres:
     def __init__(self, sesion: AsyncSession) -> None:
         self._sesion = sesion
 
-    async def agregar(self, aceptacion: AceptacionLegal) -> None:
-        self._sesion.add(
-            AceptacionLegalORM(
+    async def agregar(self, aceptacion: AceptacionLegal) -> bool:
+        """`INSERT ... ON CONFLICT DO NOTHING`: the partial unique indexes decide a race.
+
+        Two requests accepting the same version at once both pass the caller's check; the
+        second insert is refused by the index and reports `False` instead of failing the
+        transaction with an integrity error.
+        """
+        resultado = await self._sesion.execute(
+            insert(AceptacionLegalORM)
+            .values(
                 id=aceptacion.id,
                 empresa_id=aceptacion.empresa_id,
                 usuario_id=aceptacion.usuario_id,
@@ -28,8 +36,10 @@ class RepositorioAceptacionLegalPostgres:
                 version=aceptacion.version,
                 fecha_aceptacion=aceptacion.fecha_aceptacion,
             )
+            .on_conflict_do_nothing()
+            .returning(AceptacionLegalORM.id)
         )
-        await self._sesion.flush()
+        return resultado.scalar_one_or_none() is not None
 
     async def acepto(self, usuario_id: UsuarioId, documento: DocumentoLegal, version: str) -> bool:
         consulta = select(

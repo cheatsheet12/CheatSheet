@@ -1,10 +1,12 @@
-"""Recording what a person accepts when an account is born (HU-E1-03, HU-E1-08).
+"""Recording what a person accepts, at sign-up and afterwards (HU-E1-03, HU-E1-08).
 
 Both ways of creating an account carry a consent: signing up (the company's terms **and** the
 person's privacy policy) and accepting an invitation (the privacy policy only, because the
 terms were accepted by the company's Administrator, HU-E1-08 RN-04). This service is the one
 place that checks the consent against the versions in force and writes the evidence, so the
-three use cases cannot drift apart.
+three use cases cannot drift apart. A person who is already inside a session and owes a new
+version (HU-E1-03 RN-03, HU-E1-08 RN-05) accepts through `AceptarDocumentosLegales`, which
+goes through the same service.
 
 **The backend decides, not the form** (HU-E1-03 RN-02). A missing version is rejected as an
 input error; a version that is not the one in force is a conflict, because the person read a
@@ -16,10 +18,12 @@ transaction, so a rejection also leaves no company, no user and no acceptance be
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import uuid4
 
+from cheatsheet.contexts.identity.application.autorizacion import exigir_administrador
 from cheatsheet.contexts.identity.application.errors import (
     ConsentimientoRequerido,
     VersionLegalDesactualizada,
@@ -28,11 +32,14 @@ from cheatsheet.contexts.identity.application.legal import vigente_a
 from cheatsheet.contexts.identity.application.ports import (
     PortCatalogoLegal,
     PortRepositorioAceptacionLegal,
+    PortRepositorioEmpresa,
 )
 from cheatsheet.contexts.identity.domain.legal import AceptacionLegal, DocumentoLegal
 from cheatsheet.contexts.identity.domain.usuario import Usuario
+from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
-from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 from cheatsheet.shared.events import PublicadorDeEventos
 
 MENSAJE_DE_TERMINOS = "Debe aceptar los términos y condiciones para continuar."
@@ -82,6 +89,10 @@ class RegistradorDeAceptaciones:
         """The invitee's single box (HU-E1-08 RN-04)."""
         return self._exigir(DocumentoLegal.PRIVACIDAD, version_privacidad, ahora)
 
+    def exigir_vigente(self, documento: DocumentoLegal, version: str, ahora: datetime) -> str:
+        """One document, in force today: what a person already inside accepts."""
+        return self._exigir(documento, version, ahora)
+
     def _exigir(self, documento: DocumentoLegal, version: str | None, ahora: datetime) -> str:
         if not version:
             raise ConsentimientoRequerido(
@@ -104,8 +115,13 @@ class RegistradorDeAceptaciones:
         direccion_ip: str | None,
     ) -> None:
         """Terms (the company's, through its first Administrator) and privacy (the person's)."""
-        await self._registrar(
-            usuario, DocumentoLegal.TERMINOS, consentimiento.version_terminos, ahora, direccion_ip
+        await self.registrar(
+            empresa_id=usuario.empresa_id,
+            usuario_id=usuario.id,
+            documento=DocumentoLegal.TERMINOS,
+            version=consentimiento.version_terminos,
+            ahora=ahora,
+            direccion_ip=direccion_ip,
         )
         await self.registrar_privacidad(
             usuario=usuario,
@@ -117,28 +133,43 @@ class RegistradorDeAceptaciones:
     async def registrar_privacidad(
         self, *, usuario: Usuario, version: str, ahora: datetime, direccion_ip: str | None
     ) -> None:
-        await self._registrar(usuario, DocumentoLegal.PRIVACIDAD, version, ahora, direccion_ip)
+        await self.registrar(
+            empresa_id=usuario.empresa_id,
+            usuario_id=usuario.id,
+            documento=DocumentoLegal.PRIVACIDAD,
+            version=version,
+            ahora=ahora,
+            direccion_ip=direccion_ip,
+        )
 
-    async def _registrar(
+    async def registrar(
         self,
-        usuario: Usuario,
+        *,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
         documento: DocumentoLegal,
         version: str,
         ahora: datetime,
         direccion_ip: str | None,
     ) -> None:
-        empresa_id: EmpresaId = usuario.empresa_id
-        await self._aceptaciones.agregar(
+        """Writes the evidence and the audit event, unless the table already had that row.
+
+        Two requests racing to record the same acceptance leave one row (the table refuses the
+        second) and so one event: the log must not say twice what happened once.
+        """
+        registrada = await self._aceptaciones.agregar(
             AceptacionLegal.registrar(
                 empresa_id=empresa_id,
-                usuario_id=usuario.id,
+                usuario_id=usuario_id,
                 documento=documento,
                 version=version,
                 fecha_aceptacion=ahora,
             )
         )
+        if not registrada:
+            return
         es_de_terminos = documento is DocumentoLegal.TERMINOS
-        entidad = f"Empresa:{empresa_id}" if es_de_terminos else f"Usuario:{usuario.id}"
+        entidad = f"Empresa:{empresa_id}" if es_de_terminos else f"Usuario:{usuario_id}"
         await self._publicador.publicar(
             EventoAuditable(
                 evento_id=uuid4(),
@@ -150,8 +181,115 @@ class RegistradorDeAceptaciones:
                 # accepted without opening each event (HU-E1-08 criterion 8).
                 entidad_afectada=f"{entidad} {documento.value.lower()} {version}",
                 resultado=Resultado.COMPLETADO,
-                usuario_id=usuario.id,
+                usuario_id=usuario_id,
                 direccion_ip=direccion_ip,
                 detalle={"documento": documento.value, "version": version},
             )
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentoAceptado:
+    """One `(document, version)` pair a person says they accept."""
+
+    documento: DocumentoLegal
+    version: str
+
+
+class AceptarDocumentosLegales:
+    """A person already inside accepts the versions now in force (HU-E1-03 RN-03, HU-E1-08 RN-05).
+
+    Guarantees:
+
+    - **only what is in force today** can be accepted (`VersionLegalDesactualizada`, 409);
+    - **the terms belong to the company, so only an Administrador accepts them**
+      (`PermisoDenegado`, 403); a privacy policy is personal and any role accepts its own;
+    - **all or nothing**: every document is validated before the first is written, so a request
+      that mixes a valid privacy policy with terms the role may not accept records neither;
+    - **idempotent per version**: accepting what is already on record writes no second row and
+      no second event, whether the repeat is a double click or a retry;
+    - the terms on record in `empresa.terminos_*` (the DER's state in force) move with the
+      acceptance, in the same transaction as the evidence row.
+    """
+
+    def __init__(
+        self,
+        *,
+        empresas: PortRepositorioEmpresa,
+        aceptaciones: PortRepositorioAceptacionLegal,
+        registrador: RegistradorDeAceptaciones,
+    ) -> None:
+        self._empresas = empresas
+        self._aceptaciones = aceptaciones
+        self._registrador = registrador
+
+    async def ejecutar(
+        self,
+        *,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
+        rol: RolUsuario,
+        documentos: Sequence[DocumentoAceptado],
+        ahora: datetime,
+        direccion_ip: str | None = None,
+    ) -> None:
+        if not documentos:
+            raise EntradaInvalida("Indique al menos un documento legal para aceptar")
+        for aceptado in documentos:
+            if aceptado.documento is DocumentoLegal.TERMINOS:
+                exigir_administrador(
+                    rol, "Solo un Administrador puede aceptar los términos de la empresa"
+                )
+            self._registrador.exigir_vigente(aceptado.documento, aceptado.version, ahora)
+        for aceptado in dict.fromkeys(documentos):
+            if aceptado.documento is DocumentoLegal.TERMINOS:
+                await self._terminos(empresa_id, usuario_id, aceptado.version, ahora, direccion_ip)
+            else:
+                await self._privacidad(
+                    empresa_id, usuario_id, aceptado.version, ahora, direccion_ip
+                )
+
+    async def _privacidad(
+        self,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
+        version: str,
+        ahora: datetime,
+        direccion_ip: str | None,
+    ) -> None:
+        if await self._aceptaciones.acepto(usuario_id, DocumentoLegal.PRIVACIDAD, version):
+            return
+        await self._registrador.registrar(
+            empresa_id=empresa_id,
+            usuario_id=usuario_id,
+            documento=DocumentoLegal.PRIVACIDAD,
+            version=version,
+            ahora=ahora,
+            direccion_ip=direccion_ip,
+        )
+
+    async def _terminos(
+        self,
+        empresa_id: EmpresaId,
+        usuario_id: UsuarioId,
+        version: str,
+        ahora: datetime,
+        direccion_ip: str | None,
+    ) -> None:
+        empresa = await self._empresas.buscar_por_id(empresa_id)
+        if empresa is None:
+            raise InvarianteViolada("La empresa no existe")
+        # The terms are the company's: if another Administrador already accepted this version,
+        # there is nothing left to record.
+        if not empresa.debe_reaceptar_terminos(version):
+            return
+        empresa.aceptar_terminos(version, ahora)
+        await self._empresas.guardar(empresa)
+        await self._registrador.registrar(
+            empresa_id=empresa_id,
+            usuario_id=usuario_id,
+            documento=DocumentoLegal.TERMINOS,
+            version=version,
+            ahora=ahora,
+            direccion_ip=direccion_ip,
         )

@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import IdentidadVigente
+from cheatsheet.contexts.identity.domain.legal import DocumentoLegal
 from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.contexts.identity.infrastructure.seguridad import EmisorDeTokensJWT
 from cheatsheet.platform.settings import Settings
@@ -24,6 +25,7 @@ class VerificadorDeSesionFalso:
     `error` makes it raise instead (a revoked session, or an infrastructure failure), and
     `devuelve` makes it answer with an identity that differs from the claims, which is how a
     test shows that `request.state` comes from the verifier and not from the token.
+    `pendientes` are the legal documents the person still owes (none by default).
     """
 
     def __init__(
@@ -32,8 +34,10 @@ class VerificadorDeSesionFalso:
         rol: RolUsuario = RolUsuario.ADMINISTRADOR,
         error: Exception | None = None,
         devuelve: IdentidadVigente | None = None,
+        pendientes: frozenset[DocumentoLegal] = frozenset(),
     ) -> None:
         self.rol = rol
+        self.pendientes = pendientes
         self.error = error
         self.devuelve = devuelve
         self.llamadas: list[tuple[UsuarioId, EmpresaId]] = []
@@ -47,7 +51,10 @@ class VerificadorDeSesionFalso:
         if self.devuelve is not None:
             return self.devuelve
         return IdentidadVigente(
-            empresa_id=empresa_id_del_token, usuario_id=usuario_id, rol=self.rol
+            empresa_id=empresa_id_del_token,
+            usuario_id=usuario_id,
+            rol=self.rol,
+            pendientes=self.pendientes,
         )
 
 

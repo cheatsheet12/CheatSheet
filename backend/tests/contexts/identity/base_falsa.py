@@ -87,6 +87,19 @@ def fabrica_de_sesiones(escenario: EscenarioDeBase) -> async_sessionmaker[AsyncS
     return cast("async_sessionmaker[AsyncSession]", fabrica)
 
 
-def fila(empresa_id: EmpresaId, *, rol: str = "OPERADOR", estado: str = "ACTIVO") -> Any:
-    """The three columns the check selects."""
-    return SimpleNamespace(empresa_id=empresa_id, rol=rol, estado=estado)
+def fila(
+    empresa_id: EmpresaId,
+    *,
+    rol: str = "OPERADOR",
+    estado: str = "ACTIVO",
+    terminos_version: str | None = "1.0",
+    acepto_privacidad_vigente: bool = True,
+) -> Any:
+    """The columns the check selects."""
+    return SimpleNamespace(
+        empresa_id=empresa_id,
+        rol=rol,
+        estado=estado,
+        terminos_version=terminos_version,
+        acepto_privacidad_vigente=acepto_privacidad_vigente,
+    )

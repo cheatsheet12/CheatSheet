@@ -46,9 +46,11 @@ from cheatsheet.api.routers import (
     whatsapp,
 )
 from cheatsheet.contexts.business_config.application.errors import MetaNoDisponible
+from cheatsheet.contexts.identity.domain.legal import CatalogoLegal
 from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
     VerificadorDeSesionPostgres,
 )
+from cheatsheet.contexts.identity.infrastructure.legal.catalogo import catalogo_publicado
 from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import configurar_logging, obtener_logger
@@ -77,7 +79,12 @@ def create_app(
     settings = settings or Settings.desde_entorno()
     configurar_logging(settings)
     recursos = recursos or Recursos.crear(settings)
-    verificador = verificador or VerificadorDeSesionPostgres(recursos.sesiones)
+    verificador = verificador or VerificadorDeSesionPostgres(
+        recursos.sesiones,
+        # Built once with the process: the per-request check only looks versions up in it.
+        catalogo=CatalogoLegal(catalogo_publicado().versiones()),
+        reloj=recursos.reloj,
+    )
 
     @asynccontextmanager
     async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:

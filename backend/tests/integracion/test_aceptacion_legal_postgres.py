@@ -161,6 +161,27 @@ async def test_el_rol_de_la_aplicacion_no_puede_modificar_ni_borrar(
             await sesion.execute(text(sentencia))
 
 
+async def _insertar_sin_perdon(
+    sesiones: async_sessionmaker[AsyncSession], aceptacion: AceptacionLegal
+) -> None:
+    """A plain `INSERT` (no `ON CONFLICT`): what the partial unique indexes alone enforce."""
+    async with sesion_de_empresa(sesiones, aceptacion.empresa_id) as sesion:
+        await sesion.execute(
+            text(
+                "INSERT INTO aceptacion_legal (id, empresa_id, usuario_id, documento, version, "
+                "fecha_aceptacion) VALUES (:id, :e, :u, :d, :v, :f)"
+            ),
+            {
+                "id": aceptacion.id,
+                "e": aceptacion.empresa_id,
+                "u": aceptacion.usuario_id,
+                "d": aceptacion.documento.value,
+                "v": aceptacion.version,
+                "f": aceptacion.fecha_aceptacion,
+            },
+        )
+
+
 @pytest.mark.asyncio
 async def test_la_misma_version_de_privacidad_dos_veces_para_un_usuario_se_rechaza(
     sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
@@ -170,10 +191,30 @@ async def test_la_misma_version_de_privacidad_dos_veces_para_un_usuario_se_recha
     await _guardar(sesiones, empresa_id, _aceptacion(empresa_id, usuario_id))
 
     with pytest.raises(IntegrityError, match="uq_aceptacion_legal_privacidad"):
-        await _guardar(sesiones, empresa_id, _aceptacion(empresa_id, usuario_id))
+        await _insertar_sin_perdon(sesiones, _aceptacion(empresa_id, usuario_id))
 
     # A different version of the same document is a new acceptance, not a duplicate.
     await _guardar(sesiones, empresa_id, _aceptacion(empresa_id, usuario_id, version="2.0"))
+
+
+@pytest.mark.asyncio
+async def test_el_repositorio_no_falla_ante_un_duplicado_y_dice_que_no_escribio_nada(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+):
+    """Case 29 (race): the second of two requests accepting the same version is not an error.
+
+    `agregar` answers `False` and leaves the single row, so the caller publishes one audit
+    event and the request that lost the race still succeeds.
+    """
+    empresa_id, usuario_id = await _sembrar_usuario(engine_dueno)
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        repo = RepositorioAceptacionLegalPostgres(sesion)
+        primera = await repo.agregar(_aceptacion(empresa_id, usuario_id))
+        segunda = await repo.agregar(_aceptacion(empresa_id, usuario_id))
+        total = await sesion.execute(text("SELECT count(*) FROM aceptacion_legal"))
+
+    assert (primera, segunda) == (True, False)
+    assert total.scalar() == 1
 
 
 @pytest.mark.asyncio
@@ -185,7 +226,7 @@ async def test_la_misma_version_de_terminos_dos_veces_para_una_empresa_se_rechaz
     await _guardar(sesiones, empresa_id, _aceptacion(empresa_id, usuario_id, terminos, "1.1"))
 
     with pytest.raises(IntegrityError, match="uq_aceptacion_legal_terminos"):
-        await _guardar(sesiones, empresa_id, _aceptacion(empresa_id, None, terminos, "1.1"))
+        await _insertar_sin_perdon(sesiones, _aceptacion(empresa_id, None, terminos, "1.1"))
 
 
 @pytest.mark.asyncio

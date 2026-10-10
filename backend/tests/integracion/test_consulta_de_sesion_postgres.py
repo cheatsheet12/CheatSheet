@@ -15,7 +15,6 @@ from cheatsheet.contexts.identity.application.ports import EstadoActualDelUsuari
 from cheatsheet.contexts.identity.domain.valores import EstadoUsuario, RolUsuario
 from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
     ConsultaDeUsuarioVigentePostgres,
-    VerificadorDeSesionPostgres,
 )
 from cheatsheet.platform.database import sesion_de_empresa
 from cheatsheet.shared.empresa import UsuarioId
@@ -23,6 +22,11 @@ from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import (
+    VERSION_DE_PRIVACIDAD,
+    VERSION_DE_TERMINOS,
+    verificador_de_sesion,
+)
 from tests.integracion.test_identidad_postgres import _crear_cuenta
 
 pytestmark = [requiere_base, pytest.mark.integration]
@@ -42,7 +46,9 @@ async def test_el_adaptador_devuelve_rol_estado_y_empresa_de_un_usuario_de_la_em
     empresa_id, usuario_id = await _crear_cuenta(sesiones, "ana@empresa.com")
 
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
-        antes = await ConsultaDeUsuarioVigentePostgres(sesion).estado_actual(UsuarioId(usuario_id))
+        antes = await ConsultaDeUsuarioVigentePostgres(sesion).estado_actual(
+            UsuarioId(usuario_id), version_de_privacidad=VERSION_DE_PRIVACIDAD
+        )
     await _como_dueno(
         engine_dueno,
         "UPDATE usuario SET rol = 'OPERADOR', estado = 'INACTIVO' WHERE id = :id",
@@ -50,14 +56,22 @@ async def test_el_adaptador_devuelve_rol_estado_y_empresa_de_un_usuario_de_la_em
     )
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
         despues = await ConsultaDeUsuarioVigentePostgres(sesion).estado_actual(
-            UsuarioId(usuario_id)
+            UsuarioId(usuario_id), version_de_privacidad=VERSION_DE_PRIVACIDAD
         )
 
     assert antes == EstadoActualDelUsuario(
-        empresa_id=empresa_id, rol=RolUsuario.ADMINISTRADOR, estado=EstadoUsuario.ACTIVO
+        empresa_id=empresa_id,
+        rol=RolUsuario.ADMINISTRADOR,
+        estado=EstadoUsuario.ACTIVO,
+        terminos_version=VERSION_DE_TERMINOS,
+        acepto_privacidad_vigente=True,
     )
     assert despues == EstadoActualDelUsuario(
-        empresa_id=empresa_id, rol=RolUsuario.OPERADOR, estado=EstadoUsuario.INACTIVO
+        empresa_id=empresa_id,
+        rol=RolUsuario.OPERADOR,
+        estado=EstadoUsuario.INACTIVO,
+        terminos_version=VERSION_DE_TERMINOS,
+        acepto_privacidad_vigente=True,
     )
 
 
@@ -71,7 +85,7 @@ async def test_desde_la_sesion_de_otra_empresa_el_usuario_no_existe(
 
     async with sesion_de_empresa(sesiones, empresa_b) as sesion:
         visto = await ConsultaDeUsuarioVigentePostgres(sesion).estado_actual(
-            UsuarioId(usuario_de_a)
+            UsuarioId(usuario_de_a), version_de_privacidad=VERSION_DE_PRIVACIDAD
         )
 
     assert visto is None
@@ -87,7 +101,7 @@ async def test_el_verificador_trata_el_usuario_de_otra_empresa_como_inexistente(
     empresa_b, _ = await _crear_cuenta(sesiones, "beto@empresa-b.com")
 
     with pytest.raises(SesionRevocada) as error:
-        await VerificadorDeSesionPostgres(sesiones).verificar(
+        await verificador_de_sesion(sesiones).verificar(
             usuario_id=UsuarioId(usuario_de_a), empresa_id_del_token=empresa_b
         )
 
@@ -108,7 +122,7 @@ async def test_la_verificacion_es_una_sola_sentencia_y_no_toma_bloqueos(
 
     event.listen(engine_aplicacion.sync_engine, "before_cursor_execute", registrar)
     try:
-        identidad = await VerificadorDeSesionPostgres(sesiones).verificar(
+        identidad = await verificador_de_sesion(sesiones).verificar(
             usuario_id=UsuarioId(usuario_id), empresa_id_del_token=empresa_id
         )
     finally:
