@@ -10,10 +10,10 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from cheatsheet.contexts.payments.application.errors import DespachoNoPersistido
-from cheatsheet.contexts.payments.infrastructure.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.platform.database import GUC_EMPRESA
+from cheatsheet.platform.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.transaccion import DespachoNoPersistido
 from sqlalchemy.exc import OperationalError
 
 pytestmark = pytest.mark.asyncio

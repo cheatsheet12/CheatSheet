@@ -71,8 +71,10 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cobros y recordatorios | pagos-sin-cobro-asociado | payments | HU-E6-03, HS-T1 | cobro-con-clave-de-idempotencia | Luciano | — | pendiente |
 | Agente de WhatsApp y atención humana | canal-real-de-whatsapp | conversational | HS-T3, HU-E7-02, HU-E7-06, HU-E8-04 | — | Luciano | feature/conversational-canal-real-de-whatsapp | mergeada (#104) |
 | Agente de WhatsApp y atención humana | plantillas-de-whatsapp-en-meta | business_config | HU-E11-02, HU-E8-04, HS-T3, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp (mergeada), ADR-0011 (aceptado) | Luciano | feature/business_config-plantillas-de-whatsapp-en-meta | mergeada |
-| Agente de WhatsApp y atención humana | entregas-de-whatsapp | conversational | HU-E8-04, HS-T3, HU-E6-02, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp, plantillas-de-whatsapp-en-meta | Luciano | feature/conversational-entregas-de-whatsapp (tramos i, ii, iii) | en revisión |
-| Agente de WhatsApp y atención humana | recordatorio-de-turno | scheduling | HU-E8-04, HU-E11-01 | plantillas-de-whatsapp-en-meta, entregas-de-whatsapp | Luciano | — | pendiente |
+| Agente de WhatsApp y atención humana | entregas-de-whatsapp | conversational | HU-E8-04, HS-T3, HU-E6-02, HU-E7-02, HU-E7-06 | canal-real-de-whatsapp, plantillas-de-whatsapp-en-meta | Luciano | feature/conversational-entregas-de-whatsapp (tramos i, ii, iii) | mergeada |
+| Agente de WhatsApp y atención humana | recordatorio-de-turno | scheduling | HU-E8-04, HU-E11-01 | plantillas-de-whatsapp-en-meta, entregas-de-whatsapp | Luciano | feature/scheduling-recordatorio-de-turno (tramos 1, 2, 3) | en revisión |
+| Agente de WhatsApp y atención humana | wamid-entrante-largo | conversational | HS-T2 | entregas-de-whatsapp | Luciano | fix/conversational-wamid-entrante-largo | en revisión |
+| Agente de WhatsApp y atención humana | dobles-de-conversational-por-responsabilidad | conversational | HS-T2 | entregas-de-whatsapp | Luciano | fix/conversational-dobles-por-responsabilidad | en revisión |
 | Cobros y recordatorios | recordatorio-por-email | payments | HS-T3 | canal-real-de-whatsapp | Luciano | — | pendiente |
 | Cimientos, identidad y bitácora | integracion-en-neon | tests de integración (`backend/tests/integracion`, transversal) | — | — | Luciano | feature/infra-integracion-en-neon | mergeada |
 

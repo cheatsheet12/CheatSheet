@@ -8,6 +8,11 @@
  * importar desde acá (regla R5); todo lo que está bajo api/, components/ y hooks/ es interno.
  */
 
+export {
+  AdvertenciaDeRecordatorio,
+  MENSAJE_RECORDATORIO_SIN_APROBAR,
+} from "./components/AdvertenciaDeRecordatorio";
+export type { PropsDeAdvertenciaDeRecordatorio } from "./components/AdvertenciaDeRecordatorio";
 export { BandejaDeConversaciones } from "./components/BandejaDeConversaciones";
 export type { PropsDeBandejaDeConversaciones } from "./components/BandejaDeConversaciones";
 export { HiloDeConversacion } from "./components/HiloDeConversacion";

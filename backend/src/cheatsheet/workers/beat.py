@@ -117,6 +117,15 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
             "schedule": alineado(60),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
+        # U8 (HU-E8-04). Cada 15 minutos por defecto, configurable: el recordatorio de un turno
+        # llega a lo sumo con un cuarto de hora de atraso, y el reintento acotado (esperas de 15 y
+        # 30 minutos) necesita un barrido que pase seguido. La corrida solo reparte una tarea por
+        # empresa con un turno por recordar, así que cuesta una consulta de ids.
+        "recordar-turnos": {
+            "task": "scheduling.recordar_turnos",
+            "schedule": alineado(settings.recordatorio_de_turno_minutos),
+            "options": {"queue": Cola.NOTIFICATIONS.value},
+        },
         # Las FAQ que quedaron sin vector. Cada seis horas: sólo hay algo que hacer cuando el
         # proveedor de embeddings estuvo caído o cuando alguien cambió de modelo, y ninguna de
         # las dos cosas pasa varias veces por día. Mientras tanto la FAQ se lee y se edita; lo

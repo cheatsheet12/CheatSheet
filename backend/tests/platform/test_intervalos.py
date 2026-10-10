@@ -50,6 +50,7 @@ def test_un_intervalo_que_no_se_alinea_se_rechaza_en_vez_de_redondearse(minutos:
         "DLQ_BARRIDO_MINUTOS",
         "SYNC_PLANILLAS_MINUTOS",
         "BILLING_RECONCILIACION_MINUTOS",
+        "RECORDATORIO_DE_TURNO_MINUTOS",
     ],
 )
 def test_un_intervalo_mal_configurado_falla_al_arrancar(

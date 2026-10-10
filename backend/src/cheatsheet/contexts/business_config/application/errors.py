@@ -9,6 +9,8 @@ que llegar a la pantalla.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from cheatsheet.shared.errors import EntradaInvalida, ErrorDeDominio
 
 
@@ -18,6 +20,18 @@ class ReglaInexistente(EntradaInvalida):
 
 class ConfiguracionInvalida(EntradaInvalida):
     """La parametrizacion no tiene la forma que su tipo de regla exige (D24)."""
+
+
+class AgendaMalFormada(EntradaInvalida):
+    """La fila guardada de la agenda de notificación no se puede interpretar (D24).
+
+    Lleva el `regla_id` para que quien barre (el recordatorio de turno) deje un log útil y saltee
+    esa empresa sin abortar el resto. No lleva el contenido de la fila.
+    """
+
+    def __init__(self, mensaje: str, *, regla_id: UUID) -> None:
+        super().__init__(mensaje)
+        self.regla_id = regla_id
 
 
 class MetaRechazoLaPlantilla(EntradaInvalida):
@@ -51,6 +65,7 @@ class MetaNoConectada(ErrorDeDominio):
 
 
 __all__ = [
+    "AgendaMalFormada",
     "ConfiguracionInvalida",
     "MetaNoConectada",
     "MetaNoDisponible",

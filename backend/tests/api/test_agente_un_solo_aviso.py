@@ -12,6 +12,7 @@ El test del mensaje único **de punta a punta** vive en `tests/integracion/test_
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 from cheatsheet.api.conversacional import _NotificadorSilencioso
@@ -20,6 +21,7 @@ from cheatsheet.contexts.scheduling.application.ports import DatosDeAviso, PortN
 pytestmark = pytest.mark.asyncio
 
 DATOS = DatosDeAviso(
+    cliente_id=uuid4(),
     telefono="5491112345678",
     nombre_del_cliente="Ana",
     servicio="Corte",

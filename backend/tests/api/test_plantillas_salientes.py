@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from cheatsheet.api.avisos_de_turno import CanalDeAvisosViaConversacion
 from cheatsheet.api.plantillas_salientes import PlantillasViaConfiguracion
 from cheatsheet.contexts.business_config.application.plantillas import (
     DE_FABRICA,
@@ -25,6 +26,7 @@ from cheatsheet.contexts.business_config.domain.plantilla import (
     PlantillaDeNotificacion,
 )
 from cheatsheet.contexts.business_config.domain.regla import CanalNotificacion
+from cheatsheet.contexts.conversational.application.notificaciones import NotificarAlCliente
 from cheatsheet.contexts.conversational.infrastructure.canal import (
     ConfiguracionDeMensajeria,
     MensajeriaWhatsApp,
@@ -45,6 +47,11 @@ from cheatsheet.shared.empresa import EmpresaId
 
 from tests.contexts.business_config.application.dobles_plantillas import (
     RepositorioPlantillasEnMemoria,
+)
+from tests.contexts.conversational.application.dobles import (
+    RepositorioConversacionEnMemoria,
+    RepositorioMensajeEnMemoria,
+    sin_savepoint,
 )
 from tests.contexts.payments.application.test_cobros_y_recordatorios import enviar_de_punta_a_punta
 
@@ -101,6 +108,24 @@ def _canal(meta: _Meta) -> MensajeriaWhatsApp:
     )
 
 
+def _aviso(meta: _Meta, plantillas: PlantillasViaConfiguracion) -> AvisoPorWhatsApp:
+    """El aviso de turno real: Meta falso, `NotificarAlCliente` real sobre repositorios en memoria."""
+    caso = NotificarAlCliente(
+        conversaciones=RepositorioConversacionEnMemoria(),
+        mensajes=RepositorioMensajeEnMemoria(),
+        mensajeria=_canal(meta),
+        aislar=sin_savepoint,
+    )
+    return AvisoPorWhatsApp(
+        CanalDeAvisosViaConversacion(caso, empresa_id=EMPRESA, reloj=_Reloj()), plantillas
+    )
+
+
+class _Reloj:
+    def ahora(self) -> datetime:
+        return AHORA
+
+
 def _parametros(cuerpo: dict[str, object]) -> dict[str, str]:
     plantilla = cuerpo["template"]
     assert isinstance(plantilla, dict)
@@ -108,6 +133,7 @@ def _parametros(cuerpo: dict[str, object]) -> dict[str, str]:
 
 
 DATOS = DatosDeAviso(
+    cliente_id=uuid4(),
     telefono=TELEFONO,
     nombre_del_cliente="Ana Diaz",
     servicio="Corte",
@@ -139,7 +165,7 @@ async def test_la_cancelacion_aprobada_sale_como_template_con_los_parametros_que
     None
 ):
     meta = _Meta()
-    aviso = AvisoPorWhatsApp(_canal(meta), _plantillas(_aprobada("turno_cancelado")))
+    aviso = _aviso(meta, _plantillas(_aprobada("turno_cancelado")))
 
     await aviso.avisar_cancelacion(DATOS)
 
@@ -160,7 +186,7 @@ async def test_el_cuerpo_editado_por_el_administrador_cambia_los_parametros_que_
     editada = _aprobada(
         "turno_confirmado", "Hola {{nombre}}, te esperamos el {{fecha}} a las {{hora}}. Gracias."
     )
-    aviso = AvisoPorWhatsApp(_canal(meta), _plantillas(editada))
+    aviso = _aviso(meta, _plantillas(editada))
 
     await aviso.avisar_reserva(DATOS)
 
@@ -169,7 +195,7 @@ async def test_el_cuerpo_editado_por_el_administrador_cambia_los_parametros_que_
 
 async def test_la_reprogramacion_lleva_el_horario_anterior() -> None:
     meta = _Meta()
-    aviso = AvisoPorWhatsApp(_canal(meta), _plantillas(_aprobada("turno_reprogramado")))
+    aviso = _aviso(meta, _plantillas(_aprobada("turno_reprogramado")))
 
     await aviso.avisar_reprogramacion(DATOS)
 
@@ -182,13 +208,14 @@ async def test_una_reprogramacion_sin_horario_anterior_sale_como_texto_y_no_como
 ):
     meta = _Meta()
     sin_anterior = DatosDeAviso(
+        cliente_id=uuid4(),
         telefono=TELEFONO,
         nombre_del_cliente="Ana Diaz",
         servicio="Corte",
         recurso="Consultorio 1",
         inicio=DATOS.inicio,
     )
-    aviso = AvisoPorWhatsApp(_canal(meta), _plantillas(_aprobada("turno_reprogramado")))
+    aviso = _aviso(meta, _plantillas(_aprobada("turno_reprogramado")))
 
     await aviso.avisar_reprogramacion(sin_anterior)
 

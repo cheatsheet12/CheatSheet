@@ -13,7 +13,8 @@ reenvían explícitamente.
 
 from __future__ import annotations
 
-from cheatsheet.shared.errors import EntradaInvalida, ErrorDeDominio, InvarianteViolada
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.transaccion import DespachoNoPersistido  # reexportado: ver shared/
 
 
 class CobroInexistente(EntradaInvalida):
@@ -86,15 +87,6 @@ class RecordatorioDuplicado(EntradaInvalida):
 
     Es la idempotencia de HS-T3 RN-05 hecha excepción: el barrido la atrapa y sigue con el
     cobro siguiente, porque significa «esto ya salió», que no es un error.
-    """
-
-
-class DespachoNoPersistido(ErrorDeDominio):
-    """La base rechazó algo dentro del savepoint de un cobro del barrido (U5, H1).
-
-    Lo levanta el adaptador del aislamiento cuando un `SQLAlchemyError` sale del bloque. El
-    barrido lo registra y sigue con el cobro siguiente: sólo se deshacen las filas de **ese**
-    cobro. No lleva datos de la excepción original: puede traer valores de la fila.
     """
 
 
