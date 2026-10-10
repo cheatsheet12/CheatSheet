@@ -5,7 +5,7 @@ Two things in here decide more than they look like they do.
 **The credential is the pair of tokens.** `TicketEmitido` — the type `conexion-arca`
 introduced for ARCA's access ticket — anticipated carrying MercadoPago's refresh token,
 and it does not. Its `servicio` is a `ServicioDeArca`, so using it would mean renaming
-that enum and migrating `ticket_de_acceso`, a table whose entire reason to exist is that
+that enum and migrating the ticket tables, whose entire reason to exist is that
 ARCA distinguishes a two-year credential from a twelve-hour session and refuses to mint
 the second while the first lives. MercadoPago has no such distinction: there is no
 long-lived credential underneath, the company never typed anything, and renewing replaces

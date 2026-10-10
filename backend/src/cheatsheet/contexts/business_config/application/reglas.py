@@ -166,7 +166,7 @@ class CambiarEstadoDeRegla:
 class ConsultarReglasVigentes:
     """El Open Host Service: qué reglas rigen ahora, resueltas por prioridad (RN-05).
 
-    **No comprueba rol**, por la misma razón que `ObtenerTicketDeAcceso` no comprueba
+    **No comprueba rol**, por la misma razón que `ObtenerTicketDePlataforma` no comprueba
     ninguno: el llamador es otro contexto actuando por una empresa, y quien le pidió *a él*
     es donde vive la autorización.
 

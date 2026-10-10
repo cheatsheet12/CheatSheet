@@ -19,7 +19,6 @@ from cheatsheet.contexts.integrations.application.errors import CuentaDeWhatsApp
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
 from cheatsheet.contexts.integrations.domain.ticket import (
     ServicioDeArca,
-    TicketDeAcceso,
     TicketDePlataforma,
 )
 from cheatsheet.contexts.integrations.domain.valores import (
@@ -30,7 +29,6 @@ from cheatsheet.contexts.integrations.domain.valores import (
 )
 from cheatsheet.contexts.integrations.infrastructure.models import (
     ConfiguracionDeIntegracionORM,
-    TicketDeAccesoORM,
     TicketDePlataformaORM,
 )
 from cheatsheet.shared.empresa import EmpresaId
@@ -150,58 +148,6 @@ class RepositorioIntegracionesSQL:
         )
         filas = (await self._sesion.execute(consulta)).scalars().all()
         return [_a_dominio(fila) for fila in filas]
-
-
-class RepositorioTicketsSQL:
-    """Implements `PortRepositorioTickets`.
-
-    Company-scoped like everything else in this context, so Row-Level Security is the
-    barrier — which matters more here than elsewhere: a ticket is a live session, and one
-    company reading another's would be speaking to ARCA as that company.
-    """
-
-    def __init__(self, sesion: AsyncSession) -> None:
-        self._sesion = sesion
-
-    async def agregar(self, ticket: TicketDeAcceso) -> None:
-        self._sesion.add(
-            TicketDeAccesoORM(
-                id=ticket.id,
-                empresa_id=ticket.empresa_id,
-                servicio=ticket.servicio.value,
-                contenido_cifrado=ticket.contenido.contenido,
-                algoritmo=ticket.contenido.algoritmo,
-                expira_en=ticket.expira_en,
-            )
-        )
-        await self._sesion.flush()
-
-    async def guardar(self, ticket: TicketDeAcceso) -> None:
-        fila = await self._sesion.get(TicketDeAccesoORM, ticket.id)
-        if fila is None:  # pragma: no cover — loaded from this same session
-            return
-        fila.contenido_cifrado = ticket.contenido.contenido
-        fila.algoritmo = ticket.contenido.algoritmo
-        fila.expira_en = ticket.expira_en
-        await self._sesion.flush()
-
-    async def buscar(
-        self, empresa_id: EmpresaId, servicio: ServicioDeArca
-    ) -> TicketDeAcceso | None:
-        consulta = select(TicketDeAccesoORM).where(
-            TicketDeAccesoORM.empresa_id == empresa_id,
-            TicketDeAccesoORM.servicio == servicio.value,
-        )
-        fila = (await self._sesion.execute(consulta)).scalar_one_or_none()
-        if fila is None:
-            return None
-        return TicketDeAcceso(
-            id=fila.id,
-            empresa_id=EmpresaId(fila.empresa_id),
-            servicio=ServicioDeArca(fila.servicio),
-            contenido=CredencialCifrada(contenido=fila.contenido_cifrado, algoritmo=fila.algoritmo),
-            expira_en=fila.expira_en,
-        )
 
 
 async def empresas_con_integracion_pendiente(sesion: AsyncSession) -> list[EmpresaId]:

@@ -571,7 +571,6 @@ class Settings:
     arca_padron_url_produccion: str
     arca_timeout_segundos: int
     arca_margen_renovacion_minutos: int
-    arca_aviso_vencimiento_dias: int
     #: ADR-0014. The platform certificate and its private key, PEM, one after the other.
     #: Empty only with the simulator: with ARCA real it is how every company is reached.
     arca_credencial_plataforma: bytes
@@ -715,7 +714,6 @@ class Settings:
             arca_margen_renovacion_minutos=_entero("ARCA_MARGEN_RENOVACION_MINUTOS", 30),
             # Renewing a certificate at ARCA takes days, so finding out on the day it
             # expired means not being able to invoice.
-            arca_aviso_vencimiento_dias=_entero("ARCA_AVISO_VENCIMIENTO_DIAS", 30),
             mercadopago_adaptador=mercadopago,
             mercadopago_url_de_notificaciones=_url_de_notificaciones(mercadopago),
             # Our application's credentials, not a company's — the same shape as the

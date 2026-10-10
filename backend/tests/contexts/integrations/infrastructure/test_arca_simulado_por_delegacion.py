@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 import pytest
 from cheatsheet.contexts.integrations.application.errors import ConexionRechazada
 from cheatsheet.contexts.integrations.application.ports import MaterialDeConexion
@@ -25,9 +23,7 @@ pytestmark = pytest.mark.asyncio
 
 
 def _simulado() -> ArcaSimuladoPorDelegacion:
-    return ArcaSimuladoPorDelegacion(
-        entorno=Entorno.LOCAL, reloj=RelojFijo(INSTANTE_FIJO), aviso=timedelta(days=30)
-    )
+    return ArcaSimuladoPorDelegacion(entorno=Entorno.LOCAL, reloj=RelojFijo(INSTANTE_FIJO))
 
 
 def _material(cuit: str) -> MaterialDeConexion:
@@ -62,9 +58,7 @@ async def test_la_verificacion_simulada_conserva_el_estado() -> None:
 
 def test_no_se_construye_en_produccion() -> None:
     with pytest.raises(RuntimeError):
-        ArcaSimuladoPorDelegacion(
-            entorno=Entorno.PRODUCTION, reloj=RelojFijo(INSTANTE_FIJO), aviso=timedelta(days=30)
-        )
+        ArcaSimuladoPorDelegacion(entorno=Entorno.PRODUCTION, reloj=RelojFijo(INSTANTE_FIJO))
 
 
 async def test_el_ticket_del_padron_simulado_no_pasa_por_wsaa() -> None:
