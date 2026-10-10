@@ -766,3 +766,15 @@ porque ninguno es de HU-E1-05 ni de HU-E1-06.
 - **Cada navegación del panel cuesta dos lecturas a la base**, cada una con su conexión del pool: la
   verificación del middleware y la propia `GET /auth/empresa`. Sigue valiendo la propuesta de §4 de
   un endpoint de «contexto de sesión» que devuelva empresa + usuario + rol de una vez.
+
+## 26. Hallazgos de `recordatorio-de-turno`
+
+- **Prioridad negativa al actualizar una regla de atención o de escalamiento responde 500.**
+  La revisión del slice 1 encontró que `ConfigurarHorarioDeAtencion` (`atencion.py:89`) y el caso
+  de uso de escalamiento (`reglas.py:95`) asignan `regla.prioridad = prioridad` sobre una regla
+  existente sin pasar por la validación de `ReglaDeNegocio.__post_init__`, que solo corre al
+  crear. Un `PUT` con `prioridad: -1` sobre una regla ya guardada llega al `CHECK` de la base y
+  devuelve 500 en vez de 422. El camino de alta ya responde 422. El arreglo es el mismo que se
+  aplicó a la agenda: usar `ReglaDeNegocio.cambiar_prioridad` (que valida) antes de reconfigurar,
+  con su prueba de caso de uso. Sin unidad: no se tocó en `recordatorio-de-turno` para no
+  ensanchar el alcance.
