@@ -99,7 +99,7 @@ commit `test(conversational): split the hand-written doubles by responsibility`.
 |---|---|---|
 | 1 · Plan | 2026-10-09 | Aprobado por Luciano con las recomendaciones D1–D4 |
 | 2 · Verificación | 2026-10-09 | Aprobado por Luciano. Mismos 3450 tests recolectados antes y después; ruff, mypy, pytest y arquitectura en verde; ningún cambio en `backend/src/`. El CI local completo se corre en el Gate 3, cuando U7 entre a `develop` |
-| 3 · PR | | |
+| 3 · PR | 2026-10-10 | PR a develop, después de `entregas-de-whatsapp` (#122). GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
 
