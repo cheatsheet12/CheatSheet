@@ -289,14 +289,14 @@ No aplica.
 ## Archivos a tocar
 
 **Tramo 1 — textos públicos**
-- [ ] `backend/src/cheatsheet/contexts/identity/domain/legal.py` (`DocumentoLegal`, `VersionDeDocumento`, `CatalogoLegal`)
-- [ ] `backend/src/cheatsheet/contexts/identity/infrastructure/legal/catalogo.py` · `legal/terminos/<v>.md` · `legal/privacidad/<v>.md`
-- [ ] `backend/src/cheatsheet/contexts/identity/application/legal.py` (`ConsultarDocumentoVigente`, `ConsultarVersionesVigentes`) · `application/ports.py` (`PortCatalogoLegal`)
-- [ ] `backend/src/cheatsheet/api/routers/legal.py` · `api/main.py` · `api/middleware/empresa.py` (`RUTAS_PUBLICAS`)
-- [ ] `frontend/src/features/identity/components/{TextoLegal,EnlacesLegales,AvisoDePrivacidad}.tsx` · `index.ts` · `api/cliente.ts`
-- [ ] `frontend/src/app/(public)/terminos/page.tsx` · `(public)/privacidad/page.tsx` · `(public)/contador/[valor]/page.tsx` · `(panel)/carcasa-del-panel.tsx` · `FormularioDeIngreso.tsx` (solo el pie)
-- [ ] Tests: `backend/tests/contexts/identity/domain/test_legal.py` · `.../application/test_legal.py` · `backend/tests/api/test_legal.py` · tests de componentes y páginas
-- [ ] `docs/aidlc/TODO.md` (validación legal del texto, pregunta 2)
+- [x] `backend/src/cheatsheet/contexts/identity/domain/legal.py` (`DocumentoLegal`, `VersionDeDocumento`, `CatalogoLegal`)
+- [x] `backend/src/cheatsheet/contexts/identity/infrastructure/legal/catalogo.py` · `legal/terminos/<v>.md` · `legal/privacidad/<v>.md`
+- [x] `backend/src/cheatsheet/contexts/identity/application/legal.py` (`ConsultarDocumentoVigente`, `ConsultarVersionesVigentes`) · `application/ports.py` (`PortCatalogoLegal`)
+- [x] `backend/src/cheatsheet/api/routers/legal.py` · `api/main.py` · `api/middleware/empresa.py` (`RUTAS_PUBLICAS`)
+- [x] `frontend/src/features/identity/components/{TextoLegal,EnlacesLegales,AvisoDePrivacidad}.tsx` · `index.ts` · `api/cliente.ts`
+- [x] `frontend/src/app/(public)/terminos/page.tsx` · `(public)/privacidad/page.tsx` · `(public)/contador/[valor]/page.tsx` · `(panel)/carcasa-del-panel.tsx` · `FormularioDeIngreso.tsx` (solo el pie)
+- [x] Tests: `backend/tests/contexts/identity/domain/test_legal.py` · `.../application/test_legal.py` · `backend/tests/api/test_legal.py` · tests de componentes y páginas
+- [x] `docs/aidlc/TODO.md` (validación legal del texto, pregunta 2)
 
 **Tramo 2 — aceptación en el alta**
 - [ ] `backend/migrations/versions/00NN_aceptacion_legal.py` · `backend/migrations/env.py` (importar el modelo)
@@ -324,16 +324,16 @@ frontend con `vitest` (`npm run test:coverage`). Ningún test toca la red.
 
 | # | Caso | Tipo | Tramo | Estado |
 |---|---|---|---|---|
-| 1 | `CatalogoLegal.vigente` elige la de mayor `vigente_desde <= hoy`; una futura no es vigente | unit dominio | 1 | pendiente |
-| 2 | El catálogo rechaza dos versiones con el mismo identificador o la misma fecha | unit dominio | 1 | pendiente |
-| 3 | El SHA-256 de cada archivo publicado coincide con el declarado (editar un texto rompe la CI) | unit infra | 1 | pendiente |
-| 4 | El texto vigente de privacidad contiene los apartados mínimos de RN-07 (finalidad, destinatarios, responsable, carácter de los datos, derechos ARCO, clientes finales y proveedores, verificación del pagador contra MercadoPago) | unit infra | 1 | pendiente |
-| 5 | `GET /legal/terminos` y `/legal/privacidad` responden **sin token** con versión y fecha | API | 1 | pendiente |
-| 6 | Una ruta con prefijo `/legal/` que no está en la lista exacta **sí** exige sesión | API | 1 | pendiente |
-| 7 | `/terminos` y `/privacidad` muestran versión, fecha de vigencia y la marca de borrador | página (vitest) | 1 | pendiente |
-| 8 | `TextoLegal` no interpreta HTML incrustado en el texto | componente | 1 | pendiente |
-| 9 | El pie del ingreso (ambos modos), del registro y del panel enlaza las dos páginas | componente | 1 | pendiente |
-| 10 | La página del contador muestra el aviso con el enlace y no ofrece aceptar | página | 1 | pendiente |
+| 1 | `CatalogoLegal.vigente` elige la de mayor `vigente_desde <= hoy`; una futura no es vigente | unit dominio | 1 | hecho |
+| 2 | El catálogo rechaza dos versiones con el mismo identificador o la misma fecha | unit dominio | 1 | hecho |
+| 3 | El SHA-256 de cada archivo publicado coincide con el declarado (editar un texto rompe la CI) | unit infra | 1 | hecho |
+| 4 | El texto vigente de privacidad contiene los apartados mínimos de RN-07 (finalidad, destinatarios, responsable, carácter de los datos, derechos ARCO, clientes finales y proveedores, verificación del pagador contra MercadoPago) | unit infra | 1 | hecho |
+| 5 | `GET /legal/terminos` y `/legal/privacidad` responden **sin token** con versión y fecha | API | 1 | hecho |
+| 6 | Una ruta con prefijo `/legal/` que no está en la lista exacta **sí** exige sesión | API | 1 | hecho |
+| 7 | `/terminos` y `/privacidad` muestran versión, fecha de vigencia y la marca de borrador | página (vitest) | 1 | hecho |
+| 8 | `TextoLegal` no interpreta HTML incrustado en el texto | componente | 1 | hecho |
+| 9 | El pie del ingreso (ambos modos), del registro y del panel enlaza las dos páginas | componente | 1 | hecho |
+| 10 | La página del contador muestra el aviso con el enlace y no ofrece aceptar | página | 1 | hecho |
 | 11 | `AceptacionLegal` exige versión, fecha con zona y `usuario_id` para `PRIVACIDAD` | unit dominio | 2 | pendiente |
 | 12 | Registro sin consentimiento → 422 con «Debe aceptar …» y no crea empresa ni usuario | unit aplicación + API | 2 | pendiente |
 | 13 | Registro con una versión que ya no es la vigente → 409 y no crea nada | unit aplicación | 2 | pendiente |
