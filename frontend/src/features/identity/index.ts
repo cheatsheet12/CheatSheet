@@ -10,7 +10,10 @@
  * uses relative paths and the rule stays unambiguous instead of needing an exception.
  */
 
+export { AvisoDePrivacidad } from "./components/AvisoDePrivacidad";
 export { BotonDeSalida } from "./components/BotonDeSalida";
+export { DocumentoLegalPublico } from "./components/DocumentoLegalPublico";
+export { EnlacesLegales } from "./components/EnlacesLegales";
 export { FormularioDeAceptacion } from "./components/FormularioDeAceptacion";
 export { FormularioDeEmpresa } from "./components/FormularioDeEmpresa";
 export { FormularioDeIngreso } from "./components/FormularioDeIngreso";
@@ -18,8 +21,11 @@ export { FormularioDePreferencias } from "./components/FormularioDePreferencias"
 export { ModalDeInvitacion } from "./components/ModalDeInvitacion";
 export { RenovadorDeSesion } from "./components/RenovadorDeSesion";
 export { TablaDeUsuarios } from "./components/TablaDeUsuarios";
+export { TextoLegal } from "./components/TextoLegal";
 export type {
   ConsultaDePadron,
+  DocumentoLegal,
+  DocumentoLegalPublicado,
   EmpresaActual,
   EstadoDePadron,
   EstadoUsuario,

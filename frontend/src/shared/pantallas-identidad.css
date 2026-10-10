@@ -1667,3 +1667,85 @@
     transition: none;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Textos legales públicos — PAN-LEG-01/02 (HU-E1-03 RN-04, HU-E1-08 RN-06)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Los dos enlaces del pie: términos y política. Se parten en dos líneas en pantallas
+   angostas en vez de desbordar. */
+.acc-legales {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-3);
+}
+
+/* La barra lateral es oscura y angosta: los enlaces van apilados y claros, y desaparecen
+   cuando la barra se reduce a íconos, porque ahí no entra texto. */
+.sidebar__legales {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 2px;
+  margin: 0 12px 14px;
+  padding: 0 10px;
+}
+
+.sidebar__legales .acc-enlace {
+  color: rgb(255 255 255 / 60%);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.sidebar__legales .acc-enlace:hover {
+  color: #fff;
+}
+
+.app[data-colapsada="true"] .sidebar__legales {
+  display: none;
+}
+
+.legal {
+  text-align: left;
+}
+
+.legal__encabezado {
+  margin-bottom: var(--space-4);
+  text-align: center;
+}
+
+.legal__borrador {
+  margin-bottom: var(--space-4);
+}
+
+.legal__titulo {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.legal__texto {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink-700);
+}
+
+.legal__texto p {
+  margin: 0 0 var(--space-3);
+}
+
+.legal__texto ul {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-6);
+}
+
+.legal__aviso {
+  margin: var(--space-4) auto 0;
+  max-width: 40rem;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}

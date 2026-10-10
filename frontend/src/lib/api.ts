@@ -42,6 +42,13 @@ export interface OpcionesDeLlamada {
   /** Off by default: a panel showing invoices must not serve a cached page. */
   readonly cache?: RequestCache;
   /**
+   * For **public pages that must not fail** (HU-E1-03 RN-05): Next caches the response and
+   * revalidates it at most this often, and if the backend is down when it does, it keeps
+   * serving the last good copy. Replaces `cache` — the two are mutually exclusive, and
+   * everything else keeps the `no-store` default.
+   */
+  readonly revalidarCadaSegundos?: number;
+  /**
    * Cabeceras extra para el backend. Existe por pocos casos y conviene que siga así (el
    * `X-Idempotency-Key` de un pedido con efecto externo, ADR-0013, es el segundo): el
    * `state` del ida y vuelta con Google viaja en una cookie que el backend vuelve a
@@ -78,7 +85,9 @@ export async function llamarApi<T>(ruta: string, opciones: OpcionesDeLlamada = {
     const respuesta = await fetch(`${urlDelBackend()}${ruta}`, {
       method,
       signal: control.signal,
-      cache: opciones.cache ?? "no-store",
+      ...(opciones.revalidarCadaSegundos !== undefined
+        ? { next: { revalidate: opciones.revalidarCadaSegundos } }
+        : { cache: opciones.cache ?? "no-store" }),
       headers: {
         "Content-Type": "application/json",
         ...(token !== undefined ? { Authorization: `Bearer ${token}` } : {}),

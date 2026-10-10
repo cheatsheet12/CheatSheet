@@ -31,6 +31,7 @@ import {
 } from "@/shared";
 
 import { ErrorDeFormulario, ingresar, registrar } from "../api/cliente";
+import { EnlacesLegales } from "./EnlacesLegales";
 import { PASOS_DEL_ONBOARDING } from "./pasos";
 
 const LARGO_MINIMO_CONTRASENA = 8;
@@ -226,6 +227,9 @@ export function FormularioDeIngreso(): JSX.Element {
             {registrando ? "Ya tengo cuenta" : "Registrate"}
           </button>
         </p>
+
+        {/* HU-E1-08 RN-06: la política se puede leer antes de registrarse y también al ingresar. */}
+        <EnlacesLegales />
       </section>
     </>
   );

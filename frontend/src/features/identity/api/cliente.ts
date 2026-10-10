@@ -79,6 +79,21 @@ export interface DatosDeInvitacion {
   readonly rol: RolUsuario;
 }
 
+/** The closed set of legal documents (mirrors `DocumentoLegal` in the backend). */
+export type DocumentoLegal = "TERMINOS" | "PRIVACIDAD";
+
+/** What `GET /legal/terminos` and `GET /legal/privacidad` answer: the version in force. */
+export interface DocumentoLegalPublicado {
+  readonly documento: DocumentoLegal;
+  readonly version: string;
+  /** `YYYY-MM-DD`, a calendar day in Argentina. */
+  readonly vigente_desde: string;
+  /** Still pending legal validation (HU-E1-08 RN-07). */
+  readonly borrador: boolean;
+  /** Markdown subset: `##` headings, paragraphs and `-` lists. */
+  readonly texto: string;
+}
+
 export interface DatosDeAceptacion {
   readonly token: string;
   readonly nombre: string;
