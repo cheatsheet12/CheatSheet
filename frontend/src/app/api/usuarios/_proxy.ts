@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 
-import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { respuestaDeError } from "@/app/api/auth/_sesion";
@@ -33,11 +33,13 @@ export async function reenviarAlBackend(
     return NextResponse.json({ error: "NoAutenticado" }, { status: 401 });
   }
   try {
-    const datos = await llamarApi<unknown>(ruta, {
-      method: metodo,
-      ...(cuerpo !== undefined ? { body: cuerpo } : {}),
-      ...(cabeceras !== undefined ? { headers: cabeceras } : {}),
-    });
+    const datos = await comoRutaDelBff(() =>
+      llamarApi<unknown>(ruta, {
+        method: metodo,
+        ...(cuerpo !== undefined ? { body: cuerpo } : {}),
+        ...(cabeceras !== undefined ? { headers: cabeceras } : {}),
+      }),
+    );
     return NextResponse.json(datos ?? {});
   } catch (error) {
     if (!(error instanceof ErrorDeApi)) {

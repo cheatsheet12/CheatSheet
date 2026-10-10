@@ -15,9 +15,17 @@
  * pretending the network returns something known.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
+import { redirect } from "next/navigation";
+
 import { leerToken } from "@/lib/session";
 
 const TIMEOUT_POR_DEFECTO_MS = 10_000;
+
+/** What the API answers (403) to every call while a legal document is pending. */
+const CODIGO_DE_BLOQUEO_LEGAL = "AceptacionLegalPendiente";
+const RUTA_DE_ACEPTACION_LEGAL = "/aceptacion-legal";
 
 export class ErrorDeApi extends Error {
   constructor(
@@ -56,6 +64,34 @@ export interface OpcionesDeLlamada {
    * desde el panel — que es el único camino, porque el navegador nunca habla con la API.
    */
   readonly headers?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Who is asking decides what a `403 AceptacionLegalPendiente` becomes (HU-E1-03 RN-03,
+ * HU-E1-08 RN-05).
+ *
+ * - **A server page redirects to `/aceptacion-legal`, by default.** A soft (client-side)
+ *   navigation does not re-run the panel layout, so the layout's own check cannot catch a
+ *   version that took effect meanwhile; redirecting inside `llamarApi` means no page, present
+ *   or future, has to remember to.
+ * - **A BFF route handler must keep the JSON 403**: its caller is the browser, and
+ *   `VigilanteDeAceptacionLegal` reads that body. A redirect thrown inside a handler would
+ *   answer a `307` to a `fetch` instead. Handlers run their backend call through
+ *   `comoRutaDelBff`.
+ *
+ * It is an `AsyncLocalStorage` rather than an option on `OpcionesDeLlamada` so the proxy that
+ * most handlers share can set it once, without changing a single argument its callers send.
+ */
+const contextoDelBff = new AsyncLocalStorage<true>();
+
+export function comoRutaDelBff<T>(trabajo: () => Promise<T>): Promise<T> {
+  return contextoDelBff.run(true, trabajo);
+}
+
+function alBloqueoLegal(status: number, codigo: string): void {
+  if (status === 403 && codigo === CODIGO_DE_BLOQUEO_LEGAL && contextoDelBff.getStore() !== true) {
+    redirect(RUTA_DE_ACEPTACION_LEGAL);
+  }
 }
 
 function urlDelBackend(): string {
@@ -98,6 +134,7 @@ export async function llamarApi<T>(ruta: string, opciones: OpcionesDeLlamada = {
 
     if (!respuesta.ok) {
       const { codigo, detalle } = await leerFalla(respuesta);
+      alBloqueoLegal(respuesta.status, codigo);
       throw new ErrorDeApi(respuesta.status, detalle, codigo);
     }
     const texto = await respuesta.text();

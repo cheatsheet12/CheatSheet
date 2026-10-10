@@ -24,7 +24,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from tests.api.verificador_falso import VerificadorDeSesionFalso
-from tests.conftest import INSTANTE_FIJO, settings_de_prueba
+from tests.conftest import INSTANTE_CON_TEXTOS_VIGENTES, settings_de_prueba
 
 
 def _settings(entorno: Entorno = Entorno.TEST) -> Settings:
@@ -43,7 +43,7 @@ def _recursos(settings: Settings) -> Recursos:
         engine=cast(AsyncEngine, None),
         sesiones=cast("async_sessionmaker[AsyncSession]", None),
         redis=cast(Redis, None),
-        reloj=RelojFijo(INSTANTE_FIJO),
+        reloj=RelojFijo(INSTANTE_CON_TEXTOS_VIGENTES),
     )
 
 

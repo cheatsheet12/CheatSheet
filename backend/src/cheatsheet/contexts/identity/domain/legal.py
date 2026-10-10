@@ -21,6 +21,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
+from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 
@@ -149,3 +150,26 @@ class CatalogoLegal:
         if not alcanzadas:
             raise InvarianteViolada(f"No hay una version vigente de {documento.value} al {hoy}")
         return alcanzadas[-1]
+
+
+def documentos_pendientes(
+    *,
+    rol: RolUsuario,
+    version_de_terminos_de_la_empresa: str | None,
+    acepto_privacidad_vigente: bool,
+    terminos_vigente: str,
+) -> frozenset[DocumentoLegal]:
+    """What a person must accept before operating again. The only blocking rule there is.
+
+    - The **privacy policy** is personal: everyone owes the version in force until they accept
+      it themselves (HU-E1-08 RN-05).
+    - The **terms** are the company's, accepted by an Administrador on its behalf, so only an
+      Administrador is blocked by them, and only while the company has not accepted the version
+      in force (HU-E1-03 RN-03). A company with no terms recorded owes them too.
+    """
+    pendientes: set[DocumentoLegal] = set()
+    if not acepto_privacidad_vigente:
+        pendientes.add(DocumentoLegal.PRIVACIDAD)
+    if rol is RolUsuario.ADMINISTRADOR and version_de_terminos_de_la_empresa != terminos_vigente:
+        pendientes.add(DocumentoLegal.TERMINOS)
+    return frozenset(pendientes)

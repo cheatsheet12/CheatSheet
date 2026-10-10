@@ -15,6 +15,11 @@ Two outcomes are kept deliberately apart:
   window this check exists to close to anyone who can load the database, and answering 401
   would sign every user out of the panel during an outage.
 
+A third outcome sits on top of a valid session: the person owes a **legal document**
+(HU-E1-03 RN-03, HU-E1-08 RN-05). The same read that vouches for the session says which, and
+every route but `RUTAS_CON_PENDIENTES` answers 403 until they accept. Signing out and renewing
+the session are public routes and keep working.
+
 Routes that exist *before* a session — sign-up, sign-in, the OAuth callback, the
 healthcheck — are listed below and skip the check. Everything else needs a valid token
 or it does not run.
@@ -30,6 +35,7 @@ from cheatsheet.contexts.identity.application.errors import (
     VerificacionNoDisponible,
 )
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import IdentidadVigente
+from cheatsheet.contexts.identity.domain.legal import DocumentoLegal
 from cheatsheet.contexts.identity.infrastructure.seguridad import decodificar_acceso
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
@@ -44,6 +50,7 @@ logger = obtener_logger(__name__)
 ATRIBUTO_EMPRESA = "empresa_id"
 ATRIBUTO_USUARIO = "usuario_id"
 ATRIBUTO_ROL = "rol"
+ATRIBUTO_PENDIENTES = "pendientes_legales"
 
 #: Reachable without a session. Everything not listed here requires one.
 RUTAS_PUBLICAS = frozenset(
@@ -68,6 +75,18 @@ RUTAS_PUBLICAS = frozenset(
         "/legal/terminos",
         "/legal/privacidad",
         "/legal/vigentes",
+    }
+)
+
+
+#: The only routes a person with a pending legal document may call, by method **and** exact
+#: path: read who they are and what is pending, and accept. Reading the texts and signing out
+#: need no session at all (`RUTAS_PUBLICAS`). Everything else answers 403 until they accept.
+RUTAS_CON_PENDIENTES = frozenset(
+    {
+        ("GET", "/auth/empresa"),
+        ("GET", "/legal/pendientes"),
+        ("POST", "/legal/aceptaciones"),
     }
 )
 
@@ -128,6 +147,18 @@ def _servicio_no_disponible() -> JSONResponse:
     )
 
 
+def _aceptacion_pendiente(pendientes: frozenset[DocumentoLegal]) -> JSONResponse:
+    """403 with which documents are owed, so the screen can say so (names only, no text)."""
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content={
+            "error": "AceptacionLegalPendiente",
+            "detalle": "Debe aceptar los documentos legales vigentes para continuar.",
+            "pendientes": sorted(documento.value for documento in pendientes),
+        },
+    )
+
+
 class EmpresaMiddleware(BaseHTTPMiddleware):
     """Puts the authenticated company, user and role on `request.state`, or refuses."""
 
@@ -152,6 +183,10 @@ class EmpresaMiddleware(BaseHTTPMiddleware):
         setattr(request.state, ATRIBUTO_EMPRESA, identidad.empresa_id)
         setattr(request.state, ATRIBUTO_USUARIO, identidad.usuario_id)
         setattr(request.state, ATRIBUTO_ROL, identidad.rol.value)
+        setattr(request.state, ATRIBUTO_PENDIENTES, identidad.pendientes)
+        if identidad.pendientes and (request.method, request.url.path) not in RUTAS_CON_PENDIENTES:
+            logger.info("aceptacion_legal_pendiente", ruta=request.url.path)
+            return _aceptacion_pendiente(identidad.pendientes)
         # The verifier has already given its connection back: nothing is held while the
         # route runs.
         return await call_next(request)

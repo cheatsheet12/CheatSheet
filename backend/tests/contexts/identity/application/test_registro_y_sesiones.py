@@ -14,10 +14,7 @@ from cheatsheet.contexts.identity.application.errors import (
     ReusoDeRefreshDetectado,
     SesionInvalida,
 )
-from cheatsheet.contexts.identity.application.onboarding import (
-    AceptarTerminos,
-    CompletarDatosDeEmpresa,
-)
+from cheatsheet.contexts.identity.application.onboarding import CompletarDatosDeEmpresa
 from cheatsheet.contexts.identity.application.registro import (
     RegistrarConGoogle,
     RegistrarEmpresa,
@@ -513,32 +510,3 @@ async def test_solo_un_administrador_completa_los_datos_fiscales(empresas, publi
     assert guardada is not None
     # The rejection has to leave nothing behind: a 403 that still wrote is not a control.
     assert guardada.razon_social is None
-
-
-async def test_reaceptar_terminos_actualiza_la_version(empresas, publicador):
-    """HU-E1-03 RN-03."""
-    empresa_id = EmpresaId(uuid4())
-    empresa = Empresa(id=empresa_id)
-    empresa.aceptar_terminos("1.0", INSTANTE_FIJO)
-    await empresas.agregar(empresa)
-
-    resultado = await AceptarTerminos(empresas=empresas, publicador=publicador).ejecutar(
-        empresa_id=empresa_id,
-        usuario_id=UsuarioId(uuid4()),
-        version="2.0",
-        ahora=INSTANTE_FIJO,
-    )
-
-    assert resultado.terminos is not None
-    assert resultado.terminos.version == "2.0"
-    assert resultado.debe_reaceptar_terminos("2.0") is False
-
-
-async def test_aceptar_terminos_de_una_empresa_inexistente_falla(empresas, publicador):
-    with pytest.raises(InvarianteViolada):
-        await AceptarTerminos(empresas=empresas, publicador=publicador).ejecutar(
-            empresa_id=EmpresaId(uuid4()),
-            usuario_id=UsuarioId(uuid4()),
-            version="2.0",
-            ahora=INSTANTE_FIJO,
-        )

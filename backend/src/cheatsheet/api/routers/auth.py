@@ -114,6 +114,7 @@ class EmpresaSalida(BaseModel):
     condicion_iva: CondicionIVA | None = None
     nombre_responsable: str | None = None
     email_contacto: str | None = None
+    aceptaciones_pendientes: list[str] = []
 
 
 class ConsultaDePadronEntrada(BaseModel):
@@ -440,6 +441,7 @@ def _rutas_autenticadas(recursos: Recursos) -> APIRouter:
                 condicion_iva=empresa.condicion_iva,
                 nombre_responsable=empresa.nombre_responsable,
                 email_contacto=str(empresa.email_contacto) if empresa.email_contacto else None,
+                aceptaciones_pendientes=sorted(d.value for d in request.state.pendientes_legales),
             )
         if salida is None:  # pragma: no cover — the unit of work always yields once
             raise RuntimeError("La unidad de trabajo no produjo un resultado")

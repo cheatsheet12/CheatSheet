@@ -12,7 +12,9 @@ from cheatsheet.contexts.identity.domain.legal import (
     CatalogoLegal,
     DocumentoLegal,
     VersionDeDocumento,
+    documentos_pendientes,
 )
+from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 
@@ -163,3 +165,64 @@ def test_los_terminos_pueden_no_tener_usuario():
     aceptacion = _aceptacion(documento=DocumentoLegal.TERMINOS, usuario_id=None)
 
     assert aceptacion.usuario_id is None
+
+
+# ------------------------------------------------------------------------------ case 25
+
+
+def _pendientes(
+    rol: RolUsuario, *, terminos_aceptados: str | None, privacidad_aceptada: bool
+) -> frozenset[DocumentoLegal]:
+    return documentos_pendientes(
+        rol=rol,
+        version_de_terminos_de_la_empresa=terminos_aceptados,
+        acepto_privacidad_vigente=privacidad_aceptada,
+        terminos_vigente="1.1",
+    )
+
+
+def test_un_administrador_con_terminos_viejos_debe_los_terminos():
+    pendientes = _pendientes(
+        RolUsuario.ADMINISTRADOR, terminos_aceptados="1.0", privacidad_aceptada=True
+    )
+
+    assert pendientes == {DocumentoLegal.TERMINOS}
+
+
+@pytest.mark.parametrize("rol", [RolUsuario.OPERADOR, RolUsuario.SOLO_LECTURA])
+def test_los_otros_roles_nunca_se_bloquean_por_los_terminos(rol: RolUsuario):
+    """HU-E1-03 RN-03: the company's terms are accepted by an Administrador, nobody else."""
+    pendientes = _pendientes(rol, terminos_aceptados="1.0", privacidad_aceptada=True)
+
+    assert pendientes == frozenset()
+
+
+@pytest.mark.parametrize("rol", list(RolUsuario))
+def test_cualquiera_sin_la_privacidad_vigente_la_debe(rol: RolUsuario):
+    pendientes = _pendientes(rol, terminos_aceptados="1.1", privacidad_aceptada=False)
+
+    assert pendientes == {DocumentoLegal.PRIVACIDAD}
+
+
+def test_un_administrador_puede_deber_las_dos():
+    pendientes = _pendientes(
+        RolUsuario.ADMINISTRADOR, terminos_aceptados="1.0", privacidad_aceptada=False
+    )
+
+    assert pendientes == {DocumentoLegal.TERMINOS, DocumentoLegal.PRIVACIDAD}
+
+
+def test_una_empresa_sin_terminos_registrados_los_debe_su_administrador():
+    pendientes = _pendientes(
+        RolUsuario.ADMINISTRADOR, terminos_aceptados=None, privacidad_aceptada=True
+    )
+
+    assert pendientes == {DocumentoLegal.TERMINOS}
+
+
+def test_al_dia_no_debe_nada():
+    pendientes = _pendientes(
+        RolUsuario.ADMINISTRADOR, terminos_aceptados="1.1", privacidad_aceptada=True
+    )
+
+    assert pendientes == frozenset()

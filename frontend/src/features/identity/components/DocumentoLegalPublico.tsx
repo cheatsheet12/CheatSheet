@@ -9,18 +9,8 @@
 import { Alert } from "@/shared";
 
 import type { DocumentoLegalPublicado } from "../api/cliente";
+import { TITULOS_LEGALES, fechaLegible } from "./etiquetas-legales";
 import { TextoLegal } from "./TextoLegal";
-
-const TITULOS = {
-  TERMINOS: "Términos y Condiciones",
-  PRIVACIDAD: "Política de Privacidad",
-} as const;
-
-/** `2026-10-10` to `10/10/2026`, without going through `Date` and its time zone. */
-function fechaLegible(dia: string): string {
-  const [anio, mes, diaDelMes] = dia.split("-");
-  return `${diaDelMes}/${mes}/${anio}`;
-}
 
 export function DocumentoLegalPublico({
   documento,
@@ -30,7 +20,7 @@ export function DocumentoLegalPublico({
   return (
     <article className="acc-tarjeta legal">
       <header className="legal__encabezado">
-        <h1 className="acc-titulo">{TITULOS[documento.documento]}</h1>
+        <h1 className="acc-titulo">{TITULOS_LEGALES[documento.documento]}</h1>
         <p className="acc-sub">
           Versión {documento.version} · Vigente desde el {fechaLegible(documento.vigente_desde)}
         </p>

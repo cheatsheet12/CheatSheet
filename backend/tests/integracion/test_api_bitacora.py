@@ -34,7 +34,7 @@ from cheatsheet.platform.settings import Settings
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
-from tests.integracion.consentimiento import CONSENTIMIENTO
+from tests.integracion.consentimiento import CONSENTIMIENTO, sembrar_privacidad_vigente
 from tests.integracion.guarda import argumentos_de_conexion_de_prueba
 
 pytestmark = [requiere_base, pytest.mark.integration]
@@ -390,6 +390,7 @@ async def _sesion_de_solo_lectura(http: httpx.AsyncClient, empresa_id: str) -> s
         os.environ["DATABASE_URL_MIGRATIONS"],
         connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL_MIGRATIONS"]),
     )
+    usuario_id = uuid4()
     async with engine.begin() as conexion:
         await conexion.execute(
             sql(
@@ -399,12 +400,14 @@ async def _sesion_de_solo_lectura(http: httpx.AsyncClient, empresa_id: str) -> s
                 ":hash, 'es-AR', 'America/Argentina/Buenos_Aires', '{}'::jsonb)"
             ),
             {
-                "id": uuid4(),
+                "id": usuario_id,
                 "empresa_id": empresa_id,
                 "email": email,
                 "hash": HasherArgon2().hashear(CONTRASENA).valor,
             },
         )
+        # Seeded rows skip sign-up, so they carry the acceptance in force by hand.
+        await sembrar_privacidad_vigente(conexion, empresa_id, usuario_id)
     await engine.dispose()
 
     ingreso = await http.post("/auth/login", json={"email": email, "contrasena": CONTRASENA})

@@ -13,6 +13,7 @@ one is exercised in its own test, once.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -112,21 +113,45 @@ class ConsultaDeUsuarioVigenteEnMemoria:
     """What the database would answer for the per-request session check.
 
     A missing key stands for "no row": a deleted user, or one that Row-Level Security hides
-    because it belongs to another company.
+    because it belongs to another company. By default a registered user is up to date with
+    the legal texts (terms `1.1` for the company, privacy `1.0` for the person), so a test
+    about something else is not blocked; `terminos` and `privacidad_aceptada` say otherwise.
     """
 
     def __init__(self) -> None:
         self.estados: dict[UsuarioId, EstadoActualDelUsuario] = {}
+        self.privacidad_aceptada: dict[UsuarioId, set[str]] = {}
         self.consultas = 0
+        self.versiones_de_privacidad_pedidas: list[str] = []
 
-    def registrar(self, usuario: Usuario) -> None:
+    def registrar(
+        self,
+        usuario: Usuario,
+        *,
+        terminos: str | None = "1.1",
+        privacidad_aceptada: tuple[str, ...] = ("1.0",),
+    ) -> None:
         self.estados[usuario.id] = EstadoActualDelUsuario(
-            empresa_id=usuario.empresa_id, rol=usuario.rol, estado=usuario.estado
+            empresa_id=usuario.empresa_id,
+            rol=usuario.rol,
+            estado=usuario.estado,
+            terminos_version=terminos,
+            acepto_privacidad_vigente=False,
         )
+        self.privacidad_aceptada[usuario.id] = set(privacidad_aceptada)
 
-    async def estado_actual(self, usuario_id: UsuarioId) -> EstadoActualDelUsuario | None:
+    async def estado_actual(
+        self, usuario_id: UsuarioId, *, version_de_privacidad: str
+    ) -> EstadoActualDelUsuario | None:
         self.consultas += 1
-        return self.estados.get(usuario_id)
+        self.versiones_de_privacidad_pedidas.append(version_de_privacidad)
+        estado = self.estados.get(usuario_id)
+        if estado is None:
+            return None
+        return replace(
+            estado,
+            acepto_privacidad_vigente=version_de_privacidad in self.privacidad_aceptada[usuario_id],
+        )
 
 
 class RepositorioInvitacionEnMemoria:
@@ -216,8 +241,9 @@ class RepositorioAceptacionEnMemoria:
     def __init__(self) -> None:
         self.aceptaciones: list[AceptacionLegal] = []
 
-    async def agregar(self, aceptacion: AceptacionLegal) -> None:
+    async def agregar(self, aceptacion: AceptacionLegal) -> bool:
         self.aceptaciones.append(aceptacion)
+        return True
 
     async def acepto(self, usuario_id: UsuarioId, documento: DocumentoLegal, version: str) -> bool:
         return any(

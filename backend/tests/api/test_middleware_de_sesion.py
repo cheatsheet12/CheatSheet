@@ -34,9 +34,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from tests.api.verificador_falso import VerificadorDeSesionFalso, token_firmado
-from tests.conftest import INSTANTE_FIJO, settings_de_prueba
+from tests.conftest import INSTANTE_CON_TEXTOS_VIGENTES, settings_de_prueba
 from tests.contexts.identity.base_falsa import EscenarioDeBase, fabrica_de_sesiones, fila
 
+CON_TEXTOS_VIGENTES = INSTANTE_CON_TEXTOS_VIGENTES
 _RUTA = "/prueba/yo"
 _SIN_SESION = {"error": "NoAutenticado", "detalle": "Se requiere iniciar sesion."}
 _NO_DISPONIBLE = {
@@ -79,13 +80,14 @@ def _recursos(
     *,
     redis: object | None = None,
     sesiones: async_sessionmaker[AsyncSession] | None = None,
+    instante: datetime = INSTANTE_CON_TEXTOS_VIGENTES,
 ) -> Recursos:
     return Recursos(
         settings=settings,
         engine=cast(AsyncEngine, None),
         sesiones=sesiones or cast("async_sessionmaker[AsyncSession]", None),
         redis=cast(Redis, redis),
-        reloj=RelojFijo(INSTANTE_FIJO),
+        reloj=RelojFijo(instante),
     )
 
 
@@ -298,7 +300,9 @@ async def test_con_redis_caido_una_sesion_valida_sigue_autenticando():
     empresa_id, usuario_id = EmpresaId(uuid4()), UsuarioId(uuid4())
     escenario = EscenarioDeBase(fila=fila(empresa_id, rol="OPERADOR"))
     # No verifier injected: the real wiring of `create_app`, over a fake session factory.
-    recursos = _recursos(settings, redis=redis, sesiones=fabrica_de_sesiones(escenario))
+    recursos = _recursos(
+        settings, redis=redis, sesiones=fabrica_de_sesiones(escenario), instante=CON_TEXTOS_VIGENTES
+    )
     app = create_app(settings, recursos)
     router, _ = _router()
     app.include_router(router)
@@ -320,7 +324,10 @@ async def test_por_defecto_create_app_arma_el_verificador_de_postgres_y_revoca()
     settings = settings_de_prueba()
     empresa_id = EmpresaId(uuid4())
     escenario = EscenarioDeBase(fila=fila(empresa_id, estado="INACTIVO"))
-    app = create_app(settings, _recursos(settings, sesiones=fabrica_de_sesiones(escenario)))
+    app = create_app(
+        settings,
+        _recursos(settings, sesiones=fabrica_de_sesiones(escenario), instante=CON_TEXTOS_VIGENTES),
+    )
     router, ejecuciones = _router()
     app.include_router(router)
 
@@ -387,7 +394,10 @@ async def test_una_verificacion_que_no_pudo_correr_se_registra_como_error(
 
 def _app_con_base_falsa(escenario: EscenarioDeBase) -> tuple[FastAPI, Settings, list[str]]:
     settings = settings_de_prueba()
-    app = create_app(settings, _recursos(settings, sesiones=fabrica_de_sesiones(escenario)))
+    app = create_app(
+        settings,
+        _recursos(settings, sesiones=fabrica_de_sesiones(escenario), instante=CON_TEXTOS_VIGENTES),
+    )
     router, ejecuciones = _router()
     app.include_router(router)
     return app, settings, ejecuciones
@@ -441,7 +451,9 @@ async def test_una_fila_corrupta_es_un_500_nunca_un_2xx_y_cierra_la_sesion(campo
     It stays fail-closed (500), it is not dressed up as 401 or 503, and the connection is
     returned."""
     empresa_id = EmpresaId(uuid4())
-    escenario = EscenarioDeBase(fila=fila(empresa_id, **{campo: "BASURA"}))
+    corrupta = fila(empresa_id)
+    setattr(corrupta, campo, "BASURA")
+    escenario = EscenarioDeBase(fila=corrupta)
     app, settings, ejecuciones = _app_con_base_falsa(escenario)
 
     async with _cliente(app, raise_app_exceptions=False) as cliente:

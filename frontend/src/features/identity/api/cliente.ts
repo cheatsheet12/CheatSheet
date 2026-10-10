@@ -44,6 +44,12 @@ export interface EmpresaActual {
   readonly condicion_iva: string | null;
   readonly nombre_responsable: string | null;
   readonly email_contacto: string | null;
+  /**
+   * Legal documents the person owes (HU-E1-03 RN-03, HU-E1-08 RN-05); empty when they are up to
+   * date. Optional only because the panel may be deployed before the API that sends it: an
+   * absent field reads as "nothing pending", never as a block.
+   */
+  readonly aceptaciones_pendientes?: readonly DocumentoLegal[];
 }
 
 /**
@@ -113,6 +119,26 @@ export interface VersionVigente {
 export interface VersionesVigentes {
   readonly terminos: VersionVigente;
   readonly privacidad: VersionVigente;
+}
+
+/** One entry of `GET /legal/pendientes`: a document the person must accept, and its version. */
+export interface PendienteLegal {
+  readonly documento: DocumentoLegal;
+  readonly version: string;
+  /** `YYYY-MM-DD`, a calendar day in Argentina. */
+  readonly vigente_desde: string;
+  readonly borrador: boolean;
+}
+
+/** What `GET /legal/pendientes` answers. */
+export interface PendientesLegales {
+  readonly pendientes: readonly PendienteLegal[];
+}
+
+/** A `(document, version)` pair the person accepts, exactly as `/legal/pendientes` listed it. */
+export interface DocumentoAceptado {
+  readonly documento: DocumentoLegal;
+  readonly version: string;
 }
 
 export interface DatosDeAceptacion {
@@ -191,6 +217,8 @@ function mensajeDe(datos: unknown, status: number): string {
       return "La empresa debe conservar al menos un Administrador activo.";
     case "InvitacionInvalida":
       return "Esta invitación no es válida o ya fue utilizada.";
+    case "AceptacionLegalPendiente":
+      return "Tenés que aceptar los textos legales vigentes para seguir.";
     case "VersionLegalDesactualizada":
       return "Actualizamos los textos legales. Recargá la página, leelos y volvé a aceptarlos.";
     case "ConsentimientoRequerido":
@@ -271,4 +299,12 @@ export async function guardarPreferencias(datos: CambioDePreferencias): Promise<
  */
 export async function aceptarInvitacion(datos: DatosDeAceptacion): Promise<ResultadoDeSesion> {
   return enviar<ResultadoDeSesion>("/api/auth/invitaciones/aceptar", datos);
+}
+
+/**
+ * Accepting the legal documents in force from inside a session (HU-E1-03 RN-03, HU-E1-08
+ * RN-05). The backend re-validates every version, and an Operador sending the terms is refused.
+ */
+export async function aceptarDocumentos(documentos: readonly DocumentoAceptado[]): Promise<void> {
+  await enviar<unknown>("/api/legal/aceptaciones", { documentos });
 }

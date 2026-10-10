@@ -37,7 +37,7 @@ from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from fastapi import FastAPI
 
 from tests.api.verificador_falso import VerificadorDeSesionFalso
-from tests.conftest import INSTANTE_FIJO, settings_de_prueba
+from tests.conftest import INSTANTE_CON_TEXTOS_VIGENTES, INSTANTE_FIJO, settings_de_prueba
 from tests.contexts.reporting.application.dobles import (
     ArchivosEnMemoria,
     BitacoraFalsa,
@@ -119,7 +119,7 @@ def _armar(monkeypatch: pytest.MonkeyPatch, *, filas: list[FilaDeReporte]) -> _E
         engine=None,  # type: ignore[arg-type]  # never dereferenced: everything is replaced
         sesiones=None,  # type: ignore[arg-type]
         redis=None,  # type: ignore[arg-type]
-        reloj=RelojFijo(INSTANTE_FIJO),
+        reloj=RelojFijo(INSTANTE_CON_TEXTOS_VIGENTES),
     )
     verificador = VerificadorDeSesionFalso()
     app = create_app(settings, recursos, verificador)

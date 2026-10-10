@@ -11,6 +11,7 @@ from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
 from cheatsheet.api.middleware.empresa import RUTAS_PUBLICAS
 from cheatsheet.contexts.identity.application.errors import MotivoDeRevocacion, SesionRevocada
+from cheatsheet.contexts.identity.domain.legal import DocumentoLegal
 from cheatsheet.shared.clock import RelojFijo
 from fastapi import APIRouter, FastAPI
 from redis.asyncio import Redis
@@ -112,3 +113,58 @@ async def test_una_ruta_legal_inexistente_sin_token_tambien_da_401():
         respuesta = await cliente.get("/legal/pendientes")
 
     assert respuesta.status_code == 401
+
+
+# ------------------------------------------------------ pending documents (case 27, slice 3)
+
+
+@pytest.mark.asyncio
+async def test_pendientes_dice_que_versiones_debe_aceptar_la_persona():
+    verificador = VerificadorDeSesionFalso(pendientes=frozenset(DocumentoLegal))
+
+    async with _cliente(_app(verificador)) as cliente:
+        respuesta = await cliente.get(
+            "/legal/pendientes", headers=autorizacion(settings_de_prueba())
+        )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == {
+        "pendientes": [
+            {
+                "documento": "PRIVACIDAD",
+                "version": "1.0",
+                "vigente_desde": "2026-10-10",
+                "borrador": True,
+            },
+            {
+                "documento": "TERMINOS",
+                "version": "1.1",
+                "vigente_desde": "2026-10-10",
+                "borrador": True,
+            },
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_pendientes_esta_vacio_cuando_la_persona_esta_al_dia():
+    async with _cliente(_app(VerificadorDeSesionFalso())) as cliente:
+        respuesta = await cliente.get(
+            "/legal/pendientes", headers=autorizacion(settings_de_prueba())
+        )
+
+    assert respuesta.json() == {"pendientes": []}
+
+
+@pytest.mark.asyncio
+async def test_aceptar_con_un_documento_desconocido_es_422():
+    verificador = VerificadorDeSesionFalso(pendientes=frozenset(DocumentoLegal))
+
+    async with _cliente(_app(verificador)) as cliente:
+        respuesta = await cliente.post(
+            "/legal/aceptaciones",
+            json={"documentos": [{"documento": "OTRO", "version": "1.0"}]},
+            headers=autorizacion(settings_de_prueba()),
+        )
+
+    assert respuesta.status_code == 422

@@ -41,6 +41,10 @@ from cheatsheet.shared.empresa import EmpresaId
 
 INSTANTE_FIJO = datetime(2026, 8, 12, 15, 30, tzinfo=UTC)
 
+#: A day on which the published legal catalogue has a version in force for every document (the
+#: first texts take effect on 2026-10-10). `create_app` refuses to boot on a clock without one.
+INSTANTE_CON_TEXTOS_VIGENTES = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+
 
 class RepositorioDeAuditoriaEnMemoria:
     """A real implementation of `PortRegistroDeAuditoria`, backed by a dict.
