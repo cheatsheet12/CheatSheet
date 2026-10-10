@@ -48,7 +48,7 @@ from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 
 from tests.conftest import INSTANTE_FIJO
-from tests.contexts.identity.conftest import CONTRASENA, usuario_de_prueba
+from tests.contexts.identity.conftest import CONTRASENA, VERSION_DE_PRIVACIDAD, usuario_de_prueba
 
 pytestmark = pytest.mark.asyncio
 
@@ -265,7 +265,7 @@ async def test_revocar_libera_el_email_para_volver_a_invitar(
 
 
 async def test_una_invitacion_ya_aceptada_no_se_reenvia_ni_se_revoca(
-    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
 ):
     """Caso 13 — HU-E1-04 RN-04."""
     empresa_id = EmpresaId(uuid4())
@@ -285,10 +285,12 @@ async def test_una_invitacion_ya_aceptada_no_se_reenvia_ni_se_revoca(
         hasher=hasher,
         emisor=emisor,
         publicador=publicador,
+        registrador=registrador,
     ).ejecutar(
         token=emitida.token_en_claro,
         nombre="Ana Perez",
         contrasena=CONTRASENA,
+        version_privacidad=VERSION_DE_PRIVACIDAD,
         ahora=INSTANTE_FIJO,
     )
 
@@ -348,7 +350,7 @@ async def _emitir_invitacion(
 
 
 def _aceptar(
-    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
 ) -> AceptarInvitacion:
     return AceptarInvitacion(
         usuarios=usuarios,
@@ -357,21 +359,23 @@ def _aceptar(
         hasher=hasher,
         emisor=emisor,
         publicador=publicador,
+        registrador=registrador,
     )
 
 
 async def test_aceptar_fija_la_contrasena_activa_la_cuenta_y_devuelve_sesion(
-    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
 ):
     """Caso 14. Accepting is what turns an invitation into an account."""
     emitida = await _emitir_invitacion(usuarios, invitaciones, tokens_de_invitacion, publicador)
 
     sesion = await _aceptar(
-        usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+        usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
     ).ejecutar(
         token=emitida.token_en_claro,
         nombre="Ana Perez",
         contrasena=CONTRASENA,
+        version_privacidad=VERSION_DE_PRIVACIDAD,
         ahora=INSTANTE_FIJO,
     )
 
@@ -385,15 +389,18 @@ async def test_aceptar_fija_la_contrasena_activa_la_cuenta_y_devuelve_sesion(
 
 
 async def test_el_mismo_token_no_sirve_dos_veces(
-    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
 ):
     """Caso 15."""
     emitida = await _emitir_invitacion(usuarios, invitaciones, tokens_de_invitacion, publicador)
-    servicio = _aceptar(usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador)
+    servicio = _aceptar(
+        usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
+    )
     await servicio.ejecutar(
         token=emitida.token_en_claro,
         nombre="Ana Perez",
         contrasena=CONTRASENA,
+        version_privacidad=VERSION_DE_PRIVACIDAD,
         ahora=INSTANTE_FIJO,
     )
 
@@ -402,56 +409,60 @@ async def test_el_mismo_token_no_sirve_dos_veces(
             token=emitida.token_en_claro,
             nombre="Otra",
             contrasena=CONTRASENA,
+            version_privacidad=VERSION_DE_PRIVACIDAD,
             ahora=INSTANTE_FIJO,
         )
 
 
 async def test_un_token_vencido_se_rechaza(
-    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
 ):
     """Caso 16."""
     emitida = await _emitir_invitacion(usuarios, invitaciones, tokens_de_invitacion, publicador)
 
     with pytest.raises(InvitacionInvalida):
         await _aceptar(
-            usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+            usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
         ).ejecutar(
             token=emitida.token_en_claro,
             nombre="Ana Perez",
             contrasena=CONTRASENA,
+            version_privacidad=VERSION_DE_PRIVACIDAD,
             ahora=INSTANTE_FIJO + VIDA + timedelta(seconds=1),
         )
 
 
 async def test_un_token_inventado_se_rechaza_igual_que_uno_vencido(
-    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
 ):
     """One error for every rejection: whoever holds a token that is not theirs learns
     only that it does not work."""
     with pytest.raises(InvitacionInvalida):
         await _aceptar(
-            usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+            usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
         ).ejecutar(
             token="no-existe",
             nombre="Ana Perez",
             contrasena=CONTRASENA,
+            version_privacidad=VERSION_DE_PRIVACIDAD,
             ahora=INSTANTE_FIJO,
         )
 
 
 async def test_aceptar_con_una_contrasena_corta_se_rechaza(
-    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+    usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
 ):
     """Caso 17 — the same 8-character minimum as signing up."""
     emitida = await _emitir_invitacion(usuarios, invitaciones, tokens_de_invitacion, publicador)
 
     with pytest.raises(EntradaInvalida):
         await _aceptar(
-            usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador
+            usuarios, invitaciones, tokens_de_invitacion, hasher, emisor, publicador, registrador
         ).ejecutar(
             token=emitida.token_en_claro,
             nombre="Ana Perez",
             contrasena="corta",
+            version_privacidad=VERSION_DE_PRIVACIDAD,
             ahora=INSTANTE_FIJO,
         )
 

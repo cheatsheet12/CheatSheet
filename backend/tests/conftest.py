@@ -101,7 +101,6 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         jwt_secret="fake-secret-for-tests",
         jwt_access_ttl_minutos=15,
         refresh_ttl_dias=30,
-        terminos_version_vigente="1.0",
         # `CifradoAesGcm` validates the length at construction, so this has to decode to
         # exactly 32 bytes — a placeholder string would fail every test that builds
         # `Settings`. Encoded here rather than pasted as base64 on purpose: a literal

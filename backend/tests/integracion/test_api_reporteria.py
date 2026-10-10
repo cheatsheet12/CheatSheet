@@ -61,6 +61,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 from tests.integracion.guarda import argumentos_de_conexion_de_prueba
 from tests.integracion.test_api_bitacora import _sesion_de_solo_lectura
 
@@ -97,6 +98,7 @@ async def _sesion_admin(http: httpx.AsyncClient) -> tuple[str, EmpresaId]:
             "email": f"{uuid4()}@cheatsheet.ar",
             "contrasena": CONTRASENA,
             "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
         },
     )
     assert respuesta.status_code == 201, respuesta.text

@@ -22,6 +22,7 @@ from cheatsheet.platform.settings import Settings
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -51,7 +52,12 @@ async def cliente_http(esquema_migrado: None) -> AsyncIterator[httpx.AsyncClient
 async def _registrar_empresa(http: httpx.AsyncClient, email: str) -> str:
     respuesta = await http.post(
         "/auth/registro",
-        json={"email": email, "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": email,
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert respuesta.status_code == 201, respuesta.text
     return str(respuesta.json()["access_token"])

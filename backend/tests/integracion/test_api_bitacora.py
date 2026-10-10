@@ -34,6 +34,7 @@ from cheatsheet.platform.settings import Settings
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 from tests.integracion.guarda import argumentos_de_conexion_de_prueba
 
 pytestmark = [requiere_base, pytest.mark.integration]
@@ -69,6 +70,7 @@ async def _registro(http: httpx.AsyncClient) -> tuple[str, str]:
             "email": f"{uuid4()}@cheatsheet.ar",
             "contrasena": CONTRASENA,
             "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
         },
     )
     assert respuesta.status_code == 201, respuesta.text

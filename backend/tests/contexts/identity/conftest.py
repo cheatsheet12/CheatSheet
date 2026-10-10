@@ -13,10 +13,14 @@ one is exercised in its own test, once.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from cheatsheet.contexts.identity.application.aceptaciones import (
+    Consentimiento,
+    RegistradorDeAceptaciones,
+)
 from cheatsheet.contexts.identity.application.ports import (
     EstadoActualDelUsuario,
     MensajeDeInvitacion,
@@ -26,6 +30,11 @@ from cheatsheet.contexts.identity.application.ports import (
 from cheatsheet.contexts.identity.application.sesiones import EmisorDeSesiones
 from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.invitacion import Invitacion
+from cheatsheet.contexts.identity.domain.legal import (
+    AceptacionLegal,
+    DocumentoLegal,
+    VersionDeDocumento,
+)
 from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import (
@@ -176,6 +185,47 @@ class RepositorioRefreshEnMemoria:
         return len(afectados)
 
 
+#: Both versions are in force on `INSTANTE_FIJO` (2026-08-12), which is what the use cases
+#: are given as "now" in these tests.
+VERSION_DE_TERMINOS = "1.1"
+VERSION_DE_PRIVACIDAD = "1.0"
+CONSENTIMIENTO = Consentimiento(
+    version_terminos=VERSION_DE_TERMINOS, version_privacidad=VERSION_DE_PRIVACIDAD
+)
+
+
+class CatalogoLegalEnMemoria:
+    """Implements `PortCatalogoLegal` without touching the disk."""
+
+    def __init__(self) -> None:
+        self._versiones = (
+            VersionDeDocumento(DocumentoLegal.TERMINOS, "1.0", date(2025, 1, 1)),
+            VersionDeDocumento(DocumentoLegal.TERMINOS, VERSION_DE_TERMINOS, date(2026, 1, 1)),
+            VersionDeDocumento(DocumentoLegal.TERMINOS, "2.0", date(2027, 1, 1)),
+            VersionDeDocumento(DocumentoLegal.PRIVACIDAD, VERSION_DE_PRIVACIDAD, date(2026, 1, 1)),
+        )
+
+    def versiones(self) -> Sequence[VersionDeDocumento]:
+        return self._versiones
+
+    def texto(self, documento: DocumentoLegal, version: str) -> str:
+        return f"## {documento.value} {version}\n"
+
+
+class RepositorioAceptacionEnMemoria:
+    def __init__(self) -> None:
+        self.aceptaciones: list[AceptacionLegal] = []
+
+    async def agregar(self, aceptacion: AceptacionLegal) -> None:
+        self.aceptaciones.append(aceptacion)
+
+    async def acepto(self, usuario_id: UsuarioId, documento: DocumentoLegal, version: str) -> bool:
+        return any(
+            a.usuario_id == usuario_id and a.documento is documento and a.version == version
+            for a in self.aceptaciones
+        )
+
+
 class HasherFalso:
     """Reversible on purpose: a test needs to know *what* was hashed."""
 
@@ -266,6 +316,20 @@ def refrescos() -> RepositorioRefreshEnMemoria:
 
 
 @pytest.fixture
+def aceptaciones() -> RepositorioAceptacionEnMemoria:
+    return RepositorioAceptacionEnMemoria()
+
+
+@pytest.fixture
+def registrador(
+    aceptaciones: RepositorioAceptacionEnMemoria, publicador: PublicadorFalso
+) -> RegistradorDeAceptaciones:
+    return RegistradorDeAceptaciones(
+        catalogo=CatalogoLegalEnMemoria(), aceptaciones=aceptaciones, publicador=publicador
+    )
+
+
+@pytest.fixture
 def hasher() -> HasherFalso:
     return HasherFalso()
 
@@ -321,15 +385,20 @@ def usuario_de_prueba(
 
 
 __all__ = [
+    "CONSENTIMIENTO",
     "CONTRASENA",
     "CUIT_INVALIDO",
     "CUIT_VALIDO",
     "INSTANTE_FIJO",
+    "VERSION_DE_PRIVACIDAD",
+    "VERSION_DE_TERMINOS",
+    "CatalogoLegalEnMemoria",
     "ConsultaDeUsuarioVigenteEnMemoria",
     "EmisorDeTokensFalso",
     "EnviadorDeEmailFalso",
     "HasherFalso",
     "PublicadorFalso",
+    "RepositorioAceptacionEnMemoria",
     "RepositorioEmpresaEnMemoria",
     "RepositorioInvitacionEnMemoria",
     "RepositorioRefreshEnMemoria",

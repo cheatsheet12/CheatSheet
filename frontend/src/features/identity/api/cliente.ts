@@ -6,10 +6,17 @@
  * not allowed to read (ADR-011).
  */
 
+/** The versions the person ticked, exactly as `/legal/vigentes` showed them (HU-E1-08 RN-03). */
+export interface Consentimiento {
+  readonly version_terminos: string;
+  readonly version_privacidad: string;
+}
+
 export interface DatosDeRegistro {
   readonly email: string;
   readonly contrasena: string;
   readonly nombre: string;
+  readonly consentimiento: Consentimiento;
 }
 
 export interface DatosDeIngreso {
@@ -94,10 +101,26 @@ export interface DocumentoLegalPublicado {
   readonly texto: string;
 }
 
+/** One entry of `GET /legal/vigentes`. */
+export interface VersionVigente {
+  readonly version: string;
+  /** `YYYY-MM-DD`, a calendar day in Argentina. */
+  readonly vigente_desde: string;
+  readonly borrador: boolean;
+}
+
+/** What `GET /legal/vigentes` answers: the version in force of each document. */
+export interface VersionesVigentes {
+  readonly terminos: VersionVigente;
+  readonly privacidad: VersionVigente;
+}
+
 export interface DatosDeAceptacion {
   readonly token: string;
   readonly nombre: string;
   readonly contrasena: string;
+  /** HU-E1-08 RN-04: the invitee accepts the privacy policy and nothing else. */
+  readonly version_privacidad: string;
 }
 
 /** `{"FACTURACION": ["EMAIL", "PANEL"], …}` — the shape of the `pref_suscripciones` column. */
@@ -168,6 +191,9 @@ function mensajeDe(datos: unknown, status: number): string {
       return "La empresa debe conservar al menos un Administrador activo.";
     case "InvitacionInvalida":
       return "Esta invitación no es válida o ya fue utilizada.";
+    case "VersionLegalDesactualizada":
+      return "Actualizamos los textos legales. Recargá la página, leelos y volvé a aceptarlos.";
+    case "ConsentimientoRequerido":
     case "EntradaInvalida":
       return typeof datos === "object" && datos !== null && "detalle" in datos
         ? String(datos.detalle)

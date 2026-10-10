@@ -10,7 +10,7 @@ takes effect on the 1st must not appear three hours early for the people it is a
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 from cheatsheet.contexts.identity.application.ports import PortCatalogoLegal
 from cheatsheet.contexts.identity.domain.legal import (
@@ -42,11 +42,18 @@ class VersionesVigentes:
     privacidad: VersionDeDocumento
 
 
+def vigente_a(
+    catalogo: PortCatalogoLegal, instante: datetime, documento: DocumentoLegal
+) -> VersionDeDocumento:
+    """The version of `documento` in force at `instante`, reading the day in Argentina."""
+    hoy = instante.astimezone(ZONA_ARGENTINA).date()
+    return CatalogoLegal(catalogo.versiones()).vigente(documento, hoy)
+
+
 def _vigente(
     catalogo: PortCatalogoLegal, reloj: Reloj, documento: DocumentoLegal
 ) -> VersionDeDocumento:
-    hoy = reloj.ahora().astimezone(ZONA_ARGENTINA).date()
-    return CatalogoLegal(catalogo.versiones()).vigente(documento, hoy)
+    return vigente_a(catalogo, reloj.ahora(), documento)
 
 
 class ConsultarDocumentoVigente:

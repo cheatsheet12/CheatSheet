@@ -11,6 +11,8 @@
 
 import { FormularioDeAceptacion } from "@/features/identity";
 
+import { leerVersionesVigentes } from "@/app/_versiones-legales";
+
 export const dynamic = "force-dynamic";
 
 export const metadata = {
@@ -18,10 +20,16 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function PaginaDeInvitacion({
+export default async function PaginaDeInvitacion({
   params,
 }: {
   readonly params: { readonly token: string };
-}): JSX.Element {
-  return <FormularioDeAceptacion token={params.token} />;
+}): Promise<JSX.Element> {
+  const versiones = await leerVersionesVigentes();
+  return (
+    <FormularioDeAceptacion
+      token={params.token}
+      versionDePrivacidad={versiones?.privacidad.version ?? null}
+    />
+  );
 }
