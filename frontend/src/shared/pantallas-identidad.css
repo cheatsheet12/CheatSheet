@@ -199,6 +199,7 @@
   background: var(--card);
   box-shadow: var(--shadow);
   color: var(--ink-700);
+  font: inherit;
   font-size: var(--text-body);
   font-weight: 600;
   text-decoration: none;

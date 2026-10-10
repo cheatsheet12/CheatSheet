@@ -347,44 +347,69 @@ describe("PAN-ONB-01 — registro", () => {
 describe("PAN-ONB-01 — Continuar con Google (HU-E1-08 RN-03, criterio 3)", () => {
   const enlaceDeGoogle = (): HTMLAnchorElement =>
     screen.getByRole("link", { name: /Continuar con Google/ }) as HTMLAnchorElement;
+  const botonDeGoogle = (): HTMLButtonElement =>
+    screen.getByRole("button", { name: /Continuar con Google/ }) as HTMLButtonElement;
+  const formularioDeGoogle = (): HTMLFormElement =>
+    botonDeGoogle().closest("form") as HTMLFormElement;
 
-  it("al ingresar va directo, sin pedir casillas", () => {
+  it("al ingresar es un enlace directo, sin casillas y sin versiones", () => {
     render(<FormularioDeIngreso versiones={VERSIONES} />);
 
     expect(enlaceDeGoogle().getAttribute("href")).toBe("/api/auth/google");
     expect(fireEvent.click(enlaceDeGoogle())).toBe(true);
   });
 
-  it("al registrarse, sin las casillas no navega y muestra los mensajes", () => {
+  it("al registrarse, sin las casillas no envía y muestra los mensajes", () => {
     render(<FormularioDeIngreso versiones={VERSIONES} />);
     irARegistro();
 
-    const navego = fireEvent.click(enlaceDeGoogle());
+    const envio = vi.fn((evento: Event) => evento.preventDefault());
+    formularioDeGoogle().addEventListener("submit", envio);
+    const navego = fireEvent.click(botonDeGoogle());
 
     expect(navego).toBe(false);
+    expect(envio).not.toHaveBeenCalled();
     expect(screen.getByText(MENSAJE_TERMINOS)).toBeDefined();
     expect(screen.getByText(MENSAJE_PRIVACIDAD)).toBeDefined();
   });
 
-  it("con una sola casilla marcada tampoco navega", () => {
+  it("con una sola casilla marcada tampoco envía", () => {
     render(<FormularioDeIngreso versiones={VERSIONES} />);
     irARegistro();
     fireEvent.click(screen.getByLabelText(/Términos y Condiciones/));
 
-    const navego = fireEvent.click(enlaceDeGoogle());
+    const navego = fireEvent.click(botonDeGoogle());
 
     expect(navego).toBe(false);
     expect(screen.getByText(MENSAJE_PRIVACIDAD)).toBeDefined();
   });
 
-  it("con las dos marcadas navega llevando las versiones mostradas", () => {
+  it("con las dos marcadas envía por POST las versiones mostradas, nunca en la URL", () => {
     render(<FormularioDeIngreso versiones={VERSIONES} />);
     irARegistro();
     aceptarTodo();
 
-    expect(enlaceDeGoogle().getAttribute("href")).toBe(
-      "/api/auth/google?terminos=1.1&privacidad=1.0",
+    const formulario = formularioDeGoogle();
+    const envio = vi.fn((evento: Event) => evento.preventDefault());
+    formulario.addEventListener("submit", envio);
+    fireEvent.click(botonDeGoogle());
+
+    expect(formulario.method).toBe("post");
+    // No query string: a link must not be able to record an acceptance.
+    expect(formulario.getAttribute("action")).toBe("/api/auth/google");
+    expect(formulario.querySelector<HTMLInputElement>('input[name="terminos"]')?.value).toBe("1.1");
+    expect(formulario.querySelector<HTMLInputElement>('input[name="privacidad"]')?.value).toBe(
+      "1.0",
     );
-    expect(fireEvent.click(enlaceDeGoogle())).toBe(true);
+    expect(envio).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("link", { name: /Continuar con Google/ })).toBeNull();
+  });
+
+  it("el botón de Google es un botón alcanzable por teclado con su nombre accesible", () => {
+    render(<FormularioDeIngreso versiones={VERSIONES} />);
+    irARegistro();
+
+    expect(botonDeGoogle().type).toBe("submit");
+    expect(botonDeGoogle().disabled).toBe(false);
   });
 });

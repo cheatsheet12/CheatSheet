@@ -11,8 +11,9 @@
  * RN-03): the terms bind the company, the privacy policy binds the person.
  *
  * **"Continuar con Google" asks for the same two boxes** when the form is in sign-up mode
- * (HU-E1-08 criterion 3): without both it does not navigate. The versions travel to the BFF
- * in the URL, and the BFF carries them through Google's round trip in a cookie. Signing in
+ * (HU-E1-08 criterion 3): without both it does not submit. The versions travel to the BFF in
+ * the body of a POST (never in a URL: a link must not be able to record an acceptance), and
+ * the BFF carries them through Google's round trip in a cookie. Signing in
  * with an existing account needs none of it; a new account that arrives without consent is
  * sent back here (`errorInicial`) and the API refuses to create it.
  *
@@ -72,15 +73,24 @@ function erroresIniciales(errorInicial: string | undefined): Errores {
   return errorInicial === "VersionLegalDesactualizada" ? { general: TEXTOS_ACTUALIZADOS } : {};
 }
 
-function direccionDeGoogle(versiones: VersionesVigentes | null, listo: boolean): string {
-  if (!listo || versiones === null) {
-    return "/api/auth/google";
-  }
-  const parametros = new URLSearchParams({
-    terminos: versiones.terminos.version,
-    privacidad: versiones.privacidad.version,
-  });
-  return `/api/auth/google?${parametros.toString()}`;
+function IconoDeGoogle(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M22.5 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-2 3.2-4.8 3.2-7.8Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.9 0 5.4-1 7.2-2.6l-3.6-2.7c-1 .7-2.3 1.1-3.6 1.1-2.8 0-5.1-1.9-6-4.4H2.3v2.8A11 11 0 0 0 12 23Z"
+      />
+      <path fill="#FBBC05" d="M6 14.4a6.6 6.6 0 0 1 0-4.2V7.4H2.3a11 11 0 0 0 0 9.8L6 14.4Z" />
+      <path
+        fill="#EA4335"
+        d="M12 5.4c1.6 0 3 .5 4.1 1.6l3.1-3.1A11 11 0 0 0 2.3 7.4L6 10.2c.9-2.5 3.2-4.4 6-4.4Z"
+      />
+    </svg>
+  );
 }
 
 export function FormularioDeIngreso({
@@ -101,7 +111,6 @@ export function FormularioDeIngreso({
   const { pendiente: enviando, ejecutar } = useAccionConNavegacion();
 
   const registrando = modo === "registrarse";
-  const consentimientoCompleto = aceptaciones.terminos && aceptaciones.privacidad;
 
   const validar = (): Errores => {
     const encontrados: Errores = {
@@ -116,11 +125,8 @@ export function FormularioDeIngreso({
     return encontrados;
   };
 
-  /** Google sign-up needs the same two boxes as the form; sign-in needs none. */
+  /** Google sign-up needs the same two boxes as the form; it is only rendered when registering. */
   const alIrAGoogle = (evento: React.MouseEvent): void => {
-    if (!registrando) {
-      return;
-    }
     const faltantes = validarConsentimiento(aceptaciones, true);
     if (hayErrores(faltantes) || versiones === null) {
       evento.preventDefault();
@@ -255,31 +261,25 @@ export function FormularioDeIngreso({
         {/* El único proveedor externo de identidad que la plataforma acepta hoy. El enlace
             va a nuestra propia ruta: el `client_id` y el `state` los arma el servidor, así
             que acá no viaja ningún secreto. */}
-        <a
-          className="acc-google"
-          href={direccionDeGoogle(versiones, registrando && consentimientoCompleto)}
-          onClick={alIrAGoogle}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              fill="#4285F4"
-              d="M22.5 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-2 3.2-4.8 3.2-7.8Z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.9 0 5.4-1 7.2-2.6l-3.6-2.7c-1 .7-2.3 1.1-3.6 1.1-2.8 0-5.1-1.9-6-4.4H2.3v2.8A11 11 0 0 0 12 23Z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M6 14.4a6.6 6.6 0 0 1 0-4.2V7.4H2.3a11 11 0 0 0 0 9.8L6 14.4Z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.4c1.6 0 3 .5 4.1 1.6l3.1-3.1A11 11 0 0 0 2.3 7.4L6 10.2c.9-2.5 3.2-4.4 6-4.4Z"
-            />
-          </svg>
-          <span>Continuar con Google</span>
-        </a>
+        {registrando ? (
+          <form method="post" action="/api/auth/google">
+            {versiones !== null && (
+              <>
+                <input type="hidden" name="terminos" value={versiones.terminos.version} />
+                <input type="hidden" name="privacidad" value={versiones.privacidad.version} />
+              </>
+            )}
+            <button type="submit" className="acc-google" onClick={alIrAGoogle}>
+              <IconoDeGoogle />
+              <span>Continuar con Google</span>
+            </button>
+          </form>
+        ) : (
+          <a className="acc-google" href="/api/auth/google">
+            <IconoDeGoogle />
+            <span>Continuar con Google</span>
+          </a>
+        )}
 
         <p className="acc-pie">
           {registrando ? "¿Ya tenés una cuenta? " : "¿No tenés cuenta? "}

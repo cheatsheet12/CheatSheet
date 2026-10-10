@@ -38,8 +38,14 @@ describe("página de ingreso", () => {
     fireEvent.click(screen.getByLabelText(/Política de Privacidad/));
 
     expect(llamarApi).toHaveBeenCalledWith("/legal/vigentes", { revalidarCadaSegundos: 60 });
-    expect(screen.getByRole("link", { name: /Continuar con Google/ }).getAttribute("href")).toBe(
-      "/api/auth/google?terminos=1.1&privacidad=1.0",
+    const formulario = screen
+      .getByRole("button", { name: /Continuar con Google/ })
+      .closest("form") as HTMLFormElement;
+    expect(formulario.method).toBe("post");
+    expect(formulario.getAttribute("action")).toBe("/api/auth/google");
+    expect(formulario.querySelector<HTMLInputElement>('input[name="terminos"]')?.value).toBe("1.1");
+    expect(formulario.querySelector<HTMLInputElement>('input[name="privacidad"]')?.value).toBe(
+      "1.0",
     );
   });
 

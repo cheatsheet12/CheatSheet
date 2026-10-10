@@ -23,6 +23,7 @@ import { NextResponse } from "next/server";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { guardarSesion } from "@/lib/session";
 
+import { borrarCookieDeOAuth } from "@/app/api/auth/_oauth";
 import type { RespuestaDeSesion } from "@/app/api/auth/_sesion";
 import { guardarRefresh } from "@/app/api/auth/_sesion";
 import { COOKIE_CONSENTIMIENTO, COOKIE_STATE, urlDeLaApp } from "@/app/api/auth/google/route";
@@ -32,7 +33,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request): Promise<NextResponse> {
   const parametros = new URL(request.url).searchParams;
   const esperado = cookies().get(COOKIE_STATE)?.value;
-  cookies().delete(COOKIE_STATE);
+  borrarCookieDeOAuth(COOKIE_STATE);
   const consentimiento = leerConsentimiento();
 
   const problema = validar(parametros, esperado);
@@ -67,7 +68,7 @@ interface Consentimiento {
 /** Read and delete. An unreadable cookie is treated as absent: the API then decides. */
 function leerConsentimiento(): Consentimiento | null {
   const crudo = cookies().get(COOKIE_CONSENTIMIENTO)?.value;
-  cookies().delete(COOKIE_CONSENTIMIENTO);
+  borrarCookieDeOAuth(COOKIE_CONSENTIMIENTO);
   if (crudo === undefined) {
     return null;
   }

@@ -12,6 +12,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const cookiesPuestas: Array<Record<string, unknown>> = [];
 const cookiesBorradas: string[] = [];
+/** Expiries sent with `set({ maxAge: 0 })`: what actually removes a cookie scoped to a path. */
+const expiraciones: Array<Record<string, unknown>> = [];
 const almacen = new Map<string, string>();
 
 vi.mock("next/headers", () => ({
@@ -19,6 +21,13 @@ vi.mock("next/headers", () => ({
     get: (nombre: string) =>
       almacen.has(nombre) ? { name: nombre, value: almacen.get(nombre) } : undefined,
     set: (opciones: Record<string, unknown>) => {
+      if (opciones.maxAge === 0) {
+        // A browser drops the cookie only when name, path and domain match the one it holds.
+        expiraciones.push(opciones);
+        cookiesBorradas.push(String(opciones.name));
+        almacen.delete(String(opciones.name));
+        return;
+      }
       cookiesPuestas.push(opciones);
       almacen.set(String(opciones.name), String(opciones.value));
     },
@@ -38,6 +47,7 @@ vi.mock("@/lib/api", async () => {
 const { ErrorDeApi } = await import("@/lib/api");
 const {
   GET: getGoogle,
+  POST: postGoogle,
   COOKIE_STATE,
   COOKIE_CONSENTIMIENTO,
 } = await import("@/app/api/auth/google/route");
@@ -61,6 +71,30 @@ function inicio(parametros: Record<string, string> = {}): Request {
   return new Request(url);
 }
 
+function formulario(
+  campos: Record<string, string>,
+  cabeceras: Record<string, string> = {},
+): Request {
+  return new Request("http://test/api/auth/google", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", ...cabeceras },
+    body: new URLSearchParams(campos).toString(),
+  });
+}
+
+/** What the browser needs to see to drop an OAuth cookie it was given with `path=/api/auth`. */
+function expiracionDe(nombre: string): Record<string, unknown> | undefined {
+  return expiraciones.find((expiracion) => expiracion.name === nombre);
+}
+
+const EXPIRA_CON_LOS_ATRIBUTOS_CON_QUE_SE_PUSO = expect.objectContaining({
+  value: "",
+  path: "/api/auth",
+  maxAge: 0,
+  httpOnly: true,
+  sameSite: "lax",
+});
+
 function callback(parametros: Record<string, string>): Request {
   const url = new URL("http://test/api/auth/google/callback");
   for (const [clave, valor] of Object.entries(parametros)) {
@@ -76,6 +110,7 @@ function ubicacion(respuesta: Response): string {
 afterEach(() => {
   cookiesPuestas.length = 0;
   cookiesBorradas.length = 0;
+  expiraciones.length = 0;
   almacen.clear();
   llamarApi.mockReset();
 });
@@ -94,11 +129,45 @@ describe("GET /api/auth/google", () => {
     expect(cookie?.sameSite).toBe("lax");
   });
 
-  it("guarda el consentimiento en una cookie HttpOnly de 10 minutos junto al state (caso 20)", async () => {
+  it("una URL con versiones NO deja consentimiento: la aceptación no viaja por GET", async () => {
     llamarApi.mockResolvedValue({ url: "https://accounts.google.com/o/oauth2/v2/auth?x=1" });
 
     await getGoogle(inicio({ terminos: "1.1", privacidad: "1.0" }));
 
+    expect(cookiesPuestas.some((puesta) => puesta.name === COOKIE_CONSENTIMIENTO)).toBe(false);
+  });
+
+  it("sin consentimiento borra uno viejo con el path con que se puso (si no, el navegador lo conserva)", async () => {
+    llamarApi.mockResolvedValue({ url: "https://accounts.google.com/o/oauth2/v2/auth?x=1" });
+    almacen.set(COOKIE_CONSENTIMIENTO, '{"version_terminos":"0.1","version_privacidad":"0.1"}');
+
+    await getGoogle(inicio());
+
+    expect(cookiesPuestas.some((puesta) => puesta.name === COOKIE_CONSENTIMIENTO)).toBe(false);
+    expect(expiracionDe(COOKIE_CONSENTIMIENTO)).toEqual(EXPIRA_CON_LOS_ATRIBUTOS_CON_QUE_SE_PUSO);
+    expect(almacen.has(COOKIE_CONSENTIMIENTO)).toBe(false);
+  });
+
+  it("si el backend no tiene Google configurado, vuelve al inicio con el motivo", async () => {
+    llamarApi.mockRejectedValue(new ErrorDeApi(409, "no configurado", "OAuthFallido"));
+
+    const respuesta = await getGoogle(inicio());
+
+    expect(ubicacion(respuesta)).toContain("error=OAuthFallido");
+  });
+});
+
+describe("POST /api/auth/google", () => {
+  const GOOGLE = "https://accounts.google.com/o/oauth2/v2/auth?x=1";
+
+  it("guarda el consentimiento en una cookie HttpOnly de 10 minutos y redirige con 303 (caso 20)", async () => {
+    llamarApi.mockResolvedValue({ url: GOOGLE });
+
+    const respuesta = await postGoogle(formulario({ terminos: "1.1", privacidad: "1.0" }));
+
+    // 303, not 307: the browser must follow with a GET, not repeat the POST at Google.
+    expect(respuesta.status).toBe(303);
+    expect(ubicacion(respuesta)).toContain("accounts.google.com");
     const cookie = cookiesPuestas.find((puesta) => puesta.name === COOKIE_CONSENTIMIENTO);
     expect(cookie?.httpOnly).toBe(true);
     expect(cookie?.sameSite).toBe("lax");
@@ -108,36 +177,57 @@ describe("GET /api/auth/google", () => {
       version_terminos: "1.1",
       version_privacidad: "1.0",
     });
-  });
-
-  it("sin versiones en la URL no deja ninguna cookie de consentimiento", async () => {
-    llamarApi.mockResolvedValue({ url: "https://accounts.google.com/o/oauth2/v2/auth?x=1" });
-    almacen.set(COOKIE_CONSENTIMIENTO, '{"version_terminos":"0.1","version_privacidad":"0.1"}');
-
-    await getGoogle(inicio());
-
-    expect(cookiesPuestas.some((puesta) => puesta.name === COOKIE_CONSENTIMIENTO)).toBe(false);
-    expect(cookiesBorradas).toContain(COOKIE_CONSENTIMIENTO);
+    expect(cookiesPuestas.some((puesta) => puesta.name === COOKIE_STATE)).toBe(true);
   });
 
   it.each([
     ["con formato inválido", { terminos: "uno", privacidad: "1.0" }],
     ["demasiado larga", { terminos: "1.".padEnd(40, "0"), privacidad: "1.0" }],
     ["incompleta", { terminos: "1.1" }],
-  ])("una versión %s no se guarda", async (_motivo, parametros) => {
-    llamarApi.mockResolvedValue({ url: "https://accounts.google.com/o/oauth2/v2/auth?x=1" });
+    ["vacía", { terminos: "", privacidad: "" }],
+  ])("una versión %s no se guarda y borra la anterior", async (_motivo, campos) => {
+    llamarApi.mockResolvedValue({ url: GOOGLE });
+    almacen.set(COOKIE_CONSENTIMIENTO, '{"version_terminos":"0.1","version_privacidad":"0.1"}');
 
-    await getGoogle(inicio(parametros));
+    await postGoogle(formulario(campos));
 
     expect(cookiesPuestas.some((puesta) => puesta.name === COOKIE_CONSENTIMIENTO)).toBe(false);
+    expect(expiracionDe(COOKIE_CONSENTIMIENTO)).toEqual(EXPIRA_CON_LOS_ATRIBUTOS_CON_QUE_SE_PUSO);
+  });
+
+  it("un formulario enviado desde otro origen no registra consentimiento", async () => {
+    llamarApi.mockResolvedValue({ url: GOOGLE });
+
+    const respuesta = await postGoogle(
+      formulario(
+        { terminos: "1.1", privacidad: "1.0" },
+        { origin: "https://sitio-malicioso.example" },
+      ),
+    );
+
+    expect(cookiesPuestas.some((puesta) => puesta.name === COOKIE_CONSENTIMIENTO)).toBe(false);
+    // The sign-in itself is harmless: only the consent is withheld.
+    expect(ubicacion(respuesta)).toContain("accounts.google.com");
+  });
+
+  it("un formulario del propio sitio (Origin igual al de la app) sí lo registra", async () => {
+    llamarApi.mockResolvedValue({ url: GOOGLE });
+
+    await postGoogle(
+      formulario({ terminos: "1.1", privacidad: "1.0" }, { origin: "http://localhost:3000" }),
+    );
+
+    expect(cookiesPuestas.some((puesta) => puesta.name === COOKIE_CONSENTIMIENTO)).toBe(true);
   });
 
   it("si el backend no tiene Google configurado, vuelve al inicio con el motivo", async () => {
     llamarApi.mockRejectedValue(new ErrorDeApi(409, "no configurado", "OAuthFallido"));
 
-    const respuesta = await getGoogle(inicio());
+    const respuesta = await postGoogle(formulario({ terminos: "1.1", privacidad: "1.0" }));
 
+    expect(respuesta.status).toBe(303);
     expect(ubicacion(respuesta)).toContain("error=OAuthFallido");
+    expect(cookiesPuestas.some((puesta) => puesta.name === COOKIE_CONSENTIMIENTO)).toBe(false);
   });
 });
 
@@ -184,8 +274,10 @@ describe("GET /api/auth/google/callback", () => {
       method: "POST",
       body: { codigo: "simulado:ana@empresa.com" },
     });
-    // The state cookie is single use: it is deleted whatever the outcome.
-    expect(cookiesBorradas).toContain(COOKIE_STATE);
+    // The state cookie is single use: it is deleted whatever the outcome, with the path it was
+    // set with. A plain `delete(name)` expires `Path=/` and the browser keeps the real one for
+    // the rest of its 10 minutes, so a used state could be replayed.
+    expect(expiracionDe(COOKIE_STATE)).toEqual(EXPIRA_CON_LOS_ATRIBUTOS_CON_QUE_SE_PUSO);
   });
 
   it("reenvía el consentimiento guardado al backend y lo borra después (caso 20)", async () => {
@@ -202,7 +294,7 @@ describe("GET /api/auth/google/callback", () => {
         consentimiento: { version_terminos: "1.1", version_privacidad: "1.0" },
       },
     });
-    expect(cookiesBorradas).toContain(COOKIE_CONSENTIMIENTO);
+    expect(expiracionDe(COOKIE_CONSENTIMIENTO)).toEqual(EXPIRA_CON_LOS_ATRIBUTOS_CON_QUE_SE_PUSO);
     expect(almacen.has(COOKIE_CONSENTIMIENTO)).toBe(false);
   });
 
@@ -228,7 +320,7 @@ describe("GET /api/auth/google/callback", () => {
 
     await getCallback(callback({ state: "otro", code: "x" }));
 
-    expect(cookiesBorradas).toContain(COOKIE_CONSENTIMIENTO);
+    expect(expiracionDe(COOKIE_CONSENTIMIENTO)).toEqual(EXPIRA_CON_LOS_ATRIBUTOS_CON_QUE_SE_PUSO);
   });
 
   it.each(["ConsentimientoRequerido", "VersionLegalDesactualizada"])(
