@@ -33,6 +33,7 @@ from sqlalchemy import TextClause, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from tests.integracion.conftest import RAIZ_BACKEND, requiere_base
+from tests.integracion.guarda import argumentos_de_conexion_de_prueba
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -71,7 +72,10 @@ def esquema_en_0025(esquema_migrado: None) -> Iterator[None]:
 
 def _motor() -> AsyncEngine:
     """El rol dueño, que ve todas las empresas (`BYPASSRLS`, ADR-0005) y puede sembrar."""
-    return create_async_engine(os.environ["DATABASE_URL_MIGRATIONS"])
+    return create_async_engine(
+        os.environ["DATABASE_URL_MIGRATIONS"],
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL_MIGRATIONS"]),
+    )
 
 
 CREAR_EMPRESA = text("INSERT INTO empresa (id, activa) VALUES (:id, true)")

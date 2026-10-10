@@ -547,7 +547,7 @@ PostgreSQL en la CI.
 | 2 · Verificación del tramo 1 | 2026-10-08 | **Aprobado por Luciano el 08/10.** El tramo 2 se apila en `feature/scheduling-recordatorio-de-turno-modelo` |
 | 2 · Verificación del tramo 2 | 2026-10-08 | **Aprobado por Luciano el 08/10 con correcciones**: regla «más cercana registrada supera a las viejas» documentada y probada; backfill `now()`; nota de `EXPLAIN` para el tramo 3; modelo ORM alineado con el índice único |
 | 2 · Verificación del tramo 3 | 2026-10-08 | **Aprobado por Luciano el 08/10 con las correcciones 1 a 6 y las respuestas (a) y (b)** (ver «Gate 2 del tramo 3»). Commits: `013b84c`, `45e9608`, `060f152`, `770e90b`, `9c10849`, `c42b088`, `7f24732`, `9e614cf`, `ded6200`, `f6cbf63` y el de documentación de la revisión posterior |
-| 3 · PR | | |
+| 3 · PR | 2026-10-10 | Un PR por tramo, en orden 1 → 2 → 3. GitHub Actions sin cuota hasta el 2026-11-01: cada PR se verificó con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Progreso
 
@@ -568,7 +568,7 @@ PostgreSQL en la CI.
 - `ReglaDeNegocio.cambiar_prioridad` valida con la misma regla que la construcción;
   `ConfigurarAgendaDeNotificacion` la usa al actualizar, antes de tocar la regla, así que `PUT
   /reglas/agenda` con prioridad negativa responde 422 también sobre una regla existente (antes, 500).
-  El mismo defecto en `atencion.py` y en escalamiento queda registrado en `TODO.md` §25.
+  El mismo defecto en `atencion.py` y en escalamiento queda registrado en `TODO.md` §26.
 - Cada botón «Quitar» de la agenda tiene `aria-label` «Quitar recordatorio N».
 - Tres casos nuevos en `test_agenda_de_notificacion_postgres.py` (se saltean sin base, corren en la CI).
 - Caso 36 y la nota de D-U8-5 sobre la regla malformada, para los tramos 2 y 3.
@@ -634,7 +634,10 @@ modelo ORM declara `uq_recordatorio_de_turno` como `Index(..., unique=True)`, ig
 - **Al mergear con `fix/infra-computo-de-staging`** (trae `platform/intervalos.py::alineado(...)` y
   convierte las entradas de Beat que tocan la base a crontab alineado al minuto 0): la entrada
   `recordar-turnos` debe pasar a `alineado(...)` (15 divide a 60) y `RECORDATORIO_DE_TURNO_MINUTOS` debe
-  sumarse a la validación de arranque de los `*_MINUTOS`.
+  sumarse a la validación de arranque de los `*_MINUTOS`. **Hecho el 2026-10-10** al mergear `develop` para el Gate 3: `alineado(settings.recordatorio_de_turno_minutos)`
+  (minutos 0, 15, 30 y 45 por defecto) y `_intervalo_en_minutos`, así que un valor que no divide la hora o el
+  día —o un 0, que antes se llevaba a un minuto— frena el arranque. Casos 31 y su vecino reescritos sobre el
+  crontab; el caso del cero se reemplaza por el de la validación de arranque en `test_intervalos.py`.
 
 **Gate 2 del tramo 3 · correcciones aprobadas el 2026-10-08.**
 

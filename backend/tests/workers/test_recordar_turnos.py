@@ -207,17 +207,10 @@ class TestBeat:
         entrada = programacion(settings)["recordar-turnos"]
 
         assert entrada["task"] == tasks_scheduling.NOMBRE_BARRIDO
-        assert entrada["schedule"].total_seconds() == 10 * 60
+        assert entrada["schedule"].minute == set(range(0, 60, 10))
         assert entrada["options"]["queue"] == "notifications"
 
-    async def test_por_defecto_corre_cada_15_minutos(self) -> None:
+    async def test_por_defecto_corre_cada_15_minutos_alineado_al_reloj(self) -> None:
         entrada = programacion(settings_de_prueba())["recordar-turnos"]
 
-        assert entrada["schedule"].total_seconds() == 15 * 60
-
-    async def test_un_intervalo_de_cero_no_programa_una_corrida_continua(self) -> None:
-        settings = replace(settings_de_prueba(), recordatorio_de_turno_minutos=0)
-
-        entrada = programacion(settings)["recordar-turnos"]
-
-        assert entrada["schedule"].total_seconds() == 60
+        assert entrada["schedule"].minute == {0, 15, 30, 45}

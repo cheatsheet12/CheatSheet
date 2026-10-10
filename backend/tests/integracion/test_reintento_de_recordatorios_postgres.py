@@ -232,7 +232,9 @@ async def test_un_error_de_base_al_preparar_deja_el_savepoint_limpio_y_el_barrid
                 await self.sesion.execute(text("SELECT 1 / 0"))  # error real del motor
             return resultado
 
-    envio = PreparaYRompeElSegundo(TransaccionFalsa())
+    # Un `wamid` distinto por envío: `uq_recordatorio_externo_id` es único, y el doble por defecto
+    # devuelve siempre el mismo, y con dos envíos el segundo registro violaría el índice.
+    envio = PreparaYRompeElSegundo(TransaccionFalsa(), enviado("wamid-s1-a"), enviado("wamid-s1-b"))
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
         envio.sesion = sesion
         await _barrido(sesion, empresa_id, envio, DESPUES).ejecutar(

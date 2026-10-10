@@ -101,6 +101,20 @@ describe("GET /api/auth/renovar", () => {
     );
   });
 
+  it("con la API caída va al login pero conserva las dos cookies", async () => {
+    almacen.set("cheatsheet_session", "access-viejo");
+    almacen.set("cheatsheet_refresh", "refresh-vivo");
+    llamarApi.mockRejectedValue(new ErrorDeApi(503, "caida", "ServicioNoDisponible"));
+
+    const respuesta = await GET(pedido("/cobros"));
+
+    // Back to `destino` would loop panel → renovar → panel for as long as the outage lasts.
+    expect(ubicacion(respuesta)).toBe("/");
+    expect(cookiesBorradas).toHaveLength(0);
+    expect(almacen.get("cheatsheet_session")).toBe("access-viejo");
+    expect(almacen.get("cheatsheet_refresh")).toBe("refresh-vivo");
+  });
+
   it("una empresa sin onboarding vuelve al onboarding", async () => {
     almacen.set("cheatsheet_refresh", "refresh-viejo");
     llamarApi.mockResolvedValue({ ...SESION, onboarding_completo: false });
