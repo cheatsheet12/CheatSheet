@@ -10,6 +10,7 @@ from uuid import UUID
 
 from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.invitacion import Invitacion
+from cheatsheet.contexts.identity.domain.legal import DocumentoLegal, VersionDeDocumento
 from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import (
@@ -243,4 +244,19 @@ class PortEnvioDeEmail(Protocol):
 
     async def enviar_invitacion(self, mensaje: MensajeDeInvitacion) -> None:
         """Raises `EnvioDeEmailFallido`. The caller decides whether that is fatal."""
+        ...
+
+
+class PortCatalogoLegal(Protocol):
+    """Where the published legal texts and their versions come from (HU-E1-08 RN-01).
+
+    Read once, at start-up: an implementation does no I/O per call.
+    """
+
+    def versiones(self) -> Sequence[VersionDeDocumento]:
+        """Every published version of every document, current or not."""
+        ...
+
+    def texto(self, documento: DocumentoLegal, version: str) -> str:
+        """The text of one published version. `KeyError` if it was never published."""
         ...

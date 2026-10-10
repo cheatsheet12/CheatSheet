@@ -9,6 +9,7 @@
  * dibuja es su frase, que es la que la historia pide palabra por palabra.
  */
 
+import { AvisoDePrivacidad } from "@/features/identity";
 import { AccesoContable } from "@/features/reporting";
 import type { AccesoDelContador } from "@/features/reporting";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
@@ -38,6 +39,7 @@ export default async function PaginaDelContador({ params }: Props): Promise<JSX.
     <main className="publico">
       <h1>Paquete contable</h1>
       <AccesoContable valor={params.valor} acceso={acceso} motivo={motivo} />
+      <AvisoDePrivacidad />
     </main>
   );
 }

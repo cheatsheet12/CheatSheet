@@ -137,6 +137,28 @@ describe("llamarApi", () => {
     await expect(llamarApi<{ estado: string }>("/health")).resolves.toEqual({ estado: "ok" });
   });
 
+  it("sin opción de revalidación no cachea, como hasta ahora", async () => {
+    const fetchFalso = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchFalso);
+
+    await llamarApi("/health");
+
+    const [, opciones] = fetchFalso.mock.calls[0] as [string, RequestInit & { next?: unknown }];
+    expect(opciones.cache).toBe("no-store");
+    expect(opciones.next).toBeUndefined();
+  });
+
+  it("con revalidarCadaSegundos pide a Next revalidar en vez de no cachear", async () => {
+    const fetchFalso = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchFalso);
+
+    await llamarApi("/legal/privacidad", { revalidarCadaSegundos: 3600 });
+
+    const [, opciones] = fetchFalso.mock.calls[0] as [string, RequestInit & { next?: unknown }];
+    expect(opciones.next).toEqual({ revalidate: 3600 });
+    expect(opciones.cache).toBeUndefined();
+  });
+
   it("el barril de lib expone la misma puerta", async () => {
     const barril = await import("@/lib");
 

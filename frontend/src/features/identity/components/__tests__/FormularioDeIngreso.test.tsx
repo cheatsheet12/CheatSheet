@@ -237,6 +237,25 @@ describe("PAN-ONB-01 — registro", () => {
     expect(screen.queryByText("La contraseña debe tener al menos 8 caracteres.")).toBeNull();
   });
 
+  it("enlaza los términos y la política en el pie, en los dos modos", () => {
+    render(<FormularioDeIngreso />);
+    const enlazados = (): string[] =>
+      screen
+        .getAllByRole("link")
+        .map((enlace) => enlace.getAttribute("href") ?? "")
+        .filter((href) => href === "/terminos" || href === "/privacidad");
+
+    expect(enlazados()).toEqual(["/terminos", "/privacidad"]);
+
+    irARegistro();
+
+    // The registration checkbox still links the terms; the footer adds both.
+    expect(enlazados()).toEqual(expect.arrayContaining(["/terminos", "/privacidad"]));
+    expect(
+      screen.getByRole("navigation", { name: "Información legal" }).querySelectorAll("a[href]"),
+    ).toHaveLength(2);
+  });
+
   it("ofrece Google y recuperación de contraseña", () => {
     render(<FormularioDeIngreso />);
 
