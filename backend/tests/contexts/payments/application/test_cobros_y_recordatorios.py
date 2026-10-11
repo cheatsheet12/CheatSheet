@@ -537,7 +537,13 @@ async def test_un_comprobante_inexistente_no_deja_generar() -> None:
 
 
 async def test_regenerar_reemplaza_el_link_anterior() -> None:
-    """El último criterio de HU-E6-03: invalida el anterior y activa el nuevo."""
+    """El último criterio de HU-E6-03: invalida el anterior **en MercadoPago** y activa el nuevo.
+
+    Invalidar no es sólo reemplazar la referencia local: el link viejo ya está en el WhatsApp
+    del cliente y sigue siendo una preferencia cobrable. Si no se mata en MercadoPago, un pago
+    por el link viejo llega con la preferencia anterior y `ConfirmarPago` no lo imputa a ninguna
+    deuda (pago huérfano). RN-04: un cobro tiene un solo link activo a la vez.
+    """
     cobros = CobrosFalsos()
     cobro = _cobro()
     await cobros.agregar(cobro)
@@ -549,9 +555,10 @@ async def test_regenerar_reemplaza_el_link_anterior() -> None:
             del empresa_id, cobro, url_de_retorno
             return LinkDePago(preference_id="pref-2", url="https://mp.com/x2")
 
+    pasarela = OtraPreferencia()
     resultado = await RegenerarLink(
         cobros=cobros,
-        pasarela=OtraPreferencia(),
+        pasarela=pasarela,
         publicador=PublicadorFalso(),
         url_de_retorno=URL_RETORNO,
     ).ejecutar(
@@ -564,6 +571,53 @@ async def test_regenerar_reemplaza_el_link_anterior() -> None:
 
     assert resultado.link is not None
     assert resultado.link.preference_id == "pref-2"
+    # Lo que faltaba: la preferencia anterior se invalida en MercadoPago, no sólo acá.
+    assert pasarela.invalidados == [UN_LINK.preference_id]
+
+
+async def test_si_mercadopago_no_invalida_el_viejo_no_se_regenera() -> None:
+    """Misma decisión que cancelar: una operación sobre plata no se hace a medias.
+
+    Si no se puede matar el link anterior en MercadoPago, no se guarda el nuevo: el cobro
+    conserva su único link cobrable (el viejo, que sigue reconciliando) y nunca queda con dos
+    links vivos ni sin ninguno. Como el doble guarda la referencia mutada, se afirma sobre
+    `escrituras`, igual que en la cancelación.
+    """
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    publicador = PublicadorFalso()
+
+    class CreaOtroPeroNoInvalida(PasarelaFalsa):
+        async def crear_link(
+            self, *, empresa_id: EmpresaId, cobro: Cobro, url_de_retorno: str
+        ) -> LinkDePago:
+            del empresa_id, cobro, url_de_retorno
+            return LinkDePago(preference_id="pref-2", url="https://mp.com/x2")
+
+        async def invalidar_link(
+            self, *, empresa_id: EmpresaId, preference_id: str, ahora: datetime
+        ) -> None:
+            del empresa_id, preference_id, ahora
+            raise PasarelaNoDisponible("MercadoPago no invalido el link de pago")
+
+    caso = RegenerarLink(
+        cobros=cobros,
+        pasarela=CreaOtroPeroNoInvalida(),
+        publicador=publicador,
+        url_de_retorno=URL_RETORNO,
+    )
+    with pytest.raises(PasarelaNoDisponible):
+        await caso.ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            cobro_id=cobro.id,
+            ahora=AHORA,
+        )
+
+    assert cobros.escrituras == []
+    assert publicador.eventos == []
 
 
 async def test_cancelar_un_pagado_usa_el_texto_de_la_historia() -> None:
