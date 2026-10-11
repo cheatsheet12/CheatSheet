@@ -83,7 +83,7 @@ agregar un tercer test ahí sería cubrir dos veces el mismo tramo. Decisión re
 |---|---|---|
 | 1 · Plan | 2026-10-11 | aprobado |
 | 2 · Verificación | 2026-10-11 | frontend: format/lint/typecheck/test:coverage verdes (118 archivos, 1427 tests, 89.54% cobertura). Backend: ruff/mypy verdes, pytest local 3269 passed / 654 skipped (necesitan Postgres). Contra la rama de Neon del equipo: alembic upgrade head OK, pytest 3099 passed — `tests/integracion/` no corrió: el guard de `guarda.py` la rechazó porque la base de esa rama se llama `neondb` y no `cheatsheet_integracion` como exige `backend/tests/README.md`. No se tocó el guard. Probado además a mano en `localhost:3000` (panel local contra la API de staging): el botón "Ver el cliente existente" aparece y navega al duplicado correcto |
-| 3 · PR | | |
+| 3 · PR | 2026-10-11 | abierto: https://github.com/cheatsheet12/CheatSheet/pull/155 |
 
 ## Decisiones tomadas durante la unidad
 
