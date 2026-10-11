@@ -90,7 +90,10 @@ describe("POST /api/legal/aceptaciones", () => {
     const respuesta = await POST(pedido());
 
     expect(respuesta.status).toBe(403);
-    expect(await respuesta.json()).toEqual({ error: "PermisoDenegado" });
+    expect(await respuesta.json()).toEqual({
+      error: "PermisoDenegado",
+      detalle: "Solo un Administrador",
+    });
   });
 
   it("un 403 AceptacionLegalPendiente llega al navegador con su estado y su código", async () => {

@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 
-import { comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
+import { CODIGO_DE_BLOQUEO_LEGAL, comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { respuestaDeError } from "@/app/api/auth/_sesion";
@@ -60,6 +60,13 @@ export async function reenviarAlBackend(
     // rutas de negocio; `ClienteDuplicado` recupera su mensaje sin dejar de ser un 409.
     if (error.status === 409) {
       return NextResponse.json({ error: error.codigo, detalle: error.detalle }, { status: 409 });
+    }
+    // **Un 403 por rol también lleva su frase**, por la misma razón: «Solo un Administrador
+    // puede reembolsar un cobro» está escrita para quien la lee, y sin ella la pantalla
+    // imprime `OperacionNoPermitida` (PRU-07, 11/10/2026). El 403 del bloqueo legal queda
+    // con su código solo: `VigilanteDeAceptacionLegal` lo reconoce por el código.
+    if (error.status === 403 && error.codigo !== CODIGO_DE_BLOQUEO_LEGAL) {
+      return NextResponse.json({ error: error.codigo, detalle: error.detalle }, { status: 403 });
     }
     return respuestaDeError(error);
   }
