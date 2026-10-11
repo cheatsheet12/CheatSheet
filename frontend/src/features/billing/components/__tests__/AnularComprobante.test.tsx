@@ -56,6 +56,7 @@ const ORIGINAL: Comprobante = {
   cae: "75123456789012",
   cae_vence_el: "2026-09-17",
   motivo_de_rechazo: null,
+  leyenda: null,
   subtotal: "2000.00",
   total_iva: "420.00",
   total: "2420.00",

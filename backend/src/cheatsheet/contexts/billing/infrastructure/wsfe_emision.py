@@ -20,8 +20,11 @@ Two things about the envelope are worth stating rather than leaving to be discov
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 from datetime import date, datetime
 from decimal import Decimal
+from types import MappingProxyType
+from typing import Final
 from xml.etree import ElementTree
 
 import httpx
@@ -41,6 +44,7 @@ from cheatsheet.platform.soap import (
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.platform.wsfe import CredencialDeWsfe, PortCredencialesDeWsfe
 from cheatsheet.shared.empresa import EmpresaId
+from cheatsheet.shared.fiscal import CondicionIVA
 
 logger = obtener_logger(__name__)
 
@@ -54,6 +58,19 @@ DOC_TIPO_CUIT = 80
 #: `Concepto` 1 = productos. The system invoices services and products alike and ARCA only
 #: demands the service date range for concepts 2 and 3, which this never sends.
 CONCEPTO_PRODUCTOS = 1
+
+#: `CondicionIVAReceptorId`, mandatory since RG 5616: without it ARCA rejects every document
+#: with error 10246 (seen against homologación on 2026-10-10). The codes are ARCA's own
+#: (`FEParamGetCondicionIvaReceptor`); a dict rather than a field on the Shared Kernel enum
+#: because they are a detail of this wire format, not of what a taxpayer is.
+CONDICION_IVA_RECEPTOR: Final[Mapping[CondicionIVA, int]] = MappingProxyType(
+    {
+        CondicionIVA.RESPONSABLE_INSCRIPTO: 1,
+        CondicionIVA.EXENTO: 4,
+        CondicionIVA.CONSUMIDOR_FINAL: 5,
+        CondicionIVA.MONOTRIBUTO: 6,
+    }
+)
 
 #: ARCA wants dates as `yyyymmdd`, with no separators.
 _FORMATO_FECHA = "%Y%m%d"
@@ -120,6 +137,7 @@ def _cuerpo_de_solicitud(comprobante: Comprobante, punto_numero: int, emitido: d
         f"<ar:Importe>{_monto(importe)}</ar:Importe></ar:AlicIva>"
         for alicuota, base, importe in _iva_agrupado(comprobante)
     )
+    condicion = CONDICION_IVA_RECEPTOR[comprobante.receptor.condicion_iva]
     return f"""      <ar:FeCAEReq>
         <ar:FeCabReq>
           <ar:CantReg>1</ar:CantReg>
@@ -142,6 +160,7 @@ def _cuerpo_de_solicitud(comprobante: Comprobante, punto_numero: int, emitido: d
             <ar:ImpIVA>{_monto(comprobante.total_iva)}</ar:ImpIVA>
             <ar:MonId>PES</ar:MonId>
             <ar:MonCotiz>1</ar:MonCotiz>
+            <ar:CondicionIVAReceptorId>{condicion}</ar:CondicionIVAReceptorId>
             <ar:Iva>{iva}</ar:Iva>
           </ar:FECAEDetRequest>
         </ar:FeDetReq>

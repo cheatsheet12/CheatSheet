@@ -3522,6 +3522,14 @@
   color: var(--ink-900);
 }
 
+/* HU-E5-03 RN-13: the legend of a Factura A to a Monotributista, under the items. */
+.fac-det-items__leyenda {
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  font-size: 12px;
+  color: var(--ink-600);
+}
+
 .fac-det-resumen {
   width: min(100%, 360px);
   margin: 0 0 var(--space-6) auto;
