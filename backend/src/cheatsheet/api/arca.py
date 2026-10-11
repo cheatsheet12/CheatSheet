@@ -148,8 +148,14 @@ def armar_autorizacion(unidad: UnidadDeTrabajo, settings: Settings) -> PortAutor
 
 
 def armar_habilitacion(unidad: UnidadDeTrabajo, settings: Settings) -> PortHabilitacionDeArca:
-    """`FEParamGetPtosVenta` (HU-E5-05 RN-03)."""
-    if _es_real(settings):
+    """`FEParamGetPtosVenta` (HU-E5-05 RN-03). **Real only against production ARCA.**
+
+    Homologación keeps no registry of points of sale: asked on 2026-10-10 for a company it
+    then gave a CAE on point 1, it answered `602 Sin Resultados`. Asking it would block
+    every alta in `staging` for a reason production does not have, so outside production
+    the stand-in's points stand in for the list ARCA does not keep.
+    """
+    if _es_real(settings) and settings.es_produccion:
         return HabilitacionEnArca(
             url=settings.arca_wsfe_url, credenciales=armar_credenciales(unidad, settings)
         )

@@ -43,7 +43,7 @@ def _consultar_padron(unidad: UnidadDeTrabajo, settings: Settings) -> ConsultarP
     """
     piezas = Integraciones.armar(unidad.sesion, settings)
     return ConsultarPadron(
-        tickets=piezas.tickets_de_plataforma,
+        tickets=piezas.tickets_de_padron,
         adaptadores=piezas.adaptadores,
         cuit_de_plataforma=cuit_de_plataforma(settings),
     )
