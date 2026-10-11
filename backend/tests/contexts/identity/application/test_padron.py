@@ -31,6 +31,7 @@ from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.valores import CUIT, CondicionIVA, Email, RolUsuario
 from cheatsheet.shared.auditoria import EventoAuditable, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import EntradaInvalida
 
 from tests.conftest import INSTANTE_FIJO
 from tests.contexts.identity.conftest import (
@@ -127,6 +128,23 @@ async def test_un_operador_no_puede_consultar_el_padron() -> None:
     with pytest.raises(PermisoDenegado):
         await ConsultarPadronDeCuit(padron=padron).ejecutar(
             empresa_id=EmpresaId(uuid4()), cuit=CUIT_VALIDO, rol=RolUsuario.OPERADOR
+        )
+
+    assert padron.llamadas == 0
+
+
+@pytest.mark.parametrize("cuit", ["123", "30000000016"])
+async def test_un_cuit_mal_formado_no_se_le_pregunta_a_arca(cuit: str) -> None:
+    """HU-E1-02: con un formato inválido el sistema «no consulta a ARCA».
+
+    Visto en staging el 11/10/2026: la API consultaba igual con 3 dígitos o con el dígito
+    verificador equivocado. El panel ya lo frenaba; la API gastaba un pedido en ARCA.
+    """
+    padron = PadronFalso()
+
+    with pytest.raises(EntradaInvalida):
+        await ConsultarPadronDeCuit(padron=padron).ejecutar(
+            empresa_id=EmpresaId(uuid4()), cuit=cuit, rol=RolUsuario.ADMINISTRADOR
         )
 
     assert padron.llamadas == 0
