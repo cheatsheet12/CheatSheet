@@ -136,6 +136,18 @@ export function DetalleDeCobro({
     setReembolsando(true);
   }
 
+  // Cerrar un modal descarta la acción: el error que mostraba también se va, para que no
+  // reaparezca arriba una vez que el modal ya no está.
+  function cerrarReembolso(): void {
+    setError(null);
+    setReembolsando(false);
+  }
+
+  function cerrarCancelacion(): void {
+    setError(null);
+    setCancelando(false);
+  }
+
   const motivoCorto = motivo.trim().length < LARGO_MINIMO_DE_MOTIVO;
 
   return (
@@ -305,7 +317,7 @@ export function DetalleDeCobro({
         </section>
       </div>
 
-      <Modal abierto={cancelando} titulo="Cancelar cobro" onCerrar={() => setCancelando(false)}>
+      <Modal abierto={cancelando} titulo="Cancelar cobro" onCerrar={cerrarCancelacion}>
         <form
           className="dm-formulario cob-modal"
           onSubmit={(evento) => {
@@ -326,7 +338,7 @@ export function DetalleDeCobro({
             onChange={(evento) => setMotivo(evento.target.value)}
           />
           <div className="dm-formulario__acciones">
-            <Button variante="secundario" onClick={() => setCancelando(false)}>
+            <Button variante="secundario" onClick={cerrarCancelacion}>
               Volver
             </Button>
             <Button type="submit" disabled={motivoCorto} cargando={trabajando}>
@@ -336,7 +348,7 @@ export function DetalleDeCobro({
         </form>
       </Modal>
 
-      <Modal abierto={reembolsando} titulo="Reembolsar" onCerrar={() => setReembolsando(false)}>
+      <Modal abierto={reembolsando} titulo="Reembolsar" onCerrar={cerrarReembolso}>
         <form
           className="dm-formulario cob-modal"
           onSubmit={(evento) => {
@@ -358,7 +370,7 @@ export function DetalleDeCobro({
             onChange={(evento) => setMontoAReembolsar(evento.target.value)}
           />
           <div className="dm-formulario__acciones">
-            <Button variante="secundario" onClick={() => setReembolsando(false)}>
+            <Button variante="secundario" onClick={cerrarReembolso}>
               Volver
             </Button>
             <Button type="submit" cargando={trabajando}>

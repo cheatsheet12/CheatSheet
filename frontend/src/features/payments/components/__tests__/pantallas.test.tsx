@@ -315,6 +315,31 @@ describe("PAN-COB-02 — detalle del cobro", () => {
     ).toBeTruthy();
   });
 
+  it("al cerrar el modal con error, no lo deja colgado arriba (Bug 5)", async () => {
+    reembolsarCobro.mockRejectedValue(
+      new ErrorDeCobro(
+        "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+      ),
+    );
+    render(<DetalleDeCobro inicial={PAGADO} puedeGestionar puedeReembolsar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reembolsar" }));
+    const modal = screen.getByRole("dialog", { name: "Reembolsar" });
+    fireEvent.click(within(modal).getByRole("button", { name: "Confirmar reembolso" }));
+    await within(modal).findByText(
+      "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+    );
+
+    // Al cerrar el modal se descarta la acción; el error no debe reaparecer arriba.
+    fireEvent.click(within(modal).getByRole("button", { name: "Volver" }));
+
+    expect(
+      screen.queryByText(
+        "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+      ),
+    ).toBeNull();
+  });
+
   it("avisa cuando MercadoPago no pudo invalidar el link al cancelar", async () => {
     // HU-E6-04 RN-03: si el link puede seguir cobrando, la cancelacion no ocurre, y la
     // pantalla lo dice con el texto del backend y no con uno inventado aca.
