@@ -54,7 +54,7 @@ observaciones: >
 | HU-E1-06 | Desactivación y reactivación con el rol anterior; el último Administrador no se desactiva (409); la desactivación revoca sesiones y queda en la bitácora |
 | HU-E1-07 | Preferencias de idioma, zona horaria y suscripciones leídas y guardadas |
 | HU-E2-01 | Delegación verificada contra ARCA homologación y CAE obtenido en staging (Factura A 0003-00000001, CAE 86410985729308) |
-| HU-E2-02 | Vendedor de prueba conectado por OAuth contra MercadoPago; cuenta real rechazada. El pago de un cobro sigue bloqueado (TODO §29.1), lo que afecta a HS-T1 y no a esta HU |
+| HU-E2-02 | Vendedor de prueba conectado por OAuth contra MercadoPago y cuenta real rechazada (06/10/2026); la conexión sigue «Conectada» en la verificación del 11/10/2026. El pago de un cobro sigue bloqueado (TODO §29.1), lo que afecta a HS-T1 y no a esta HU |
 | HU-E2-03 | No ejecutada: requiere la aplicación de Meta y el número de prueba del canal real de WhatsApp |
 | HU-E2-04 | Vínculo creado con el adaptador simulado de Google; la vuelta al panel redirigía al host interno (corregido, sin mergear) |
 | HU-E2-05 | «Verificar estado» consulta ARCA y MercadoPago reales y muestra la hora de verificación; una integración sin conectar ofrece «Conectar» |
