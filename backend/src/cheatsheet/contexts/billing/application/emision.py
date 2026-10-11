@@ -54,7 +54,7 @@ from cheatsheet.contexts.billing.domain.comprobante import (
 from cheatsheet.contexts.billing.domain.punto_de_venta import TipoComprobante
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.fiscal import CUIT, CondicionIVA
 from cheatsheet.shared.roles import RolUsuario
@@ -76,7 +76,7 @@ MENSAJE_SIN_CONDICION = (
 def _exigir_emisor(rol: RolUsuario) -> None:
     """HU-E5-03's actors: Administrador and Operador. Solo Lectura reads (RN-04)."""
     if rol not in (RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR):
-        raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+        raise OperacionNoPermitida(MOTIVO_SIN_PERMISO)
 
 
 class ValidarReceptor:
@@ -380,15 +380,14 @@ async def _aplicar_respuesta(
     else:
         codigo = respuesta.codigo or "SIN_CODIGO"
         descripcion = respuesta.descripcion or "ARCA rechazo el comprobante"
-        comprobante.rechazar(f"Error {codigo}: {descripcion}")
-        # A rejection is an answer, so the number was never used and goes back.
+        numero = comprobante.rechazar(f"Error {codigo}: {descripcion}")
         # A rejection is an answer, so ARCA recorded nothing under that number and it can
         # go back. When it cannot -- a later document already drew one -- the gap stays and
         # `sincronizar_con_arca` closes it on the next issue (D18). Failing here instead
         # would leave the document unresolved over a bookkeeping detail.
         punto = await puntos.tomar_para_emitir(comprobante.punto_de_venta_id)
-        if punto is not None and comprobante.numero is not None:
-            punto.devolver_numero(comprobante.tipo, comprobante.numero)
+        if punto is not None and numero is not None:
+            punto.devolver_numero(comprobante.tipo, numero)
             await puntos.guardar(punto)
 
     await comprobantes.guardar(comprobante)

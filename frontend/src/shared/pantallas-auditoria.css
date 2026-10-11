@@ -1033,3 +1033,443 @@
     transform: none;
   }
 }
+
+/* ══ Rediseño del log: tarjetas de resumen, filtros, tabla legible y detalle ════════════════
+ *
+ * Sobrio: fondo blanco, tinta oscura y el color sólo en iconos y estados. Va al final para
+ * ganar por orden sobre las reglas de arriba. */
+
+/* ── Tarjetas de resumen ──────────────────────────────────────────────────────────────── */
+.log-resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.log-dato {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+  animation: log-entra 0.5s calc(var(--i, 0) * 0.07s) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.log-dato:hover {
+  border-color: var(--ink-300);
+  box-shadow: 0 10px 24px rgb(30 30 46 / 8%);
+  transform: translateY(-2px);
+}
+
+.log-dato__icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  color: var(--ink-500);
+}
+
+.log-dato__icono--ok {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.log-dato__icono--error {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.log-dato__icono--ia {
+  background: #ececfa;
+  color: #4a4ab0;
+}
+
+.log-dato__texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.log-dato__texto b {
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-dato__texto small {
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+@keyframes log-entra {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* ── Filtros: una sola tarjeta con su encabezado ──────────────────────────────────────── */
+.log-filtros-caja {
+  margin-bottom: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+}
+
+.log-filtros-caja__cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.log-filtros-caja__titulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink-900);
+}
+
+.log-filtros-caja__titulo svg {
+  color: var(--ink-400);
+}
+
+.log-filtros-caja__titulo em {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ink-900);
+  color: #fff;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.log-limpiar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.log-limpiar:hover:not(:disabled) {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.log-limpiar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.log-filtros-caja .log-filtros {
+  margin: 0;
+  padding: 18px 20px 20px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* ── Barra de la tabla y el botón Actualizar ──────────────────────────────────────────── */
+.log-accion {
+  gap: 8px;
+  border-radius: 11px;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+}
+
+.log-accion svg {
+  color: var(--ink-400);
+  transition: color 0.16s ease;
+}
+
+.log-accion:hover:not(:disabled) svg {
+  color: var(--accent-700);
+}
+
+.log-girar {
+  animation: log-giro 0.8s linear infinite;
+}
+
+@keyframes log-giro {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── La tabla ─────────────────────────────────────────────────────────────────────────── */
+.log-panel {
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+}
+
+.log-panel .tabla th {
+  background: var(--bg-soft);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+}
+
+/* Una operación con error se marca con una guía roja a la izquierda de la fila, sin teñirla. */
+.log-panel .tabla tbody tr:has(.log-estado--error) td:first-child {
+  box-shadow: inset 3px 0 0 var(--err);
+}
+
+.log-op-celda {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.log-op {
+  font-size: 14px;
+}
+
+.log-op-codigo {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.log-ent-celda {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.log-ent-celda__tipo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+.log-ent-celda .log-ent {
+  color: var(--ink-400);
+}
+
+/* El módulo: un icono en un azulejo, con el tono de su familia. */
+.log-modulo {
+  gap: 10px;
+}
+
+.log-modulo__icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--bg-soft);
+  color: var(--ink-500);
+}
+
+.log-modulo__icono--acento {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.log-modulo__icono--info {
+  background: #e8f0fd;
+  color: #2f5fb3;
+}
+
+.log-modulo__icono--alerta {
+  background: var(--alert-050);
+  color: var(--warn);
+}
+
+.log-modulo__icono--primario {
+  background: #ececfa;
+  color: #4a4ab0;
+}
+
+/* El iniciador: el mismo azulejo, con el icono de quién lo puso en marcha. */
+.log-por__tag {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--bg-soft);
+  color: var(--ink-500);
+}
+
+.log-por--usuario .log-por__tag {
+  background: #e8f0fd;
+  color: #2f5fb3;
+}
+
+.log-por--ia .log-por__tag {
+  background: var(--accent-050);
+  color: var(--accent-700);
+  box-shadow: none;
+}
+
+.log-ver {
+  border-radius: 10px;
+}
+
+.log-ver:hover {
+  transform: translateX(2px);
+}
+
+/* ── Paginador ────────────────────────────────────────────────────────────────────────── */
+.log-pg {
+  border-radius: 10px;
+}
+
+.log-pg[aria-current="page"] {
+  box-shadow: 0 4px 10px rgb(30 30 46 / 22%);
+}
+
+/* ── Detalle ──────────────────────────────────────────────────────────────────────────── */
+.log-tarjeta {
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+  animation: log-entra 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.log-detalle > .log-tarjeta:nth-of-type(2) {
+  animation-delay: 0.06s;
+}
+
+.log-detalle > .log-tarjeta:nth-of-type(3) {
+  animation-delay: 0.12s;
+}
+
+.log-detalle > .log-tarjeta:nth-of-type(4) {
+  animation-delay: 0.18s;
+}
+
+.log-cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.log-cabecera__icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  background: var(--bg-soft);
+  color: var(--ink-700);
+}
+
+.log-cabecera__icono--error {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.log-cabecera__texto {
+  min-width: 0;
+  flex: 1;
+}
+
+.log-cabecera__titulo {
+  font-size: 22px;
+  margin-top: 8px;
+}
+
+.log-cabecera__codigo {
+  display: inline-block;
+  margin: 4px 0 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+.log-meta {
+  gap: 12px;
+}
+
+.log-meta > div {
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--bg-soft);
+}
+
+.log-seccion__titulo {
+  color: var(--ink-700);
+}
+
+.log-kv__par {
+  padding: 13px 0;
+}
+
+.log-tl__punto {
+  box-shadow: 0 0 0 4px var(--card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log-dato,
+  .log-tarjeta,
+  .log-girar {
+    animation: none;
+  }
+
+  .log-dato,
+  .log-limpiar,
+  .log-accion svg,
+  .log-ver {
+    transition: none;
+  }
+
+  .log-dato:hover,
+  .log-ver:hover {
+    transform: none;
+  }
+}
+
+@media (width <= 560px) {
+  .log-resumen {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .log-dato {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .log-dato__texto b {
+    font-size: 22px;
+  }
+}

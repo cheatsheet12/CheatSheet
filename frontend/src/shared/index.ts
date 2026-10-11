@@ -17,6 +17,8 @@ export { Button } from "@/shared/ui/Button";
 export type { PropsDeBoton, VarianteDeBoton } from "@/shared/ui/Button";
 export { Campo, Casilla } from "@/shared/ui/Campo";
 export type { PropsDeCampo, PropsDeCasilla } from "@/shared/ui/Campo";
+export { CampoDeContrasena } from "@/shared/ui/CampoDeContrasena";
+export type { PropsDeCampoDeContrasena } from "@/shared/ui/CampoDeContrasena";
 export { Card } from "@/shared/ui/Card";
 export type { PropsDeCard } from "@/shared/ui/Card";
 export { Desplegable } from "@/shared/ui/Desplegable";
@@ -38,9 +40,11 @@ export type { Columna, PropsDeTabla } from "@/shared/ui/Tabla";
 export {
   formatearFecha,
   formatearFechaHora,
+  formatearHora,
   formatearNumero,
   PREFERENCIAS_POR_DEFECTO,
 } from "@/shared/formato";
+export { motivoDeFalla } from "@/shared/motivos-de-falla";
 export type { PreferenciasDeFormato } from "@/shared/formato";
 export { useAccionConNavegacion } from "@/shared/navegacion";
 export type {

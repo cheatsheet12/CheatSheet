@@ -37,7 +37,12 @@ from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
 )
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
 from cheatsheet.shared.empresa import EmpresaId
-from cheatsheet.shared.errors import EntradaInvalida, ErrorDeDominio, InvarianteViolada
+from cheatsheet.shared.errors import (
+    EntradaInvalida,
+    ErrorDeDominio,
+    InvarianteViolada,
+    OperacionNoPermitida,
+)
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 
@@ -385,7 +390,7 @@ async def test_solo_lectura_no_reprocesa() -> None:
         planilla=_planilla((2, "Kiosco Luis", "roto")), rechaza=frozenset({"roto"})
     )
 
-    with pytest.raises(EntradaInvalida):
+    with pytest.raises(OperacionNoPermitida):
         await PrepararReproceso(procesamientos).ejecutar(
             procesamiento_id=procesamiento.id, rol=RolUsuario.SOLO_LECTURA
         )

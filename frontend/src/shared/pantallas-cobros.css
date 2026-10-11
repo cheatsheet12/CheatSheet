@@ -675,6 +675,14 @@
   display: block;
 }
 
+/* Por qué un recordatorio falló o no salió (U7): en castellano, debajo de la fecha. */
+.cob-hito__motivo {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-500);
+  display: block;
+}
+
 .cob-vacio {
   color: var(--ink-400);
   font-size: 13px;
@@ -3512,6 +3520,14 @@
   font-size: 14px;
   font-weight: 700;
   color: var(--ink-900);
+}
+
+/* HU-E5-03 RN-13: the legend of a Factura A to a Monotributista, under the items. */
+.fac-det-items__leyenda {
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  font-size: 12px;
+  color: var(--ink-600);
 }
 
 .fac-det-resumen {

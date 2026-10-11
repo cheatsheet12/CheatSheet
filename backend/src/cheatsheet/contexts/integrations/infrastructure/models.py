@@ -14,7 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from cheatsheet.platform.database import Base
 
 TABLA_CONFIGURACION = "configuracion_de_integracion"
-TABLA_TICKET = "ticket_de_acceso"
+TABLA_TICKET_DE_PLATAFORMA = "ticket_de_plataforma"
 
 
 class ConfiguracionDeIntegracionORM(Base):
@@ -56,31 +56,16 @@ class ConfiguracionDeIntegracionORM(Base):
     pendiente_desde: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-class TicketDeAccesoORM(Base):
-    """One live ARCA session per `(empresa_id, servicio)` — **gap H11**, ADR-0004.
+class TicketDePlataformaORM(Base):
+    """One live session of the platform certificate per ARCA service (ADR-0014).
 
-    The DER models the credential and not the session derived from it, and the two cannot
-    share a row: a ticket lasts twelve hours against a certificate's two years, and one
-    company holds several at once because a ticket authenticates one ARCA service.
-
-    Storing it at all is a correctness requirement rather than a cache: WSAA refuses to
-    issue a second ticket while the first is alive, so a system that discards the one it
-    was given cannot authenticate again until that one expires.
-
-    `contenido_cifrado` holds the token and the sign, encrypted with the same AES-256-GCM
-    adapter as the credentials. They are secrets in their own right — whoever holds them
-    speaks to ARCA as the company for the rest of the twelve hours.
+    **No `empresa_id`, and therefore no Row-Level Security**: it holds no company's data,
+    and every company is reached through it. Encrypted like the integration credentials.
     """
 
-    __tablename__ = TABLA_TICKET
-    __table_args__ = (
-        UniqueConstraint("empresa_id", "servicio", name="uq_ticket_empresa_servicio"),
-        Index("ix_ticket_empresa", "empresa_id"),
-    )
+    __tablename__ = TABLA_TICKET_DE_PLATAFORMA
 
-    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
-    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
-    servicio: Mapped[str] = mapped_column(String(30), nullable=False)
+    servicio: Mapped[str] = mapped_column(String(30), primary_key=True)
     contenido_cifrado: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     algoritmo: Mapped[str] = mapped_column(String(40), nullable=False)
     expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -88,7 +88,7 @@ block the issuance of a tax document, and a slow LLM call cannot starve reminder
 | `payments` | billing | C/S via events | `PagoConfirmado`; billing updates the derived balance |
 | `scheduling` | billing | C/S | A completed `Turno` may request issuance |
 | `conversational` | scheduling, payments, billing | C/S | The agent translates intents into use-case calls |
-| `conversational` | payments, scheduling, business_config | C/S, wired only in the composition root | The WhatsApp channel to Meta: send a text or an approved template and get Meta's message id back; submit a template and read its approval status ([ADR-0011](adr/0011-outbound-whatsapp-channel-via-composition-root.md)) |
+| `conversational` | payments, scheduling, business_config | C/S, wired only in the composition root | The WhatsApp channel to Meta: send a text or an approved template and get Meta's message id back; submit a template and read its approval status; for scheduling notices, record the outgoing message in the customer's conversation (owned by `conversational`) ([ADR-0011](adr/0011-outbound-whatsapp-channel-via-composition-root.md)) |
 | all | `observability` | OHS | Auditable events and notifications |
 | `integrations` | identity, master_data, spreadsheet_sync, billing, payments, conversational | OHS | Validated external credentials and connection status ([ADR-0003](adr/0003-integrations-open-host-service.md)) |
 | Core contexts | `reporting` | C/S | Consolidated data for reports and accounting packages |
@@ -157,6 +157,7 @@ traceability with the design documents and with ARCA itself.
 | `PortEmisionFiscal` | ARCA via PyAfipWs (WSFEv1, SOAP) — ADR-012 | `billing` |
 | `PortCobro` | MercadoPago (REST) | `payments` |
 | `PortMensajeria` | WhatsApp Cloud API. Also consumed by `payments` (`EnvioPorWhatsApp`) and `scheduling` (`AvisoPorWhatsApp`) through a local structural `Protocol`, wired only in the composition root (`api/mensajeria.py`) — [ADR-0011](adr/0011-outbound-whatsapp-channel-via-composition-root.md) | `conversational` |
+| `PortRevisionDeMeta` | Meta Business Management API (`message_templates` of the company's WABA): create, edit and read the state of the six WhatsApp templates. Declared by `business_config`; the adapter lives in the composition root (`api/mensajeria.py`) over the client in `conversational/infrastructure/plantillas_meta.py`, and translates its typed errors to `business_config`'s — [ADR-0011](adr/0011-outbound-whatsapp-channel-via-composition-root.md) §4 | `business_config` |
 | `PortPlanilla` (read + write-back) | Google Sheets / Excel Online | `spreadsheet_sync` |
 | `PortModeloDeLenguaje` | LLM provider (mapping, intent, embeddings) | `spreadsheet_sync`, `conversational` |
 | `PortTranscripcion` | Audio transcription service | `conversational` |

@@ -244,6 +244,27 @@ class PortRepositorioRecordatorios(Protocol):
 
     async def guardar(self, recordatorio: Recordatorio) -> None: ...
 
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Recordatorio | None:
+        """El recordatorio al que se refiere un callback de estado, por el `wamid` de Meta (U7).
+
+        `None` si ese `wamid` no es de un recordatorio **de esta empresa**: bajo RLS, uno ajeno
+        simplemente no existe. `para_actualizar` bloquea la fila hasta el fin de la transacción:
+        los callbacks leen, mutan y reescriben, y dos en paralelo se pisarían.
+        """
+        ...
+
+    async def buscar_para_actualizar(self, recordatorio_id: UUID) -> Recordatorio | None:
+        """La fila **bloqueada y releída** (U7, D-U7-3): quien la toma para un intento decide sobre
+        lo que otro barrido dejó confirmado, y dos barridos solapados no mandan lo mismo."""
+        ...
+
+    async def pendientes_de_reintento(self, ahora: datetime) -> list[Recordatorio]:
+        """Las filas sin enviar con `proximo_intento_en <= ahora`: un reintento que toca, o un
+        envío en curso cuya ventana venció (resultado incierto)."""
+        ...
+
     async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]: ...
 
     async def de_cobros(self, cobro_ids: list[UUID]) -> dict[UUID, list[Recordatorio]]:

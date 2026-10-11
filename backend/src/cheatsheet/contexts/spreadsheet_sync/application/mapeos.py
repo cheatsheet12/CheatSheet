@@ -35,7 +35,7 @@ from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import (
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -353,7 +353,7 @@ def _exigir_que_pueda_mapear(rol: RolUsuario) -> None:
     from, while mapping its columns is day-to-day work.
     """
     if rol is RolUsuario.SOLO_LECTURA:
-        raise EntradaInvalida("Un usuario de Solo Lectura no puede modificar el mapeo")
+        raise OperacionNoPermitida("Un usuario de Solo Lectura no puede modificar el mapeo")
 
 
 @dataclass(frozen=True, slots=True)

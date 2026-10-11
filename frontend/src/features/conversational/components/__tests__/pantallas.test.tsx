@@ -126,6 +126,7 @@ const DEL_CLIENTE: Mensaje = {
   intencion: "TURNO",
   estado_entrega: null,
   origen: null,
+  motivo_de_falla: null,
 };
 
 const DEL_AGENTE: Mensaje = {
@@ -137,6 +138,7 @@ const DEL_AGENTE: Mensaje = {
   intencion: null,
   estado_entrega: "ENVIADO",
   origen: "AGENTE",
+  motivo_de_falla: null,
 };
 
 const DEL_OPERADOR: Mensaje = { ...DEL_AGENTE, id: "m3", origen: "OPERADOR", contenido: "Hola!" };
@@ -187,6 +189,10 @@ const PLANTILLA: Plantilla = {
   estado_aprobacion: "APROBADA",
   variables: ["nombre", "servicio", "fecha", "hora"],
   puede_usarse: true,
+  motivo_meta: null,
+  detalle_meta: null,
+  categoria_en_meta: null,
+  editable_desde: null,
 };
 
 const SIN_APROBAR: Plantilla = {
@@ -548,7 +554,7 @@ describe("PAN-CFG-NOT — plantillas", () => {
     render(<PlantillasDeNotificacion inicial={{ plantillas: [SIN_APROBAR] }} puedeEditar />);
 
     expect(screen.getByText("Hay plantillas sin aprobar")).toBeTruthy();
-    expect(screen.getByText("Pendiente de aprobación")).toBeTruthy();
+    expect(screen.getByText("En revisión de Meta")).toBeTruthy();
   });
 
   it("ofrece las variables admitidas en vez de hacerlas adivinar", () => {
@@ -581,14 +587,14 @@ describe("PAN-CFG-NOT — plantillas", () => {
     fireEvent.click(screen.getByRole("button", { name: "Editar texto" }));
 
     fireEvent.change(screen.getByLabelText("Texto del mensaje"), {
-      target: { value: "{{nombre}}: te esperamos el {{fecha}} a las {{hora}}." },
+      target: { value: "Hola {{nombre}}: te esperamos el {{fecha}} a las {{hora}}." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
     await waitFor(() => {
       expect(editarPlantilla).toHaveBeenCalledWith(
         "p1",
-        "{{nombre}}: te esperamos el {{fecha}} a las {{hora}}.",
+        "Hola {{nombre}}: te esperamos el {{fecha}} a las {{hora}}.",
       );
     });
   });

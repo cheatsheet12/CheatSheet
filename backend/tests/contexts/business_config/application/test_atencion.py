@@ -22,7 +22,7 @@ from cheatsheet.contexts.business_config.domain.horario_de_atencion import (
 from cheatsheet.contexts.business_config.domain.horario_de_atencion_json import como_json
 from cheatsheet.contexts.business_config.domain.regla import ReglaDeNegocio, TipoRegla
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 from cheatsheet.shared.zona_horaria import ZONA_ARGENTINA
@@ -161,7 +161,7 @@ async def test_al_guardar_descarta_las_fechas_anteriores_a_un_horizonte_y_conser
 async def test_un_operador_no_puede_configurar_el_horario() -> None:
     reglas, publicador = ReglasFalsas(), PublicadorFalso()
 
-    with pytest.raises(EntradaInvalida) as exc:
+    with pytest.raises(OperacionNoPermitida) as exc:
         await _guardar(reglas, publicador, _config(), rol=RolUsuario.OPERADOR)
 
     assert str(exc.value) == MOTIVO_SOLO_ADMIN

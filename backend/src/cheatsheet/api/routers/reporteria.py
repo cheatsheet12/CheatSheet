@@ -64,7 +64,7 @@ from cheatsheet.contexts.reporting.domain.reporte import (
 )
 from cheatsheet.contexts.reporting.infrastructure.ensamblado import Reporteria
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 from fastapi import APIRouter, Query, Request, Response, status
 from pydantic import BaseModel
@@ -406,7 +406,9 @@ def _rutas_de_paquetes(recursos: Recursos) -> APIRouter:
             piezas = Reporteria.armar(unidad, recursos.settings)
             ahora = unidad.reloj.ahora()
             if rol is not RolUsuario.ADMINISTRADOR:
-                raise EntradaInvalida("Solo un Administrador puede generar el paquete contable")
+                raise OperacionNoPermitida(
+                    "Solo un Administrador puede generar el paquete contable"
+                )
             configuracion = await piezas.paquetes.configuracion()
             periodo = (
                 Periodo.del_mes(entrada.anio, entrada.mes)

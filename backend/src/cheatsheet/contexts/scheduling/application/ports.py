@@ -62,6 +62,8 @@ class DatosDeAviso:
     tocar el agregado. Lo que cruza es texto y fechas — lo que un mensaje necesita.
     """
 
+    #: El cliente del turno: el aviso se guarda en **su** conversación (U7, D-U7-4).
+    cliente_id: UUID
     telefono: str
     nombre_del_cliente: str
     servicio: str

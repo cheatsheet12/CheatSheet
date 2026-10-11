@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 
-import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { respuestaDeError } from "@/app/api/auth/_sesion";
@@ -24,10 +24,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   const cuerpo: unknown = await request.json();
   try {
-    const resultado = await llamarApi<unknown>("/auth/empresa/padron", {
-      method: "POST",
-      body: cuerpo,
-    });
+    const resultado = await comoRutaDelBff(() =>
+      llamarApi<unknown>("/auth/empresa/padron", {
+        method: "POST",
+        body: cuerpo,
+      }),
+    );
     return NextResponse.json(resultado);
   } catch (error) {
     return respuestaDeError(error instanceof ErrorDeApi ? error : null);

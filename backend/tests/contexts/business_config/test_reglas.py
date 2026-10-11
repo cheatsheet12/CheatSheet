@@ -35,7 +35,7 @@ from cheatsheet.contexts.business_config.domain.regla import (
     resolver,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 
@@ -280,7 +280,7 @@ async def test_guardar_una_regla_apagada_la_reactiva() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("rol", [RolUsuario.OPERADOR, RolUsuario.SOLO_LECTURA])
 async def test_solo_el_administrador_configura(rol: RolUsuario) -> None:
-    with pytest.raises(EntradaInvalida) as exc:
+    with pytest.raises(OperacionNoPermitida) as exc:
         await ConfigurarEscalamiento(reglas=ReglasFalsas(), publicador=PublicadorFalso()).ejecutar(
             empresa_id=EMPRESA,
             usuario_id=USUARIO,

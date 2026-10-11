@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.api.padron import armar_padron
+from cheatsheet.api.routers.legal import ConsentimientoEntrada, consentimiento_de
 from cheatsheet.contexts.identity.application.errors import (
     CredencialesInvalidas,
     InvitacionInvalida,
@@ -45,6 +46,10 @@ from cheatsheet.contexts.identity.infrastructure.resolucion import (
     empresa_de_refresh,
 )
 from cheatsheet.contexts.identity.infrastructure.seguridad import hashear_token_opaco
+from cheatsheet.contexts.integrations.application.delegacion import (
+    InvalidarDelegacionPorCambioDeCuit,
+)
+from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida
 from cheatsheet.shared.roles import RolUsuario
@@ -58,6 +63,7 @@ class RegistroEntrada(BaseModel):
     email: str
     contrasena: str = Field(min_length=LARGO_MINIMO_CONTRASENA)
     nombre: str
+    consentimiento: ConsentimientoEntrada | None = None
 
 
 class LoginEntrada(BaseModel):
@@ -73,12 +79,17 @@ class AceptacionEntrada(BaseModel):
     token: str
     nombre: str
     contrasena: str = Field(min_length=LARGO_MINIMO_CONTRASENA)
+    version_privacidad: str | None = None
 
 
 class GoogleEntrada(BaseModel):
-    """The authorization code Google handed to the browser, relayed by the BFF."""
+    """The authorization code Google handed to the browser, relayed by the BFF.
+
+    `consentimiento` is only needed when the account is new (HU-E1-08 RN-03).
+    """
 
     codigo: str
+    consentimiento: ConsentimientoEntrada | None = None
 
 
 class DatosDeEmpresaEntrada(BaseModel):
@@ -103,6 +114,7 @@ class EmpresaSalida(BaseModel):
     condicion_iva: CondicionIVA | None = None
     nombre_responsable: str | None = None
     email_contacto: str | None = None
+    aceptaciones_pendientes: list[str] = []
 
 
 class ConsultaDePadronEntrada(BaseModel):
@@ -175,12 +187,13 @@ def _rutas_de_alta(recursos: Recursos) -> APIRouter:
                 usuarios=piezas.usuarios,
                 hasher=piezas.hasher,
                 publicador=unidad.publicador,
+                registrador=piezas.registrador,
             ).ejecutar(
                 empresa_id=empresa_id,
                 email=Email(entrada.email),
                 contrasena=entrada.contrasena,
                 nombre=entrada.nombre,
-                version_terminos=recursos.settings.terminos_version_vigente,
+                consentimiento=consentimiento_de(entrada.consentimiento),
                 ahora=unidad.reloj.ahora(),
                 direccion_ip=_ip(request),
             )
@@ -324,10 +337,12 @@ def _rutas_de_invitacion(recursos: Recursos) -> APIRouter:
                 hasher=piezas.hasher,
                 emisor=piezas.emisor,
                 publicador=unidad.publicador,
+                registrador=piezas.registrador,
             ).ejecutar(
                 token=entrada.token,
                 nombre=entrada.nombre,
                 contrasena=entrada.contrasena,
+                version_privacidad=entrada.version_privacidad,
                 ahora=unidad.reloj.ahora(),
                 direccion_ip=_ip(request),
             )
@@ -364,11 +379,12 @@ def _rutas_de_invitacion(recursos: Recursos) -> APIRouter:
                         empresas=piezas.empresas,
                         usuarios=piezas.usuarios,
                         publicador=unidad.publicador,
+                        registrador=piezas.registrador,
                     ).ejecutar(
                         empresa_id=empresa_id,
                         email=perfil.email,
                         nombre=perfil.nombre,
-                        version_terminos=recursos.settings.terminos_version_vigente,
+                        consentimiento=consentimiento_de(entrada.consentimiento),
                         ahora=unidad.reloj.ahora(),
                         direccion_ip=_ip(request),
                     )
@@ -425,6 +441,7 @@ def _rutas_autenticadas(recursos: Recursos) -> APIRouter:
                 condicion_iva=empresa.condicion_iva,
                 nombre_responsable=empresa.nombre_responsable,
                 email_contacto=str(empresa.email_contacto) if empresa.email_contacto else None,
+                aceptaciones_pendientes=sorted(d.value for d in request.state.pendientes_legales),
             )
         if salida is None:  # pragma: no cover — the unit of work always yields once
             raise RuntimeError("La unidad de trabajo no produjo un resultado")
@@ -456,6 +473,18 @@ def _rutas_autenticadas(recursos: Recursos) -> APIRouter:
                 nombre_responsable=entrada.nombre_responsable,
                 email_contacto=Email(entrada.email_contacto),
                 ahora=unidad.reloj.ahora(),
+                direccion_ip=_ip(request),
+            )
+            # ADR-0014: the CUIT decides on whose behalf ARCA authorises. A changed CUIT
+            # leaves ARCA not connected until its delegation is verified again.
+            await InvalidarDelegacionPorCambioDeCuit(
+                integraciones=Integraciones.armar(unidad.sesion, recursos.settings).integraciones,
+                publicador=unidad.publicador,
+            ).ejecutar(
+                empresa_id=empresa_id,
+                cuit=entrada.cuit,
+                ahora=unidad.reloj.ahora(),
+                usuario_id=usuario_id,
                 direccion_ip=_ip(request),
             )
             resultado = {"onboarding_completo": empresa.onboarding_completo}

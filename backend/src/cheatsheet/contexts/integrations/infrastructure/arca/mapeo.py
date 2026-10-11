@@ -1,8 +1,7 @@
 """ARCA's vocabulary in, ours out.
 
-Two translations live here and they answer different questions. `interpretar_falla` decides
-what a SOAP fault *means* — was the credential refused, or did ARCA have a bad minute?
-`estado_por_vencimiento` decides what a certificate's expiry date means for the card.
+`interpretar_falla` decides what a SOAP fault *means* — was the credential refused, or did
+ARCA have a bad minute?
 
 **The catch-all matters most, again.** ARCA adds fault codes without announcing it, and an
 unrecognised one raising a `KeyError` inside a daily Beat task is an integration that goes
@@ -13,20 +12,16 @@ destroys nothing.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 
 from cheatsheet.contexts.integrations.application.errors import (
     ConexionRechazada,
     ProveedorNoDisponible,
+    TicketTodaviaVigente,
 )
 from cheatsheet.contexts.integrations.domain.valores import CLAVE_CUIT as CLAVE_CUIT
-from cheatsheet.contexts.integrations.domain.valores import EstadoDeConexion
 
-#: Parameter keys this adapter writes onto the aggregate. Ours, not ARCA's. `CLAVE_CUIT`
-#: lives in the domain because the application layer reads it too — see `valores.py`; it is
-#: re-exported here so every ARCA module keeps taking its keys from one import.
-CLAVE_TITULAR = "titular"
-CLAVE_VENCIMIENTO = "certificado_vence_en"
+#: `CLAVE_CUIT` lives in the domain because the application layer reads it too — see
+#: `valores.py`; it is re-exported here so every ARCA module keeps taking it from one import.
 
 #: ARCA answers this when a live ticket already exists for the same CUIT and service.
 #: **Not an error**: it is the provider confirming the credential works, and the only
@@ -48,7 +43,7 @@ RECHAZOS: dict[str, str] = {
 TRANSITORIOS = frozenset({"coe.notAuthorized", "cms.internalError", "soapenv:Server"})
 
 
-class YaAutenticado(RuntimeError):
+class YaAutenticado(TicketTodaviaVigente):
     """ARCA still holds a live ticket for this CUIT and service.
 
     Its own type because the caller's reaction is neither "reject" nor "retry": it is
@@ -75,28 +70,3 @@ def interpretar_falla(falla: FallaDeArca) -> Exception:
     # something we do not understand against a fiscal service is the wrong default, and
     # the raw code travels in the message so it can be looked up.
     return ConexionRechazada(f"ARCA rechazo la conexion ({falla.codigo}): {falla.detalle}")
-
-
-def estado_por_vencimiento(
-    vence_en: datetime, ahora: datetime, aviso: timedelta
-) -> tuple[EstadoDeConexion, str | None]:
-    """What the certificate's expiry date means for the card, with no network call.
-
-    Three outcomes, and the middle one is the one that earns its keep: renewing a
-    certificate at ARCA takes days, so finding out on the day it expired means not being
-    able to invoice. `ATENCION` before the fact is the difference between a warning and an
-    outage.
-    """
-    if vence_en <= ahora:
-        return (
-            EstadoDeConexion.NO_CONECTADO,
-            f"El certificado vencio el {vence_en.date().isoformat()}",
-        )
-    if vence_en - ahora <= aviso:
-        dias = max((vence_en - ahora).days, 1)
-        return (
-            EstadoDeConexion.ATENCION,
-            f"El certificado vence en {dias} dias ({vence_en.date().isoformat()}). "
-            f"Renovalo en ARCA antes de esa fecha",
-        )
-    return EstadoDeConexion.CONECTADO, None

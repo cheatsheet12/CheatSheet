@@ -8,6 +8,7 @@ enviado lo que no salió). Todo corre sin red: la integración y el cifrado son 
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from types import SimpleNamespace
 from typing import Any
@@ -16,40 +17,35 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 from cheatsheet.api import mensajeria as modulo
-from cheatsheet.api.agenda import armar_notificador
 from cheatsheet.api.conversacional import _NotificadorSilencioso, armar_agenda
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.api.mercadopago import armar_envio
-from cheatsheet.contexts.conversational.application.ports import PortMensajeria
 from cheatsheet.contexts.conversational.infrastructure.canal import (
     ConfiguracionDeMensajeria,
     MensajeriaSimulada,
-    MensajeriaWhatsApp,
     SinCanal,
 )
 from cheatsheet.contexts.integrations.infrastructure.cifrado import CredencialIlegible
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
 from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorWhatsApp
-from cheatsheet.contexts.scheduling.application.turnos import Avisador
-from cheatsheet.contexts.scheduling.domain.turno import EstadoTurno, Turno
+from cheatsheet.contexts.scheduling.domain.turno import EstadoTurno
 from cheatsheet.platform.settings import AdaptadorDeWhatsApp, Entorno, Settings
 from cheatsheet.shared.empresa import EmpresaId
-from cheatsheet.shared.roles import RolUsuario
 
+from tests.api.montaje_avisos_de_turno_reales import (
+    Meta,
+    canal_real,
+    cancelar,
+    escena_con_canal,
+    unidad,
+)
 from tests.conftest import settings_de_prueba
-from tests.contexts.scheduling.application.test_agenda import (
-    AHORA as AHORA_DE_LA_AGENDA,
-)
-from tests.contexts.scheduling.application.test_agenda import (
-    EMPRESA as EMPRESA_DE_LA_AGENDA,
-)
-from tests.contexts.scheduling.application.test_agenda import (
-    USUARIO as USUARIO_DE_LA_AGENDA,
-)
-from tests.contexts.scheduling.application.test_agenda import Escena, un_recurso, un_turno
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.usefixtures("hilos", "sin_plantillas_aprobadas"),
+]
 
 
 @dataclass
@@ -88,6 +84,12 @@ class _CanalGrabador:
         del telefono, texto
         raise AssertionError("este doble no envía")
 
+    async def enviar_plantilla(  # pragma: no cover
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        del telefono, nombre, idioma, parametros
+        raise AssertionError("este doble no envía")
+
 
 def _con_integraciones(
     monkeypatch: pytest.MonkeyPatch, por_empresa: dict[UUID, _Configuracion]
@@ -98,10 +100,6 @@ def _con_integraciones(
         staticmethod(lambda _sesion, _settings: _Piezas(_Integraciones(por_empresa))),
     )
     monkeypatch.setattr(modulo, "MensajeriaWhatsApp", _CanalGrabador)
-
-
-def _unidad() -> UnidadDeTrabajo:
-    return UnidadDeTrabajo(sesion=None, publicador=None, reloj=None)  # type: ignore[arg-type]
 
 
 def _meta(entorno: Entorno) -> Settings:
@@ -118,7 +116,7 @@ async def test_en_produccion_sin_integracion_devuelve_sin_canal(
     _con_integraciones(monkeypatch, {})
 
     canal = await armar_mensajeria(
-        _unidad(), _meta(Entorno.PRODUCTION), empresa_id=EmpresaId(uuid4())
+        unidad(), _meta(Entorno.PRODUCTION), empresa_id=EmpresaId(uuid4())
     )
 
     assert isinstance(canal, SinCanal)
@@ -130,7 +128,7 @@ async def test_en_produccion_sin_phone_number_id_devuelve_sin_canal(
     empresa = EmpresaId(uuid4())
     _con_integraciones(monkeypatch, {empresa: _Configuracion(b"fake-token-for-tests")})
 
-    canal = await armar_mensajeria(_unidad(), _meta(Entorno.PRODUCTION), empresa_id=empresa)
+    canal = await armar_mensajeria(unidad(), _meta(Entorno.PRODUCTION), empresa_id=empresa)
 
     assert isinstance(canal, SinCanal)
 
@@ -154,7 +152,7 @@ async def test_una_credencial_ilegible_en_produccion_cae_a_sin_canal_y_no_levant
     monkeypatch.setattr(_Cifrado, "descifrar", _ilegible)
 
     with capture_logs() as registros:
-        canal = await armar_mensajeria(_unidad(), _meta(Entorno.PRODUCTION), empresa_id=empresa)
+        canal = await armar_mensajeria(unidad(), _meta(Entorno.PRODUCTION), empresa_id=empresa)
 
     assert isinstance(canal, SinCanal)
     aviso = [r for r in registros if r["event"] == "whatsapp_credencial_ilegible"]
@@ -172,7 +170,7 @@ async def test_una_credencial_que_no_es_utf8_cae_a_sin_canal(
         monkeypatch, {empresa: _Configuracion(b"\xff\xfe", {modulo.CLAVE_PHONE_NUMBER_ID: "111"})}
     )
 
-    canal = await armar_mensajeria(_unidad(), _meta(Entorno.PRODUCTION), empresa_id=empresa)
+    canal = await armar_mensajeria(unidad(), _meta(Entorno.PRODUCTION), empresa_id=empresa)
 
     assert isinstance(canal, SinCanal)
 
@@ -182,7 +180,7 @@ async def test_fuera_de_produccion_sin_integracion_sigue_siendo_el_simulado(
 ) -> None:
     _con_integraciones(monkeypatch, {})
 
-    canal = await armar_mensajeria(_unidad(), _meta(Entorno.STAGING), empresa_id=EmpresaId(uuid4()))
+    canal = await armar_mensajeria(unidad(), _meta(Entorno.STAGING), empresa_id=EmpresaId(uuid4()))
 
     assert isinstance(canal, MensajeriaSimulada)
 
@@ -195,7 +193,7 @@ async def test_con_el_adaptador_simulado_nunca_se_consulta_la_integracion(
 
     monkeypatch.setattr(Integraciones, "armar", staticmethod(_no_debe_llamarse))
 
-    canal = await armar_mensajeria(_unidad(), settings_de_prueba(), empresa_id=EmpresaId(uuid4()))
+    canal = await armar_mensajeria(unidad(), settings_de_prueba(), empresa_id=EmpresaId(uuid4()))
 
     assert isinstance(canal, MensajeriaSimulada)
 
@@ -214,8 +212,8 @@ async def test_cada_empresa_usa_su_propio_token_y_su_propio_numero(
     )
     settings = _meta(Entorno.PRODUCTION)
 
-    canal_a = await armar_mensajeria(_unidad(), settings, empresa_id=a)
-    canal_b = await armar_mensajeria(_unidad(), settings, empresa_id=b)
+    canal_a = await armar_mensajeria(unidad(), settings, empresa_id=a)
+    canal_b = await armar_mensajeria(unidad(), settings, empresa_id=b)
 
     assert isinstance(canal_a, _CanalGrabador)
     assert isinstance(canal_b, _CanalGrabador)
@@ -235,7 +233,7 @@ async def test_cada_empresa_usa_su_propio_token_y_su_propio_numero(
 async def test_armar_envio_cablea_el_canal_recibido_con_el_contacto_del_cliente() -> None:
     canal = MensajeriaSimulada(Entorno.STAGING)
 
-    envio = armar_envio(_unidad(), canal=canal)
+    envio = armar_envio(unidad(), canal=canal)
 
     assert isinstance(envio, EnvioPorWhatsApp)
 
@@ -243,69 +241,12 @@ async def test_armar_envio_cablea_el_canal_recibido_con_el_contacto_del_cliente(
 # --- avisos de turno por el canal real (U5, casos 14, 15, 25 y 34) ----------------------------
 
 
-class _Meta:
-    """Un Meta falso: contesta lo que le toque (el último se repite) y cuenta los `POST`."""
-
-    def __init__(self, *respuestas: httpx.Response) -> None:
-        self._respuestas = list(respuestas)
-        self.pedidos: list[httpx.Request] = []
-
-    def __call__(self, pedido: httpx.Request) -> httpx.Response:
-        self.pedidos.append(pedido)
-        return self._respuestas[min(len(self.pedidos), len(self._respuestas)) - 1]
-
-
-async def _sin_esperar(segundos: float) -> None:
-    del segundos
-
-
-def _canal_real(meta: _Meta) -> MensajeriaWhatsApp:
-    return MensajeriaWhatsApp(
-        ConfiguracionDeMensajeria(
-            token="fake-token-for-tests",
-            phone_number_id="999",
-            graph_url="https://graph.test",
-            graph_version="v21.0",
-            timeout_segundos=1.0,
-        ),
-        transporte=httpx.MockTransport(meta),
-        esperar=_sin_esperar,
-    )
-
-
-async def _cancelar(escena: Escena, turno: Turno) -> Turno:
-    return await escena.cancelar().ejecutar(
-        empresa_id=EMPRESA_DE_LA_AGENDA,
-        usuario_id=USUARIO_DE_LA_AGENDA,
-        rol=RolUsuario.OPERADOR,
-        turno_id=turno.id,
-        ahora=AHORA_DE_LA_AGENDA,
-    )
-
-
-def _escena_con_canal(canal: PortMensajeria) -> tuple[Escena, Turno]:
-    recurso = un_recurso()
-    turno = un_turno(recurso)
-    escena = Escena(recurso, turno)
-    escena.avisador = armar_avisador_con(escena, canal)
-    return escena, turno
-
-
-def armar_avisador_con(escena: Escena, canal: PortMensajeria) -> Avisador:
-    """El avisador del panel, con los dobles de la escena y el notificador real de `api`."""
-    return Avisador(
-        clientes=escena.directorio,
-        servicios=escena.catalogo,
-        notificador=armar_notificador(canal),
-    )
-
-
 async def test_cancelar_un_turno_desde_el_panel_llega_a_la_cloud_api() -> None:
     """**Caso 14.** Antes el aviso iba a `AvisoPorConsola` y nunca salía."""
-    meta = _Meta(httpx.Response(200, json={"messages": [{"id": "wamid.OK"}]}))
-    escena, turno = _escena_con_canal(_canal_real(meta))
+    meta = Meta(httpx.Response(200, json={"messages": [{"id": "wamid.OK"}]}))
+    escena, turno = escena_con_canal(canal_real(meta))
 
-    cancelado = await _cancelar(escena, turno)
+    cancelado = await cancelar(escena, turno)
 
     assert cancelado.estado is EstadoTurno.CANCELADO
     assert len(meta.pedidos) == 1
@@ -316,10 +257,10 @@ async def test_cancelar_un_turno_desde_el_panel_llega_a_la_cloud_api() -> None:
 
 async def test_meta_en_500_durante_una_cancelacion_deja_el_turno_cancelado_y_la_bitacora() -> None:
     """**Caso 25.** Un fallo del canal no voltea la operación."""
-    meta = _Meta(httpx.Response(500))
-    escena, turno = _escena_con_canal(_canal_real(meta))
+    meta = Meta(httpx.Response(500))
+    escena, turno = escena_con_canal(canal_real(meta))
 
-    cancelado = await _cancelar(escena, turno)
+    cancelado = await cancelar(escena, turno)
 
     assert cancelado.estado is EstadoTurno.CANCELADO
     assert len(meta.pedidos) == 3  # los tres intentos con espera, y después el aviso se loguea
@@ -328,9 +269,9 @@ async def test_meta_en_500_durante_una_cancelacion_deja_el_turno_cancelado_y_la_
 
 async def test_cancelar_en_produccion_sin_whatsapp_conectado_no_levanta_y_cancela() -> None:
     """**Caso 15.** Antes de `SinCanal`, el simulado levantaba `RuntimeError` en producción."""
-    escena, turno = _escena_con_canal(SinCanal())
+    escena, turno = escena_con_canal(SinCanal())
 
-    cancelado = await _cancelar(escena, turno)
+    cancelado = await cancelar(escena, turno)
 
     assert cancelado.estado is EstadoTurno.CANCELADO
     assert "cancelar_turno" in escena.publicador.acciones

@@ -11,8 +11,6 @@ each context's `ensamblado.py`; putting these imports there would close a cycle.
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.billing.application.ports import (
     PortDatosDelEmisor,
@@ -25,8 +23,10 @@ from cheatsheet.contexts.identity.application.ports import PortPadron
 from cheatsheet.contexts.identity.infrastructure.ensamblado import Identidad
 from cheatsheet.contexts.identity.infrastructure.padron import PadronViaIntegraciones
 from cheatsheet.contexts.integrations.application.padron import ConsultarPadron
-from cheatsheet.contexts.integrations.application.tickets import ObtenerTicketDeAcceso
-from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
+from cheatsheet.contexts.integrations.infrastructure.ensamblado import (
+    Integraciones,
+    cuit_de_plataforma,
+)
 from cheatsheet.contexts.master_data.application.ports import PortPadron as PortPadronDeClientes
 from cheatsheet.contexts.master_data.infrastructure.padron import (
     PadronViaIntegraciones as PadronDeClientesViaIntegraciones,
@@ -37,22 +37,15 @@ from cheatsheet.platform.settings import Settings
 def _consultar_padron(unidad: UnidadDeTrabajo, settings: Settings) -> ConsultarPadron:
     """The published operation, built once and wrapped by each consumer's own layer.
 
-    The ticket use case is inside because the lookup may have to mint one, and minting one
-    persists it: ARCA refuses a second ticket while the first is alive (ADR-0004), so that
-    row has to be written in the same transaction as everything else the request does.
+    Asked with the platform certificate (ADR-0014): the ticket use case is bound to this
+    transaction because minting a ticket persists it, and ARCA refuses a second while the
+    first is alive.
     """
     piezas = Integraciones.armar(unidad.sesion, settings)
     return ConsultarPadron(
-        tickets=ObtenerTicketDeAcceso(
-            integraciones=piezas.integraciones,
-            tickets=piezas.tickets,
-            cifrado=piezas.cifrado,
-            adaptadores=piezas.adaptadores,
-            reloj=unidad.reloj,
-            margen=timedelta(minutes=settings.arca_margen_renovacion_minutos),
-        ),
-        integraciones=piezas.integraciones,
+        tickets=piezas.tickets_de_padron,
         adaptadores=piezas.adaptadores,
+        cuit_de_plataforma=cuit_de_plataforma(settings),
     )
 
 

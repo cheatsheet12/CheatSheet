@@ -21,7 +21,7 @@ cliente dijo algo raro» serían indistinguibles.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Protocol
@@ -145,11 +145,17 @@ class PortRepositorioMensaje(Protocol):
 
     async def guardar(self, mensaje: Mensaje) -> None: ...
 
-    async def buscar_por_externo_id(self, externo_id: str) -> Mensaje | None:
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Mensaje | None:
         """El mensaje que ya se procesó. **La idempotencia del webhook de Meta.**
 
         Devuelve `None` cuando nunca llegó. Que exista este método y no una clave en Redis es
         lo que hace que la protección sobreviva a un `FLUSHALL`, igual que en el épico 6.
+
+        `para_actualizar` bloquea la fila hasta el fin de la transacción: lo piden los callbacks
+        de estado, que leen, mutan y reescriben la fila. Sin el bloqueo, dos callbacks del mismo
+        `wamid` en paralelo se pisan (un `delivered` retrasado sobre un `read`).
         """
         ...
 
@@ -271,6 +277,16 @@ class PortMensajeria(Protocol):
 
     async def enviar(self, *, telefono: str, texto: str) -> str: ...
 
+    async def enviar_plantilla(
+        self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
+    ) -> str:
+        """Manda una plantilla **aprobada** por Meta: lo único que se acepta fuera de las 24 h.
+
+        `parametros` va por nombre (`parameter_name`), y devuelve el id del mensaje igual que
+        `enviar`.
+        """
+        ...
+
 
 class PortDirectorio(Protocol):
     """ACL sobre `master_data`: quién es el número que escribió.
@@ -337,17 +353,6 @@ class PortAgenda(Protocol):
         ...
 
 
-class PortPlantillas(Protocol):
-    """ACL sobre `business_config` para los textos salientes (HU-E11-02).
-
-    Devuelve `None` cuando no hay plantilla configurada para ese código, y el llamador usa su
-    texto por defecto. Es deliberado: un canal que se queda mudo porque falta una fila es peor
-    que uno que manda el texto de fábrica.
-    """
-
-    async def resolver(self, codigo: str, variables: dict[str, str]) -> str | None: ...
-
-
 class PortHorarioDeAtencion(Protocol):
     """ACL sobre `business_config`: lo único que este contexto sabe del horario de atención.
 
@@ -370,7 +375,6 @@ __all__ = [
     "PortHorarioDeAtencion",
     "PortInterprete",
     "PortMensajeria",
-    "PortPlantillas",
     "PortRepositorioConversacion",
     "PortRepositorioEscalamiento",
     "PortRepositorioFAQ",

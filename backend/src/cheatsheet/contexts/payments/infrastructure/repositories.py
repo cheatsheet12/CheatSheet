@@ -24,14 +24,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
-from cheatsheet.contexts.payments.application.errors import PedidoEnCurso, RecordatorioDuplicado
+from cheatsheet.contexts.payments.application.errors import PedidoEnCurso
 from cheatsheet.contexts.payments.application.ports import FiltrosDeCobro, MetricasDeCobros
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro
-from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
 from cheatsheet.contexts.payments.infrastructure.mapeo_de_cobro import a_dominio, a_fila
 from cheatsheet.contexts.payments.infrastructure.models import (
     CobroORM,
-    RecordatorioORM,
     ReembolsoORM,
 )
 from cheatsheet.shared.empresa import EmpresaId
@@ -252,86 +250,6 @@ class RepositorioCobroPostgres:
         return sentencia
 
 
-class RepositorioRecordatoriosPostgres:
-    """Recordatorios, sobre PostgreSQL."""
-
-    def __init__(self, sesion: AsyncSession) -> None:
-        self._sesion = sesion
-
-    async def agregar(self, recordatorio: Recordatorio) -> None:
-        # **El `flush` va en su propio savepoint** (U5, H1b). En PostgreSQL un `IntegrityError`
-        # aborta la transacción entera: sin el savepoint, atrapar el duplicado dejaba la sesión
-        # inservible y el «no es un error, seguí» del barrido tiraba a todos los cobros que
-        # venían después. Con él, sólo se deshace este `INSERT`.
-        try:
-            async with self._sesion.begin_nested():
-                self._sesion.add(
-                    RecordatorioORM(
-                        id=recordatorio.id,
-                        cobro_id=recordatorio.cobro_id,
-                        paso=recordatorio.paso,
-                        canal=recordatorio.canal,
-                        enviado_en=recordatorio.enviado_en,
-                        estado_entrega=(
-                            recordatorio.estado_entrega.value
-                            if recordatorio.estado_entrega
-                            else None
-                        ),
-                    )
-                )
-                await self._sesion.flush()
-        except IntegrityError as exc:
-            # El indice unico `(cobro_id, paso)`, no una lectura previa: un «existe? -> no ->
-            # insertá» pierde contra dos barridos solapados, que es exactamente el caso que
-            # HS-T3 RN-05 describe.
-            raise RecordatorioDuplicado(
-                f"El paso {recordatorio.paso} del cobro {recordatorio.cobro_id} ya fue enviado"
-            ) from exc
-
-    async def guardar(self, recordatorio: Recordatorio) -> None:
-        fila = await self._sesion.get(RecordatorioORM, recordatorio.id)
-        if fila is None:  # pragma: no cover - siempre se guarda algo recien agregado
-            raise LookupError(f"El recordatorio {recordatorio.id} no existe")
-        fila.enviado_en = recordatorio.enviado_en
-        fila.estado_entrega = (
-            recordatorio.estado_entrega.value if recordatorio.estado_entrega else None
-        )
-        await self._sesion.flush()
-
-    async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]:
-        sentencia = (
-            select(RecordatorioORM)
-            .where(RecordatorioORM.cobro_id == cobro_id)
-            .order_by(RecordatorioORM.paso)
-        )
-        filas = (await self._sesion.execute(sentencia)).scalars().all()
-        return [_recordatorio_a_dominio(fila) for fila in filas]
-
-    async def de_cobros(self, cobro_ids: list[UUID]) -> dict[UUID, list[Recordatorio]]:
-        if not cobro_ids:
-            return {}
-        sentencia = (
-            select(RecordatorioORM)
-            .where(RecordatorioORM.cobro_id.in_(cobro_ids))
-            .order_by(RecordatorioORM.paso)
-        )
-        agrupados: dict[UUID, list[Recordatorio]] = {}
-        for fila in (await self._sesion.execute(sentencia)).scalars().all():
-            agrupados.setdefault(fila.cobro_id, []).append(_recordatorio_a_dominio(fila))
-        return agrupados
-
-
-def _recordatorio_a_dominio(fila: RecordatorioORM) -> Recordatorio:
-    return Recordatorio(
-        id=fila.id,
-        cobro_id=fila.cobro_id,
-        paso=fila.paso,
-        canal=fila.canal,
-        enviado_en=fila.enviado_en,
-        estado_entrega=EstadoEntrega(fila.estado_entrega) if fila.estado_entrega else None,
-    )
-
-
 async def empresas_con_cobros_abiertos(sesion: AsyncSession) -> list[EmpresaId]:
     """Que empresas tienen algo pendiente, para los dos barridos del epico.
 
@@ -344,10 +262,23 @@ async def empresas_con_cobros_abiertos(sesion: AsyncSession) -> list[EmpresaId]:
     return [EmpresaId(fila[0]) for fila in filas]
 
 
+async def empresas_con_recordatorios_en_espera(sesion: AsyncSession) -> list[EmpresaId]:
+    """Que empresas tienen un recordatorio esperando su reintento o con su envio en curso (U7).
+
+    Octava funcion `SECURITY DEFINER`, misma forma: **ids y nada mas**, y la sesion tiene que ser
+    una **sin** empresa. Sin ella, un recordatorio cuyo cobro se pago mientras esperaba, en una
+    empresa sin otros cobros abiertos, no se descartaria ni se resolveria nunca.
+    """
+    filas = await sesion.execute(
+        text("SELECT empresa_id FROM empresas_con_recordatorios_en_espera()")
+    )
+    return [EmpresaId(fila[0]) for fila in filas]
+
+
 __all__ = [
     "ESTADOS_PAGADOS",
     "RepositorioCobroPostgres",
-    "RepositorioRecordatoriosPostgres",
     "empresas_con_cobros_abiertos",
+    "empresas_con_recordatorios_en_espera",
     "en_periodo",
 ]

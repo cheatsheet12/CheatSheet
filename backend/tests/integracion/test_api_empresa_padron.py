@@ -32,6 +32,7 @@ from cheatsheet.platform.settings import Settings
 from tests.conftest import settings_de_prueba
 from tests.contexts.integrations.conftest_arca import bundle
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -73,7 +74,12 @@ def _auth(token: str) -> dict[str, str]:
 async def _registrar(cliente: httpx.AsyncClient, email: str) -> str:
     respuesta = await cliente.post(
         "/auth/registro",
-        json={"email": email, "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": email,
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert respuesta.status_code == 201, respuesta.text
     return str(respuesta.json()["access_token"])
@@ -111,22 +117,20 @@ async def _consultar(cliente: httpx.AsyncClient, token: str, cuit: str) -> httpx
 
 
 @pytest.mark.asyncio
-async def test_sin_arca_conectada_la_consulta_responde_no_disponible(
+async def test_sin_arca_conectada_la_consulta_igual_trae_los_datos(
     cliente: httpx.AsyncClient,
 ) -> None:
-    """El estado normal recién salido del onboarding. **No** es un error.
-
-    Es la mitad del hueco que esta unidad declara: en el paso 2 no hay certificado, así
-    que no hay a quién preguntarle, y el formulario tiene que poder decirlo sin bloquear.
-    """
+    """ADR-0014 cierra el hueco que esta unidad declaraba (D-08 del guion de prueba): el
+    padrón se consulta con el certificado de la plataforma, así que el paso 2 del
+    onboarding valida el CUIT antes de que la empresa delegue nada."""
     token = await _registrar(cliente, "sin-arca@empresa.com")
     await _completar_empresa(cliente, token)
 
     respuesta = await _consultar(cliente, token, CUIT_DE_LA_EMPRESA)
 
     assert respuesta.status_code == 200, respuesta.text
-    assert respuesta.json()["estado"] == EstadoDeConsulta.NO_DISPONIBLE
-    assert respuesta.json()["datos"] is None
+    assert respuesta.json()["estado"] == EstadoDeConsulta.ENCONTRADO
+    assert respuesta.json()["datos"] is not None
 
 
 @pytest.mark.asyncio
@@ -162,23 +166,7 @@ async def test_un_cuit_inexistente_bloquea_el_guardado(cliente: httpx.AsyncClien
 
 
 @pytest.mark.asyncio
-async def test_conectar_arca_con_un_certificado_de_otro_cuit_devuelve_el_aviso(
-    cliente: httpx.AsyncClient,
-) -> None:
-    """Caso 24. El hallazgo viaja en la misma respuesta que el Administrador está mirando."""
-    token = await _registrar(cliente, "ajeno@empresa.com")
-    await _completar_empresa(cliente, token, cuit=CUIT_AJENO)
-
-    respuesta = await _conectar_arca(cliente, token)
-
-    assert respuesta.status_code == 200, respuesta.text
-    aviso = respuesta.json()["aviso_fiscal"]
-    assert aviso is not None
-    assert "otro CUIT" in aviso
-
-
-@pytest.mark.asyncio
-async def test_conectar_arca_con_el_certificado_correcto_no_avisa_nada(
+async def test_conectar_arca_con_la_delegacion_de_la_empresa_no_avisa_nada(
     cliente: httpx.AsyncClient,
 ) -> None:
     token = await _registrar(cliente, "coincide@empresa.com")
@@ -187,23 +175,6 @@ async def test_conectar_arca_con_el_certificado_correcto_no_avisa_nada(
     respuesta = await _conectar_arca(cliente, token)
 
     assert respuesta.json()["aviso_fiscal"] is None
-
-
-@pytest.mark.asyncio
-async def test_la_empresa_a_no_consulta_con_la_credencial_de_la_b(
-    cliente: httpx.AsyncClient,
-) -> None:
-    """Caso 22. Row-Level Security es del motor: no hay doble que lo pruebe."""
-    token_a = await _registrar(cliente, "empresa-a@test.com")
-    await _completar_empresa(cliente, token_a)
-    assert (await _conectar_arca(cliente, token_a)).status_code == 200
-
-    token_b = await _registrar(cliente, "empresa-b@test.com")
-    await _completar_empresa(cliente, token_b, cuit=CUIT_AJENO)
-
-    respuesta = await _consultar(cliente, token_b, CUIT_AJENO)
-
-    assert respuesta.json()["estado"] == EstadoDeConsulta.NO_DISPONIBLE
 
 
 @pytest.mark.asyncio

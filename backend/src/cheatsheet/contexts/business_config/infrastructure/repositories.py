@@ -111,6 +111,13 @@ def _plantilla_a_dominio(fila: PlantillaDeNotificacionORM) -> PlantillaDeNotific
         else EstadoDeAprobacion.NO_APLICA,
         created_at=fila.created_at,
         updated_at=fila.updated_at,
+        nombre_en_meta=fila.nombre_en_meta,
+        meta_plantilla_id=fila.meta_plantilla_id,
+        motivo_meta=fila.motivo_meta,
+        detalle_meta=fila.detalle_meta,
+        categoria_en_meta=fila.categoria_en_meta,
+        enviada_a_meta_en=fila.enviada_a_meta_en,
+        estado_meta_en=fila.estado_meta_en,
     )
 
 
@@ -126,6 +133,13 @@ def _plantilla_a_fila(
     fila.estado_aprobacion_meta = plantilla.estado_aprobacion.value
     fila.created_at = plantilla.created_at or plantilla.updated_at or datetime.now(tz=UTC)
     fila.updated_at = plantilla.updated_at
+    fila.nombre_en_meta = plantilla.nombre_en_meta
+    fila.meta_plantilla_id = plantilla.meta_plantilla_id
+    fila.motivo_meta = plantilla.motivo_meta
+    fila.detalle_meta = plantilla.detalle_meta
+    fila.categoria_en_meta = plantilla.categoria_en_meta
+    fila.enviada_a_meta_en = plantilla.enviada_a_meta_en
+    fila.estado_meta_en = plantilla.estado_meta_en
     return fila
 
 
@@ -153,6 +167,23 @@ class RepositorioPlantillasPostgres:
     async def buscar_por_codigo(self, codigo: str) -> PlantillaDeNotificacion | None:
         sentencia = select(PlantillaDeNotificacionORM).where(
             PlantillaDeNotificacionORM.codigo == codigo
+        )
+        fila = (await self._sesion.execute(sentencia)).scalars().first()
+        return _plantilla_a_dominio(fila) if fila is not None else None
+
+    async def buscar_por_meta_id(self, meta_plantilla_id: str) -> PlantillaDeNotificacion | None:
+        sentencia = select(PlantillaDeNotificacionORM).where(
+            PlantillaDeNotificacionORM.meta_plantilla_id == meta_plantilla_id
+        )
+        fila = (await self._sesion.execute(sentencia)).scalars().first()
+        return _plantilla_a_dominio(fila) if fila is not None else None
+
+    async def buscar_por_nombre_en_meta(
+        self, nombre: str, idioma: str
+    ) -> PlantillaDeNotificacion | None:
+        sentencia = select(PlantillaDeNotificacionORM).where(
+            PlantillaDeNotificacionORM.nombre_en_meta == nombre,
+            PlantillaDeNotificacionORM.idioma == idioma,
         )
         fila = (await self._sesion.execute(sentencia)).scalars().first()
         return _plantilla_a_dominio(fila) if fila is not None else None

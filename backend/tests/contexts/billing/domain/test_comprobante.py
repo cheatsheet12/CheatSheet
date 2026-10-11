@@ -158,7 +158,7 @@ def test_el_saldo_pendiente_arranca_igual_al_total() -> None:
     [
         (RI, RI, TipoComprobante.FACTURA_A),
         (RI, CF, TipoComprobante.FACTURA_B),
-        (RI, CondicionIVA.MONOTRIBUTO, TipoComprobante.FACTURA_B),
+        (RI, CondicionIVA.MONOTRIBUTO, TipoComprobante.FACTURA_A),
         (CondicionIVA.MONOTRIBUTO, RI, TipoComprobante.FACTURA_C),
         (CondicionIVA.EXENTO, CF, TipoComprobante.FACTURA_C),
     ],
@@ -166,9 +166,17 @@ def test_el_saldo_pendiente_arranca_igual_al_total() -> None:
 def test_la_tabla_de_tipos_es_la_del_regimen(
     emisor: CondicionIVA, receptor: CondicionIVA, esperado: TipoComprobante
 ) -> None:
-    """RN-01 y D16. Un Responsable Inscripto factura A a otro RI y B a todo el resto; un
-    Monotributista o un Exento facturan C a cualquiera."""
+    """RN-01 y D16. Un Responsable Inscripto factura A a otro RI y a un Monotributista
+    (RG 5003/2021) y B al resto; un Monotributista o un Exento facturan C a cualquiera."""
     assert esperado in tipos_permitidos(emisor=emisor, receptor=receptor)
+
+
+def test_a_un_monotributista_un_inscripto_no_le_ofrece_la_b() -> None:
+    """ARCA rechaza la B a un Monotributista con el error 10243 (homologación, 10/10/2026)."""
+    tipos = tipos_permitidos(emisor=RI, receptor=CondicionIVA.MONOTRIBUTO)
+
+    assert TipoComprobante.FACTURA_B not in tipos
+    assert TipoComprobante.NOTA_CREDITO_B not in tipos
 
 
 def test_un_consumidor_final_no_puede_emitir() -> None:
@@ -282,6 +290,19 @@ def test_un_rechazado_se_puede_corregir_y_volver_a_emitir() -> None:
 
     comprobante.validar()
     assert _estado(comprobante) is EstadoComprobante.VALIDADO
+
+
+def test_un_rechazo_suelta_el_numero() -> None:
+    """ARCA no registró nada bajo ese número: el siguiente comprobante lo vuelve a usar.
+
+    Visto el 10/10/2026 contra homologación: el rechazado se quedaba con el número y el
+    índice único bloqueaba para siempre el punto de venta y el tipo.
+    """
+    comprobante = _validado()
+    comprobante.enviar_a_arca(numero=2, ahora=AHORA)
+    comprobante.rechazar("Error 10246: falta la condicion frente al IVA del receptor")
+
+    assert comprobante.numero is None
 
 
 def test_no_se_puede_saltear_arca() -> None:

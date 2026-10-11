@@ -23,7 +23,8 @@ from fastapi import APIRouter, FastAPI
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from tests.conftest import INSTANTE_FIJO, settings_de_prueba
+from tests.api.verificador_falso import VerificadorDeSesionFalso
+from tests.conftest import INSTANTE_CON_TEXTOS_VIGENTES, settings_de_prueba
 
 
 def _settings(entorno: Entorno = Entorno.TEST) -> Settings:
@@ -42,7 +43,7 @@ def _recursos(settings: Settings) -> Recursos:
         engine=cast(AsyncEngine, None),
         sesiones=cast("async_sessionmaker[AsyncSession]", None),
         redis=cast(Redis, None),
-        reloj=RelojFijo(INSTANTE_FIJO),
+        reloj=RelojFijo(INSTANTE_CON_TEXTOS_VIGENTES),
     )
 
 
@@ -80,6 +81,55 @@ async def test_health_responde_ok_con_las_dependencias_arriba(parchar_sondas):
 
     assert respuesta.status_code == 200
     assert respuesta.json() == {"estado": "ok", "base_de_datos": True, "redis": True}
+
+
+@pytest.mark.asyncio
+async def test_health_live_responde_200_sin_tocar_la_base_ni_redis(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The platform probe must not wake a serverless database every few seconds.
+
+    The engine and Redis are None and every probe raises: any attempt to use them fails
+    the request, so a 200 proves liveness touches neither.
+    """
+
+    async def prohibida(_dependencia: object) -> bool:
+        raise AssertionError("la liveness no puede tocar una dependencia")
+
+    monkeypatch.setattr("cheatsheet.api.routers.health.verificar_conexion", prohibida)
+    monkeypatch.setattr("cheatsheet.api.routers.health.verificar_redis", prohibida)
+    app = create_app(_settings(), _recursos(_settings()))
+
+    async with _cliente(app) as cliente:
+        respuesta = await cliente.get("/health/live")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == {"estado": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_health_live_no_exige_empresa():
+    """Reachable without a session, like `/health`."""
+    app = create_app(_settings(), _recursos(_settings()))
+
+    async with _cliente(app) as cliente:
+        respuesta = await cliente.get("/health/live")
+
+    assert respuesta.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_health_sigue_siendo_la_comprobacion_completa(parchar_sondas):
+    """`/health/live` does not replace readiness: `/health` still answers 503 when down."""
+    parchar_sondas(base_ok=False, redis_ok=False)
+    app = create_app(_settings(), _recursos(_settings()))
+
+    async with _cliente(app) as cliente:
+        viva = await cliente.get("/health/live")
+        lista = await cliente.get("/health")
+
+    assert viva.status_code == 200
+    assert lista.status_code == 503
 
 
 @pytest.mark.asyncio
@@ -141,7 +191,10 @@ async def test_un_token_invalido_no_abre_la_puerta(parchar_sondas):
 async def test_un_error_de_dominio_se_traduce_sin_filtrar_internals(parchar_sondas):
     parchar_sondas(base_ok=True, redis_ok=True)
     settings = _settings()
-    app = create_app(settings, _recursos(settings))
+    # The token below names a user that is stored nowhere, and this test has no database.
+    # The session check is not what is under test, so a verifier that vouches for it is
+    # injected through the seam; the middleware still decodes and validates the signature.
+    app = create_app(settings, _recursos(settings), VerificadorDeSesionFalso())
     app.include_router(_router_de_prueba())
 
     async with _cliente(app) as cliente:

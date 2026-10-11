@@ -27,7 +27,7 @@ from cheatsheet.contexts.billing.application.puntos_de_venta import (
 )
 from cheatsheet.contexts.billing.domain.punto_de_venta import PuntoDeVenta, TipoComprobante
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 
@@ -183,7 +183,7 @@ async def test_solo_un_administrador_administra_los_puntos(
 ) -> None:
     """Más estricto que el mapeo del épico 4: esto es la numeración fiscal, no trabajo
     del día a día."""
-    with pytest.raises(EntradaInvalida):
+    with pytest.raises(OperacionNoPermitida):
         await _registrar(puntos, publicador, rol=rol)
 
     assert puntos.guardados == {}

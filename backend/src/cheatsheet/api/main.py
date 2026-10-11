@@ -19,7 +19,7 @@ from fastapi import FastAPI
 
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.errors import registrar_manejadores
-from cheatsheet.api.middleware.empresa import EmpresaMiddleware
+from cheatsheet.api.middleware.empresa import EmpresaMiddleware, VerificadorDeSesion
 from cheatsheet.api.routers import (
     agenda,
     auth,
@@ -33,7 +33,9 @@ from cheatsheet.api.routers import (
     correccion,
     health,
     integraciones,
+    legal,
     planillas,
+    plantillas,
     puntos_de_venta,
     reembolsos,
     reglas,
@@ -43,9 +45,17 @@ from cheatsheet.api.routers import (
     webhooks,
     whatsapp,
 )
+from cheatsheet.contexts.business_config.application.errors import MetaNoDisponible
+from cheatsheet.contexts.identity.application.verificacion_de_sesion import versiones_en_vigor
+from cheatsheet.contexts.identity.domain.legal import CatalogoLegal
+from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
+    VerificadorDeSesionPostgres,
+)
+from cheatsheet.contexts.identity.infrastructure.legal.catalogo import catalogo_publicado
 from cheatsheet.contexts.master_data.application.errors import ClienteDuplicado
-from cheatsheet.platform.settings import Settings
+from cheatsheet.platform.settings import ConfiguracionFaltante, Settings
 from cheatsheet.platform.telemetry import configurar_logging, obtener_logger
+from cheatsheet.shared.errors import InvarianteViolada
 
 logger = obtener_logger(__name__)
 
@@ -53,15 +63,46 @@ TITULO = "CheatSheet API"
 VERSION = "0.1.0"
 
 
-def create_app(settings: Settings | None = None, recursos: Recursos | None = None) -> FastAPI:
+def _catalogo_con_versiones_vigentes(recursos: Recursos) -> CatalogoLegal:
+    """The published catalogue, refusing to boot when a document has no version in force today.
+
+    Without this the first authenticated request would fail inside the session check, and so
+    would every one after it. Uses the application's own clock, so a test clock is honoured.
+    """
+    catalogo = CatalogoLegal(catalogo_publicado().versiones())
+    try:
+        versiones_en_vigor(catalogo, recursos.reloj)
+    except InvarianteViolada as error:
+        raise ConfiguracionFaltante(
+            f"El catalogo legal no tiene una version vigente hoy: {error}. "
+            "Publique el texto o corrija su fecha de vigencia antes de arrancar."
+        ) from error
+    return catalogo
+
+
+def create_app(
+    settings: Settings | None = None,
+    recursos: Recursos | None = None,
+    verificador: VerificadorDeSesion | None = None,
+) -> FastAPI:
     """Build the application.
 
-    Both arguments exist for tests: passing `recursos` skips creating a real engine
+    All three arguments exist for tests: passing `recursos` skips creating a real engine
     and a real Redis client, which is what lets an API test run without either.
+
+    `verificador` is the seam of the per-request session check. By default it reads the
+    user from PostgreSQL, so a test that signs a token for a user that is not in a database
+    gets a 401, which is the point. A test that exercises something *behind* the middleware
+    and has no database injects a fake that vouches for the identity.
     """
     settings = settings or Settings.desde_entorno()
     configurar_logging(settings)
     recursos = recursos or Recursos.crear(settings)
+    # Built once with the process: the per-request check only looks versions up in it.
+    catalogo = _catalogo_con_versiones_vigentes(recursos)
+    verificador = verificador or VerificadorDeSesionPostgres(
+        recursos.sesiones, catalogo=catalogo, reloj=recursos.reloj
+    )
 
     @asynccontextmanager
     async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
@@ -80,17 +121,20 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
         redoc_url=None,
     )
 
-    app.add_middleware(EmpresaMiddleware, settings=settings)
+    app.add_middleware(EmpresaMiddleware, settings=settings, verificador=verificador)
     registrar_manejadores(app)
     # More specific than the generic domain handler, and registered after it so it
     # wins: the uniform `{error, detalle}` body has nowhere to put the id of the
     # client that already holds the CUIT, and HU-E4-01 asks the screen to offer it.
     app.add_exception_handler(ClienteDuplicado, clientes.manejar_duplicado)
+    # Meta no contestó al editar una plantilla: 503 y nada guardado (U6).
+    app.add_exception_handler(MetaNoDisponible, plantillas.manejar_meta_no_disponible)
 
     # One line per bounded context. `observability` exposes no HTTP surface yet: its
     # panel is HU-E12-01, epic 10.
     app.include_router(health.crear_router(recursos))
     app.include_router(auth.crear_router(recursos))
+    app.include_router(legal.crear_router(recursos))
     app.include_router(usuarios.crear_router(recursos))
     app.include_router(integraciones.crear_router(recursos))
     app.include_router(clientes.crear_router(recursos))
@@ -105,6 +149,7 @@ def create_app(settings: Settings | None = None, recursos: Recursos | None = Non
     app.include_router(agenda.crear_router(recursos))
     app.include_router(reglas.crear_router(recursos))
     app.include_router(conversaciones.crear_router(recursos))
+    app.include_router(plantillas.crear_router(recursos))
     app.include_router(webhooks.crear_router(recursos))
     app.include_router(whatsapp.crear_router(recursos))
     app.include_router(reporteria.crear_router(recursos))

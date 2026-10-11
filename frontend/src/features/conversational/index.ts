@@ -8,6 +8,11 @@
  * importar desde acá (regla R5); todo lo que está bajo api/, components/ y hooks/ es interno.
  */
 
+export {
+  AdvertenciaDeRecordatorio,
+  MENSAJE_RECORDATORIO_SIN_APROBAR,
+} from "./components/AdvertenciaDeRecordatorio";
+export type { PropsDeAdvertenciaDeRecordatorio } from "./components/AdvertenciaDeRecordatorio";
 export { BandejaDeConversaciones } from "./components/BandejaDeConversaciones";
 export type { PropsDeBandejaDeConversaciones } from "./components/BandejaDeConversaciones";
 export { HiloDeConversacion } from "./components/HiloDeConversacion";
@@ -46,9 +51,11 @@ export {
   ETIQUETAS_DE_APROBACION,
   ETIQUETAS_DE_CODIGO,
   ErrorDeFaq,
+  MENSAJE_BORDE_CON_VARIABLE,
   MENSAJE_CAMPOS_OBLIGATORIOS,
   MENSAJE_CONFIRMAR_BAJA,
   MENSAJE_EDICION_RECIENTE,
+  MENSAJE_META_NO_RESPONDE,
   MENSAJE_SIN_CONSULTAS,
   MENSAJE_SIN_EDICIONES,
   MENSAJE_SIN_FAQS,
@@ -58,12 +65,15 @@ export {
   editarFaq,
   editarPlantilla,
   eliminarFaq,
+  empiezaOTerminaConVariable,
+  enviarARevision,
   listarFaqs,
   listarPlantillas,
   variablesDe,
   variablesInvalidas,
   verUsoDeFaq,
 } from "./api/faq";
+export { traducirMotivoDeMeta } from "./api/motivosDeMeta";
 export type {
   CanalDePlantilla,
   Comparacion,

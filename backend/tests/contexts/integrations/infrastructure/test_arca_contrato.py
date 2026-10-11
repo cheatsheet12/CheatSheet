@@ -17,17 +17,11 @@ from cheatsheet.contexts.integrations.application.errors import (
     ConexionRechazada,
     ProveedorNoDisponible,
 )
-from cheatsheet.contexts.integrations.application.ports import MaterialDeConexion
 from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
-from cheatsheet.contexts.integrations.domain.valores import CLAVE_ETIQUETA, EstadoDeConexion
 from cheatsheet.contexts.integrations.infrastructure.arca.adaptadores import (
-    ConectorArca,
     EmisorArcaDeTickets,
-    VerificadorArca,
 )
 from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import (
-    CLAVE_CUIT,
-    CLAVE_VENCIMIENTO,
     YaAutenticado,
 )
 from cheatsheet.contexts.integrations.infrastructure.arca.wsaa import (
@@ -38,10 +32,6 @@ from cheatsheet.shared.clock import RelojFijo
 from cryptography.hazmat.primitives.serialization import pkcs7
 
 from tests.conftest import INSTANTE_FIJO
-from tests.contexts.integrations.conftest_arca import (
-    CUIT_DE_PRUEBA,
-    bundle_con_clave_ajena,
-)
 from tests.contexts.integrations.conftest_arca import (
     bundle as _bundle,
 )
@@ -263,91 +253,3 @@ async def test_una_bomba_de_entidades_xml_se_rechaza() -> None:
 
     with pytest.raises(ProveedorNoDisponible):
         await _emisor(grabadora).emitir(bundle(), ServicioDeArca.WSFE)
-
-
-# --------------------------------------------------------------- el conector
-
-
-async def test_conectar_devuelve_la_credencial_el_ticket_y_los_datos_de_la_tarjeta() -> None:
-    grabadora = Grabadora([_respuesta_ok()])
-    material = MaterialDeConexion(contenido=bundle(), parametros={})
-
-    resultado = await ConectorArca(_emisor(grabadora), RELOJ).conectar(material)
-
-    assert resultado.estado is EstadoDeConexion.CONECTADO
-    assert resultado.credencial == material.contenido
-    assert len(resultado.tickets) == 1
-    assert resultado.parametros[CLAVE_CUIT] == CUIT_DE_PRUEBA
-    assert CUIT_DE_PRUEBA in str(resultado.parametros[CLAVE_ETIQUETA])
-    assert resultado.parametros[CLAVE_VENCIMIENTO]
-
-
-async def test_conectar_con_un_certificado_vencido_no_llega_a_arca() -> None:
-    """Caso 3 desde el conector: lo verificable localmente se verifica primero."""
-    grabadora = Grabadora([_respuesta_ok()])
-    material = MaterialDeConexion(contenido=bundle(vence_en_dias=-1), parametros={})
-
-    with pytest.raises(ConexionRechazada):
-        await ConectorArca(_emisor(grabadora), RELOJ).conectar(material)
-
-    assert grabadora.pedidos == []
-
-
-async def test_conectar_con_una_clave_ajena_no_llega_a_arca() -> None:
-    grabadora = Grabadora([_respuesta_ok()])
-    material = MaterialDeConexion(contenido=bundle_con_clave_ajena(), parametros={})
-
-    with pytest.raises(ConexionRechazada):
-        await ConectorArca(_emisor(grabadora), RELOJ).conectar(material)
-
-    assert grabadora.pedidos == []
-
-
-async def test_si_arca_ya_tenia_un_ticket_la_conexion_igual_es_valida() -> None:
-    """ARCA confirmó la credencial y se negó a duplicar el TA: no hay nada que guardar."""
-    grabadora = Grabadora([_falla("coe.alreadyAuthenticated")])
-    material = MaterialDeConexion(contenido=bundle(), parametros={})
-
-    resultado = await ConectorArca(_emisor(grabadora), RELOJ).conectar(material)
-
-    assert resultado.estado is EstadoDeConexion.CONECTADO
-    assert resultado.tickets == ()
-
-
-# --------------------------------------------------------------- el verificador
-
-
-async def test_verificar_no_abre_ningun_socket() -> None:
-    """Decisión D-e: llamar a WSAA acá quemaría el ticket de 12 h en cada refresco."""
-
-    def prohibido(pedido: httpx.Request) -> httpx.Response:
-        raise AssertionError("el verificador de ARCA no debe usar la red")
-
-    del prohibido  # no hay cliente que pasarle: el verificador no recibe ninguno
-    resultado = await VerificadorArca(RELOJ, AVISO).verificar(bundle(vence_en_dias=400), {})
-
-    assert resultado.estado is EstadoDeConexion.CONECTADO
-
-
-async def test_un_certificado_por_vencer_es_atencion_con_los_dias_que_faltan() -> None:
-    resultado = await VerificadorArca(RELOJ, AVISO).verificar(bundle(vence_en_dias=20), {})
-
-    assert resultado.estado is EstadoDeConexion.ATENCION
-    assert resultado.detalle is not None
-    assert "vence en" in resultado.detalle
-
-
-async def test_un_certificado_vencido_es_no_conectado() -> None:
-    """RN-04, la mitad reactiva."""
-    resultado = await VerificadorArca(RELOJ, AVISO).verificar(bundle(vence_en_dias=-1), {})
-
-    assert resultado.estado is EstadoDeConexion.NO_CONECTADO
-    assert resultado.detalle is not None
-    assert "vencio" in resultado.detalle
-
-
-async def test_una_credencial_guardada_ilegible_es_atencion_y_no_una_excepcion() -> None:
-    """Falla dentro de una tarea de Beat: tiene que quedar visible, no tumbarla."""
-    resultado = await VerificadorArca(RELOJ, AVISO).verificar(b"basura", {})
-
-    assert resultado.estado is EstadoDeConexion.ATENCION

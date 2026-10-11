@@ -17,9 +17,13 @@ Real values travel over a private encrypted channel, never through the repositor
 
 from __future__ import annotations
 
+import base64
 import os
+import re
 from dataclasses import dataclass
 from enum import StrEnum
+
+from cheatsheet.platform.intervalos import IntervaloNoAlineable, campos_alineados
 
 #: Default retry ceiling the DLQ sweep judges against (HS-T6 RN-01).
 #:
@@ -178,6 +182,28 @@ def _booleano(nombre: str, por_defecto: bool) -> bool:
     return crudo in {"1", "true", "yes", "si"}
 
 
+def _intervalo_en_minutos(nombre: str, por_defecto: int) -> int:
+    """An interval Beat anchors to the wall clock; one that cannot be anchored fails at boot."""
+    valor = _entero(nombre, por_defecto)
+    try:
+        campos_alineados(valor)
+    except IntervaloNoAlineable as exc:
+        raise ConfiguracionFaltante(f"{nombre}: {exc}") from exc
+    return valor
+
+
+def _intervalo_en_horas(nombre: str, por_defecto: int) -> int:
+    """Hours variant of `_intervalo_en_minutos`: the same rule, applied to hours x 60."""
+    valor = _entero(nombre, por_defecto)
+    try:
+        campos_alineados(valor * 60)
+    except IntervaloNoAlineable as exc:
+        raise ConfiguracionFaltante(
+            f"{nombre}: {valor} hours does not divide a day exactly; use 1, 2, 3, 4, 6, 8, 12 or 24"
+        ) from exc
+    return valor
+
+
 def _entero(nombre: str, por_defecto: int) -> int:
     crudo = os.environ.get(nombre, "").strip()
     if not crudo:
@@ -333,6 +359,51 @@ def _adaptador_de_whatsapp(entorno: Entorno) -> AdaptadorDeWhatsApp:
     return adaptador
 
 
+#: The end of one PEM block glued to the start of the next.
+_JUNTURA_PEM = re.compile(rb"-----(?=-----BEGIN )")
+
+
+def _credencial_de_plataforma(adaptador: AdaptadorDeArca) -> bytes:
+    """`ARCA_CREDENCIAL_PLATAFORMA`: base64 of the PEM certificate plus its PEM key (ADR-0014).
+
+    Required as soon as ARCA is real: without it no company can be reached. Base64 because
+    a PEM bundle is several lines, and an environment variable is one.
+    """
+    if adaptador is not AdaptadorDeArca.ARCA:
+        return b""
+    crudo = _requerida("ARCA_CREDENCIAL_PLATAFORMA")
+    try:
+        bundle = base64.b64decode(crudo, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise ConfiguracionFaltante(
+            "ARCA_CREDENCIAL_PLATAFORMA debe ser el certificado y la clave PEM en base64"
+        ) from exc
+    # The certificate WSASS hands out ends without a newline, so `cat crt key` glues
+    # `-----END CERTIFICATE-----` to `-----BEGIN PRIVATE KEY-----` and the key no longer
+    # parses -- with an error that blames the key. Found on 2026-10-10 with the real one.
+    return _JUNTURA_PEM.sub(b"-----\n", bundle)
+
+
+def _adaptador_del_padron(entorno: Entorno, arca: AdaptadorDeArca) -> AdaptadorDeArca:
+    """`ARCA_PADRON_ADAPTADOR`: defaults to whatever ARCA is, and is never simulated in
+    production — a company validated against an invented registry would invoice on the
+    strength of a fiscal condition nobody checked."""
+    crudo = _opcional("ARCA_PADRON_ADAPTADOR", "")
+    if not crudo:
+        return arca
+    try:
+        adaptador = AdaptadorDeArca(crudo)
+    except ValueError as exc:
+        raise ConfiguracionFaltante(
+            f"ARCA_PADRON_ADAPTADOR debe ser 'arca' o 'simulado', no '{crudo}'"
+        ) from exc
+    if adaptador is AdaptadorDeArca.SIMULADO and entorno is Entorno.PRODUCTION:
+        raise ConfiguracionFaltante(
+            "ARCA_PADRON_ADAPTADOR=simulado no es valido en produccion: el padron tiene que ser el de ARCA."
+        )
+    return adaptador
+
+
 def _adaptador_de_arca(entorno: Entorno) -> AdaptadorDeArca:
     """Defaults to the simulator outside production, and is forbidden inside it."""
     crudo = _opcional("ARCA_ADAPTADOR", "")
@@ -405,7 +476,6 @@ class Settings:
     jwt_secret: str
     jwt_access_ttl_minutos: int
     refresh_ttl_dias: int
-    terminos_version_vigente: str
     google_oauth_client_id: str
     google_oauth_client_secret: str
     google_oauth_redirect_uri: str
@@ -426,6 +496,13 @@ class Settings:
     whatsapp_graph_version: str
     whatsapp_timeout_segundos: int
     whatsapp_sondeo_minutos: int
+    #: Cada cuántos minutos Beat concilia las plantillas de WhatsApp de cada empresa con Meta
+    #: (U6). La revisión tarda hasta 24 h y la consulta cuesta una llamada por empresa.
+    whatsapp_plantillas_minutos: int
+    #: Cada cuántos minutos Beat despacha el barrido de recordatorios de turno (U8, D-U8-16). 15
+    #: divide a 60: el recordatorio llega a lo sumo con un cuarto de hora de atraso respecto de su
+    #: momento ideal, y las esperas del reintento (15 y 30 min) caen en múltiplos del intervalo.
+    recordatorio_de_turno_minutos: int
     #: El secreto con el que Meta firma el webhook entrante (HS-T2). **Vacío significa que
     #: ninguna firma valida**, igual que el de MercadoPago: lo cómodo —aceptar todo mientras
     #: no haya secreto— convierte un despliegue mal configurado en un endpoint público que le
@@ -460,6 +537,9 @@ class Settings:
     arca_wsfe_url_homologacion: str
     arca_wsfe_url_produccion: str
     parametros_fiscales_horas: int
+    #: How often Beat re-checks documents whose fate ARCA never answered (decision D17).
+    #: Five minutes in production; staging raises it so the database can sleep.
+    billing_reconciliacion_minutos: int
 
     @property
     def arca_wsfe_url(self) -> str:
@@ -480,13 +560,19 @@ class Settings:
     dlq_max_intentos: int
     whatsapp_sondeo_maximo_dias: int
     arca_adaptador: AdaptadorDeArca
+    #: ARCA's taxpayer registry, switched apart from WSFE. In `staging` it stays simulated:
+    #: the homologación registry does not know the fictitious CUITs every test company uses
+    #: (checked 2026-10-08), while invoicing goes to ARCA for a real CAE.
+    arca_padron_adaptador: AdaptadorDeArca
     arca_wsaa_url_homologacion: str
     arca_wsaa_url_produccion: str
     arca_padron_url_homologacion: str
     arca_padron_url_produccion: str
     arca_timeout_segundos: int
     arca_margen_renovacion_minutos: int
-    arca_aviso_vencimiento_dias: int
+    #: ADR-0014. The platform certificate and its private key, PEM, one after the other.
+    #: Empty only with the simulator: with ARCA real it is how every company is reached.
+    arca_credencial_plataforma: bytes
     mercadopago_adaptador: AdaptadorDeMercadoPago
     mercadopago_client_id: str
     mercadopago_client_secret: str
@@ -515,6 +601,8 @@ class Settings:
         entorno = Entorno(_opcional("APP_ENV", Entorno.LOCAL.value))
         redis_url = _requerida("REDIS_URL")
         mercadopago = _adaptador_de_mercadopago(entorno)
+        arca = _adaptador_de_arca(entorno)
+        arca_padron = _adaptador_del_padron(entorno, arca)
         return cls(
             entorno=entorno,
             database_url=_requerida("DATABASE_URL"),
@@ -530,7 +618,6 @@ class Settings:
             jwt_secret=_requerida("JWT_SECRET"),
             jwt_access_ttl_minutos=_entero("JWT_ACCESS_TTL_MINUTOS", 15),
             refresh_ttl_dias=_entero("REFRESH_TTL_DIAS", 30),
-            terminos_version_vigente=_opcional("TERMINOS_VERSION_VIGENTE", "1.0"),
             # Platform-wide OAuth client, not per company. Optional so the API can boot
             # without Google configured; the endpoint refuses instead of the process
             # failing to start.
@@ -559,10 +646,14 @@ class Settings:
             whatsapp_timeout_segundos=_entero("WHATSAPP_TIMEOUT_SEGUNDOS", 10),
             # 30 minutes against a wait Meta measures in days (HU-E2-03 RN-02): it bounds
             # the delay to about 1% of the wait at 48 calls per number per day.
-            whatsapp_sondeo_minutos=_entero("WHATSAPP_SONDEO_MINUTOS", 30),
+            whatsapp_sondeo_minutos=_intervalo_en_minutos("WHATSAPP_SONDEO_MINUTOS", 30),
+            whatsapp_plantillas_minutos=_intervalo_en_minutos("WHATSAPP_PLANTILLAS_MINUTOS", 30),
+            recordatorio_de_turno_minutos=_intervalo_en_minutos(
+                "RECORDATORIO_DE_TURNO_MINUTOS", 15
+            ),
             whatsapp_webhook_secret=_opcional("WHATSAPP_WEBHOOK_SECRET", ""),
             whatsapp_webhook_verify_token=_opcional("WHATSAPP_WEBHOOK_VERIFY_TOKEN", ""),
-            dlq_barrido_minutos=_entero("DLQ_BARRIDO_MINUTOS", 15),
+            dlq_barrido_minutos=_intervalo_en_minutos("DLQ_BARRIDO_MINUTOS", 15),
             planilla_adaptador=_adaptador_de_planilla(entorno),
             almacenamiento_adaptador=_adaptador_de_almacenamiento(entorno),
             almacenamiento_directorio=_opcional("ALMACENAMIENTO_DIRECTORIO", ""),
@@ -575,7 +666,7 @@ class Settings:
             llm_modelo=_opcional("LLM_MODELO", MODELO_POR_DEFECTO),
             llm_timeout_segundos=float(_entero("LLM_TIMEOUT_SEGUNDOS", 30)),
             llm_max_tokens=_entero("LLM_MAX_TOKENS", 4096),
-            sync_planillas_minutos=_entero("SYNC_PLANILLAS_MINUTOS", 60),
+            sync_planillas_minutos=_intervalo_en_minutos("SYNC_PLANILLAS_MINUTOS", 60),
             catalogos_fiscales_adaptador=_adaptador_de_catalogos(entorno),
             arca_wsfe_url_homologacion=_opcional(
                 "ARCA_WSFE_URL_HOMOLOGACION",
@@ -584,12 +675,19 @@ class Settings:
             arca_wsfe_url_produccion=_opcional(
                 "ARCA_WSFE_URL_PRODUCCION", "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
             ),
-            parametros_fiscales_horas=_entero("PARAMETROS_FISCALES_HORAS", 24),
+            parametros_fiscales_horas=_intervalo_en_horas("PARAMETROS_FISCALES_HORAS", 24),
+            billing_reconciliacion_minutos=_intervalo_en_minutos(
+                "BILLING_RECONCILIACION_MINUTOS", 5
+            ),
             dlq_max_intentos=_entero("DLQ_MAX_INTENTOS", DLQ_MAX_INTENTOS_POR_DEFECTO),
             # More than double RN-02's 72-hour ceiling. Without it, a number Meta never
             # answers about is polled forever.
             whatsapp_sondeo_maximo_dias=_entero("WHATSAPP_SONDEO_MAXIMO_DIAS", 7),
-            arca_adaptador=_adaptador_de_arca(entorno),
+            arca_adaptador=arca,
+            arca_padron_adaptador=arca_padron,
+            arca_credencial_plataforma=_credencial_de_plataforma(
+                AdaptadorDeArca.ARCA if AdaptadorDeArca.ARCA in (arca, arca_padron) else arca
+            ),
             # Two separate hosts, unlike Meta. Which one is used comes from `APP_ENV`, so
             # the environment decides whether a document is a rehearsal or irreversible.
             arca_wsaa_url_homologacion=_opcional(
@@ -614,7 +712,6 @@ class Settings:
             arca_margen_renovacion_minutos=_entero("ARCA_MARGEN_RENOVACION_MINUTOS", 30),
             # Renewing a certificate at ARCA takes days, so finding out on the day it
             # expired means not being able to invoice.
-            arca_aviso_vencimiento_dias=_entero("ARCA_AVISO_VENCIMIENTO_DIAS", 30),
             mercadopago_adaptador=mercadopago,
             mercadopago_url_de_notificaciones=_url_de_notificaciones(mercadopago),
             # Our application's credentials, not a company's — the same shape as the
