@@ -131,6 +131,7 @@ export function DetalleDeCobro({
 
   /** El pendiente precargado: lo que falta devolver, no el monto entero (puede ser parcial). */
   function abrirReembolso(): void {
+    setError(null);
     setMontoAReembolsar(pendienteDeReembolso(cobro));
     setReembolsando(true);
   }
@@ -139,7 +140,9 @@ export function DetalleDeCobro({
 
   return (
     <>
-      {error !== null && (
+      {/* Con un modal abierto el error va adentro del modal (más abajo): si se pintara acá,
+          el overlay del modal lo taparía y el usuario no vería por qué falló la acción. */}
+      {error !== null && !cancelando && !reembolsando && (
         <Alert tono="error" titulo="No se pudo completar">
           {error}
         </Alert>
@@ -279,7 +282,13 @@ export function DetalleDeCobro({
           {(puedeGestionar || puedeReembolsar) && (
             <div className="cob-acciones">
               {puedeGestionar && cobro.tiene_link_activo && (
-                <Button variante="destructivo" onClick={() => setCancelando(true)}>
+                <Button
+                  variante="destructivo"
+                  onClick={() => {
+                    setError(null);
+                    setCancelando(true);
+                  }}
+                >
                   Cancelar cobro
                 </Button>
               )}
@@ -304,6 +313,7 @@ export function DetalleDeCobro({
             void cancelar();
           }}
         >
+          {error !== null && <Alert tono="error">{error}</Alert>}
           <p className="dm-intro">
             Se da de baja la deuda, se invalida el link y se detienen los recordatorios. Queda
             registrado con el motivo.
@@ -334,6 +344,7 @@ export function DetalleDeCobro({
             void reembolsar();
           }}
         >
+          {error !== null && <Alert tono="error">{error}</Alert>}
           <p className="dm-intro">
             Se le pide el reembolso a MercadoPago. Puede ser parcial y se puede repetir hasta
             completar el monto. Hasta que conteste, el estado del cobro no cambia.
