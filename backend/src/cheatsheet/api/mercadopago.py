@@ -36,6 +36,7 @@ from cheatsheet.contexts.integrations.application.errors import (
 )
 from cheatsheet.contexts.integrations.domain.valores import SistemaExterno
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
+from cheatsheet.contexts.master_data.application.clientes import VerCliente
 from cheatsheet.contexts.master_data.infrastructure.repositories import (
     RepositorioClientePostgres,
 )
@@ -147,6 +148,17 @@ def armar_clientes(unidad: UnidadDeTrabajo) -> PortClienteDeCobro:
     return ClienteViaMasterData(RepositorioClientePostgres(unidad.sesion))
 
 
+def armar_ver_cliente(unidad: UnidadDeTrabajo) -> VerCliente:
+    """`VerCliente` de master_data, para que el detalle del cobro muestre el nombre y el CUIT
+    del cliente (HU-E6-02 criterio 1).
+
+    Vive en el composition root y usa el caso de uso **de master_data**, no el puerto de
+    `payments`: D92 mantiene el CUIT fuera de `payments` a propósito, y esto es el API
+    enriqueciendo la respuesta cruzando contextos, no `payments` mirando el CUIT.
+    """
+    return VerCliente(clientes=RepositorioClientePostgres(unidad.sesion))
+
+
 def armar_cadena(unidad: UnidadDeTrabajo) -> PortCadenaDeEscalamiento:
     """La cadena de recordatorios, como `payments` la ve (HS-T3)."""
     piezas = ConfiguracionDeNegocio.armar(unidad)
@@ -185,4 +197,5 @@ __all__ = [
     "armar_envio",
     "armar_pasarela",
     "armar_saldos",
+    "armar_ver_cliente",
 ]

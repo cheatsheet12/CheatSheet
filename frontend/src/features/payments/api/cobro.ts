@@ -64,6 +64,10 @@ export interface Cobro {
 }
 
 export interface DetalleDeCobro extends Cobro {
+  /** HU-E6-02 criterio 1: el detalle muestra los datos del cliente, no solo su id. */
+  readonly cliente_nombre: string;
+  /** CUIT formateado para mostrar («20-22222222-3»); `null` si el cliente no tiene. */
+  readonly cliente_cuit: string | null;
   readonly recordatorios: readonly Recordatorio[];
   /** Del más viejo al más nuevo; las correcciones son filas negativas visibles. */
   readonly reembolsos: readonly Reembolso[];

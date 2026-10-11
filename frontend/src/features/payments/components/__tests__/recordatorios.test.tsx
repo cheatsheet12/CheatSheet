@@ -36,6 +36,8 @@ function detalleCon(...recordatorios: Recordatorio[]): DetalleDeCobroRespuesta {
   return {
     id: "co1",
     cliente_id: "cl1",
+    cliente_nombre: "Ana Prueba",
+    cliente_cuit: "20-22222222-3",
     comprobante_id: null,
     turno_id: null,
     monto: "12500.00",
