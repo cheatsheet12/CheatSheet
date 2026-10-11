@@ -23,7 +23,7 @@ from cheatsheet.contexts.business_config.domain.plantilla import (
     EstadoDeAprobacion,
 )
 from cheatsheet.contexts.business_config.domain.regla import CanalNotificacion
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from .dobles_plantillas import RevisionDeMetaFalsa
@@ -290,7 +290,7 @@ async def test_una_plantilla_de_email_se_guarda_sin_tocar_meta() -> None:
 async def test_solo_el_administrador_edita() -> None:
     escena = Escena(una_plantilla())
 
-    with pytest.raises(EntradaInvalida) as salida:
+    with pytest.raises(OperacionNoPermitida) as salida:
         await escena.editar(rol=RolUsuario.OPERADOR)
 
     assert str(salida.value) == MOTIVO_SOLO_ADMIN

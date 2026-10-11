@@ -403,7 +403,7 @@ async def test_un_operador_no_reembolsa(monkeypatch: pytest.MonkeyPatch) -> None
 
     respuesta = await _post(montaje, "/reembolso", {"monto": "100.00"})
 
-    assert respuesta.status_code == 422
+    assert respuesta.status_code == 403
     assert montaje.almacen.unidades_confirmadas == 0
     assert montaje.pasarela.pedidos == []
 

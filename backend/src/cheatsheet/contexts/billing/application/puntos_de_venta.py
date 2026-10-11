@@ -29,7 +29,7 @@ from cheatsheet.contexts.billing.application.ports import (
 from cheatsheet.contexts.billing.domain.punto_de_venta import PuntoDeVenta
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -41,7 +41,7 @@ MOTIVO_SOLO_ADMIN = "Solo un Administrador puede administrar los puntos de venta
 
 def _exigir_administrador(rol: RolUsuario) -> None:
     if rol is not RolUsuario.ADMINISTRADOR:
-        raise EntradaInvalida(MOTIVO_SOLO_ADMIN)
+        raise OperacionNoPermitida(MOTIVO_SOLO_ADMIN)
 
 
 @dataclass(frozen=True, slots=True)

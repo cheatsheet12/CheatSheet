@@ -39,7 +39,7 @@ from cheatsheet.contexts.payments.domain.cobro import (
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -55,7 +55,7 @@ MONTO_MAXIMO_DE_COBRO = Decimal("100000000.00")
 
 def exigir_gestor(rol: RolUsuario) -> None:
     if rol not in (RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR):
-        raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+        raise OperacionNoPermitida(MOTIVO_SIN_PERMISO)
 
 
 def monto_desde(texto: str) -> Decimal:

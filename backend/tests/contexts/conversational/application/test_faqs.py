@@ -20,7 +20,7 @@ from cheatsheet.contexts.conversational.application.faqs import (
 from cheatsheet.contexts.conversational.domain.faq import FAQ
 from cheatsheet.contexts.conversational.domain.uso_de_faq import MotivoSinComparacion, UsoDeFAQ
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.conversational.application.dobles import (
@@ -181,7 +181,7 @@ class TestCrearFAQ:
     async def test_un_rol_que_no_es_administrador_no_crea_nada(self, rol: RolUsuario) -> None:
         faqs, publicador = RepositorioFAQEnMemoria(), PublicadorEnMemoria()
 
-        with pytest.raises(EntradaInvalida, match=MOTIVO_SOLO_ADMIN):
+        with pytest.raises(OperacionNoPermitida, match=MOTIVO_SOLO_ADMIN):
             await CrearFAQ(faqs, EmbeddingsEnMemoria(), publicador).ejecutar(
                 empresa_id=EMPRESA,
                 usuario_id=USUARIO,
@@ -322,7 +322,7 @@ class TestEditarFAQ:
         faq = una_faq()
         faqs = RepositorioFAQEnMemoria(faq)
 
-        with pytest.raises(EntradaInvalida, match=MOTIVO_SOLO_ADMIN):
+        with pytest.raises(OperacionNoPermitida, match=MOTIVO_SOLO_ADMIN):
             await editar(
                 faq.id,
                 pregunta="Otra",
@@ -374,7 +374,7 @@ class TestEliminarFAQ:
         faq = una_faq()
         faqs = RepositorioFAQEnMemoria(faq)
 
-        with pytest.raises(EntradaInvalida, match=MOTIVO_SOLO_ADMIN):
+        with pytest.raises(OperacionNoPermitida, match=MOTIVO_SOLO_ADMIN):
             await EliminarFAQ(faqs, PublicadorEnMemoria()).ejecutar(
                 empresa_id=EMPRESA, usuario_id=USUARIO, rol=rol, faq_id=faq.id, ahora=AHORA
             )

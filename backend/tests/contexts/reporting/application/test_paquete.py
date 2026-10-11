@@ -50,7 +50,7 @@ from cheatsheet.contexts.reporting.domain.paquete import (
 )
 from cheatsheet.contexts.reporting.domain.reporte import Periodo
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.reporting.application.dobles import (
@@ -270,7 +270,7 @@ class TestConfiguracion:
     async def test_el_operador_no_configura(self) -> None:
         """RN-04, textual: la configuración está restringida al Administrador."""
         escenario = Escenario()
-        with pytest.raises(EntradaInvalida):
+        with pytest.raises(OperacionNoPermitida):
             await ConfigurarPaquete(
                 paquetes=escenario.paquetes, publicador=escenario.publicador
             ).ejecutar(
@@ -348,7 +348,7 @@ class TestInvitarYRevocar:
     async def test_el_operador_no_invita(self) -> None:
         escenario = Escenario()
         await escenario.generar()
-        with pytest.raises(EntradaInvalida):
+        with pytest.raises(OperacionNoPermitida):
             await InvitarContador(
                 paquetes=escenario.paquetes,
                 tokens=escenario.tokens,

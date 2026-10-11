@@ -54,7 +54,7 @@ from cheatsheet.contexts.billing.domain.comprobante import (
 from cheatsheet.contexts.billing.domain.punto_de_venta import TipoComprobante
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.fiscal import CUIT, CondicionIVA
 from cheatsheet.shared.roles import RolUsuario
@@ -76,7 +76,7 @@ MENSAJE_SIN_CONDICION = (
 def _exigir_emisor(rol: RolUsuario) -> None:
     """HU-E5-03's actors: Administrador and Operador. Solo Lectura reads (RN-04)."""
     if rol not in (RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR):
-        raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+        raise OperacionNoPermitida(MOTIVO_SIN_PERMISO)
 
 
 class ValidarReceptor:

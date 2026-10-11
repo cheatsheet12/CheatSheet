@@ -185,7 +185,7 @@ async def test_un_rechazo_por_rol_sigue_descartando_la_transaccion(
     respuesta = await _pedir(escenario, rol="SOLO_LECTURA")
 
     assert escenario.transaccion.confirmo is False
-    assert respuesta.status_code == 422
+    assert respuesta.status_code == 403
     assert escenario.reportes.reportes == {}
 
 

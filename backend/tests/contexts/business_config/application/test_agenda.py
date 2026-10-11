@@ -21,7 +21,7 @@ from cheatsheet.contexts.business_config.domain.agenda_de_notificacion import (
 )
 from cheatsheet.contexts.business_config.domain.regla import ReglaDeNegocio, TipoRegla
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 
@@ -146,7 +146,7 @@ async def test_actualizar_con_prioridad_negativa_se_rechaza_y_no_toca_la_regla()
 async def test_un_operador_no_puede_configurar_la_agenda() -> None:
     reglas, publicador = ReglasFalsas(), PublicadorFalso()
 
-    with pytest.raises(EntradaInvalida) as exc:
+    with pytest.raises(OperacionNoPermitida) as exc:
         await _guardar(reglas, publicador, _config(24), rol=RolUsuario.OPERADOR)
 
     assert str(exc.value) == MOTIVO_SOLO_ADMIN

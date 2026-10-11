@@ -52,7 +52,7 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
 from cheatsheet.contexts.conversational.domain.escalamiento import Escalamiento
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.externo_id import externo_id_o_ninguno
 from cheatsheet.shared.roles import RolUsuario
@@ -62,7 +62,7 @@ MOTIVO_SIN_PERMISO = "Solo un Administrador u Operador puede atender conversacio
 
 def _exigir_gestor(rol: RolUsuario) -> None:
     if rol not in (RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR):
-        raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+        raise OperacionNoPermitida(MOTIVO_SIN_PERMISO)
 
 
 @dataclass(frozen=True, slots=True)

@@ -28,7 +28,7 @@ from cheatsheet.contexts.scheduling.domain.recurso import (
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -37,7 +37,7 @@ MOTIVO_SOLO_ADMIN = "Solo un Administrador puede configurar recursos reservables
 
 def _exigir_administrador(rol: RolUsuario) -> None:
     if rol is not RolUsuario.ADMINISTRADOR:
-        raise EntradaInvalida(MOTIVO_SOLO_ADMIN)
+        raise OperacionNoPermitida(MOTIVO_SOLO_ADMIN)
 
 
 class ListarRecursos:

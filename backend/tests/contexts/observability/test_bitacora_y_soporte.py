@@ -40,7 +40,7 @@ from cheatsheet.contexts.observability.domain.solicitud_de_soporte import (
 )
 from cheatsheet.shared.auditoria import Iniciador, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 
@@ -334,7 +334,7 @@ class TestSoporte:
 
     @pytest.mark.asyncio
     async def test_el_operador_no_abre_solicitudes(self) -> None:
-        with pytest.raises(EntradaInvalida):
+        with pytest.raises(OperacionNoPermitida):
             await self._abrir(SolicitudesEnMemoria(), rol=RolUsuario.OPERADOR)
 
     @pytest.mark.asyncio

@@ -264,8 +264,8 @@ class TestApiDelHorario:
         )
 
         assert (
-            rechazo.status_code == 422
-        )  # `EntradaInvalida(MOTIVO_SOLO_ADMIN)`, como el escalamiento
+            rechazo.status_code == 403
+        )  # `OperacionNoPermitida(MOTIVO_SOLO_ADMIN)`, como el escalamiento
         listado = await cliente_http.get("/reglas", headers=_auth(token_operador))
         assert listado.status_code == 200
         assert _reglas_de_horario(listado) == []

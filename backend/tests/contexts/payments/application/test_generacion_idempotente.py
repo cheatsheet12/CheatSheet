@@ -23,7 +23,7 @@ from cheatsheet.contexts.payments.application.generacion_de_cobro import (
 )
 from cheatsheet.contexts.payments.domain.cobro import Cobro, LinkDePago
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.payments.application.test_confirmacion import (
@@ -173,7 +173,7 @@ async def test_la_repeticion_con_el_cliente_ya_inactivo_devuelve_el_cobro_origin
 async def test_solo_lectura_se_rechaza_antes_de_buscar_la_clave() -> None:
     escenario = Escenario()
 
-    with pytest.raises(EntradaInvalida) as exc:
+    with pytest.raises(OperacionNoPermitida) as exc:
         await escenario.pedir(rol=RolUsuario.SOLO_LECTURA)
 
     assert str(exc.value) == MOTIVO_SIN_PERMISO

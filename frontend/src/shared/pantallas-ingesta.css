@@ -607,7 +607,7 @@
 }
 
 /*
- * El mensaje que aparece cuando la bitácora no se puede leer (Solo Lectura, 422). Es una
+ * El mensaje que aparece cuando la bitácora no se puede leer (Solo Lectura, 403). Es una
  * explicación y no un error: la pantalla funciona, esta sección no le corresponde. */
 .dsh-vacio {
   font-size: 13px;

@@ -37,7 +37,12 @@ from cheatsheet.contexts.spreadsheet_sync.domain.procesamiento import (
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId
-from cheatsheet.shared.errors import EntradaInvalida, ErrorDeDominio, InvarianteViolada
+from cheatsheet.shared.errors import (
+    EntradaInvalida,
+    ErrorDeDominio,
+    InvarianteViolada,
+    OperacionNoPermitida,
+)
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -249,7 +254,7 @@ class PrepararReproceso:
     ) -> tuple[ProcesamientoDePlanilla, tuple[int, ...]]:
         # RN-04 of HU-E3-05: Solo Lectura sees the result «sin la opcion de reprocesar».
         if rol is RolUsuario.SOLO_LECTURA:
-            raise EntradaInvalida("Un usuario de Solo Lectura no puede reprocesar")
+            raise OperacionNoPermitida("Un usuario de Solo Lectura no puede reprocesar")
 
         original = await self._procesamientos.buscar_por_id(procesamiento_id)
         if original is None:

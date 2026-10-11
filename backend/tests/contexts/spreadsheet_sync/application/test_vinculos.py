@@ -38,7 +38,7 @@ from cheatsheet.platform.almacenamiento import (
     AlmacenamientoEnMemoria,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 
@@ -237,10 +237,10 @@ async def test_solo_un_administrador_vincula_o_sube(
 ) -> None:
     """Caso 6 del plan. La precondición de HU-E2-04, con la lección de PRU-09 aplicada:
     la regla viaja con la operación y no vive sólo en el router."""
-    with pytest.raises(EntradaInvalida):
+    with pytest.raises(OperacionNoPermitida):
         IniciarVinculacionConGoogle(proveedor).ejecutar(rol=rol)
 
-    with pytest.raises(EntradaInvalida):
+    with pytest.raises(OperacionNoPermitida):
         await SubirPlanilla(
             vinculos=vinculos, almacenamiento=almacenamiento, publicador=publicador
         ).ejecutar(
