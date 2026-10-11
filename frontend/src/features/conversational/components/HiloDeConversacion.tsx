@@ -11,29 +11,35 @@
  * **El campo de respuesta aparece recién con el escalamiento tomado.** Sin eso el agente sigue
  * contestando el mismo hilo, y el cliente tendría dos interlocutores — que es exactamente lo
  * que RN-02 evita. El backend lo rechaza igual; esconderlo es la cortesía.
+ *
+ * **Es una columna de tres pisos**: cabecera con el estado y la acción principal, historial
+ * con su propio scroll y, abajo, lo que el operador hace (responder, cerrar). Así la caja de
+ * respuesta queda a la vista mientras se lee el último mensaje.
  */
 
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
-import { Alert, Badge, Button, Campo, Card, Select, formatearFechaHora } from "@/shared";
+import { Alert, Button, Select } from "@/shared";
 
 import {
-  ETIQUETAS_DE_INTENCION,
-  ETIQUETAS_DE_ORIGEN,
   ErrorDeConversacion,
   cerrarEscalamiento,
   responder,
   tomarEscalamiento,
   verConversacion,
 } from "../api/conversacion";
-import type { DetalleDeConversacion, Intencion, Mensaje } from "../api/conversacion";
+import type { DetalleDeConversacion, Intencion } from "../api/conversacion";
+import { CajaDeRespuesta } from "./CajaDeRespuesta";
+import { etiquetaDe, tituloDe, tonoDeEstadoDe } from "./FilaDeConversacion";
+import { IconoDeBurbuja, IconoDeBurbujas, IconoDeVolver } from "./iconos";
+import { LineaDeTiempo } from "./LineaDeTiempo";
+import { tonoDe } from "./vista";
 
 export interface PropsDeHiloDeConversacion {
   readonly inicial: DetalleDeConversacion;
-  /** El número del cliente, resuelto del lado del servidor. */
-  readonly telefono: string;
   readonly puedeAtender: boolean;
 }
 
@@ -45,16 +51,8 @@ const CLASIFICACIONES: readonly { valor: string; etiqueta: string }[] = [
   { valor: "FAQ", etiqueta: "Pregunta frecuente" },
 ];
 
-function autorDe(mensaje: Mensaje): string {
-  if (mensaje.direccion === "ENTRANTE") {
-    return "Cliente";
-  }
-  return mensaje.origen === null ? "Sistema" : ETIQUETAS_DE_ORIGEN[mensaje.origen];
-}
-
 export function HiloDeConversacion({
   inicial,
-  telefono,
   puedeAtender,
 }: PropsDeHiloDeConversacion): JSX.Element {
   const [hilo, setHilo] = useState<DetalleDeConversacion>(inicial);
@@ -62,9 +60,19 @@ export function HiloDeConversacion({
   const [texto, setTexto] = useState("");
   const [clasificacion, setClasificacion] = useState("");
   const [trabajando, setTrabajando] = useState(false);
+  const cuerpo = useRef<HTMLDivElement>(null);
 
   const tomado = hilo.estado_escalamiento === "ASIGNADO";
   const esperando = hilo.estado_escalamiento === "ABIERTO";
+  const cantidad = hilo.mensajes.length;
+
+  // El historial abre en lo último que se dijo, como cualquier chat.
+  useEffect(() => {
+    const zona = cuerpo.current;
+    if (zona !== null) {
+      zona.scrollTop = zona.scrollHeight;
+    }
+  }, [cantidad]);
 
   async function correr(accion: () => Promise<unknown>, porDefecto: string): Promise<void> {
     setError(null);
@@ -79,50 +87,29 @@ export function HiloDeConversacion({
     }
   }
 
+  const estado = tonoDeEstadoDe(hilo);
+
   return (
-    <>
-      {error !== null && (
-        <Alert tono="error" titulo="No se pudo completar">
-          {error}
-        </Alert>
-      )}
-
-      {esperando && (
-        <Alert tono="advertencia" titulo="Esperando a un asesor">
-          {hilo.motivo}
-        </Alert>
-      )}
-
-      <Card titulo="Historial">
-        {/* El contexto previo de HU-E8-05 RN-03: todo el hilo, no sólo lo posterior al
-            escalamiento. Es lo que evita que el cliente tenga que repetir. */}
-        <ol className="wa-hilo">
-          {hilo.mensajes.map((mensaje) => (
-            <li
-              key={mensaje.id}
-              className={
-                mensaje.direccion === "ENTRANTE" ? "wa-mensaje wa-mensaje--cliente" : "wa-mensaje"
-              }
-            >
-              <p className="wa-mensaje__autor">
-                {autorDe(mensaje)} · {formatearFechaHora(mensaje.momento)}
-                {mensaje.intencion !== null && <> · {ETIQUETAS_DE_INTENCION[mensaje.intencion]}</>}
-                {mensaje.tipo_contenido === "AUDIO" && <> · nota de voz transcripta</>}
-              </p>
-              <p>{mensaje.contenido}</p>
-              {mensaje.estado_entrega !== null && (
-                <p className="wa-mensaje__entrega">{mensaje.estado_entrega}</p>
-              )}
-            </li>
-          ))}
-        </ol>
-        {hilo.mensajes.length === 0 && (
-          <p className="dm-intro">Este hilo todavía no tiene mensajes.</p>
-        )}
-      </Card>
-
-      {puedeAtender && esperando && (
-        <div className="fac-acciones">
+    <section className="cv-panel cv-conv" aria-label="Conversación">
+      <header className="cv-conv__head">
+        <Link href="/conversaciones" className="cv-conv__volver">
+          <IconoDeVolver />
+          Volver
+        </Link>
+        <span className={`cv-avatar cv-tono-${tonoDe(hilo.cliente_id)}`} aria-hidden="true">
+          <IconoDeBurbuja />
+        </span>
+        <div className="cv-conv__quien">
+          <h2 className="cv-conv__titulo">{tituloDe(hilo)}</h2>
+          <span className="cv-conv__estado">
+            <span className={`cv-pastilla cv-pastilla--${estado}`}>
+              <span className="cv-pastilla__punto" aria-hidden="true" />
+              {etiquetaDe(hilo)}
+            </span>
+            <span className="cv-conv__canal">WhatsApp</span>
+          </span>
+        </div>
+        {puedeAtender && esperando && (
           <Button
             cargando={trabajando}
             onClick={() =>
@@ -134,55 +121,69 @@ export function HiloDeConversacion({
           >
             Tomar la conversación
           </Button>
+        )}
+      </header>
+
+      {(error !== null || esperando) && (
+        <div className="cv-conv__avisos">
+          {error !== null && (
+            <Alert tono="error" titulo="No se pudo completar">
+              {error}
+            </Alert>
+          )}
+          {esperando && (
+            <Alert tono="advertencia" titulo="Esperando a un asesor">
+              {hilo.motivo}
+            </Alert>
+          )}
         </div>
       )}
 
+      <div className="cv-conv__cuerpo" ref={cuerpo}>
+        {cantidad === 0 ? (
+          <div className="cv-conv__vacio">
+            <span className="cv-vacio__icono" aria-hidden="true">
+              <IconoDeBurbujas />
+            </span>
+            <p>Este hilo todavía no tiene mensajes.</p>
+          </div>
+        ) : (
+          <LineaDeTiempo mensajes={hilo.mensajes} />
+        )}
+      </div>
+
       {puedeAtender && tomado && (
-        <Card titulo="Responder">
-          <p className="dm-intro">
-            El agente <strong>no está contestando</strong> este hilo mientras vos lo tengas tomado.
-            Tu mensaje sale por WhatsApp y se distingue del agente en el historial.
-          </p>
-          <form
-            className="dm-formulario"
-            onSubmit={(evento) => {
-              evento.preventDefault();
-              void correr(async () => {
-                await responder(hilo.id, texto, telefono);
-                setTexto("");
-              }, "No se pudo enviar el mensaje.");
-            }}
-          >
-            <Campo
-              id="hilo-respuesta"
-              etiqueta="Mensaje"
-              value={texto}
-              onChange={(evento) => setTexto(evento.target.value)}
-            />
-            <div className="dm-formulario__acciones">
-              <Button type="submit" disabled={texto.trim() === ""} cargando={trabajando}>
-                Enviar
-              </Button>
-            </div>
-          </form>
-        </Card>
+        <CajaDeRespuesta
+          texto={texto}
+          trabajando={trabajando}
+          onCambio={setTexto}
+          onEnviar={() =>
+            void correr(async () => {
+              await responder(hilo.id, texto);
+              setTexto("");
+            }, "No se pudo enviar el mensaje.")
+          }
+        />
       )}
 
       {puedeAtender && (esperando || tomado) && (
-        <Card titulo="Cerrar el escalamiento">
-          <p className="dm-intro">
-            Devolverle la conversación al agente hace que <strong>reevalúe la intención</strong> del
-            hilo. Podés corregir esa clasificación antes de devolverlo. Un escalamiento cerrado no
-            se reabre: un pedido nuevo del cliente genera uno nuevo.
-          </p>
-          <Select
-            id="hilo-clasificacion"
-            etiqueta="Clasificación al devolver"
-            opciones={CLASIFICACIONES}
-            value={clasificacion}
-            onChange={(evento) => setClasificacion(evento.target.value)}
-          />
-          <div className="dm-formulario__acciones">
+        <div className="cv-cierre">
+          <div className="cv-cierre__texto">
+            <b>Cerrar el escalamiento</b>
+            <p>
+              Devolverle la conversación al agente hace que <strong>reevalúe la intención</strong>{" "}
+              del hilo. Podés corregir esa clasificación antes de devolverlo. Un escalamiento
+              cerrado no se reabre: un pedido nuevo del cliente genera uno nuevo.
+            </p>
+          </div>
+          <div className="cv-cierre__acciones">
+            <Select
+              id="hilo-clasificacion"
+              etiqueta="Clasificación al devolver"
+              opciones={CLASIFICACIONES}
+              value={clasificacion}
+              onChange={(evento) => setClasificacion(evento.target.value)}
+            />
             <Button
               cargando={trabajando}
               onClick={() =>
@@ -212,15 +213,12 @@ export function HiloDeConversacion({
               Dar por finalizada
             </Button>
           </div>
-        </Card>
+        </div>
       )}
 
       {!hilo.esta_escalada && (
-        <Alert tono="neutral">
-          <Badge estado="ok">La atiende el agente</Badge> Este hilo no tiene ningún escalamiento
-          abierto.
-        </Alert>
+        <div className="cv-conv__aviso-agente">Este hilo no tiene ningún escalamiento abierto.</div>
       )}
-    </>
+    </section>
   );
 }

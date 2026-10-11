@@ -59,6 +59,10 @@ class ConfiguracionMercadoPago:
     `client_id` and `client_secret` identify **our application**, not a company — the same
     shape as the platform's Google OAuth client. What is per-company are the tokens the
     flow returns, and those live encrypted in the database.
+
+    **No `test_token`, ever.** It mints sandbox credentials, and MercadoPago's sandbox
+    checkout fails at "Pagar" for this flow ("Oh, no, algo anduvo mal"). Test accounts use
+    production credentials; whether an account is a test one is read from `/users/me`.
     """
 
     client_id: str

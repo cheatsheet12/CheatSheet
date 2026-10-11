@@ -22,6 +22,8 @@ import {
   crearFaq,
   editarPlantilla,
   eliminarFaq,
+  empiezaOTerminaConVariable,
+  enviarARevision,
   listarConversaciones,
   listarFaqs,
   listarPlantillas,
@@ -31,6 +33,7 @@ import {
   variablesDe,
   variablesInvalidas,
   verConversacion,
+  verUsoDeFaq,
 } from "@/features/conversational";
 
 function respuesta(cuerpo: unknown, ok = true, status = 200): Response {
@@ -120,14 +123,14 @@ describe("las conversaciones", () => {
     expect(cuerpos[1]).toBe(JSON.stringify({ devolver_al_agente: false, clasificacion: null }));
   });
 
-  it("responder manda el texto y el telefono", async () => {
+  it("responder manda sólo el texto: el destino lo resuelve el backend", async () => {
     const espia = espiarFetch(respuesta({ id: "m1" }));
 
-    await responder("c1", "Hola!", "5491112345678");
+    await responder("c1", "Hola!");
 
     const [ruta, opciones] = espia.mock.calls[0] as [string, RequestInit];
     expect(ruta).toBe("/api/conversaciones/c1/mensajes");
-    expect(opciones.body).toBe(JSON.stringify({ texto: "Hola!", telefono: "5491112345678" }));
+    expect(opciones.body).toBe(JSON.stringify({ texto: "Hola!" }));
   });
 });
 
@@ -170,6 +173,33 @@ describe("las FAQ", () => {
     expect(espia).toHaveBeenCalledWith("/api/faqs/f1", { method: "DELETE" });
   });
 
+  it("ver el uso es un GET sin cache al detalle de esa FAQ", async () => {
+    const detalle = {
+      usos_este_mes: 3,
+      comparacion: null,
+      motivo_sin_comparacion: "SIN_EDICIONES",
+    };
+    const espia = espiarFetch(respuesta(detalle));
+
+    expect(await verUsoDeFaq("f1")).toEqual(detalle);
+
+    expect(espia).toHaveBeenCalledWith("/api/faqs/f1/uso", { cache: "no-store" });
+  });
+
+  it("ver el uso propaga el detalle del backend", async () => {
+    espiarFetch(
+      respuesta(
+        { error: "EntradaInvalida", detalle: "La respuesta frecuente no existe" },
+        false,
+        422,
+      ),
+    );
+
+    await expect(verUsoDeFaq("f1")).rejects.toThrow(
+      new ErrorDeFaq("La respuesta frecuente no existe"),
+    );
+  });
+
   it("propaga la frase de los campos obligatorios", async () => {
     const frase = "La pregunta y la respuesta son obligatorias.";
     espiarFetch(respuesta({ error: "EntradaInvalida", detalle: frase }, false, 422));
@@ -202,6 +232,49 @@ describe("las plantillas", () => {
     const [ruta, opciones] = otro.mock.calls[0] as [string, RequestInit];
     expect(ruta).toBe("/api/plantillas/p1");
     expect(opciones.method).toBe("PUT");
+  });
+});
+
+describe("enviar a revisión y los errores de Meta", () => {
+  it("reenviar es un POST sin cuerpo a la ruta del envío", async () => {
+    const espia = espiarFetch(respuesta({ id: "p1" }));
+
+    await enviarARevision("p1");
+
+    const [ruta, opciones] = espia.mock.calls[0] as [string, RequestInit];
+    expect(ruta).toBe("/api/plantillas/p1/envio");
+    expect(opciones.method).toBe("POST");
+  });
+
+  it("un 422 de Meta llega con su texto", async () => {
+    espiarFetch(
+      respuesta({ error: "MetaRechazoLaPlantilla", detalle: "Texto de Meta" }, false, 422),
+    );
+
+    await expect(editarPlantilla("p1", "Hola {{nombre}}. Gracias.")).rejects.toThrow(
+      "Texto de Meta",
+    );
+  });
+
+  it.each([
+    ["editar", () => editarPlantilla("p1", "Hola.")],
+    ["reenviar", () => enviarARevision("p1")],
+  ])("un 503 al %s dice que no se guardó nada y que se puede reintentar", async (_, llamar) => {
+    espiarFetch(respuesta({ error: "MetaNoDisponible" }, false, 503));
+
+    await expect(llamar()).rejects.toThrow("No se guardó nada");
+  });
+});
+
+describe("el borde de una plantilla de WhatsApp", () => {
+  it.each([
+    ["{{nombre}}, te esperamos.", true],
+    ["Te esperamos el {{fecha}}", true],
+    ["  {{nombre}} te esperamos.", true],
+    ["Hola {{nombre}}, te esperamos.", false],
+    ["Hola, te esperamos.", false],
+  ])("«%s» → %s", (cuerpo, esperado) => {
+    expect(empiezaOTerminaConVariable(cuerpo)).toBe(esperado);
   });
 });
 

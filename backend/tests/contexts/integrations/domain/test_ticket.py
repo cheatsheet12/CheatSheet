@@ -1,4 +1,4 @@
-"""El agregado `TicketDeAcceso` — caso 6 del plan.
+"""El ticket de plataforma (ADR-0014) — caso 6 del plan de ADR-0004.
 
 Poco código y una distinción que carga con todo: **vigente** y **hay que renovar** son dos
 preguntas distintas, y confundirlas es lo que haría que una caída de ARCA durante una
@@ -8,15 +8,13 @@ renovación tumbe una operación que podría haber seguido con el ticket viejo.
 from __future__ import annotations
 
 from datetime import timedelta
-from uuid import uuid4
 
 from cheatsheet.contexts.integrations.domain.ticket import (
     MARGEN_DE_RENOVACION,
     ServicioDeArca,
-    TicketDeAcceso,
+    TicketDePlataforma,
 )
 from cheatsheet.contexts.integrations.domain.valores import CredencialCifrada
-from cheatsheet.shared.empresa import EmpresaId
 
 from tests.conftest import INSTANTE_FIJO
 
@@ -24,10 +22,8 @@ CONTENIDO = CredencialCifrada(contenido=b"cifrado:token", algoritmo="FALSO/v1")
 OTRO = CredencialCifrada(contenido=b"cifrado:otro", algoritmo="FALSO/v1")
 
 
-def _ticket(horas: float = 12) -> TicketDeAcceso:
-    return TicketDeAcceso(
-        id=uuid4(),
-        empresa_id=EmpresaId(uuid4()),
+def _ticket(horas: float = 12) -> TicketDePlataforma:
+    return TicketDePlataforma(
         servicio=ServicioDeArca.WSFE,
         contenido=CONTENIDO,
         expira_en=INSTANTE_FIJO + timedelta(hours=horas),
@@ -78,7 +74,7 @@ def test_el_margen_se_puede_ajustar_por_configuracion() -> None:
 
 
 def test_reemplazar_pisa_contenido_y_vencimiento() -> None:
-    """Una fila por (empresa, servicio): renovar sobrescribe, no acumula."""
+    """Una fila por servicio: renovar sobrescribe, no acumula."""
     ticket = _ticket()
     nuevo_vencimiento = INSTANTE_FIJO + timedelta(hours=24)
 

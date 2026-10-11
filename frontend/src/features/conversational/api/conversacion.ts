@@ -26,6 +26,8 @@ export interface Mensaje {
   readonly estado_entrega: string | null;
   /** HU-E9-01 RN-04: lo que hace que el operador se distinga del agente en el historial. */
   readonly origen: OrigenDelMensaje | null;
+  /** Por qué falló un saliente (U7): un código de Meta o una clase corta; se traduce en pantalla. */
+  readonly motivo_de_falla: string | null;
 }
 
 export interface Conversacion {
@@ -67,6 +69,19 @@ export const ETIQUETAS_DE_INTENCION: Readonly<Record<Intencion, string>> = {
   PAGO: "Pago",
   FAQ: "Pregunta frecuente",
   DESCONOCIDA: "Sin clasificar",
+};
+
+/**
+ * Cómo se lee **en pantalla** el estado de entrega de un saliente (HU-E8-04 RN-04, U7).
+ *
+ * El valor que viaja es el del dominio (`LEIDO`); esto es presentación. Un estado que la pantalla no
+ * conoce se muestra tal cual en vez de esconderse.
+ */
+export const ETIQUETAS_DE_ENTREGA: Readonly<Record<string, string>> = {
+  ENVIADO: "Enviado",
+  ENTREGADO: "Entregado",
+  LEIDO: "Leído",
+  FALLIDO: "No se pudo enviar",
 };
 
 export const ETIQUETAS_DE_ORIGEN: Readonly<Record<OrigenDelMensaje, string>> = {
@@ -148,15 +163,14 @@ export async function cerrarEscalamiento(
   return (await respuesta.json()) as Conversacion;
 }
 
-export async function responder(
-  conversacionId: string,
-  texto: string,
-  telefono: string,
-): Promise<Mensaje> {
+/**
+ * El destino no viaja: el backend lo resuelve del cliente dueño del hilo.
+ */
+export async function responder(conversacionId: string, texto: string): Promise<Mensaje> {
   const respuesta = await fetch(`/api/conversaciones/${conversacionId}/mensajes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ texto, telefono }),
+    body: JSON.stringify({ texto }),
   });
   if (!respuesta.ok) {
     await fallar(respuesta);

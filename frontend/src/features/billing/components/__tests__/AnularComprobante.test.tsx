@@ -17,7 +17,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const emitirNotaDeCredito = vi.fn();
-const push = vi.fn();
 
 vi.mock("@/features/billing/api/comprobante", async () => {
   const real = await vi.importActual<typeof import("@/features/billing/api/comprobante")>(
@@ -29,13 +28,20 @@ vi.mock("@/features/billing/api/comprobante", async () => {
   };
 });
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
+});
 
 import { ErrorDeComprobante, MENSAJE_MONTO_EXCEDIDO } from "@/features/billing";
 import type { Anulacion, Comprobante } from "@/features/billing";
 
 const { AnularComprobante } = await import("@/features/billing/components/AnularComprobante");
 const { DetalleDeComprobante } = await import("@/features/billing/components/DetalleDeComprobante");
+const { ArnesDeRouter, reiniciarRouter, resolverNavegacion, routerQueSuspende } = await import(
+  "@/shared/__tests__/router-que-suspende"
+);
+const push = routerQueSuspende.push;
 
 const ORIGINAL: Comprobante = {
   id: "c1",
@@ -50,6 +56,7 @@ const ORIGINAL: Comprobante = {
   cae: "75123456789012",
   cae_vence_el: "2026-09-17",
   motivo_de_rechazo: null,
+  leyenda: null,
   subtotal: "2000.00",
   total_iva: "420.00",
   total: "2420.00",
@@ -100,6 +107,7 @@ const TOTAL: Anulacion = {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  reiniciarRouter();
 });
 
 describe("lo que viene precargado", () => {
@@ -198,6 +206,30 @@ describe("la emision", () => {
     fireEvent.click(screen.getByRole("button", { name: "Emitir nota de crédito" }));
 
     expect(await screen.findByText("No se pudo anular")).toBeDefined();
+  });
+});
+
+describe("la emision, mientras la navegacion tarda", () => {
+  it("un segundo clic despues de la respuesta y antes del detalle no emite otra nota de credito", async () => {
+    // Con saldo disponible, una segunda nota de credito se emitiria de verdad.
+    emitirNotaDeCredito.mockResolvedValue({ ...ORIGINAL, id: "nc1" });
+    render(
+      <ArnesDeRouter>
+        <AnularComprobante original={ORIGINAL} anulacion={SIN_ANULAR} />
+      </ArnesDeRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Emitir nota de crédito" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/facturacion/c1"));
+
+    const boton = screen.getByRole("button", { name: "Emitir nota de crédito" });
+    expect((boton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(boton);
+    fireEvent.submit(boton.closest("form") as HTMLFormElement);
+    expect(emitirNotaDeCredito).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(emitirNotaDeCredito).toHaveBeenCalledTimes(1);
   });
 });
 

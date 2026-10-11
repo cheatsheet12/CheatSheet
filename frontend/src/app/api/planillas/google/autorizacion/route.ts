@@ -14,7 +14,7 @@
 
 import { NextResponse } from "next/server";
 
-import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { respuestaDeError } from "@/app/api/auth/_sesion";
@@ -46,9 +46,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
   try {
-    const datos = await llamarApi<{ url: string }>("/planillas/google/autorizacion", {
-      method: "POST",
-    });
+    const datos = await comoRutaDelBff(() =>
+      llamarApi<{ url: string }>("/planillas/google/autorizacion", {
+        method: "POST",
+      }),
+    );
     const respuesta = NextResponse.json(datos);
 
     // El `state` viaja dentro de la URL que el backend arma. Leerlo de ahí evita que el

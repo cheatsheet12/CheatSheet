@@ -5,11 +5,17 @@
  * forget it. It does two things now, where it used to do one:
  *
  * 1. **There is a session.** No cookie, no panel.
- * 2. **The onboarding is finished.** HU-E1-01 RN-04 keeps the dashboard closed until the
+ * 2. **No legal document is pending** (HU-E1-03 RN-03, HU-E1-08 RN-05). When a version in force
+ *    changes, the API answers 403 to everything but a short list; the panel sends the person to
+ *    `/aceptacion-legal` **before** looking at the onboarding. Without this the 403 would fall
+ *    into `estadoDeEmpresa`, which treats every 4xx as an invalid session, and bounce them to
+ *    the login in a loop. A person already inside when it happens is sent there by
+ *    `VigilanteDeAceptacionLegal`, which watches the calls the screens make.
+ * 3. **The onboarding is finished.** HU-E1-01 RN-04 keeps the dashboard closed until the
  *    company has its fiscal data, and doing it here means every screen added later is
  *    covered without anybody remembering to.
  *
- * The second check costs one API call per navigation. Carrying the flag in the JWT would
+ * The checks after the first cost one API call per navigation. Carrying the flag in the JWT would
  * save it and be wrong: the token lives fifteen minutes, so somebody who just finished
  * step 2 would keep being bounced back to it.
  *
@@ -28,80 +34,21 @@
  * be filed.
  */
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { BotonDeSalida } from "@/features/identity";
+import { BotonDeSalida, RenovadorDeSesion, VigilanteDeAceptacionLegal } from "@/features/identity";
+import type { DocumentoLegal } from "@/features/identity";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion, leerClaims } from "@/lib/session";
+
+import { CarcasaDelPanel } from "./carcasa-del-panel";
 
 interface EstadoDeEmpresa {
   readonly razon_social: string | null;
   readonly onboarding_completo: boolean;
-}
-
-interface EntradaDeNavegacion {
-  readonly href: string;
-  readonly etiqueta: string;
-}
-
-interface GrupoDeNavegacion {
-  readonly titulo: string;
-  readonly entradas: readonly EntradaDeNavegacion[];
-}
-
-/** El mapa de `docs/aidlc/inputs/prototipos/mapa-navegacion-oficial.html`, en cuatro grupos. */
-const NAVEGACION: readonly GrupoDeNavegacion[] = [
-  { titulo: "General", entradas: [{ href: "/panel", etiqueta: "Inicio" }] },
-  {
-    titulo: "Operaciones",
-    entradas: [
-      { href: "/ingesta", etiqueta: "Ingesta de datos" },
-      { href: "/datos-maestros/clientes", etiqueta: "Clientes" },
-      { href: "/datos-maestros/servicios", etiqueta: "Servicios" },
-      { href: "/datos-maestros/categorias", etiqueta: "Categorías" },
-      { href: "/facturacion", etiqueta: "Facturación" },
-      { href: "/cobros", etiqueta: "Cobros" },
-      { href: "/agenda", etiqueta: "Agenda" },
-      { href: "/agenda/recursos", etiqueta: "Recursos" },
-      { href: "/conversaciones", etiqueta: "Agente WhatsApp" },
-    ],
-  },
-  {
-    titulo: "Análisis",
-    entradas: [
-      { href: "/reportes", etiqueta: "Reportes" },
-      { href: "/auditoria", etiqueta: "Log de operaciones" },
-    ],
-  },
-  {
-    titulo: "Sistema",
-    entradas: [
-      { href: "/configuracion/empresa", etiqueta: "Empresa" },
-      { href: "/configuracion/usuarios", etiqueta: "Usuarios" },
-      { href: "/configuracion/integraciones", etiqueta: "Integraciones" },
-      { href: "/facturacion/puntos-de-venta", etiqueta: "Puntos de venta" },
-      { href: "/configuracion/reglas", etiqueta: "Reglas de negocio" },
-      { href: "/configuracion/respuestas", etiqueta: "Respuestas frecuentes" },
-      { href: "/configuracion/plantillas", etiqueta: "Plantillas" },
-      { href: "/configuracion/paquete-contable", etiqueta: "Paquete contable" },
-      { href: "/configuracion/notificaciones", etiqueta: "Notificaciones" },
-      { href: "/configuracion/preferencias", etiqueta: "Mis preferencias" },
-      { href: "/soporte", etiqueta: "Soporte" },
-    ],
-  },
-];
-
-/** Las dos iniciales de la empresa, para el avatar del encabezado. */
-function iniciales(nombre: string): string {
-  return nombre
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((palabra) => palabra[0])
-    .join("")
-    .toUpperCase();
+  /** Absent when the panel is deployed before the API that sends it: read as "none". */
+  readonly aceptaciones_pendientes?: readonly DocumentoLegal[];
 }
 
 export default async function PanelLayout({
@@ -110,13 +57,18 @@ export default async function PanelLayout({
   readonly children: ReactNode;
 }): Promise<JSX.Element> {
   if (!haySesion()) {
-    redirect("/");
+    // The access cookie lasts fifteen minutes; the refresh cookie, thirty days. Renewing
+    // here is what keeps somebody who comes back after a pause from landing on the login.
+    redirect("/api/auth/renovar");
   }
 
   const empresa = await estadoDeEmpresa();
   if (empresa === null) {
     // The cookie exists but the API rejected it: expired or revoked. Back to the door.
     redirect("/");
+  }
+  if ((empresa.aceptaciones_pendientes ?? []).length > 0) {
+    redirect("/aceptacion-legal");
   }
   if (!empresa.onboarding_completo) {
     redirect("/onboarding/empresa");
@@ -126,55 +78,17 @@ export default async function PanelLayout({
   const nombre = empresa.razon_social ?? "Tu empresa";
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="sidebar__brand">
-          <span className="sidebar__logo" aria-hidden="true">
-            CS
-          </span>
-          <span>
-            <b className="sidebar__nombre">CheatSheet</b>
-            <small className="sidebar__version">iPaaS</small>
-          </span>
-        </div>
-
-        <nav aria-label="Secciones" className="nav">
-          {NAVEGACION.map((grupo) => (
-            <div key={grupo.titulo} className="nav__group">
-              <p className="nav__label">{grupo.titulo}</p>
-              {grupo.entradas.map((entrada) => (
-                <Link key={entrada.href} className="nav__item" href={entrada.href}>
-                  {entrada.etiqueta}
-                </Link>
-              ))}
-            </div>
-          ))}
-        </nav>
-
-        <div className="sidebar__help">
-          <b>¿Necesitás ayuda?</b>
-          <Link href="/soporte">Abrir una solicitud</Link>
-        </div>
-      </aside>
-
-      <div className="app__main">
-        <header className="topbar">
-          <div className="org-switch">
-            <span className="org-switch__avatar" aria-hidden="true">
-              {iniciales(nombre)}
-            </span>
-            <span className="org-switch__datos">
-              <b>{nombre}</b>
-              <small>{claims?.rol.toLowerCase() ?? ""}</small>
-            </span>
-          </div>
-          <div className="topbar__right">
-            <BotonDeSalida />
-          </div>
-        </header>
-        <main className="page">{children}</main>
-      </div>
-    </div>
+    <>
+      <VigilanteDeAceptacionLegal />
+      <CarcasaDelPanel
+        nombre={nombre}
+        rol={claims?.rol ?? ""}
+        renovador={<RenovadorDeSesion />}
+        salida={<BotonDeSalida />}
+      >
+        {children}
+      </CarcasaDelPanel>
+    </>
   );
 }
 

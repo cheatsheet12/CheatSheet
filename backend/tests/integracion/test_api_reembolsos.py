@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 
 pytestmark = [requiere_base, pytest.mark.integration, pytest.mark.asyncio]
 
@@ -80,7 +81,12 @@ async def _administrador(
     """Registra una empresa (su primer usuario es Administrador) y siembra un cliente."""
     registro = await http.post(
         "/auth/registro",
-        json={"email": "ana@empresa.com", "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": "ana@empresa.com",
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert registro.status_code == 201, registro.text
     cabeceras = {"Authorization": f"Bearer {registro.json()['access_token']}"}
@@ -103,9 +109,10 @@ async def _cobro_pagado(
     transferencia: bool = False,
 ) -> str:
     """Un cobro creado por la API (así el doble aprende su preferencia) y luego pagado."""
+    # ADR-0013: `POST /cobros` exige su clave de idempotencia, una por cobro.
     creado = await http.post(
         "/cobros",
-        headers=cabeceras,
+        headers={**cabeceras, "X-Idempotency-Key": str(uuid.uuid4())},
         json={"cliente_id": str(cliente_id), "monto": "1000.00", "descripcion": descripcion},
     )
     assert creado.status_code == 201, creado.text

@@ -35,6 +35,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from cheatsheet.platform.database import Base
+from cheatsheet.shared.externo_id import LARGO_MAXIMO_EXTERNO_ID
 
 TABLA_COBRO = "cobro"
 TABLA_RECORDATORIO = "recordatorio"
@@ -104,6 +105,9 @@ class CobroORM(Base):
     )
     reembolso_mp_refund_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     motivo_de_cancelacion: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    #: La clave del pedido que el cliente mandó al generar el cobro (ADR-0013, migración 0034).
+    #: `NULL` en los cobros anteriores: no se les inventó una.
+    clave_idempotencia: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -120,6 +124,15 @@ class CobroORM(Base):
             text("(COALESCE(numero_de_operacion, mp_payment_id))"),
             unique=True,
             postgresql_where=text("COALESCE(numero_de_operacion, mp_payment_id) IS NOT NULL"),
+        ),
+        # La misma expresión que la migración 0034. La clave es única por empresa: la misma clave
+        # en dos empresas son dos pedidos independientes.
+        Index(
+            "uq_cobro_clave_idempotencia",
+            "empresa_id",
+            "clave_idempotencia",
+            unique=True,
+            postgresql_where=text("clave_idempotencia IS NOT NULL"),
         ),
         CheckConstraint(
             "medio_de_pago IN ('LINK_MERCADOPAGO', 'TRANSFERENCIA')",
@@ -149,6 +162,18 @@ class RecordatorioORM(Base):
     canal: Mapped[str] = mapped_column(String(20), nullable=False)
     enviado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     estado_entrega: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    #: El `wamid` con el que Meta aceptó el mensaje: así un callback `statuses[]` encuentra su
+    #: recordatorio (U7, migración 0038). Único en todo el sistema, no solo por empresa.
+    externo_id: Mapped[str | None] = mapped_column(String(LARGO_MAXIMO_EXTERNO_ID), nullable=True)
+    #: Por qué falló el envío: un código de Meta o una clase corta (`INCIERTO`, `SIN_CANAL`...).
+    ultimo_error: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    #: Cuántos envíos **empezaron** (U7, migración 0039): se cuenta antes de llamar a Meta.
+    intentos: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    #: Mientras un envío está en curso, cuándo se lo da por perdido; mientras espera un reintento,
+    #: cuándo toca. Índice parcial `ix_recordatorio_reintento`.
+    proximo_intento_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class ReembolsoORM(Base):

@@ -23,6 +23,7 @@ import {
   listarUsuarios,
   reactivarUsuario,
   reenviarInvitacion,
+  registrar,
   revocarInvitacion,
   verEmpresa,
   verPreferencias,
@@ -116,9 +117,49 @@ describe("las rutas apuntan al BFF y no a la API", () => {
   it("aceptar una invitación es público y va por /api/auth", async () => {
     responde({ onboarding_completo: false });
 
-    await aceptarInvitacion({ token: "t", nombre: "Beto", contrasena: "12345678" });
+    await aceptarInvitacion({
+      token: "t",
+      nombre: "Beto",
+      contrasena: "12345678",
+      version_privacidad: "1.0",
+    });
 
     expect(llamada().ruta).toBe("/api/auth/invitaciones/aceptar");
+  });
+
+  it("aceptar una invitación manda la versión de la política que se mostró", async () => {
+    responde({ onboarding_completo: false });
+
+    await aceptarInvitacion({
+      token: "t",
+      nombre: "Beto",
+      contrasena: "12345678",
+      version_privacidad: "1.0",
+    });
+
+    expect(JSON.parse(String(llamada().opciones.body))).toEqual({
+      token: "t",
+      nombre: "Beto",
+      contrasena: "12345678",
+      version_privacidad: "1.0",
+    });
+  });
+
+  it("registrarse manda las dos versiones que se mostraron", async () => {
+    responde({ onboarding_completo: false });
+
+    await registrar({
+      email: "ana@empresa.com",
+      contrasena: "12345678",
+      nombre: "Ana",
+      consentimiento: { version_terminos: "1.1", version_privacidad: "1.0" },
+    });
+
+    expect(llamada().ruta).toBe("/api/auth/registro");
+    expect(JSON.parse(String(llamada().opciones.body)).consentimiento).toEqual({
+      version_terminos: "1.1",
+      version_privacidad: "1.0",
+    });
   });
 });
 
@@ -133,6 +174,28 @@ describe("los códigos del backend se vuelven copy en español", () => {
 
     await expect(listarUsuarios()).rejects.toThrow(ErrorDeFormulario);
     await expect(listarUsuarios()).rejects.toThrow(mensaje);
+  });
+
+  it("una casilla sin marcar muestra el mensaje que manda el backend", async () => {
+    responde(
+      {
+        error: "ConsentimientoRequerido",
+        detalle: "Debe aceptar la política de privacidad para continuar.",
+      },
+      422,
+    );
+
+    await expect(listarUsuarios()).rejects.toThrow(
+      "Debe aceptar la política de privacidad para continuar.",
+    );
+  });
+
+  it("una versión desactualizada pide volver a leer los textos", async () => {
+    responde({ error: "VersionLegalDesactualizada" }, 409);
+
+    await expect(listarUsuarios()).rejects.toThrow(
+      "Actualizamos los textos legales. Recargá la página, leelos y volvé a aceptarlos.",
+    );
   });
 
   it("un error de validación muestra el detalle que manda el backend", async () => {

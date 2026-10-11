@@ -55,16 +55,11 @@
 }
 
 .acc-marca__simbolo {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-control);
-  background: var(--primary);
-  color: var(--color-text-on-dark);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: var(--text-caption);
-  letter-spacing: -0.02em;
+  background: #fff;
+  object-fit: contain;
   flex: none;
 }
 
@@ -204,6 +199,7 @@
   background: var(--card);
   box-shadow: var(--shadow);
   color: var(--ink-700);
+  font: inherit;
   font-size: var(--text-body);
   font-weight: 600;
   text-decoration: none;
@@ -904,7 +900,7 @@
   gap: var(--space-3);
   padding: 16px 22px;
   border-top: 1px solid var(--line);
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 /* El aviso a la izquierda y la acción a la derecha, en la misma línea: un mensaje debajo
@@ -1056,7 +1052,7 @@
 }
 
 .cfg-panel .tabla tbody tr:hover td {
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 /* El vacío es un renglón adentro del panel. La caja punteada del catálogo ocupa media
@@ -1213,7 +1209,7 @@
 
 .cfg-accion:hover:not(:disabled) {
   color: var(--ink-900);
-  background: var(--bg);
+  background: var(--bg-soft);
   border-color: var(--line);
 }
 
@@ -1261,7 +1257,7 @@
   margin: 0;
   padding: 16px 22px 18px;
   border-top: 1px solid var(--line);
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 .cfg-roles__nombre {
@@ -1302,7 +1298,7 @@
 }
 
 .cfg-avisos__fila:hover {
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 .cfg-avisos__cab {
@@ -1361,7 +1357,7 @@
   gap: var(--space-2);
   margin: var(--space-4) 0 0;
   padding: 10px 14px;
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-control);
   font-size: 12.5px;
@@ -1437,5 +1433,371 @@
 
   .cfg-accion:active:not(:disabled) {
     transform: none;
+  }
+}
+
+/* ── Datos de la empresa (prefijo `emp-`) ─────────────────────────────────────
+ *
+ * Sólo presentación de Configuración → Empresa. Una cabecera que resume a quién se
+ * edita, y secciones de dos columnas: a la izquierda qué pregunta contestan, a la
+ * derecha los campos. El verde es un detalle (ícono, tilde, botón), nunca un fondo. */
+
+.emp-pagina {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.emp-resumen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 18px 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: emp-entrar 260ms ease-out both;
+}
+
+.emp-resumen__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--ink-900);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+
+.emp-resumen__texto {
+  min-width: 0;
+  flex: 1;
+}
+
+.emp-resumen__nombre {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emp-resumen__cuit {
+  margin: 2px 0 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.emp-insignia {
+  flex: none;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--ink-700);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.emp-pagina form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.emp-seccion {
+  display: grid;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+  gap: var(--space-8);
+  padding: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  transition: border-color 160ms ease;
+  animation: emp-entrar 280ms ease-out both;
+}
+
+.emp-seccion:hover,
+.emp-seccion:focus-within {
+  border-color: var(--ink-300);
+}
+
+.emp-seccion__lado {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.emp-seccion__icono {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.emp-seccion__titulo {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.emp-seccion__nota {
+  margin: var(--space-1) 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-500);
+}
+
+.emp-seccion__cuerpo {
+  min-width: 0;
+}
+
+.emp-verificado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--touch-min);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-700);
+}
+
+.emp-resumen ~ form .boton svg,
+.emp-seccion .boton svg {
+  flex: none;
+  margin-right: 6px;
+}
+
+.emp-pie {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  position: sticky;
+  bottom: var(--space-4);
+  padding: 14px 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: emp-entrar 300ms ease-out both;
+  animation-delay: 210ms;
+}
+
+.emp-pie__estado {
+  margin: 0 auto 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+.emp-pie__estado--activo {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+.emp-pie__estado--activo::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--alert);
+}
+
+@keyframes emp-entrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .emp-seccion {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .emp-resumen {
+    flex-wrap: wrap;
+  }
+
+  .emp-resumen__texto {
+    flex-basis: calc(100% - 48px - var(--space-4));
+  }
+
+  .emp-resumen__cuit {
+    white-space: nowrap;
+  }
+
+  .emp-insignia {
+    margin-left: 64px;
+  }
+
+  .emp-seccion,
+  .emp-resumen,
+  .emp-pie {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emp-resumen,
+  .emp-seccion,
+  .emp-pie {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Textos legales públicos — PAN-LEG-01/02 (HU-E1-03 RN-04, HU-E1-08 RN-06)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Los dos enlaces del pie: términos y política. Se parten en dos líneas en pantallas
+   angostas en vez de desbordar. */
+.acc-legales {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-3);
+}
+
+/* La barra lateral es oscura y angosta: los enlaces van apilados y claros, y desaparecen
+   cuando la barra se reduce a íconos, porque ahí no entra texto. */
+.sidebar__legales {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 2px;
+  margin: 0 12px 14px;
+  padding: 0 10px;
+}
+
+.sidebar__legales .acc-enlace {
+  color: rgb(255 255 255 / 60%);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.sidebar__legales .acc-enlace:hover {
+  color: #fff;
+}
+
+.app[data-colapsada="true"] .sidebar__legales {
+  display: none;
+}
+
+.legal {
+  text-align: left;
+}
+
+.legal__encabezado {
+  margin-bottom: var(--space-4);
+  text-align: center;
+}
+
+.legal__borrador {
+  margin-bottom: var(--space-4);
+}
+
+.legal__titulo {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.legal__texto {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink-700);
+}
+
+.legal__texto p {
+  margin: 0 0 var(--space-3);
+}
+
+.legal__texto ul {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-6);
+}
+
+.legal__aviso {
+  margin: var(--space-4) auto 0;
+  max-width: 40rem;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+/* La re-aceptación (HU-E1-03 RN-03, HU-E1-08 RN-05): qué cambió, y dos botones. */
+.acc-documentos {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.acc-documento {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.acc-documento .acc-enlace {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.acc-documento__detalle {
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.acc-documento__borrador {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+/* Los dos botones comparten el ancho de la tarjeta; en pantallas angostas se apilan. */
+.acc-acciones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.acc-acciones > .boton {
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .acc-acciones {
+    grid-template-columns: 1fr;
   }
 }

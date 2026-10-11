@@ -1,8 +1,24 @@
-"""Resolution of the current company, from the authenticated access token.
+"""Resolution of the current company and user, from the access token **and the database**.
 
-The development header this module used to read is gone: the JWT issued by the identity
-context is now the only source of `empresa_id`. That was the hole the previous unit left
-open on purpose, and closing it is part of this one.
+The development header this module used to read is gone: the signed JWT issued by the
+identity context is the only source of *who is claiming to ask*. It is no longer the source
+of what that person may do. The token says who and which company, as of the moment it was
+issued; whether that user still exists, is still `ACTIVO` and which role they hold **now**
+is asked of the database on every request (HU-E1-05, HU-E1-06). `request.state` carries the
+database's answer, never the token's.
+
+Two outcomes are kept deliberately apart:
+
+- the session is **revoked** (no such user, not `ACTIVO`, another company): 401, with exactly
+  the body of a missing token, so a stolen token teaches its holder nothing;
+- the check **could not run** (database down or slow): 503. Failing open would hand the
+  window this check exists to close to anyone who can load the database, and answering 401
+  would sign every user out of the panel during an outage.
+
+A third outcome sits on top of a valid session: the person owes a **legal document**
+(HU-E1-03 RN-03, HU-E1-08 RN-05). The same read that vouches for the session says which, and
+every route but `RUTAS_CON_PENDIENTES` answers 403 until they accept. Signing out and renewing
+the session are public routes and keep working.
 
 Routes that exist *before* a session — sign-up, sign-in, the OAuth callback, the
 healthcheck — are listed below and skip the check. Everything else needs a valid token
@@ -11,7 +27,15 @@ or it does not run.
 
 from __future__ import annotations
 
+from typing import Protocol
+
 import jwt
+from cheatsheet.contexts.identity.application.errors import (
+    SesionRevocada,
+    VerificacionNoDisponible,
+)
+from cheatsheet.contexts.identity.application.verificacion_de_sesion import IdentidadVigente
+from cheatsheet.contexts.identity.domain.legal import DocumentoLegal
 from cheatsheet.contexts.identity.infrastructure.seguridad import decodificar_acceso
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
@@ -26,11 +50,13 @@ logger = obtener_logger(__name__)
 ATRIBUTO_EMPRESA = "empresa_id"
 ATRIBUTO_USUARIO = "usuario_id"
 ATRIBUTO_ROL = "rol"
+ATRIBUTO_PENDIENTES = "pendientes_legales"
 
 #: Reachable without a session. Everything not listed here requires one.
 RUTAS_PUBLICAS = frozenset(
     {
         "/health",
+        "/health/live",
         "/docs",
         "/openapi.json",
         "/redoc",
@@ -44,6 +70,23 @@ RUTAS_PUBLICAS = frozenset(
         # HU-E1-04: the invited person has no session — obtaining one is what accepting
         # gives them. The token in the body is the credential.
         "/auth/invitaciones/aceptar",
+        # HU-E1-03 RN-05, HU-E1-08 RN-06: the texts must be readable by someone who has not
+        # signed up yet. Exact paths, never the `/legal/` prefix.
+        "/legal/terminos",
+        "/legal/privacidad",
+        "/legal/vigentes",
+    }
+)
+
+
+#: The only routes a person with a pending legal document may call, by method **and** exact
+#: path: read who they are and what is pending, and accept. Reading the texts and signing out
+#: need no session at all (`RUTAS_PUBLICAS`). Everything else answers 403 until they accept.
+RUTAS_CON_PENDIENTES = frozenset(
+    {
+        ("GET", "/auth/empresa"),
+        ("GET", "/legal/pendientes"),
+        ("POST", "/legal/aceptaciones"),
     }
 )
 
@@ -67,30 +110,109 @@ RUTAS_PUBLICAS = frozenset(
 PREFIJOS_PUBLICOS: tuple[str, ...] = ("/webhooks/", "/contador/")
 
 
-class EmpresaMiddleware(BaseHTTPMiddleware):
-    """Puts the authenticated company and user on `request.state`, or refuses."""
+class VerificadorDeSesion(Protocol):
+    """Turns a token's claims into the identity the database vouches for right now.
 
-    def __init__(self, app: object, settings: Settings) -> None:
+    Raises `SesionRevocada` when the user may no longer operate, and `VerificacionNoDisponible`
+    when the check could not run (the database is down or slow). The adapter translates its
+    own driver's errors, so this module knows nothing about any of them. Anything else is a
+    bug, and a bug answers 500.
+    """
+
+    async def verificar(
+        self, *, usuario_id: UsuarioId, empresa_id_del_token: EmpresaId
+    ) -> IdentidadVigente: ...
+
+
+def _sin_sesion() -> JSONResponse:
+    """The one answer for "you are not signed in", whatever the reason.
+
+    A missing, forged, expired or revoked credential is the same body on purpose: the
+    difference is never told to the caller, only to the log.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"error": "NoAutenticado", "detalle": "Se requiere iniciar sesion."},
+    )
+
+
+def _servicio_no_disponible() -> JSONResponse:
+    """The session was not found revoked; the system just cannot tell. Not a 401."""
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "error": "ServicioNoDisponible",
+            "detalle": "No pudimos verificar tu sesion. Reintenta en unos segundos.",
+        },
+    )
+
+
+def _aceptacion_pendiente(pendientes: frozenset[DocumentoLegal]) -> JSONResponse:
+    """403 with which documents are owed, so the screen can say so (names only, no text)."""
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content={
+            "error": "AceptacionLegalPendiente",
+            "detalle": "Debe aceptar los documentos legales vigentes para continuar.",
+            "pendientes": sorted(documento.value for documento in pendientes),
+        },
+    )
+
+
+class EmpresaMiddleware(BaseHTTPMiddleware):
+    """Puts the authenticated company, user and role on `request.state`, or refuses."""
+
+    def __init__(self, app: object, settings: Settings, verificador: VerificadorDeSesion) -> None:
         super().__init__(app)  # type: ignore[arg-type]  # starlette types this as ASGIApp
         self._settings = settings
+        self._verificador = verificador
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.url.path in RUTAS_PUBLICAS or request.url.path.startswith(PREFIJOS_PUBLICOS):
             return await call_next(request)
 
-        identidad = self._identidad(request)
-        if identidad is None:
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"error": "NoAutenticado", "detalle": "Se requiere iniciar sesion."},
-            )
-        empresa_id, usuario_id, rol = identidad
-        setattr(request.state, ATRIBUTO_EMPRESA, empresa_id)
-        setattr(request.state, ATRIBUTO_USUARIO, usuario_id)
-        setattr(request.state, ATRIBUTO_ROL, rol)
+        reclamos = self._reclamos(request)
+        if reclamos is None:
+            return _sin_sesion()
+        identidad = await self._verificar(request, *reclamos)
+        if isinstance(identidad, Response):
+            return identidad
+
+        # The database's answer, not the token's. `rol` is stored as its string value
+        # because that is what every router already reads.
+        setattr(request.state, ATRIBUTO_EMPRESA, identidad.empresa_id)
+        setattr(request.state, ATRIBUTO_USUARIO, identidad.usuario_id)
+        setattr(request.state, ATRIBUTO_ROL, identidad.rol.value)
+        setattr(request.state, ATRIBUTO_PENDIENTES, identidad.pendientes)
+        if identidad.pendientes and (request.method, request.url.path) not in RUTAS_CON_PENDIENTES:
+            logger.info("aceptacion_legal_pendiente", ruta=request.url.path)
+            return _aceptacion_pendiente(identidad.pendientes)
+        # The verifier has already given its connection back: nothing is held while the
+        # route runs.
         return await call_next(request)
 
-    def _identidad(self, request: Request) -> tuple[EmpresaId, UsuarioId, str] | None:
+    async def _verificar(
+        self, request: Request, empresa_id: EmpresaId, usuario_id: UsuarioId
+    ) -> IdentidadVigente | Response:
+        try:
+            return await self._verificador.verificar(
+                usuario_id=usuario_id, empresa_id_del_token=empresa_id
+            )
+        except SesionRevocada as revocada:
+            # The reason goes to the log and never into the response. No token, no email.
+            logger.info("sesion_revocada", motivo=revocada.motivo.value, ruta=request.url.path)
+            return _sin_sesion()
+        except VerificacionNoDisponible as error:
+            logger.error(
+                "verificacion_de_sesion_no_disponible",
+                tipo=type(error.causa).__name__,
+                ruta=request.url.path,
+                exc_info=error,
+            )
+            return _servicio_no_disponible()
+
+    def _reclamos(self, request: Request) -> tuple[EmpresaId, UsuarioId] | None:
+        """The signed claims that say who is asking. Their `rol` is deliberately not read."""
         cabecera = request.headers.get("Authorization", "")
         if not cabecera.startswith("Bearer "):
             return None
@@ -98,11 +220,7 @@ class EmpresaMiddleware(BaseHTTPMiddleware):
             datos = decodificar_acceso(
                 cabecera.removeprefix("Bearer ").strip(), self._settings.jwt_secret
             )
-            return (
-                empresa_id_desde(datos["empresa_id"]),
-                usuario_id_desde(datos["sub"]),
-                datos["rol"],
-            )
+            return empresa_id_desde(datos["empresa_id"]), usuario_id_desde(datos["sub"])
         except (jwt.PyJWTError, KeyError, ValueError):
             # An expired, forged or malformed token is the same answer: no session. The
             # difference is never told to the caller, only to the log.

@@ -3,11 +3,12 @@ un cliente de una PyME argentina y decir de qué se trata.
 
 ## Lo que devolvés
 
-Un objeto JSON con tres campos y ninguno más:
+Un objeto JSON con estos campos y ninguno más:
 
 - `intencion`: uno de `TURNO`, `CONSULTA`, `PAGO`, `FAQ`, `DESCONOCIDA`.
 - `confianza`: un número entre 0 y 1.
 - `resumen`: una frase corta, en español, con lo que el cliente pide. Máximo 200 caracteres.
+- `pedido_de_turno`: sólo cuando la intención es `TURNO`; si no, `null` o se omite. Ver abajo.
 
 ## Qué significa cada intención
 
@@ -18,6 +19,25 @@ Un objeto JSON con tres campos y ninguno más:
   dirección, formas de pago, qué servicios hay.
 - **CONSULTA** — pregunta algo que no es ninguna de las anteriores.
 - **DESCONOCIDA** — no se entiende, está vacío, o es texto que no es un pedido.
+
+## El pedido de turno
+
+Cuando la intención es `TURNO`, `pedido_de_turno` dice **qué quiere hacer** y **para cuándo**, con
+las palabras del cliente y sin calcular nada:
+
+- `accion`: `RESERVAR` (quiere un turno), `CANCELAR` (quiere cancelar uno que ya tiene, o avisa que
+  no va a poder ir) o `REPROGRAMAR` (quiere moverlo a otro momento).
+- `cuandos`: hasta tres días, cada uno con una `referencia`:
+  - `HOY`, `MANANA`, `PASADO_MANANA`;
+  - `DIA_DE_SEMANA` con `dia_semana` de 0 (lunes) a 6 (domingo): «el jueves» es 3;
+  - `FECHA` con `dia` y, si lo dijo, `mes`: «el 14 de octubre» es `dia` 14, `mes` 10.
+- `momento`: `MANANA`, `TARDE` o `NOCHE`, si dijo «a la tarde» y similares.
+- `hora`: `HH:MM` en 24 horas, sólo si dijo una hora concreta: «a las 5 de la tarde» es `17:00`.
+- `servicio`: el servicio tal como lo nombró, máximo 60 caracteres, si lo nombró.
+
+**No sabés qué día es hoy, y no tenés que saberlo.** Devolvé la referencia tal como la dijo el
+cliente: «el jueves» es `DIA_DE_SEMANA` 3, nunca una fecha que calcules vos. Si el cliente no dijo
+algo, omití el campo: no lo inventes ni lo completes con lo que parezca razonable.
 
 ## Cómo elegir la confianza
 

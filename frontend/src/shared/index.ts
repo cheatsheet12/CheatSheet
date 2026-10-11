@@ -17,8 +17,18 @@ export { Button } from "@/shared/ui/Button";
 export type { PropsDeBoton, VarianteDeBoton } from "@/shared/ui/Button";
 export { Campo, Casilla } from "@/shared/ui/Campo";
 export type { PropsDeCampo, PropsDeCasilla } from "@/shared/ui/Campo";
+export { CampoDeContrasena } from "@/shared/ui/CampoDeContrasena";
+export type { PropsDeCampoDeContrasena } from "@/shared/ui/CampoDeContrasena";
 export { Card } from "@/shared/ui/Card";
 export type { PropsDeCard } from "@/shared/ui/Card";
+export { Desplegable } from "@/shared/ui/Desplegable";
+export { SelectorDeFecha } from "@/shared/ui/SelectorDeFecha";
+export type { PropsDeSelectorDeFecha } from "@/shared/ui/SelectorDeFecha";
+export type {
+  PropsDeDesplegable,
+  PropsDeGrupo,
+  VarianteDeDesplegable,
+} from "@/shared/ui/Desplegable";
 export { Modal } from "@/shared/ui/Modal";
 export type { PropsDeModal } from "@/shared/ui/Modal";
 export { Select } from "@/shared/ui/Select";
@@ -30,7 +40,15 @@ export type { Columna, PropsDeTabla } from "@/shared/ui/Tabla";
 export {
   formatearFecha,
   formatearFechaHora,
+  formatearHora,
   formatearNumero,
   PREFERENCIAS_POR_DEFECTO,
 } from "@/shared/formato";
+export { motivoDeFalla } from "@/shared/motivos-de-falla";
 export type { PreferenciasDeFormato } from "@/shared/formato";
+export { useAccionConNavegacion } from "@/shared/navegacion";
+export type {
+  AccionConNavegacion,
+  OpcionesDeEjecucion,
+  RouterDeNavegacion,
+} from "@/shared/navegacion";

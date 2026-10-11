@@ -11,26 +11,35 @@
 
 import { NextResponse } from "next/server";
 
-import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { respuestaDeError } from "@/app/api/auth/_sesion";
 
 export type Metodo = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+/**
+ * `cabeceras` es opcional y aditivo: las demás rutas no lo pasan y se comportan igual. Existe para
+ * que un pedido con efecto externo irreversible lleve su `X-Idempotency-Key` hasta el backend
+ * (ADR-0013); el BFF reenvía el encabezado entrante y nunca inventa uno.
+ */
 export async function reenviarAlBackend(
   ruta: string,
   metodo: Metodo,
   cuerpo?: unknown,
+  cabeceras?: Readonly<Record<string, string>>,
 ): Promise<NextResponse> {
   if (!haySesion()) {
     return NextResponse.json({ error: "NoAutenticado" }, { status: 401 });
   }
   try {
-    const datos = await llamarApi<unknown>(ruta, {
-      method: metodo,
-      ...(cuerpo !== undefined ? { body: cuerpo } : {}),
-    });
+    const datos = await comoRutaDelBff(() =>
+      llamarApi<unknown>(ruta, {
+        method: metodo,
+        ...(cuerpo !== undefined ? { body: cuerpo } : {}),
+        ...(cabeceras !== undefined ? { headers: cabeceras } : {}),
+      }),
+    );
     return NextResponse.json(datos ?? {});
   } catch (error) {
     if (!(error instanceof ErrorDeApi)) {

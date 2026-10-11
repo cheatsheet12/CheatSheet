@@ -253,7 +253,7 @@
 }
 
 .mae-panel .tabla tbody tr:hover td {
-  background: var(--bg);
+  background: var(--bg-soft);
 }
 
 /*
@@ -329,7 +329,7 @@
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--ink-600);
-  background: var(--bg);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 3px 10px;
@@ -379,7 +379,7 @@
 
 .mae-accion:hover:not(:disabled) {
   color: var(--ink-900);
-  background: var(--bg);
+  background: var(--bg-soft);
   border-color: var(--line);
 }
 
@@ -493,6 +493,857 @@
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * Clientes (PAN-DM-01) — rediseño de la composición
+ *
+ * Todo lo de abajo es de esa pantalla y de nadie más; servicios y categorías siguen con las
+ * reglas de arriba. Mismo lenguaje que el inicio y la ingesta: tarjetas blancas con borde
+ * `--line` y sombra `--shadow`, azulejos de icono de radio 12, el verde sólo en el CTA y en
+ * lo activo. Todo el movimiento se apaga en el bloque `prefers-reduced-motion` del final.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── El CTA de la cabecera ───────────────────────────────────────────────────
+ *
+ * Mismo botón principal que el del inicio (`.dsh-enlace-cta`): degradado verde, sombra, un
+ * destello que cruza al pasar el mouse y un hover que levanta. Es un botón y no un enlace, así
+ * que no necesita el reset del subrayado. */
+
+.mae-cta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 44px;
+  border-radius: 12px;
+  padding: 0 18px 0 14px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--primary);
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  border: 1px solid transparent;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+  white-space: nowrap;
+  overflow: hidden;
+  isolation: isolate;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.mae-cta--compacto {
+  height: 40px;
+}
+
+.mae-cta .mae-cta__icono {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgb(30 30 46 / 12%);
+  transition:
+    background-color 0.16s ease,
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mae-cta .mae-cta__icono svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mae-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 38%) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+
+.mae-cta:hover {
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 30%);
+}
+
+.mae-cta:hover::after {
+  transform: translateX(120%);
+  transition: transform 0.7s ease;
+}
+
+.mae-cta:hover .mae-cta__icono {
+  background: rgb(30 30 46 / 18%);
+  transform: rotate(90deg) scale(1.05);
+}
+
+.mae-cta:active {
+  transform: scale(0.97);
+}
+
+.mae-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── La barra de herramientas ────────────────────────────────────────────────
+ *
+ * Búsqueda, filtros y contador en una sola tarjeta. Todos los controles miden 38 px y se
+ * centran contra la misma línea; las etiquetas de los selectores están sólo para el lector
+ * de pantalla (el valor elegido ya dice qué se filtra). */
+
+.mae-herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  margin: 0 0 var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.mae-herramientas .campo {
+  margin: 0;
+  flex: 0 1 190px;
+  min-width: 150px;
+}
+
+.mae-herramientas .campo__control {
+  min-height: 38px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  border-radius: 10px;
+  background-color: var(--bg-soft);
+  font-size: 13px;
+}
+
+.mae-herramientas .campo__control:focus {
+  background-color: var(--card);
+}
+
+.mae-buscador {
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+
+.mae-buscador__icono {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-400);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: color 140ms ease;
+}
+
+.mae-buscador__icono svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mae-buscador:focus-within .mae-buscador__icono {
+  color: var(--accent-700);
+}
+
+.mae-buscador__control {
+  width: 100%;
+  height: 38px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 36px 0 36px;
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.mae-buscador__control::placeholder {
+  color: var(--ink-400);
+}
+
+.mae-buscador__control::-webkit-search-cancel-button {
+  display: none;
+}
+
+.mae-buscador__control:focus {
+  background: var(--card);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.mae-buscador__limpiar {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.mae-buscador__limpiar svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mae-buscador__limpiar:hover {
+  color: var(--ink-900);
+  background: var(--line-2);
+}
+
+.mae-buscador__limpiar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* «Solo activos» como interruptor dentro de una pastilla: apagado es un contorno neutro, y
+   encendido es lo único de la barra que se pinta de verde, porque es un filtro vivo. */
+.mae-interruptor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-600);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.mae-interruptor:hover {
+  border-color: var(--ink-300);
+}
+
+.mae-interruptor:has(:checked) {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.mae-interruptor:has(:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mae-interruptor__control {
+  position: relative;
+  flex: none;
+  width: 28px;
+  height: 16px;
+  margin: 0;
+  appearance: none;
+  background: var(--ink-300);
+  border-radius: 999px;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 160ms ease;
+}
+
+.mae-interruptor__control::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: var(--card);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 25%);
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mae-interruptor__control:checked {
+  background: var(--accent);
+}
+
+.mae-interruptor__control:checked::before {
+  transform: translateX(12px);
+}
+
+.mae-herramientas__cuenta {
+  margin: 0 0 0 auto;
+  padding: 0 6px 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-500);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── El listado ──────────────────────────────────────────────────────────────
+ *
+ * La entrada es de las filas, una tras otra y una sola vez, y no del panel entero. Doce
+ * retardos escalonados alcanzan: más abajo de la fila doce ya nadie está mirando. */
+
+.mae-panel--clientes {
+  animation: none;
+}
+
+.mae-panel--clientes .tabla tbody tr {
+  animation: mae-fila 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(3) {
+  animation-delay: 60ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(4) {
+  animation-delay: 90ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(5) {
+  animation-delay: 120ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(6) {
+  animation-delay: 150ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(7) {
+  animation-delay: 180ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(8) {
+  animation-delay: 210ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(9) {
+  animation-delay: 240ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(10) {
+  animation-delay: 270ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(11) {
+  animation-delay: 300ms;
+}
+
+.mae-panel--clientes .tabla tbody tr:nth-child(n + 12) {
+  animation-delay: 330ms;
+}
+
+.mae-panel--clientes .tabla td {
+  padding: 11px 18px;
+  vertical-align: middle;
+}
+
+.mae-persona .mae-nombre {
+  white-space: nowrap;
+}
+
+.mae-persona {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* El tono lo calcula el componente a partir del nombre (`--mae-tono`, en grados): mismo
+   cliente, mismo color, siempre. Saturación baja y fondo casi blanco: se reconoce, no grita. */
+.mae-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: hsl(var(--mae-tono) 42% 36%);
+  background: hsl(var(--mae-tono) 80% 95%);
+  border: 1px solid hsl(var(--mae-tono) 60% 90%);
+}
+
+/* ── Acciones de fila ────────────────────────────────────────────────────── */
+
+.mae-acciones {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.mae-icono-accion {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 60ms ease;
+}
+
+.mae-icono-accion svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mae-icono-accion:hover,
+.mae-icono-accion[aria-expanded="true"] {
+  color: var(--ink-900);
+  text-decoration: none;
+  background: var(--card);
+  border-color: var(--line);
+  box-shadow: 0 1px 2px rgb(30 30 46 / 8%);
+}
+
+.mae-icono-accion:active {
+  transform: translateY(1px);
+}
+
+.mae-icono-accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mae-icono-accion--texto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 0 11px 0 9px;
+  color: var(--ink-600);
+  border-color: var(--line);
+  background: var(--card);
+}
+
+/* El tooltip es del botón y no del navegador: aparece al instante, también con el teclado, y
+   se ve igual en todas las pantallas. El `aria-label` ya dice lo mismo para el lector. */
+.mae-icono-accion[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 5;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #fff;
+  background: var(--primary);
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 3px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.mae-icono-accion[data-tip]:hover::after,
+.mae-icono-accion[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (pointer: coarse) {
+  .mae-icono-accion {
+    min-width: var(--touch-min);
+    height: var(--touch-min);
+  }
+}
+
+/* ── El menú «más acciones» ──────────────────────────────────────────────── */
+
+.mae-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 172px;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  transform-origin: top right;
+  animation: mae-menu-entra 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.mae-menu--arriba {
+  transform-origin: bottom right;
+}
+
+.mae-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--ink-700);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.mae-menu__item:hover,
+.mae-menu__item:focus-visible {
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  outline: none;
+}
+
+.mae-menu__item--baja {
+  color: var(--err);
+}
+
+.mae-menu__item--baja:hover,
+.mae-menu__item--baja:focus-visible {
+  color: var(--err);
+  background: var(--err-bg);
+}
+
+.mae-menu__icono {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.mae-menu__icono svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── El vacío ────────────────────────────────────────────────────────────── */
+
+.mae-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 24px 52px;
+  text-align: center;
+}
+
+.mae-vacio__icono {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 10px;
+  color: var(--ink-400);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.mae-vacio__icono svg {
+  width: 26px;
+  height: 26px;
+}
+
+.mae-vacio__titulo {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.mae-vacio__texto {
+  max-width: 42ch;
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  color: var(--ink-500);
+}
+
+.mae-vacio__accion {
+  height: 38px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.mae-vacio__accion:hover {
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+}
+
+.mae-vacio__accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── El formulario del alta y la edición ─────────────────────────────────────
+ *
+ * Tres secciones con título, dos columnas donde los campos son cortos, y un pie de acciones
+ * pegado al borde de abajo del diálogo: con el formulario largo, «Guardar» no se va de la
+ * vista. El diálogo se ensancha sólo para este formulario (`:has`), para que las dos columnas
+ * respiren. */
+
+.modal:has(.mae-form) {
+  width: min(40rem, calc(100vw - 32px));
+}
+
+.mae-form {
+  gap: var(--space-4);
+}
+
+.mae-form__intro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+  border-radius: 12px;
+}
+
+.mae-form__intro .mae-form__nota {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.mae-form__tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  color: var(--ink-500);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.mae-form__tile svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mae-seccion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.mae-seccion__titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.mae-seccion__titulo::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.mae-seccion__ayuda {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.mae-seccion .campo {
+  margin: 0;
+  min-width: 0;
+}
+
+.mae-form__columnas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+  align-items: start;
+}
+
+/* El selector de categorías trae su propia caja y su propio título: dentro de una sección
+   con título sobran los dos. La leyenda queda para el lector de pantalla. */
+.mae-seccion .dm-selector {
+  padding: 0;
+  border: 0;
+  margin: 0;
+}
+
+.mae-seccion .dm-selector legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.mae-form__pie {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: var(--space-2) -24px -24px;
+  padding: 14px 24px;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  box-shadow: 0 -10px 16px -14px rgb(30 30 46 / 18%);
+}
+
+@media (width <= 520px) {
+  .mae-form__columnas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* En una pantalla angosta el CUIT y su botón no caben en un renglón sin que la ayuda del
+     campo se parta en cuatro: el botón baja y ocupa el ancho. */
+  .mae-form .dm-formulario__cuit {
+    flex-wrap: wrap;
+  }
+
+  .mae-form .dm-formulario__cuit > * {
+    flex: 1 1 100%;
+  }
+
+  .mae-form .dm-formulario__cuit > .boton {
+    margin-top: 0;
+  }
+
+  .mae-herramientas__cuenta {
+    margin-left: 0;
+    padding-left: 6px;
+  }
+
+  .mae-herramientas .campo {
+    flex: 1 1 140px;
+  }
+}
+
+@keyframes mae-fila {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mae-menu-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mae-cta,
+  .mae-cta .mae-cta__icono,
+  .mae-interruptor,
+  .mae-interruptor__control,
+  .mae-interruptor__control::before,
+  .mae-icono-accion,
+  .mae-icono-accion[data-tip]::after,
+  .mae-menu__item {
+    transition: none;
+  }
+
+  .mae-cta::after {
+    display: none;
+  }
+
+  .mae-cta:hover,
+  .mae-cta:hover .mae-cta__icono,
+  .mae-cta:active,
+  .mae-icono-accion:active {
+    transform: none;
+  }
+
+  .mae-panel--clientes .tabla tbody tr,
+  .mae-menu {
+    animation: none;
+  }
+}
+
 /* --- El selector de clientes activos (PAN-COB-03; lo reusan facturación y agenda) ------- */
 
 .dm-clientes__elegido {
@@ -572,4 +1423,238 @@
   .dm-clientes__opcion {
     transition: none;
   }
+}
+
+/* ── Acciones de fila con nombre y color ─────────────────────────────────────────────────
+ *
+ * Tres iconos grises de 16 px no se distinguen entre sí: había que pasar el mouse para saber cuál
+ * era «Facturar» y cuál «Cobrar». Ahora cada acción es una pastilla con su icono en un azulejo de
+ * color (verde para facturar, ámbar para cobrar, índigo para agendar) y su nombre al lado. Donde
+ * la pantalla es angosta el nombre se esconde y queda el azulejo de color, que ya se reconoce. */
+.mae-accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px 0 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  text-decoration: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+.mae-accion__ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--tono-fondo);
+  color: var(--tono-color);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mae-accion__ico svg {
+  width: 15px;
+  height: 15px;
+}
+
+.mae-accion[data-tono="menta"] {
+  --tono-fondo: var(--accent-050);
+  --tono-color: var(--accent-700);
+  --tono-borde: var(--accent-100);
+}
+
+.mae-accion[data-tono="ambar"] {
+  --tono-fondo: var(--alert-050);
+  --tono-color: var(--warn);
+  --tono-borde: #f7e3b3;
+}
+
+.mae-accion[data-tono="tinta"] {
+  --tono-fondo: #ececfa;
+  --tono-color: #4a4ab0;
+  --tono-borde: #d9d9f2;
+}
+
+.mae-accion:hover {
+  text-decoration: none;
+  background: var(--tono-fondo);
+  border-color: var(--tono-borde);
+  color: var(--ink-900);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgb(30 30 46 / 8%);
+}
+
+.mae-accion:hover .mae-accion__ico {
+  transform: scale(1.1) rotate(-6deg);
+  background: var(--card);
+}
+
+.mae-accion:active {
+  transform: scale(0.97);
+}
+
+.mae-accion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mae-acciones {
+  gap: 6px;
+}
+
+/* Pantalla angosta: sólo el azulejo de color, con el nombre en el `aria-label`. */
+@media (width <= 1560px) {
+  .mae-accion {
+    padding: 0 5px;
+  }
+
+  .mae-accion__texto {
+    display: none;
+  }
+}
+
+/* ── La persona: avatar más grande y una línea de contexto ──────────────────────────────── */
+.mae-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  font-size: 13px;
+}
+
+.mae-persona__datos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mae-persona__sub {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mae-accion,
+  .mae-accion__ico {
+    transition: none;
+  }
+
+  .mae-accion:hover,
+  .mae-accion:active,
+  .mae-accion:hover .mae-accion__ico {
+    transform: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * Servicios (PAN-DM-02) y Categorías (PAN-DM-03) — mismo tratamiento que Clientes
+ *
+ * Reusan el CTA, la barra de herramientas, el menú ⋯, el vacío y el formulario de arriba. Lo que
+ * se agrega es lo que no tienen los clientes: el azulejo de icono (en lugar del avatar de
+ * iniciales) y las etiquetas de dato (IVA, duración, ámbito).
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* Mismo criterio de color que el avatar: tono estable por nombre, saturación baja. */
+.mae-azulejo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  color: hsl(var(--mae-tono) 42% 36%);
+  background: hsl(var(--mae-tono) 80% 95%);
+  border: 1px solid hsl(var(--mae-tono) 60% 90%);
+  border-radius: 13px;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mae-azulejo svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mae-panel--clientes .tabla tbody tr:hover .mae-azulejo {
+  transform: scale(1.06) rotate(-4deg);
+}
+
+/* Una etiqueta de dato: el IVA, la duración, el ámbito. Neutra, para que el estado y el verde
+   sigan siendo lo único que llama la atención. */
+.mae-etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-700);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.mae-etiqueta svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--ink-400);
+}
+
+.mae-etiqueta--mono,
+.mae-etiqueta--iva {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.mae-etiqueta--iva {
+  color: var(--accent-700);
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+}
+
+.mae-ambito svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-500);
+}
+
+.mae-panel--servicios .tabla td:nth-child(2) {
+  padding-right: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mae-azulejo {
+    transition: none;
+  }
+
+  .mae-panel--clientes .tabla tbody tr:hover .mae-azulejo {
+    transform: none;
+  }
+}
+
+/* «Agendables y no agendables» es la opción más larga de la barra: sin ancho propio se parte en
+   dos renglones y el selector queda más alto que sus vecinos. */
+.mae-herramientas:has(#dm-agendable) .campo:has(#dm-agendable) {
+  flex: 0 1 240px;
+  min-width: 220px;
 }

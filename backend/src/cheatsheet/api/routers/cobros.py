@@ -19,17 +19,18 @@ from decimal import Decimal
 from typing import Annotated, TypeVar
 from uuid import UUID
 
+from cheatsheet.api.clave_de_pedido import exigir_clave_de_pedido
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.api.mercadopago import armar_clientes, armar_pasarela, armar_saldos
 from cheatsheet.contexts.payments.application.cobros import (
     CancelarCobro,
-    GenerarCobro,
     ListarCobros,
     MetricasDelPeriodo,
     RegenerarLink,
     VerCobro,
     monto_desde,
 )
+from cheatsheet.contexts.payments.application.generacion_de_cobro import GenerarCobro
 from cheatsheet.contexts.payments.application.ports import FiltrosDeCobro
 from cheatsheet.contexts.payments.application.recordatorios import VerRecordatorios
 from cheatsheet.contexts.payments.application.reembolsos_manuales import VerReembolsos
@@ -39,7 +40,7 @@ from cheatsheet.contexts.payments.domain.reembolso import Reembolso
 from cheatsheet.contexts.payments.infrastructure.ensamblado import Cobros
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.roles import RolUsuario
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
 
 
@@ -61,6 +62,13 @@ class RecordatorioSalida(BaseModel):
     canal: str
     enviado_en: datetime | None
     estado_entrega: str | None
+    #: Cuántos envíos empezaron (U7). Con `proximo_intento_en` arma «Reintentando · intento n de 3».
+    intentos: int
+    #: Cuándo toca el próximo intento. **Solo** mientras la fila espera un reintento: en un envío en
+    #: curso la columna es la ventana de la reserva y mostrarla como «próximo» engañaría.
+    proximo_intento_en: datetime | None
+    #: Por qué falló: un código de Meta o una clase corta (`INCIERTO`, `COBRO_CERRADO`…).
+    ultimo_error: str | None
 
 
 class ReembolsoSalida(BaseModel):
@@ -177,6 +185,9 @@ def _a_recordatorio(uno: Recordatorio) -> RecordatorioSalida:
         canal=uno.canal,
         enviado_en=uno.enviado_en,
         estado_entrega=uno.estado_entrega.value if uno.estado_entrega else None,
+        intentos=uno.intentos,
+        proximo_intento_en=uno.proximo_intento_en if uno.esperando_reintento else None,
+        ultimo_error=uno.ultimo_error,
     )
 
 
@@ -270,12 +281,19 @@ def _rutas(recursos: Recursos) -> APIRouter:
         return exigir(salida)
 
     @router.post("", status_code=status.HTTP_201_CREATED)
-    async def generar(request: Request, entrada: CobroEntrada) -> CobroSalida:
+    async def generar(
+        request: Request,
+        entrada: CobroEntrada,
+        clave: Annotated[UUID, Depends(exigir_clave_de_pedido)],
+    ) -> CobroSalida:
         """HU-E6-03. **201 y no 202**: el link existe cuando esto contesta.
 
         Distinto de la emisión de un comprobante, que es 202 porque ARCA todavía no contestó.
         Acá MercadoPago ya devolvió la preferencia — si no lo hubiera hecho, el cobro no se
         habría creado.
+
+        **`X-Idempotency-Key` obligatoria** (ADR-0013): el mismo pedido repetido contesta 201
+        con el cobro original, sin volver a MercadoPago.
         """
         empresa_id, usuario_id, rol = actor(request)
         salida: CobroSalida | None = None
@@ -292,6 +310,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
                 empresa_id=empresa_id,
                 usuario_id=usuario_id,
                 rol=rol,
+                clave_idempotencia=clave,
                 cliente_id=entrada.cliente_id,
                 monto=monto_desde(entrada.monto),
                 descripcion=entrada.descripcion,

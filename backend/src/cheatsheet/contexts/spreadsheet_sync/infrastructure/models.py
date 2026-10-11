@@ -176,6 +176,8 @@ class ErrorDeFilaORM(Base):
 
     numero_fila: Mapped[int] = mapped_column(Integer, nullable=False)
     motivo: Mapped[str] = mapped_column(String(300), nullable=False)
+    #: Set when a person corrected the row in the system. The error is kept, not deleted.
+    corregida_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         # PAN-ING-03 lists a run's failures in the order the spreadsheet has them, which

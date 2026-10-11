@@ -12,7 +12,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import type { ErrorDeApi } from "@/lib/api";
+import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { cerrarSesion, guardarSesion } from "@/lib/session";
 
 export const REFRESH_COOKIE_NAME = "cheatsheet_refresh";
 const MAX_AGE_REFRESH = 30 * 24 * 60 * 60;
@@ -43,6 +44,65 @@ export function leerRefresh(): string | undefined {
 
 export function borrarRefresh(): void {
   cookies().delete(REFRESH_COOKIE_NAME);
+}
+
+const INICIO_DEL_PANEL = "/panel";
+
+/**
+ * Where to send somebody after a renewal: a path of this site, or the panel's home.
+ * Another origin, `//host` or a backslash would make the renewal an open redirect.
+ */
+export function destinoSeguro(destino: string | null): string {
+  if (destino === null || !destino.startsWith("/") || destino.startsWith("//")) {
+    return INICIO_DEL_PANEL;
+  }
+  if (destino.includes("\\") || destino.startsWith("/api/")) {
+    return INICIO_DEL_PANEL;
+  }
+  return destino;
+}
+
+/** How a renewal ended. `rechazada` means the refresh token is dead; `caida`, the API. */
+export type ResultadoDeRenovacion =
+  | { readonly tipo: "renovada"; readonly onboardingCompleto: boolean }
+  | { readonly tipo: "sin-refresh" }
+  | { readonly tipo: "rechazada" }
+  | { readonly tipo: "caida" };
+
+/**
+ * Trade the refresh cookie for a fresh pair, and write both cookies.
+ *
+ * **A rejected rotation clears both cookies.** The backend treats a reused token as
+ * theft and revokes the whole family; leaving the browser holding a dead one would loop
+ * it through renewal on every request. "Rejected" is any 4xx: the API answered, and the
+ * answer is about the token (revoked and reused ones come back as 409, not 401).
+ *
+ * **An API that cannot answer clears nothing.** A 5xx, a timeout or a dropped connection
+ * says nothing about the token, so both cookies stay as they were and the next attempt
+ * renews normally. The access cookie stays too: it expires on its own, and deleting it
+ * would only trigger a navigation renewal against the same outage.
+ */
+export async function renovarSesion(): Promise<ResultadoDeRenovacion> {
+  const refresh = leerRefresh();
+  if (refresh === undefined) {
+    return { tipo: "sin-refresh" };
+  }
+  try {
+    const sesion = await llamarApi<RespuestaDeSesion>("/auth/refresh", {
+      method: "POST",
+      body: { refresh_token: refresh },
+    });
+    guardarSesion({ token: sesion.access_token });
+    guardarRefresh(sesion.refresh_token);
+    return { tipo: "renovada", onboardingCompleto: sesion.onboarding_completo };
+  } catch (error) {
+    if (error instanceof ErrorDeApi && error.status < 500) {
+      cerrarSesion();
+      borrarRefresh();
+      return { tipo: "rechazada" };
+    }
+    return { tipo: "caida" };
+  }
 }
 
 /**

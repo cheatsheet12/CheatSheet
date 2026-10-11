@@ -74,6 +74,7 @@ const HILO = {
       intencion: "TURNO",
       estado_entrega: null,
       origen: null,
+      motivo_de_falla: null,
     },
   ],
 };
@@ -82,7 +83,10 @@ const FAQ = {
   id: "f1",
   pregunta: "¿Cuánto sale un corte?",
   respuesta: "Sale $8000.",
-  usos: 3,
+  usos_este_mes: 3,
+  usos_mes_anterior: 1,
+  usos_total: 10,
+  editada_en: null,
   sin_indexar: false,
 };
 
@@ -95,6 +99,10 @@ const PLANTILLA = {
   estado_aprobacion: "APROBADA",
   variables: ["nombre", "fecha"],
   puede_usarse: true,
+  motivo_meta: null,
+  detalle_meta: null,
+  categoria_en_meta: null,
+  editable_desde: null,
 };
 
 /** Contesta según la ruta: estas páginas piden dos cosas distintas cada una. */
@@ -105,11 +113,14 @@ function porRuta(ruta: string): unknown {
   if (ruta.startsWith("/conversaciones")) {
     return { conversaciones: [HILO] };
   }
-  if (ruta.startsWith("/clientes/")) {
-    return { contacto_whatsapp: "5491112345678" };
-  }
   if (ruta.startsWith("/faqs")) {
     return { faqs: [FAQ] };
+  }
+  if (ruta.startsWith("/reglas")) {
+    return { reglas: [] };
+  }
+  if (ruta.startsWith("/integraciones")) {
+    return { integraciones: [{ sistema: "WHATSAPP", estado: "CONECTADO" }] };
   }
   return { plantillas: [PLANTILLA] };
 }
@@ -165,20 +176,15 @@ describe("PaginaDeConversacion", () => {
     expect(notFound).not.toHaveBeenCalled();
   });
 
-  it("muestra el hilo aunque no pueda resolver el telefono", async () => {
+  it("no le pide nada a /clientes: el teléfono ya no lo maneja la pantalla", async () => {
     leerClaims.mockReturnValue(CLAIMS_OPERADOR);
-    llamarApi.mockImplementation((ruta: string) => {
-      if (ruta.startsWith("/clientes/")) {
-        return Promise.reject(new ErrorDeApi(500, "se cayo", "ErrorInterno"));
-      }
-      return Promise.resolve(porRuta(ruta));
-    });
+    llamarApi.mockImplementation((ruta: string) => Promise.resolve(porRuta(ruta)));
 
-    // Un `throw` acá sería perder el historial completo por un dato que sólo hace falta para
-    // el campo de respuesta.
     const html = renderToString(await PaginaDeConversacion({ params: { conversacionId: "c1" } }));
 
     expect(html).toContain("hola, quiero un turno");
+    const rutas = llamarApi.mock.calls.map(([ruta]) => ruta as string);
+    expect(rutas.some((ruta) => ruta.startsWith("/clientes/"))).toBe(false);
   });
 
   it("le esconde las acciones a Solo Lectura", async () => {
@@ -203,14 +209,72 @@ describe("PaginaDeFaqs y PaginaDePlantillas", () => {
     llamarApi.mockImplementation((ruta: string) => Promise.resolve(porRuta(ruta)));
 
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
-    expect(renderToString(await PaginaDeFaqs())).toContain("Agregar respuesta");
+    const conAdmin = renderToString(await PaginaDeFaqs());
+    expect(conAdmin).toContain("Agregar respuesta");
+    // PAN-WA-02 compone la tarjeta de horarios de atención (HS-T2 RN-04) arriba de las respuestas.
+    expect(conAdmin).toContain("Horarios de atención");
+    expect(conAdmin).toContain("Guardar");
     expect(renderToString(await PaginaDePlantillas())).toContain("Editar texto");
 
     leerClaims.mockReturnValue(CLAIMS_OPERADOR);
     const faqs = renderToString(await PaginaDeFaqs());
     expect(faqs).toContain("¿Cuánto sale un corte?");
     expect(faqs).not.toContain("Agregar respuesta");
+    expect(faqs).toContain("Horarios de atención");
+    expect(faqs).not.toContain("Guardar");
     expect(renderToString(await PaginaDePlantillas())).not.toContain("Editar texto");
+  });
+
+  describe("la advertencia del recordatorio de turno", () => {
+    const SIN_APROBAR = { ...PLANTILLA, estado_aprobacion: "PENDIENTE", puede_usarse: false };
+    const AGENDA_APAGADA = {
+      id: "r1",
+      tipo: "AGENDA_DE_NOTIFICACION",
+      activa: false,
+      prioridad: 0,
+      configuracion: { recordatorios: [{ horas_antes: 24 }] },
+    };
+
+    function servir(respuestas: { reglas?: unknown[]; integraciones?: unknown[] }): void {
+      llamarApi.mockImplementation((ruta: string) => {
+        if (ruta.startsWith("/plantillas")) {
+          return Promise.resolve({ plantillas: [SIN_APROBAR] });
+        }
+        if (ruta.startsWith("/reglas")) {
+          return Promise.resolve({ reglas: respuestas.reglas ?? [] });
+        }
+        return Promise.resolve({
+          integraciones: respuestas.integraciones ?? [{ sistema: "WHATSAPP", estado: "CONECTADO" }],
+        });
+      });
+    }
+
+    it("aparece con la plantilla sin aprobar, los recordatorios activos y WhatsApp conectado", async () => {
+      leerClaims.mockReturnValue(CLAIMS_ADMIN);
+      servir({});
+
+      expect(renderToString(await PaginaDePlantillas())).toContain(
+        "Los recordatorios de turno pueden no llegar",
+      );
+    });
+
+    it("no aparece con la agenda desactivada", async () => {
+      leerClaims.mockReturnValue(CLAIMS_ADMIN);
+      servir({ reglas: [AGENDA_APAGADA] });
+
+      expect(renderToString(await PaginaDePlantillas())).not.toContain(
+        "Los recordatorios de turno pueden no llegar",
+      );
+    });
+
+    it("no aparece sin WhatsApp conectado", async () => {
+      leerClaims.mockReturnValue(CLAIMS_ADMIN);
+      servir({ integraciones: [{ sistema: "WHATSAPP", estado: "NO_CONECTADO" }] });
+
+      expect(renderToString(await PaginaDePlantillas())).not.toContain(
+        "Los recordatorios de turno pueden no llegar",
+      );
+    });
   });
 
   it("redirigen sin sesion", async () => {

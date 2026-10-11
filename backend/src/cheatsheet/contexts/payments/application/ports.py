@@ -23,7 +23,7 @@ from typing import Protocol
 from uuid import UUID
 
 from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDePago
-from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
+from cheatsheet.contexts.payments.domain.recordatorio import Recordatorio
 from cheatsheet.contexts.payments.domain.reembolso import Reembolso
 from cheatsheet.shared.empresa import EmpresaId
 
@@ -203,6 +203,16 @@ class PortRepositorioCobro(Protocol):
         """Los que siguen esperando plata. Lo que el barrido de recordatorios recorre."""
         ...
 
+    async def buscar_por_clave_bloqueada(self, clave: UUID) -> Cobro | None:
+        """El cobro que ya creó esta clave de pedido, **tomando antes el bloqueo** (ADR-0013).
+
+        Bloqueo consultivo transaccional por `(empresa, clave)`: un segundo pedido con la misma
+        clave espera a que la unidad de trabajo del primero termine y recién entonces lee, así
+        que ve el cobro que el primero dejó (o nada, si el primero falló). Se libera al cerrar la
+        transacción. Un choque de hash solo hace esperar a dos claves distintas.
+        """
+        ...
+
 
 class PortRepositorioReembolso(Protocol):
     """Los reembolsos de un cobro: **solo se agrega** (ADR-0010, punto 4).
@@ -233,6 +243,27 @@ class PortRepositorioRecordatorios(Protocol):
         ...
 
     async def guardar(self, recordatorio: Recordatorio) -> None: ...
+
+    async def buscar_por_externo_id(
+        self, externo_id: str, *, para_actualizar: bool = False
+    ) -> Recordatorio | None:
+        """El recordatorio al que se refiere un callback de estado, por el `wamid` de Meta (U7).
+
+        `None` si ese `wamid` no es de un recordatorio **de esta empresa**: bajo RLS, uno ajeno
+        simplemente no existe. `para_actualizar` bloquea la fila hasta el fin de la transacción:
+        los callbacks leen, mutan y reescriben, y dos en paralelo se pisarían.
+        """
+        ...
+
+    async def buscar_para_actualizar(self, recordatorio_id: UUID) -> Recordatorio | None:
+        """La fila **bloqueada y releída** (U7, D-U7-3): quien la toma para un intento decide sobre
+        lo que otro barrido dejó confirmado, y dos barridos solapados no mandan lo mismo."""
+        ...
+
+    async def pendientes_de_reintento(self, ahora: datetime) -> list[Recordatorio]:
+        """Las filas sin enviar con `proximo_intento_en <= ahora`: un reintento que toca, o un
+        envío en curso cuya ventana venció (resultado incierto)."""
+        ...
 
     async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]: ...
 
@@ -300,47 +331,6 @@ class PortPasarelaDePago(Protocol):
         ...
 
 
-class PortEnvioDeRecordatorio(Protocol):
-    """Por dónde sale un recordatorio (HS-T3 RN-02).
-
-    Devuelve el estado de entrega que el canal informó, para que RN-04 tenga qué registrar.
-    """
-
-    async def enviar(
-        self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> EstadoEntrega: ...
-
-
-@dataclass(frozen=True, slots=True)
-class PasoDeCadena:
-    """Un eslabón de la cadena de escalamiento, en el vocabulario de `payments`.
-
-    **`business_config` tiene su propia clase con la misma forma**, y esa duplicación es la
-    correcta: un puerto es el contrato del *consumidor*. La regla R3 impide que este contexto
-    importe el dominio del otro, y la traducción vive en el ACL de `infrastructure/` -- que es
-    exactamente lo que ADR-0003 pide.
-
-    `dias` se cuenta desde el **vencimiento** del cobro, no desde el paso anterior.
-    """
-
-    dias: int
-    canal: str
-
-
-class PortCadenaDeEscalamiento(Protocol):
-    """Cuál es la cadena de recordatorios de esta empresa (HU-E11-01 RN-02).
-
-    Devuelve los pasos ya ordenados y ya resueltos por prioridad: la resolución de RN-05 es
-    cosa de `business_config`, y este contexto recibe la respuesta, no las filas.
-
-    **Nunca devuelve una lista vacía.** Sin regla configurada devuelve el default, porque
-    HS-T3 tiene como precondición que exista una cadena y una empresa que nunca entró a
-    PAN-CFG-RN no puede quedarse sin recordatorios y sin enterarse.
-    """
-
-    async def pasos(self, *, empresa_id: EmpresaId) -> tuple[PasoDeCadena, ...]: ...
-
-
 class PortClienteDeCobro(Protocol):
     """Lo que `master_data` publica para que un cobro tenga a quien cobrarle (D92).
 
@@ -387,10 +377,7 @@ __all__ = [
     "FiltrosDeCobro",
     "MetricasDeCobros",
     "PagoRecibido",
-    "PasoDeCadena",
-    "PortCadenaDeEscalamiento",
     "PortClienteDeCobro",
-    "PortEnvioDeRecordatorio",
     "PortPasarelaDePago",
     "PortRepositorioCobro",
     "PortRepositorioRecordatorios",

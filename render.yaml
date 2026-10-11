@@ -64,10 +64,11 @@ services:
     # The context is `backend/`, not the repository root: the image needs nothing from
     # `frontend/` or `docs/`, and a smaller context is a faster and narrower build.
     dockerContext: ./backend
-    # /health answers 503 when PostgreSQL or Redis is unreachable, so an instance
-    # that cannot serve is never routed traffic. It was written before this unit
-    # and needed no change.
-    healthCheckPath: /health
+    # /health/live touches neither PostgreSQL nor Redis. Render probes every few seconds
+    # while the instance is awake, and a probe that ran SELECT 1 kept Neon's compute from
+    # ever suspending. /health stays the full readiness check (503 when PostgreSQL or
+    # Redis is down) and is what the post-deploy poll in CI uses.
+    healthCheckPath: /health/live
     envVars:
       - key: APP_ENV
         value: staging
@@ -88,6 +89,19 @@ services:
       # character or the exchange fails with `invalid_grant`.
       - key: APP_BASE_URL
         sync: false
+      # This service's own public URL. Every MercadoPago link carries
+      # {API_URL_PUBLICA}/webhooks/mercadopago/{empresa_id} as notification_url;
+      # required when MERCADOPAGO_ADAPTADOR=mercadopago.
+      - key: API_URL_PUBLICA
+        sync: false
+      # ADR-0014: the platform certificate and key (base64 PEM bundle). Required when
+      # ARCA_ADAPTADOR=arca. The most valuable secret of the system.
+      - key: ARCA_CREDENCIAL_PLATAFORMA
+        sync: false
+      # The homologación registry does not know the fictitious CUITs of the test
+      # companies, so staging asks a simulated padrón and a real WSFE.
+      - key: ARCA_PADRON_ADAPTADOR
+        value: simulado
       # Same four values as the worker: both processes read and write the same
       # objects, and two different buckets would be two halves of one flow.
       - key: ALMACENAMIENTO_ADAPTADOR
@@ -99,6 +113,18 @@ services:
       - key: R2_ACCESS_KEY_ID
         sync: false
       - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      # WhatsApp. The adapter is `simulado` on staging: there are no real Meta credentials
+      # yet (docs/staging-deployment.md §8), so messages go to a log and reminders are
+      # recorded as sent. Production must be `meta`; `simulado` is refused there.
+      - key: WHATSAPP_ADAPTADOR
+        value: simulado
+      # The Meta app's App Secret, which signs `X-Hub-Signature-256` on every inbound
+      # notification. **Without it every notification is discarded with a 200** (D49).
+      - key: WHATSAPP_WEBHOOK_SECRET
+        sync: false
+      # The token typed when the webhook URL is registered in the Meta app.
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
         sync: false
       - key: REDIS_URL
         fromService:
@@ -170,6 +196,15 @@ services:
         sync: false
       - key: APP_BASE_URL
         sync: false
+      # Same value as on the API. The worker loads the same Settings, which refuse to
+      # boot without it when MERCADOPAGO_ADAPTADOR=mercadopago.
+      - key: API_URL_PUBLICA
+        sync: false
+      # Same value as on the API: the worker issues documents and asks the padrón too.
+      - key: ARCA_CREDENCIAL_PLATAFORMA
+        sync: false
+      - key: ARCA_PADRON_ADAPTADOR
+        value: simulado
       # Object storage, and it stops being optional the day this service exists.
       # `GenerarPaqueteContable` runs BOTH here and in the API; with the in-memory
       # adapter the package this process builds lives in this process, and the API
@@ -184,6 +219,10 @@ services:
         sync: false
       - key: R2_SECRET_ACCESS_KEY
         sync: false
+      # The reminder sweep runs here and must pick the same channel as the API.
+      # Per-company token and number come from `integrations`, not from the environment.
+      - key: WHATSAPP_ADAPTADOR
+        value: simulado
       - key: REDIS_URL
         fromService:
           name: cheatsheet-redis
@@ -212,6 +251,9 @@ services:
       # never talks to the API, only this app's own route handlers do. Point it at
       # the API's INTERNAL Render URL so the traffic never leaves the platform.
       - key: BACKEND_API_URL
+        sync: false
+      # ADR-0014: shown in the ARCA delegation instructions. Not a secret.
+      - key: CUIT_DE_CHEATSHEET
         sync: false
       # This service's OWN public URL. `app/api/auth/google/route.ts` builds the
       # OAuth redirect from it and falls back to http://localhost:3000, so leaving

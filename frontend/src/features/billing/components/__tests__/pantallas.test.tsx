@@ -17,7 +17,6 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 const listarComprobantes = vi.fn();
 const validarReceptor = vi.fn();
 const emitirComprobante = vi.fn();
-const push = vi.fn();
 
 vi.mock("@/features/billing/api/comprobante", async () => {
   const real = await vi.importActual<typeof import("@/features/billing/api/comprobante")>(
@@ -31,7 +30,10 @@ vi.mock("@/features/billing/api/comprobante", async () => {
   };
 });
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", async () => {
+  const { routerQueSuspende } = await import("@/shared/__tests__/router-que-suspende");
+  return { useRouter: () => routerQueSuspende };
+});
 
 import { ErrorDeComprobante, MENSAJE_SIN_RESULTADOS } from "@/features/billing";
 import type { Comprobante, PuntoDeVenta, ReceptorValidado } from "@/features/billing";
@@ -41,6 +43,10 @@ const { ListadoDeComprobantes } = await import(
 );
 const { DetalleDeComprobante } = await import("@/features/billing/components/DetalleDeComprobante");
 const { NuevaEmision } = await import("@/features/billing/components/NuevaEmision");
+const { ArnesDeRouter, reiniciarRouter, resolverNavegacion, routerQueSuspende } = await import(
+  "@/shared/__tests__/router-que-suspende"
+);
+const push = routerQueSuspende.push;
 
 const AUTORIZADO: Comprobante = {
   id: "c1",
@@ -55,6 +61,7 @@ const AUTORIZADO: Comprobante = {
   cae: "75123456789012",
   cae_vence_el: "2026-09-17",
   motivo_de_rechazo: null,
+  leyenda: null,
   subtotal: "2000.00",
   total_iva: "420.00",
   total: "2420.00",
@@ -99,6 +106,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  reiniciarRouter();
 });
 
 // ------------------------------------------------------------------ PAN-FAC-01
@@ -112,18 +120,60 @@ describe("el listado", () => {
     const fila = screen.getAllByRole("row")[1] as HTMLTableRowElement;
     const celdas = [...fila.cells].map((celda) => celda.textContent);
 
-    expect(celdas[0]).toBe("00000123");
-    expect(celdas[1]).toBe("Factura A");
-    expect(celdas[2]).toBe("Acme SA");
+    // El número y su tipo viven en la misma celda: el tipo es la etiqueta del número.
+    expect(celdas[0]).toBe("00000123Factura A");
+    expect(celdas[1]).toBe("ASAcme SA");
     // El monto formateado, no recalculado: llega como texto y se muestra como texto.
-    expect(celdas[3]).toMatch(/2\.420,00/);
-    expect(celdas[5]).toBe("Autorizado");
+    expect(celdas[2]).toMatch(/2\.420,00/);
+    expect(celdas[4]).toBe("Autorizado");
   });
 
-  it("sin resultados muestra la frase de la historia", () => {
+  it("sin comprobantes invita a emitir el primero", () => {
     render(<ListadoDeComprobantes inicial={{ comprobantes: [] }} puedeEmitir />);
 
-    expect(screen.getByText(MENSAJE_SIN_RESULTADOS)).toBeDefined();
+    expect(screen.getByText("Todavía no emitiste comprobantes.")).toBeDefined();
+    expect(screen.getAllByText("Emitir comprobante").length).toBe(2);
+  });
+
+  it("sin resultados por filtro muestra la frase de la historia y deja limpiar", async () => {
+    listarComprobantes.mockResolvedValue({ comprobantes: [] });
+    render(<ListadoDeComprobantes inicial={{ comprobantes: [AUTORIZADO] }} puedeEmitir />);
+    expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Estado"), { target: { value: "RECHAZADO" } });
+
+    expect(await screen.findByText(MENSAJE_SIN_RESULTADOS)).toBeDefined();
+    listarComprobantes.mockResolvedValue({ comprobantes: [AUTORIZADO] });
+    fireEvent.click(screen.getAllByRole("button", { name: "Limpiar filtros" })[0] as HTMLElement);
+
+    await waitFor(() => expect(listarComprobantes).toHaveBeenLastCalledWith({}));
+    expect(await screen.findByText("Acme SA")).toBeDefined();
+  });
+
+  it("el rango de fechas usa el calendario propio y «Hasta» no admite días anteriores", async () => {
+    listarComprobantes.mockResolvedValue({ comprobantes: [AUTORIZADO] });
+    render(<ListadoDeComprobantes inicial={{ comprobantes: [AUTORIZADO] }} puedeEmitir />);
+
+    expect(document.querySelector('input[type="date"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Desde/ }));
+    const dia = screen.getAllByRole("button", { name: /de .* de \d{4}$/ })[9] as HTMLElement;
+    fireEvent.click(dia);
+
+    await waitFor(() =>
+      expect(listarComprobantes).toHaveBeenCalledWith({
+        desde: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) as string,
+      }),
+    );
+    expect(await screen.findByRole("button", { name: "Limpiar filtros" })).toBeDefined();
+  });
+
+  it("toda la fila lleva al detalle y ofrece el PDF solo si es descargable", () => {
+    render(<ListadoDeComprobantes inicial={{ comprobantes: [AUTORIZADO] }} puedeEmitir />);
+
+    const enlace = screen.getByRole("link", { name: "00000123" });
+    expect(enlace.getAttribute("href")).toBe("/facturacion/c1");
+    expect(screen.getByRole("link", { name: /Descargar PDF del comprobante/ })).toBeDefined();
+    expect(screen.getByRole("link", { name: /Anular el comprobante/ })).toBeDefined();
   });
 
   it("filtrar por estado pregunta al servidor y no filtra el array en memoria", async () => {
@@ -171,6 +221,19 @@ describe("el detalle", () => {
     expect(screen.queryByText("Descargar PDF")).toBeNull();
   });
 
+  it("una Factura A a un Monotributista lleva la leyenda de RN-13", () => {
+    const aMonotributista: Comprobante = {
+      ...AUTORIZADO,
+      receptor_condicion_iva: "MONOTRIBUTO",
+      leyenda:
+        "El crédito fiscal discriminado en el presente comprobante, sólo podrá ser computado",
+    };
+
+    render(<DetalleDeComprobante comprobante={aMonotributista} puntoNumero={1} />);
+
+    expect(screen.getByText(/sólo podrá ser computado/)).toBeDefined();
+  });
+
   it("un comprobante esperando a ARCA avisa que no se vuelva a emitir", () => {
     // **La unica defensa de interfaz que tiene D17.** Sin este aviso, el camino mas
     // natural del mundo produce dos comprobantes legales por una sola venta.
@@ -186,6 +249,20 @@ describe("el detalle", () => {
 
     expect(screen.getByText(/No lo emitas de nuevo/)).toBeDefined();
     expect(screen.getByText("Pendiente")).toBeDefined();
+  });
+
+  it("copia el CAE y confirma", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(<DetalleDeComprobante comprobante={AUTORIZADO} puntoNumero={1} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copiar CAE" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("75123456789012"));
+    expect(await screen.findByText("Copiado")).toBeDefined();
+    vi.unstubAllGlobals();
+    vi.stubGlobal("confirm", () => true);
+    vi.stubGlobal("open", vi.fn());
   });
 
   it("no ofrece editar nada: un comprobante autorizado es inmutable (RN-01)", () => {
@@ -204,7 +281,7 @@ describe("la nueva emision", () => {
     render(<NuevaEmision puntos={[PUNTO]} clienteId="cl1" />);
 
     expect(screen.queryByLabelText("Tipo de comprobante")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Emitir" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Emitir comprobante/ })).toBeNull();
   });
 
   it("un CUIT invalido muestra la frase de la historia y no habilita el resto", async () => {
@@ -250,9 +327,9 @@ describe("la nueva emision", () => {
     await screen.findByText(/Acme SA/);
 
     expect(screen.getByText(/Debe agregar al menos un ítem/)).toBeDefined();
-    expect((screen.getByRole("button", { name: "Emitir" }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(
+      (screen.getByRole("button", { name: /Emitir comprobante/ }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it("cambiar el CUIT invalida el tipo elegido", async () => {
@@ -291,7 +368,7 @@ describe("la nueva emision", () => {
     fireEvent.change(screen.getByLabelText("Precio unitario"), {
       target: { value: "1000.00" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Emitir" }));
+    fireEvent.click(screen.getByRole("button", { name: /Emitir comprobante/ }));
 
     await waitFor(() => expect(emitirComprobante).toHaveBeenCalled());
     const enviado = emitirComprobante.mock.calls[0]?.[0] as {
@@ -299,5 +376,42 @@ describe("la nueva emision", () => {
     };
     expect(typeof enviado.items[0]?.precio_unitario).toBe("string");
     await waitFor(() => expect(push).toHaveBeenCalledWith("/facturacion/c1"));
+  });
+});
+
+describe("la nueva emision, mientras la navegacion tarda", () => {
+  it("un segundo clic despues de la respuesta y antes del detalle no emite otro comprobante", async () => {
+    // Un segundo comprobante con CAE es irreversible: es el caso que obliga a esta prueba.
+    validarReceptor.mockResolvedValue(RECEPTOR);
+    emitirComprobante.mockResolvedValue(AUTORIZADO);
+    render(
+      <ArnesDeRouter>
+        <NuevaEmision puntos={[PUNTO]} clienteId="cl1" />
+      </ArnesDeRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("CUIT del receptor"), {
+      target: { value: "30712345671" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Validar" }));
+    await screen.findByText(/Acme SA/);
+    fireEvent.change(screen.getByLabelText("Tipo de comprobante"), {
+      target: { value: "FACTURA_A" },
+    });
+    fireEvent.change(screen.getByLabelText("Descripción 1"), {
+      target: { value: "Corte de pelo" },
+    });
+    fireEvent.change(screen.getByLabelText("Precio unitario"), { target: { value: "1000.00" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Emitir comprobante/ }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/facturacion/c1"));
+
+    const boton = screen.getByRole("button", { name: /Emitir comprobante/ }) as HTMLButtonElement;
+    expect(boton.disabled).toBe(true);
+    fireEvent.click(boton);
+    fireEvent.submit(boton.closest("form") as HTMLFormElement);
+    expect(emitirComprobante).toHaveBeenCalledTimes(1);
+
+    await resolverNavegacion();
+    expect(emitirComprobante).toHaveBeenCalledTimes(1);
   });
 });

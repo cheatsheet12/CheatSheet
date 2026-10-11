@@ -142,8 +142,10 @@ TRANSICIONES_LEGALES: dict[EstadoComprobante, frozenset[EstadoComprobante]] = {
 #: RN-01 and decision D16: which document types are legal for which pair of VAT conditions.
 #:
 #: **This is the structure of the regime, not a quarterly parameter.** A Responsable
-#: Inscripto invoices A to another Responsable Inscripto — because the buyer can compute
-#: the VAT — and B to everybody else. A Monotributista or an Exento invoices C to anyone,
+#: Inscripto invoices A to another Responsable Inscripto or to a Monotributista (RG 5003/2021,
+#: with the legend of RN-13) and B to everybody else. ARCA enforces it: a class-B document to
+#: a Monotributista is rejected with error 10243 (seen in homologación on 2026-10-10). A
+#: Monotributista or an Exento invoices C to anyone,
 #: because they do not discriminate VAT at all. Modelling this as a versioned parameter
 #: would invite somebody to "update" it by syncing, and a document issued yesterday would
 #: then validate against today's table.
@@ -154,7 +156,7 @@ TIPOS_VALIDOS: dict[tuple[CondicionIVA, CondicionIVA], frozenset[TipoComprobante
         {TipoComprobante.FACTURA_A, TipoComprobante.NOTA_CREDITO_A}
     ),
     (CondicionIVA.RESPONSABLE_INSCRIPTO, CondicionIVA.MONOTRIBUTO): frozenset(
-        {TipoComprobante.FACTURA_B, TipoComprobante.NOTA_CREDITO_B}
+        {TipoComprobante.FACTURA_A, TipoComprobante.NOTA_CREDITO_A}
     ),
     (CondicionIVA.RESPONSABLE_INSCRIPTO, CondicionIVA.EXENTO): frozenset(
         {TipoComprobante.FACTURA_B, TipoComprobante.NOTA_CREDITO_B}
@@ -370,15 +372,19 @@ class Comprobante:
         self.cae = cae
         self.motivo_de_rechazo = None
 
-    def rechazar(self, motivo: str) -> None:
-        """ARCA said no — which is an **answer**, not an unknown.
+    def rechazar(self, motivo: str) -> int | None:
+        """ARCA said no — which is an **answer**, not an unknown. Returns the number it held.
 
         That distinction is why the number can be returned to the point of sale here and
         must not be returned on a timeout: a rejection means ARCA has nothing recorded
-        under that number.
+        under that number. So the document lets go of it too: kept, it collided with the
+        next document drawing the same number on the unique index, and the point of sale
+        could never issue that type again (seen against homologación on 2026-10-10).
         """
         self._transicionar(EstadoComprobante.RECHAZADO)
         self.motivo_de_rechazo = motivo
+        numero, self.numero = self.numero, None
+        return numero
 
     def anular(self) -> None:
         """Reversed by a credit note (HU-E5-04). The document itself does not change."""

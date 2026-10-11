@@ -24,13 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cheatsheet.contexts.conversational.domain.conversacion import (
     Conversacion,
-    DireccionMensaje,
     EstadoConversacion,
-    EstadoEntrega,
-    Intencion,
-    Mensaje,
-    OrigenDelMensaje,
-    TipoContenido,
 )
 from cheatsheet.contexts.conversational.domain.escalamiento import (
     ESTADOS_SIN_AGENTE,
@@ -38,11 +32,14 @@ from cheatsheet.contexts.conversational.domain.escalamiento import (
     EstadoEscalamiento,
 )
 from cheatsheet.contexts.conversational.domain.faq import FAQ, CoincidenciaDeFAQ
+from cheatsheet.contexts.conversational.infrastructure.dialogo_json import (
+    dialogo_a_json,
+    leer_dialogo_guardado,
+)
 from cheatsheet.contexts.conversational.infrastructure.models import (
     FAQORM,
     ConversacionORM,
     EscalamientoORM,
-    MensajeORM,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 
@@ -89,11 +86,15 @@ class RepositorioConversacionPostgres:
         fila = await self._sesion.get(ConversacionORM, conversacion_id)
         return _conversacion_a_dominio(fila) if fila is not None else None
 
-    async def abierta_de(self, cliente_id: UUID) -> Conversacion | None:
+    async def abierta_de(self, cliente_id: UUID, *, bloquear: bool = False) -> Conversacion | None:
         """El hilo activo de ese cliente. **El más reciente**, si hubiera más de uno.
 
         No debería haber dos —sólo se abre uno cuando no hay ninguno— pero pedir el último es
         gratis y evita que una carrera deje el sistema contestando sobre un hilo viejo.
+
+        Con `bloquear`, `SELECT … FOR UPDATE` (T10): los mensajes de un mismo hilo se procesan de
+        a uno y el segundo lee el diálogo ya consumido. El bloqueo es por fila: no frena a otros
+        clientes.
         """
         sentencia = (
             select(ConversacionORM)
@@ -102,6 +103,8 @@ class RepositorioConversacionPostgres:
             .order_by(ConversacionORM.created_at.desc())
             .limit(1)
         )
+        if bloquear:
+            sentencia = sentencia.with_for_update()
         fila = (await self._sesion.execute(sentencia)).scalar_one_or_none()
         return _conversacion_a_dominio(fila) if fila is not None else None
 
@@ -121,36 +124,6 @@ class RepositorioConversacionPostgres:
             sentencia = sentencia.where(ConversacionORM.id.in_(abiertos))
         filas = (await self._sesion.execute(sentencia)).scalars().all()
         return [_conversacion_a_dominio(fila) for fila in filas]
-
-
-class RepositorioMensajePostgres:
-    def __init__(self, sesion: AsyncSession) -> None:
-        self._sesion = sesion
-
-    async def agregar(self, mensaje: Mensaje) -> None:
-        self._sesion.add(_mensaje_a_fila(mensaje, MensajeORM()))
-        await self._sesion.flush()
-
-    async def guardar(self, mensaje: Mensaje) -> None:
-        fila = await self._sesion.get(MensajeORM, mensaje.id)
-        if fila is None:
-            raise LookupError(f"El mensaje {mensaje.id} no existe para esta empresa")
-        _mensaje_a_fila(mensaje, fila)
-        await self._sesion.flush()
-
-    async def buscar_por_externo_id(self, externo_id: str) -> Mensaje | None:
-        sentencia = select(MensajeORM).where(MensajeORM.externo_id == externo_id)
-        fila = (await self._sesion.execute(sentencia)).scalars().first()
-        return _mensaje_a_dominio(fila) if fila is not None else None
-
-    async def del_hilo(self, conversacion_id: UUID) -> list[Mensaje]:
-        sentencia = (
-            select(MensajeORM)
-            .where(MensajeORM.conversacion_id == conversacion_id)
-            .order_by(MensajeORM.momento)
-        )
-        filas = (await self._sesion.execute(sentencia)).scalars().all()
-        return [_mensaje_a_dominio(fila) for fila in filas]
 
 
 class RepositorioEscalamientoPostgres:
@@ -201,7 +174,7 @@ class RepositorioFAQPostgres:
         self._sesion = sesion
 
     async def agregar(self, faq: FAQ) -> None:
-        self._sesion.add(_faq_a_fila(faq, FAQORM()))
+        self._sesion.add(_faq_a_fila(faq, FAQORM(), nueva=True))
         await self._sesion.flush()
 
     async def guardar(self, faq: FAQ) -> None:
@@ -225,7 +198,7 @@ class RepositorioFAQPostgres:
         return _faq_a_dominio(fila) if fila is not None else None
 
     async def listar(self) -> list[FAQ]:
-        sentencia = select(FAQORM).order_by(FAQORM.usos.desc(), FAQORM.created_at)
+        sentencia = select(FAQORM).order_by(FAQORM.created_at)
         filas = (await self._sesion.execute(sentencia)).scalars().all()
         return [_faq_a_dominio(fila) for fila in filas]
 
@@ -263,6 +236,7 @@ def _conversacion_a_dominio(fila: ConversacionORM) -> Conversacion:
         ventana_maximo=fila.ventana_maximo,
         ultimo_mensaje_en=fila.ultimo_mensaje_en,
         created_at=fila.created_at,
+        dialogo=leer_dialogo_guardado(fila.dialogo, conversacion_id=fila.id),
     )
 
 
@@ -275,37 +249,7 @@ def _conversacion_a_fila(conversacion: Conversacion, fila: ConversacionORM) -> C
     fila.ventana_maximo = conversacion.ventana_maximo
     fila.ultimo_mensaje_en = conversacion.ultimo_mensaje_en
     fila.created_at = conversacion.created_at or _ahora(conversacion.ultimo_mensaje_en)
-    return fila
-
-
-def _mensaje_a_dominio(fila: MensajeORM) -> Mensaje:
-    return Mensaje(
-        id=fila.id,
-        conversacion_id=fila.conversacion_id,
-        empresa_id=EmpresaId(fila.empresa_id),
-        direccion=DireccionMensaje(fila.direccion),
-        tipo_contenido=TipoContenido(fila.tipo_contenido),
-        contenido=fila.contenido or "",
-        momento=fila.momento,
-        intencion=Intencion(fila.intencion) if fila.intencion else None,
-        estado_entrega=EstadoEntrega(fila.estado_entrega) if fila.estado_entrega else None,
-        origen=OrigenDelMensaje(fila.origen) if fila.origen else None,
-        externo_id=fila.externo_id,
-    )
-
-
-def _mensaje_a_fila(mensaje: Mensaje, fila: MensajeORM) -> MensajeORM:
-    fila.id = mensaje.id
-    fila.conversacion_id = mensaje.conversacion_id
-    fila.empresa_id = mensaje.empresa_id
-    fila.direccion = mensaje.direccion.value
-    fila.tipo_contenido = mensaje.tipo_contenido.value
-    fila.contenido = mensaje.contenido
-    fila.intencion = mensaje.intencion.value if mensaje.intencion else None
-    fila.estado_entrega = mensaje.estado_entrega.value if mensaje.estado_entrega else None
-    fila.origen = mensaje.origen.value if mensaje.origen else None
-    fila.externo_id = mensaje.externo_id
-    fila.momento = mensaje.momento
+    fila.dialogo = None if conversacion.dialogo is None else dialogo_a_json(conversacion.dialogo)
     return fila
 
 
@@ -345,13 +289,15 @@ def _faq_a_dominio(fila: FAQORM) -> FAQ:
         categoria_id=fila.categoria_id,
         embedding_modelo_version=fila.embedding_modelo_version,
         embedding_obsoleto=fila.embedding_obsoleto,
-        usos=fila.usos,
+        usos_anteriores=fila.usos_anteriores,
         created_at=fila.created_at,
         updated_at=fila.updated_at,
+        editada_en=fila.editada_en,
+        seguimiento_desde=fila.seguimiento_desde,
     )
 
 
-def _faq_a_fila(faq: FAQ, fila: FAQORM) -> FAQORM:
+def _faq_a_fila(faq: FAQ, fila: FAQORM, *, nueva: bool = False) -> FAQORM:
     fila.id = faq.id
     fila.empresa_id = faq.empresa_id
     fila.categoria_id = faq.categoria_id
@@ -359,9 +305,12 @@ def _faq_a_fila(faq: FAQ, fila: FAQORM) -> FAQORM:
     fila.respuesta = faq.respuesta
     fila.embedding_modelo_version = faq.embedding_modelo_version
     fila.embedding_obsoleto = faq.embedding_obsoleto
-    fila.usos = faq.usos
+    fila.editada_en = faq.editada_en
     fila.created_at = faq.created_at or _ahora(faq.updated_at)
     fila.updated_at = faq.updated_at or fila.created_at
+    if nueva:  # la línea de base y el seguimiento solo los escribe el alta (ADR-0012)
+        fila.usos_anteriores = faq.usos_anteriores
+        fila.seguimiento_desde = faq.seguimiento_desde or fila.created_at
     return fila
 
 
@@ -379,5 +328,4 @@ __all__ = [
     "RepositorioConversacionPostgres",
     "RepositorioEscalamientoPostgres",
     "RepositorioFAQPostgres",
-    "RepositorioMensajePostgres",
 ]

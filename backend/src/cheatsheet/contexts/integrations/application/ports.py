@@ -15,7 +15,10 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
-from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca, TicketDeAcceso
+from cheatsheet.contexts.integrations.domain.ticket import (
+    ServicioDeArca,
+    TicketDePlataforma,
+)
 from cheatsheet.contexts.integrations.domain.valores import (
     CredencialCifrada,
     EstadoDeConexion,
@@ -37,14 +40,15 @@ class PortRepositorioIntegraciones(Protocol):
     ) -> list[ConfiguracionDeIntegracion]: ...
 
 
-class PortRepositorioTickets(Protocol):
-    """Where the short-lived sessions derived from a credential live (ADR-0004)."""
+class PortRepositorioTicketsDePlataforma(Protocol):
+    """Where the platform certificate's sessions live, one per service (ADR-0014).
 
-    async def agregar(self, ticket: TicketDeAcceso) -> None: ...
-    async def guardar(self, ticket: TicketDeAcceso) -> None: ...
-    async def buscar(
-        self, empresa_id: EmpresaId, servicio: ServicioDeArca
-    ) -> TicketDeAcceso | None: ...
+    `buscar_para_renovar` locks the row: two requests minting at once would get one ticket
+    and one `coe.alreadyAuthenticated`, and the second would have nothing to use.
+    """
+
+    async def buscar_para_renovar(self, servicio: ServicioDeArca) -> TicketDePlataforma | None: ...
+    async def guardar(self, ticket: TicketDePlataforma) -> None: ...
 
 
 class PortCifradoDeCredenciales(Protocol):
@@ -172,12 +176,6 @@ class ResultadoDeConexion:
     estado: EstadoDeConexion = EstadoDeConexion.CONECTADO
     detalle: str | None = None
     parametros: dict[str, Any] = field(default_factory=dict)
-    #: Anything the provider minted while proving the credential works, which has to be
-    #: kept. ARCA's WSAA hands back an access ticket during validation and **refuses to
-    #: issue another while it is alive**, so discarding it would lock the company out for
-    #: up to twelve hours. The use case encrypts and stores these; the adapter does not
-    #: touch a repository.
-    tickets: tuple[TicketEmitido, ...] = ()
 
 
 class PortConectorDeIntegracion(Protocol):

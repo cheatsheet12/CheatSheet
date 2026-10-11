@@ -17,7 +17,7 @@
 
 import { useState } from "react";
 
-import { Alert, Badge, Button, Campo, Select, Tabla, formatearNumero } from "@/shared";
+import { Alert, Badge, Button, Select, SelectorDeFecha, Tabla, formatearNumero } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import {
@@ -205,19 +205,19 @@ export function GeneradorDeReportes({
                   value={formato}
                   onChange={(evento) => setFormato(evento.target.value as FormatoReporte)}
                 />
-                <Campo
+                <SelectorDeFecha
                   id="rep-gen-desde"
                   etiqueta="Desde"
-                  type="date"
                   value={rango.desde ?? ""}
-                  onChange={(evento) => cambiarRango({ desde: evento.target.value })}
+                  max={rango.hasta || undefined}
+                  alCambiar={(valor) => cambiarRango({ desde: valor })}
                 />
-                <Campo
+                <SelectorDeFecha
                   id="rep-gen-hasta"
                   etiqueta="Hasta"
-                  type="date"
                   value={rango.hasta ?? ""}
-                  onChange={(evento) => cambiarRango({ hasta: evento.target.value })}
+                  min={rango.desde || undefined}
+                  alCambiar={(valor) => cambiarRango({ hasta: valor })}
                 />
               </div>
 

@@ -255,7 +255,15 @@ def _procesamiento_a_dominio(
         duracion_ms=fila.duracion_ms,
         referencia_archivo=fila.referencia_archivo,
         origen_id=fila.origen_id,
-        errores=[ErrorDeFila(id=e.id, numero_fila=e.numero_fila, motivo=e.motivo) for e in errores],
+        errores=[
+            ErrorDeFila(
+                id=e.id,
+                numero_fila=e.numero_fila,
+                motivo=e.motivo,
+                corregida_en=e.corregida_en,
+            )
+            for e in errores
+        ],
         created_at=fila.created_at,
     )
 
@@ -300,9 +308,13 @@ class RepositorioProcesamientoPostgres:
         fila.filas_error = procesamiento.filas_error
         fila.duracion_ms = procesamiento.duracion_ms
 
-        guardados = {e.id for e in await self._errores_de(procesamiento.id)}
+        guardados = {e.id: e for e in await self._errores_de(procesamiento.id)}
         for error in procesamiento.errores:
-            if error.id in guardados:
+            existente = guardados.get(error.id)
+            if existente is not None:
+                # A stored error only ever changes in one way: somebody corrected its row.
+                if error.corregida_en is not None and existente.corregida_en is None:
+                    existente.corregida_en = error.corregida_en
                 continue
             self._sesion.add(
                 ErrorDeFilaORM(
@@ -311,6 +323,7 @@ class RepositorioProcesamientoPostgres:
                     empresa_id=procesamiento.empresa_id,
                     numero_fila=error.numero_fila,
                     motivo=error.motivo,
+                    corregida_en=error.corregida_en,
                 )
             )
         await self._sesion.flush()

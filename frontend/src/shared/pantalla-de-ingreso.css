@@ -1,0 +1,310 @@
+/*
+ * Pantalla de ingreso: dos columnas. Izquierda, la marca sobre un fondo claro con movimiento
+ * muy sutil; derecha, el formulario sobre blanco.
+ *
+ * El movimiento es decoración y se apaga entero con `prefers-reduced-motion`. Prefijo `lgn-`
+ * para no pisar `.ing-*` (ingesta) ni `.acc-*` (el resto de las pantallas sin sesión).
+ */
+
+.lgn {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  background: #fff;
+}
+
+/* ── Columna de marca ─────────────────────────────────────────────────────────────────── */
+.lgn-marca {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 44px 56px;
+  overflow: hidden;
+  color: var(--ink-900);
+  background: var(--bg-soft);
+  border-right: 1px solid var(--line);
+}
+
+/* Una grilla fina que se desvanece hacia los bordes: textura sin competir con el texto. */
+.lgn-fondo {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at 30% 40%, #000 0%, transparent 70%);
+  opacity: 0.7;
+  animation: lgn-grilla 40s linear infinite;
+}
+
+@keyframes lgn-grilla {
+  to {
+    background-position:
+      0 44px,
+      44px 0;
+  }
+}
+
+.lgn-marca__logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: lgn-entra 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.lgn-marca__logo img {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #fff;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.lgn-marca__nombre {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+}
+
+.lgn-marca__nombre em,
+.lgn-form__nombre em {
+  font-style: normal;
+  color: var(--accent-700);
+}
+
+.lgn-marca__centro {
+  max-width: 31rem;
+}
+
+.lgn-marca__etiqueta {
+  margin: 0 0 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  animation: lgn-entra 0.6s 0.08s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.lgn-marca__titular {
+  margin: 0 0 16px;
+  font-size: clamp(30px, 2.9vw, 42px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--ink-900);
+  animation: lgn-entra 0.7s 0.14s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Lo único que lleva el verde del titular: una raya debajo de la segunda línea. */
+.lgn-marca__titular span {
+  background: linear-gradient(var(--accent), var(--accent)) left 92% / 0 3px no-repeat;
+  padding-bottom: 4px;
+  animation: lgn-subraya 0.9s 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes lgn-subraya {
+  to {
+    background-size: 100% 3px;
+  }
+}
+
+.lgn-marca__bajada {
+  margin: 0 0 28px;
+  max-width: 30rem;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--ink-500);
+  animation: lgn-entra 0.7s 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.lgn-lista {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lgn-lista__item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+  animation: lgn-entra 0.6s calc(0.32s + var(--i) * 0.09s) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.lgn-lista__item:hover {
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px rgb(30 30 46 / 8%);
+  transform: translateX(4px);
+}
+
+.lgn-lista__icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lgn-lista__item:hover .lgn-lista__icono {
+  transform: scale(1.08) rotate(-5deg);
+}
+
+.lgn-lista__item strong {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--ink-900);
+}
+
+.lgn-lista__item small {
+  display: block;
+  margin-top: 1px;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.lgn-marca__pie {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+@keyframes lgn-entra {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* ── Columna del formulario ───────────────────────────────────────────────────────────── */
+.lgn-form {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40px 32px;
+  background: #fff;
+}
+
+.lgn-form__contenido {
+  width: 100%;
+  max-width: 25rem;
+  margin: 0 auto;
+  animation: lgn-entra 0.6s 0.15s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.lgn-form__marca-movil {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.lgn-form__nombre {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+}
+
+.lgn-form__nombre em {
+  color: var(--accent-700);
+}
+
+/* La tarjeta del formulario deja de ser una tarjeta: la columna ya es la superficie. */
+.lgn-form .acc-tarjeta {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  max-width: none;
+}
+
+.lgn-form .acc-encabezado {
+  text-align: left;
+  margin-bottom: 28px;
+}
+
+.lgn-form .acc-titulo {
+  font-size: 30px;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+}
+
+.lgn-form .acc-sub {
+  font-size: 15px;
+}
+
+.lgn-form .onb-stepper {
+  justify-content: flex-start;
+  margin-bottom: 24px;
+}
+
+/* El stepper sin caja y en una sola fila: la columna ya es la superficie. */
+.lgn-form .onb-stepper__caja {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.lgn-form .stepper {
+  flex-wrap: nowrap;
+  margin-bottom: 0;
+}
+
+.lgn-form .stepper__paso {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.lgn-form .stepper__paso:not(:last-child)::after {
+  flex-basis: 18px;
+  margin: 0 10px 0 2px;
+}
+
+@media (width <= 960px) {
+  .lgn {
+    grid-template-columns: 1fr;
+  }
+
+  .lgn-marca {
+    display: none;
+  }
+
+  .lgn-form__marca-movil {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lgn *,
+  .lgn *::before,
+  .lgn *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

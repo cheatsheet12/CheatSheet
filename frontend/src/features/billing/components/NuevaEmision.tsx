@@ -10,12 +10,11 @@
  * «El tipo de comprobante no es válido…» therefore belongs to a request that did not come
  * from this screen; the check on the way in is what makes it unreachable from here.
  *
- * **Los tres pasos son tres `<fieldset>` numerados y no un indicador de progreso decorativo.**
- * Son tres grupos de campos de verdad, y agruparlos es lo que hace que un lector de pantalla
- * anuncie «Receptor» antes de leer el CUIT. Los pasos 2 y 3 se dibujan desde el principio,
- * apagados y diciendo qué falta: una pantalla que sólo muestra un campo no deja ver cuánto
- * queda, y ese es el motivo por el que alguien la abandona a mitad de camino. Lo que **no**
- * se dibuja hasta que ARCA contesta son sus controles, que es RN-01.
+ * **Tres pasos con estado** (pendiente / activo / completo) y un indicador de progreso arriba.
+ * Los pasos 2 y 3 se dibujan desde el principio, atenuados y diciendo qué los desbloquea: una
+ * pantalla que sólo muestra un campo no deja ver cuánto queda. Lo que **no** se dibuja hasta
+ * que ARCA contesta son sus controles, que es RN-01. El paso 1, una vez validado, se pliega en
+ * la tarjeta del receptor con un «Cambiar».
  *
  * **Nothing on this screen multiplies anything.** No running total, no VAT preview. The
  * amounts are text, they travel as text, and what the customer owes is decided by the
@@ -24,21 +23,22 @@
 
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Alert, Button, Campo, Select } from "@/shared";
+import { Alert, Button, Campo, Select, useAccionConNavegacion } from "@/shared";
 
-import {
-  ALICUOTAS,
-  ErrorDeComprobante,
-  MENSAJE_SIN_ITEMS,
-  emitirComprobante,
-  validarReceptor,
-} from "../api/comprobante";
-import type { ItemNuevo, ReceptorValidado } from "../api/comprobante";
+import { MENSAJE_SIN_ITEMS, emitirComprobante, validarReceptor } from "../api/comprobante";
+import type { ReceptorValidado } from "../api/comprobante";
+import { mensajeLegible } from "../api/mensajesDeError";
 import { ETIQUETAS_DE_TIPO } from "../api/puntoDeVenta";
 import type { PuntoDeVenta, TipoComprobante } from "../api/puntoDeVenta";
+import { ItemsDeEmision, lineaVacia } from "./ItemsDeEmision";
+import type { Linea } from "./ItemsDeEmision";
+import { IconoDeEscudo, IconoDeLapiz, IconoDePersona } from "./iconosEmision";
+import { Colapsable, IndicadorDePasos, PasoDeEmision } from "./PasoDeEmision";
+import type { EstadoDePaso } from "./PasoDeEmision";
+import { ResumenDeEmision } from "./ResumenDeEmision";
+import { TarjetaDelReceptor } from "./TarjetaDelReceptor";
 
 export interface PropsDeNuevaEmision {
   /** Only the active ones: an inactive point cannot issue (HU-E5-05 RN-04). */
@@ -53,40 +53,33 @@ export interface PropsDeNuevaEmision {
    * de equivocarse, sobre el campo del que depende qué comprobante se puede emitir.
    */
   readonly cuitDelCliente?: string | null;
+  /** El nombre de ese cliente, para decir de quién se trata. Sólo se muestra. */
+  readonly nombreDelCliente?: string | null;
 }
 
-interface Linea extends ItemNuevo {
-  readonly clave: string;
+function punto4(punto: PuntoDeVenta): string {
+  return String(punto.numero).padStart(4, "0");
 }
 
-function lineaVacia(): Linea {
-  return {
-    clave: crypto.randomUUID(),
-    descripcion: "",
-    cantidad: "1",
-    precio_unitario: "",
-    alicuota_iva: "0.21",
-  };
-}
-
-function mensajeDe(fallo: unknown, porDefecto: string): string {
-  return fallo instanceof ErrorDeComprobante ? fallo.message : porDefecto;
-}
-
-/** Hecho, en curso o todavía no: es lo único que decide el color del número del paso. */
-function estadoDePaso(hecho: boolean, actual: boolean): string {
-  if (hecho) {
-    return " fac-nuevo-paso--hecho";
+/** Cómo se numera lo que se va a emitir, dicho sin inventar el número que asigna ARCA. */
+function textoDeNumeracion(punto: PuntoDeVenta | undefined, tipo: string): string {
+  if (punto === undefined || tipo === "") {
+    return "Elegí el tipo de comprobante para ver con qué numeración se emite.";
   }
-  return actual ? " fac-nuevo-paso--actual" : "";
+  const ultimo = punto.numerador_por_tipo[tipo as TipoComprobante];
+  const etiqueta = ETIQUETAS_DE_TIPO[tipo as TipoComprobante];
+  if (ultimo === undefined) {
+    return `Todavía no se emitió ninguna ${etiqueta} en el punto de venta ${punto4(punto)}: ARCA asigna el primer número al emitir.`;
+  }
+  return `El último emitido en el punto de venta ${punto4(punto)} es el ${punto4(punto)}-${String(ultimo).padStart(8, "0")}. ARCA asigna el siguiente al emitir.`;
 }
 
 export function NuevaEmision({
   puntos,
   clienteId,
   cuitDelCliente = null,
+  nombreDelCliente = null,
 }: PropsDeNuevaEmision): JSX.Element {
-  const router = useRouter();
   const [cuit, setCuit] = useState((cuitDelCliente ?? "").replace(/-/g, ""));
   const [receptor, setReceptor] = useState<ReceptorValidado | null>(null);
   const [errorDeCuit, setErrorDeCuit] = useState<string | null>(null);
@@ -97,7 +90,7 @@ export function NuevaEmision({
   const [domicilio, setDomicilio] = useState("");
   const [lineas, setLineas] = useState<readonly Linea[]>([lineaVacia()]);
   const [error, setError] = useState<string | null>(null);
-  const [emitiendo, setEmitiendo] = useState(false);
+  const { pendiente: emitiendo, ejecutar } = useAccionConNavegacion();
 
   async function validar(): Promise<void> {
     setErrorDeCuit(null);
@@ -111,8 +104,8 @@ export function NuevaEmision({
       setTipo(validado.tipos_disponibles.length === 1 ? (validado.tipos_disponibles[0] ?? "") : "");
     } catch (fallo) {
       // «El CUIT ingresado no es válido…» y «No se encontró el CUIT en el padrón de ARCA.»
-      // llegan por acá, tal cual las escribió la historia.
-      setErrorDeCuit(mensajeDe(fallo, "No se pudo validar el CUIT."));
+      // llegan por acá tal cual las escribió la historia; un código técnico se traduce.
+      setErrorDeCuit(mensajeLegible(fallo, "validar"));
     } finally {
       setValidando(false);
     }
@@ -132,10 +125,11 @@ export function NuevaEmision({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- al montar y nada más
   }, []);
 
-  function cambiarLinea(clave: string, campo: keyof ItemNuevo, valor: string): void {
-    setLineas((previas) =>
-      previas.map((linea) => (linea.clave === clave ? { ...linea, [campo]: valor } : linea)),
-    );
+  function cambiarReceptor(): void {
+    setReceptor(null);
+    setTipo("");
+    // El campo se despliega con una transición: se le da foco cuando ya es alcanzable.
+    window.setTimeout(() => document.getElementById("emision-cuit")?.focus(), 60);
   }
 
   const lineasCargadas = lineas.filter(
@@ -146,227 +140,216 @@ export function NuevaEmision({
   const puedeEmitir =
     receptor !== null && tipo !== "" && puntoId !== "" && lineasCargadas.length > 0;
 
+  const motivos: string[] = [];
+  if (tipo === "") {
+    motivos.push("Elegir el tipo de comprobante.");
+  }
+  if (puntoId === "") {
+    motivos.push("Elegir el punto de venta.");
+  }
+  if (lineasCargadas.length === 0) {
+    motivos.push(MENSAJE_SIN_ITEMS);
+  }
+
   async function emitir(): Promise<void> {
     if (receptor === null) {
       return;
     }
     setError(null);
-    setEmitiendo(true);
     try {
-      const emitido = await emitirComprobante({
-        cliente_id: clienteId,
-        punto_de_venta_id: puntoId,
-        tipo: tipo as TipoComprobante,
-        receptor_cuit: receptor.cuit,
-        receptor_domicilio: domicilio.trim() === "" ? null : domicilio.trim(),
-        items: lineasCargadas.map(({ clave: _clave, ...resto }) => resto),
-      });
-      // Straight to the detail: the document is Pendiente and this is the page that will
-      // show the CAE or ARCA's rejection when the answer arrives.
-      router.push(`/facturacion/${emitido.id}`);
+      await ejecutar(
+        () =>
+          emitirComprobante({
+            cliente_id: clienteId,
+            punto_de_venta_id: puntoId,
+            tipo: tipo as TipoComprobante,
+            receptor_cuit: receptor.cuit,
+            receptor_domicilio: domicilio.trim() === "" ? null : domicilio.trim(),
+            items: lineasCargadas.map(({ clave: _clave, ...resto }) => resto),
+          }),
+        // Straight to the detail: the document is Pendiente and this is the page that will
+        // show the CAE or ARCA's rejection when the answer arrives. The button stays busy
+        // until it does: a second click here would issue a second document with its own CAE.
+        (emitido, router) => router.push(`/facturacion/${emitido.id}`),
+      );
     } catch (fallo) {
-      setError(mensajeDe(fallo, "No se pudo emitir el comprobante."));
-    } finally {
-      setEmitiendo(false);
+      setError(mensajeLegible(fallo, "emitir"));
     }
   }
 
   const validado = receptor !== null;
+  const estado1: EstadoDePaso = validado ? "completo" : "activo";
+  const estado2: EstadoDePaso = !validado ? "pendiente" : tipo !== "" ? "completo" : "activo";
+  const estado3: EstadoDePaso =
+    !validado || tipo === "" ? "pendiente" : lineasCargadas.length > 0 ? "completo" : "activo";
+  const puntoElegido = puntos.find((uno) => uno.id === puntoId);
 
   return (
     <form
-      className="fac-nuevo-formulario"
+      className="fac-em-formulario"
       onSubmit={(evento) => {
         evento.preventDefault();
         void emitir();
       }}
     >
-      {error !== null && (
-        <Alert tono="error" titulo="No se pudo emitir">
-          {error}
-        </Alert>
-      )}
+      <div className="fac-em-flujo">
+        <IndicadorDePasos
+          pasos={[
+            { titulo: "Receptor", estado: estado1 },
+            { titulo: "Comprobante", estado: estado2 },
+            { titulo: "Ítems", estado: estado3 },
+          ]}
+        />
 
-      <fieldset className={`fac-nuevo-paso${estadoDePaso(validado, !validado)}`}>
-        <legend>
-          <span className="fac-nuevo-paso__numero" aria-hidden>
-            1
-          </span>
-          Receptor
-        </legend>
-        <p className="fac-nuevo-paso__ayuda">
-          Lo verificamos contra el padrón de ARCA. De esa respuesta depende qué se puede emitir, así
-          que es lo primero.
-        </p>
-
-        <div className="fac-nuevo-cuit">
-          <Campo
-            id="emision-cuit"
-            etiqueta="CUIT del receptor"
-            mono
-            error={errorDeCuit ?? undefined}
-            value={cuit}
-            onChange={(evento) => {
-              setCuit(evento.target.value);
-              // A changed CUIT invalidates everything that depended on it -- including which
-              // types are legal. Keeping the old answer visible would be the screen lying.
-              setReceptor(null);
-              setTipo("");
-            }}
-          />
-          <Button variante="secundario" cargando={validando} onClick={() => void validar()}>
-            Validar
-          </Button>
-        </div>
-
-        {receptor !== null && (
-          <Alert tono="exito" titulo="CUIT validado">
-            {receptor.nombre} — {receptor.condicion_iva.replaceAll("_", " ").toLowerCase()}
+        {error !== null && (
+          <Alert tono="error" titulo="No se pudo emitir">
+            {error}
           </Alert>
         )}
-      </fieldset>
 
-      <fieldset className={`fac-nuevo-paso${estadoDePaso(validado && tipo !== "", validado)}`}>
-        <legend>
-          <span className="fac-nuevo-paso__numero" aria-hidden>
-            2
-          </span>
-          Comprobante
-        </legend>
-        <p className="fac-nuevo-paso__ayuda">
-          Qué se puede emitir lo decide la condición de IVA del receptor, y con qué numeración lo
-          decide el punto de venta.
-        </p>
-
-        {receptor === null ? (
-          <p className="fac-nuevo-vacio">Validá el CUIT del paso 1 para continuar.</p>
-        ) : (
-          <>
-            <Select
-              id="emision-tipo"
-              etiqueta="Tipo de comprobante"
-              opciones={[
-                { valor: "", etiqueta: "Elegí un tipo" },
-                ...receptor.tipos_disponibles.map((valor) => ({
-                  valor,
-                  etiqueta: ETIQUETAS_DE_TIPO[valor],
-                })),
-              ]}
-              value={tipo}
-              onChange={(evento) => setTipo(evento.target.value)}
-              ayuda="Solo se ofrecen los tipos válidos para tu condición de IVA y la del receptor."
-            />
-
-            <Select
-              id="emision-punto"
-              etiqueta="Punto de venta"
-              opciones={puntos.map((punto) => ({
-                valor: punto.id,
-                etiqueta: `${String(punto.numero).padStart(4, "0")}${
-                  punto.descripcion === null ? "" : ` — ${punto.descripcion}`
-                }`,
-              }))}
-              value={puntoId}
-              onChange={(evento) => setPuntoId(evento.target.value)}
-            />
-
-            <Campo
-              id="emision-domicilio"
-              etiqueta="Domicilio del receptor"
-              value={domicilio}
-              onChange={(evento) => setDomicilio(evento.target.value)}
-            />
-          </>
-        )}
-      </fieldset>
-
-      <fieldset
-        className={`fac-nuevo-paso${estadoDePaso(lineasCargadas.length > 0, validado && tipo !== "")}`}
-      >
-        <legend>
-          <span className="fac-nuevo-paso__numero" aria-hidden>
-            3
-          </span>
-          Ítems
-        </legend>
-        <p className="fac-nuevo-paso__ayuda">
-          Los importes viajan como texto y los calcula el backend: acá no se multiplica nada.
-        </p>
-
-        {receptor === null ? (
-          <p className="fac-nuevo-vacio">
-            Los ítems se cargan cuando ya sabemos a quién se le factura.
-          </p>
-        ) : (
-          <>
-            {lineas.map((linea, indice) => (
-              <div className="fac-nuevo-item" key={linea.clave}>
-                <Campo
-                  id={`item-descripcion-${linea.clave}`}
-                  etiqueta={`Descripción ${indice + 1}`}
-                  value={linea.descripcion}
-                  onChange={(evento) =>
-                    cambiarLinea(linea.clave, "descripcion", evento.target.value)
+        <PasoDeEmision
+          numero={1}
+          titulo="Receptor"
+          estado={estado1}
+          ayuda="Lo verificamos contra el padrón de ARCA: de esa respuesta depende qué se puede emitir."
+          motivoDeBloqueo=""
+          extremo={
+            validado ? (
+              <Button variante="secundario" onClick={cambiarReceptor}>
+                <IconoDeLapiz />
+                Cambiar
+              </Button>
+            ) : undefined
+          }
+        >
+          {nombreDelCliente !== null && (
+            <p className="fac-em-cliente">
+              <IconoDePersona />
+              <span>
+                Cliente del catálogo: <b>{nombreDelCliente}</b>
+              </span>
+            </p>
+          )}
+          <Colapsable abierto={!validado}>
+            <div className="fac-em-cuit">
+              <Campo
+                id="emision-cuit"
+                etiqueta="CUIT del receptor"
+                mono
+                inputMode="numeric"
+                autoComplete="off"
+                error={errorDeCuit ?? undefined}
+                value={cuit}
+                onKeyDown={(evento) => {
+                  if (evento.key === "Enter") {
+                    // Enter valida el CUIT; no envía el formulario.
+                    evento.preventDefault();
+                    void validar();
                   }
-                />
-                <Campo
-                  id={`item-cantidad-${linea.clave}`}
-                  etiqueta="Cantidad"
-                  mono
-                  value={linea.cantidad}
-                  onChange={(evento) => cambiarLinea(linea.clave, "cantidad", evento.target.value)}
-                />
-                <Campo
-                  id={`item-precio-${linea.clave}`}
-                  etiqueta="Precio unitario"
-                  mono
-                  // Text and not `type="number"`: a number input hands back a JavaScript
-                  // float, which is the type this system refuses to let near money.
-                  value={linea.precio_unitario}
-                  onChange={(evento) =>
-                    cambiarLinea(linea.clave, "precio_unitario", evento.target.value)
-                  }
-                />
-                <Select
-                  id={`item-iva-${linea.clave}`}
-                  etiqueta="IVA"
-                  opciones={ALICUOTAS}
-                  value={linea.alicuota_iva}
-                  onChange={(evento) =>
-                    cambiarLinea(linea.clave, "alicuota_iva", evento.target.value)
-                  }
-                />
-                <Button
-                  variante="secundario"
-                  disabled={lineas.length === 1}
-                  onClick={() =>
-                    setLineas((previas) => previas.filter((otra) => otra.clave !== linea.clave))
-                  }
-                >
-                  Quitar
-                </Button>
-              </div>
-            ))}
-            <div className="fac-nuevo-acciones">
-              <Button
-                variante="secundario"
-                onClick={() => setLineas((previas) => [...previas, lineaVacia()])}
-              >
-                Agregar item
+                }}
+                onChange={(evento) => {
+                  setCuit(evento.target.value);
+                  // A changed CUIT invalidates everything that depended on it -- including which
+                  // types are legal. Keeping the old answer visible would be the screen lying.
+                  setReceptor(null);
+                  setTipo("");
+                }}
+              />
+              <Button variante="secundario" cargando={validando} onClick={() => void validar()}>
+                <IconoDeEscudo />
+                Validar
               </Button>
             </div>
-            {lineasCargadas.length === 0 && <Alert tono="neutral">{MENSAJE_SIN_ITEMS}</Alert>}
-          </>
-        )}
-      </fieldset>
+          </Colapsable>
+          {receptor !== null && <TarjetaDelReceptor receptor={receptor} />}
+        </PasoDeEmision>
 
-      {receptor !== null && (
-        <div className="fac-nuevo-acciones">
-          <Button type="submit" disabled={!puedeEmitir} cargando={emitiendo}>
-            Emitir
-          </Button>
-        </div>
-      )}
+        <PasoDeEmision
+          numero={2}
+          titulo="Comprobante"
+          estado={estado2}
+          ayuda="Qué se puede emitir lo decide la condición de IVA del receptor, y con qué numeración, el punto de venta."
+          motivoDeBloqueo="Se habilita cuando ARCA valida el CUIT del receptor."
+          extremo={
+            estado2 === "completo" && tipo !== "" ? (
+              <span className="fac-em-paso__pastilla">
+                {ETIQUETAS_DE_TIPO[tipo as TipoComprobante]}
+              </span>
+            ) : undefined
+          }
+        >
+          {receptor !== null && (
+            <>
+              <div className="fac-em-par">
+                <Select
+                  id="emision-tipo"
+                  etiqueta="Tipo de comprobante"
+                  opciones={[
+                    { valor: "", etiqueta: "Elegí un tipo" },
+                    ...receptor.tipos_disponibles.map((valor) => ({
+                      valor,
+                      etiqueta: ETIQUETAS_DE_TIPO[valor],
+                    })),
+                  ]}
+                  value={tipo}
+                  onChange={(evento) => setTipo(evento.target.value)}
+                  ayuda="Solo se ofrecen los tipos válidos para tu condición de IVA y la del receptor."
+                />
+                <Select
+                  id="emision-punto"
+                  etiqueta="Punto de venta"
+                  opciones={puntos.map((punto) => ({
+                    valor: punto.id,
+                    etiqueta: `${punto4(punto)}${
+                      punto.descripcion === null ? "" : ` — ${punto.descripcion}`
+                    }`,
+                  }))}
+                  value={puntoId}
+                  onChange={(evento) => setPuntoId(evento.target.value)}
+                />
+              </div>
+              <p className="fac-em-numeracion">{textoDeNumeracion(puntoElegido, tipo)}</p>
+              <Campo
+                id="emision-domicilio"
+                etiqueta="Domicilio del receptor (opcional)"
+                // Sin sugerencias de ningún tipo: no hay de dónde sacar un domicilio fiable, y el
+                // navegador no debe ofrecer valores de otras emisiones.
+                autoComplete="off"
+                value={domicilio}
+                onChange={(evento) => setDomicilio(evento.target.value)}
+              />
+            </>
+          )}
+        </PasoDeEmision>
+
+        <PasoDeEmision
+          numero={3}
+          titulo="Ítems"
+          estado={estado3}
+          ayuda="Buscá un servicio del catálogo o escribí la descripción a mano. Los importes los calcula el backend."
+          motivoDeBloqueo="Se habilita cuando elegís el tipo de comprobante."
+          extremo={
+            lineasCargadas.length > 0 ? (
+              <span className="fac-em-paso__pastilla">
+                {lineasCargadas.length} {lineasCargadas.length === 1 ? "ítem" : "ítems"}
+              </span>
+            ) : undefined
+          }
+        >
+          <ItemsDeEmision lineas={lineas} alCambiarLineas={(cambio) => setLineas(cambio)} />
+        </PasoDeEmision>
+      </div>
+
+      <ResumenDeEmision
+        cuit={receptor?.cuit ?? null}
+        tipo={tipo === "" ? null : ETIQUETAS_DE_TIPO[tipo as TipoComprobante]}
+        punto={puntoElegido === undefined ? null : punto4(puntoElegido)}
+        cantidadDeItems={lineasCargadas.length}
+        motivos={motivos}
+        ofreceEmitir={receptor !== null}
+        puedeEmitir={puedeEmitir}
+        emitiendo={emitiendo}
+      />
     </form>
   );
 }

@@ -13,6 +13,14 @@ from datetime import datetime
 from uuid import UUID
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.contexts.business_config.application.agenda import (
+    ConfigurarAgendaDeNotificacion,
+    configuracion_de_agenda_desde,
+)
+from cheatsheet.contexts.business_config.application.atencion import (
+    ConfigurarHorarioDeAtencion,
+    configuracion_de_atencion_desde,
+)
 from cheatsheet.contexts.business_config.application.reglas import (
     CambiarEstadoDeRegla,
     ConfigurarEscalamiento,
@@ -36,6 +44,32 @@ class PasoEntrada(BaseModel):
 
 class EscalamientoEntrada(BaseModel):
     pasos: list[PasoEntrada]
+    prioridad: int = 0
+
+
+class FranjaEntrada(BaseModel):
+    desde: str
+    hasta: str
+
+
+class DiaEntrada(BaseModel):
+    dia: int
+    franjas: list[FranjaEntrada]
+
+
+class HorarioDeAtencionEntrada(BaseModel):
+    dias: list[DiaEntrada]
+    fechas_cerradas: list[str] = []
+    politica: str = "AGENTE_RESPONDE"
+    prioridad: int = 0
+
+
+class RecordatorioEntrada(BaseModel):
+    horas_antes: int
+
+
+class AgendaDeNotificacionEntrada(BaseModel):
+    recordatorios: list[RecordatorioEntrada]
     prioridad: int = 0
 
 
@@ -78,6 +112,7 @@ def _actor(request: Request) -> tuple[EmpresaId, UsuarioId, RolUsuario]:
 def crear_router(recursos: Recursos) -> APIRouter:
     router = APIRouter(tags=["business_config"])
     router.include_router(_rutas(recursos), prefix="/reglas")
+    router.include_router(_rutas_de_reglas_tipadas(recursos), prefix="/reglas")
     return router
 
 
@@ -136,6 +171,65 @@ def _rutas(recursos: Recursos) -> APIRouter:
                 regla_id=regla_id,
                 activa=entrada.activa,
                 ahora=unidad.reloj.ahora(),
+            )
+            salida = _a_salida(regla)
+        return _exigir(salida)
+
+    return router
+
+
+def _rutas_de_reglas_tipadas(recursos: Recursos) -> APIRouter:
+    """Las reglas con formulario propio: cada una reemplaza, no acumula."""
+    router = APIRouter()
+
+    @router.put("/horario-de-atencion")
+    async def configurar_horario(
+        request: Request, entrada: HorarioDeAtencionEntrada
+    ) -> ReglaSalida:
+        """HS-T2 RN-04. `PUT` porque **reemplaza**: una empresa tiene un horario de atención."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: ReglaSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = ConfiguracionDeNegocio.armar(unidad)
+            regla = await ConfigurarHorarioDeAtencion(
+                reglas=piezas.reglas, publicador=unidad.publicador
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                configuracion=configuracion_de_atencion_desde(
+                    {
+                        "dias": [dia.model_dump() for dia in entrada.dias],
+                        "fechas_cerradas": entrada.fechas_cerradas,
+                        "politica": entrada.politica,
+                    }
+                ),
+                ahora=unidad.reloj.ahora(),
+                prioridad=entrada.prioridad,
+            )
+            salida = _a_salida(regla)
+        return _exigir(salida)
+
+    @router.put("/agenda")
+    async def configurar_agenda(
+        request: Request, entrada: AgendaDeNotificacionEntrada
+    ) -> ReglaSalida:
+        """HU-E11-01. `PUT` porque **reemplaza**: una empresa tiene una agenda de recordatorios."""
+        empresa_id, usuario_id, rol = _actor(request)
+        salida: ReglaSalida | None = None
+        async for unidad in unidad_de_trabajo(recursos, empresa_id):
+            piezas = ConfiguracionDeNegocio.armar(unidad)
+            regla = await ConfigurarAgendaDeNotificacion(
+                reglas=piezas.reglas, publicador=unidad.publicador
+            ).ejecutar(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=rol,
+                configuracion=configuracion_de_agenda_desde(
+                    {"recordatorios": [uno.model_dump() for uno in entrada.recordatorios]}
+                ),
+                ahora=unidad.reloj.ahora(),
+                prioridad=entrada.prioridad,
             )
             salida = _a_salida(regla)
         return _exigir(salida)

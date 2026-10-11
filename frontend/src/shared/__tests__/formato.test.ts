@@ -12,6 +12,7 @@ import {
   PREFERENCIAS_POR_DEFECTO,
   formatearFecha,
   formatearFechaHora,
+  formatearHora,
   formatearNumero,
 } from "@/shared/formato";
 
@@ -78,5 +79,17 @@ describe("formatearNumero", () => {
   it("un valor que no es un número se devuelve tal cual", () => {
     // Better a raw string on screen than "NaN" where an amount should be.
     expect(formatearNumero("no-es-un-numero")).toBe("no-es-un-numero");
+  });
+});
+
+describe("formatearHora", () => {
+  it("escribe la hora en la zona del usuario, de 0 a 23", () => {
+    // 01:30 UTC son las 22:30 del día anterior en Buenos Aires.
+    expect(formatearHora(MADRUGADA, PREFERENCIAS_POR_DEFECTO)).toBe("22:30");
+    expect(formatearHora("2026-08-18T21:05:00Z", PREFERENCIAS_POR_DEFECTO)).toBe("18:05");
+  });
+
+  it("sin instante muestra un guion", () => {
+    expect(formatearHora(null)).toBe("—");
   });
 });

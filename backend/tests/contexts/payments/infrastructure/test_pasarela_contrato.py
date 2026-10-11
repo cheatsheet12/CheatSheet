@@ -17,6 +17,7 @@ credenciales que `TODO.md` §5.3 todavía espera.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -43,6 +44,7 @@ pytestmark = pytest.mark.asyncio
 AHORA = datetime(2026, 9, 19, 12, 0, tzinfo=UTC)
 EMPRESA = EmpresaId(uuid4())
 URL_BASE = "https://api.test"
+URL_NOTIFICACIONES = "https://cheatsheet-api.test"
 PREFERENCIA = "1234567890-abcdef"
 
 
@@ -73,7 +75,10 @@ class Grabadora:
 
 def _pasarela(grabadora: Grabadora) -> PasarelaMercadoPago:
     return PasarelaMercadoPago(
-        tokens=TokenFijo(), transporte=grabadora.transporte(), url_base=URL_BASE
+        tokens=TokenFijo(),
+        url_de_notificaciones=URL_NOTIFICACIONES,
+        transporte=grabadora.transporte(),
+        url_base=URL_BASE,
     )
 
 
@@ -414,6 +419,53 @@ async def test_un_4xx_al_consultar_no_dice_nada_del_reembolso_y_levanta() -> Non
         await _pasarela(grabadora).consultar_reembolso(
             empresa_id=EMPRESA, payment_id="1", refund_id="987654"
         )
+
+
+# ------------------------------------------------------------------ crear el link
+
+
+def _respuesta_de_preferencia() -> httpx.Response:
+    return httpx.Response(201, json={"id": PREFERENCIA, "init_point": "https://mp.test/checkout/1"})
+
+
+async def test_la_preferencia_le_dice_a_mercadopago_a_donde_avisar_el_pago() -> None:
+    """HS-T1. Sin `notification_url`, MercadoPago avisa sólo a la URL única de la aplicación,
+    que no puede llevar la empresa, y ningún pago aprobado llegaba al sistema."""
+    grabadora = Grabadora(_respuesta_de_preferencia())
+
+    await _pasarela(grabadora).crear_link(
+        empresa_id=EMPRESA, cobro=_cobro_con("Consulta"), url_de_retorno="https://x"
+    )
+
+    cuerpo = _cuerpo(grabadora.pedidos[0])
+    assert cuerpo["notification_url"] == f"{URL_NOTIFICACIONES}/webhooks/mercadopago/{EMPRESA}"
+
+
+async def test_el_monto_del_link_viaja_exacto_y_no_como_float() -> None:
+    """`TODO.md` §20.6. El literal del cuerpo es el del `Decimal`, sin pasar por `float`."""
+    grabadora = Grabadora(_respuesta_de_preferencia())
+    cobro = replace(_cobro_con("Consulta"), monto=Decimal("1234.56"))
+
+    await _pasarela(grabadora).crear_link(
+        empresa_id=EMPRESA, cobro=cobro, url_de_retorno="https://x"
+    )
+
+    texto = grabadora.pedidos[0].content.decode()
+    assert '"unit_price": 1234.56' in texto
+    assert _cuerpo(grabadora.pedidos[0])["items"][0]["unit_price"] == 1234.56
+
+
+async def test_una_descripcion_con_comillas_no_rompe_el_cuerpo() -> None:
+    """El monto se inserta en texto ya armado: lo demás tiene que seguir siendo JSON válido."""
+    grabadora = Grabadora(_respuesta_de_preferencia())
+
+    await _pasarela(grabadora).crear_link(
+        empresa_id=EMPRESA,
+        cobro=_cobro_con('Sesión "intensiva" de 2\\3 horas'),
+        url_de_retorno="https://x",
+    )
+
+    assert _cuerpo(grabadora.pedidos[0])["items"][0]["title"] == 'Sesión "intensiva" de 2\\3 horas'
 
 
 # ------------------------------------------------------------------ el doble · caso 22
