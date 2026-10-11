@@ -483,6 +483,24 @@ describe("PAN-COB-03 — nuevo cobro", () => {
     });
   });
 
+  it("acepta el monto con coma decimal y lo manda como lo lee la API", async () => {
+    // TODO §29.3, visto en staging: «1234,56» daba «El monto debe ser mayor a cero.».
+    generarCobro.mockResolvedValue(PENDIENTE);
+    render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Concepto"), { target: { value: "Consulta" } });
+    fireEvent.change(screen.getByLabelText("Monto"), { target: { value: "1.234,56" } });
+    expect(screen.queryByText(MENSAJE_MONTO_NO_POSITIVO)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Generar link de pago" }));
+
+    await waitFor(() => {
+      expect(generarCobro).toHaveBeenCalledWith(
+        expect.objectContaining({ monto: "1234.56" }),
+        expect.any(String),
+      );
+    });
+  });
+
   it("manda el monto como texto, tal como se escribio", async () => {
     generarCobro.mockResolvedValue(PENDIENTE);
     render(<NuevoCobro clienteId="cl1" comprobantes={[]} />);

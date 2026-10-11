@@ -34,6 +34,7 @@ import {
   formatearFecha,
   formatearFechaHora,
   formatearNumero,
+  montoDesdeTexto,
 } from "@/shared";
 
 import {
@@ -117,7 +118,7 @@ export function DetalleDeCobro({
     setError(null);
     setTrabajando(true);
     try {
-      await reembolsarCobro(cobro.id, montoAReembolsar);
+      await reembolsarCobro(cobro.id, montoDesdeTexto(montoAReembolsar) ?? montoAReembolsar);
       setReembolsando(false);
       await recargar();
     } catch (fallo) {

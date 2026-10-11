@@ -42,6 +42,7 @@ export {
   formatearFechaHora,
   formatearHora,
   formatearNumero,
+  montoDesdeTexto,
   PREFERENCIAS_POR_DEFECTO,
 } from "@/shared/formato";
 export { motivoDeFalla } from "@/shared/motivos-de-falla";
