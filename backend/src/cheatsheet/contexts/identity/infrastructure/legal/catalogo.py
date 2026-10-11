@@ -21,6 +21,7 @@ import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
+from functools import cache
 from pathlib import Path
 
 from cheatsheet.contexts.identity.domain.legal import DocumentoLegal, VersionDeDocumento
@@ -94,3 +95,9 @@ class CatalogoLegalEnArchivos:
 
     def texto(self, documento: DocumentoLegal, version: str) -> str:
         return self._textos[(documento, version)]
+
+
+@cache
+def catalogo_publicado() -> CatalogoLegalEnArchivos:
+    """The process-wide catalogue: the texts are read and hashed once, not once per consumer."""
+    return CatalogoLegalEnArchivos()

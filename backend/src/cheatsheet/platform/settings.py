@@ -476,7 +476,6 @@ class Settings:
     jwt_secret: str
     jwt_access_ttl_minutos: int
     refresh_ttl_dias: int
-    terminos_version_vigente: str
     google_oauth_client_id: str
     google_oauth_client_secret: str
     google_oauth_redirect_uri: str
@@ -619,7 +618,6 @@ class Settings:
             jwt_secret=_requerida("JWT_SECRET"),
             jwt_access_ttl_minutos=_entero("JWT_ACCESS_TTL_MINUTOS", 15),
             refresh_ttl_dias=_entero("REFRESH_TTL_DIAS", 30),
-            terminos_version_vigente=_opcional("TERMINOS_VERSION_VIGENTE", "1.0"),
             # Platform-wide OAuth client, not per company. Optional so the API can boot
             # without Google configured; the endpoint refuses instead of the process
             # failing to start.

@@ -43,7 +43,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cobros y recordatorios | cancelacion-invalida-el-link | payments | HU-E6-04, HS-T1 | cobros-y-recordatorios | Cristian | fix/payments-cancelacion-invalida-el-link | en revisión |
 | Cimientos, identidad y bitácora | revocacion-inmediata-de-sesion | identity | HU-E1-05, HU-E1-06 | — | Luciano | feature/identity-revocacion-inmediata-de-sesion | mergeada |
 | Cimientos, identidad y bitácora | renovacion-sin-borrar-sesion | identity | HU-E1-01 | revocacion-inmediata-de-sesion | Luciano | fix/identity-renovacion-sin-borrar-sesion | mergeada |
-| Cimientos, identidad y bitácora | terminos-y-privacidad | identity | HU-E1-03, HU-E1-08 | — | Luciano | feature/identity-terminos-y-privacidad (tramos 1, 2, 3) | en revisión |
+| Cimientos, identidad y bitácora | terminos-y-privacidad | identity | HU-E1-03, HU-E1-08 | — | Luciano | feature/identity-terminos-y-privacidad (tramos 1, 2, 3) | mergeada |
 | Catálogo de clientes y servicios | duracion-de-servicios | master_data | HU-E4-02 | — | Luciano | feature/master_data-duracion-de-servicios | mergeada |
 | Catálogo de clientes y servicios | normalizacion-de-datos | master_data | HU-E4-05, HU-E4-01, HU-E3-03, HU-E3-04, HU-E3-07 | — | Luciano | feature/master_data-normalizacion-de-datos | mergeada |
 | Catálogo de clientes y servicios | correccion-de-datos-existentes | master_data | HU-E4-05 (RN-09) | normalizacion-de-datos | Luciano | feature/master_data-correccion-de-datos-existentes | mergeada |

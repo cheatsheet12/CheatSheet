@@ -110,6 +110,23 @@ class VerificacionNoDisponible(RuntimeError):
         self.causa = causa
 
 
+class ConsentimientoRequerido(EntradaInvalida):
+    """A required checkbox was not ticked (HU-E1-03 RN-02, HU-E1-08 RN-03).
+
+    The message is the one the stories dictate, so the backend and the form say the same
+    thing. Answered as 422, like any input the person has to correct.
+    """
+
+
+class VersionLegalDesactualizada(InvarianteViolada):
+    """The version the person accepted is not the one in force (HU-E1-08 RN-01).
+
+    A page left open across the day a new version takes effect would otherwise record the
+    acceptance of a text that is no longer the current one. Answered as 409: reload and read
+    again.
+    """
+
+
 class OAuthFallido(ErrorDeDominio):
     """Google did not return a usable profile."""
 

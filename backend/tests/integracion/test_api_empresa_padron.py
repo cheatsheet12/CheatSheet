@@ -32,6 +32,7 @@ from cheatsheet.platform.settings import Settings
 from tests.conftest import settings_de_prueba
 from tests.contexts.integrations.conftest_arca import bundle
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -73,7 +74,12 @@ def _auth(token: str) -> dict[str, str]:
 async def _registrar(cliente: httpx.AsyncClient, email: str) -> str:
     respuesta = await cliente.post(
         "/auth/registro",
-        json={"email": email, "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": email,
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert respuesta.status_code == 201, respuesta.text
     return str(respuesta.json()["access_token"])

@@ -10,7 +10,11 @@ from uuid import UUID
 
 from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.invitacion import Invitacion
-from cheatsheet.contexts.identity.domain.legal import DocumentoLegal, VersionDeDocumento
+from cheatsheet.contexts.identity.domain.legal import (
+    AceptacionLegal,
+    DocumentoLegal,
+    VersionDeDocumento,
+)
 from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import (
@@ -104,15 +108,19 @@ class PortRepositorioUsuario(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class EstadoActualDelUsuario:
-    """The three columns that decide whether a session may operate, as the database has them now.
+    """What decides whether a session may operate, as the database has it now.
 
     Not a `Usuario`: the check runs on **every authenticated request**, and hydrating the
-    aggregate would also read the preferences document it never looks at.
+    aggregate would also read the preferences document it never looks at. The last two fields
+    are what the legal block needs (HU-E1-03 RN-03, HU-E1-08 RN-05): the terms version the
+    company has on record and whether this person accepted the privacy version asked for.
     """
 
     empresa_id: EmpresaId
     rol: RolUsuario
     estado: EstadoUsuario
+    terminos_version: str | None
+    acepto_privacidad_vigente: bool
 
 
 class PortConsultaDeUsuarioVigente(Protocol):
@@ -124,8 +132,14 @@ class PortConsultaDeUsuarioVigente(Protocol):
     the aggregate "for consistency".
     """
 
-    async def estado_actual(self, usuario_id: UsuarioId) -> EstadoActualDelUsuario | None:
-        """`None` when there is no such user **in the company the session is scoped to**."""
+    async def estado_actual(
+        self, usuario_id: UsuarioId, *, version_de_privacidad: str
+    ) -> EstadoActualDelUsuario | None:
+        """`None` when there is no such user **in the company the session is scoped to**.
+
+        `version_de_privacidad` is the version in force today: the answer says whether *this*
+        user accepted *that* one. Everything comes back in a single statement.
+        """
         ...
 
 
@@ -259,4 +273,20 @@ class PortCatalogoLegal(Protocol):
 
     def texto(self, documento: DocumentoLegal, version: str) -> str:
         """The text of one published version. `KeyError` if it was never published."""
+        ...
+
+
+class PortRepositorioAceptacionLegal(Protocol):
+    """Where acceptances are recorded (HU-E1-08 RN-02). Only `INSERT` and `SELECT`: evidence."""
+
+    async def agregar(self, aceptacion: AceptacionLegal) -> bool:
+        """Record it. `False` when the table already had that acceptance (a request raced this
+        one to it): nothing was written and the caller must not report it again."""
+        ...
+
+    async def acepto(self, usuario_id: UsuarioId, documento: DocumentoLegal, version: str) -> bool:
+        """Whether this user already accepted exactly this version of this document.
+
+        `AceptarDocumentosLegales` uses it to stay idempotent per version.
+        """
         ...

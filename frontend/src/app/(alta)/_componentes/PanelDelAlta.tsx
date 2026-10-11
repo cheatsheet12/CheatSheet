@@ -50,6 +50,9 @@ function retardo(indice: number): CSSProperties {
 
 export function PanelDelAlta(): JSX.Element {
   const ruta = usePathname();
+  if (ruta.startsWith("/aceptacion-legal")) {
+    return <PanelDeAceptacionLegal />;
+  }
   return ruta.startsWith("/invitacion") ? <PanelDeInvitacion /> : <PanelDeOnboarding />;
 }
 
@@ -103,6 +106,24 @@ function PanelDeOnboarding(): JSX.Element {
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+/** Re-accepting the legal texts is not a step of the onboarding, so it shows no stepper. */
+function PanelDeAceptacionLegal(): JSX.Element {
+  return (
+    <div className="lgn-marca__centro">
+      <p className="lgn-marca__etiqueta">Textos legales</p>
+      <h2 className="lgn-marca__titular">
+        Cambió algo
+        <br />
+        <span>que tenés que leer.</span>
+      </h2>
+      <p className="lgn-marca__bajada">
+        Cuando actualizamos los Términos o la Política de Privacidad, te pedimos que los aceptes de
+        nuevo. No se borra nada de tu cuenta mientras decidís.
+      </p>
     </div>
   );
 }

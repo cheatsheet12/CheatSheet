@@ -299,22 +299,22 @@ No aplica.
 - [x] `docs/aidlc/TODO.md` (validación legal del texto, pregunta 2)
 
 **Tramo 2 — aceptación en el alta**
-- [ ] `backend/migrations/versions/00NN_aceptacion_legal.py` · `backend/migrations/env.py` (importar el modelo)
-- [ ] `contexts/identity/domain/legal.py` (`AceptacionLegal`) · `infrastructure/models.py` (`AceptacionLegalORM`) · `infrastructure/aceptaciones.py` · `infrastructure/ensamblado.py`
-- [ ] `contexts/identity/application/registro.py` · `invitaciones.py` · `errors.py` · `ports.py`
-- [ ] `api/routers/auth.py` (tres entradas) · `api/errors.py` si hace falta mapear
-- [ ] `platform/settings.py` · `backend/.env.example` · `backend/tests/conftest.py`
-- [ ] `frontend/src/features/identity/components/{CasillasLegales,FormularioDeIngreso,FormularioDeAceptacion}.tsx` · `api/cliente.ts`
-- [ ] `frontend/src/app/(ingreso)/page.tsx` · `(alta)/invitacion/[token]/page.tsx` · `app/api/auth/{registro,invitaciones/aceptar,google,google/callback}/route.ts`
-- [ ] `backend/tests/integracion/conftest.py` — `"DELETE FROM aceptacion_legal"` **antes** de `"DELETE FROM usuario"` y de `"DELETE FROM empresa"` (`:146-149`), de la hoja a la raíz
-- [ ] `backend/tests/integracion/test_migracion_00NN.py` · `test_aceptacion_legal_postgres.py` · ajustes en `test_identidad_postgres.py` y en los `test_api_*` que se registran (mandan consentimiento)
+- [x] `backend/migrations/versions/0041_aceptacion_legal.py` (sin tocar `migrations/env.py`: importa el módulo `models` entero, y el modelo nuevo vive ahí)
+- [x] `contexts/identity/domain/legal.py` (`AceptacionLegal`) · `infrastructure/models.py` (`AceptacionLegalORM`) · `infrastructure/aceptaciones.py` · `infrastructure/ensamblado.py` · `infrastructure/legal/catalogo.py` (`catalogo_publicado`, una sola instancia por proceso)
+- [x] `contexts/identity/application/registro.py` · `invitaciones.py` · `errors.py` · `ports.py` · `aceptaciones.py` (nuevo: `Consentimiento` y `RegistradorDeAceptaciones`, el único lugar que valida el consentimiento y escribe la evidencia) · `legal.py` (`vigente_a`)
+- [x] `api/routers/auth.py` (tres entradas, +11 líneas netas: 526 → 537) · `api/routers/legal.py` (`ConsentimientoEntrada`) · `api/errors.py` no hizo falta: `ConsentimientoRequerido` es `EntradaInvalida` (422) y `VersionLegalDesactualizada` es `InvarianteViolada` (409)
+- [x] `platform/settings.py` · `backend/tests/conftest.py` · **pendiente del dueño: quitar `TERMINOS_VERSION_VIGENTE` de `backend/.env.example:91`** (los agentes no editan `.env*`) y de Render si está cargada
+- [x] `frontend/src/features/identity/components/{CasillasLegales,FormularioDeIngreso,FormularioDeAceptacion}.tsx` · `validacion/consentimiento.ts` · `api/cliente.ts` · `index.ts`
+- [x] `frontend/src/app/(ingreso)/page.tsx` · `(alta)/invitacion/[token]/page.tsx` · `app/_versiones-legales.ts` · `app/api/auth/{google,google/callback}/route.ts` (`registro` e `invitaciones/aceptar` no cambian: reenvían el cuerpo tal cual, y ahora el cuerpo trae las versiones)
+- [x] `backend/tests/integracion/conftest.py` — `"DELETE FROM aceptacion_legal"` **antes** de `"DELETE FROM usuario"` y de `"DELETE FROM empresa"` (`:146-149`), de la hoja a la raíz
+- [x] `backend/tests/integracion/test_migracion_0041.py` · `test_aceptacion_legal_postgres.py` · `consentimiento.py` (versiones vigentes para los tests) · ajustes en `test_identidad_postgres.py` y en los 19 `test_api_*`/`test_*_postgres.py` que se registran o aceptan una invitación (mandan consentimiento)
 
 **Tramo 3 — re-aceptación**
-- [ ] `contexts/identity/domain/legal.py` (`documentos_pendientes`) · `application/verificacion_de_sesion.py` · `application/legal.py` (`AceptarDocumentosLegales`) · `application/onboarding.py` (se borra `AceptarTerminos`)
-- [ ] `contexts/identity/infrastructure/consulta_de_sesion.py` · `api/middleware/empresa.py` · `api/main.py` · `api/routers/legal.py` · `api/routers/auth.py` (`EmpresaSalida`)
-- [ ] `frontend/src/features/identity/components/FormularioDeReaceptacion.tsx` · `app/(alta)/aceptacion-legal/page.tsx` · `app/(panel)/layout.tsx` · `app/(alta)/onboarding/empresa/page.tsx` · `app/api/legal/aceptaciones/route.ts`
-- [ ] Tests: `test_api_revocacion_de_sesion.py` y `test_consulta_de_sesion_postgres.py` (la consulta cambia), `tests/api/` con verificador falso (suma `pendientes`)
-- [ ] `docs/aidlc/units.md` (fila, en cada tramo) · este plan
+- [x] `contexts/identity/domain/legal.py` (`documentos_pendientes`) · `application/verificacion_de_sesion.py` (`IdentidadVigente.pendientes`) · `application/aceptaciones.py` (`AceptarDocumentosLegales`, junto al `RegistradorDeAceptaciones` que reutiliza; no en `application/legal.py`) · `application/onboarding.py` (se borra `AceptarTerminos`, sin uso)
+- [x] `contexts/identity/infrastructure/consulta_de_sesion.py` · `infrastructure/aceptaciones.py` (`agregar` devuelve `bool`, `INSERT … ON CONFLICT DO NOTHING`) · `infrastructure/ensamblado.py` · `application/ports.py` · `api/middleware/empresa.py` (`RUTAS_CON_PENDIENTES`) · `api/main.py` · `api/routers/legal.py` (`GET /legal/pendientes`, `POST /legal/aceptaciones`) · `api/routers/auth.py` (`EmpresaSalida`, +2 líneas: 537 → 539)
+- [x] `frontend/src/features/identity/components/{FormularioDeReaceptacion,VigilanteDeAceptacionLegal,etiquetas-legales}` · `app/(alta)/aceptacion-legal/page.tsx` · `app/(alta)/layout.tsx` · `app/(alta)/_componentes/PanelDelAlta.tsx` · `app/(panel)/layout.tsx` · `app/(alta)/onboarding/empresa/page.tsx` · `app/api/legal/aceptaciones/route.ts`
+- [x] Tests: `tests/integracion/consentimiento.py` (`verificador_de_sesion`, `sembrar_privacidad_vigente`) · `test_consulta_de_sesion_postgres.py` (la consulta cambia) · `test_bloqueo_legal_postgres.py` · `test_api_bitacora.py` (la siembra del usuario Solo Lectura) · `test_aceptacion_legal_postgres.py` (el duplicado ya no levanta `IntegrityError` en el repositorio) · `tests/api/` con verificador falso (suma `pendientes`) y `test_bloqueo_legal.py` · fakes de `contexts/identity/` (`fila`, `ConsultaDeUsuarioVigenteEnMemoria`)
+- [x] `docs/aidlc/TODO.md` §22.74–22.76 y §27 · este plan (`units.md` no se toca: lo actualiza el dueño al cerrar el tramo)
 
 ## Casos de prueba
 
@@ -334,29 +334,29 @@ frontend con `vitest` (`npm run test:coverage`). Ningún test toca la red.
 | 8 | `TextoLegal` no interpreta HTML incrustado en el texto | componente | 1 | hecho |
 | 9 | El pie del ingreso (ambos modos), del registro y del panel enlaza las dos páginas | componente | 1 | hecho |
 | 10 | La página del contador muestra el aviso con el enlace y no ofrece aceptar | página | 1 | hecho |
-| 11 | `AceptacionLegal` exige versión, fecha con zona y `usuario_id` para `PRIVACIDAD` | unit dominio | 2 | pendiente |
-| 12 | Registro sin consentimiento → 422 con «Debe aceptar …» y no crea empresa ni usuario | unit aplicación + API | 2 | pendiente |
-| 13 | Registro con una versión que ya no es la vigente → 409 y no crea nada | unit aplicación | 2 | pendiente |
-| 14 | Registro válido → `empresa.terminos_*`, una fila `TERMINOS`, una fila `PRIVACIDAD` y dos eventos de bitácora con la versión en `entidad_afectada` | unit aplicación + integración | 2 | pendiente |
-| 15 | Google, cuenta nueva sin consentimiento → no se crea la cuenta (pregunta 6); con consentimiento → igual que el caso 14 | unit aplicación + API | 2 | pendiente |
-| 16 | Google, cuenta existente → inicia sesión sin pedir consentimiento | API | 2 | pendiente |
-| 17 | Aceptar invitación sin `version_privacidad` → rechazo y el usuario sigue `INVITADO`; con ella → una fila `PRIVACIDAD` y **ninguna** de `TERMINOS` | unit aplicación + integración | 2 | pendiente |
-| 18 | Las dos casillas aparecen separadas y sin marcar; cada una bloquea con su mensaje | componente | 2 | pendiente |
-| 19 | En modo registro, «Continuar con Google» sin las casillas no navega y muestra el mensaje | componente | 2 | pendiente |
-| 20 | La cookie de consentimiento viaja del inicio del flujo de Google al callback y se borra después | BFF (vitest) | 2 | pendiente |
-| 21 | RLS: una empresa no ve ni inserta aceptaciones de otra | integración | 2 | pendiente |
-| 22 | El rol de la aplicación no puede `UPDATE` ni `DELETE` en `aceptacion_legal` | integración | 2 | pendiente |
-| 23 | Índices parciales: la misma versión de privacidad dos veces para el mismo usuario se rechaza | integración | 2 | pendiente |
-| 24 | Migración: el backfill crea una fila `TERMINOS` por empresa con términos, atribuida por la bitácora, `NULL` si no hay evento, y no toca `empresa` | integración (`test_migracion_00NN.py`) | 2 | pendiente |
-| 25 | `documentos_pendientes`: Administrador con términos viejos → `TERMINOS`; Operador y Solo Lectura con términos viejos → nada; cualquiera sin la privacidad vigente → `PRIVACIDAD` | unit dominio | 3 | pendiente |
-| 26 | La consulta por solicitud devuelve los pendientes en **una** sentencia, bajo RLS | integración | 3 | pendiente |
-| 27 | Con pendientes, una ruta cualquiera → 403 `AceptacionLegalPendiente`; `GET /auth/empresa`, `GET /legal/pendientes` y `POST /legal/aceptaciones` → pasan | API | 3 | pendiente |
-| 28 | Un Operador no puede aceptar `TERMINOS` (403) | unit aplicación | 3 | pendiente |
-| 29 | Aceptar la versión vigente desbloquea en la solicitud siguiente; aceptarla dos veces no duplica la fila | integración | 3 | pendiente |
-| 30 | La aceptación anterior sigue en la tabla después de aceptar la nueva (RN-05: historial) | integración | 3 | pendiente |
-| 31 | El layout del panel redirige a `/aceptacion-legal` con pendientes, antes del chequeo de onboarding; el onboarding hace lo mismo | página (vitest) | 3 | pendiente |
-| 32 | La pantalla de re-aceptación ofrece solo «Aceptar» y «Cerrar sesión» | componente | 3 | pendiente |
-| 33 | Costo de la consulta por solicitud medido (local y staging), anotado en «Decisiones» | medición | 3 | pendiente |
+| 11 | `AceptacionLegal` exige versión, fecha con zona y `usuario_id` para `PRIVACIDAD` | unit dominio | 2 | hecho |
+| 12 | Registro sin consentimiento → 422 con «Debe aceptar …» y no crea empresa ni usuario | unit aplicación + API | 2 | hecho |
+| 13 | Registro con una versión que ya no es la vigente → 409 y no crea nada | unit aplicación | 2 | hecho |
+| 14 | Registro válido → `empresa.terminos_*`, una fila `TERMINOS`, una fila `PRIVACIDAD` y dos eventos de bitácora con la versión en `entidad_afectada` | unit aplicación + integración | 2 | hecho |
+| 15 | Google, cuenta nueva sin consentimiento → no se crea la cuenta (pregunta 6); con consentimiento → igual que el caso 14 | unit aplicación + API | 2 | hecho |
+| 16 | Google, cuenta existente → inicia sesión sin pedir consentimiento | API | 2 | hecho |
+| 17 | Aceptar invitación sin `version_privacidad` → rechazo y el usuario sigue `INVITADO`; con ella → una fila `PRIVACIDAD` y **ninguna** de `TERMINOS` | unit aplicación + integración | 2 | hecho |
+| 18 | Las dos casillas aparecen separadas y sin marcar; cada una bloquea con su mensaje | componente | 2 | hecho |
+| 19 | En modo registro, «Continuar con Google» sin las casillas no navega y muestra el mensaje | componente | 2 | hecho |
+| 20 | La cookie de consentimiento viaja del inicio del flujo de Google al callback y se borra después | BFF (vitest) | 2 | hecho |
+| 21 | RLS: una empresa no ve ni inserta aceptaciones de otra | integración | 2 | hecho |
+| 22 | El rol de la aplicación no puede `UPDATE` ni `DELETE` en `aceptacion_legal` | integración | 2 | hecho |
+| 23 | Índices parciales: la misma versión de privacidad dos veces para el mismo usuario se rechaza | integración | 2 | hecho |
+| 24 | Migración: el backfill crea una fila `TERMINOS` por empresa con términos, atribuida por la bitácora, `NULL` si no hay evento, y no toca `empresa` | integración (`test_migracion_00NN.py`) | 2 | hecho |
+| 25 | `documentos_pendientes`: Administrador con términos viejos → `TERMINOS`; Operador y Solo Lectura con términos viejos → nada; cualquiera sin la privacidad vigente → `PRIVACIDAD` | unit dominio | 3 | hecho |
+| 26 | La consulta por solicitud devuelve los pendientes en **una** sentencia, bajo RLS | integración | 3 | hecho |
+| 27 | Con pendientes, una ruta cualquiera → 403 `AceptacionLegalPendiente`; `GET /auth/empresa`, `GET /legal/pendientes` y `POST /legal/aceptaciones` → pasan | API | 3 | hecho |
+| 28 | Un Operador no puede aceptar `TERMINOS` (403) | unit aplicación | 3 | hecho |
+| 29 | Aceptar la versión vigente desbloquea en la solicitud siguiente; aceptarla dos veces no duplica la fila | integración | 3 | hecho |
+| 30 | La aceptación anterior sigue en la tabla después de aceptar la nueva (RN-05: historial) | integración | 3 | hecho |
+| 31 | El layout del panel redirige a `/aceptacion-legal` con pendientes, antes del chequeo de onboarding; el onboarding hace lo mismo | página (vitest) | 3 | hecho |
+| 32 | La pantalla de re-aceptación ofrece solo «Aceptar» y «Cerrar sesión» | componente | 3 | hecho |
+| 33 | Costo de la consulta por solicitud medido (local y staging), anotado en «Decisiones» | medición | 3 | hecho en local (decisión 24); staging en `TODO.md` §22.74 |
 
 ## Verificación (Gate 2, en cada tramo)
 
@@ -523,6 +523,8 @@ de rol. Hacer una excepción acá dejaría la bitácora inconsistente sin que ni
 |---|---|---|
 | 1 · Plan | 2026-10-10 | Aprobado por Luciano con las recomendaciones de las preguntas 1–12. Tres tramos apilados; la migración toma el número libre al implementar (0041 si `recordatorio-de-turno` entra antes) |
 | 2 · Verificación del tramo 1 | 2026-10-10 | Aprobado por Luciano. RED observado en cada caso; ruff, mypy, pytest (2977, sin PostgreSQL), frontend (1237), lint, typecheck, prettier y guards en verde. Hallazgos renumerados a `TODO.md` §27. El tramo 2 se apila en `feature/identity-terminos-y-privacidad-alta` |
+| 2 · Verificación del tramo 2 | 2026-10-10 | Aprobado por Luciano con las correcciones de la verificación independiente (decisión 19): las cookies de OAuth se borran con su propio `path`, el consentimiento de Google viaja por POST desde el formulario y no por GET, y `acepto` queda para el tramo 3. Decisiones 13–18 confirmadas. Integración completa contra PostgreSQL local (640) y frontend (1360) en verde |
+| 2 · Verificación del tramo 3 | 2026-10-10 | Aprobado por Luciano con las correcciones de la verificación independiente (decisión 25): redirección a `/aceptacion-legal` ante el 403 en navegaciones del panel, `ON CONFLICT` con el índice parcial nombrado, documentos escritos en orden fijo y arranque fallido sin versión vigente. Decisiones 20–24 confirmadas. RED observado en cada caso; pytest con PostgreSQL local (3894) y frontend (1405), lint, typecheck y prettier en verde. Se mergea con el CI local COMPLETE; el despliegue lleva fecha avisada al equipo |
 | 3 · PR | 2026-10-10 | Un PR por tramo, en orden 1 → 2 → 3. GitHub Actions sin cuota hasta el 2026-11-01: cada PR se verifica con el CI local (`backend/scripts/run_local_ci.py`), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
@@ -541,3 +543,22 @@ Gate 1 (2026-10-10), todas según la recomendación:
 10. Las versiones anteriores se conservan como evidencia; no se publican en esta unidad.
 11. El código nuevo va a `api/routers/legal.py`; `auth.py` (526 líneas) no se parte en esta unidad y el exceso se reporta en `TODO.md`.
 12. Los eventos de bitácora de una aceptación guardan la IP como todos los demás; la tabla `aceptacion_legal` no la guarda.
+
+Tramo 2 (2026-10-10), decisiones de implementación que el plan no fijaba:
+
+13. **El consentimiento se valida antes que el resto**: un registro sin consentimiento responde 422 (y uno con una versión vieja, 409) aunque el email ya exista. Nada se escribe antes de validar, y todo corre en la transacción del llamador, así que un rechazo no deja empresa, usuario ni aceptación.
+14. **Un único servicio** (`RegistradorDeAceptaciones`, `application/aceptaciones.py`) valida el consentimiento contra el catálogo y escribe la fila y el evento; `RegistrarEmpresa`, `RegistrarConGoogle` y `AceptarInvitacion` lo reciben. Así los tres caminos no pueden divergir. La fila de términos de una empresa se atribuye al usuario que la registra (el primer Administrador).
+15. **Orden de los eventos**: primero `registrar_empresa` (o `registrar_empresa_con_google`) y después los de aceptación, para que el registro siga abriendo la historia de la empresa en la bitácora.
+16. **Las páginas leen `/legal/vigentes` con revalidación de 60 s** (no 3600 como las páginas legales): una versión que entra en vigencia hoy no debe tardar una hora en llegar al formulario. Si la lectura falla, la página no cae: el formulario deja ingresar y se niega a crear cuentas, diciendo por qué.
+17. **Google sin consentimiento vuelve con un solo mensaje**: el de la política de privacidad, tal como lo fija la pregunta 6. Las dos casillas están sin marcar en ese caso, pero el plan nombra un único mensaje y se respetó; marcar las dos y reintentar funciona.
+18. **El catálogo es una instancia por proceso** (`catalogo_publicado()`): el router legal y el ensamblado de identidad comparten los textos ya leídos y verificados por hash.
+19. **Gate 2 del tramo 2 (2026-10-10), aprobado por Luciano**: cuatro correcciones. (1) La cookie de consentimiento nunca se borraba: se pone con `path=/api/auth` pero `cookies().delete()` expira `Path=/`, así que el navegador conservaba la real. Ahora se vence con los mismos atributos con que se puso (`borrarCookieDeOAuth`, `app/api/auth/_oauth.ts`). (2) Lo mismo para `COOKIE_STATE`, que ya fallaba en `develop`: un `state` usado seguía vigente 10 minutos y podía repetirse; se corrige aquí por ser el mismo mecanismo en las mismas líneas. (3) El consentimiento ya no viaja en la query de un GET: el alta con Google es un `<form method="post">` con las dos versiones, el BFF responde 303 a Google, un GET no registra nada y un POST con `Origin` ajeno se trata como ingreso sin consentimiento (el backend sigue validando las versiones). El ingreso con una cuenta existente sigue siendo un enlace. (4) `PortRepositorioAceptacionLegal.acepto` se conserva: el plan (fila de `AceptarDocumentosLegales` y caso 29) exige que aceptar dos veces la misma versión no cree otra fila, y ese es su único uso; queda anotado en su docstring.
+
+Tramo 3 (2026-10-10), decisiones de implementación que el plan no fijaba:
+
+20. **`AceptarDocumentosLegales` vive en `application/aceptaciones.py`**, junto al `RegistradorDeAceptaciones` que reutiliza (no en `application/legal.py`, como decía el plan): escribe la fila y el evento por el mismo camino que el alta, así que no pueden divergir. Valida **todo antes de escribir** (un pedido que mezcla una privacidad válida con términos que el rol no puede aceptar no registra ninguno), es idempotente por versión y mueve `empresa.terminos_*` en la misma transacción. Una lista vacía es 422.
+21. **`PortRepositorioAceptacionLegal.agregar` devuelve `bool`** (`INSERT … ON CONFLICT DO NOTHING … RETURNING`): dos pedidos que aceptan la misma versión a la vez dejan **una** fila y **un** evento, y el que pierde la carrera no recibe un 500 por `IntegrityError`. Los índices únicos parciales siguen siendo la garantía (el caso 23 lo prueba con un `INSERT` sin `ON CONFLICT`). Consecuencia: `acepto` se usa como atajo previo, no como único guarda.
+22. **El 403 `AceptacionLegalPendiente` lleva `pendientes`** (nombres de documento, orden estable; ni versión ni texto: eso lo da `GET /legal/pendientes`). Se decide por **método y ruta exactos** (`RUTAS_CON_PENDIENTES`): `GET /auth/empresa`, `GET /legal/pendientes`, `POST /legal/aceptaciones`; `PUT /auth/empresa` o cualquier otro método sobre esas rutas se bloquea. Leer los textos, cerrar sesión y renovar ya eran públicas.
+23. **Frontend, el 403 «desde cualquier llamada»**: `VigilanteDeAceptacionLegal` envuelve el `fetch` del navegador (montado en los layouts `(panel)` y `(alta)`) y, ante un 403 `AceptacionLegalPendiente` de `/api/…` de la propia app, navega a `/aceptacion-legal` y **no resuelve** la llamada, para que la pantalla no muestre «No se pudo completar la operación» (patrón del issue #75). Cualquier otro 403 pasa intacto (se inspecciona un clon). En una carga completa, el layout del panel y la página de onboarding redirigen antes de pintar. **Límite conocido**: una navegación blanda dentro del panel cuya *página de servidor* (no un `fetch` del navegador) reciba el 403 llega al error de Next; se reporta en `TODO.md` §22.75.
+24. **Costo por solicitud (caso 33), base local, 2026-10-10** (PostgreSQL 16 en Docker, 3.000 usuarios con una aceptación cada uno, `ANALYZE`, 30 llamadas de calentamiento y 200 medidas, dos pasadas intercaladas): la verificación completa pasa de **p50 2,01 ms / p95 2,23 ms** (solo `usuario` por PK) a **p50 2,30 ms / p95 2,66 ms** con `JOIN empresa` y `EXISTS` sobre `aceptacion_legal` (segunda pasada: 2,02/2,26 contra 2,31/2,67). Suma **≈0,3 ms en p50 y ≈0,4 ms en p95**, una sola sentencia, sin ida y vuelta extra. `EXPLAIN (ANALYZE, BUFFERS)`: `Index Scan using usuario_pkey` + `Index Scan using empresa_pkey` + `Index Only Scan using uq_aceptacion_legal_privacidad`, 0,032 ms de ejecución, 9 buffers. (`'PRIVACIDAD'` va como literal en el SQL: el planificador solo prueba aplicable un índice parcial con un literal.) El catálogo se arma una vez en `create_app`. **Staging**: `TODO.md` §22.74.
+25. **Verificación independiente del tramo 3 (2026-10-10)**, cuatro correcciones: (1) **navegación blanda**: `llamarApi` redirige a `/aceptacion-legal` ante un 403 `AceptacionLegalPendiente`, así que ninguna página de servidor (actual o futura) tiene que acordarse; cierra el límite conocido de la decisión 23. Los handlers del BFF no deben recibir una redirección sino el 403 JSON que lee `VigilanteDeAceptacionLegal`, por eso corren su llamada dentro de `comoRutaDelBff` (un `AsyncLocalStorage`, y no una opción de `llamarApi`, para que el proxy compartido lo fije una sola vez sin cambiar los argumentos que sus llamadores (y ~80 aserciones de tests) ya fijan); cualquier otro 403, o ese código con otro estado, sigue siendo un `ErrorDeApi`. (2) `RepositorioAceptacionLegalPostgres.agregar` nombra el objetivo del conflicto (`index_elements` + `index_where` de cada índice parcial de la migración 0041), de modo que un conflicto de otra clave —la primaria, por ejemplo— aflora como error en lugar de tragarse como «ya aceptó». (3) `AceptarDocumentosLegales` escribe en orden fijo (documento, versión) sin importar el orden del cliente: dos solicitudes concurrentes con órdenes opuestos podían bloquearse entre sí. (4) Un catálogo sin versión vigente hoy hacía fallar con 500 toda solicitud autenticada: `create_app` ahora **no arranca** (`ConfiguracionFaltante`, con el reloj de la aplicación) y las dos búsquedas de versión vigente (`versiones_en_vigor`) salen del bloque `sesion_de_empresa`, de modo que ni siquiera se toma una conexión antes de ellas. Los tests que arman la aplicación usan `INSTANTE_CON_TEXTOS_VIGENTES` (2026-11-01).

@@ -1,7 +1,7 @@
 """Drop the per-company ARCA access tickets of model 1 (ADR-0014).
 
-Revision ID: 0042
-Revises: 0041
+Revision ID: 0043
+Revises: 0042
 Create Date: 2026-10-10
 
 Since ADR-0014 every company is reached through the platform certificate, whose tickets live
@@ -24,8 +24,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0042"
-down_revision: str | None = "0041"
+revision: str = "0043"
+down_revision: str | None = "0042"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

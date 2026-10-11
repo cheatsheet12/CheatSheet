@@ -10,7 +10,7 @@ the platform's, not a company's. Three facts about the provider make it worth st
   it a correctness requirement: a system that throws its ticket away cannot authenticate
   again until the old one expires.
 
-The per-company `TicketDeAcceso` of ADR-0004 was dropped with model 1 (migration 0042).
+The per-company `TicketDeAcceso` of ADR-0004 was dropped with model 1 (migration 0043).
 
 This module knows nothing about ARCA's wire format. A ticket is an opaque blob with a
 name and an expiry; what is inside it is the Anti-Corruption Layer's business.

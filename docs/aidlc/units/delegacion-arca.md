@@ -113,7 +113,7 @@ Rama `feature/integrations-sin-modelo-1-de-arca`. Se borra lo que solo servía a
 por empresa: `ObtenerTicketDeAcceso`, `TicketDeAcceso`, `PortRepositorioTickets`,
 `RepositorioTicketsSQL`, `ConectorArca`, `VerificadorArca`, la base `ArcaSimulado` (queda solo
 `ArcaSimuladoPorDelegacion`), `estado_por_vencimiento` y `ARCA_AVISO_VENCIMIENTO_DIAS`, y el campo
-`tickets` de `ResultadoDeConexion`. La migración `0042_sin_ticket_de_acceso` elimina la tabla; su
+`tickets` de `ResultadoDeConexion`. La migración `0043_sin_ticket_de_acceso` elimina la tabla; su
 downgrade la recrea vacía, con la misma política de RLS.
 
 Queda sin aviso el vencimiento del **certificado de plataforma** (07/10/2028): el aviso de

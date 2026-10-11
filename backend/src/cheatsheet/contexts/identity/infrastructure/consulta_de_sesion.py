@@ -34,7 +34,7 @@ from __future__ import annotations
 import asyncio
 
 import asyncpg
-from sqlalchemy import select
+from sqlalchemy import exists, literal_column, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -43,10 +43,17 @@ from cheatsheet.contexts.identity.application.ports import EstadoActualDelUsuari
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import (
     IdentidadVigente,
     VerificarSesionVigente,
+    versiones_en_vigor,
 )
+from cheatsheet.contexts.identity.domain.legal import CatalogoLegal
 from cheatsheet.contexts.identity.domain.valores import EstadoUsuario, RolUsuario
-from cheatsheet.contexts.identity.infrastructure.models import UsuarioORM
+from cheatsheet.contexts.identity.infrastructure.models import (
+    AceptacionLegalORM,
+    EmpresaORM,
+    UsuarioORM,
+)
 from cheatsheet.platform.database import sesion_de_empresa
+from cheatsheet.shared.clock import Reloj
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 
 #: Seconds the user query may take once the connection is held. See the module docstring.
@@ -67,6 +74,12 @@ ERRORES_DE_INFRAESTRUCTURA = (
 class ConsultaDeUsuarioVigentePostgres:
     """Implements `PortConsultaDeUsuarioVigente`: one statement, no locks.
 
+    The statement joins `empresa` for the terms version on record and asks, with an `EXISTS`
+    over the partial unique index of `aceptacion_legal`, whether this user accepted the privacy
+    version in force. `'PRIVACIDAD'` is a literal in the SQL, not a bound parameter: the planner
+    can only prove a partial index applicable from a literal, and a prepared statement's generic
+    plan would otherwise fall back to scanning the table.
+
     It runs under Row-Level Security, so the policy already limits it to the company the
     session was opened for. There is deliberately no `FOR UPDATE`: this read must never
     make a request wait for, or block, anything that is administering the same user.
@@ -75,11 +88,24 @@ class ConsultaDeUsuarioVigentePostgres:
     def __init__(self, sesion: AsyncSession) -> None:
         self._sesion = sesion
 
-    async def estado_actual(self, usuario_id: UsuarioId) -> EstadoActualDelUsuario | None:
+    async def estado_actual(
+        self, usuario_id: UsuarioId, *, version_de_privacidad: str
+    ) -> EstadoActualDelUsuario | None:
+        acepto_privacidad = exists().where(
+            AceptacionLegalORM.usuario_id == UsuarioORM.id,
+            AceptacionLegalORM.documento == literal_column("'PRIVACIDAD'"),
+            AceptacionLegalORM.version == version_de_privacidad,
+        )
         resultado = await self._sesion.execute(
-            select(UsuarioORM.empresa_id, UsuarioORM.rol, UsuarioORM.estado).where(
-                UsuarioORM.id == usuario_id
+            select(
+                UsuarioORM.empresa_id,
+                UsuarioORM.rol,
+                UsuarioORM.estado,
+                EmpresaORM.terminos_version,
+                acepto_privacidad.label("acepto_privacidad_vigente"),
             )
+            .join(EmpresaORM, EmpresaORM.id == UsuarioORM.empresa_id)
+            .where(UsuarioORM.id == usuario_id)
         )
         fila = resultado.one_or_none()
         if fila is None:
@@ -88,6 +114,8 @@ class ConsultaDeUsuarioVigentePostgres:
             empresa_id=EmpresaId(fila.empresa_id),
             rol=RolUsuario(fila.rol),
             estado=EstadoUsuario(fila.estado),
+            terminos_version=fila.terminos_version,
+            acepto_privacidad_vigente=bool(fila.acepto_privacidad_vigente),
         )
 
 
@@ -103,9 +131,15 @@ class VerificadorDeSesionPostgres:
     def __init__(
         self,
         sesiones: async_sessionmaker[AsyncSession],
+        *,
+        catalogo: CatalogoLegal,
+        reloj: Reloj,
         timeout_de_consulta: float = TIMEOUT_DE_CONSULTA_SEGUNDOS,
     ) -> None:
         self._sesiones = sesiones
+        # Built once with the process (`api/main.py`); a request only looks versions up in it.
+        self._catalogo = catalogo
+        self._reloj = reloj
         self._timeout_de_consulta = timeout_de_consulta
 
     async def verificar(
@@ -119,12 +153,16 @@ class VerificadorDeSesionPostgres:
     async def _consultar(
         self, usuario_id: UsuarioId, empresa_id_del_token: EmpresaId
     ) -> IdentidadVigente:
+        # Before the connection: a catalogue with nothing in force must not cost one per request.
+        versiones = versiones_en_vigor(self._catalogo, self._reloj)
         # The signed `empresa_id` is what scopes the session, so Row-Level Security limits
         # the lookup to that company; the use case then compares the stored one anyway.
         async with sesion_de_empresa(self._sesiones, empresa_id_del_token) as sesion:
             caso = VerificarSesionVigente(consulta=ConsultaDeUsuarioVigentePostgres(sesion))
             async with asyncio.timeout(self._timeout_de_consulta):
                 identidad = await caso.ejecutar(
-                    usuario_id=usuario_id, empresa_id_del_token=empresa_id_del_token
+                    usuario_id=usuario_id,
+                    empresa_id_del_token=empresa_id_del_token,
+                    versiones=versiones,
                 )
         return identidad

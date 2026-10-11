@@ -41,6 +41,10 @@ from cheatsheet.shared.empresa import EmpresaId
 
 INSTANTE_FIJO = datetime(2026, 8, 12, 15, 30, tzinfo=UTC)
 
+#: A day on which the published legal catalogue has a version in force for every document (the
+#: first texts take effect on 2026-10-10). `create_app` refuses to boot on a clock without one.
+INSTANTE_CON_TEXTOS_VIGENTES = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+
 
 class RepositorioDeAuditoriaEnMemoria:
     """A real implementation of `PortRegistroDeAuditoria`, backed by a dict.
@@ -101,7 +105,6 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         jwt_secret="fake-secret-for-tests",
         jwt_access_ttl_minutos=15,
         refresh_ttl_dias=30,
-        terminos_version_vigente="1.0",
         # `CifradoAesGcm` validates the length at construction, so this has to decode to
         # exactly 32 bytes — a placeholder string would fail every test that builds
         # `Settings`. Encoded here rather than pasted as base64 on purpose: a literal

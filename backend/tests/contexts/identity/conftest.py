@@ -13,10 +13,15 @@ one is exercised in its own test, once.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from dataclasses import replace
+from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from cheatsheet.contexts.identity.application.aceptaciones import (
+    Consentimiento,
+    RegistradorDeAceptaciones,
+)
 from cheatsheet.contexts.identity.application.ports import (
     EstadoActualDelUsuario,
     MensajeDeInvitacion,
@@ -26,6 +31,11 @@ from cheatsheet.contexts.identity.application.ports import (
 from cheatsheet.contexts.identity.application.sesiones import EmisorDeSesiones
 from cheatsheet.contexts.identity.domain.empresa import Empresa
 from cheatsheet.contexts.identity.domain.invitacion import Invitacion
+from cheatsheet.contexts.identity.domain.legal import (
+    AceptacionLegal,
+    DocumentoLegal,
+    VersionDeDocumento,
+)
 from cheatsheet.contexts.identity.domain.sesion import RefreshToken
 from cheatsheet.contexts.identity.domain.usuario import Usuario
 from cheatsheet.contexts.identity.domain.valores import (
@@ -103,21 +113,45 @@ class ConsultaDeUsuarioVigenteEnMemoria:
     """What the database would answer for the per-request session check.
 
     A missing key stands for "no row": a deleted user, or one that Row-Level Security hides
-    because it belongs to another company.
+    because it belongs to another company. By default a registered user is up to date with
+    the legal texts (terms `1.1` for the company, privacy `1.0` for the person), so a test
+    about something else is not blocked; `terminos` and `privacidad_aceptada` say otherwise.
     """
 
     def __init__(self) -> None:
         self.estados: dict[UsuarioId, EstadoActualDelUsuario] = {}
+        self.privacidad_aceptada: dict[UsuarioId, set[str]] = {}
         self.consultas = 0
+        self.versiones_de_privacidad_pedidas: list[str] = []
 
-    def registrar(self, usuario: Usuario) -> None:
+    def registrar(
+        self,
+        usuario: Usuario,
+        *,
+        terminos: str | None = "1.1",
+        privacidad_aceptada: tuple[str, ...] = ("1.0",),
+    ) -> None:
         self.estados[usuario.id] = EstadoActualDelUsuario(
-            empresa_id=usuario.empresa_id, rol=usuario.rol, estado=usuario.estado
+            empresa_id=usuario.empresa_id,
+            rol=usuario.rol,
+            estado=usuario.estado,
+            terminos_version=terminos,
+            acepto_privacidad_vigente=False,
         )
+        self.privacidad_aceptada[usuario.id] = set(privacidad_aceptada)
 
-    async def estado_actual(self, usuario_id: UsuarioId) -> EstadoActualDelUsuario | None:
+    async def estado_actual(
+        self, usuario_id: UsuarioId, *, version_de_privacidad: str
+    ) -> EstadoActualDelUsuario | None:
         self.consultas += 1
-        return self.estados.get(usuario_id)
+        self.versiones_de_privacidad_pedidas.append(version_de_privacidad)
+        estado = self.estados.get(usuario_id)
+        if estado is None:
+            return None
+        return replace(
+            estado,
+            acepto_privacidad_vigente=version_de_privacidad in self.privacidad_aceptada[usuario_id],
+        )
 
 
 class RepositorioInvitacionEnMemoria:
@@ -174,6 +208,48 @@ class RepositorioRefreshEnMemoria:
         for token in afectados:
             token.revocar()
         return len(afectados)
+
+
+#: Both versions are in force on `INSTANTE_FIJO` (2026-08-12), which is what the use cases
+#: are given as "now" in these tests.
+VERSION_DE_TERMINOS = "1.1"
+VERSION_DE_PRIVACIDAD = "1.0"
+CONSENTIMIENTO = Consentimiento(
+    version_terminos=VERSION_DE_TERMINOS, version_privacidad=VERSION_DE_PRIVACIDAD
+)
+
+
+class CatalogoLegalEnMemoria:
+    """Implements `PortCatalogoLegal` without touching the disk."""
+
+    def __init__(self) -> None:
+        self._versiones = (
+            VersionDeDocumento(DocumentoLegal.TERMINOS, "1.0", date(2025, 1, 1)),
+            VersionDeDocumento(DocumentoLegal.TERMINOS, VERSION_DE_TERMINOS, date(2026, 1, 1)),
+            VersionDeDocumento(DocumentoLegal.TERMINOS, "2.0", date(2027, 1, 1)),
+            VersionDeDocumento(DocumentoLegal.PRIVACIDAD, VERSION_DE_PRIVACIDAD, date(2026, 1, 1)),
+        )
+
+    def versiones(self) -> Sequence[VersionDeDocumento]:
+        return self._versiones
+
+    def texto(self, documento: DocumentoLegal, version: str) -> str:
+        return f"## {documento.value} {version}\n"
+
+
+class RepositorioAceptacionEnMemoria:
+    def __init__(self) -> None:
+        self.aceptaciones: list[AceptacionLegal] = []
+
+    async def agregar(self, aceptacion: AceptacionLegal) -> bool:
+        self.aceptaciones.append(aceptacion)
+        return True
+
+    async def acepto(self, usuario_id: UsuarioId, documento: DocumentoLegal, version: str) -> bool:
+        return any(
+            a.usuario_id == usuario_id and a.documento is documento and a.version == version
+            for a in self.aceptaciones
+        )
 
 
 class HasherFalso:
@@ -266,6 +342,20 @@ def refrescos() -> RepositorioRefreshEnMemoria:
 
 
 @pytest.fixture
+def aceptaciones() -> RepositorioAceptacionEnMemoria:
+    return RepositorioAceptacionEnMemoria()
+
+
+@pytest.fixture
+def registrador(
+    aceptaciones: RepositorioAceptacionEnMemoria, publicador: PublicadorFalso
+) -> RegistradorDeAceptaciones:
+    return RegistradorDeAceptaciones(
+        catalogo=CatalogoLegalEnMemoria(), aceptaciones=aceptaciones, publicador=publicador
+    )
+
+
+@pytest.fixture
 def hasher() -> HasherFalso:
     return HasherFalso()
 
@@ -321,15 +411,20 @@ def usuario_de_prueba(
 
 
 __all__ = [
+    "CONSENTIMIENTO",
     "CONTRASENA",
     "CUIT_INVALIDO",
     "CUIT_VALIDO",
     "INSTANTE_FIJO",
+    "VERSION_DE_PRIVACIDAD",
+    "VERSION_DE_TERMINOS",
+    "CatalogoLegalEnMemoria",
     "ConsultaDeUsuarioVigenteEnMemoria",
     "EmisorDeTokensFalso",
     "EnviadorDeEmailFalso",
     "HasherFalso",
     "PublicadorFalso",
+    "RepositorioAceptacionEnMemoria",
     "RepositorioEmpresaEnMemoria",
     "RepositorioInvitacionEnMemoria",
     "RepositorioRefreshEnMemoria",

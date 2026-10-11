@@ -29,6 +29,7 @@ from cheatsheet.workers import tasks_identity
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO, VERSION_DE_PRIVACIDAD
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -76,7 +77,12 @@ async def cliente(esquema_migrado: None) -> AsyncIterator[httpx.AsyncClient]:
 async def _registrar(cliente: httpx.AsyncClient, email: str) -> str:
     respuesta = await cliente.post(
         "/auth/registro",
-        json={"email": email, "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": email,
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert respuesta.status_code == 201, respuesta.text
     return str(respuesta.json()["access_token"])
@@ -132,6 +138,7 @@ async def test_el_ciclo_completo_invitar_aceptar_e_ingresar(
             "token": token_invitacion,
             "nombre": "Beto Gomez",
             "contrasena": CONTRASENA,
+            "version_privacidad": VERSION_DE_PRIVACIDAD,
         },
     )
     assert aceptacion.status_code == 201, aceptacion.text
@@ -164,6 +171,7 @@ async def test_un_operador_recibe_403_al_administrar_usuarios(
             "token": despachador.tareas[0]["kwargs"]["token"],
             "nombre": "Beto Gomez",
             "contrasena": CONTRASENA,
+            "version_privacidad": VERSION_DE_PRIVACIDAD,
         },
     )
     ingreso = await cliente.post(
@@ -249,13 +257,15 @@ async def test_el_alta_con_google_crea_la_cuenta_y_despues_la_reconoce(
     assert "state=un-state" in url.json()["url"]
 
     primera = await cliente.post(
-        "/auth/google/callback", json={"codigo": "simulado:ana@empresa.com"}
+        "/auth/google/callback",
+        json={"codigo": "simulado:ana@empresa.com", "consentimiento": CONSENTIMIENTO},
     )
     assert primera.status_code == 201, primera.text
     assert primera.json()["onboarding_completo"] is False
 
     segunda = await cliente.post(
-        "/auth/google/callback", json={"codigo": "simulado:ana@empresa.com"}
+        "/auth/google/callback",
+        json={"codigo": "simulado:ana@empresa.com", "consentimiento": CONSENTIMIENTO},
     )
     assert segunda.status_code == 201
     assert segunda.json()["empresa_id"] == primera.json()["empresa_id"]

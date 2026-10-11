@@ -17,11 +17,13 @@ export { EnlacesLegales } from "./components/EnlacesLegales";
 export { FormularioDeAceptacion } from "./components/FormularioDeAceptacion";
 export { FormularioDeEmpresa } from "./components/FormularioDeEmpresa";
 export { FormularioDeIngreso } from "./components/FormularioDeIngreso";
+export { FormularioDeReaceptacion } from "./components/FormularioDeReaceptacion";
 export { FormularioDePreferencias } from "./components/FormularioDePreferencias";
 export { ModalDeInvitacion } from "./components/ModalDeInvitacion";
 export { RenovadorDeSesion } from "./components/RenovadorDeSesion";
 export { TablaDeUsuarios } from "./components/TablaDeUsuarios";
 export { TextoLegal } from "./components/TextoLegal";
+export { VigilanteDeAceptacionLegal } from "./components/VigilanteDeAceptacionLegal";
 export type {
   ConsultaDePadron,
   DocumentoLegal,
@@ -29,9 +31,12 @@ export type {
   EmpresaActual,
   EstadoDePadron,
   EstadoUsuario,
+  PendienteLegal,
+  PendientesLegales,
   Preferencias,
   RolUsuario,
   Suscripciones,
   UsuarioDeLaEmpresa,
+  VersionesVigentes,
 } from "./api/cliente";
 export { errorDeCuit, esCuitValido, formatearCuit, normalizarCuit } from "./validacion/cuit";

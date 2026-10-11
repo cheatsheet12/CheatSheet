@@ -8,6 +8,7 @@ which timeout and not about how fast a machine is.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import asyncpg
@@ -19,16 +20,21 @@ from cheatsheet.contexts.identity.application.errors import (
     VerificacionNoDisponible,
 )
 from cheatsheet.contexts.identity.application.verificacion_de_sesion import IdentidadVigente
+from cheatsheet.contexts.identity.domain.legal import CatalogoLegal
 from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.contexts.identity.infrastructure.consulta_de_sesion import (
     TIMEOUT_DE_CONSULTA_SEGUNDOS,
     VerificadorDeSesionPostgres,
 )
 from cheatsheet.platform.database import TIMEOUT_DE_CONEXION_SEGUNDOS
+from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.errors import InvarianteViolada
 from sqlalchemy.exc import SQLAlchemyError
 
+from tests.conftest import INSTANTE_FIJO
 from tests.contexts.identity.base_falsa import EscenarioDeBase, fabrica_de_sesiones, fila
+from tests.contexts.identity.conftest import CatalogoLegalEnMemoria
 
 #: The scaled-down query limit, and a delay that is clearly beyond it but well under any
 #: real limit.
@@ -37,7 +43,12 @@ DEMORA = 0.15
 
 
 def _verificador(escenario: EscenarioDeBase) -> VerificadorDeSesionPostgres:
-    return VerificadorDeSesionPostgres(fabrica_de_sesiones(escenario), timeout_de_consulta=LIMITE)
+    return VerificadorDeSesionPostgres(
+        fabrica_de_sesiones(escenario),
+        catalogo=CatalogoLegal(CatalogoLegalEnMemoria().versiones()),
+        reloj=RelojFijo(INSTANTE_FIJO),
+        timeout_de_consulta=LIMITE,
+    )
 
 
 @pytest.mark.asyncio
@@ -165,3 +176,22 @@ async def test_una_fila_corrupta_no_se_disfraza_de_caida():
         )
 
     assert (escenario.abiertas, escenario.cerradas) == (0, 1)
+
+
+@pytest.mark.asyncio
+async def test_sin_version_vigente_falla_antes_de_abrir_una_conexion():
+    """A catalogue with nothing in force is a configuration error, and it must not cost a
+    pooled connection on every request while it lasts."""
+    empresa_id = EmpresaId(uuid4())
+    escenario = EscenarioDeBase(fila=fila(empresa_id))
+    verificador = VerificadorDeSesionPostgres(
+        fabrica_de_sesiones(escenario),
+        catalogo=CatalogoLegal(CatalogoLegalEnMemoria().versiones()),
+        reloj=RelojFijo(datetime(2024, 1, 1, 12, 0, tzinfo=UTC)),
+        timeout_de_consulta=LIMITE,
+    )
+
+    with pytest.raises(InvarianteViolada):
+        await verificador.verificar(usuario_id=UsuarioId(uuid4()), empresa_id_del_token=empresa_id)
+
+    assert escenario.empresas_anunciadas == []
