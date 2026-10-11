@@ -16,17 +16,22 @@
 import { NextResponse } from "next/server";
 
 import { destinoSeguro, renovarSesion } from "@/app/api/auth/_sesion";
+import { urlDeLaApp } from "@/app/api/auth/google/route";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<NextResponse> {
-  const url = new URL(request.url);
+  // **The redirect is built on the public address, never on `request.url`.** Behind
+  // Render's proxy the request arrives at `localhost:10000`, and a redirect built on it
+  // sent people to an error page (staging, 11/10/2026).
+  const base = urlDeLaApp();
   const resultado = await renovarSesion();
   if (resultado.tipo !== "renovada") {
-    return NextResponse.redirect(new URL("/", url));
+    return NextResponse.redirect(new URL("/", base));
   }
   if (!resultado.onboardingCompleto) {
-    return NextResponse.redirect(new URL("/onboarding/empresa", url));
+    return NextResponse.redirect(new URL("/onboarding/empresa", base));
   }
-  return NextResponse.redirect(new URL(destinoSeguro(url.searchParams.get("destino")), url));
+  const destino = new URL(request.url).searchParams.get("destino");
+  return NextResponse.redirect(new URL(destinoSeguro(destino), base));
 }

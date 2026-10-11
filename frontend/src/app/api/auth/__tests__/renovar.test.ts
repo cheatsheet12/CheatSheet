@@ -82,6 +82,21 @@ describe("GET /api/auth/renovar", () => {
     expect(ubicacion(respuesta)).toBe("/cobros");
   });
 
+  it("redirige a la dirección pública aunque la petición llegue por el host interno", async () => {
+    // En Render el panel escucha en `localhost:10000`: armar la redirección con
+    // `request.url` mandaba a la persona a `https://localhost:10000/` (staging, 11/10/2026).
+    vi.stubEnv("APP_BASE_URL", "https://panel.ejemplo.test");
+    almacen.set("cheatsheet_refresh", "refresh-viejo");
+    llamarApi.mockResolvedValue(SESION);
+
+    const respuesta = await GET(
+      new Request("https://localhost:10000/api/auth/renovar?destino=/cobros"),
+    );
+
+    expect(respuesta.headers.get("location")).toBe("https://panel.ejemplo.test/cobros");
+    vi.unstubAllEnvs();
+  });
+
   it("sin refresh va al login sin llamar al backend", async () => {
     const respuesta = await GET(pedido());
 
