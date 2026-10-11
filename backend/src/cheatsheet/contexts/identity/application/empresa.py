@@ -34,7 +34,7 @@ class DatosFiscalesDeEmpresa:
 class ConsultarDatosFiscales:
     """The company's own fiscal data, for whoever has to invoice on its behalf.
 
-    **No role is checked**, for the same reason `ObtenerTicketDeAcceso` checks none: the
+    **No role is checked**, for the same reason `ObtenerTicketDePlataforma` checks none: the
     caller is another context acting for the company whose session is already open, and
     whoever asked *it* is where authorisation belongs.
     """

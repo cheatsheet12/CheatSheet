@@ -20,7 +20,6 @@ from cheatsheet.contexts.integrations.application.ports import (
     PortMemoriaDeAutorizacion,
     PortRegistroDeAdaptadores,
     PortRepositorioIntegraciones,
-    PortRepositorioTickets,
 )
 from cheatsheet.contexts.integrations.application.tickets_de_plataforma import (
     ObtenerTicketDePlataforma,
@@ -39,7 +38,6 @@ from cheatsheet.contexts.integrations.infrastructure.registro import (
 from cheatsheet.contexts.integrations.infrastructure.repositories import (
     RepositorioIntegracionesSQL,
     RepositorioTicketsDePlataformaSQL,
-    RepositorioTicketsSQL,
 )
 from cheatsheet.platform.email import crear_transporte
 from cheatsheet.platform.settings import AdaptadorDeArca, Settings
@@ -51,7 +49,6 @@ class Integraciones:
     """The pieces one request needs."""
 
     integraciones: PortRepositorioIntegraciones
-    tickets: PortRepositorioTickets
     cifrado: PortCifradoDeCredenciales
     adaptadores: PortRegistroDeAdaptadores
     #: ADR-0014: the platform certificate's ticket, bound to this request's transaction.
@@ -73,7 +70,6 @@ class Integraciones:
         )
         return cls(
             integraciones=RepositorioIntegracionesSQL(sesion),
-            tickets=RepositorioTicketsSQL(sesion),
             cifrado=cifrado,
             adaptadores=RegistroDeAdaptadores.desde_settings(settings, tickets_de_plataforma),
             tickets_de_plataforma=tickets_de_plataforma,

@@ -824,3 +824,30 @@ Registrados el 2026-10-10; ninguno se arregla en esta unidad (CLAUDE.md §8).
 - **Tramo 3, fixtures**: los usuarios sembrados con SQL (`_sesion_de_solo_lectura`, en `test_api_bitacora.py`) quedaban bloqueados; ahora reciben la aceptación vigente con `sembrar_privacidad_vigente` (`tests/integracion/consentimiento.py`) en lugar de apagar el bloqueo. Cualquier test nuevo que autentique a un usuario sembrado debe hacer lo mismo.
 - **Tramo 3: las rutas públicas por token** (`/contador/[valor]`) no pasan por el bloqueo: no tienen sesión de Usuario.
 - **Tramo 3, flaky ajeno: `test_agenda_postgres.py::test_dos_reservas_simultaneas_de_la_misma_franja_no_entran_las_dos` falló una vez con `DeadlockDetectedError`** en una corrida completa de 5 minutos con la base cargada, y pasó 3/3 aisladas y en la corrida anterior de la suite de integración. No toca `identity`; si reaparece en el CI local, es de `scheduling` (el orden de los bloqueos de las dos reservas).
+
+## 28. Hallazgos de la prueba con ARCA real (homologación)
+
+Registrados el 2026-10-10, emitiendo desde el panel local contra ARCA homologación con el certificado
+de plataforma (ADR-0014). Los que impedían obtener un CAE se arreglaron en
+`fix/integrations-arca-real-en-homologacion` y `fix/billing-condicion-iva-del-receptor`; estos quedan
+afuera (CLAUDE.md §8).
+
+- **La sesión vence aunque el panel esté abierto.** `RenovadorDeSesion` renueva cada 10 minutos
+  contados desde que se monta la página, no desde que se emitió el token de 15 minutos: una recarga a
+  los 12 minutos de iniciar sesión deja vencer el token antes de la renovación siguiente, y la acción
+  siguiente responde «Tu sesión venció». Arreglo probable: renovar según el vencimiento real del token
+  (o al recibir un 401, y reintentar una vez).
+- **`/api/auth/renovar` devuelve al inicio y no a la página pedida.** Al recargar
+  `/facturacion/nueva?cliente=…` sin token de acceso, la renovación terminó en `/panel`. Revisar si el
+  layout pasa la ruta y la query a `destinoSeguro()`.
+- **Test inestable: `test_webhook_estados_robustez.py::test_un_payload_solo_de_estados_no_loguea_mensajes_en_la_url_de_la_app`.**
+  Pasa solo y en `develop`; dentro de la suite completa falla a veces, según el orden. Probablemente
+  estado de logging compartido entre tests.
+- **El certificado de plataforma vence el 07/10/2028 y nada avisa.** El aviso de vencimiento era por
+  empresa y se fue con el modelo 1. Hace falta un aviso a la plataforma (no a las empresas).
+- **`billing/domain/comprobante.py` tiene 485 líneas** (límite 400, CLAUDE.md §5).
+- **La Factura C (emisor Monotributo o Exento) no se probó contra ARCA real**: solo la A. La C no lleva
+  `<Iva>`; conviene emitir una en homologación antes de abrir staging a empresas monotributistas.
+- **La CUIT ficticia `30000000015` es compartida en homologación**: ARCA ya tenía Facturas A 1 y 2 de
+  otro usuario. CheatSheet sincronizó y emitió la 3 (D18), así que no rompe nada, pero los números de
+  staging no arrancan en 1.

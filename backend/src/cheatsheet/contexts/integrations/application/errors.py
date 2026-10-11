@@ -60,7 +60,7 @@ class TicketTodaviaVigente(ProveedorNoDisponible):
 class TicketNoDisponible(OperacionNoPermitida):
     """No usable ARCA access ticket could be produced for this company.
 
-    Raised by `ObtenerTicketDeAcceso`, and therefore seen by **other contexts** —
+    Raised by `ObtenerTicketDePlataforma`, and therefore seen by **other contexts** —
     `billing` in epic 5, `identity` in the padrón unit. It is deliberately one error and
     not three, because every cause leads the caller to the same place: the company cannot
     operate against ARCA right now, and the reason belongs in the message rather than in

@@ -33,8 +33,8 @@ HTTP 200 y `CbteNro 0`.
 | Frontend | `FormularioDeArca`: instrucciones de delegación y «Verificar delegación»; la página pasa `CUIT_DE_CHEATSHEET` |
 | Configuración | `ARCA_CREDENCIAL_PLATAFORMA` (API y worker), `CUIT_DE_CHEATSHEET` (panel), en los `.env.example` y en `render.yaml` |
 
-`ConectorArca`, `VerificadorArca`, `ObtenerTicketDeAcceso` y la tabla `ticket_de_acceso` quedan en
-el código, sin uso en el armado, con sus tests: los borra una unidad posterior.
+`ConectorArca`, `VerificadorArca`, `ObtenerTicketDeAcceso` y la tabla `ticket_de_acceso` quedaron en
+el código, sin uso en el armado, hasta el 10/10/2026: ver «Cuarta parte».
 
 ## Verificación (08/10/2026, con PostgreSQL y Redis)
 
@@ -106,3 +106,16 @@ en `fix/integrations-arca-real-en-homologacion`:
 - **Menor:** el certificado que entrega WSASS termina sin salto de línea; `cat crt key` pegaba
   los bloques PEM y la API informaba «la clave privada no es un PEM sin cifrar». La configuración
   ahora separa los bloques pegados, y `.env.example` muestra el comando con `echo`.
+
+## Cuarta parte — sin el modelo 1, 10/10/2026
+
+Rama `feature/integrations-sin-modelo-1-de-arca`. Se borra lo que solo servía al certificado
+por empresa: `ObtenerTicketDeAcceso`, `TicketDeAcceso`, `PortRepositorioTickets`,
+`RepositorioTicketsSQL`, `ConectorArca`, `VerificadorArca`, la base `ArcaSimulado` (queda solo
+`ArcaSimuladoPorDelegacion`), `estado_por_vencimiento` y `ARCA_AVISO_VENCIMIENTO_DIAS`, y el campo
+`tickets` de `ResultadoDeConexion`. La migración `0043_sin_ticket_de_acceso` elimina la tabla; su
+downgrade la recrea vacía, con la misma política de RLS.
+
+Queda sin aviso el vencimiento del **certificado de plataforma** (07/10/2028): el aviso de
+vencimiento era por empresa y se fue con el modelo 1. Pendiente para una unidad posterior.
+

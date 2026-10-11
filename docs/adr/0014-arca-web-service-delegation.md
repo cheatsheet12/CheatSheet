@@ -137,5 +137,5 @@ With delegation, the company's CUIT decides **on whose behalf** documents are is
 - **HU-E2-01 RN-01 changes**: the credential is no longer the company's certificate but its
   delegation. Recorded in `docs/aidlc/inputs/historias-de-usuario.md`.
 - Existing per-company ARCA integrations (only in `staging`; production has none) must be
-  verified again. The per-company ticket table stays, unused by the real adapter, until a
-  later migration drops it.
+  verified again. The per-company ticket table and the model-1 adapters were removed on
+  2026-10-10 (migration 0043).

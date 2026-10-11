@@ -5,7 +5,7 @@ every company that delegated to it. WSAA issues one ticket per certificate and s
 refuses a second while the first is alive, so the ticket belongs to the platform: one per
 service, shared by every company, kept in a row the same transaction can lock.
 
-The rules are `ObtenerTicketDeAcceso`'s (ADR-0004): reuse until close to expiry, fall back
+The rules are ADR-0004's: reuse until close to expiry, fall back
 to the stored one when renewing fails, and never hand out the ciphertext.
 """
 

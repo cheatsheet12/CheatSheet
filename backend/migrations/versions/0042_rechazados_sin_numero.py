@@ -1,7 +1,7 @@
 """A rejected `Comprobante` holds no number (HU-E5-03).
 
-Revision ID: 0041
-Revises: 0040
+Revision ID: 0042
+Revises: 0041
 Create Date: 2026-10-10
 
 ARCA records nothing under the number of a rejected document, so the point of sale hands
@@ -20,8 +20,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0041"
-down_revision: str | None = "0040"
+revision: str = "0042"
+down_revision: str | None = "0041"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
