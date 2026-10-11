@@ -54,7 +54,7 @@ from cheatsheet.contexts.payments.domain.cobro import (
 from cheatsheet.contexts.payments.domain.reembolso import OrigenDeReembolso, Reembolso
 from cheatsheet.shared.auditoria import EventoAuditable, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.payments.application.test_confirmacion import (
@@ -238,7 +238,7 @@ async def test_solo_el_administrador_solicita_actualiza_registra_y_corrige(
         ),
     )
     for intento in intentos:
-        with pytest.raises(EntradaInvalida) as exc:
+        with pytest.raises(OperacionNoPermitida) as exc:
             await intento
         assert str(exc.value) == MOTIVO_SOLO_ADMIN_REEMBOLSA
 

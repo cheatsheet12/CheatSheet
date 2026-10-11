@@ -37,7 +37,7 @@ from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -55,7 +55,7 @@ def _exigir_administrador(rol: RolUsuario, motivo: str) -> None:
     statement each context makes about its own operations.
     """
     if rol is not RolUsuario.ADMINISTRADOR:
-        raise EntradaInvalida(motivo)
+        raise OperacionNoPermitida(motivo)
 
 
 MOTIVO_VINCULAR = "Solo un Administrador puede vincular una planilla"

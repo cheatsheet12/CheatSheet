@@ -55,7 +55,7 @@ from cheatsheet.contexts.scheduling.domain.turno import (
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -72,7 +72,7 @@ MENSAJE_FUERA_DE_HORARIO = "El recurso no atiende en el horario seleccionado."
 
 def _exigir_gestor(rol: RolUsuario) -> None:
     if rol not in (RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR):
-        raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+        raise OperacionNoPermitida(MOTIVO_SIN_PERMISO)
 
 
 def _validar_momento(
@@ -91,7 +91,7 @@ def _validar_momento(
             raise TurnoEnElPasado(mensaje)
         return
     if rol is not RolUsuario.ADMINISTRADOR:
-        raise EntradaInvalida(MOTIVO_SOLO_ADMIN_A_POSTERIORI)
+        raise OperacionNoPermitida(MOTIVO_SOLO_ADMIN_A_POSTERIORI)
     if not franja.ya_termino(ahora):
         raise TurnoEnElPasado(MENSAJE_TURNO_NO_TRANSCURRIO)
 

@@ -102,7 +102,7 @@ interface CuerpoDeError {
 
 async function fallar(respuesta: Response): Promise<never> {
   const cuerpo = (await respuesta.json().catch(() => ({}))) as CuerpoDeError;
-  // `detalle` primero: en un 422 la frase del backend es la que explica por qué —incluido
+  // `detalle` primero: la frase del backend es la que explica por qué —incluido, con un 403,
   // «el rol Solo Lectura no accede a la bitácora», que no es un error sino una regla.
   throw new ErrorDeBitacora(cuerpo.detalle ?? cuerpo.error ?? "No se pudo completar la operacion");
 }

@@ -234,7 +234,7 @@ class TestApiDeLaAgenda:
             "/reglas/agenda", headers=_auth(token_operador), json=_agenda(24)
         )
 
-        assert rechazo.status_code == 422  # `EntradaInvalida(MOTIVO_SOLO_ADMIN)`
+        assert rechazo.status_code == 403  # `OperacionNoPermitida(MOTIVO_SOLO_ADMIN)`
         listado = await cliente_http.get("/reglas", headers=_auth(token_operador))
         assert listado.status_code == 200
         assert _reglas_de_agenda(listado) == []

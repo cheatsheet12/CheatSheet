@@ -79,7 +79,7 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.ensamblado import (
 )
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.lector import LectorDePlanilla
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 from cheatsheet.workers.tasks_spreadsheet import encolar_procesamiento
 from fastapi import APIRouter, Request, Response, status
@@ -655,7 +655,7 @@ def _rutas_de_procesamiento(recursos: Recursos) -> APIRouter:
         """
         empresa_id, _, rol = _actor(request)
         if rol is RolUsuario.SOLO_LECTURA:
-            raise EntradaInvalida("Un usuario de Solo Lectura no puede procesar una planilla")
+            raise OperacionNoPermitida("Un usuario de Solo Lectura no puede procesar una planilla")
 
         aceptado = encolar_procesamiento(
             recursos.settings, empresa_id=empresa_id, vinculo_id=entrada.vinculo_id

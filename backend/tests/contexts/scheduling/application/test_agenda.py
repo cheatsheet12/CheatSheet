@@ -77,7 +77,7 @@ from cheatsheet.contexts.scheduling.domain.turno import (
     Turno,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.scheduling.application.dobles import (
@@ -293,7 +293,7 @@ class TestReservar:
         """HU-E7-01 RN-03. El guarda vive en el caso de uso, no sólo en el router (PRU-09)."""
         escena = Escena(un_recurso())
 
-        with pytest.raises(EntradaInvalida) as fallo:
+        with pytest.raises(OperacionNoPermitida) as fallo:
             await escena.reservar().ejecutar(
                 empresa_id=EMPRESA,
                 usuario_id=USUARIO,
@@ -580,7 +580,7 @@ class TestRecursos:
     async def test_solo_el_administrador_configura(self) -> None:
         repositorio = RepositorioRecursoEnMemoria()
 
-        with pytest.raises(EntradaInvalida) as fallo:
+        with pytest.raises(OperacionNoPermitida) as fallo:
             await RegistrarRecurso(repositorio, PublicadorEnMemoria()).ejecutar(
                 empresa_id=EMPRESA,
                 usuario_id=USUARIO,
@@ -895,7 +895,7 @@ class TestCargaAPosteriori:
     async def test_el_operador_no_puede_pedirla(self) -> None:
         escena = Escena(un_recurso())
 
-        with pytest.raises(EntradaInvalida) as fallo:
+        with pytest.raises(OperacionNoPermitida) as fallo:
             await _reservar_el_martes(
                 escena, inicio=local(10), rol=RolUsuario.OPERADOR, a_posteriori=True
             )
@@ -961,7 +961,7 @@ class TestCorreccionAPosteriori:
         turno = un_turno(recurso, franja=Franja(inicio=local(16), duracion_min=30))
         escena = Escena(recurso, turno)
 
-        with pytest.raises(EntradaInvalida) as fallo:
+        with pytest.raises(OperacionNoPermitida) as fallo:
             await _reprogramar_el_martes(
                 escena, turno, inicio=local(10), rol=RolUsuario.OPERADOR, a_posteriori=True
             )

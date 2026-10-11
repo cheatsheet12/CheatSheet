@@ -851,3 +851,8 @@ afuera (CLAUDE.md §8).
 - **La CUIT ficticia `30000000015` es compartida en homologación**: ARCA ya tenía Facturas A 1 y 2 de
   otro usuario. CheatSheet sincronizó y emitió la 3 (D18), así que no rompe nada, pero los números de
   staging no arrancan en 1.
+- **Una alícuota de IVA inválida en `POST /comprobantes` responde 500 en lugar de 422.** El router
+  convierte el texto con `AlicuotaIVA(linea.alicuota_iva)` sin capturar el `ValueError`: un `"21"` en vez
+  de `"0.21"` termina en `ErrorInterno`. El panel siempre manda un valor válido, así que solo lo ve quien
+  llama a la API directo. Visto en PRU-07 el 11/10/2026. Arreglo: tipar el campo con el enum en
+  `ItemEntrada` o traducir el error a `EntradaInvalida`.

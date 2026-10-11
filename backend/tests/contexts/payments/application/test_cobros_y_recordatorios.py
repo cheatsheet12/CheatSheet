@@ -59,7 +59,7 @@ from cheatsheet.contexts.payments.domain.cobro import Cobro, EstadoCobro, LinkDe
 from cheatsheet.contexts.payments.domain.recordatorio import EstadoEntrega, Recordatorio
 from cheatsheet.shared.auditoria import EventoAuditable, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 from cheatsheet.shared.transaccion import PortAislamiento
 
@@ -316,7 +316,7 @@ async def test_si_mercadopago_no_responde_el_cobro_no_se_crea() -> None:
 
 async def test_solo_lectura_no_genera_cobros() -> None:
     """HU-E6-01 RN-04: ve el listado, no inicia acciones."""
-    with pytest.raises(EntradaInvalida) as exc:
+    with pytest.raises(OperacionNoPermitida) as exc:
         await _generar(CobrosFalsos(), PasarelaFalsa(), SaldosFalsos()).ejecutar(
             empresa_id=EMPRESA,
             usuario_id=USUARIO,
@@ -401,7 +401,7 @@ async def test_solo_lectura_se_rechaza_antes_de_preguntar_por_el_cliente() -> No
     """Si el guarda de rol viniera despues, la respuesta dejaria ver si el id existe."""
     clientes = ClientesFalsos()
 
-    with pytest.raises(EntradaInvalida) as exc:
+    with pytest.raises(OperacionNoPermitida) as exc:
         await _generar_para(uuid4(), clientes=clientes, rol=RolUsuario.SOLO_LECTURA)
 
     assert str(exc.value) == MOTIVO_SIN_PERMISO

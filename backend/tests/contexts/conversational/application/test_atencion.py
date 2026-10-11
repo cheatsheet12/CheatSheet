@@ -22,7 +22,7 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
 )
 from cheatsheet.contexts.conversational.domain.escalamiento import Escalamiento
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.conversational.application.dobles import (
@@ -132,7 +132,7 @@ async def test_sin_escalamiento_tomado_se_rechaza_antes_de_consultar_el_director
 async def test_un_rol_de_solo_lectura_no_puede_responder() -> None:
     armado = _Armado()
 
-    with pytest.raises(EntradaInvalida, match="Administrador u Operador"):
+    with pytest.raises(OperacionNoPermitida, match="Administrador u Operador"):
         await armado.responder(rol=RolUsuario.SOLO_LECTURA)
 
     assert armado.mensajeria.enviados == []

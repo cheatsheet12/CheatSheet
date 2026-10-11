@@ -20,7 +20,7 @@ from cheatsheet.contexts.observability.domain.solicitud_de_soporte import (
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -53,7 +53,7 @@ class AbrirSolicitudDeSoporte:
         ahora: datetime,
     ) -> SolicitudDeSoporte:
         if rol is not RolUsuario.ADMINISTRADOR:
-            raise EntradaInvalida(MOTIVO_SOLO_ADMINISTRADOR)
+            raise OperacionNoPermitida(MOTIVO_SOLO_ADMINISTRADOR)
 
         solicitud = SolicitudDeSoporte(
             id=uuid4(),

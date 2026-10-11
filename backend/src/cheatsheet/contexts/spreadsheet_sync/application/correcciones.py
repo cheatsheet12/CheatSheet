@@ -41,7 +41,7 @@ from cheatsheet.contexts.spreadsheet_sync.application.ports import (
 from cheatsheet.contexts.spreadsheet_sync.domain.procesamiento import ProcesamientoDePlanilla
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -167,7 +167,7 @@ class CorregirFila:
     ) -> ProcesamientoDePlanilla:
         # El permiso viaja con la operación y no sólo con el router: PRU-09 lo demostró.
         if rol is RolUsuario.SOLO_LECTURA:
-            raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+            raise OperacionNoPermitida(MOTIVO_SIN_PERMISO)
 
         limpios = _limpiar(valores)
         procesamiento = await _buscar(self._procesamientos, procesamiento_id)

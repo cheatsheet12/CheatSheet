@@ -432,7 +432,7 @@ async def test_solo_lectura_no_entra_a_la_bitacora(cliente_http: httpx.AsyncClie
 
     respuesta = await cliente_http.get("/bitacora", headers=_auth(solo_lectura))
 
-    assert respuesta.status_code == 422
+    assert respuesta.status_code == 403
     assert respuesta.json()["detalle"] == MOTIVO_SIN_ACCESO
 
     # Pero su propia bandeja de notificaciones sí la ve: marcar leída no es gestión.

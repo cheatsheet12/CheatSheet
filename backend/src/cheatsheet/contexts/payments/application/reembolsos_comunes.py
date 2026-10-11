@@ -24,14 +24,14 @@ from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.contexts.payments.domain.reembolso import Reembolso
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
 
 def exigir_administrador(rol: RolUsuario) -> None:
     if rol is not RolUsuario.ADMINISTRADOR:
-        raise EntradaInvalida(MOTIVO_SOLO_ADMIN_REEMBOLSA)
+        raise OperacionNoPermitida(MOTIVO_SOLO_ADMIN_REEMBOLSA)
 
 
 async def cargar_cobro(cobros: PortRepositorioCobro, cobro_id: UUID) -> Cobro:
