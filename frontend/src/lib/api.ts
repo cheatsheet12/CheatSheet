@@ -24,7 +24,7 @@ import { leerToken } from "@/lib/session";
 const TIMEOUT_POR_DEFECTO_MS = 10_000;
 
 /** What the API answers (403) to every call while a legal document is pending. */
-const CODIGO_DE_BLOQUEO_LEGAL = "AceptacionLegalPendiente";
+export const CODIGO_DE_BLOQUEO_LEGAL = "AceptacionLegalPendiente";
 const RUTA_DE_ACEPTACION_LEGAL = "/aceptacion-legal";
 
 export class ErrorDeApi extends Error {
