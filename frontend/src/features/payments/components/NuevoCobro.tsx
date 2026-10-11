@@ -16,7 +16,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Card, Select, useAccionConNavegacion } from "@/shared";
+import {
+  Alert,
+  Button,
+  Campo,
+  Card,
+  montoDesdeTexto,
+  Select,
+  useAccionConNavegacion,
+} from "@/shared";
 
 import {
   CODIGO_CLAVE_REUSADA,
@@ -67,9 +75,11 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
   const comprobanteVigente = comprobantes.some((uno) => uno.id === comprobanteId)
     ? comprobanteId
     : "";
-  // `Number` sólo para decidir si el botón está gris: lo que viaja es el texto, y quien
-  // decide si el monto vale es el backend.
-  const montoInvalido = monto.trim() === "" || !(Number(monto) > 0);
+  // Lo escrito en formato argentino («1.234,56») pasa a la forma que lee la API. `Number`
+  // sólo decide si el botón está gris: lo que viaja es el texto, y quien decide si el monto
+  // vale es el backend.
+  const montoNormalizado = montoDesdeTexto(monto);
+  const montoInvalido = montoNormalizado === null || !(Number(montoNormalizado) > 0);
 
   async function generar(): Promise<void> {
     if (clienteId === null) {
@@ -82,7 +92,7 @@ export function NuevoCobro({ clienteId, comprobantes }: PropsDeNuevoCobro): JSX.
           generarCobro(
             {
               cliente_id: clienteId,
-              monto,
+              monto: montoNormalizado ?? monto,
               descripcion,
               comprobante_id: comprobanteVigente === "" ? null : comprobanteVigente,
             },

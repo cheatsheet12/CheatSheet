@@ -902,7 +902,7 @@ logs de `cheatsheet-api`.
 
 | Severidad | Dónde | Qué pasa |
 |---|---|---|
-| **Mayor** | PAN-COB-03 «Nuevo cobro» | Un monto con coma decimal (`1234,56`, el formato argentino que usa todo el panel) da «El monto debe ser mayor a cero.» y no deja continuar. Con punto funciona |
+| ~~Mayor~~ **Corregido** (`fix/payments-monto-con-coma-decimal`) | PAN-COB-03 «Nuevo cobro» y los dos reembolsos | Un monto con coma decimal (`1234,56`, el formato argentino que usa todo el panel) daba «El monto debe ser mayor a cero.». Ahora el panel lo convierte con `montoDesdeTexto` antes de validar y enviar. Queda el mismo formato sin convertir en el precio unitario de Nueva emisión (billing), que responde «La cantidad y el precio tienen que ser numeros» |
 | Menor | Integraciones › MercadoPago | Mensajes sin tildes: «homologacion», «Conecta una cuenta de prueba», «No se pudo completar la operacion» |
 | Menor | Integraciones › MercadoPago | Si el canje falla por un corte (por ejemplo, un deploy en el medio), el panel muestra el genérico «No se pudo completar la operacion» y el Administrador no sabe que alcanza con reintentar |
 | Menor | `backend/.env.example` | Faltan `MERCADOPAGO_WEBHOOK_SECRET` y `MERCADOPAGO_URL_DE_RETORNO`. La segunda vale por defecto `http://localhost:3000/cobros`: sin declararla, el comprador vuelve a `localhost` después de pagar (en staging ya está cargada) |
@@ -911,6 +911,7 @@ logs de `cheatsheet-api`.
 
 - Cobro **CB-565A11B7** ($ 1.234,56): su preferencia es de sandbox, de antes de #95. No sirve para
   pagar; se puede cancelar.
-- Cobro **CB-C8E23FB0** ($ 9.500,50): preferencia del checkout normal, lista para pagar cuando
-  25.1 se resuelva.
+- Cobro **CB-C8E23FB0** ($ 9.500,50): se pasó a pagado directamente en la base el 11/10/2026 para
+  PRU-08 (`mp_payment_id = PRU-08-DATO-PREPARADO`). Ya no sirve para probar un pago: cuando 29.1 se
+  resuelva hay que crear un cobro nuevo.
 - Las verificaciones de `TODO.md` §20 contra MercadoPago siguen pendientes por el mismo bloqueante.

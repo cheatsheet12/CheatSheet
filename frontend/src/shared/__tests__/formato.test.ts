@@ -13,6 +13,7 @@ import {
   formatearFecha,
   formatearFechaHora,
   formatearHora,
+  montoDesdeTexto,
   formatearNumero,
 } from "@/shared/formato";
 
@@ -91,5 +92,26 @@ describe("formatearHora", () => {
 
   it("sin instante muestra un guion", () => {
     expect(formatearHora(null)).toBe("—");
+  });
+});
+
+describe("montoDesdeTexto", () => {
+  // Visto en staging (TODO §29.3): «1234,56», el formato que usa todo el panel, daba «El monto
+  // debe ser mayor a cero.» en Nuevo cobro. Con punto funcionaba.
+  it.each([
+    ["1234,56", "1234.56"],
+    ["1.234,56", "1234.56"],
+    ["1234.56", "1234.56"],
+    ["12.500", "12500"],
+    ["1.234.567,8", "1234567.8"],
+    [" 15000 ", "15000"],
+    ["$ 9.500,50", "9500.50"],
+    ["0,5", "0.5"],
+  ])("«%s» es %s", (entrada, esperado) => {
+    expect(montoDesdeTexto(entrada)).toBe(esperado);
+  });
+
+  it.each(["", "abc", "12,3,4", "1,234.56.7", "-", ","])("«%s» no es un monto", (entrada) => {
+    expect(montoDesdeTexto(entrada)).toBeNull();
   });
 });

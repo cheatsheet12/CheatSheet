@@ -31,6 +31,7 @@ import {
   SelectorDeFecha,
   formatearFecha,
   formatearNumero,
+  montoDesdeTexto,
 } from "@/shared";
 
 import {
@@ -166,7 +167,12 @@ export function ReembolsosDeCobro({
     setError(null);
     setTrabajando(true);
     try {
-      await registrarReembolso(cobro.id, { monto, fecha, referencia, motivo });
+      await registrarReembolso(cobro.id, {
+        monto: montoDesdeTexto(monto) ?? monto,
+        fecha,
+        referencia,
+        motivo,
+      });
       setRegistrando(false);
       await alCambiar();
     } catch (fallo) {
