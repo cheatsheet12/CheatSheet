@@ -51,6 +51,7 @@ import {
 } from "../api/planilla";
 import type { Carga, EstadoProcesamiento, ListadoDeVinculos, Vinculo } from "../api/planilla";
 import { Icono } from "./iconos";
+import { seleccionarPlanillaConGoogle, selectorGoogleConfigurado } from "../api/selectorGoogle";
 import type { NombreDeIcono } from "./iconos";
 import { ResumenDeIngesta, cifrasDeIngesta } from "./ResumenDeIngesta";
 import { SeccionPlegable } from "./SeccionPlegable";
@@ -178,6 +179,7 @@ export function IngestaDePlanillas({
   const [arrastrando, setArrastrando] = useState(false);
   const [pidiendoEnlace, setPidiendoEnlace] = useState(false);
   const [enlace, setEnlace] = useState("");
+  const [escribirDeVuelta, setEscribirDeVuelta] = useState(false);
   const [errorDelEnlace, setErrorDelEnlace] = useState<string | null>(null);
   const { pendiente: vinculando, ejecutar } = useAccionConNavegacion();
   const entrada = useRef<HTMLInputElement>(null);
@@ -239,7 +241,18 @@ export function IngestaDePlanillas({
    * y sin esto la pantalla vinculaba una planilla que nadie eligió.
    */
   async function vincularConGoogle(): Promise<void> {
-    const identificador = identificadorDePlanilla(enlace);
+    let identificador: string | null = null;
+    if (selectorGoogleConfigurado) {
+      try {
+        identificador = await seleccionarPlanillaConGoogle();
+      } catch (problema) {
+        reportar(problema);
+        return;
+      }
+      if (identificador === null) return;
+    } else {
+      identificador = identificadorDePlanilla(enlace);
+    }
     if (identificador === null) {
       setErrorDelEnlace("Escribí un enlace de Google Sheets o un nombre para la planilla.");
       return;
@@ -251,7 +264,11 @@ export function IngestaDePlanillas({
       // until the page is gone (`saleDeLaPagina`) and is released only on failure. Two
       // requests would be two OAuth `state` values, and the cookie can keep the other one.
       await ejecutar(
-        () => iniciarVinculacionConGoogle(identificador),
+        () =>
+          iniciarVinculacionConGoogle(
+            identificador,
+            escribirDeVuelta ? "LECTURA_Y_ESCRITURA" : "SOLO_LECTURA",
+          ),
         (direccion) => {
           window.location.href = direccion;
         },
@@ -355,8 +372,8 @@ export function IngestaDePlanillas({
               <p className="ing-candado">
                 <Icono nombre="candado" />
                 <span>
-                  Te vamos a pedir permiso de lectura <strong>sobre la planilla que elijas</strong>,
-                  no sobre todo tu Drive.
+                  Te vamos a pedir acceso <strong>sobre la planilla que elijas</strong>, no sobre
+                  todo tu Drive.
                 </span>
               </p>
               {subiendo && <p role="status">Subiendo la planilla…</p>}
@@ -373,21 +390,38 @@ export function IngestaDePlanillas({
         }}
       >
         <p className="ing-modal__texto">
-          Pegá el enlace de la planilla que querés traer. Te vamos a pedir permiso de lectura{" "}
-          <strong>sobre ésa</strong>, no sobre todo tu Drive.
+          {selectorGoogleConfigurado
+            ? "Elegí la planilla en Google Drive para conceder acceso a ese archivo."
+            : "Pegá el enlace de la planilla que querés traer."}
         </p>
-        <Campo
-          id="enlace-de-planilla"
-          etiqueta="Enlace o nombre de la planilla"
-          placeholder="https://docs.google.com/spreadsheets/d/…"
-          ayuda="Pegá el enlace de Google Sheets, o escribí un nombre para reconocerla en el listado."
-          value={enlace}
-          error={errorDelEnlace ?? undefined}
-          onChange={(evento) => {
-            setEnlace(evento.target.value);
-            setErrorDelEnlace(null);
-          }}
-        />
+        {!selectorGoogleConfigurado && (
+          <Campo
+            id="enlace-de-planilla"
+            etiqueta="Enlace o nombre de la planilla"
+            placeholder="https://docs.google.com/spreadsheets/d/…"
+            ayuda="Pegá el enlace de Google Sheets, o escribí un nombre para reconocerla en el listado."
+            value={enlace}
+            error={errorDelEnlace ?? undefined}
+            onChange={(evento) => {
+              setEnlace(evento.target.value);
+              setErrorDelEnlace(null);
+            }}
+          />
+        )}
+        <label>
+          <input
+            type="checkbox"
+            checked={escribirDeVuelta}
+            onChange={(evento) => setEscribirDeVuelta(evento.target.checked)}
+          />
+          Escribir registros del panel en la hoja de CheatSheet
+        </label>
+        {escribirDeVuelta && (
+          <p className="ing-modal__texto">
+            Crearemos una hoja separada para los registros del panel. La hoja original no se
+            modifica.
+          </p>
+        )}
         <div className="ing-modal__acciones">
           <Button
             variante="secundario"

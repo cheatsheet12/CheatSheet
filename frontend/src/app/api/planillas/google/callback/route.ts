@@ -24,7 +24,11 @@ import { comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { urlDeLaApp } from "@/app/api/auth/google/route";
-import { COOKIE_DOCUMENTO, COOKIE_ESTADO } from "@/app/api/planillas/google/autorizacion/route";
+import {
+  COOKIE_DIRECCION,
+  COOKIE_DOCUMENTO,
+  COOKIE_ESTADO,
+} from "@/app/api/planillas/google/autorizacion/route";
 
 export const dynamic = "force-dynamic";
 
@@ -78,12 +82,14 @@ export async function GET(request: Request): Promise<NextResponse> {
             cookies().get(COOKIE_DOCUMENTO)?.value ??
             (codigo.startsWith(PREFIJO_SIMULADO) ? codigo.slice(PREFIJO_SIMULADO.length) : codigo),
           estado,
+          direccion: cookies().get(COOKIE_DIRECCION)?.value ?? "SOLO_LECTURA",
         },
       }),
     );
     const hecho = aIngesta();
     hecho.cookies.delete(COOKIE_ESTADO);
     hecho.cookies.delete(COOKIE_DOCUMENTO);
+    hecho.cookies.delete(COOKIE_DIRECCION);
     return hecho;
   } catch (error) {
     return aIngesta(
