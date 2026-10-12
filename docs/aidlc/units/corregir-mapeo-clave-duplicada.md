@@ -89,7 +89,7 @@ Queda pendiente reverificar en caliente contra staging, donde se originó el rep
 |---|---|---|
 | 1 · Plan | 2026-10-12 | aprobado |
 | 2 · Verificación | 2026-10-12 | `ruff format --check .`, `ruff check .` y `mypy .` verdes (866/861 archivos). `pytest` **completo contra Postgres local real** (no el modo habitual que salta 654 por falta de base): 3924 passed, 0 failed, 2 warnings preexistentes sin relación (marca `asyncio` de más en un test sincrónico de `integrations`, ajeno a este cambio) |
-| 3 · PR | | |
+| 3 · PR | 2026-10-12 | abierto: https://github.com/cheatsheet12/CheatSheet/pull/163 |
 
 ## Decisiones tomadas durante la unidad
 
