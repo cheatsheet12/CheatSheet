@@ -63,7 +63,9 @@ ESQUEMA_DE_MAPEO: dict[str, Any] = {
                     # Null is a real answer: «I do not know what this column is» is more
                     # useful than a guess, and RN-03 already has a state for it.
                     "atributo": {"type": ["string", "null"]},
-                    "confianza": {"type": "number", "minimum": 0, "maximum": 1},
+                    # Anthropic's raw JSON Schema rejects numeric bounds. _interpretar
+                    # enforces the 0..1 range after the response arrives.
+                    "confianza": {"type": "number"},
                 },
             },
         }
