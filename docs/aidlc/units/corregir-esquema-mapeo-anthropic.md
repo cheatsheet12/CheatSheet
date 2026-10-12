@@ -65,7 +65,7 @@ En staging, `ANTHROPIC_API_KEY` faltaba inicialmente; después de configurarla y
 |---|---|---|
 | 1 · Plan | 2026-10-12 | aprobado por Juan |
 | 2 · Verificación | 2026-10-12 | aprobado por Juan: `ruff format --check .` (866 archivos), `ruff check .`, `mypy .` (861 archivos) en verde; `pytest -q -p no:cacheprovider --basetemp=backend/.pytest_tmp_codex`: 3270 passed, 655 skipped, 2 warnings preexistentes. `pytest backend/tests/contexts/spreadsheet_sync --cov=cheatsheet.contexts.spreadsheet_sync.infrastructure.modelo`: 133 passed, 90 % de cobertura del adaptador. Frontend sin cambios: lint y typecheck en verde, test:coverage termina con código 0; format:check falla en 499 archivos preexistentes. Falta validación manual en staging tras deploy. |
-| 3 · PR | 2026-10-12 | abierto contra `develop`: https://github.com/cheatsheet12/CheatSheet/pull/164. Pendiente revisión, CI y validación manual en staging tras el despliegue. |
+| 3 · PR | 2026-10-12 | abierto contra `develop`: https://github.com/cheatsheet12/CheatSheet/pull/164. CI no llegó a ejecutar ningún paso: GitHub rechazó todos los jobs porque fallaron pagos recientes de la cuenta o se alcanzó el límite de gasto (`actions/runs/38285505208`). `guard_architecture.py --scan .` pasó localmente (903 archivos). Pendientes la revisión, CI y la validación manual en staging tras el despliegue. |
 
 ## Decisiones tomadas durante la unidad
 
