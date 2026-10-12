@@ -26,6 +26,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
+from cheatsheet.api.credenciales_planilla import credenciales_de_planilla
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.contexts.master_data.infrastructure.ensamblado import DatosMaestros
 from cheatsheet.contexts.spreadsheet_sync.application.correcciones import (
@@ -78,6 +79,7 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.ensamblado import (
     proveedor_de_planilla,
 )
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.lector import LectorDePlanilla
+from cheatsheet.platform.settings import AdaptadorDePlanilla
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
@@ -535,6 +537,11 @@ def _rutas_de_google(recursos: Recursos) -> APIRouter:
                 vinculos=piezas.vinculos,
                 proveedor=proveedor_de_planilla(recursos.settings),
                 publicador=unidad.publicador,
+                credenciales=(
+                    credenciales_de_planilla(unidad.sesion, recursos.settings)
+                    if recursos.settings.planilla_adaptador is AdaptadorDePlanilla.GOOGLE
+                    else None
+                ),
             ).ejecutar(
                 empresa_id=empresa_id,
                 usuario_id=usuario_id,

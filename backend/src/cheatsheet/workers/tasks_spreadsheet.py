@@ -23,8 +23,14 @@ from uuid import UUID
 from celery import Celery
 from kombu.exceptions import KombuError
 
+from cheatsheet.api.credenciales_planilla import credenciales_de_planilla
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.contexts.integrations.application.credenciales_oauth import CredencialOAuthRevocada
 from cheatsheet.contexts.master_data.infrastructure.ensamblado import DatosMaestros
+from cheatsheet.contexts.spreadsheet_sync.application.errors import (
+    PermisosDePlanillaInsuficientes,
+    ProveedorDePlanillaNoDisponible,
+)
 from cheatsheet.contexts.spreadsheet_sync.application.procesamientos import ProcesarPlanilla
 from cheatsheet.contexts.spreadsheet_sync.application.sincronizacion import (
     EscribirDeVueltaEnPlanilla,
@@ -41,7 +47,7 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.repositories import (
     empresas_con_planilla_sincronizable,
 )
 from cheatsheet.platform.database import sesion_sin_empresa
-from cheatsheet.platform.settings import Settings
+from cheatsheet.platform.settings import AdaptadorDePlanilla, Settings
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.workers.base import PoliticaDeReintentos
@@ -229,12 +235,49 @@ async def sincronizar_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
         for vinculo in await piezas.vinculos.listar():
             if not vinculo.escribe_de_vuelta:
                 continue
-            resultado = await EscribirDeVueltaEnPlanilla(
-                vinculos=piezas.vinculos,
-                registros=RegistrosDeMasterData(clientes=maestros.clientes, empresa_id=empresa_id),
-                escritura=escritura_de_planilla(recursos.settings),
-                publicador=unidad.publicador,
-            ).ejecutar(empresa_id=empresa_id, vinculo_id=vinculo.id, ahora=unidad.reloj.ahora())
+            token: str | None = None
+            if recursos.settings.planilla_adaptador is AdaptadorDePlanilla.GOOGLE:
+                if vinculo.configuracion_integracion_id is None:
+                    logger.warning("planilla_sin_credencial_renovable", vinculo_id=str(vinculo.id))
+                    continue
+                try:
+                    token = await credenciales_de_planilla(
+                        unidad.sesion, recursos.settings
+                    ).obtener(
+                        empresa_id=empresa_id,
+                        configuracion_id=vinculo.configuracion_integracion_id,
+                        ahora=unidad.reloj.ahora(),
+                    )
+                except CredencialOAuthRevocada:
+                    logger.warning(
+                        "planilla_google_requiere_reconexion", vinculo_id=str(vinculo.id)
+                    )
+                    continue
+            try:
+                resultado = await EscribirDeVueltaEnPlanilla(
+                    vinculos=piezas.vinculos,
+                    registros=RegistrosDeMasterData(
+                        clientes=maestros.clientes, empresa_id=empresa_id
+                    ),
+                    escritura=escritura_de_planilla(recursos.settings, token=token),
+                    publicador=unidad.publicador,
+                ).ejecutar(empresa_id=empresa_id, vinculo_id=vinculo.id, ahora=unidad.reloj.ahora())
+            except PermisosDePlanillaInsuficientes as exc:
+                vinculo.pausar(motivo=str(exc), ahora=unidad.reloj.ahora())
+                await piezas.vinculos.actualizar(vinculo)
+                logger.warning(
+                    "escritura_de_planilla_requiere_reconexion",
+                    vinculo_id=str(vinculo.id),
+                    motivo=str(exc),
+                )
+                continue
+            except ProveedorDePlanillaNoDisponible as exc:
+                logger.warning(
+                    "escritura_de_planilla_pendiente_de_reintento",
+                    vinculo_id=str(vinculo.id),
+                    motivo=str(exc),
+                )
+                continue
             escritas += resultado.filas_escritas
 
     logger.info("sincronizacion_empresa", empresa_id=str(empresa_id), filas=escritas)

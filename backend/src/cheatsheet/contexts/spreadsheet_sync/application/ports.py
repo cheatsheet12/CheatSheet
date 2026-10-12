@@ -50,6 +50,14 @@ class DocumentoVinculado:
 
 
 @dataclass(frozen=True, slots=True)
+class TokensDePlanilla:
+    """Short-lived access and offline renewal from one OAuth exchange."""
+
+    acceso: str
+    renovacion: str
+
+
+@dataclass(frozen=True, slots=True)
 class Asignacion:
     """One column, one destination attribute, one confidence (HU-E3-01 RN-01).
 
@@ -115,13 +123,23 @@ class PortProveedorDePlanilla(Protocol):
         """Where to send the user so they can pick a file and consent (RN-01)."""
         ...
 
-    async def canjear_codigo(self, codigo: str) -> str:
-        """Trade the authorisation code for a token. Raises on a declined consent."""
+    async def canjear_codigo(self, codigo: str) -> TokensDePlanilla:
+        """Trade the code for access and renewal. Raises on a declined consent."""
         ...
 
     async def describir_documento(self, *, token: str, identificador: str) -> DocumentoVinculado:
         """Read the document's structure. This is the call RN-01's read permission buys."""
         ...
+
+
+class PortCredencialesDePlanilla(Protocol):
+    """Persist a validated per-company renewal credential in integrations."""
+
+    async def guardar(self, *, empresa_id: EmpresaId, renovacion: str, ahora: datetime) -> UUID: ...
+
+    async def obtener(
+        self, *, empresa_id: EmpresaId, configuracion_id: UUID, ahora: datetime
+    ) -> str: ...
 
 
 class PortRepositorioMapeo(Protocol):

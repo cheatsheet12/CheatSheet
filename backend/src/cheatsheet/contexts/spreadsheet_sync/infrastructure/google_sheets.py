@@ -24,6 +24,7 @@ from urllib.parse import urlencode
 
 import httpx
 
+from cheatsheet.contexts.integrations.application.credenciales_oauth import CredencialOAuthRevocada
 from cheatsheet.contexts.spreadsheet_sync.application.errors import (
     PermisosDePlanillaInsuficientes,
     ProveedorDePlanillaNoDisponible,
@@ -31,6 +32,7 @@ from cheatsheet.contexts.spreadsheet_sync.application.errors import (
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     DocumentoVinculado,
     HojaDePlanilla,
+    TokensDePlanilla,
 )
 from cheatsheet.contexts.spreadsheet_sync.domain.valores import MENSAJE_SIN_PERMISOS
 from cheatsheet.platform.settings import Entorno
@@ -86,7 +88,7 @@ class ProveedorGoogleSheets:
         }
         return f"{URL_AUTORIZACION}?{urlencode(parametros)}"
 
-    async def canjear_codigo(self, codigo: str) -> str:
+    async def canjear_codigo(self, codigo: str) -> TokensDePlanilla:
         datos = {
             "code": codigo,
             "client_id": self._config.client_id,
@@ -96,11 +98,37 @@ class ProveedorGoogleSheets:
         }
         respuesta = await self._pedir("POST", URL_TOKEN, data=datos)
         token = respuesta.get("access_token")
-        if not isinstance(token, str) or not token:
+        renovacion = respuesta.get("refresh_token")
+        if (
+            not isinstance(token, str)
+            or not token
+            or not isinstance(renovacion, str)
+            or not renovacion
+        ):
             # A code that buys no token is a consent the user did not give -- an expired
             # code looks the same from here, and both mean no link is created (RN-01).
             raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
-        return token
+        return TokensDePlanilla(acceso=token, renovacion=renovacion)
+
+    async def renovar(self, credencial: bytes) -> str:
+        """Exchange one encrypted-at-rest renewal credential for a short-lived access token."""
+        try:
+            respuesta = await self._pedir(
+                "POST",
+                URL_TOKEN,
+                data={
+                    "refresh_token": credencial.decode("utf-8"),
+                    "client_id": self._config.client_id,
+                    "client_secret": self._config.client_secret,
+                    "grant_type": "refresh_token",
+                },
+            )
+        except PermisosDePlanillaInsuficientes as exc:
+            raise CredencialOAuthRevocada("Google revoco la autorizacion de Sheets") from exc
+        acceso = respuesta.get("access_token")
+        if not isinstance(acceso, str) or not acceso:
+            raise CredencialOAuthRevocada("Google no devolvio un nuevo acceso a Sheets")
+        return acceso
 
     async def describir_documento(self, *, token: str, identificador: str) -> DocumentoVinculado:
         respuesta = await self._pedir(
@@ -141,6 +169,8 @@ class ProveedorGoogleSheets:
                 async with httpx.AsyncClient(timeout=TIMEOUT_SEGUNDOS) as cliente:
                     respuesta = await cliente.request(metodo, url, **kwargs)
                 if respuesta.status_code in (401, 403):
+                    raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
+                if url == URL_TOKEN and respuesta.status_code == 400:
                     raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
                 if 400 <= respuesta.status_code < 500:
                     raise ProveedorDePlanillaNoDisponible(
@@ -187,10 +217,13 @@ class ProveedorDePlanillaSimulado:
         # Points back at our own callback, so the flow completes without leaving the app.
         return f"{self._callback}?state={estado}&code={self.PREFIJO}planilla-de-prueba"
 
-    async def canjear_codigo(self, codigo: str) -> str:
+    async def canjear_codigo(self, codigo: str) -> TokensDePlanilla:
         if not codigo.startswith(self.PREFIJO):
             raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
-        return f"token-{codigo.removeprefix(self.PREFIJO)}"
+        return TokensDePlanilla(
+            acceso=f"token-{codigo.removeprefix(self.PREFIJO)}",
+            renovacion="",
+        )
 
     async def describir_documento(self, *, token: str, identificador: str) -> DocumentoVinculado:
         del token

@@ -223,6 +223,22 @@ describe("IngestaDePlanillas · vincular con Google", () => {
     });
   }
 
+  it("permite pedir lectura y escritura para la hoja propia", async () => {
+    iniciarVinculacionConGoogle.mockReturnValue(new Promise<string>(() => undefined));
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
+    abrirElPedidoDeEnlace();
+
+    fireEvent.click(screen.getByLabelText("Escribir registros del panel en la hoja de CheatSheet"));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await waitFor(() =>
+      expect(iniciarVinculacionConGoogle).toHaveBeenCalledWith(
+        "Clientes 2026",
+        "LECTURA_Y_ESCRITURA",
+      ),
+    );
+  });
+
   it("«Continuar» queda ocupado mientras se pide la URL y un segundo clic no pide otra vinculación", async () => {
     // Dos pedidos son dos `state` de OAuth: la cookie puede quedar con el otro y el callback
     // falla.

@@ -119,15 +119,10 @@ def modelo_de_lenguaje(settings: Settings) -> PortModeloDeLenguaje:
     return ModeloDeLenguajeSimulado(settings.entorno)
 
 
-@lru_cache(maxsize=1)
-def escritura_de_planilla(settings: Settings) -> PortEscrituraDePlanilla:
-    """The write-back adapter (HU-E3-07), built once per process.
-
-    **The token is a placeholder and the real one is per company**, held encrypted in
-    `configuracion_de_integracion` by `integrations` (ADR-0003). Resolving it per company
-    is what the write-back needs before it can run against a real document, and it is the
-    piece the unit record names as unfinished.
-    """
+def escritura_de_planilla(
+    settings: Settings, *, token: str | None = None
+) -> PortEscrituraDePlanilla:
+    """Build the write-back adapter with this company's short-lived access token."""
     if settings.planilla_adaptador is AdaptadorDePlanilla.GOOGLE:
-        return EscrituraEnGoogleSheets(ConfiguracionDeEscritura(token=""))
+        return EscrituraEnGoogleSheets(ConfiguracionDeEscritura(token=token or ""))
     return EscrituraSimulada(settings.entorno)

@@ -178,12 +178,16 @@ async def test_volver_a_aparecer_en_la_planilla_se_marca_sin_mover_actualizado_e
 # --- HU-E3-07: la hoja propia no recibe lo que no cambió ------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def _limite_de_pagina_valido(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Hallazgo fuera de alcance (`TODO.md` §24): `LIMITE` vale 500 y `Pagina` acepta hasta
-    200, así que el caso de uso real levanta `EntradaInvalida`. Acá se fija el límite que
-    `Pagina` admite para poder probar el criterio; el arreglo es de otra unidad."""
-    monkeypatch.setattr(ListarClientesParaEscrituraDeVuelta, "LIMITE", 200)
+async def test_escritura_de_vuelta_recupera_todas_las_paginas() -> None:
+    repo = RepositorioClienteEnMemoria()
+    for numero in range(201):
+        _existente(repo, nombre=f"Cliente {numero:03}", origen=OrigenDato.PANEL)
+
+    registros = await ListarClientesParaEscrituraDeVuelta(repo).ejecutar(empresa_id=EMPRESA)
+
+    assert len(registros) == 201
+    assert registros[0].nombre == "Cliente 000"
+    assert registros[-1].nombre == "Cliente 200"
 
 
 async def test_un_cliente_de_planilla_no_vuelve_a_la_hoja() -> None:

@@ -177,6 +177,24 @@ async def test_un_vinculo_de_solo_lectura_no_se_escribe_ni_se_consulta() -> None
     assert registros.consultas == 0
 
 
+async def test_un_vinculo_pausado_por_permisos_no_vuelve_a_escribir() -> None:
+    vinculo = _vinculo()
+    vinculo.pausar(motivo="Google ya no permite escribir", ahora=AHORA)
+    escritura = EscrituraSimulada()
+    registros = RegistrosFalsos((FILA,))
+
+    resultado = await EscribirDeVueltaEnPlanilla(
+        vinculos=VinculosFalsos(vinculo),
+        registros=registros,
+        escritura=escritura,
+        publicador=PublicadorFalso(),
+    ).ejecutar(empresa_id=EMPRESA, vinculo_id=vinculo.id, ahora=AHORA)
+
+    assert resultado.filas_escritas == 0
+    assert registros.consultas == 0
+    assert escritura.escrituras == []
+
+
 @pytest.mark.parametrize("proveedor", [ProveedorPlanilla.EXCEL_ONLINE, ProveedorPlanilla.ARCHIVO])
 async def test_excel_online_y_un_archivo_nunca_se_escriben(
     proveedor: ProveedorPlanilla,
@@ -220,10 +238,10 @@ async def test_se_escribe_en_la_hoja_de_cheatsheet_y_nunca_en_la_de_la_empresa()
 
     assert resultado.filas_escritas == 1
     (_, hoja, _) = escritura.escrituras[0]
-    assert hoja == HOJA_DE_CHEATSHEET
+    assert hoja == f"{HOJA_DE_CHEATSHEET} {vinculos.vinculo.id.hex[:8]}"
     assert hoja != vinculos.vinculo.hoja_empresa
     # Y queda registrada en el vínculo, para que la próxima corrida use la misma.
-    assert vinculos.vinculo.hoja_cheatsheet == HOJA_DE_CHEATSHEET
+    assert vinculos.vinculo.hoja_cheatsheet == hoja
     assert vinculos.vinculo.ultima_escritura == AHORA
 
 
@@ -241,6 +259,55 @@ async def test_la_hoja_ya_creada_se_reusa() -> None:
     ).ejecutar(empresa_id=EMPRESA, vinculo_id=vinculo.id, ahora=AHORA)
 
     assert escritura.escrituras[0][1] == "CheatSheet (no editar)"
+
+
+async def test_una_actualizacion_conserva_los_registros_ya_escritos() -> None:
+    """Replacing A1 with only the changed rows would erase older panel records."""
+    vinculo = _vinculo()
+    vinculo.ultima_escritura = AHORA - timedelta(hours=1)
+    vinculos = VinculosFalsos(vinculo)
+
+    class RegistrosPorFecha(RegistrosFalsos):
+        async def pendientes_de_escritura(
+            self, *, desde: datetime | None
+        ) -> tuple[FilaParaEscribir, ...]:
+            self.consultas += 1
+            if desde is None:
+                return (FILA, FilaParaEscribir(valores=("New customer", "", "", "", "PANEL")))
+            return (FilaParaEscribir(valores=("New customer", "", "", "", "PANEL")),)
+
+    escritura = EscrituraSimulada()
+    await EscribirDeVueltaEnPlanilla(
+        vinculos=vinculos,
+        registros=RegistrosPorFecha(),
+        escritura=escritura,
+        publicador=PublicadorFalso(),
+    ).ejecutar(empresa_id=EMPRESA, vinculo_id=vinculo.id, ahora=AHORA)
+
+    assert escritura.escrituras == [("1AbCdEf", f"{HOJA_DE_CHEATSHEET} {vinculo.id.hex[:8]}", 2)]
+
+
+async def test_una_escritura_fallida_no_adelanta_la_marca() -> None:
+    vinculos = VinculosFalsos(_vinculo())
+
+    class EscrituraFallida:
+        async def escribir(
+            self, *, identificador: str, hoja: str, filas: tuple[FilaParaEscribir, ...]
+        ) -> None:
+            assert identificador == "1AbCdEf"
+            assert hoja.startswith(HOJA_DE_CHEATSHEET)
+            assert filas == (FILA,)
+            raise RuntimeError("second batch failed")
+
+    with pytest.raises(RuntimeError, match="second batch failed"):
+        await EscribirDeVueltaEnPlanilla(
+            vinculos=vinculos,
+            registros=RegistrosFalsos((FILA,)),
+            escritura=EscrituraFallida(),
+            publicador=PublicadorFalso(),
+        ).ejecutar(empresa_id=EMPRESA, vinculo_id=vinculos.vinculo.id, ahora=AHORA)
+
+    assert vinculos.vinculo.ultima_escritura is None
 
 
 async def test_sin_registros_pendientes_no_se_toca_la_planilla() -> None:
