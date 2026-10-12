@@ -155,14 +155,24 @@ class ModeloDeLenguajeAnthropic:
                 output_config=salida,
                 messages=mensajes,
             )
-        except self._errores_del_cliente:
+        except self._errores_del_cliente as exc:
             # Every failure of somebody else's service has the same answer here: propose
             # nothing, let the user map by hand, never block the ingestion. What is *not*
             # caught is as deliberate -- a bug in our own request (a wrong keyword, a
             # prompt file that does not exist) raises a `TypeError` or an `OSError` and
             # surfaces as the 500 it is, instead of hiding behind an empty mapping that
             # looks like a model outage.
-            logger.warning("modelo_sin_respuesta_para_el_mapeo", columnas=len(columnas))
+            #
+            # The detail logged here is never the empresa's data -- D12 keeps rows out of
+            # the model entirely, so `exc.body` is only Anthropic's own complaint about
+            # the shape of our request (columns=len(columnas), never their names).
+            logger.warning(
+                "modelo_sin_respuesta_para_el_mapeo",
+                columnas=len(columnas),
+                codigo=getattr(exc, "status_code", None),
+                mensaje=getattr(exc, "message", str(exc)),
+                cuerpo=str(getattr(exc, "body", None))[:2000],
+            )
             return ()
 
         # A refusal is a 200 with `stop_reason == "refusal"`, not an exception. Column
