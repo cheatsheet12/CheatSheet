@@ -80,7 +80,7 @@ no un contrato de comportamiento que valga la pena congelar en un test.
 |---|---|---|
 | 1 · Plan | 2026-10-12 | aprobado |
 | 2 · Verificación | 2026-10-12 | `ruff format --check .` (866 archivos), `ruff check .` y `mypy .` (861 archivos) verdes. `pytest` completo: 3269 passed, 654 skipped (necesitan Postgres/Redis locales). Sin cambios de frontend |
-| 3 · PR | | |
+| 3 · PR | 2026-10-12 | abierto: https://github.com/cheatsheet12/CheatSheet/pull/162 |
 
 ## Decisiones tomadas durante la unidad
 
