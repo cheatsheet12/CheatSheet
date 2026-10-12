@@ -123,8 +123,8 @@ El primero se escribe **antes** del arreglo y tiene que fallar con el código ac
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-12 | aprobado, con dos cambios pedidos: sumar el CUIT y el contacto (WhatsApp, email) del cliente |
-| 2 · Verificación | | |
-| 3 · PR | | |
+| 2 · Verificación | 2026-10-12 | aprobado. Frontend: lint ✔, typecheck ✔, 1433 tests ✔, cobertura 90,83 %; format:check solo marca CRLF del checkout de Windows (con `--end-of-line auto` pasa). Backend sin cambios: ruff ✔, mypy ✔ (862 archivos), pytest 3270 ✔ / 655 omitidos (sin PostgreSQL ni Redis locales) |
+| 3 · PR | 2026-10-12 | PR abierto a `develop` a pedido del usuario. CI bloqueado por la facturación de Actions de la organización (ningún job arranca) |
 
 ## Decisiones tomadas durante la unidad
 - Gate 1: el usuario pidió sumar el CUIT del cliente al detalle (12/10/2026) → fila «CUIT».
