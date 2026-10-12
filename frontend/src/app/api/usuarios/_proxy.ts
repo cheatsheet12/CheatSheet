@@ -59,7 +59,10 @@ export async function reenviarAlBackend(
     // audiencia para la que ese texto seguro no fue escrito. Cierra `TODO.md` §10 para las
     // rutas de negocio; `ClienteDuplicado` recupera su mensaje sin dejar de ser un 409.
     if (error.status === 409) {
-      return NextResponse.json({ error: error.codigo, detalle: error.detalle }, { status: 409 });
+      return NextResponse.json(
+        { error: error.codigo, detalle: error.detalle, ...error.extra },
+        { status: 409 },
+      );
     }
     // **Un 403 por rol también lleva su frase**, por la misma razón: «Solo un Administrador
     // puede reembolsar un cobro» está escrita para quien la lee, y sin ella la pantalla

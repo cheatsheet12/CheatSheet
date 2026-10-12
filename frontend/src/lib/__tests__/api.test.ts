@@ -107,6 +107,44 @@ describe("llamarApi", () => {
     await expect(llamarApi("/health")).rejects.toMatchObject({ detalle: "Error" });
   });
 
+  it("conserva los campos del 409 que no son detalle ni error, como cliente_existente_id", async () => {
+    // HU-E4-01 pide «ofrecer ver el duplicado»: el 409 de `ClienteDuplicado` manda un tercer
+    // campo, `cliente_existente_id`, además de `error` y `detalle`. Si se descarta acá, no hay
+    // forma de que el botón llegue a mostrarse, sin importar lo que haga el resto del camino.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: "ClienteDuplicado",
+            detalle: "Ya existe un cliente con ese CUIT.",
+            cliente_existente_id: "c-1",
+          }),
+          { status: 409 },
+        ),
+      ),
+    );
+
+    await expect(llamarApi("/clientes")).rejects.toMatchObject({
+      status: 409,
+      detalle: "Ya existe un cliente con ese CUIT.",
+      extra: { cliente_existente_id: "c-1" },
+    });
+  });
+
+  it("sin campos extra, extra queda vacío", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ detalle: "CUIT invalido" }), { status: 422 }),
+        ),
+    );
+
+    await expect(llamarApi("/empresas")).rejects.toMatchObject({ extra: {} });
+  });
+
   it("envía el cuerpo serializado en un POST", async () => {
     const fetchFalso = vi
       .fn()

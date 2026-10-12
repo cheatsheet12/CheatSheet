@@ -37,6 +37,13 @@ export class ErrorDeApi extends Error {
      * `detalle` would couple the UI to a message somebody will reword.
      */
     readonly codigo: string = "ErrorDeSolicitud",
+    /**
+     * Any field the backend's error body carries besides `error` and `detalle` — e.g.
+     * `cliente_existente_id` on `ClienteDuplicado` (HU-E4-01: «ofrecer ver el duplicado»).
+     * Empty when the backend sent none. A caller that needs one reads it from here instead
+     * of this file learning every business-specific field that might ever ride a 409.
+     */
+    readonly extra: Readonly<Record<string, unknown>> = {},
   ) {
     super(`La API respondió ${status}: ${detalle}`);
     this.name = "ErrorDeApi";
@@ -133,9 +140,9 @@ export async function llamarApi<T>(ruta: string, opciones: OpcionesDeLlamada = {
     });
 
     if (!respuesta.ok) {
-      const { codigo, detalle } = await leerFalla(respuesta);
+      const { codigo, detalle, extra } = await leerFalla(respuesta);
       alBloqueoLegal(respuesta.status, codigo);
-      throw new ErrorDeApi(respuesta.status, detalle, codigo);
+      throw new ErrorDeApi(respuesta.status, detalle, codigo, extra);
     }
     const texto = await respuesta.text();
     if (texto === "") {
@@ -155,13 +162,18 @@ export async function llamarApi<T>(ruta: string, opciones: OpcionesDeLlamada = {
 interface Falla {
   readonly codigo: string;
   readonly detalle: string;
+  readonly extra: Readonly<Record<string, unknown>>;
+}
+
+function sinFalla(respuesta: Response): Falla {
+  return { codigo: "ErrorDeSolicitud", detalle: respuesta.statusText, extra: {} };
 }
 
 async function leerFalla(respuesta: Response): Promise<Falla> {
   try {
     const cuerpo: unknown = await respuesta.json();
     if (typeof cuerpo !== "object" || cuerpo === null) {
-      return { codigo: "ErrorDeSolicitud", detalle: respuesta.statusText };
+      return sinFalla(respuesta);
     }
     const detalle =
       "detalle" in cuerpo && typeof cuerpo.detalle === "string"
@@ -169,10 +181,13 @@ async function leerFalla(respuesta: Response): Promise<Falla> {
         : respuesta.statusText;
     const codigo =
       "error" in cuerpo && typeof cuerpo.error === "string" ? cuerpo.error : "ErrorDeSolicitud";
-    return { codigo, detalle };
+    const extra = Object.fromEntries(
+      Object.entries(cuerpo).filter(([clave]) => clave !== "error" && clave !== "detalle"),
+    );
+    return { codigo, detalle, extra };
   } catch {
     // A non-JSON body — an HTML error page from a proxy, most likely.
-    return { codigo: "ErrorDeSolicitud", detalle: respuesta.statusText };
+    return sinFalla(respuesta);
   }
 }
 
@@ -211,8 +226,8 @@ export async function subirBinario<T>(
     });
 
     if (!respuesta.ok) {
-      const { codigo, detalle } = await leerFalla(respuesta);
-      throw new ErrorDeApi(respuesta.status, detalle, codigo);
+      const { codigo, detalle, extra } = await leerFalla(respuesta);
+      throw new ErrorDeApi(respuesta.status, detalle, codigo, extra);
     }
     return (await respuesta.json()) as T;
   } catch (error) {
@@ -262,8 +277,8 @@ export async function descargarBinario(
     });
 
     if (!respuesta.ok) {
-      const { codigo, detalle } = await leerFalla(respuesta);
-      throw new ErrorDeApi(respuesta.status, detalle, codigo);
+      const { codigo, detalle, extra } = await leerFalla(respuesta);
+      throw new ErrorDeApi(respuesta.status, detalle, codigo, extra);
     }
     return {
       contenido: await respuesta.arrayBuffer(),
