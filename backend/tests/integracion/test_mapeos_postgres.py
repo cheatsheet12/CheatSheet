@@ -95,6 +95,43 @@ async def test_un_mapeo_nuevo_guarda_sus_entradas_sin_violar_la_clave_foranea(
     assert all(e.ejemplo == "Ferretería Ñandú SRL" for e in recuperado.entradas)
 
 
+async def test_corregir_una_columna_de_un_mapeo_ya_guardado_no_duplica_la_clave(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """El defecto era real: `actualizar` borraba las entradas con un `delete()` de Core,
+    que no sincroniza de forma confiable los objetos que la sesión ya tenía cargados —
+    `buscar_por_id` siempre corre antes y los carga. Al recrearlas con el mismo `id`,
+    PostgreSQL rechazaba el lote con `UniqueViolationError` sobre `entrada_de_mapeo_pkey`.
+    Un repositorio falso no lo atrapa: el mapa de identidad es cosa de SQLAlchemy.
+    """
+    empresa_id = await _empresa(engine_dueno)
+    mapeo = _mapeo(empresa_id, ("N° de CUIT", "Razon Soc."))
+
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        await RepositorioMapeoPostgres(sesion).agregar(mapeo)
+
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        repo = RepositorioMapeoPostgres(sesion)
+        recuperado = await repo.buscar_por_id(mapeo.id)
+        assert recuperado is not None
+        recuperado.entrada_de("N° de CUIT").asignar("cuit")
+        await repo.actualizar(recuperado)
+
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        repo = RepositorioMapeoPostgres(sesion)
+        recuperado = await repo.buscar_por_id(mapeo.id)
+        assert recuperado is not None
+        recuperado.entrada_de("Razon Soc.").asignar("nombre")
+        await repo.actualizar(recuperado)
+
+    async with sesion_de_empresa(sesiones, empresa_id) as sesion:
+        final = await RepositorioMapeoPostgres(sesion).buscar_por_id(mapeo.id)
+
+    assert final is not None
+    assert final.entrada_de("N° de CUIT").atributo_destino == "cuit"
+    assert final.entrada_de("Razon Soc.").atributo_destino == "nombre"
+
+
 async def test_una_empresa_no_ve_el_mapeo_de_otra(
     sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
 ) -> None:
