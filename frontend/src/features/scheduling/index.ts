@@ -13,9 +13,10 @@
  */
 
 export { AgendaDelDia } from "./components/AgendaDelDia";
+export { diaDe, rangoDeVista } from "./components/calendario";
 export type { PropsDeAgendaDelDia } from "./components/AgendaDelDia";
 export { DetalleDeTurno } from "./components/DetalleDeTurno";
-export type { PropsDeDetalleDeTurno } from "./components/DetalleDeTurno";
+export type { ClienteDelTurno, PropsDeDetalleDeTurno } from "./components/DetalleDeTurno";
 export { NuevoTurno } from "./components/NuevoTurno";
 export type { PropsDeNuevoTurno } from "./components/NuevoTurno";
 export { RecursosReservables } from "./components/RecursosReservables";

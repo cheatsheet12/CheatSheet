@@ -22,7 +22,7 @@ from cheatsheet.contexts.conversational.domain.conversacion import (
 )
 from cheatsheet.contexts.conversational.domain.escalamiento import Escalamiento
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.conversational.application.dobles import (
@@ -121,8 +121,7 @@ async def test_sin_escalamiento_tomado_se_rechaza_antes_de_consultar_el_director
         consultas.append(cliente_id)
         return await original(armado.cliente_id)
 
-    armado.directorio.telefono_de = espia  # type: ignore[method-assign]
-
+    armado.directorio.telefono_de = espia  # type: ignore[method-assign]  # el espía sustituye el método del doble
     with pytest.raises(EntradaInvalida, match="tomar el escalamiento"):
         await armado.responder()
 
@@ -133,7 +132,7 @@ async def test_sin_escalamiento_tomado_se_rechaza_antes_de_consultar_el_director
 async def test_un_rol_de_solo_lectura_no_puede_responder() -> None:
     armado = _Armado()
 
-    with pytest.raises(EntradaInvalida, match="Administrador u Operador"):
+    with pytest.raises(OperacionNoPermitida, match="Administrador u Operador"):
         await armado.responder(rol=RolUsuario.SOLO_LECTURA)
 
     assert armado.mensajeria.enviados == []
@@ -158,3 +157,24 @@ async def test_camino_feliz_guarda_el_mensaje_del_operador_y_audita() -> None:
     assert mensaje.estado_entrega is EstadoEntrega.ENVIADO
     assert armado.mensajes.mensajes[mensaje.id] is mensaje
     assert armado.publicador.acciones == ["responder_como_operador"]
+
+
+@pytest.mark.parametrize(
+    "externo_id", [pytest.param("", id="vacio"), pytest.param("w" * 161, id="demasiado-largo")]
+)
+async def test_un_wamid_que_no_sirve_se_guarda_como_sin_id(externo_id: str) -> None:
+    armado = _Armado()
+    armado.mensajeria = _CanalConId(externo_id)  # type: ignore[assignment]
+
+    saliente = await armado.responder()
+
+    assert saliente.externo_id is None
+
+
+class _CanalConId:
+    async def enviar(self, *, telefono: str, texto: str) -> str:
+        del telefono, texto
+        return self._externo_id
+
+    def __init__(self, externo_id: str) -> None:
+        self._externo_id = externo_id

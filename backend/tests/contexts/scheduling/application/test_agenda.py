@@ -18,7 +18,7 @@ los cinco casos de uso, y cinco copias del mismo test no encuentran un bug más.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -77,7 +77,7 @@ from cheatsheet.contexts.scheduling.domain.turno import (
     Turno,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.scheduling.application.dobles import (
@@ -221,6 +221,34 @@ class TestReservar:
         assert [clase for clase, _ in escena.notificador.avisos] == ["reserva"]
         assert "reservar_turno" in escena.publicador.acciones
 
+    async def test_el_evento_del_turno_dice_de_que_cliente_es_sin_su_nombre(self) -> None:
+        """#176 (HU-E12-01 RN-03): para que buscar un cliente encuentre sus turnos.
+
+        La bitácora guarda el id del cliente y nunca su nombre: es una tabla inmutable que lee
+        cualquiera con acceso a la auditoría (D72).
+        """
+        escena = Escena(un_recurso())
+        cliente = uuid4()
+        escena.con_contacto(cliente)
+
+        await escena.reservar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            cliente_id=cliente,
+            servicio_id=CORTE.id,
+            recurso_id=escena.recurso.id,
+            inicio=local(15),
+            ahora=AHORA,
+        )
+
+        evento = next(
+            uno
+            for uno in escena.publicador.eventos
+            if getattr(uno, "accion", "") == "reservar_turno"
+        )
+        assert getattr(evento, "detalle", None) == {"cliente_id": str(cliente)}
+
     async def test_rechaza_un_servicio_que_no_se_presta_en_ese_recurso(self) -> None:
         """HU-E7-04 RN-02, y el tercer criterio de HU-E7-06."""
         escena = Escena(un_recurso())
@@ -293,7 +321,7 @@ class TestReservar:
         """HU-E7-01 RN-03. El guarda vive en el caso de uso, no sólo en el router (PRU-09)."""
         escena = Escena(un_recurso())
 
-        with pytest.raises(EntradaInvalida) as fallo:
+        with pytest.raises(OperacionNoPermitida) as fallo:
             await escena.reservar().ejecutar(
                 empresa_id=EMPRESA,
                 usuario_id=USUARIO,
@@ -340,6 +368,23 @@ class TestCancelar:
         assert _estado(cancelado) is EstadoTurno.CANCELADO
         assert [clase for clase, _ in escena.notificador.avisos] == ["cancelacion"]
         assert "cancelar_turno" in escena.publicador.acciones
+
+    async def test_el_aviso_lleva_el_cliente_del_turno(self) -> None:
+        """U7, D-U7-4: el aviso se guarda en la conversación de **ese** cliente."""
+        recurso = un_recurso()
+        turno = un_turno(recurso)
+        escena = Escena(recurso, turno)
+
+        await escena.cancelar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            turno_id=turno.id,
+            ahora=AHORA,
+        )
+
+        ((_, datos),) = escena.notificador.avisos
+        assert datos.cliente_id == turno.cliente_id
 
     async def test_cancela_igual_a_un_cliente_sin_telefono(self) -> None:
         """RN-03 dice «si tiene número registrado»: sin número es un camino previsto."""
@@ -563,7 +608,7 @@ class TestRecursos:
     async def test_solo_el_administrador_configura(self) -> None:
         repositorio = RepositorioRecursoEnMemoria()
 
-        with pytest.raises(EntradaInvalida) as fallo:
+        with pytest.raises(OperacionNoPermitida) as fallo:
             await RegistrarRecurso(repositorio, PublicadorEnMemoria()).ejecutar(
                 empresa_id=EMPRESA,
                 usuario_id=USUARIO,
@@ -759,6 +804,29 @@ class TestNoEnElPasado:
 
         assert turno.franja.inicio == local(15)
 
+    async def test_reservar_fija_cuando_se_asigno_la_franja(self) -> None:
+        escena = Escena(un_recurso())
+
+        turno = await _reservar_el_martes(escena, inicio=local(15))
+
+        assert turno.franja_asignada_en == AHORA_MARTES
+
+    async def test_reprogramar_vuelve_a_fijar_cuando_se_asigno_la_franja(self) -> None:
+        recurso = un_recurso()
+        turno = un_turno(recurso, franja_asignada_en=AHORA - timedelta(days=2))
+        escena = Escena(recurso, turno)
+
+        movido = await escena.reprogramar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            turno_id=turno.id,
+            inicio=local(16),
+            ahora=AHORA,
+        )
+
+        assert movido.franja_asignada_en == AHORA
+
     @pytest.mark.parametrize("rol", [RolUsuario.OPERADOR, RolUsuario.ADMINISTRADOR])
     async def test_reprogramar_a_una_hora_ya_transcurrida_se_rechaza_y_conserva_la_franja(
         self, rol: RolUsuario
@@ -855,7 +923,7 @@ class TestCargaAPosteriori:
     async def test_el_operador_no_puede_pedirla(self) -> None:
         escena = Escena(un_recurso())
 
-        with pytest.raises(EntradaInvalida) as fallo:
+        with pytest.raises(OperacionNoPermitida) as fallo:
             await _reservar_el_martes(
                 escena, inicio=local(10), rol=RolUsuario.OPERADOR, a_posteriori=True
             )
@@ -921,7 +989,7 @@ class TestCorreccionAPosteriori:
         turno = un_turno(recurso, franja=Franja(inicio=local(16), duracion_min=30))
         escena = Escena(recurso, turno)
 
-        with pytest.raises(EntradaInvalida) as fallo:
+        with pytest.raises(OperacionNoPermitida) as fallo:
             await _reprogramar_el_martes(
                 escena, turno, inicio=local(10), rol=RolUsuario.OPERADOR, a_posteriori=True
             )

@@ -82,6 +82,7 @@ export default async function PaginaDeIntegraciones({
         inicial={listado}
         puedeConectar={claims.rol === "ADMINISTRADOR"}
         retorno={retornoDe(searchParams)}
+        cuitDeCheatsheet={process.env.CUIT_DE_CHEATSHEET ?? null}
       />
     </>
   );

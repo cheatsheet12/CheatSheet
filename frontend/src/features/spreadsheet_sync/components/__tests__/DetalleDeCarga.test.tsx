@@ -41,8 +41,8 @@ const CON_ERRORES: DetalleDeCargaRespuesta = {
     created_at: "2026-09-07T12:00:00Z",
   },
   errores: [
-    { numero_fila: 42, motivo: "CUIT invalido" },
-    { numero_fila: 77, motivo: "La fila no tiene nombre" },
+    { numero_fila: 42, motivo: "CUIT invalido", corregida: false },
+    { numero_fila: 77, motivo: "La fila no tiene nombre", corregida: false },
   ],
   puede_reprocesar: true,
 };
@@ -53,6 +53,38 @@ afterEach(() => {
 });
 
 describe("DetalleDeCarga", () => {
+  it("muestra una lectura fallida como error de planilla, sin fila para reprocesar", () => {
+    render(
+      <DetalleDeCarga
+        inicial={{
+          ...CON_ERRORES,
+          carga: {
+            ...CON_ERRORES.carga,
+            estado: "FALLIDO",
+            filas_totales: 0,
+            filas_ok: 0,
+            filas_error: 0,
+          },
+          errores: [{ numero_fila: 1, motivo: "Reconectá la cuenta de Google", corregida: false }],
+          puede_reprocesar: false,
+          puede_corregir_filas: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/No se pudo leer la planilla/)).toBeTruthy();
+    expect(screen.queryByText("Filas con error")).toBeNull();
+    expect(screen.queryByText("Reprocesar las filas con error")).toBeNull();
+  });
+
+  it("en Google permite reprocesar sin ofrecer corrección de archivo", () => {
+    render(<DetalleDeCarga inicial={{ ...CON_ERRORES, puede_corregir_filas: false }} />);
+
+    expect(screen.getByText("Reprocesar las filas con error")).toBeTruthy();
+    expect(screen.queryByText("Corregir")).toBeNull();
+    expect(screen.getByText(/Arreglá los datos en tu planilla/)).toBeTruthy();
+  });
+
   it("muestra el resumen de filas totales, procesadas y con error", () => {
     render(<DetalleDeCarga inicial={CON_ERRORES} />);
 
@@ -127,7 +159,9 @@ describe("csvDeErrores", () => {
   });
 
   it("escapa las comillas de un motivo", () => {
-    const csv = csvDeErrores([{ numero_fila: 1, motivo: 'El campo "precio" no es un numero' }]);
+    const csv = csvDeErrores([
+      { numero_fila: 1, motivo: 'El campo "precio" no es un numero', corregida: false },
+    ]);
 
     expect(csv).toContain('1,"El campo ""precio"" no es un numero"');
   });

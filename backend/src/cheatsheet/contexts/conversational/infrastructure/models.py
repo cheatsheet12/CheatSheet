@@ -28,11 +28,13 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from cheatsheet.platform.database import Base
+from cheatsheet.shared.externo_id import LARGO_MAXIMO_EXTERNO_ID
 
 TABLA_CONVERSACION = "conversacion"
 TABLA_MENSAJE = "mensaje"
 TABLA_ESCALAMIENTO = "escalamiento"
 TABLA_FAQ = "faq"
+TABLA_FAQ_USO = "faq_uso"
 
 
 class ConversacionORM(Base):
@@ -85,7 +87,9 @@ class MensajeORM(Base):
     #: bitácora: la regla pide distinguirlos y sin la columna no se puede.
     origen: Mapped[str | None] = mapped_column(String(12), nullable=True)
     #: La clave de idempotencia del webhook. Ver el docstring del módulo.
-    externo_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    externo_id: Mapped[str | None] = mapped_column(String(LARGO_MAXIMO_EXTERNO_ID), nullable=True)
+    #: Por qué falló un saliente: el código de Meta o una clase corta (U7, migración 0038).
+    motivo_de_falla: Mapped[str | None] = mapped_column(String(60), nullable=True)
     momento: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (Index("ix_mensaje_hilo_momento", "conversacion_id", "momento"),)
@@ -131,12 +135,38 @@ class FAQORM(Base):
     #: que es lo que uno quiere en todos los listados menos en la búsqueda.
     embedding_modelo_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
     embedding_obsoleto: Mapped[bool] = mapped_column(nullable=False, default=True)
-    #: HU-E9-04 RN-02. Un entero y no una tabla de eventos: la regla pide un número.
-    usos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: La línea de base de usos de antes del ADR-0012: congelada, solo la escribe el alta.
+    #: Los usos nuevos son filas de `faq_uso`.
+    usos_anteriores: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: La última edición del texto (no `updated_at`, que también mueve el barrido).
+    editada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    seguimiento_desde: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (Index("ix_faq_empresa_obsoleto", "empresa_id", "embedding_obsoleto"),)
 
 
-__all__ = ["FAQORM", "ConversacionORM", "EscalamientoORM", "MensajeORM"]
+class FAQUsoORM(Base):
+    """Una respuesta con FAQ que salió (ADR-0012). Solo se inserta: ver la migración 0033."""
+
+    __tablename__ = TABLA_FAQ_USO
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    #: `NULL` cuando la FAQ se borró: la fila sigue contando para el total de la empresa.
+    faq_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("faq.id", ondelete="SET NULL"), nullable=True
+    )
+    mensaje_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("mensaje.id"), nullable=False, unique=True
+    )
+    usado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("ix_faq_uso_empresa_faq_usado", "empresa_id", "faq_id", "usado_en"),
+        Index("ix_faq_uso_empresa_usado", "empresa_id", "usado_en"),
+    )
+
+
+__all__ = ["FAQORM", "ConversacionORM", "EscalamientoORM", "FAQUsoORM", "MensajeORM"]

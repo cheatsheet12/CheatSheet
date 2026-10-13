@@ -19,17 +19,23 @@ from decimal import Decimal
 from typing import Annotated, TypeVar
 from uuid import UUID
 
+from cheatsheet.api.clave_de_pedido import exigir_clave_de_pedido
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
-from cheatsheet.api.mercadopago import armar_clientes, armar_pasarela, armar_saldos
+from cheatsheet.api.mercadopago import (
+    armar_clientes,
+    armar_pasarela,
+    armar_saldos,
+    armar_ver_cliente,
+)
 from cheatsheet.contexts.payments.application.cobros import (
     CancelarCobro,
-    GenerarCobro,
     ListarCobros,
     MetricasDelPeriodo,
     RegenerarLink,
     VerCobro,
     monto_desde,
 )
+from cheatsheet.contexts.payments.application.generacion_de_cobro import GenerarCobro
 from cheatsheet.contexts.payments.application.ports import FiltrosDeCobro
 from cheatsheet.contexts.payments.application.recordatorios import VerRecordatorios
 from cheatsheet.contexts.payments.application.reembolsos_manuales import VerReembolsos
@@ -39,7 +45,7 @@ from cheatsheet.contexts.payments.domain.reembolso import Reembolso
 from cheatsheet.contexts.payments.infrastructure.ensamblado import Cobros
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.roles import RolUsuario
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
 
 
@@ -61,6 +67,13 @@ class RecordatorioSalida(BaseModel):
     canal: str
     enviado_en: datetime | None
     estado_entrega: str | None
+    #: Cuántos envíos empezaron (U7). Con `proximo_intento_en` arma «Reintentando · intento n de 3».
+    intentos: int
+    #: Cuándo toca el próximo intento. **Solo** mientras la fila espera un reintento: en un envío en
+    #: curso la columna es la ventana de la reserva y mostrarla como «próximo» engañaría.
+    proximo_intento_en: datetime | None
+    #: Por qué falló: un código de Meta o una clase corta (`INCIERTO`, `COBRO_CERRADO`…).
+    ultimo_error: str | None
 
 
 class ReembolsoSalida(BaseModel):
@@ -111,6 +124,11 @@ class CobroSalida(BaseModel):
 class DetalleSalida(CobroSalida):
     """PAN-COB-02: el cobro más sus recordatorios (HU-E6-02 RN-01) y sus reembolsos."""
 
+    #: HU-E6-02 criterio 1: el detalle muestra los datos del cliente, no sólo su id. Se
+    #: resuelven desde `master_data` en el composition root (el CUIT no vive en `payments`, D92).
+    cliente_nombre: str
+    #: El CUIT formateado para mostrar («20-22222222-3»); `null` si el cliente no tiene.
+    cliente_cuit: str | None
     recordatorios: list[RecordatorioSalida]
     #: Del más viejo al más nuevo. Las correcciones son filas negativas visibles (RN-08).
     reembolsos: list[ReembolsoSalida]
@@ -177,6 +195,9 @@ def _a_recordatorio(uno: Recordatorio) -> RecordatorioSalida:
         canal=uno.canal,
         enviado_en=uno.enviado_en,
         estado_entrega=uno.estado_entrega.value if uno.estado_entrega else None,
+        intentos=uno.intentos,
+        proximo_intento_en=uno.proximo_intento_en if uno.esperando_reintento else None,
+        ultimo_error=uno.ultimo_error,
     )
 
 
@@ -255,27 +276,39 @@ def _rutas(recursos: Recursos) -> APIRouter:
     @router.get("/{cobro_id}")
     async def ver(request: Request, cobro_id: UUID) -> DetalleSalida:
         """PAN-COB-02. Todos los roles leen (RN-04)."""
-        empresa_id, _, _ = actor(request)
+        empresa_id, _, rol = actor(request)
         salida: DetalleSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Cobros.armar(unidad)
             cobro = await VerCobro(piezas.cobros).ejecutar(cobro_id)
+            # El nombre y el CUIT del cliente salen de master_data (HU-E6-02 criterio 1): se
+            # resuelven acá, en el composition root, porque `payments` no ve el CUIT (D92).
+            cliente = await armar_ver_cliente(unidad).ejecutar(rol=rol, cliente_id=cobro.cliente_id)
             recordatorios = await VerRecordatorios(piezas.recordatorios).ejecutar(cobro_id)
             reembolsos = await VerReembolsos(piezas.reembolsos).ejecutar(cobro_id)
             salida = DetalleSalida(
                 **a_salida(cobro).model_dump(),
+                cliente_nombre=cliente.nombre,
+                cliente_cuit=cliente.cuit.formateado if cliente.cuit else None,
                 recordatorios=[_a_recordatorio(uno) for uno in recordatorios],
                 reembolsos=_a_reembolsos(reembolsos),
             )
         return exigir(salida)
 
     @router.post("", status_code=status.HTTP_201_CREATED)
-    async def generar(request: Request, entrada: CobroEntrada) -> CobroSalida:
+    async def generar(
+        request: Request,
+        entrada: CobroEntrada,
+        clave: Annotated[UUID, Depends(exigir_clave_de_pedido)],
+    ) -> CobroSalida:
         """HU-E6-03. **201 y no 202**: el link existe cuando esto contesta.
 
         Distinto de la emisión de un comprobante, que es 202 porque ARCA todavía no contestó.
         Acá MercadoPago ya devolvió la preferencia — si no lo hubiera hecho, el cobro no se
         habría creado.
+
+        **`X-Idempotency-Key` obligatoria** (ADR-0013): el mismo pedido repetido contesta 201
+        con el cobro original, sin volver a MercadoPago.
         """
         empresa_id, usuario_id, rol = actor(request)
         salida: CobroSalida | None = None
@@ -292,6 +325,7 @@ def _rutas(recursos: Recursos) -> APIRouter:
                 empresa_id=empresa_id,
                 usuario_id=usuario_id,
                 rol=rol,
+                clave_idempotencia=clave,
                 cliente_id=entrada.cliente_id,
                 monto=monto_desde(entrada.monto),
                 descripcion=entrada.descripcion,

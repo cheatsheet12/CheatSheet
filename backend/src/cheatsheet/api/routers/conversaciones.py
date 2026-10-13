@@ -1,4 +1,4 @@
-"""Superficie HTTP del canal conversacional (HU-E9-01, HU-E9-02, HU-E9-04, HU-E11-02).
+"""Superficie HTTP del canal conversacional (HU-E9-01, HU-E9-02).
 
 `EmpresaMiddleware` ya puso la empresa, el usuario y el rol en `request.state`. El rol se pasa
 al caso de uso en vez de comprobarlo acá, por lo que dicen los demás routers y probó PRU-09.
@@ -6,9 +6,14 @@ al caso de uso en vez de comprobarlo acá, por lo que dicen los demás routers y
 **El webhook de WhatsApp no está acá**: vive en `webhooks.py`, con el de MercadoPago, porque
 entra sin sesión y el middleware lo tiene que dejar pasar.
 
-**No hay `DELETE` salvo en las FAQ.** Una conversación es el registro de lo que se le dijo a un
-cliente y un escalamiento cerrado es un caso atendido. Una FAQ sí se borra: HU-E9-04 RN-03 pide
-que deje de estar disponible de inmediato.
+Las rutas de las FAQ (HU-E9-04) viven en `respuestas_frecuentes.py` y se montan acá, bajo el
+mismo prefijo `/faqs`.
+
+Las plantillas de notificación (HU-E11-02) viven en `plantillas.py`.
+
+**No hay `DELETE` en este módulo.** Una conversación es el registro de lo que se le dijo a un
+cliente y un escalamiento cerrado es un caso atendido. (La única baja real del sistema, la de una
+FAQ, está en `respuestas_frecuentes.py`.)
 """
 
 from __future__ import annotations
@@ -19,18 +24,11 @@ from uuid import UUID
 
 from cheatsheet.api.conversacional import (
     armar_directorio,
-    armar_embeddings,
     armar_interprete,
-    armar_mensajeria,
 )
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
-from cheatsheet.contexts.business_config.application.plantillas import (
-    EditarPlantilla,
-    ListarPlantillas,
-    variables_conocidas,
-)
-from cheatsheet.contexts.business_config.domain.plantilla import PlantillaDeNotificacion
-from cheatsheet.contexts.business_config.infrastructure.ensamblado import ConfiguracionDeNegocio
+from cheatsheet.api.mensajeria import armar_mensajeria
+from cheatsheet.api.routers.respuestas_frecuentes import rutas_de_faqs
 from cheatsheet.contexts.conversational.application.atencion import (
     CerrarEscalamiento,
     ListarConversaciones,
@@ -39,18 +37,11 @@ from cheatsheet.contexts.conversational.application.atencion import (
     VerConversacion,
     VistaDeConversacion,
 )
-from cheatsheet.contexts.conversational.application.faqs import (
-    CrearFAQ,
-    EditarFAQ,
-    EliminarFAQ,
-    ListarFAQs,
-)
 from cheatsheet.contexts.conversational.domain.conversacion import Intencion, Mensaje
-from cheatsheet.contexts.conversational.domain.faq import FAQ
 from cheatsheet.contexts.conversational.infrastructure.ensamblado import Conversaciones
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.roles import RolUsuario
-from fastapi import APIRouter, Query, Request, Response, status
+from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel
 
 _T = TypeVar("_T")
@@ -69,15 +60,6 @@ class CierreEntrada(BaseModel):
     clasificacion: str | None = None
 
 
-class FAQEntrada(BaseModel):
-    pregunta: str
-    respuesta: str
-
-
-class PlantillaEntrada(BaseModel):
-    cuerpo: str
-
-
 # -- salidas --------------------------------------------------------------------------
 
 
@@ -91,6 +73,8 @@ class MensajeSalida(BaseModel):
     estado_entrega: str | None
     #: HU-E9-01 RN-04: lo que hace que la pantalla distinga al operador del agente.
     origen: str | None
+    #: Por qué falló un saliente (U7): un código de Meta o una clase corta, nunca el texto del error.
+    motivo_de_falla: str | None
 
 
 class ConversacionSalida(BaseModel):
@@ -112,38 +96,6 @@ class DetalleDeConversacion(ConversacionSalida):
 
 class ListadoDeConversaciones(BaseModel):
     conversaciones: list[ConversacionSalida]
-
-
-class FAQSalida(BaseModel):
-    id: UUID
-    pregunta: str
-    respuesta: str
-    #: HU-E9-04 RN-02: cuántas veces se usó en el período.
-    usos: int
-    #: `True` mientras el vector no se haya calculado: la FAQ existe y todavía no se encuentra
-    #: por significado. La pantalla lo dice en vez de fingir que está lista.
-    sin_indexar: bool
-
-
-class ListadoDeFAQs(BaseModel):
-    faqs: list[FAQSalida]
-
-
-class PlantillaSalida(BaseModel):
-    id: UUID
-    codigo: str
-    canal: str
-    idioma: str
-    cuerpo: str
-    estado_aprobacion: str
-    #: Las variables que admite, para que la pantalla las ofrezca en vez de que alguien las
-    #: adivine y se coma el 422 del tercer criterio.
-    variables: list[str]
-    puede_usarse: bool
-
-
-class ListadoDePlantillas(BaseModel):
-    plantillas: list[PlantillaSalida]
 
 
 def _a_conversacion(vista: VistaDeConversacion) -> ConversacionSalida:
@@ -171,29 +123,7 @@ def _a_mensaje(mensaje: Mensaje) -> MensajeSalida:
         intencion=mensaje.intencion.value if mensaje.intencion else None,
         estado_entrega=mensaje.estado_entrega.value if mensaje.estado_entrega else None,
         origen=mensaje.origen.value if mensaje.origen else None,
-    )
-
-
-def _a_faq(faq: FAQ) -> FAQSalida:
-    return FAQSalida(
-        id=faq.id,
-        pregunta=faq.pregunta,
-        respuesta=faq.respuesta,
-        usos=faq.usos,
-        sin_indexar=faq.embedding_obsoleto,
-    )
-
-
-def _a_plantilla(plantilla: PlantillaDeNotificacion) -> PlantillaSalida:
-    return PlantillaSalida(
-        id=plantilla.id,
-        codigo=plantilla.codigo,
-        canal=plantilla.canal.value,
-        idioma=plantilla.idioma,
-        cuerpo=plantilla.cuerpo,
-        estado_aprobacion=plantilla.estado_aprobacion.value,
-        variables=sorted(variables_conocidas(plantilla.codigo)),
-        puede_usarse=plantilla.puede_usarse,
+        motivo_de_falla=mensaje.motivo_de_falla,
     )
 
 
@@ -223,8 +153,7 @@ def crear_router(recursos: Recursos) -> APIRouter:
     router = APIRouter(tags=["conversational"])
     router.include_router(_rutas_de_conversaciones(recursos), prefix="/conversaciones")
     router.include_router(_rutas_de_escalamientos(recursos), prefix="/escalamientos")
-    router.include_router(_rutas_de_faqs(recursos), prefix="/faqs")
-    router.include_router(_rutas_de_plantillas(recursos), prefix="/plantillas")
+    router.include_router(rutas_de_faqs(recursos), prefix="/faqs")
     return router
 
 
@@ -359,128 +288,6 @@ def _rutas_de_escalamientos(recursos: Recursos) -> APIRouter:
                 piezas.conversaciones, piezas.mensajes, piezas.escalamientos
             ).ejecutar(escalamiento.conversacion_id)
             salida = _a_conversacion(vista)
-        return _exigir(salida)
-
-    return router
-
-
-def _rutas_de_faqs(recursos: Recursos) -> APIRouter:
-    """PAN-WA-02 (HU-E9-04). Todos leen; sólo el Administrador escribe."""
-    router = APIRouter()
-
-    @router.get("")
-    async def listar(request: Request) -> ListadoDeFAQs:
-        empresa_id, _, _ = _actor(request)
-        salida: ListadoDeFAQs | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = Conversaciones.armar(unidad)
-            faqs = await ListarFAQs(piezas.faqs).ejecutar()
-            salida = ListadoDeFAQs(faqs=[_a_faq(una) for una in faqs])
-        return _exigir(salida)
-
-    @router.post("", status_code=status.HTTP_201_CREATED)
-    async def crear(request: Request, entrada: FAQEntrada) -> FAQSalida:
-        """Primer criterio: aparece con contador en cero y disponible para el agente."""
-        empresa_id, usuario_id, rol = _actor(request)
-        salida: FAQSalida | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = Conversaciones.armar(unidad)
-            faq = await CrearFAQ(piezas.faqs, armar_embeddings(), unidad.publicador).ejecutar(
-                empresa_id=empresa_id,
-                usuario_id=usuario_id,
-                rol=rol,
-                pregunta=entrada.pregunta,
-                respuesta=entrada.respuesta,
-                ahora=unidad.reloj.ahora(),
-            )
-            salida = _a_faq(faq)
-        return _exigir(salida)
-
-    @router.put("/{faq_id}")
-    async def editar(request: Request, faq_id: UUID, entrada: FAQEntrada) -> FAQSalida:
-        empresa_id, usuario_id, rol = _actor(request)
-        salida: FAQSalida | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = Conversaciones.armar(unidad)
-            faq = await EditarFAQ(piezas.faqs, armar_embeddings(), unidad.publicador).ejecutar(
-                empresa_id=empresa_id,
-                usuario_id=usuario_id,
-                rol=rol,
-                faq_id=faq_id,
-                pregunta=entrada.pregunta,
-                respuesta=entrada.respuesta,
-                ahora=unidad.reloj.ahora(),
-            )
-            salida = _a_faq(faq)
-        return _exigir(salida)
-
-    @router.delete(
-        "/{faq_id}",
-        status_code=status.HTTP_204_NO_CONTENT,
-        # `response_class=Response`, como el logout de `auth.py`: sin esto FastAPI le arma un
-        # modelo de respuesta a un 204, que por definicion no tiene cuerpo, y falla al crear
-        # la ruta — no al llamarla.
-        response_class=Response,
-    )
-    async def eliminar(request: Request, faq_id: UUID) -> Response:
-        """HU-E9-04 RN-03: el agente deja de usarla de inmediato.
-
-        **El único borrado real del sistema.** Una FAQ no es un registro del negocio: no hay
-        nada que auditar en una pregunta que ya no se hace.
-        """
-        empresa_id, usuario_id, rol = _actor(request)
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = Conversaciones.armar(unidad)
-            await EliminarFAQ(piezas.faqs, unidad.publicador).ejecutar(
-                empresa_id=empresa_id,
-                usuario_id=usuario_id,
-                rol=rol,
-                faq_id=faq_id,
-                ahora=unidad.reloj.ahora(),
-            )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    return router
-
-
-def _rutas_de_plantillas(recursos: Recursos) -> APIRouter:
-    """PAN-CFG-NOT (HU-E11-02). Todos leen; sólo el Administrador edita.
-
-    **No hay alta ni baja.** Los códigos los define el sistema, y `ListarPlantillas` siembra
-    las que falten la primera vez que alguien entra.
-    """
-    router = APIRouter()
-
-    @router.get("")
-    async def listar(request: Request) -> ListadoDePlantillas:
-        empresa_id, _, _ = _actor(request)
-        salida: ListadoDePlantillas | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = ConfiguracionDeNegocio.armar(unidad)
-            plantillas = await ListarPlantillas(piezas.plantillas).ejecutar(
-                empresa_id=empresa_id, ahora=unidad.reloj.ahora()
-            )
-            salida = ListadoDePlantillas(plantillas=[_a_plantilla(una) for una in plantillas])
-        return _exigir(salida)
-
-    @router.put("/{plantilla_id}")
-    async def editar(
-        request: Request, plantilla_id: UUID, entrada: PlantillaEntrada
-    ) -> PlantillaSalida:
-        """Segundo y tercer criterio: guarda con variables válidas, rechaza con la frase."""
-        empresa_id, usuario_id, rol = _actor(request)
-        salida: PlantillaSalida | None = None
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            piezas = ConfiguracionDeNegocio.armar(unidad)
-            plantilla = await EditarPlantilla(piezas.plantillas, unidad.publicador).ejecutar(
-                empresa_id=empresa_id,
-                usuario_id=usuario_id,
-                rol=rol,
-                plantilla_id=plantilla_id,
-                cuerpo=entrada.cuerpo,
-                ahora=unidad.reloj.ahora(),
-            )
-            salida = _a_plantilla(plantilla)
         return _exigir(salida)
 
     return router

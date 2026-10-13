@@ -48,6 +48,7 @@ from tests.contexts.conversational.application.dobles import (
     RepositorioEscalamientoEnMemoria,
     RepositorioFAQEnMemoria,
     RepositorioMensajeEnMemoria,
+    UsosDeFAQEnMemoria,
     grilla_de,
 )
 from tests.contexts.conversational.application.horario_fijo import HorarioFijo, siempre_abierto
@@ -95,6 +96,7 @@ class Escena:
         self.mensajes = RepositorioMensajeEnMemoria()
         self.escalamientos = RepositorioEscalamientoEnMemoria(*escalamientos)
         self.faqs = RepositorioFAQEnMemoria()
+        self.usos = UsosDeFAQEnMemoria()
         self.clientes = DirectorioEnMemoria()
         if conocido:
             self.clientes.conocidos[TELEFONO] = (self.cliente_id, "Ana")
@@ -123,6 +125,7 @@ class Escena:
             mensajes=self.mensajes,
             escalamientos=self.escalamientos,
             faqs=self.faqs,
+            usos=self.usos,
             clientes=self.clientes,
             interprete=self.interprete,
             transcriptor=self.transcriptor,

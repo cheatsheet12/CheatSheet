@@ -197,10 +197,34 @@ class RepositorioMapeoPostgres:
         fila.version = mapeo.version
         fila.updated_at = mapeo.updated_at
 
-        await self._sesion.execute(
-            delete(EntradaDeMapeoORM).where(EntradaDeMapeoORM.mapeo_id == mapeo.id)
-        )
-        self._agregar_entradas(mapeo)
+        # An entry's `id` is stable across corrections -- `Mapeo.corregir` only reassigns
+        # `atributo_destino` on the entry that is already there. Delete-then-reinsert with
+        # that same `id` is the shape a `UniqueViolationError` on `entrada_de_mapeo_pkey`
+        # comes from: two corrections landing close together (a double submit from the
+        # screen is the ordinary way this happens) can each delete what the other is about
+        # to insert, and the loser's `INSERT` collides with a row the winner already
+        # committed. `merge()` turns each entry into an update-if-present, which Postgres
+        # serializes at the row level instead of raising -- there is no `INSERT` of an `id`
+        # that might already exist. Only rows an entry truly dropped (HU-E3-04 RN-03's
+        # re-mapped structure) still go through `delete()`, and that one is safe: an `id` a
+        # correction never reintroduces cannot collide with anything.
+        vigentes = {entrada.id for entrada in mapeo.entradas}
+        for existente in await self._entradas_de(mapeo.id):
+            if existente.id not in vigentes:
+                await self._sesion.delete(existente)
+        for entrada in mapeo.entradas:
+            await self._sesion.merge(
+                EntradaDeMapeoORM(
+                    id=entrada.id,
+                    mapeo_id=mapeo.id,
+                    empresa_id=mapeo.empresa_id,
+                    columna_origen=entrada.columna_origen,
+                    atributo_destino=entrada.atributo_destino,
+                    score=entrada.score,
+                    ejemplo=entrada.ejemplo,
+                    corregida_a_mano=entrada.corregida_a_mano,
+                )
+            )
         await self._sesion.flush()
 
     async def buscar_por_id(self, mapeo_id: UUID) -> Mapeo | None:
@@ -255,7 +279,15 @@ def _procesamiento_a_dominio(
         duracion_ms=fila.duracion_ms,
         referencia_archivo=fila.referencia_archivo,
         origen_id=fila.origen_id,
-        errores=[ErrorDeFila(id=e.id, numero_fila=e.numero_fila, motivo=e.motivo) for e in errores],
+        errores=[
+            ErrorDeFila(
+                id=e.id,
+                numero_fila=e.numero_fila,
+                motivo=e.motivo,
+                corregida_en=e.corregida_en,
+            )
+            for e in errores
+        ],
         created_at=fila.created_at,
     )
 
@@ -300,9 +332,13 @@ class RepositorioProcesamientoPostgres:
         fila.filas_error = procesamiento.filas_error
         fila.duracion_ms = procesamiento.duracion_ms
 
-        guardados = {e.id for e in await self._errores_de(procesamiento.id)}
+        guardados = {e.id: e for e in await self._errores_de(procesamiento.id)}
         for error in procesamiento.errores:
-            if error.id in guardados:
+            existente = guardados.get(error.id)
+            if existente is not None:
+                # A stored error only ever changes in one way: somebody corrected its row.
+                if error.corregida_en is not None and existente.corregida_en is None:
+                    existente.corregida_en = error.corregida_en
                 continue
             self._sesion.add(
                 ErrorDeFilaORM(
@@ -311,6 +347,7 @@ class RepositorioProcesamientoPostgres:
                     empresa_id=procesamiento.empresa_id,
                     numero_fila=error.numero_fila,
                     motivo=error.motivo,
+                    corregida_en=error.corregida_en,
                 )
             )
         await self._sesion.flush()

@@ -87,6 +87,25 @@ export function formatearFecha(
   );
 }
 
+/** Sólo la hora (`16:05`, de 0 a 23), en la zona del usuario. */
+export function formatearHora(
+  iso: string | null,
+  preferencias: PreferenciasDeFormato = PREFERENCIAS_POR_DEFECTO,
+): string {
+  const fecha = aFecha(iso);
+  if (fecha === null) {
+    return "—";
+  }
+  return determinista(
+    new Intl.DateTimeFormat(preferencias.idioma, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: preferencias.zonaHoraria,
+    }).format(fecha),
+  );
+}
+
 /**
  * A decimal that arrived as a string.
  *
@@ -131,4 +150,47 @@ function aFecha(iso: string | null): Date | null {
   const crudo = iso.trim();
   const fecha = new Date(SOLO_FECHA.test(crudo) ? `${crudo}T12:00:00Z` : crudo);
   return Number.isNaN(fecha.getTime()) ? null : fecha;
+}
+
+const ENTERO_CON_MILES = /^\d{1,3}(\.\d{3})+$/;
+const ENTERO = /^\d+$/;
+
+/**
+ * A money amount as a person in Argentina types it, in the canonical form the API reads:
+ * `1.234,56` → `1234.56`. `null` when it is not an amount.
+ *
+ * The counterpart of `formatearNumero`, which writes `1.234,56`; without it a field that
+ * shows amounts with a decimal comma rejects the same comma when it is typed back (TODO
+ * §29.3). **Text in, text out**: the value never becomes a `number`, which is the float
+ * `CLAUDE.md` §3.5 forbids near money.
+ *
+ * A dot is a thousands separator when it splits groups of exactly three digits (`12.500`),
+ * and a decimal point otherwise (`1234.56`), so the form keeps accepting what already worked.
+ */
+export function montoDesdeTexto(entrada: string): string | null {
+  const texto = entrada.replace(/\$/g, "").replace(/\s/g, "");
+  if (!/^[0-9.,]+$/.test(texto)) {
+    return null;
+  }
+  const partes = texto.split(",");
+  if (partes.length > 2) {
+    return null;
+  }
+  const [entero = "", decimales] = partes;
+  if (decimales !== undefined) {
+    if (!ENTERO.test(decimales)) {
+      return null;
+    }
+    if (ENTERO.test(entero)) {
+      return `${entero}.${decimales}`;
+    }
+    return ENTERO_CON_MILES.test(entero) ? `${entero.replace(/\./g, "")}.${decimales}` : null;
+  }
+  if (ENTERO.test(entero)) {
+    return entero;
+  }
+  if (ENTERO_CON_MILES.test(entero)) {
+    return entero.replace(/\./g, "");
+  }
+  return /^\d+\.\d+$/.test(entero) ? entero : null;
 }

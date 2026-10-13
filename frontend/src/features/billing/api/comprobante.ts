@@ -45,6 +45,8 @@ export interface Comprobante {
   readonly cae: string | null;
   readonly cae_vence_el: string | null;
   readonly motivo_de_rechazo: string | null;
+  /** HU-E5-03 RN-13: the legend a Factura A to a Monotributista must carry. */
+  readonly leyenda: string | null;
   readonly subtotal: string;
   readonly total_iva: string;
   readonly total: string;
@@ -119,9 +121,16 @@ export const ALICUOTAS: readonly { readonly valor: string; readonly etiqueta: st
 ];
 
 export class ErrorDeComprobante extends Error {
-  constructor(mensaje: string) {
+  /** El código técnico del backend (`ErrorInterno`, `ArcaNoDisponible`…), si vino uno. */
+  readonly codigo: string | null;
+  /** La frase que el backend escribió para quien la lee, si mandó una (422). */
+  readonly detalle: string | null;
+
+  constructor(mensaje: string, codigo: string | null = null, detalle: string | null = null) {
     super(mensaje);
     this.name = "ErrorDeComprobante";
+    this.codigo = codigo;
+    this.detalle = detalle;
   }
 }
 
@@ -134,8 +143,11 @@ async function fallar(respuesta: Response): Promise<never> {
   const cuerpo = (await respuesta.json().catch(() => ({}))) as CuerpoDeError;
   // `detalle` first: on a 422 the backend's sentence is either the story's own text or
   // ARCA's own words, and both are more specific than anything this file could invent.
+  // The raw code travels too, so a screen can turn it into a sentence (`mensajesDeError`).
   throw new ErrorDeComprobante(
     cuerpo.detalle ?? cuerpo.error ?? "No se pudo completar la operacion",
+    cuerpo.error ?? null,
+    cuerpo.detalle ?? null,
   );
 }
 

@@ -12,6 +12,8 @@ import {
   PREFERENCIAS_POR_DEFECTO,
   formatearFecha,
   formatearFechaHora,
+  formatearHora,
+  montoDesdeTexto,
   formatearNumero,
 } from "@/shared/formato";
 
@@ -78,5 +80,38 @@ describe("formatearNumero", () => {
   it("un valor que no es un número se devuelve tal cual", () => {
     // Better a raw string on screen than "NaN" where an amount should be.
     expect(formatearNumero("no-es-un-numero")).toBe("no-es-un-numero");
+  });
+});
+
+describe("formatearHora", () => {
+  it("escribe la hora en la zona del usuario, de 0 a 23", () => {
+    // 01:30 UTC son las 22:30 del día anterior en Buenos Aires.
+    expect(formatearHora(MADRUGADA, PREFERENCIAS_POR_DEFECTO)).toBe("22:30");
+    expect(formatearHora("2026-08-18T21:05:00Z", PREFERENCIAS_POR_DEFECTO)).toBe("18:05");
+  });
+
+  it("sin instante muestra un guion", () => {
+    expect(formatearHora(null)).toBe("—");
+  });
+});
+
+describe("montoDesdeTexto", () => {
+  // Visto en staging (TODO §29.3): «1234,56», el formato que usa todo el panel, daba «El monto
+  // debe ser mayor a cero.» en Nuevo cobro. Con punto funcionaba.
+  it.each([
+    ["1234,56", "1234.56"],
+    ["1.234,56", "1234.56"],
+    ["1234.56", "1234.56"],
+    ["12.500", "12500"],
+    ["1.234.567,8", "1234567.8"],
+    [" 15000 ", "15000"],
+    ["$ 9.500,50", "9500.50"],
+    ["0,5", "0.5"],
+  ])("«%s» es %s", (entrada, esperado) => {
+    expect(montoDesdeTexto(entrada)).toBe(esperado);
+  });
+
+  it.each(["", "abc", "12,3,4", "1,234.56.7", "-", ","])("«%s» no es un monto", (entrada) => {
+    expect(montoDesdeTexto(entrada)).toBeNull();
   });
 });

@@ -24,6 +24,7 @@ from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     PlanillaLeida,
     PortAlmacenamientoDeArchivos,
     PortLectorDePlanilla,
+    PortLecturaDeHoja,
     PortModeloDeLenguaje,
     PortRepositorioMapeo,
     PortRepositorioVinculo,
@@ -33,9 +34,10 @@ from cheatsheet.contexts.spreadsheet_sync.domain.mapeo import (
     Mapeo,
     NivelDeConfianza,
 )
+from cheatsheet.contexts.spreadsheet_sync.domain.valores import ProveedorPlanilla
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -353,7 +355,7 @@ def _exigir_que_pueda_mapear(rol: RolUsuario) -> None:
     from, while mapping its columns is day-to-day work.
     """
     if rol is RolUsuario.SOLO_LECTURA:
-        raise EntradaInvalida("Un usuario de Solo Lectura no puede modificar el mapeo")
+        raise OperacionNoPermitida("Un usuario de Solo Lectura no puede modificar el mapeo")
 
 
 @dataclass(frozen=True, slots=True)
@@ -392,24 +394,35 @@ class LeerEncabezados:
         vinculos: PortRepositorioVinculo,
         almacenamiento: PortAlmacenamientoDeArchivos,
         lector: PortLectorDePlanilla,
+        lector_remoto: PortLecturaDeHoja | None = None,
     ) -> None:
         self._vinculos = vinculos
         self._almacenamiento = almacenamiento
         self._lector = lector
+        self._lector_remoto = lector_remoto
 
-    async def ejecutar(self, *, vinculo_id: UUID) -> tuple[ColumnaConEjemplo, ...]:
+    async def ejecutar(
+        self, *, vinculo_id: UUID, token: str | None = None
+    ) -> tuple[ColumnaConEjemplo, ...]:
         vinculo = await self._vinculos.buscar_por_id(vinculo_id)
         if vinculo is None:
             raise VinculoInexistente("La planilla vinculada no existe")
-        if vinculo.archivo is None:
-            # Google Sheets y Excel Online se leen por su propio adaptador, no de R2. Que
-            # esta ruta no los cubra es una limitación honesta y no un error del usuario.
-            raise EntradaInvalida(
-                "Sólo se pueden leer los encabezados de una planilla subida como archivo"
+        if vinculo.archivo is not None:
+            contenido = await self._almacenamiento.leer(vinculo.archivo.clave)
+            planilla = self._lector.leer(
+                contenido=contenido, nombre=vinculo.archivo.nombre_original
             )
-
-        contenido = await self._almacenamiento.leer(vinculo.archivo.clave)
-        planilla = self._lector.leer(contenido=contenido, nombre=vinculo.archivo.nombre_original)
+        elif vinculo.proveedor is ProveedorPlanilla.GOOGLE_SHEETS:
+            if self._lector_remoto is None or not token or not vinculo.identificador_externo:
+                raise EntradaInvalida("La planilla de Google requiere reconectar la cuenta")
+            planilla = await self._lector_remoto.leer_hoja(
+                token=token,
+                identificador=vinculo.identificador_externo,
+                hoja=vinculo.hoja_empresa,
+                max_filas=100,
+            )
+        else:
+            raise EntradaInvalida("Este proveedor todavía no permite leer encabezados")
         return tuple(
             ColumnaConEjemplo(nombre=columna, ejemplo=_primer_ejemplo(planilla, columna))
             for columna in planilla.columnas

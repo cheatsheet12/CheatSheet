@@ -314,7 +314,7 @@ async def test_reprogramar_a_una_franja_ocupada_es_rechazado_por_el_motor(
             repositorio = RepositorioTurnoPostgres(sesion)
             movido = await repositorio.buscar_por_id(segundo.id)
             assert movido is not None
-            movido.reprogramar(Franja(inicio=INICIO, duracion_min=60), 0)
+            movido.reprogramar(Franja(inicio=INICIO, duracion_min=60), 0, AHORA)
             await repositorio.guardar(movido)
 
     with pytest.raises(FranjaOcupada):

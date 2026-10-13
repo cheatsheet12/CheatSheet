@@ -420,11 +420,35 @@ por `empresa_id`**, las 7 internas se protegen por su padre, y las 2 restantes s
 | embedding_vector | vector(1536) | (`pgvector`) |
 | embedding_modelo_version | varchar | |
 | embedding_obsoleto | boolean | NN |
+| usos_anteriores | integer | NN, default 0, `CHECK >= 0` |
 | created_at / updated_at | timestamptz | NN |
+| editada_en | timestamptz | última edición real del texto de la pregunta o de la respuesta |
+| seguimiento_desde | timestamptz | NN |
 
 > `embedding_modelo_version` + `embedding_obsoleto` existen para que cambiar de modelo de
 > embeddings no obligue a recalcular todo de golpe ni a servir búsquedas con vectores de dos
 > modelos mezclados.
+
+> `usos_anteriores` es la **línea de base** del contador que existía antes del ADR-0012: nadie la
+> incrementa; suma al total y a ningún mes. `editada_en` no es `updated_at` (el barrido de
+> embeddings también lo mueve): solo cambia cuando cambia el texto. `seguimiento_desde` es desde
+> cuándo hay filas de `faq_uso` de esa FAQ (su creación, o el despliegue del ADR-0012 para las que ya
+> existían). Ver ADR-0012.
+
+### `faq_uso`
+| Columna | Tipo | |
+|---|---|---|
+| id | uuid | PK |
+| empresa_id | uuid | NN, FK |
+| faq_id | uuid | FK → faq, **nullable** (`ON DELETE SET NULL`) |
+| mensaje_id | uuid | NN, FK → mensaje, **UNIQUE** |
+| usado_en | timestamptz | NN |
+
+> Una fila por respuesta con FAQ que **salió** por WhatsApp (ADR-0012). `mensaje_id` único: un mensaje
+> es a lo sumo un uso, y el alta es `ON CONFLICT DO NOTHING`. **Solo inserción** para la aplicación
+> (`SELECT, INSERT`), con RLS forzada, como `reembolso`. Borrar una FAQ conserva sus filas (`faq_id`
+> pasa a `NULL`) para que el total de la empresa, denominador de la participación de las demás, no
+> cambie hacia atrás. Los meses («Este mes», «Mes anterior») se calculan al leer, en hora de Argentina.
 
 ---
 

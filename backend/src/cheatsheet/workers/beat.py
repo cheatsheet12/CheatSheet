@@ -20,6 +20,11 @@ Beat runs as **one** process. Replicating it duplicates every entry above — an
 there is a real one, that warning has teeth: two schedulers mean two sweeps, two polls per
 company and, at the moment Meta answers, two emails to every Administrator.
 
+Entries that touch the database and repeat within a day are anchored to the wall clock
+(`alineado`) instead of counting from Beat's boot, so they all fire at the same instants
+and a serverless database wakes once per period. That includes the daily entries (00:00)
+and the fiscal parameters sync, whose interval is validated at startup.
+
 The schedule is built from `Settings` rather than hardcoded, because the poll interval is
 a deployment decision (`WHATSAPP_SONDEO_MINUTOS`) and a constant here would mean a release
 to change it.
@@ -27,13 +32,25 @@ to change it.
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import Any
 
 from celery import Celery
+from celery.schedules import crontab
 
+from cheatsheet.platform.intervalos import MINUTOS_POR_HORA, campos_alineados
 from cheatsheet.platform.settings import Settings
 from cheatsheet.workers.celery_app import Cola
+
+MINUTOS_POR_DIA = 24 * MINUTOS_POR_HORA
+
+
+def alineado(minutos: int) -> crontab:
+    """An interval anchored to the wall clock, so every task wakes the database together.
+
+    See `platform/intervalos.py` for the rule and for why it never rounds.
+    """
+    minuto, hora = campos_alineados(minutos)
+    return crontab(minute=minuto, hour=hora)
 
 
 def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
@@ -41,19 +58,27 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
     return {
         "sondear-integraciones-pendientes": {
             "task": "integrations.sondear_pendientes",
-            "schedule": timedelta(minutes=max(settings.whatsapp_sondeo_minutos, 1)),
+            "schedule": alineado(settings.whatsapp_sondeo_minutos),
+            "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
+        },
+        # U6. La conciliación de las plantillas de WhatsApp con Meta: la red de seguridad del
+        # webhook de estado de plantillas, que no admite override por cuenta. Misma escala que el
+        # sondeo de verificación de número, porque la revisión de Meta tarda hasta 24 h.
+        "conciliar-plantillas-de-whatsapp": {
+            "task": "business_config.conciliar_plantillas",
+            "schedule": alineado(settings.whatsapp_plantillas_minutos),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         "revisar-vencimientos-de-credenciales": {
             "task": "integrations.revisar_vencimientos",
-            "schedule": timedelta(days=1),
+            "schedule": alineado(MINUTOS_POR_DIA),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         # Daily against a token that lasts about 180 days, and renewed a fortnight before
         # it expires: fourteen chances to survive an outage before anything breaks.
         "renovar-credenciales-oauth": {
             "task": "integrations.renovar_credenciales",
-            "schedule": timedelta(days=1),
+            "schedule": alineado(MINUTOS_POR_DIA),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         # HS-T6. On the notifications queue rather than a queue of its own: the sweep is
@@ -67,12 +92,12 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # every several months, and asking more often is a call to learn nothing changed.
         "sincronizar-parametros-fiscales": {
             "task": "reference_data.sincronizar_parametros",
-            "schedule": timedelta(hours=max(settings.parametros_fiscales_horas, 1)),
+            "schedule": alineado(settings.parametros_fiscales_horas * 60),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         "sincronizar-planillas": {
             "task": "spreadsheet_sync.sincronizar_pendientes",
-            "schedule": timedelta(minutes=max(settings.sync_planillas_minutos, 1)),
+            "schedule": alineado(settings.sync_planillas_minutos),
             "options": {"queue": Cola.INCREMENTAL_SYNC.value},
         },
         # Decision D17: the retry that `billing.autorizar_comprobante` deliberately does
@@ -81,7 +106,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # which `VENTANA_DE_VUELO` is what actually guards.
         "reconciliar-comprobantes-en-vuelo": {
             "task": "billing.reconciliar_comprobantes",
-            "schedule": timedelta(minutes=5),
+            "schedule": alineado(settings.billing_reconciliacion_minutos),
             "options": {"queue": Cola.INTEGRATIONS_SYNC.value},
         },
         # HS-T3 y HU-E6-01 RN-03. Cada hora: una deuda no cambia de estado al minuto, y la
@@ -89,7 +114,16 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # sesenta veces para enterarse de que nada cambió.
         "barrer-cobros": {
             "task": "payments.barrer_cobros",
-            "schedule": timedelta(hours=1),
+            "schedule": alineado(60),
+            "options": {"queue": Cola.NOTIFICATIONS.value},
+        },
+        # U8 (HU-E8-04). Cada 15 minutos por defecto, configurable: el recordatorio de un turno
+        # llega a lo sumo con un cuarto de hora de atraso, y el reintento acotado (esperas de 15 y
+        # 30 minutos) necesita un barrido que pase seguido. La corrida solo reparte una tarea por
+        # empresa con un turno por recordar, así que cuesta una consulta de ids.
+        "recordar-turnos": {
+            "task": "scheduling.recordar_turnos",
+            "schedule": alineado(settings.recordatorio_de_turno_minutos),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
         # Las FAQ que quedaron sin vector. Cada seis horas: sólo hay algo que hacer cuando el
@@ -98,7 +132,7 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # único que no puede es encontrarse por significado.
         "reindexar-faqs": {
             "task": "conversational.barrer_faqs",
-            "schedule": timedelta(hours=6),
+            "schedule": alineado(360),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
         # HU-E10-04. **Diario y no mensual**: el día de envío lo elige cada empresa, así que
@@ -106,12 +140,12 @@ def programacion(settings: Settings) -> dict[str, dict[str, Any]]:
         # corrida de un día sin empresas programadas es una consulta que devuelve cero filas.
         "armar-paquetes-contables": {
             "task": "reporting.barrer_paquetes",
-            "schedule": timedelta(days=1),
+            "schedule": alineado(MINUTOS_POR_DIA),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
         "barrer-tareas-agotadas": {
             "task": "observability.barrer_dlq",
-            "schedule": timedelta(minutes=max(settings.dlq_barrido_minutos, 1)),
+            "schedule": alineado(settings.dlq_barrido_minutos),
             "options": {"queue": Cola.NOTIFICATIONS.value},
         },
     }

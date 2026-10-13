@@ -17,13 +17,15 @@ from cheatsheet.contexts.payments.application.ports import (
     PortRepositorioRecordatorios,
     PortRepositorioReembolso,
 )
-from cheatsheet.contexts.payments.infrastructure.repositories import (
-    RepositorioCobroPostgres,
+from cheatsheet.contexts.payments.infrastructure.repositories import RepositorioCobroPostgres
+from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
 from cheatsheet.contexts.payments.infrastructure.repositorio_reembolso import (
     RepositorioReembolsoPostgres,
 )
+from cheatsheet.platform.transaccion import AislamientoConSavepoint
+from cheatsheet.shared.transaccion import PortAislamiento
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +35,8 @@ class Cobros:
     cobros: PortRepositorioCobro
     recordatorios: PortRepositorioRecordatorios
     reembolsos: PortRepositorioReembolso
+    #: El savepoint por cobro del barrido de recordatorios (U5, H1).
+    aislamiento: PortAislamiento
 
     @classmethod
     def armar(cls, unidad: UnidadDeTrabajo) -> Cobros:
@@ -40,4 +44,5 @@ class Cobros:
             cobros=RepositorioCobroPostgres(unidad.sesion),
             recordatorios=RepositorioRecordatoriosPostgres(unidad.sesion),
             reembolsos=RepositorioReembolsoPostgres(unidad.sesion),
+            aislamiento=AislamientoConSavepoint(unidad.sesion),
         )

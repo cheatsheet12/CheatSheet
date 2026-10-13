@@ -13,6 +13,8 @@ propósito: quien la atrapa no tiene por qué saber cuál de las dos ganó la ca
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 
 
@@ -69,10 +71,32 @@ class ExcepcionDuplicada(EntradaInvalida):
     """HU-E7-05 RN-02. Ya hay una excepción para esa fecha en ese recurso."""
 
 
+class RecordatorioDeTurnoDuplicado(InvarianteViolada):
+    """Ya existe la fila de ese `(turno, anticipación, franja)`: otro barrido llegó primero.
+
+    No es un error para quien barre sino la prueba de que la idempotencia funcionó: se sigue con
+    el ítem siguiente y no se manda nada. Nace del índice único `uq_recordatorio_de_turno`.
+    """
+
+
+class AgendaDeNotificacionInvalida(EntradaInvalida):
+    """La regla de agenda de la empresa está mal formada: el barrido la saltea (D-U8-5).
+
+    El adaptador sobre `business_config` traduce a esta el error de ese contexto. `regla_id` es
+    para el log; nunca lleva el contenido de la fila.
+    """
+
+    def __init__(self, mensaje: str, *, regla_id: UUID | None = None) -> None:
+        super().__init__(mensaje)
+        self.regla_id = regla_id
+
+
 __all__ = [
+    "AgendaDeNotificacionInvalida",
     "ExcepcionDuplicada",
     "FranjaOcupada",
     "FueraDeHorario",
+    "RecordatorioDeTurnoDuplicado",
     "RecursoInactivo",
     "RecursoInexistente",
     "ServicioNoAdmitido",

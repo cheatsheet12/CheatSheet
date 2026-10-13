@@ -19,6 +19,8 @@
 
 "use client";
 
+import { LogOut } from "lucide-react";
+
 import { useAccionConNavegacion } from "@/shared";
 
 export function BotonDeSalida(): JSX.Element {
@@ -47,6 +49,7 @@ export function BotonDeSalida(): JSX.Element {
 
   return (
     <button type="button" className="panel__salir" disabled={saliendo} onClick={() => void salir()}>
+      <LogOut className="panel__salir-icono" size={16} strokeWidth={2} aria-hidden="true" />
       {saliendo ? "Saliendo…" : "Cerrar sesión"}
     </button>
   );

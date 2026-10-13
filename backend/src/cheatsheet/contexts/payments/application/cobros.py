@@ -13,48 +13,38 @@ Dos decisiones del épico se ven acá con todas las letras:
 - **D27** — el reembolso pedido no cambia el estado. El cobro sigue `APROBADO` y lo que la
   pantalla muestra sale de `reembolso_solicitado_en`.
 
-Los reembolsos viven en `application/reembolsos.py`: este archivo ya pasaba de 400 líneas.
+Los reembolsos viven en `application/reembolsos.py` y `GenerarCobro` en
+`application/generacion_de_cobro.py`: este archivo ya pasaba de 400 líneas.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 
 from cheatsheet.contexts.payments.application.errors import (
-    ClienteInexistente,
     CobroInexistente,
     CobroNoCancelable,
-    ComprobanteDeOtroCliente,
-    MontoExcedeSaldo,
 )
 from cheatsheet.contexts.payments.application.ports import (
     FiltrosDeCobro,
     MetricasDeCobros,
-    PortClienteDeCobro,
     PortPasarelaDePago,
     PortRepositorioCobro,
-    PortSaldoDeComprobante,
 )
 from cheatsheet.contexts.payments.domain.cobro import (
     MENSAJE_MONTO_NO_POSITIVO,
-    VIGENCIA_POR_DEFECTO,
     Cobro,
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
 MOTIVO_SIN_PERMISO = "Solo un Administrador u Operador puede gestionar cobros"
 MOTIVO_SOLO_ADMIN_REEMBOLSA = "Solo un Administrador puede reembolsar un cobro"
-#: HU-E6-06 RN-02, con el saldo disponible adentro: el criterio pide que el mensaje **indique
-#: el saldo**, no sólo que hubo exceso.
-MENSAJE_EXCEDE_SALDO = "El monto no puede superar el saldo pendiente del comprobante."
-MENSAJE_CLIENTE_INEXISTENTE = "El cliente seleccionado no existe o esta inactivo."
-MENSAJE_COMPROBANTE_DE_OTRO_CLIENTE = "El comprobante no corresponde al cliente elegido."
 MENSAJE_MONTO_DEMASIADO_GRANDE = "El monto es demasiado grande."
 #: Tope de **negocio**, no la capacidad de la columna (`Numeric(14,2)`): un cobro de mas de cien
 #: millones de pesos por un link de pago es un error de tipeo mas probable que una venta.
@@ -63,9 +53,9 @@ MENSAJE_MONTO_DEMASIADO_GRANDE = "El monto es demasiado grande."
 MONTO_MAXIMO_DE_COBRO = Decimal("100000000.00")
 
 
-def _exigir_gestor(rol: RolUsuario) -> None:
+def exigir_gestor(rol: RolUsuario) -> None:
     if rol not in (RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR):
-        raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+        raise OperacionNoPermitida(MOTIVO_SIN_PERMISO)
 
 
 def monto_desde(texto: str) -> Decimal:
@@ -141,119 +131,13 @@ class VerCobro:
         return cobro
 
 
-class GenerarCobro:
-    """HU-E6-03 y HU-E6-06 — el link de pago, con o sin comprobante detrás.
-
-    **El link se pide antes de guardar nada.** El criterio de aceptación lo exige: si
-    MercadoPago no responde, «no crea el cobro». Un cobro sin link es una deuda que nadie
-    puede pagar y que igual manda recordatorios, que es la peor de las dos formas de fallar.
-    """
-
-    def __init__(
-        self,
-        *,
-        cobros: PortRepositorioCobro,
-        pasarela: PortPasarelaDePago,
-        saldos: PortSaldoDeComprobante,
-        clientes: PortClienteDeCobro,
-        publicador: PublicadorDeEventos,
-        url_de_retorno: str,
-    ) -> None:
-        self._cobros = cobros
-        self._pasarela = pasarela
-        self._saldos = saldos
-        self._clientes = clientes
-        self._publicador = publicador
-        self._url_de_retorno = url_de_retorno
-
-    async def ejecutar(
-        self,
-        *,
-        empresa_id: EmpresaId,
-        usuario_id: UsuarioId,
-        rol: RolUsuario,
-        cliente_id: UUID,
-        monto: Decimal,
-        descripcion: str,
-        ahora: datetime,
-        comprobante_id: UUID | None = None,
-        turno_id: UUID | None = None,
-        vigencia: timedelta = VIGENCIA_POR_DEFECTO,
-    ) -> Cobro:
-        _exigir_gestor(rol)
-
-        # El cliente va antes que el comprobante y que la pasarela: un cliente invalido no
-        # tiene que gastar una preferencia en MercadoPago, y el rol va antes que todo para que
-        # la respuesta no deje ver si el id existe.
-        if not await self._clientes.esta_activo(cliente_id):
-            raise ClienteInexistente(MENSAJE_CLIENTE_INEXISTENTE)
-
-        if comprobante_id is not None:
-            await self._exigir_comprobante_del_cliente(comprobante_id, cliente_id)
-            await self._exigir_saldo_suficiente(comprobante_id, monto)
-
-        cobro = Cobro(
-            id=uuid4(),
-            empresa_id=empresa_id,
-            cliente_id=cliente_id,
-            monto=monto,
-            descripcion=descripcion,
-            vence_el=ahora + vigencia,
-            created_at=ahora,
-            comprobante_id=comprobante_id,
-            turno_id=turno_id,
-            updated_at=ahora,
-        )
-
-        # Antes de persistir: si esto levanta, no queda nada escrito. Es el criterio de
-        # aceptación de «MercadoPago no responde al generar el link».
-        link = await self._pasarela.crear_link(
-            empresa_id=empresa_id, cobro=cobro, url_de_retorno=self._url_de_retorno
-        )
-        cobro.asignar_link(link, ahora)
-        await self._cobros.agregar(cobro)
-
-        await self._publicador.publicar(
-            EventoAuditable(
-                evento_id=uuid4(),
-                empresa_id=empresa_id,
-                ocurrido_en=ahora,
-                usuario_id=usuario_id,
-                modulo=Modulo.PAYMENTS,
-                accion="generar_cobro",
-                entidad_afectada=f"Cobro:{cobro.id}",
-                resultado=Resultado.COMPLETADO,
-            )
-        )
-        return cobro
-
-    async def _exigir_comprobante_del_cliente(self, comprobante_id: UUID, cliente_id: UUID) -> None:
-        """Con el selector editable, cambiar de cliente con un comprobante elegido es un caso
-        cotidiano, y cobrarle a Ana la factura de Bruno es cobrar una deuda ajena."""
-        dueno = await self._saldos.cliente_de(comprobante_id)
-        # `None` es «no existe»: eso lo dice la comprobacion del saldo, con su propio mensaje.
-        if dueno is not None and dueno != cliente_id:
-            raise ComprobanteDeOtroCliente(MENSAJE_COMPROBANTE_DE_OTRO_CLIENTE)
-
-    async def _exigir_saldo_suficiente(self, comprobante_id: UUID, monto: Decimal) -> None:
-        """HU-E6-06 RN-02, contra el saldo **actual** del comprobante.
-
-        No se descuenta nada acá (decisión **D26**): un link generado no es plata cobrada, y
-        un comprobante cuyo saldo bajó porque alguien generó un link que nadie pagó miente en
-        el balance. El descuento lo hace la aprobación.
-        """
-        saldo = await self._saldos.saldo_pendiente(comprobante_id)
-        if saldo is None:
-            raise CobroInexistente("El comprobante no existe")
-        if monto > saldo:
-            raise MontoExcedeSaldo(f"{MENSAJE_EXCEDE_SALDO} Saldo disponible: $ {saldo}.")
-
-
 class RegenerarLink:
-    """El último criterio de HU-E6-03: se invalida el anterior y se activa el nuevo.
+    """El último criterio de HU-E6-03: se invalida el anterior **en MercadoPago** y se activa el nuevo.
 
-    Invalidar es reemplazar el objeto (`asignar_link`), no sacar uno de una lista: no hay
-    forma de olvidarse del viejo porque nunca hubo dos.
+    En el agregado hay un solo link —`asignar_link` lo reemplaza, no hay una lista de la que
+    olvidarse—, pero el anterior también vive en MercadoPago, donde sigue siendo una preferencia
+    cobrable hasta que se la invalida. Por eso la regeneración mata la preferencia vieja antes de
+    guardar la nueva; si no, un pago por el link viejo quedaría sin imputar (RN-04, pago huérfano).
     """
 
     def __init__(
@@ -278,15 +162,32 @@ class RegenerarLink:
         cobro_id: UUID,
         ahora: datetime,
     ) -> Cobro:
-        _exigir_gestor(rol)
+        exigir_gestor(rol)
 
         cobro = await self._cobros.buscar_por_id(cobro_id)
         if cobro is None:
             raise CobroInexistente("El cobro no existe")
 
+        # Primero el nuevo: si MercadoPago no responde, el cobro queda con su link anterior
+        # intacto y nada se escribe.
         link = await self._pasarela.crear_link(
             empresa_id=empresa_id, cobro=cobro, url_de_retorno=self._url_de_retorno
         )
+
+        # **El anterior se invalida en MercadoPago, no sólo acá** (HU-E6-03 crit. 5, RN-04). El
+        # link viejo ya está en el WhatsApp del cliente y sigue siendo una preferencia cobrable;
+        # un pago por él llega con la preferencia anterior y, como el cobro ya referencia la
+        # nueva, `ConfirmarPago` no lo imputa a ninguna deuda (pago huérfano). Si MercadoPago no
+        # confirma que murió, la regeneración no ocurre —una operación sobre plata no se hace a
+        # medias, igual que la cancelación— y el cobro conserva su único link cobrable. Sin link
+        # o ya vencido no hay nada que invalidar: la preferencia se creó con
+        # `expiration_date_to = vence_el`, así que vencer y «el proveedor ya no lo acepta» son el
+        # mismo hecho.
+        if cobro.link is not None and not cobro.esta_vencido_a(ahora):
+            await self._pasarela.invalidar_link(
+                empresa_id=empresa_id, preference_id=cobro.link.preference_id, ahora=ahora
+            )
+
         cobro.asignar_link(link, ahora)
         await self._cobros.guardar(cobro)
 
@@ -343,7 +244,7 @@ class CancelarCobro:
         motivo: str,
         ahora: datetime,
     ) -> Cobro:
-        _exigir_gestor(rol)
+        exigir_gestor(rol)
 
         cobro = await self._cobros.buscar_por_id(cobro_id)
         if cobro is None:
@@ -398,18 +299,15 @@ class CancelarCobro:
 
 
 __all__ = [
-    "MENSAJE_CLIENTE_INEXISTENTE",
-    "MENSAJE_COMPROBANTE_DE_OTRO_CLIENTE",
-    "MENSAJE_EXCEDE_SALDO",
     "MENSAJE_MONTO_DEMASIADO_GRANDE",
     "MONTO_MAXIMO_DE_COBRO",
     "MOTIVO_SIN_PERMISO",
     "MOTIVO_SOLO_ADMIN_REEMBOLSA",
     "CancelarCobro",
-    "GenerarCobro",
     "ListarCobros",
     "MetricasDelPeriodo",
     "RegenerarLink",
     "VerCobro",
+    "exigir_gestor",
     "monto_desde",
 ]

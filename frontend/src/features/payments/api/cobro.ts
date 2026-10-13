@@ -11,6 +11,9 @@
  * grants no DELETE, so a function here could only ever fail.
  */
 
+import type { Recordatorio } from "./recordatorio";
+import type { OrigenDeReembolso, Reembolso } from "./reembolso";
+
 export type EstadoCobro =
   | "PENDIENTE"
   | "APROBADO"
@@ -24,35 +27,6 @@ export type EstadoCobro =
  * MercadoPago (tarjeta, dinero en cuenta) no llega hasta acá.
  */
 export type MedioDePago = "LINK_MERCADOPAGO" | "TRANSFERENCIA";
-
-export interface Recordatorio {
-  readonly id: string;
-  readonly paso: number;
-  readonly canal: string;
-  readonly enviado_en: string | null;
-  readonly estado_entrega: string | null;
-}
-
-/** Por dónde salió la plata de un reembolso (ADR-0010): la API de MercadoPago o una carga manual. */
-export type OrigenDeReembolso = "API_MERCADOPAGO" | "MANUAL";
-
-/**
- * Una fila del historial de reembolsos (HU-E6-05 RN-08): un reembolso o la corrección de uno.
- *
- * Nunca se edita ni se borra: un error se corrige con **otra fila**, negativa, que apunta a la
- * que anula (`corrige_a`). `corregido` avisa que esta fila ya fue anulada por otra.
- */
-export interface Reembolso {
-  readonly id: string;
-  /** Negativo si y solo si es una corrección. Texto: nunca un `number`. */
-  readonly monto: string;
-  readonly fecha_devolucion: string;
-  readonly origen: OrigenDeReembolso;
-  readonly referencia: string | null;
-  readonly motivo: string | null;
-  readonly corrige_a: string | null;
-  readonly corregido: boolean;
-}
 
 export interface Cobro {
   readonly id: string;
@@ -90,6 +64,10 @@ export interface Cobro {
 }
 
 export interface DetalleDeCobro extends Cobro {
+  /** HU-E6-02 criterio 1: el detalle muestra los datos del cliente, no solo su id. */
+  readonly cliente_nombre: string;
+  /** CUIT formateado para mostrar («20-22222222-3»); `null` si el cliente no tiene. */
+  readonly cliente_cuit: string | null;
   readonly recordatorios: readonly Recordatorio[];
   /** Del más viejo al más nuevo; las correcciones son filas negativas visibles. */
   readonly reembolsos: readonly Reembolso[];
@@ -134,6 +112,8 @@ export const MENSAJE_SIN_CONCEPTO = "Debe ingresar un concepto para el cobro.";
 export const MENSAJE_MONTO_NO_POSITIVO = "El monto debe ser mayor a cero.";
 export const MENSAJE_MOTIVO_CORTO = "El motivo debe tener al menos 10 caracteres.";
 export const MENSAJE_LINK_COPIADO = "Link copiado al portapapeles.";
+export const MENSAJE_LINK_REGENERADO =
+  "Se generó un nuevo link de pago; el anterior quedó invalidado.";
 export const MENSAJE_MP_CAIDO = "No se pudo generar el link de pago. Intente nuevamente.";
 
 /**
@@ -184,10 +164,17 @@ export const ETIQUETAS_DE_ORIGEN: Readonly<Record<OrigenDeReembolso, string>> = 
 export const MENSAJE_NOTA_DE_CREDITO =
   "Este cobro está asociado a un comprobante. Corresponde emitir una nota de crédito por lo reembolsado: el sistema no la emite solo.";
 
+/** El código con que el backend rechaza una clave de pedido ya usada con otros datos (ADR-0013). */
+export const CODIGO_CLAVE_REUSADA = "ClaveDeIdempotenciaReusada";
+
 export class ErrorDeCobro extends Error {
-  constructor(mensaje: string) {
+  /** El código del error del backend, si lo trajo: lo que permite a la pantalla ofrecer una salida. */
+  readonly codigo: string | undefined;
+
+  constructor(mensaje: string, codigo?: string) {
     super(mensaje);
     this.name = "ErrorDeCobro";
+    this.codigo = codigo;
   }
 }
 
@@ -200,7 +187,10 @@ async function fallar(respuesta: Response): Promise<never> {
   const cuerpo = (await respuesta.json().catch(() => ({}))) as CuerpoDeError;
   // `detalle` primero: en un 422 la frase del backend es la que escribió la historia, y es
   // más específica que cualquier cosa que este archivo pudiera inventar.
-  throw new ErrorDeCobro(cuerpo.detalle ?? cuerpo.error ?? "No se pudo completar la operacion");
+  throw new ErrorDeCobro(
+    cuerpo.detalle ?? cuerpo.error ?? "No se pudo completar la operacion",
+    cuerpo.error,
+  );
 }
 
 function consultaDe(filtros: FiltrosDeCobro): string {
@@ -230,10 +220,14 @@ export async function verCobro(cobroId: string): Promise<DetalleDeCobro> {
   return (await respuesta.json()) as DetalleDeCobro;
 }
 
-export async function generarCobro(datos: CobroNuevo): Promise<Cobro> {
+/**
+ * **La clave identifica el pedido, no el cobro** (ADR-0013): el formulario la genera una vez y
+ * la manda en cada envío o reintento, y el backend contesta el cobro ya creado si la repite.
+ */
+export async function generarCobro(datos: CobroNuevo, clave: string): Promise<Cobro> {
   const respuesta = await fetch("/api/cobros", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Idempotency-Key": clave },
     body: JSON.stringify(datos),
   });
   if (!respuesta.ok) {

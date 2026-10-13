@@ -26,6 +26,7 @@ import httpx
 import pytest
 from cheatsheet.api.dependencies import Recursos
 from cheatsheet.api.main import create_app
+from cheatsheet.contexts.identity.domain.valores import RolUsuario
 from cheatsheet.contexts.identity.infrastructure.seguridad import EmisorDeTokensJWT
 from cheatsheet.contexts.reporting.application.errors import GeneracionFallida
 from cheatsheet.contexts.reporting.application.ports import FilaDeReporte
@@ -35,7 +36,8 @@ from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from fastapi import FastAPI
 
-from tests.conftest import INSTANTE_FIJO, settings_de_prueba
+from tests.api.verificador_falso import VerificadorDeSesionFalso
+from tests.conftest import INSTANTE_CON_TEXTOS_VIGENTES, INSTANTE_FIJO, settings_de_prueba
 from tests.contexts.reporting.application.dobles import (
     ArchivosEnMemoria,
     BitacoraFalsa,
@@ -80,6 +82,8 @@ class _Escenario:
     reportes: RepositorioReportesEnMemoria
     settings: Settings
     app: FastAPI
+    #: Vouches for the token's user (no database here); `_pedir` sets the role it answers.
+    verificador: VerificadorDeSesionFalso
 
 
 def _armar(monkeypatch: pytest.MonkeyPatch, *, filas: list[FilaDeReporte]) -> _Escenario:
@@ -115,9 +119,11 @@ def _armar(monkeypatch: pytest.MonkeyPatch, *, filas: list[FilaDeReporte]) -> _E
         engine=None,  # type: ignore[arg-type]  # never dereferenced: everything is replaced
         sesiones=None,  # type: ignore[arg-type]
         redis=None,  # type: ignore[arg-type]
-        reloj=RelojFijo(INSTANTE_FIJO),
+        reloj=RelojFijo(INSTANTE_CON_TEXTOS_VIGENTES),
     )
-    return _Escenario(estado, reportes, settings, create_app(settings, recursos))
+    verificador = VerificadorDeSesionFalso()
+    app = create_app(settings, recursos, verificador)
+    return _Escenario(estado, reportes, settings, app, verificador)
 
 
 def _autorizacion(settings: Settings, rol: str) -> dict[str, str]:
@@ -133,6 +139,7 @@ def _autorizacion(settings: Settings, rol: str) -> dict[str, str]:
 
 
 async def _pedir(escenario: _Escenario, rol: str = "ADMINISTRADOR") -> httpx.Response:
+    escenario.verificador.rol = RolUsuario(rol)
     transporte = httpx.ASGITransport(app=escenario.app)
     async with httpx.AsyncClient(transport=transporte, base_url="http://test") as cliente:
         return await cliente.post(
@@ -178,7 +185,7 @@ async def test_un_rechazo_por_rol_sigue_descartando_la_transaccion(
     respuesta = await _pedir(escenario, rol="SOLO_LECTURA")
 
     assert escenario.transaccion.confirmo is False
-    assert respuesta.status_code == 422
+    assert respuesta.status_code == 403
     assert escenario.reportes.reportes == {}
 
 

@@ -167,7 +167,7 @@ describe("con sesión", () => {
     });
   });
 
-  it("un 403 llega sin detalle: la política del BFF es deliberada", async () => {
+  it("un 403 por rol llega con la frase del backend, como un 409", async () => {
     cookieDeSesion = "un-access-token";
     llamarApi.mockRejectedValue(
       new ErrorDeApi(403, "Se requiere rol Administrador u Operador", "PermisoDenegado"),
@@ -176,6 +176,9 @@ describe("con sesión", () => {
     const respuesta = await deleteCategoria(lectura(), { params: { categoriaId: "c-1" } });
 
     expect(respuesta.status).toBe(403);
-    expect(await respuesta.json()).toEqual({ error: "PermisoDenegado" });
+    expect(await respuesta.json()).toEqual({
+      error: "PermisoDenegado",
+      detalle: "Se requiere rol Administrador u Operador",
+    });
   });
 });

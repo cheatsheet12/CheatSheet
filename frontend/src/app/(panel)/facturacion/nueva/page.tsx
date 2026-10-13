@@ -10,6 +10,7 @@
  * numbering, and without a client there is nobody to invoice.
  */
 
+import { ArrowLeft, FilePlus2 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -75,7 +76,12 @@ export default async function PaginaDeNuevaEmision({ searchParams }: Props): Pro
   return (
     <>
       <Encabezado bajada="Tres pasos: validamos el CUIT contra el padrón de ARCA, elegís con qué numeración se emite y cargás los ítems. De la respuesta de ARCA depende qué se puede emitir." />
-      <NuevaEmision puntos={activos} clienteId={clienteId} cuitDelCliente={cliente?.cuit ?? null} />
+      <NuevaEmision
+        puntos={activos}
+        clienteId={clienteId}
+        cuitDelCliente={cliente?.cuit ?? null}
+        nombreDelCliente={cliente?.nombre ?? null}
+      />
     </>
   );
 }
@@ -89,17 +95,19 @@ export default async function PaginaDeNuevaEmision({ searchParams }: Props): Pro
  */
 function Encabezado({ bajada }: { readonly bajada: string }): JSX.Element {
   return (
-    <header className="fac-nuevo-encabezado">
-      <div>
+    <header className="fac-em-encabezado">
+      <span className="fac-em-encabezado__icono" aria-hidden="true">
+        <FilePlus2 strokeWidth={2} />
+      </span>
+      <div className="fac-em-encabezado__texto">
         <span className="fac-nuevo-encabezado__cintillo">Facturación</span>
-        <h1 className="fac-nuevo-encabezado__titulo">Nueva emisión</h1>
-        <p className="fac-nuevo-encabezado__sub">{bajada}</p>
+        <h1 className="fac-em-encabezado__titulo">Nueva emisión</h1>
+        <p className="fac-em-encabezado__sub">{bajada}</p>
       </div>
-      <div className="fac-nuevo-encabezado__acciones">
-        <Link href="/facturacion" className="boton boton--secundario fac-nuevo-boton-enlace">
-          Volver al listado
-        </Link>
-      </div>
+      <Link href="/facturacion" className="boton boton--secundario fac-nuevo-boton-enlace">
+        <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
+        Volver al listado
+      </Link>
     </header>
   );
 }

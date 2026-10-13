@@ -109,7 +109,10 @@ describe("PAN-DSH-01 · el selector de período en la URL", () => {
       <SelectorDePeriodoEnUrl desde="2026-03-01" hasta="2026-03-31" resumen="1/3/26 – 31/3/26" />,
     );
 
-    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-02-01" } });
+    // El campo es un calendario: se abre, se va al mes anterior y se elige el 1.º de febrero.
+    fireEvent.click(screen.getByLabelText("Desde"));
+    fireEvent.click(screen.getByRole("button", { name: "Mes anterior" }));
+    fireEvent.click(screen.getByRole("button", { name: "1 de febrero de 2026" }));
 
     expect(replace).toHaveBeenCalledWith("/panel?desde=2026-02-01&hasta=2026-03-31");
   });
@@ -119,8 +122,69 @@ describe("PAN-DSH-01 · el selector de período en la URL", () => {
       <SelectorDePeriodoEnUrl desde="2026-03-01" hasta="2026-03-31" resumen="1/3/26 – 31/3/26" />,
     );
 
-    fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: "" } });
+    fireEvent.click(screen.getByLabelText("Hasta"));
+    fireEvent.click(screen.getByRole("button", { name: "Borrar" }));
 
     expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("PAN-DSH-01 · la actividad lleva al detalle", () => {
+  const ID = "2f6d9478-3c56-4542-9c68-d256a939e1aa";
+
+  function operacion(id: string, entidad: string): Record<string, unknown> {
+    return {
+      id,
+      timestamp: "2026-09-15T16:35:00Z",
+      modulo: "billing",
+      accion: "autorizar_comprobante",
+      entidad_afectada: entidad,
+      resultado: "completado",
+      iniciador: "sistema",
+    };
+  }
+
+  async function enlaces(operaciones: Record<string, unknown>[]): Promise<string[]> {
+    leerClaims.mockReturnValue({ rol: "ADMINISTRADOR", empresa_id: "e-1", usuario_id: "u-1" });
+    llamarApi.mockImplementation(async (ruta: string) =>
+      ruta.startsWith("/reporteria/tablero") ? TABLERO : { operaciones, total: operaciones.length },
+    );
+    const html = renderToString(await PanelHome({ searchParams: {} }));
+    // El orden de los atributos lo decide React: se busca cada enlace por su clase y se le
+    // lee el `href`, sin suponer qué va primero.
+    const hrefs = [...html.matchAll(/<a[^>]*dsh-entidad-enlace[^>]*>/g)].map(
+      (etiqueta) => /href="([^"]+)"/.exec(etiqueta[0])?.[1] ?? "",
+    );
+    return hrefs;
+  }
+
+  it("un comprobante lleva a su factura", async () => {
+    expect(await enlaces([operacion("op-1", `Comprobante:${ID}`)])).toEqual([`/facturacion/${ID}`]);
+  });
+
+  it("un cobro, un turno y una carga llevan a su propio detalle", async () => {
+    expect(
+      await enlaces([
+        operacion("op-1", `Cobro:${ID}`),
+        operacion("op-2", `Turno:${ID}`),
+        operacion("op-3", `ProcesamientoDePlanilla:${ID}`),
+      ]),
+    ).toEqual([`/cobros/${ID}`, `/agenda/${ID}`, `/ingesta/${ID}`]);
+  });
+
+  it("una entidad sin detalle por id lleva a la pantalla donde se administra", async () => {
+    expect(await enlaces([operacion("op-1", `PuntoDeVenta:${ID}`)])).toEqual([
+      "/facturacion/puntos-de-venta",
+    ]);
+  });
+
+  it("si el identificador no es el esperado, o la entidad no se conoce, va al detalle de la operación", async () => {
+    expect(
+      await enlaces([
+        operacion("op-1", "Comprobante:1"),
+        operacion("op-2", `Mapeo:${ID}`),
+        operacion("op-3", "sin-dos-puntos"),
+      ]),
+    ).toEqual(["/auditoria/op-1", "/auditoria/op-2", "/auditoria/op-3"]);
   });
 });

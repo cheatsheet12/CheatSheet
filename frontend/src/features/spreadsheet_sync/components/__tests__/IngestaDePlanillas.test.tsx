@@ -9,7 +9,7 @@
  * literalmente lo que dice el criterio de aceptación.
  */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listarPlanillas = vi.fn();
@@ -102,6 +102,29 @@ function archivo(nombre: string): File {
 }
 
 describe("IngestaDePlanillas", () => {
+  it("ofrece revisar el mapeo de un vínculo Google real", () => {
+    render(
+      <IngestaDePlanillas
+        inicial={{
+          vinculos: [
+            {
+              ...VINCULO,
+              proveedor: "GOOGLE_SHEETS",
+              nombre_archivo: null,
+              hoja_empresa: "Clientes",
+            },
+          ],
+        }}
+        cargasIniciales={[]}
+        puedeEditar
+      />,
+    );
+
+    expect(screen.getByText("Revisar mapeo").closest("a")?.getAttribute("href")).toBe(
+      "/ingesta/mapeo/v1",
+    );
+  });
+
   it("muestra las cargas recientes con su proveedor y su estado", () => {
     render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
 
@@ -223,6 +246,22 @@ describe("IngestaDePlanillas · vincular con Google", () => {
     });
   }
 
+  it("permite pedir lectura y escritura para la hoja propia", async () => {
+    iniciarVinculacionConGoogle.mockReturnValue(new Promise<string>(() => undefined));
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
+    abrirElPedidoDeEnlace();
+
+    fireEvent.click(screen.getByLabelText("Escribir registros del panel en la hoja de CheatSheet"));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await waitFor(() =>
+      expect(iniciarVinculacionConGoogle).toHaveBeenCalledWith(
+        "Clientes 2026",
+        "LECTURA_Y_ESCRITURA",
+      ),
+    );
+  });
+
   it("«Continuar» queda ocupado mientras se pide la URL y un segundo clic no pide otra vinculación", async () => {
     // Dos pedidos son dos `state` de OAuth: la cookie puede quedar con el otro y el callback
     // falla.
@@ -269,5 +308,57 @@ describe("IngestaDePlanillas · vincular con Google", () => {
     expect(await screen.findByText("Google no responde.")).toBeTruthy();
     const boton = screen.getByRole("button", { name: "Continuar" }) as HTMLButtonElement;
     expect(boton.disabled).toBe(false);
+  });
+});
+
+describe("IngestaDePlanillas · resumen y avance", () => {
+  it("la franja de resumen suma lo que la pantalla ya tiene", () => {
+    const cargas: readonly Carga[] = [
+      CARGA,
+      { ...CARGA, id: "c2", estado: "COMPLETADO", filas_totales: 10, filas_ok: 10, filas_error: 0 },
+    ];
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={cargas} puedeEditar />);
+
+    const resumen = screen.getByRole("list", { name: "Resumen de la ingesta" });
+    const valor = (clave: string): string | null =>
+      resumen.querySelector(`[data-clave="${clave}"]`)?.textContent ?? null;
+    expect(valor("planillas")).toBe("1");
+    expect(valor("cargas")).toBe("2");
+    expect(valor("importadas")).toBe("108");
+    expect(valor("errores")).toBe("2");
+  });
+
+  it("sin mapeo, el paso que sigue es el mapeo", () => {
+    render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
+
+    const pasos = within(screen.getByRole("list", { name: "Avance de la planilla" })).getAllByRole(
+      "listitem",
+    );
+    expect(pasos.map((paso) => paso.getAttribute("data-situacion"))).toEqual([
+      "hecho",
+      "actual",
+      "pendiente",
+    ]);
+  });
+
+  it("con mapeo y una lectura, los tres pasos quedan hechos", () => {
+    render(
+      <IngestaDePlanillas
+        inicial={{
+          vinculos: [{ ...VINCULO, tiene_mapeo: true, ultima_lectura: "2026-09-08T10:00:00Z" }],
+        }}
+        cargasIniciales={[]}
+        puedeEditar
+      />,
+    );
+
+    const pasos = within(screen.getByRole("list", { name: "Avance de la planilla" })).getAllByRole(
+      "listitem",
+    );
+    expect(pasos.map((paso) => paso.getAttribute("data-situacion"))).toEqual([
+      "hecho",
+      "hecho",
+      "hecho",
+    ]);
   });
 });

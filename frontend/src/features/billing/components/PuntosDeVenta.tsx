@@ -27,6 +27,8 @@
 
 import { useState } from "react";
 
+import { Hash, ReceiptText, Store } from "lucide-react";
+
 import { Alert, Badge, Button, Campo, Modal } from "@/shared";
 
 import {
@@ -34,9 +36,9 @@ import {
   cambiarEstadoDePuntoDeVenta,
   listarPuntosDeVenta,
   registrarPuntoDeVenta,
-  resumenDeNumeracion,
 } from "../api/puntoDeVenta";
-import type { ListadoDePuntosDeVenta, PuntoDeVenta } from "../api/puntoDeVenta";
+import { ETIQUETAS_DE_TIPO } from "../api/puntoDeVenta";
+import type { ListadoDePuntosDeVenta, PuntoDeVenta, TipoComprobante } from "../api/puntoDeVenta";
 
 export interface PropsDePuntosDeVenta {
   readonly inicial: ListadoDePuntosDeVenta;
@@ -51,6 +53,24 @@ function mensajeDe(fallo: unknown, porDefecto: string): string {
 /** Four digits, the way ARCA prints it on the document: `0001-00000123`. */
 function formateado(numero: number): string {
   return String(numero).padStart(4, "0");
+}
+
+/** Fecha de alta en hora argentina, fija: el servidor y el navegador tienen que dibujar lo mismo. */
+function fechaDeAlta(iso: string): string | null {
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) {
+    return null;
+  }
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "long",
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(fecha);
+}
+
+/** Los tipos que alguna vez emitieron, con su último número tal cual llega: texto, sin cuentas. */
+function numeracionDe(punto: PuntoDeVenta): string[] {
+  const entradas = Object.entries(punto.numerador_por_tipo) as [TipoComprobante, number][];
+  return entradas.map(([tipo, ultimo]) => `${ETIQUETAS_DE_TIPO[tipo]}: ${ultimo}`);
 }
 
 export function PuntosDeVenta({ inicial, puedeEditar }: PropsDePuntosDeVenta): JSX.Element {
@@ -168,40 +188,94 @@ export function PuntosDeVenta({ inicial, puedeEditar }: PropsDePuntosDeVenta): J
         )}
       </div>
 
+      {listado.puntos.length > 0 && (
+        <p className="ptv-resumen">
+          <span>
+            <strong>{listado.puntos.length}</strong>{" "}
+            {listado.puntos.length === 1 ? "punto de venta" : "puntos de venta"}
+          </span>
+          <span className="ptv-resumen__item">
+            <i className="ptv-resumen__punto ptv-resumen__punto--ok" aria-hidden="true" />
+            <strong>{listado.puntos.filter((p) => p.activo).length}</strong> Activos
+          </span>
+          <span className="ptv-resumen__item">
+            <i className="ptv-resumen__punto" aria-hidden="true" />
+            <strong>{listado.puntos.filter((p) => !p.activo).length}</strong> Inactivos
+          </span>
+        </p>
+      )}
+
       {listado.puntos.length === 0 ? (
-        // Un renglón adentro de la tarjeta, no una caja punteada de media pantalla: sin
-        // puntos de venta la pantalla está entera, sólo que todavía no se cargó ninguno.
-        <div className="pdv-panel">
-          <p className="pdv-vacio">
-            Todavía no hay puntos de venta. Agregá uno de los que ARCA te habilitó.
-          </p>
+        <div className="ptv-vacio">
+          <span className="ptv-vacio__icono" aria-hidden="true">
+            <Store size={26} strokeWidth={1.6} />
+          </span>
+          <p className="ptv-vacio__titulo">Todavía no hay puntos de venta.</p>
+          <p className="ptv-vacio__texto">Agregá uno de los que ARCA te habilitó.</p>
         </div>
       ) : (
-        // Renglones a ancho completo y no una grilla: con un punto de venta —el caso normal
-        // de una PyME— la grilla dejaba una tarjeta de 500 px y 1150 px muertos al lado, y
-        // eso se lee como una pantalla que falló al cargar.
-        <div className="pdv-lista">
-          {listado.puntos.map((punto) => (
-            <article
-              key={punto.id}
-              className={`pdv-punto${punto.activo ? "" : " pdv-punto--inactivo"}`}
-            >
-              <span className="pdv-punto__numero">{formateado(punto.numero)}</span>
-              <div className="pdv-punto__quien">
-                <p className="pdv-punto__descripcion">{punto.descripcion ?? "—"}</p>
-              </div>
-              <div className="pdv-punto__numeracion">
-                <p className="pdv-punto__rotulo">Último emitido</p>
-                {/* La numeración por tipo es lo primero que alguien busca cuando ARCA rechaza
-                    un comprobante por número fuera de secuencia. */}
-                <p className="pdv-punto__cifras">{resumenDeNumeracion(punto) || "Sin emisiones"}</p>
-              </div>
-              <Badge estado={punto.activo ? "ok" : "pendiente"}>
-                {punto.activo ? "Activo" : "Inactivo"}
-              </Badge>
-              {puedeEditar && <div className="pdv-punto__acciones">{accion(punto)}</div>}
-            </article>
-          ))}
+        <div className="ptv-grilla">
+          {listado.puntos.map((punto, indice) => {
+            const numeracion = numeracionDe(punto);
+            const alta = fechaDeAlta(punto.created_at);
+            return (
+              <article
+                key={punto.id}
+                className={`ptv-tarjeta${punto.activo ? "" : " ptv-tarjeta--inactivo"}`}
+                style={{ animationDelay: `${Math.min(indice, 8) * 60}ms` }}
+              >
+                <header className="ptv-tarjeta__cabeza">
+                  <span className="ptv-ficha" aria-hidden="true">
+                    <Hash size={14} strokeWidth={2} />
+                  </span>
+                  <span className="ptv-tarjeta__numero">{formateado(punto.numero)}</span>
+                  <Badge estado={punto.activo ? "ok" : "pendiente"}>
+                    {punto.activo ? "Activo" : "Inactivo"}
+                  </Badge>
+                </header>
+
+                <h2 className="ptv-tarjeta__nombre">{punto.descripcion ?? "—"}</h2>
+
+                <div className="ptv-numeracion">
+                  <p className="ptv-numeracion__rotulo">
+                    <ReceiptText size={13} strokeWidth={1.8} aria-hidden="true" />
+                    Último emitido
+                  </p>
+                  {numeracion.length === 0 ? (
+                    <p className="ptv-numeracion__vacio">Sin emisiones</p>
+                  ) : (
+                    <ul className="ptv-numeracion__lista">
+                      {numeracion.map((texto) => (
+                        <li key={texto} className="ptv-tipo">
+                          {texto}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <details className="ptv-detalle">
+                  <summary>Detalle</summary>
+                  <dl className="ptv-detalle__datos">
+                    <dt>Estado</dt>
+                    <dd>
+                      {punto.activo ? "Habilitado para emitir" : "No emite comprobantes nuevos"}
+                    </dd>
+                    {alta !== null && (
+                      <>
+                        <dt>Agregado el</dt>
+                        <dd>{alta}</dd>
+                      </>
+                    )}
+                    <dt>Tipos con emisiones</dt>
+                    <dd>{numeracion.length}</dd>
+                  </dl>
+                </details>
+
+                {puedeEditar && <div className="ptv-tarjeta__pie">{accion(punto)}</div>}
+              </article>
+            );
+          })}
         </div>
       )}
 

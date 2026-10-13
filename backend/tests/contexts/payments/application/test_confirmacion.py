@@ -62,6 +62,8 @@ class CobrosFalsos:
         #: Los cobros que se cargaron con bloqueo de fila: todo camino que suma plata tiene que
         #: estar acá, o dos reembolsos simultáneos se pisan el acumulado.
         self.bloqueados: list[UUID] = []
+        #: Las claves de pedido que `GenerarCobro` buscó (con bloqueo, en el real).
+        self.claves_consultadas: list[UUID] = []
 
     async def agregar(self, cobro: Cobro) -> None:
         self.guardados[cobro.id] = cobro
@@ -80,6 +82,11 @@ class CobrosFalsos:
 
     async def buscar_por_payment_id(self, payment_id: str) -> Cobro | None:
         return next((c for c in self.guardados.values() if c.mp_payment_id == payment_id), None)
+
+    async def buscar_por_clave_bloqueada(self, clave: UUID) -> Cobro | None:
+        """El real toma un bloqueo consultivo y lee; acá se anota la consulta y se busca."""
+        self.claves_consultadas.append(clave)
+        return next((c for c in self.guardados.values() if c.clave_idempotencia == clave), None)
 
     async def buscar_por_preference_id(self, preference_id: str) -> Cobro | None:
         return next(
@@ -127,9 +134,12 @@ class PasarelaFalsa:
         estado: str = "approved",
         preferencia: str | None = "pref-1",
         fecha_aprobacion: datetime | None = None,
+        cobro_id: UUID | None = None,
     ) -> None:
         self.estado = estado
         self.preferencia = preferencia
+        #: Lo que MercadoPago devolvería en `external_reference`.
+        self.cobro_id = cobro_id
         #: Lo que MercadoPago diría en `date_approved`. `None` es «no lo informó o no se leyó».
         self.fecha_aprobacion = fecha_aprobacion
         self.consultas = 0
@@ -165,6 +175,7 @@ class PasarelaFalsa:
             preference_id=self.preferencia,
             estado=self.estado,
             fecha_aprobacion=self.fecha_aprobacion,
+            cobro_id=self.cobro_id,
         )
 
     async def invalidar_link(
@@ -479,6 +490,54 @@ async def test_un_pago_sin_preferencia_no_se_puede_atar_a_nada() -> None:
     ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
 
     assert not resultado.aprobado
+
+
+async def test_un_pago_sin_preferencia_se_ata_al_cobro_por_su_external_reference() -> None:
+    """Visto en staging el 12/10/2026: un pago de Checkout Pro aprobado no traía
+    `preference_id`, y el cobro quedó pendiente con el webhook en `webhook_sin_cobro_asociado`.
+    """
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pasarela = PasarelaFalsa(preferencia=None, cobro_id=cobro.id)
+
+    resultado = await _confirmar(cobros, pasarela, SaldosFalsos(), PublicadorFalso()).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA
+    )
+
+    assert resultado.aprobado
+    assert cobro.estado is EstadoCobro.APROBADO
+    assert cobro.mp_payment_id == "pago-1"
+
+
+async def test_un_external_reference_de_otra_empresa_no_cierra_su_cobro() -> None:
+    cobros = CobrosFalsos()
+    ajeno = _cobro()
+    ajeno.empresa_id = EmpresaId(uuid4())
+    await cobros.agregar(ajeno)
+    pasarela = PasarelaFalsa(preferencia=None, cobro_id=ajeno.id)
+
+    resultado = await _confirmar(cobros, pasarela, SaldosFalsos(), PublicadorFalso()).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA
+    )
+
+    assert not resultado.aprobado
+    assert ajeno.estado is EstadoCobro.PENDIENTE
+    assert cobros.escrituras == []
+
+
+async def test_un_external_reference_desconocido_cae_a_la_preferencia() -> None:
+    cobros = CobrosFalsos()
+    cobro = _cobro()
+    await cobros.agregar(cobro)
+    pasarela = PasarelaFalsa(cobro_id=uuid4())
+
+    resultado = await _confirmar(cobros, pasarela, SaldosFalsos(), PublicadorFalso()).ejecutar(
+        empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA
+    )
+
+    assert resultado.aprobado
+    assert cobro.estado is EstadoCobro.APROBADO
 
 
 # ------------------------------------------------------------------ el saldo · RN-03

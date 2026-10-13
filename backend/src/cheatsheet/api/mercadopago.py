@@ -21,6 +21,8 @@ fila de la empresa actual. Es la misma conclusión a la que llegó `arca.py`.
 from __future__ import annotations
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
+from cheatsheet.api.fallas_de_canal import CanalConFallasTraducidas
+from cheatsheet.api.plantillas_salientes import armar_plantillas_aprobadas
 from cheatsheet.contexts.billing.infrastructure.repositorio_comprobante import (
     RepositorioComprobantePostgres,
 )
@@ -34,19 +36,30 @@ from cheatsheet.contexts.integrations.application.errors import (
 )
 from cheatsheet.contexts.integrations.domain.valores import SistemaExterno
 from cheatsheet.contexts.integrations.infrastructure.ensamblado import Integraciones
+from cheatsheet.contexts.master_data.application.clientes import VerCliente
 from cheatsheet.contexts.master_data.infrastructure.repositories import (
     RepositorioClientePostgres,
 )
 from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
 from cheatsheet.contexts.payments.application.ports import (
-    PortCadenaDeEscalamiento,
     PortClienteDeCobro,
     PortPasarelaDePago,
     PortSaldoDeComprobante,
 )
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    PortCadenaDeEscalamiento,
+    PortEnvioDeRecordatorio,
+)
+from cheatsheet.contexts.payments.application.ports_envio import (
+    FallaDelCanal,
+    PortContactoDeCliente,
+)
 from cheatsheet.contexts.payments.infrastructure.cadena import CadenaViaConfiguracion
-from cheatsheet.contexts.payments.infrastructure.clientes import ClienteViaMasterData
-from cheatsheet.contexts.payments.infrastructure.envio import EnvioPorConsola
+from cheatsheet.contexts.payments.infrastructure.clientes import (
+    ClienteViaMasterData,
+    ContactoViaMasterData,
+)
+from cheatsheet.contexts.payments.infrastructure.envio import CanalDeTexto, EnvioPorWhatsApp
 from cheatsheet.contexts.payments.infrastructure.pasarela import (
     PasarelaMercadoPago,
     PasarelaSimulada,
@@ -135,28 +148,54 @@ def armar_clientes(unidad: UnidadDeTrabajo) -> PortClienteDeCobro:
     return ClienteViaMasterData(RepositorioClientePostgres(unidad.sesion))
 
 
+def armar_ver_cliente(unidad: UnidadDeTrabajo) -> VerCliente:
+    """`VerCliente` de master_data, para que el detalle del cobro muestre el nombre y el CUIT
+    del cliente (HU-E6-02 criterio 1).
+
+    Vive en el composition root y usa el caso de uso **de master_data**, no el puerto de
+    `payments`: D92 mantiene el CUIT fuera de `payments` a propósito, y esto es el API
+    enriqueciendo la respuesta cruzando contextos, no `payments` mirando el CUIT.
+    """
+    return VerCliente(clientes=RepositorioClientePostgres(unidad.sesion))
+
+
 def armar_cadena(unidad: UnidadDeTrabajo) -> PortCadenaDeEscalamiento:
     """La cadena de recordatorios, como `payments` la ve (HS-T3)."""
     piezas = ConfiguracionDeNegocio.armar(unidad)
     return CadenaViaConfiguracion(ConsultarReglasVigentes(piezas.reglas))
 
 
-def armar_envio(settings: Settings) -> EnvioPorConsola:
-    """Por dónde sale un recordatorio.
+def armar_contactos(unidad: UnidadDeTrabajo) -> PortContactoDeCliente:
+    """El contacto de un cliente, **sólo para el envío del recordatorio** (U5).
 
-    **Hoy siempre es la consola**, y decirlo es más honesto que esconderlo detrás de un
-    switch que tiene una sola posición: el canal real es WhatsApp y lo construye el épico 8.
-    El adaptador se niega a arrancar en producción, así que este pendiente no se puede
-    desplegar sin que alguien se entere.
+    Aparte de `armar_clientes` a propósito: ese puerto no expone el contacto (D92).
     """
-    return EnvioPorConsola(settings.entorno)
+    return ContactoViaMasterData(RepositorioClientePostgres(unidad.sesion))
+
+
+def armar_envio(unidad: UnidadDeTrabajo, *, canal: CanalDeTexto) -> PortEnvioDeRecordatorio:
+    """Por dónde sale un recordatorio: WhatsApp, por el canal que el llamador ya armó.
+
+    **El canal llega armado** (ADR-0011 §2): `api/mensajeria.armar_mensajeria` lo arma una vez
+    por unidad de trabajo, y este módulo no depende de `conversational`. La plantilla aprobada
+    del recordatorio, si la hay, llega de `business_config` (`armar_plantillas_aprobadas`). Fuera de producción el
+    canal puede ser el simulado, y entonces el recordatorio queda `ENVIADO` sin salir de la
+    máquina; en producción sin WhatsApp conectado es `SinCanal` y queda `FALLIDO`.
+    """
+    return EnvioPorWhatsApp(
+        CanalConFallasTraducidas(canal, FallaDelCanal),
+        armar_contactos(unidad),
+        armar_plantillas_aprobadas(unidad),
+    )
 
 
 __all__ = [
     "TokenDesdeIntegraciones",
     "armar_cadena",
     "armar_clientes",
+    "armar_contactos",
     "armar_envio",
     "armar_pasarela",
     "armar_saldos",
+    "armar_ver_cliente",
 ]

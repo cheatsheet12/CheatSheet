@@ -196,7 +196,10 @@ describe("PAN-REP-01 · el tablero", () => {
     });
     render(<Tablero inicial={TABLERO} />);
 
-    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-02-01" } });
+    // El campo es un calendario: se abre, se retrocede un mes y se elige el 1.º de febrero.
+    fireEvent.click(screen.getByLabelText("Desde"));
+    fireEvent.click(screen.getByRole("button", { name: "Mes anterior" }));
+    fireEvent.click(screen.getByRole("button", { name: "1 de febrero de 2026" }));
 
     await waitFor(() => {
       expect(verTablero).toHaveBeenCalledWith({ desde: "2026-02-01", hasta: "2026-03-31" });
@@ -207,7 +210,8 @@ describe("PAN-REP-01 · el tablero", () => {
     verTablero.mockRejectedValue(new ErrorDeReporte("La API no respondió"));
     render(<Tablero inicial={TABLERO} />);
 
-    fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: "2026-03-15" } });
+    fireEvent.click(screen.getByLabelText("Hasta"));
+    fireEvent.click(screen.getByRole("button", { name: "15 de marzo de 2026" }));
 
     await waitFor(() => {
       expect(screen.getByText("La API no respondió")).toBeTruthy();
@@ -248,7 +252,10 @@ describe("PAN-REP-01 · las visualizaciones de cobranza", () => {
     });
     render(<Tablero inicial={TABLERO} />);
 
-    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-02-01" } });
+    // El campo es un calendario: se abre, se retrocede un mes y se elige el 1.º de febrero.
+    fireEvent.click(screen.getByLabelText("Desde"));
+    fireEvent.click(screen.getByRole("button", { name: "Mes anterior" }));
+    fireEvent.click(screen.getByRole("button", { name: "1 de febrero de 2026" }));
 
     await waitFor(() => {
       expect(within(tarjeta("Cobrado por semana")).getByText("$ 222,00")).toBeTruthy();

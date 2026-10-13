@@ -24,6 +24,7 @@ vi.mock("@/features/business_config/api/atencion", async () => {
   };
 });
 
+import { elegirFecha } from "@/shared/ui/__tests__/elegir-fecha";
 import { ErrorDeAtencion } from "../../api/atencion";
 import type { HorarioDeAtencionGuardado } from "../../api/atencion";
 import { HorarioDeAtencion } from "../HorarioDeAtencion";
@@ -276,9 +277,7 @@ describe("guardar", () => {
     );
     expect(screen.queryByText("2026-09-30")).toBeNull();
 
-    fireEvent.change(screen.getByLabelText("Día sin atención"), {
-      target: { value: "2026-10-14" },
-    });
+    elegirFecha("Día sin atención", "2026-10-14");
     fireEvent.click(screen.getByRole("button", { name: "Agregar fecha" }));
     fireEvent.click(botonGuardar());
 

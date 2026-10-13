@@ -66,6 +66,19 @@ describe("PaginaDeIngesta", () => {
     expect(llamarApi).toHaveBeenCalledWith("/planillas/cargas");
   });
 
+  it("muestra el error de vinculación que devolvió el callback de Google", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) =>
+      ruta === "/planillas" ? { vinculos: [] } : { cargas: [] },
+    );
+
+    const html = renderToString(
+      await PaginaDeIngesta({ searchParams: { error: "Google rechazó la consulta con 403" } }),
+    );
+
+    expect(html).toContain("Google rechazó la consulta con 403");
+  });
+
   it("le da la zona de carga al Administrador", async () => {
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
     llamarApi.mockImplementation((ruta: string) =>
@@ -94,7 +107,7 @@ describe("PaginaDeIngesta", () => {
       // mirar. Se afirma sobre el vacio de la tabla y no sobre el titulo «Cargas
       // recientes» porque `Tabla` descarta su caption cuando no hay filas -- defecto del
       // sistema de diseno, anotado en `TODO.md`, no de esta pantalla.
-      expect(html).toContain("Todavia no vinculaste ninguna planilla");
+      expect(html).toContain("Todavía no vinculaste ninguna planilla");
     },
   );
 });

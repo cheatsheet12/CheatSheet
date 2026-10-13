@@ -51,6 +51,7 @@ from cheatsheet.contexts.billing.domain.comprobante import (
     ItemDeComprobante,
     Receptor,
 )
+from cheatsheet.contexts.billing.domain.leyendas import leyenda_de
 from cheatsheet.contexts.billing.domain.punto_de_venta import TipoComprobante
 from cheatsheet.contexts.billing.infrastructure.ensamblado import (
     Facturacion,
@@ -107,6 +108,8 @@ class ComprobanteSalida(BaseModel):
     cae: str | None
     cae_vence_el: date | None
     motivo_de_rechazo: str | None
+    #: HU-E5-03 RN-13: shown in the detail and printed on the PDF.
+    leyenda: str | None
     subtotal: Decimal
     total_iva: Decimal
     total: Decimal
@@ -182,6 +185,7 @@ def _a_salida(comprobante: Comprobante) -> ComprobanteSalida:
         cae=comprobante.cae.codigo if comprobante.cae else None,
         cae_vence_el=comprobante.cae.vence_el if comprobante.cae else None,
         motivo_de_rechazo=comprobante.motivo_de_rechazo,
+        leyenda=leyenda_de(comprobante),
         subtotal=comprobante.subtotal,
         total_iva=comprobante.total_iva,
         total=comprobante.total,

@@ -29,7 +29,7 @@ from cheatsheet.contexts.integrations.application.ports import (
     TicketEmitido,
 )
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
-from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca, TicketDeAcceso
+from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
 from cheatsheet.contexts.integrations.domain.valores import (
     Ambiente,
     CredencialCifrada,
@@ -256,24 +256,6 @@ def publicador() -> PublicadorFalso:
 @pytest.fixture
 def empresa_id() -> EmpresaId:
     return EmpresaId(uuid4())
-
-
-class RepositorioTicketsEnMemoria:
-    """Implements `PortRepositorioTickets`."""
-
-    def __init__(self) -> None:
-        self.filas: dict[tuple[EmpresaId, ServicioDeArca], TicketDeAcceso] = {}
-
-    async def agregar(self, ticket: TicketDeAcceso) -> None:
-        self.filas[(ticket.empresa_id, ticket.servicio)] = ticket
-
-    async def guardar(self, ticket: TicketDeAcceso) -> None:
-        self.filas[(ticket.empresa_id, ticket.servicio)] = ticket
-
-    async def buscar(
-        self, empresa_id: EmpresaId, servicio: ServicioDeArca
-    ) -> TicketDeAcceso | None:
-        return self.filas.get((empresa_id, servicio))
 
 
 class EmisorProgramado:

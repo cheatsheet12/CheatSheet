@@ -78,46 +78,154 @@
  * tener que vestirlos acá, ya que `.boton` es de los botones. */
 .dsh-enlace,
 .dsh-enlace-cta {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  border-radius: var(--radius-control);
-  padding: 10px 16px;
+  justify-content: center;
+  gap: 10px;
+  height: 44px;
+  border-radius: 12px;
+  padding: 0 18px 0 14px;
   font-size: 13.5px;
   font-weight: 600;
+  letter-spacing: -0.005em;
   border: 1px solid transparent;
   white-space: nowrap;
-  text-decoration: none;
+  overflow: hidden;
+  isolation: isolate;
   transition:
-    background-color 0.14s ease,
-    border-color 0.14s ease;
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
+}
+
+/* El estilo global de los enlaces subraya al pasar el mouse, con más especificidad que la clase
+   del botón: un botón no se subraya. */
+.dsh-enlace,
+.dsh-enlace:hover,
+.dsh-enlace-cta,
+.dsh-enlace-cta:hover {
+  text-decoration: none;
+}
+
+.dsh-enlace:active,
+.dsh-enlace-cta:active {
+  transform: scale(0.97);
+}
+
+.dsh-enlace:focus-visible,
+.dsh-enlace-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* El icono va en una pastilla propia: da un ancla visual a la izquierda y evita que un trazo
+   fino flote suelto al lado de una palabra. */
+.dsh-enlace svg,
+.dsh-enlace-cta svg {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 5px;
+  border-radius: 8px;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .dsh-enlace {
   background: var(--card);
   border-color: var(--line);
-  color: var(--ink-700);
-  box-shadow: var(--shadow);
+  color: var(--ink-900);
+  box-shadow: 0 1px 2px rgb(30 30 46 / 5%);
+}
+
+.dsh-enlace svg {
+  background: var(--line-2);
+  color: var(--ink-500);
 }
 
 .dsh-enlace:hover {
   border-color: var(--ink-300);
+  background: var(--card);
+  box-shadow:
+    0 1px 2px rgb(30 30 46 / 5%),
+    0 8px 20px rgb(30 30 46 / 8%);
+  transform: translateY(-1px);
+}
+
+.dsh-enlace:hover svg {
+  background: var(--accent-050);
+  color: var(--accent-700);
+  transform: scale(1.08);
 }
 
 .dsh-enlace-cta {
-  background: var(--accent);
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  color: var(--primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+}
+
+.dsh-enlace-cta svg {
+  background: rgb(30 30 46 / 12%);
   color: var(--primary);
 }
 
-.dsh-enlace-cta:hover {
-  background: var(--accent-700);
-  color: var(--color-text-on-dark);
+/* Un destello cruza el botón al pasar el mouse: dice «esto es lo principal» sin gritarlo. */
+.dsh-enlace-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 38%) 50%, transparent 65%);
+  transform: translateX(-120%);
 }
 
-.dsh-enlace svg,
-.dsh-enlace-cta svg {
-  width: 16px;
-  height: 16px;
+.dsh-enlace-cta:hover {
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 30%);
+}
+
+.dsh-enlace-cta:hover::after {
+  transform: translateX(120%);
+  transition: transform 0.7s ease;
+}
+
+.dsh-enlace-cta:hover svg {
+  background: rgb(30 30 46 / 18%);
+  transform: rotate(90deg) scale(1.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsh-enlace,
+  .dsh-enlace-cta,
+  .dsh-enlace svg,
+  .dsh-enlace-cta svg {
+    transition: none;
+  }
+
+  .dsh-enlace-cta::after {
+    display: none;
+  }
+
+  .dsh-enlace:hover,
+  .dsh-enlace-cta:hover,
+  .dsh-enlace:hover svg,
+  .dsh-enlace-cta:hover svg,
+  .dsh-enlace:active,
+  .dsh-enlace-cta:active {
+    transform: none;
+  }
 }
 
 /* ── Tarjetas de métrica (PAN-DSH-01) ─────────────────────────────────────────
@@ -131,12 +239,94 @@
   margin-bottom: 26px;
 }
 
+/* El aviso de «sin actividad»: una franja suave con su icono. Antes era una alerta pegada a
+   las tarjetas de abajo, sin aire, y se leía como un error y no como un estado vacío. */
+.dsh-aviso {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  background: linear-gradient(90deg, var(--info-bg), var(--card) 60%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  animation: dsh-entra 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
+.dsh-aviso__ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--info);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 2px 6px rgb(30 30 46 / 6%);
+}
+
+.dsh-aviso__ico svg {
+  width: 19px;
+  height: 19px;
+}
+
+.dsh-aviso__titulo {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.dsh-aviso__texto {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ink-500);
+}
+
 .dsh-stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  padding: 20px 22px;
+  padding: 20px 22px 18px;
   box-shadow: var(--shadow);
+  animation: dsh-entra 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* Entran de a una, de izquierda a derecha. */
+.dsh-stats > .dsh-stat:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.dsh-stats > .dsh-stat:nth-child(3) {
+  animation-delay: 0.12s;
+}
+
+.dsh-stats > .dsh-stat:nth-child(4) {
+  animation-delay: 0.18s;
+}
+
+.dsh-stat:hover {
+  transform: translateY(-2px);
+  border-color: var(--ink-300);
+  box-shadow:
+    0 2px 4px rgb(30 30 46 / 5%),
+    0 14px 32px rgb(30 30 46 / 9%);
+}
+
+@keyframes dsh-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 
 .dsh-stat__top {
@@ -144,21 +334,26 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-bottom: 26px;
+  margin-bottom: 22px;
 }
 
 .dsh-stat__ico {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-control);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dsh-stat:hover .dsh-stat__ico {
+  transform: scale(1.08) rotate(-4deg);
 }
 
 .dsh-stat__ico svg {
-  width: 19px;
-  height: 19px;
+  width: 20px;
+  height: 20px;
 }
 
 .dsh-stat__ico--menta {
@@ -176,15 +371,33 @@
   color: var(--info);
 }
 
+/* La variación es una pastilla que dice hacia dónde fue: verde si subió, ámbar si bajó, gris si
+   no hay con qué comparar. Era un texto gris en monoespaciada que no distinguía nada. */
 .dsh-stat__tag {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-400);
-  text-align: right;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--line-2);
+  color: var(--ink-500);
+}
+
+.dsh-stat__tag[data-sentido="sube"] {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.dsh-stat__tag[data-sentido="baja"] {
+  background: var(--warn-bg);
+  color: var(--warn);
 }
 
 .dsh-stat__label {
   font-size: 13px;
+  font-weight: 500;
   color: var(--ink-500);
   margin: 0;
 }
@@ -193,18 +406,38 @@
  * `tabular-nums` no es coquetería: cuatro importes uno al lado del otro con anchos de dígito
  * distintos se leen como cuatro escalas distintas. */
 .dsh-stat__valor {
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 800;
-  letter-spacing: -1px;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
-  margin: var(--space-1) 0 6px;
+  margin: 6px 0 16px;
   color: var(--ink-900);
 }
 
 .dsh-stat__pie {
+  margin: auto 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-2);
   font-size: 12px;
   color: var(--ink-400);
-  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsh-aviso,
+  .dsh-stat {
+    animation: none;
+  }
+
+  .dsh-stat,
+  .dsh-stat__ico {
+    transition: none;
+  }
+
+  .dsh-stat:hover,
+  .dsh-stat:hover .dsh-stat__ico {
+    transform: none;
+  }
 }
 
 /* ── Cuerpo del inicio: actividad + accesos ───────────────────────────────── */
@@ -252,22 +485,27 @@
   flex: none;
 }
 
-/* Celda «Operación» de la tabla de actividad: icono, qué pasó y su referencia técnica. */
+/* Celda «Operación» de la tabla de actividad: icono, qué pasó y de qué módulo. */
 .dsh-op {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 14px;
 }
 
 .dsh-op__ico {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
   background: var(--info-bg);
   color: var(--info);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tabla tr:hover .dsh-op__ico {
+  transform: scale(1.08) rotate(-4deg);
 }
 
 .dsh-op__ico--ok {
@@ -281,8 +519,8 @@
 }
 
 .dsh-op__ico svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
 }
 
 .dsh-op__nombre {
@@ -293,34 +531,83 @@
 }
 
 .dsh-op__ref {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-400);
   display: block;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .dsh-entidad {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13.5px;
   font-weight: 600;
-  display: block;
   color: var(--ink-900);
 }
 
+/* La referencia corta del registro: una pastilla en monoespaciada, con el identificador
+   completo en el `title` para quien necesite copiarlo. */
+.dsh-entidad__id {
+  padding: 2px 7px;
+  border-radius: 7px;
+  background: var(--line-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-500);
+}
+
 .dsh-entidad__quien {
-  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 12px;
   color: var(--ink-400);
 }
 
+.dsh-entidad__quien svg {
+  flex: none;
+}
+
 .dsh-fecha {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--ink-500);
+  display: block;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.dsh-fecha b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+.dsh-fecha span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+/* La tabla de la actividad: encabezados en la fuente del panel y no en monoespaciada (son
+   rótulos, no datos), y un fondo suave al pasar por una fila. */
+.dsh-grid .tabla th {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: var(--ink-400);
+}
+
+.dsh-grid .tabla tr:hover td {
+  background: var(--bg-soft);
 }
 
 /*
- * El mensaje que aparece cuando la bitácora no se puede leer (Solo Lectura, 422). Es una
+ * El mensaje que aparece cuando la bitácora no se puede leer (Solo Lectura, 403). Es una
  * explicación y no un error: la pantalla funciona, esta sección no le corresponde. */
 .dsh-vacio {
   font-size: 13px;
@@ -330,61 +617,122 @@
   text-align: center;
 }
 
+/* Una lista y no una grilla de seis tarjetas: cada acceso es una fila con su icono, su nombre y
+   una flecha, y todas comparten una sola superficie. Seis tarjetas con borde y sombra cada una
+   pesaban más que la tabla de al lado. */
 .dsh-accesos {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -10px;
 }
 
 .dsh-acceso {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--card);
-  box-shadow: var(--shadow);
-  transition: border-color 0.14s ease;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 12px;
+  border-radius: 14px;
   text-decoration: none;
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .dsh-acceso:hover {
-  border-color: var(--accent);
+  background: var(--bg-soft);
+  text-decoration: none;
+}
+
+.dsh-acceso:active {
+  transform: scale(0.99);
+}
+
+.dsh-acceso:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .dsh-acceso__ico {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  background: var(--accent-050);
-  color: var(--accent-700);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dsh-acceso:hover .dsh-acceso__ico {
+  transform: scale(1.1) rotate(-5deg);
 }
 
 .dsh-acceso__ico svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+}
+
+.dsh-acceso__ico--menta {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.dsh-acceso__ico--tinta {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.dsh-acceso__ico--ambar {
+  background: var(--alert-050);
+  color: var(--warn);
+}
+
+.dsh-acceso__texto {
+  min-width: 0;
+  flex: 1;
 }
 
 .dsh-acceso__nombre {
-  font-size: 13.5px;
-  font-weight: 600;
   display: block;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--ink-900);
 }
 
 .dsh-acceso__sub {
-  font-size: 12px;
+  display: block;
+  margin-top: 1px;
+  font-size: 12.5px;
   color: var(--ink-400);
 }
 
 .dsh-acceso__flecha {
-  margin-left: auto;
-  color: var(--ink-300);
   flex: none;
+  color: var(--ink-300);
+  transition:
+    color 0.16s ease,
+    transform 0.2s ease;
+}
+
+.dsh-acceso:hover .dsh-acceso__flecha {
+  color: var(--accent-700);
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsh-acceso,
+  .dsh-acceso__ico,
+  .dsh-acceso__flecha,
+  .dsh-op__ico {
+    transition: none;
+  }
+
+  .dsh-acceso:hover .dsh-acceso__ico,
+  .dsh-acceso:hover .dsh-acceso__flecha,
+  .tabla tr:hover .dsh-op__ico,
+  .dsh-acceso:active {
+    transform: none;
+  }
 }
 
 .dsh-nota {
@@ -397,50 +745,109 @@
 
 /* ── PAN-ING-01 · zona de carga ───────────────────────────────────────────── */
 .ing-dropzone {
-  border: 1.5px dashed var(--line);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--ink-300);
   border-radius: var(--radius-card);
-  background: var(--card);
-  padding: 44px var(--space-6);
+  /* Un degradado apenas perceptible hacia el tinte: una zona de carga blanca y plana no se
+     distingue de una tarjeta cualquiera, y es lo primero que hay que reconocer en la pantalla. */
+  background: linear-gradient(180deg, var(--card) 0%, var(--bg-soft) 100%);
+  padding: 32px var(--space-6) 26px;
   text-align: center;
-  box-shadow: var(--shadow);
   transition:
-    border-color 0.14s ease,
-    background-color 0.14s ease;
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.ing-dropzone:hover {
+  border-color: var(--accent);
 }
 
 /* El único aviso de que el navegador va a aceptar el `drop`. Sin esto, arrastrar es fe. */
 .ing-dropzone--activa {
+  border-style: solid;
   border-color: var(--accent);
   background: var(--accent-050);
+  box-shadow:
+    0 0 0 5px rgb(0 196 140 / 12%),
+    0 18px 40px rgb(0 168 121 / 12%);
+  transform: scale(1.005);
 }
 
 .ing-dz-ico {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-card);
-  background: var(--accent-050);
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, var(--accent-050), var(--accent-100));
   color: var(--accent-700);
   display: grid;
   place-items: center;
   margin: 0 auto var(--space-4);
+  box-shadow: inset 0 0 0 1px rgb(0 168 121 / 14%);
+  animation: ing-flota 3.2s ease-in-out infinite;
+}
+
+.ing-dropzone--activa .ing-dz-ico {
+  animation: none;
+  transform: translateY(-4px) scale(1.1);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes ing-flota {
+  50% {
+    transform: translateY(-5px);
+  }
 }
 
 .ing-dz-ico svg {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
 }
 
 .ing-dz-titulo {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
+  letter-spacing: -0.015em;
   margin: 0;
   color: var(--ink-900);
 }
 
+/* Los formatos y el tope, como etiquetas: se leen de un vistazo, no como una oración. */
 .ing-dz-sub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 22px;
+}
+
+.ing-dz-formatos {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.ing-dz-formato {
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-600);
+}
+
+.ing-dz-limite {
+  margin-left: 4px;
   font-size: 12.5px;
   color: var(--ink-400);
-  margin: 6px 0 20px;
 }
 
 .ing-dz-acciones {
@@ -451,8 +858,25 @@
   flex-wrap: wrap;
 }
 
+.ing-dz-acciones .boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding-inline: 18px;
+  border-radius: 12px;
+}
+
+.ing-dz-acciones .boton svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: var(--accent-700);
+}
+
 .ing-dz-o {
-  color: var(--ink-400);
+  color: var(--ink-300);
+  font-size: 13px;
   margin: 0;
 }
 
@@ -468,22 +892,37 @@
  * El input se oculta recortándolo, nunca con `display: none`: eso lo sacaría del árbol de
  * accesibilidad y del foco, que es exactamente lo que no queremos. */
 .ing-archivo {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  border-radius: var(--radius-control);
-  padding: 10px 16px;
+  gap: 9px;
+  height: 44px;
+  border-radius: 12px;
+  padding: 0 20px 0 16px;
   font-size: 13.5px;
   font-weight: 600;
-  background: var(--accent);
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
   color: var(--primary);
   cursor: pointer;
-  transition: background-color 0.14s ease;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.16s ease;
 }
 
 .ing-archivo:hover {
-  background: var(--accent-700);
-  color: var(--color-text-on-dark);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 30%);
+}
+
+.ing-archivo:active {
+  transform: scale(0.97);
 }
 
 /* El foco vive en el input recortado, así que el anillo lo dibuja el label por él. */
@@ -493,8 +932,8 @@
 }
 
 .ing-archivo svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .ing-archivo input {
@@ -511,11 +950,12 @@
 
 .ing-candado {
   display: inline-flex;
+  text-align: left;
   align-items: center;
   gap: 7px;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ink-400);
-  margin: 18px 0 0;
+  margin: 22px 0 0;
 }
 
 .ing-candado svg {
@@ -524,84 +964,57 @@
   flex: none;
 }
 
-/* La banda que anuncia qué campos reconoce el modelo, con un chip por campo. */
-.ing-detect {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  padding: var(--space-4) 20px;
-  margin-top: 18px;
-  background: var(--accent-050);
-  border: 1px solid var(--accent-100);
-  border-radius: var(--radius-card);
-}
-
-.ing-detect__ico {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--color-text-on-dark);
-  display: grid;
-  place-items: center;
-  flex: none;
-}
-
-.ing-detect__ico svg {
-  width: 18px;
-  height: 18px;
-}
-
-.ing-detect__titulo {
-  font-size: 13.5px;
-  font-weight: 700;
-  display: block;
-  color: var(--ink-900);
-}
-
-.ing-detect__sub {
-  font-size: 12px;
-  color: var(--ink-500);
-}
-
+/* Las etiquetas de los campos que reconoce el modelo, dentro del paso 2 de «Cómo funciona». */
 .ing-chips {
   display: flex;
-  gap: 7px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin: 0;
+  margin: 12px 0 0;
   padding: 0;
   list-style: none;
-  margin-left: auto;
-  justify-content: flex-end;
 }
 
 .ing-chip {
-  font-family: var(--mono);
-  font-size: 11px;
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px 5px 8px;
   border-radius: 999px;
-  background: var(--card);
+  background: var(--bg-soft);
   border: 1px solid var(--line);
   color: var(--ink-700);
+}
+
+.ing-chip svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--accent-700);
 }
 
 /* Celda de una carga en «Cargas recientes»: el estado también entra por el icono. */
 .ing-carga {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 14px;
 }
 
 .ing-carga__ico {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
   background: var(--info-bg);
   color: var(--info);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tabla tr:hover .ing-carga__ico {
+  transform: scale(1.08) rotate(-4deg);
 }
 
 .ing-carga__ico--ok {
@@ -620,8 +1033,8 @@
 }
 
 .ing-carga__ico svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
 }
 
 .ing-carga__nombre {
@@ -632,11 +1045,10 @@
 }
 
 .ing-carga__ref {
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--ink-400);
   display: block;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .ing-filas {
@@ -644,26 +1056,98 @@
   white-space: nowrap;
 }
 
+/* Las dos tablas de la pantalla, una debajo de la otra y con aire entre sí: antes las tarjetas
+   se tocaban y se leían como una sola. */
+.ing-tarjetas {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Las acciones de una fila de «Planillas vinculadas»: en línea y alineadas, con «Desvincular»
+   discreto. Un recuadro rojo por fila se lee como una alarma, y no lo es: es una acción rara y
+   ya pide confirmación antes de hacer nada. */
+.ing-acciones-fila {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ing-acciones-fila .boton {
+  height: 36px;
+  padding-inline: 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+}
+
+.ing-acciones-fila .boton--destructivo {
+  margin-left: auto;
+  background: transparent;
+  border-color: transparent;
+  color: var(--err);
+  box-shadow: none;
+}
+
+.ing-acciones-fila .boton--destructivo:hover:not(:disabled) {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-dz-ico {
+    animation: none;
+  }
+
+  .ing-dropzone,
+  .ing-archivo,
+  .ing-carga__ico,
+  .ing-plan {
+    transition: none;
+  }
+
+  .ing-dropzone--activa,
+  .ing-dropzone--activa .ing-dz-ico,
+  .ing-archivo:hover,
+  .ing-archivo:active,
+  .tabla tr:hover .ing-carga__ico {
+    transform: none;
+  }
+}
+
 /* ── PAN-ING-02 · revisión del mapeo ─────────────────────────────────────── */
+
+@keyframes ing-map-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
 /* Barra de contexto: qué archivo se está mapeando y quién lo interpretó. */
 .ing-resumen {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
   flex-wrap: wrap;
-  padding: var(--space-4) 20px;
+  padding: 16px 20px;
   margin-bottom: 18px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow);
+  animation: ing-map-entra 0.4s ease both;
 }
 
 .ing-resumen__ico {
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-control);
+  border-radius: 12px;
   background: var(--accent-050);
   color: var(--accent-700);
   display: grid;
@@ -682,15 +1166,15 @@
 }
 
 .ing-resumen__nombre {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
+  letter-spacing: -0.1px;
   color: var(--ink-900);
 }
 
 .ing-resumen__detalle {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-400);
+  font-size: 12.5px;
+  color: var(--ink-500);
   display: block;
   margin-top: 3px;
 }
@@ -701,18 +1185,79 @@
   gap: 7px;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--ink-500);
-  padding: 7px 13px;
+  color: var(--ink-600);
+  padding: 7px 13px 7px 11px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: var(--card);
+  background: var(--bg-soft);
   flex: none;
 }
 
 .ing-marca-ia svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   color: var(--accent-700);
+}
+
+/* La tabla: las filas entran escalonadas, la que se mira se destaca con una barra de acento. */
+.ing-map-tabla .tabla th {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.ing-map-tabla .tabla td {
+  padding: 13px 18px;
+}
+
+.ing-map-tabla .tabla tbody tr {
+  animation: ing-map-entra 0.38s ease both;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(1) {
+  animation-delay: 0.04s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(3) {
+  animation-delay: 0.12s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(4) {
+  animation-delay: 0.16s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(5) {
+  animation-delay: 0.2s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(6) {
+  animation-delay: 0.24s;
+}
+
+.ing-map-tabla .tabla tbody tr:nth-child(n + 7) {
+  animation-delay: 0.28s;
+}
+
+.ing-map-tabla .tabla tbody tr:hover td,
+.ing-map-tabla .tabla tbody tr:focus-within td {
+  background: var(--bg-soft);
+}
+
+.ing-map-tabla .tabla tbody tr td:first-child {
+  box-shadow: inset 3px 0 0 transparent;
+  transition: box-shadow 0.18s ease;
+}
+
+.ing-map-tabla .tabla tbody tr:hover td:first-child,
+.ing-map-tabla .tabla tbody tr:focus-within td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.ing-map-tabla .tabla th.tabla__celda--derecha {
+  text-align: right;
 }
 
 /* Columna de origen: el número de orden ancla la fila cuando alguien la nombra en voz alta. */
@@ -725,8 +1270,14 @@
 .ing-map-n {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--ink-300);
-  width: 18px;
+  color: var(--ink-400);
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
   flex: none;
 }
 
@@ -734,8 +1285,8 @@
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 700;
-  display: block;
   color: var(--ink-900);
+  overflow-wrap: anywhere;
 }
 
 .ing-map-destino {
@@ -744,10 +1295,69 @@
   gap: var(--space-3);
 }
 
+.ing-map-destino .campo {
+  margin: 0;
+}
+
 .ing-map-flecha {
-  color: var(--accent-700);
-  font-size: 16px;
+  color: var(--ink-300);
   flex: none;
+  display: grid;
+  transition:
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.ing-map-flecha svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ing-map-tabla .tabla tbody tr:hover .ing-map-flecha,
+.ing-map-tabla .tabla tbody tr:focus-within .ing-map-flecha {
+  color: var(--accent-700);
+  transform: translateX(3px);
+}
+
+/* El selector de destino: más aire, una flecha propia y un foco que se nota. */
+.ing-map-destino .campo__control {
+  min-width: 15rem;
+  padding: 9px 36px 9px 13px;
+  appearance: none;
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238a8a9c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.ing-map-destino .campo__control:hover:not(:disabled) {
+  border-color: var(--ink-300);
+}
+
+.ing-map-destino .campo__control:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* Sin asignar (select en el valor vacío): borde punteado ámbar, sin gritar. */
+.ing-map-destino .campo__control:has(option[value=""]:checked) {
+  border-style: dashed;
+  border-color: var(--warn);
+  background-color: var(--alert-050);
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.ing-map-destino .campo__control:has(option[value=""]:checked):focus {
+  border-style: solid;
+  border-color: var(--accent);
+  background-color: var(--card);
+  color: var(--ink-900);
 }
 
 .ing-map-campo {
@@ -757,16 +1367,16 @@
 }
 
 /*
- * «Sin asignar» se dibuja en rojo y con borde porque es lo único de la tabla que **frena** el
- * paso siguiente (HU-E3-02 RN-02). El resto de la fila puede leerse de reojo; ésta no. */
+ * «Sin asignar» en solo lectura es lo único de la tabla que frena el paso siguiente
+ * (HU-E3-02 RN-02): lleva icono, tinte y borde punteado para no perderse. */
 .ing-map-sin-asignar {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--err);
-  border: 1px solid var(--err);
+  border: 1px dashed var(--err);
   border-radius: var(--radius-control);
   padding: 7px 12px;
   background: var(--err-bg);
@@ -780,29 +1390,42 @@
 .ing-map-ejemplo {
   font-family: var(--mono);
   font-size: 12.5px;
-  color: var(--ink-400);
+  color: var(--ink-500);
+  display: inline-block;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 /*
- * La píldora de confianza. Baja 11 px como el badge del sistema de diseño y por la misma
- * razón: el punto de color lleva el significado al lado de la palabra. */
+ * Confianza: palabra, punto de color y un medidor de tres tramos que se llena según el nivel.
+ * El significado lo lleva la palabra; el medidor sólo ayuda a comparar filas de un vistazo. */
 .ing-conf {
-  font-size: 11.5px;
+  --ing-conf-llenos: 3;
+
+  font-size: 12px;
   font-weight: 700;
-  padding: 4px 10px;
+  padding: 4px 11px 4px 10px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   white-space: nowrap;
 }
 
 .ing-conf::before {
   content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentcolor;
+  width: 22px;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    currentcolor calc(var(--ing-conf-llenos) * 33.34%),
+    rgb(0 0 0 / 12%) 0
+  );
+  flex: none;
 }
 
 .ing-conf--alta {
@@ -811,11 +1434,15 @@
 }
 
 .ing-conf--media {
+  --ing-conf-llenos: 2;
+
   background: var(--warn-bg);
   color: var(--warn);
 }
 
 .ing-conf--baja {
+  --ing-conf-llenos: 1;
+
   background: var(--err-bg);
   color: var(--err);
 }
@@ -825,14 +1452,14 @@
   color: var(--info);
 }
 
-/* Pie del mapeo: el recuento y las dos acciones, en la misma línea que el prototipo. */
+/* Pie del mapeo: el recuento y la acción principal. */
 .ing-pie {
   display: flex;
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
-  padding: var(--space-4) 0 0;
-  margin-top: var(--space-4);
+  padding: var(--space-4) 18px 0;
+  margin-top: var(--space-2);
   border-top: 1px solid var(--line);
 }
 
@@ -840,44 +1467,108 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--ink-600);
 }
 
 .ing-pie__dato b {
   color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
 }
 
 .ing-pie__ic {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   flex: none;
-  font-size: 12px;
-  font-weight: 800;
 }
 
 .ing-pie__ic--ok {
-  background: var(--accent);
-  color: var(--color-text-on-dark);
+  background: var(--accent-050);
+  color: var(--accent-700);
 }
 
-.ing-pie__ic--ok svg {
-  width: 12px;
-  height: 12px;
+.ing-pie__ic svg {
+  width: 13px;
+  height: 13px;
 }
 
 .ing-pie__ic--atencion {
-  background: var(--alert);
-  color: var(--primary);
+  background: var(--alert-050);
+  color: var(--warn);
 }
 
 .ing-pie__acciones {
   margin-left: auto;
   display: flex;
   gap: var(--space-3);
+}
+
+/* Botones de confirmar y procesar: el CTA de marca de la pantalla de ingesta. */
+.ing-pie__acciones .boton--primario,
+.ing-acciones .boton--primario {
+  min-height: 44px;
+  border-radius: 12px;
+  padding: 0 20px;
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 30%),
+    0 6px 16px rgb(0 168 121 / 22%);
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.16s ease,
+    background-color 0.14s ease,
+    color 0.14s ease;
+}
+
+.ing-pie__acciones .boton--primario:hover:not(:disabled),
+.ing-acciones .boton--primario:hover:not(:disabled) {
+  background: linear-gradient(180deg, #0fb98a 0%, var(--accent-700) 100%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 20%),
+    0 2px 4px rgb(0 130 95 / 30%),
+    0 12px 26px rgb(0 168 121 / 28%);
+}
+
+.ing-pie__acciones .boton--primario:disabled,
+.ing-acciones .boton--primario:disabled {
+  box-shadow: none;
+}
+
+.ing-pie__acciones .boton svg,
+.ing-acciones .boton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ing-acciones .boton--secundario {
+  min-height: 44px;
+  border-radius: 12px;
+  padding: 0 18px;
+  transition:
+    border-color 0.14s ease,
+    transform 0.16s ease,
+    box-shadow 0.2s ease;
+}
+
+.ing-acciones .boton--secundario:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/* Barra de acciones del mapeo ya confirmado: «qué sigue», encima de la tabla. */
+.ing-acciones--barra {
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 14px 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: ing-map-entra 0.4s ease both;
 }
 
 /* ── PAN-ING-03 · detalle de un procesamiento ────────────────────────────── */
@@ -888,44 +1579,91 @@
 .ing-proc-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: var(--space-6) 0;
+  gap: var(--space-4);
+  margin: 20px 0 0;
 }
 
 .ing-proc-stat {
-  background: var(--bg);
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 10px;
+  background: var(--bg-soft);
   border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  padding: var(--space-4);
-  text-align: center;
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+  animation: ing-map-entra 0.4s ease both;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.ing-proc-stat:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.ing-proc-stat:nth-child(3) {
+  animation-delay: 0.12s;
+}
+
+.ing-proc-stat:hover {
+  transform: translateY(-2px);
+  border-color: var(--ink-300);
+  box-shadow: var(--shadow);
+}
+
+.ing-proc-stat__l {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-600);
+}
+
+.ing-proc-stat__ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink-600);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.ing-proc-stat__ico svg {
+  width: 18px;
+  height: 18px;
 }
 
 .ing-proc-stat__n {
-  font-size: 26px;
+  grid-row: 2;
+  margin: 0;
+  font-size: 32px;
   font-weight: 800;
-  letter-spacing: -0.5px;
+  line-height: 1;
+  letter-spacing: -0.8px;
   font-variant-numeric: tabular-nums;
   color: var(--ink-900);
 }
 
-.ing-proc-stat__l {
-  font-size: 12px;
-  color: var(--ink-500);
-  margin-top: 2px;
-}
-
-.ing-proc-stat--ok {
-  background: var(--accent-050);
+.ing-proc-stat--ok .ing-proc-stat__ico {
   border-color: var(--accent-100);
+  background: var(--accent-050);
+  color: var(--accent-700);
 }
 
 .ing-proc-stat--ok .ing-proc-stat__n {
   color: var(--accent-700);
 }
 
-.ing-proc-stat--error {
-  background: var(--err-bg);
+.ing-proc-stat--error .ing-proc-stat__ico {
   border-color: var(--err-bg);
+  background: var(--err-bg);
+  color: var(--err);
 }
 
 .ing-proc-stat--error .ing-proc-stat__n {
@@ -940,11 +1678,147 @@
   margin: 0;
 }
 
+/* Errores por fila: el número de fila como ficha, el motivo como texto legible. */
+.ing-proc-errores .tabla th {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.ing-proc-errores .tabla td {
+  padding: 12px 18px;
+}
+
+.ing-proc-errores .tabla td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.ing-proc-errores .tabla tbody tr {
+  animation: ing-map-entra 0.36s ease both;
+}
+
+.ing-proc-errores .tabla tbody tr:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+.ing-proc-errores .tabla tbody tr:nth-child(3) {
+  animation-delay: 0.08s;
+}
+
+.ing-proc-errores .tabla tbody tr:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.ing-proc-errores .tabla tbody tr:nth-child(n + 5) {
+  animation-delay: 0.16s;
+}
+
+.ing-proc-errores .tabla tbody tr:hover td {
+  background: var(--bg-soft);
+}
+
+.ing-proc-fila {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: var(--err-bg);
+  color: var(--err);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ing-proc-motivo {
+  color: var(--ink-700);
+  overflow-wrap: anywhere;
+}
+
 .ing-acciones {
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
   margin-top: var(--space-6);
+}
+
+@media (width <= 640px) {
+  /* La tabla del mapeo scrollea de costado dentro de su caja en lugar de partir las palabras. */
+  .ing-map-tabla .tabla {
+    min-width: 600px;
+  }
+
+  .ing-map-columna {
+    white-space: nowrap;
+  }
+
+  /* Los tres totales siguen en una fila, compactos, para compararlos de un vistazo. */
+  .tarjeta .ing-proc-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .ing-proc-stat {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .ing-proc-stat__ico {
+    display: none;
+  }
+
+  .ing-proc-stat__n {
+    font-size: 26px;
+  }
+
+  .ing-map-destino .campo__control {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ing-map-destino .campo {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ing-pie__acciones {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .ing-pie__acciones .boton {
+    width: 100%;
+  }
+
+  .ing-acciones .boton {
+    flex: 1 1 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-resumen,
+  .ing-map-tabla .tabla tbody tr,
+  .ing-proc-errores .tabla tbody tr,
+  .ing-proc-stat,
+  .ing-acciones--barra {
+    animation: none;
+  }
+
+  .ing-proc-stat,
+  .ing-map-flecha,
+  .ing-pie__acciones .boton--primario,
+  .ing-acciones .boton {
+    transition: none;
+  }
+
+  .ing-proc-stat:hover,
+  .ing-pie__acciones .boton--primario:hover:not(:disabled),
+  .ing-acciones .boton:hover:not(:disabled),
+  .ing-map-tabla .tabla tbody tr:hover .ing-map-flecha {
+    transform: none;
+  }
 }
 
 /*
@@ -1004,11 +1878,6 @@
   .dsh-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  .ing-chips {
-    margin-left: 0;
-    justify-content: flex-start;
-  }
 }
 
 @media (width <= 640px) {
@@ -1038,4 +1907,967 @@
   justify-content: flex-end;
   gap: var(--space-3);
   margin-top: var(--space-6);
+}
+
+/* ── Estado vacío ─────────────────────────────────────────────────────── */
+
+.ing-seccion + .tabla__contenedor .tabla__vacia,
+.tarjeta .tabla__vacia {
+  padding: 28px 24px;
+  background: var(--bg-soft);
+  border-style: dashed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-proc-stat {
+    transition: none;
+  }
+
+  .ing-proc-stat:hover {
+    transform: none;
+  }
+}
+
+/* «Ver log completo»: una pastilla con su flecha, que avanza al pasar el mouse. */
+.dsh-seccion__enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--accent-050);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  text-decoration: none;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.dsh-seccion__enlace svg {
+  transition: transform 0.2s ease;
+}
+
+.dsh-seccion__enlace:hover {
+  background: var(--accent-100);
+  text-decoration: none;
+}
+
+.dsh-seccion__enlace:hover svg {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsh-seccion__enlace,
+  .dsh-seccion__enlace svg {
+    transition: none;
+  }
+
+  .dsh-seccion__enlace:hover svg {
+    transform: none;
+  }
+}
+
+/* Actividad y accesos lado a lado sólo cuando hay lugar para las cuatro columnas de la tabla.
+   Con el menú lateral de 244 px, una pantalla de 1360 deja a la tabla ~590 px: la columna de
+   fecha se corta. Debajo de 1480 px se apilan, y los accesos pasan a dos columnas para no
+   quedar como una lista angosta en un ancho completo. */
+@media (width <= 1480px) {
+  .dsh-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dsh-accesos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 8px;
+  }
+}
+
+@media (width <= 700px) {
+  .dsh-accesos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dsh-op__nombre {
+  white-space: nowrap;
+}
+
+/* La celda de entidad es un enlace al detalle: toma un fondo suave al pasar el mouse y muestra
+   la flecha que dice que sale de acá. Sin hover la flecha no está, para que la tabla en
+   reposo no se llene de flechas. */
+.dsh-entidad-enlace {
+  display: block;
+  margin: -6px -10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.16s ease;
+}
+
+.dsh-entidad-enlace:hover {
+  background: var(--line-2);
+  text-decoration: none;
+}
+
+.dsh-entidad-enlace:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.dsh-entidad__ir {
+  flex: none;
+  margin-left: -2px;
+  color: var(--accent-700);
+  opacity: 0;
+  transform: translate(-3px, 3px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.2s ease;
+}
+
+.dsh-entidad-enlace:hover .dsh-entidad__ir,
+.dsh-entidad-enlace:focus-visible .dsh-entidad__ir {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dsh-entidad-enlace,
+  .dsh-entidad__ir {
+    transition: none;
+  }
+}
+
+/* Acciones de una fila de «Planillas vinculadas».
+ *
+ * Una sola jerarquía por fila: **la acción que sigue es la que tiene relieve**. Sin mapeo, el
+ * paso siguiente es «Revisar mapeo» y es el que va en verde; con mapeo, lo siguiente es
+ * «Procesar». «Desvincular» queda siempre discreto, con el icono de papelera. Antes eran tres
+ * botones de peso parecido y la fila no decía qué hacer primero. */
+.ing-acciones-fila .ing-accion {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink-700);
+  box-shadow: 0 1px 2px rgb(30 30 46 / 4%);
+}
+
+.ing-acciones-fila .ing-accion:hover {
+  background: var(--bg-soft);
+  border-color: var(--ink-300);
+}
+
+.ing-acciones-fila .ing-accion--principal {
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+  color: var(--accent-700);
+}
+
+.ing-acciones-fila .ing-accion--principal:hover {
+  background: var(--accent-100);
+  border-color: var(--accent-100);
+}
+
+.ing-acciones-fila .boton--primario {
+  background: linear-gradient(180deg, #14d39b 0%, var(--accent) 100%);
+  border-color: transparent;
+  color: var(--primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 1px 2px rgb(0 130 95 / 28%);
+}
+
+.ing-acciones-fila .boton--primario:hover:not(:disabled) {
+  background: linear-gradient(180deg, #1adda3 0%, #00cf97 100%);
+  color: var(--primary);
+}
+
+.ing-acciones-fila .boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ing-acciones-fila .boton svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+/* El encabezado de una columna alineada a la derecha se alinea con su contenido: la regla de
+   `th` (a la izquierda) le ganaba a la de la celda y «Acciones» quedaba lejos de sus botones. */
+.tabla th.tabla__celda--derecha {
+  text-align: right;
+}
+
+/* Detalle de una carga: la etiqueta de estado se separa de los totales (antes se tocaban). */
+.ing-estado-carga {
+  margin-bottom: 18px;
+}
+
+.ing-estado-carga + .ing-proc-stats {
+  margin-top: 0;
+}
+
+/* «Cargas recientes»: las filas como progreso, los errores como cifra y el detalle como botón. */
+.ing-progreso {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 96px;
+}
+
+.ing-filas {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+/* La barra: lo procesado en verde y, si hubo errores, el resto del carril en un rojo tenue. El
+   porcentaje es un adorno; el dato está escrito arriba. */
+.ing-barra {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+
+.ing-barra--con-error {
+  background: var(--err-bg);
+}
+
+.ing-barra__relleno {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #14d39b, var(--accent));
+  transition: width 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: ing-barra-llena 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
+@keyframes ing-barra-llena {
+  from {
+    width: 0;
+  }
+}
+
+.ing-conteo {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--line-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-400);
+}
+
+.ing-conteo--error {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.ing-ver {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-700);
+  text-decoration: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.ing-ver svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-400);
+  transition:
+    transform 0.2s ease,
+    color 0.16s ease;
+}
+
+.ing-ver:hover {
+  background: var(--accent-050);
+  border-color: var(--accent-100);
+  color: var(--accent-700);
+  text-decoration: none;
+}
+
+.ing-ver:hover svg {
+  color: var(--accent-700);
+  transform: translateX(3px);
+}
+
+.ing-ver:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-barra__relleno {
+    animation: none;
+    transition: none;
+  }
+
+  .ing-ver,
+  .ing-ver svg {
+    transition: none;
+  }
+
+  .ing-ver:hover svg {
+    transform: none;
+  }
+}
+
+/* En pantallas angostas las tablas de ingesta conservan un ancho propio y se desplazan de costado
+   dentro de su caja. Apretarlas parte los nombres en tres renglones y deja las columnas
+   ilegibles. */
+@media (width <= 700px) {
+  .ing-tarjetas .tabla {
+    min-width: 640px;
+  }
+}
+
+/* ── PAN-ING-01 · rediseño: resumen, zona principal, tarjetas de planilla ─────
+ *
+ * La pantalla se lee de arriba abajo: cuatro cifras, traer una planilla (con «Cómo funciona» al
+ * lado), las planillas vinculadas y las cargas. Todo es blanco con borde `--line`; el verde de
+ * marca queda para lo activo y para la acción que sigue. */
+
+@keyframes ing-sube {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* Franja de cifras. */
+.ing-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.ing-kpi {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  animation: ing-sube 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
+.ing-kpi:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.ing-kpi:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+.ing-kpi:nth-child(4) {
+  animation-delay: 0.15s;
+}
+
+.ing-kpi__ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--bg-soft);
+  color: var(--ink-600);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.ing-kpi--ok .ing-kpi__ico {
+  background: var(--accent-050);
+  color: var(--accent-700);
+  box-shadow: none;
+}
+
+.ing-kpi--error .ing-kpi__ico {
+  background: var(--err-bg);
+  color: var(--err);
+  box-shadow: none;
+}
+
+.ing-kpi__ico svg {
+  width: 19px;
+  height: 19px;
+}
+
+.ing-kpi__cuerpo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ing-kpi__etiqueta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-500);
+}
+
+.ing-kpi__valor {
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-900);
+}
+
+.ing-kpi--error .ing-kpi__valor {
+  color: var(--err);
+}
+
+.ing-kpi__nota {
+  font-size: 11.5px;
+  color: var(--ink-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Zona principal: traer una planilla. */
+.ing-principal {
+  margin-bottom: 8px;
+}
+
+.ing-principal > * {
+  animation: ing-sube 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s backwards;
+}
+
+/* Secciones de abajo. */
+.ing-bloque {
+  margin-top: 28px;
+  animation: ing-sube 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 0.24s backwards;
+}
+
+.ing-bloque + .ing-bloque {
+  animation-delay: 0.3s;
+}
+
+.ing-tarjetas .tarjeta {
+  padding: 4px 8px 8px;
+}
+
+/* Una planilla vinculada. */
+.ing-planes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ing-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+  animation: ing-sube 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
+.ing-plan:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.ing-plan:nth-child(n + 3) {
+  animation-delay: 0.12s;
+}
+
+.ing-plan:hover,
+.ing-plan:focus-within {
+  border-color: var(--ink-300);
+  box-shadow:
+    0 1px 2px rgb(30 30 46 / 5%),
+    0 12px 28px rgb(30 30 46 / 8%);
+  transform: translateY(-1px);
+}
+
+.ing-plan__cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.ing-plan__ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.ing-plan__ico svg {
+  width: 19px;
+  height: 19px;
+}
+
+.ing-plan__datos {
+  flex: 1;
+  min-width: 0;
+}
+
+.ing-plan__nombre {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+  overflow-wrap: anywhere;
+}
+
+.ing-plan__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.ing-plan__meta > span + span::before {
+  content: "·";
+  margin: 0 7px;
+  color: var(--ink-300);
+}
+
+/* El camino de la planilla: tres tramos, el hecho en verde y el que sigue señalado. */
+.ing-plan__pasos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ing-plan__paso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 3px solid var(--line-2);
+  border-radius: 2px;
+}
+
+.ing-plan__paso[data-situacion="hecho"] {
+  border-top-color: var(--accent);
+}
+
+.ing-plan__paso[data-situacion="actual"] {
+  border-top-color: var(--accent-100);
+}
+
+.ing-plan__marca {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--bg-soft);
+  color: var(--ink-400);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ing-plan__paso[data-situacion="hecho"] .ing-plan__marca {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.ing-plan__paso[data-situacion="actual"] .ing-plan__marca {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--accent-700);
+}
+
+.ing-plan__marca svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.6;
+}
+
+.ing-plan__paso-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.ing-plan__paso-texto b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.ing-plan__paso-texto span {
+  font-size: 11.5px;
+  color: var(--ink-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ing-plan__paso[data-situacion="pendiente"] .ing-plan__paso-texto b {
+  color: var(--ink-400);
+}
+
+.ing-plan .ing-acciones-fila {
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+
+/* El estado vacío de una sección: icono y frase en una caja suave. */
+.ing-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 30px 24px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--ink-300);
+  border-radius: var(--radius-card);
+  text-align: center;
+}
+
+.ing-vacio__ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  color: var(--ink-400);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.ing-vacio__ico svg {
+  width: 19px;
+  height: 19px;
+}
+
+.ing-vacio__texto {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-500);
+}
+
+@media (width <= 1100px) {
+  .ing-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width <= 1000px) {
+  .ing-planes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width <= 520px) {
+  .ing-kpi {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .ing-kpi__ico {
+    width: 34px;
+    height: 34px;
+  }
+
+  .ing-plan__pasos {
+    gap: 6px;
+  }
+
+  .ing-plan__paso {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .ing-dz-acciones {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-kpi,
+  .ing-principal > *,
+  .ing-bloque,
+  .ing-plan {
+    animation: none;
+  }
+
+  .ing-plan:hover,
+  .ing-plan:focus-within {
+    transform: none;
+  }
+}
+
+/* ── Secciones que se esconden («pestañas») ───────────────────────────────────────────
+ *
+ * El encabezado es un botón de ancho completo con aspecto de pestaña: icono, título, contador y
+ * chevron. Escondida, queda sólo el encabezado. La altura se anima con `grid-template-rows`
+ * (de 1fr a 0fr), que `height: auto` no puede, y el contenido escondido sale del orden de foco
+ * con `visibility` recién cuando termina de cerrarse, para que el cierre no parpadee. */
+.ing-pestana {
+  margin-top: 22px;
+}
+
+.ing-pestana__titulo {
+  margin: 0;
+  font-size: inherit;
+}
+
+.ing-pestana__boton {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 16px 12px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--ink-900);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.2s ease;
+}
+
+.ing-pestana__boton:hover {
+  border-color: var(--ink-300);
+  background: var(--bg-soft);
+}
+
+.ing-pestana__boton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Abierta, el encabezado se une con su contenido: sin la esquina de abajo redondeada y con el
+   contenido a continuación, la pestaña y su panel se leen como una sola pieza. */
+.ing-pestana[data-abierta="true"] .ing-pestana__boton {
+  border-color: var(--ink-300);
+}
+
+.ing-pestana__ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--accent-050);
+  color: var(--accent-700);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ing-pestana__boton:hover .ing-pestana__ico {
+  transform: scale(1.08) rotate(-4deg);
+}
+
+.ing-pestana__ico svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ing-pestana__textos {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ing-pestana__nombre {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.ing-pestana__sub {
+  font-size: 12.5px;
+  color: var(--ink-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ing-pestana__cuenta {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--line-2);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-600);
+}
+
+.ing-pestana__chevron {
+  flex: none;
+  color: var(--ink-400);
+  transition:
+    transform 0.25s ease,
+    color 0.16s ease;
+}
+
+.ing-pestana__boton:hover .ing-pestana__chevron {
+  color: var(--ink-700);
+}
+
+/* Cerrada, el chevron mira hacia el costado: «esto se abre». */
+.ing-pestana[data-abierta="false"] .ing-pestana__chevron {
+  transform: rotate(-90deg);
+}
+
+.ing-pestana__panel {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.28s ease;
+}
+
+.ing-pestana[data-abierta="false"] .ing-pestana__panel {
+  grid-template-rows: 0fr;
+}
+
+.ing-pestana__recorte {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ing-pestana__contenido {
+  padding-top: 16px;
+}
+
+.ing-pestana[data-abierta="false"] .ing-pestana__recorte {
+  visibility: hidden;
+  transition: visibility 0s linear 0.28s;
+}
+
+/* Las secciones ya no llevan su propio título: lo lleva la pestaña. */
+.ing-pestana .ing-principal {
+  margin-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ing-pestana__boton,
+  .ing-pestana__ico,
+  .ing-pestana__chevron,
+  .ing-pestana__panel {
+    transition: none;
+  }
+
+  .ing-pestana__boton:hover .ing-pestana__ico {
+    transform: none;
+  }
+}
+
+/* ── Corrección de una fila en el sistema ─────────────────────────────────────────────── */
+.ing-correccion {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Por qué falló, arriba y a la vista: es lo que hay que leer para corregir. */
+.ing-correccion__motivo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--err-bg);
+  color: var(--err);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.ing-correccion__motivo span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.ing-correccion__ayuda {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-500);
+}
+
+.ing-correccion__campos {
+  display: grid;
+  gap: 12px;
+}
+
+/* Una fila ya corregida queda como historia: atenuada y con su marca, no tachada ni oculta. */
+.ing-proc-fila--corregida {
+  background: var(--accent-050);
+  color: var(--accent-700);
+}
+
+.ing-proc-motivo--corregida {
+  color: var(--ink-400);
+}
+
+/* Si la pantalla muestra un aviso arriba, las tarjetas no se le pegan. */
+.ing-tarjetas:not(:first-child) {
+  margin-top: 16px;
 }

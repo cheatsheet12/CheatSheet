@@ -69,7 +69,7 @@ from cheatsheet.contexts.reporting.domain.reporte import (
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -104,7 +104,7 @@ NOMBRE_DE: dict[ContenidoDelPaquete, str] = {
 
 def _exigir_administrador(rol: RolUsuario) -> None:
     if rol is not RolUsuario.ADMINISTRADOR:
-        raise EntradaInvalida(MOTIVO_SOLO_ADMINISTRADOR)
+        raise OperacionNoPermitida(MOTIVO_SOLO_ADMINISTRADOR)
 
 
 def periodo_cerrado(ahora: datetime) -> Periodo:

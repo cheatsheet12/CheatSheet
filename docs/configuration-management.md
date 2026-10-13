@@ -118,10 +118,12 @@ AFIP_WSFE_URL=
 MP_ACCESS_TOKEN=
 MP_WEBHOOK_SECRET=
 
-# WhatsApp Business integration
-WHATSAPP_TOKEN=
-WHATSAPP_PHONE_ID=
+# WhatsApp Business integration (platform side)
+WHATSAPP_ADAPTADOR=                # meta | simulado
+WHATSAPP_WEBHOOK_SECRET=           # the Meta app's App Secret: signs inbound webhooks
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=
+# The company's own WhatsApp token and phone number id are NOT environment variables:
+# they are per company and live encrypted in `integrations` (HU-E2-03, ADR-0003).
 
 # AI models
 AI_API_KEY=

@@ -13,11 +13,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.modelo import (
     ESQUEMA_DE_MAPEO,
+    ConfiguracionDelModelo,
+    ModeloDeLenguajeAnthropic,
     _interpretar,
 )
 
@@ -150,3 +153,30 @@ def test_el_esquema_cierra_los_objetos_y_exige_los_tres_campos() -> None:
     assert set(item["required"]) == {"columna", "atributo", "confianza"}
     # `null` es parte del contrato, no un accidente.
     assert item["properties"]["atributo"]["type"] == ["string", "null"]
+
+
+@pytest.mark.asyncio
+async def test_anthropic_mapping_uses_a_supported_schema(monkeypatch: pytest.MonkeyPatch) -> None:
+    class ProviderMessages:
+        async def create(self, **kwargs: Any) -> RespuestaFalsa:
+            schema = kwargs["output_config"]["format"]["schema"]
+            confidence = schema["properties"]["asignaciones"]["items"]["properties"]["confianza"]
+            if "minimum" in confidence or "maximum" in confidence:
+                raise AssertionError("Anthropic rejects numeric constraints in raw JSON schemas")
+            return _respuesta(
+                '{"asignaciones": [{"columna": "CUIT", "atributo": "cuit", "confianza": 0.99}]}'
+            )
+
+    adapter = ModeloDeLenguajeAnthropic(
+        ConfiguracionDelModelo(
+            api_key="test-key", modelo="claude-sonnet-5-5", timeout_segundos=1, max_tokens=1024
+        )
+    )
+    monkeypatch.setattr(adapter, "_cliente", SimpleNamespace(messages=ProviderMessages()))
+
+    result = await adapter.proponer_mapeo(columnas=COLUMNAS, atributos=ATRIBUTOS)
+
+    assert len(result) == 1
+    assert result[0].columna == "CUIT"
+    assert result[0].atributo == "cuit"
+    assert result[0].score == Decimal("0.99")

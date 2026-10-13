@@ -53,7 +53,14 @@ import {
   MENSAJE_REPROGRAMAR_AL_PASADO,
   MENSAJE_TURNO_EN_EL_PASADO,
 } from "@/features/scheduling";
-import type { ListadoDeTurnos, Recurso, ServicioAgendable, Turno } from "@/features/scheduling";
+import type {
+  ClienteDelTurno,
+  ListadoDeTurnos,
+  Recurso,
+  ServicioAgendable,
+  Turno,
+} from "@/features/scheduling";
+import { elegirFecha } from "@/shared/ui/__tests__/elegir-fecha";
 
 const { AgendaDelDia } = await import("@/features/scheduling/components/AgendaDelDia");
 const { DetalleDeTurno } = await import("@/features/scheduling/components/DetalleDeTurno");
@@ -96,6 +103,22 @@ const RESERVADO: Turno = {
 };
 
 const PASADO: Turno = { ...RESERVADO, ya_transcurrio: true };
+
+const ANA: ClienteDelTurno = {
+  nombre: "Ana Prueba",
+  cuit: "20-22222222-3",
+  contacto_whatsapp: "5491100000000",
+  contacto_email: "ana.prueba@estudio-ejemplo.test",
+};
+
+/** La tarjeta «Turno» del detalle: `Card` es un `<section>` sin nombre, se la ubica por su título. */
+function tarjetaDelTurno(): ReturnType<typeof within> {
+  const tarjeta = screen.getByRole("heading", { name: "Turno" }).closest("section");
+  if (tarjeta === null) {
+    throw new Error("No se encontró la tarjeta «Turno»");
+  }
+  return within(tarjeta);
+}
 const CANCELADO: Turno = { ...RESERVADO, estado: "CANCELADO" };
 
 const LISTADO: ListadoDeTurnos = { turnos: [RESERVADO] };
@@ -119,9 +142,9 @@ describe("PAN-AGE-01 — agenda", () => {
   it("no ofrece «Reprogramado» como estado en ningun lado (RN-02)", () => {
     render(<AgendaDelDia inicial={LISTADO} recursos={[RECURSO]} puedeGestionar />);
 
-    // Dentro de la tabla: el filtro de estados usa las mismas palabras, y lo que se afirma acá
+    // Dentro del listado: el filtro de estados usa las mismas palabras, y lo que se afirma acá
     // es lo que dice la **fila**.
-    const tabla = within(screen.getByRole("table"));
+    const tabla = within(screen.getByRole("region", { name: "Turnos" }));
     expect(tabla.getByText("Reservado")).toBeTruthy();
     expect(screen.queryByText("Reprogramado")).toBeNull();
     expect(Object.values(ETIQUETAS_DE_ESTADO)).not.toContain("Reprogramado");
@@ -130,8 +153,8 @@ describe("PAN-AGE-01 — agenda", () => {
   it("muestra el nombre del recurso y no su id", () => {
     render(<AgendaDelDia inicial={LISTADO} recursos={[RECURSO]} puedeGestionar />);
 
-    // Dentro de la tabla: el selector de recursos también lo nombra.
-    const tabla = within(screen.getByRole("table"));
+    // Dentro del listado: el selector de recursos también lo nombra.
+    const tabla = within(screen.getByRole("region", { name: "Turnos" }));
     expect(tabla.getByText("Consultorio 1")).toBeTruthy();
     expect(tabla.queryByText("r1")).toBeNull();
   });
@@ -159,6 +182,67 @@ describe("PAN-AGE-01 — agenda", () => {
 });
 
 describe("PAN-AGE-02 — detalle del turno", () => {
+  // #167: el detalle no decía para quién era el turno, y quien atiende el teléfono lo necesita
+  // para saber con quién habla y cómo contactarlo.
+  it("muestra el cliente del turno con su CUIT y su contacto", () => {
+    render(
+      <DetalleDeTurno
+        inicial={RESERVADO}
+        puedeGestionar
+        recurso="Consultorio 1"
+        servicio="Corte"
+        cliente={ANA}
+      />,
+    );
+
+    const tarjeta = tarjetaDelTurno();
+    expect(tarjeta.getByText("Cliente")).toBeTruthy();
+    expect(tarjeta.getByText("Ana Prueba")).toBeTruthy();
+    expect(tarjeta.getByText("CUIT")).toBeTruthy();
+    expect(tarjeta.getByText("20-22222222-3")).toBeTruthy();
+    expect(tarjeta.getByText("WhatsApp")).toBeTruthy();
+    expect(tarjeta.getByText("5491100000000")).toBeTruthy();
+    expect(tarjeta.getByText("Email")).toBeTruthy();
+    expect(tarjeta.getByText("ana.prueba@estudio-ejemplo.test")).toBeTruthy();
+  });
+
+  it("muestra «—» en cada dato que el cliente no tiene", () => {
+    render(
+      <DetalleDeTurno
+        inicial={RESERVADO}
+        puedeGestionar
+        recurso="Consultorio 1"
+        servicio="Corte"
+        cliente={{
+          nombre: "Bruno Ficticio",
+          cuit: null,
+          contacto_whatsapp: null,
+          contacto_email: null,
+        }}
+      />,
+    );
+
+    const tarjeta = tarjetaDelTurno();
+    expect(tarjeta.getByText("Bruno Ficticio")).toBeTruthy();
+    expect(tarjeta.getAllByText("—")).toHaveLength(3);
+  });
+
+  it("muestra «—» en los cuatro datos si el cliente no se pudo leer", () => {
+    render(
+      <DetalleDeTurno
+        inicial={RESERVADO}
+        puedeGestionar
+        recurso="Consultorio 1"
+        servicio="Corte"
+        cliente={null}
+      />,
+    );
+
+    const tarjeta = tarjetaDelTurno();
+    expect(tarjeta.getByText("Cliente")).toBeTruthy();
+    expect(tarjeta.getAllByText("—")).toHaveLength(4);
+  });
+
   it("no ofrece marcar asistencia en un turno futuro, y dice por que", () => {
     render(
       <DetalleDeTurno
@@ -166,6 +250,7 @@ describe("PAN-AGE-02 — detalle del turno", () => {
         puedeGestionar
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
 
@@ -176,7 +261,13 @@ describe("PAN-AGE-02 — detalle del turno", () => {
 
   it("ofrece las dos marcas cuando el turno ya transcurrio", () => {
     render(
-      <DetalleDeTurno inicial={PASADO} puedeGestionar recurso="Consultorio 1" servicio="Corte" />,
+      <DetalleDeTurno
+        inicial={PASADO}
+        puedeGestionar
+        recurso="Consultorio 1"
+        servicio="Corte"
+        cliente={ANA}
+      />,
     );
 
     expect(screen.getByRole("button", { name: "Marcar completado" })).toBeTruthy();
@@ -191,6 +282,7 @@ describe("PAN-AGE-02 — detalle del turno", () => {
         puedeGestionar
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
 
@@ -205,6 +297,7 @@ describe("PAN-AGE-02 — detalle del turno", () => {
         puedeGestionar={false}
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
 
@@ -224,6 +317,7 @@ describe("PAN-AGE-02 — detalle del turno", () => {
         puedeGestionar
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
 
@@ -247,12 +341,39 @@ describe("PAN-AGE-02 — detalle del turno", () => {
         puedeGestionar
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Cancelar turno" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sí, cancelar el turno" }));
 
     expect(await screen.findByText("El turno ya fue cancelado")).toBeTruthy();
+  });
+
+  // #172: cancelar no se deshace y le avisa al cliente; ya no pasa al primer clic.
+  it("pide confirmación antes de cancelar, y «Volver» no cancela nada", async () => {
+    cancelarTurno.mockResolvedValue({ ...RESERVADO, estado: "CANCELADO" });
+    render(
+      <DetalleDeTurno
+        inicial={RESERVADO}
+        puedeGestionar
+        recurso="Consultorio 1"
+        servicio="Corte"
+        cliente={ANA}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar turno" }));
+    expect(cancelarTurno).not.toHaveBeenCalled();
+    expect(screen.getByText(/se le avisa al cliente/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Volver" }));
+    expect(cancelarTurno).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar turno" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sí, cancelar el turno" }));
+    await waitFor(() => expect(cancelarTurno).toHaveBeenCalledWith("t1"));
   });
 
   it("enlaza la sena cuando el turno tiene un cobro asociado (HU-E6-07)", () => {
@@ -262,6 +383,7 @@ describe("PAN-AGE-02 — detalle del turno", () => {
         puedeGestionar
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
 
@@ -272,7 +394,14 @@ describe("PAN-AGE-02 — detalle del turno", () => {
 
 describe("PAN-AGE-02 — nuevo turno", () => {
   it("no ofrece recursos desactivados", () => {
-    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO, INACTIVO]} servicios={[CORTE]} />);
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        clienteNombre="Ana Prueba"
+        recursos={[RECURSO, INACTIVO]}
+        servicios={[CORTE]}
+      />,
+    );
 
     const opciones = Array.from(
       (screen.getByLabelText("Recurso") as HTMLSelectElement).options,
@@ -289,10 +418,17 @@ describe("PAN-AGE-02 — nuevo turno", () => {
         { inicio: "2027-09-07T19:00:00+00:00", ocupado: false },
       ],
     });
-    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        clienteNombre="Ana Prueba"
+        recursos={[RECURSO]}
+        servicios={[CORTE]}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
 
     const horario = (await screen.findByLabelText("Horario")) as HTMLSelectElement;
@@ -308,10 +444,17 @@ describe("PAN-AGE-02 — nuevo turno", () => {
     reservarTurno.mockRejectedValue(
       new ErrorDeTurno("El horario seleccionado no está disponible."),
     );
-    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        clienteNombre="Ana Prueba"
+        recursos={[RECURSO]}
+        servicios={[CORTE]}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
     fireEvent.change(await screen.findByLabelText("Horario"), {
       target: { value: "2027-09-07T19:00:00+00:00" },
@@ -330,20 +473,34 @@ describe("PAN-AGE-02 — nuevo turno", () => {
 
   it("dice cuando el recurso no tiene horarios ese dia en vez de quedarse mudo", async () => {
     verDisponibilidad.mockResolvedValue({ fecha: "2027-09-05", horarios: [] });
-    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        clienteNombre="Ana Prueba"
+        recursos={[RECURSO]}
+        servicios={[CORTE]}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-05" } });
+    elegirFecha("Fecha", "2027-09-05");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
 
     expect(await screen.findByText(/El recurso no tiene horarios libres ese día/)).toBeTruthy();
   });
 
   it("no busca los horarios sin servicio y pide elegirlo (D96)", async () => {
-    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        clienteNombre="Ana Prueba"
+        recursos={[RECURSO]}
+        servicios={[CORTE]}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
 
     expect(await screen.findByText("Elegí el servicio para ver los horarios")).toBeTruthy();
     expect(verDisponibilidad).not.toHaveBeenCalled();
@@ -358,13 +515,14 @@ describe("PAN-AGE-02 — nuevo turno", () => {
     render(
       <NuevoTurno
         clienteId="cl1"
+        clienteNombre="Ana Prueba"
         recursos={[{ ...RECURSO, servicios: [CORTE.id, color.id] }]}
         servicios={[CORTE, color]}
       />,
     );
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
     fireEvent.change(await screen.findByLabelText("Horario"), {
       target: { value: "2027-09-07T19:00:00+00:00" },
@@ -385,7 +543,14 @@ describe("PAN-AGE-02 — nuevo turno", () => {
   it("solo ofrece los servicios que el recurso presta (RN-03)", async () => {
     const color: ServicioAgendable = { id: "s2", nombre: "Color", duracion_estandar_min: 90 };
     verDisponibilidad.mockResolvedValue({ fecha: "2027-09-07", horarios: [] });
-    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE, color]} />);
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        clienteNombre="Ana Prueba"
+        recursos={[RECURSO]}
+        servicios={[CORTE, color]}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
 
@@ -400,13 +565,19 @@ describe("PAN-AGE-02 — nuevo turno", () => {
 describe("D95 — los turnos no se agendan en el pasado", () => {
   it("nuevo turno: el Operador no ve la opcion a posteriori y el Administrador si", () => {
     const { rerender } = render(
-      <NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />,
+      <NuevoTurno
+        clienteId="cl1"
+        clienteNombre="Ana Prueba"
+        recursos={[RECURSO]}
+        servicios={[CORTE]}
+      />,
     );
     expect(screen.queryByLabelText("Registrar una atención ya realizada")).toBeNull();
 
     rerender(
       <NuevoTurno
         clienteId="cl1"
+        clienteNombre="Ana Prueba"
         recursos={[RECURSO]}
         servicios={[CORTE]}
         puedeRegistrarAPosteriori
@@ -416,12 +587,23 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
   });
 
   it("nuevo turno: el campo de fecha no deja elegir un dia anterior a hoy", async () => {
-    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        clienteNombre="Ana Prueba"
+        recursos={[RECURSO]}
+        servicios={[CORTE]}
+      />,
+    );
 
+    // El límite llega con la carga de «hoy»: recién entonces el mes anterior queda deshabilitado.
     await waitFor(() => {
-      expect((screen.getByLabelText("Fecha") as HTMLInputElement).min).toMatch(
-        /^\d{4}-\d{2}-\d{2}$/,
-      );
+      fireEvent.click(screen.getByLabelText("Fecha"));
+      fireEvent.click(screen.getByRole("button", { name: "Mes anterior" }));
+      const dia = screen
+        .getByRole("dialog")
+        .querySelector<HTMLButtonElement>('[data-afuera="false"]:not([disabled])');
+      expect(dia).toBeNull();
     });
   });
 
@@ -430,6 +612,7 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
     render(
       <NuevoTurno
         clienteId="cl1"
+        clienteNombre="Ana Prueba"
         recursos={[RECURSO]}
         servicios={[CORTE]}
         puedeRegistrarAPosteriori
@@ -460,10 +643,17 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
       horarios: [{ inicio: "2027-09-07T19:00:00+00:00", ocupado: false }],
     });
     reservarTurno.mockRejectedValue(new ErrorDeTurno(MENSAJE_TURNO_EN_EL_PASADO));
-    render(<NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />);
+    render(
+      <NuevoTurno
+        clienteId="cl1"
+        clienteNombre="Ana Prueba"
+        recursos={[RECURSO]}
+        servicios={[CORTE]}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
     fireEvent.change(await screen.findByLabelText("Horario"), {
       target: { value: "2027-09-07T19:00:00+00:00" },
@@ -480,6 +670,7 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
         puedeGestionar
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Reprogramar" }));
@@ -492,6 +683,7 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
         puedeRegistrarAPosteriori
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
     expect(screen.getByLabelText(/Corrección a posteriori/)).toBeTruthy();
@@ -506,6 +698,7 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
         puedeRegistrarAPosteriori
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
 
@@ -532,6 +725,7 @@ describe("D95 — los turnos no se agendan en el pasado", () => {
         puedeGestionar
         recurso="Consultorio 1"
         servicio="Corte"
+        cliente={ANA}
       />,
     );
 
@@ -559,11 +753,16 @@ describe("PAN-AGE-02 — nuevo turno, mientras la navegación tarda", () => {
     reservarTurno.mockResolvedValue(RESERVADO);
     render(
       <ArnesDeRouter>
-        <NuevoTurno clienteId="cl1" recursos={[RECURSO]} servicios={[CORTE]} />
+        <NuevoTurno
+          clienteId="cl1"
+          clienteNombre="Ana Prueba"
+          recursos={[RECURSO]}
+          servicios={[CORTE]}
+        />
       </ArnesDeRouter>,
     );
     fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2027-09-07" } });
+    elegirFecha("Fecha", "2027-09-07");
     fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
     fireEvent.change(await screen.findByLabelText("Horario"), {
       target: { value: "2027-09-07T19:00:00+00:00" },

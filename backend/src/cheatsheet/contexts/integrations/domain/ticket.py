@@ -1,19 +1,16 @@
-"""The `TicketDeAcceso` aggregate — gap H11, decided by ADR-0004.
+"""ARCA access tickets of the platform certificate — ADR-0004, as ADR-0014 left it.
 
-**Why an entity the DER does not have.** The DER models the *credential*: what a company
-gave us so we can act on its behalf. ARCA adds a second thing on top of it — a short-lived
-session derived from that credential — and the two cannot share a row, for three reasons
-that are facts about the provider rather than modelling taste:
+**Why an entity the DER does not have.** The DER models what a company gives us. ARCA adds
+a short-lived session derived from a certificate, and since ADR-0014 that certificate is
+the platform's, not a company's. Three facts about the provider make it worth storing:
 
-- a ticket lasts about 12 hours and the credential lasts about two years;
-- a ticket is per **service** (invoicing, padrón), so one company holds several at once
-  while it has exactly one certificate;
+- a ticket lasts about 12 hours and the certificate about two years;
+- a ticket is per **service** (invoicing, padrón), so the platform holds several at once;
 - WSAA **refuses to issue a second ticket while the first is alive**, which makes storing
   it a correctness requirement: a system that throws its ticket away cannot authenticate
   again until the old one expires.
 
-The full reasoning, and the alternatives that were ruled out, live in
-[ADR-0004](../../../../../../docs/adr/0004-arca-wsaa-access-tickets.md).
+The per-company `TicketDeAcceso` of ADR-0004 was dropped with model 1 (migration 0043).
 
 This module knows nothing about ARCA's wire format. A ticket is an opaque blob with a
 name and an expiry; what is inside it is the Anti-Corruption Layer's business.
@@ -24,10 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
-from uuid import UUID
 
 from cheatsheet.contexts.integrations.domain.valores import CredencialCifrada
-from cheatsheet.shared.empresa import EmpresaId
 
 #: Default head start before expiry at which a ticket is renewed rather than reused.
 #: Not zero, because a ticket that expires between the check and the call ARCA makes with
@@ -53,17 +48,20 @@ class ServicioDeArca(StrEnum):
 
 
 @dataclass(eq=False)
-class TicketDeAcceso:
-    """One live session with one ARCA service, for one company."""
+class TicketDePlataforma:
+    """One live session of **the platform certificate** with one ARCA service (ADR-0014).
 
-    id: UUID
-    empresa_id: EmpresaId
+    Not per company: with web service delegation every company is reached through the
+    same certificate, and WSAA issues one ticket per certificate and service. A ticket
+    kept per company would make the second company to connect fail for twelve hours.
+    """
+
     servicio: ServicioDeArca
     contenido: CredencialCifrada
     expira_en: datetime
 
     def vigente(self, ahora: datetime) -> bool:
-        """Whether ARCA would still accept it. Says nothing about whether to reuse it."""
+        """Whether ARCA would still accept it."""
         return ahora < self.expira_en
 
     def hay_que_renovar(self, ahora: datetime, margen: timedelta = MARGEN_DE_RENOVACION) -> bool:
@@ -76,6 +74,5 @@ class TicketDeAcceso:
         return ahora >= self.expira_en - margen
 
     def reemplazar(self, contenido: CredencialCifrada, expira_en: datetime) -> None:
-        """Overwrite in place. One row per `(empresa, servicio)`, as the index states."""
         self.contenido = contenido
         self.expira_en = expira_en

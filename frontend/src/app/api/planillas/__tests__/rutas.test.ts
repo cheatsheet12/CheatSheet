@@ -57,6 +57,13 @@ const { POST: postReproceso } = await import(
   "@/app/api/planillas/cargas/[cargaId]/reproceso/route"
 );
 
+const { GET: getFila } = await import(
+  "@/app/api/planillas/cargas/[cargaId]/filas/[numeroFila]/route"
+);
+const { POST: postCorreccion } = await import(
+  "@/app/api/planillas/cargas/[cargaId]/filas/[numeroFila]/correccion/route"
+);
+
 const MAPEO_ID = "3f1c2b8e-0000-4000-8000-000000000050";
 const CARGA_ID = "3f1c2b8e-0000-4000-8000-000000000060";
 
@@ -254,6 +261,22 @@ describe("con sesion", () => {
     });
   });
 
+  it("conserva la dirección de escritura junto al estado OAuth", async () => {
+    cookieDeSesion = "token";
+    llamarApi.mockResolvedValue({ url: "https://accounts.google.com/o/oauth2/v2/auth?state=abc" });
+    const respuesta = await postAutorizacion(
+      pedidoJson({
+        documento: "sheet-123",
+        direccion: "LECTURA_Y_ESCRITURA",
+      }),
+    );
+
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.headers.get("set-cookie")).toContain(
+      "planilla_oauth_direccion=LECTURA_Y_ESCRITURA",
+    );
+  });
+
   it("sin planilla elegida no sale hacia Google", async () => {
     // El identificador del documento no vuelve en el callback: lo conoce el panel y hay
     // que guardarlo antes de irse. Salir sin él vincularia una planilla que nadie eligio.
@@ -263,5 +286,64 @@ describe("con sesion", () => {
 
     expect(respuesta.status).toBe(422);
     expect(llamarApi).not.toHaveBeenCalled();
+  });
+
+  describe("corregir una fila que falló", () => {
+    const params = { cargaId: CARGA_ID, numeroFila: "5" };
+
+    it("ninguna de las dos rutas llega al backend sin sesión", async () => {
+      const lectura = await getFila(new Request("http://localhost/x"), { params });
+      const correccion = await postCorreccion(pedidoJson({ valores: { nombre: "A" } }), {
+        params,
+      });
+
+      expect(lectura.status).toBe(401);
+      expect(correccion.status).toBe(401);
+      expect(llamarApi).not.toHaveBeenCalled();
+    });
+
+    it("la lectura reenvía carga y número de fila", async () => {
+      cookieDeSesion = "token";
+      llamarApi.mockResolvedValue({ numero_fila: 5, motivo: "CUIT mal", campos: [] });
+
+      const respuesta = await getFila(new Request("http://localhost/x"), { params });
+
+      expect(llamarApi).toHaveBeenCalledWith(`/planillas/cargas/${CARGA_ID}/filas/5`, {
+        method: "GET",
+      });
+      expect(await respuesta.json()).toEqual({ numero_fila: 5, motivo: "CUIT mal", campos: [] });
+    });
+
+    it("la corrección reenvía los valores editados", async () => {
+      cookieDeSesion = "token";
+      llamarApi.mockResolvedValue({ puede_reprocesar: true });
+
+      await postCorreccion(pedidoJson({ valores: { nombre: "A", cuit: "20123456786" } }), {
+        params,
+      });
+
+      expect(llamarApi).toHaveBeenCalledWith(`/planillas/cargas/${CARGA_ID}/filas/5/correccion`, {
+        method: "POST",
+        body: { valores: { nombre: "A", cuit: "20123456786" } },
+      });
+    });
+
+    it("el rechazo de un CUIT llega al navegador con su motivo", async () => {
+      // Es lo único que el editor muestra para corregir de nuevo: si se perdiera en el camino,
+      // la pantalla diría «no se pudo» sobre un dato que sí se puede arreglar.
+      cookieDeSesion = "token";
+      llamarApi.mockRejectedValue(
+        new ErrorDeApi(422, "El digito verificador del CUIT no es correcto", "EntradaInvalida"),
+      );
+
+      const respuesta = await postCorreccion(pedidoJson({ valores: { cuit: "20111111111" } }), {
+        params,
+      });
+
+      expect(respuesta.status).toBe(422);
+      expect(await respuesta.json()).toMatchObject({
+        detalle: "El digito verificador del CUIT no es correcto",
+      });
+    });
   });
 });

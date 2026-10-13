@@ -189,6 +189,10 @@ class Turno:
     #: significa «sin intervalo»: la carga y la corrección a posteriori no lo respetan ni lo
     #: imponen (HU-E7-06 RN-07), y la base deja esos turnos fuera de `excl_turno_recurso_intervalo`.
     intervalo_posterior_min: int | None = 0
+    #: Cuándo se fijó la franja **actual**: al reservar o en la última reprogramación (migración
+    #: 0040). `updated_at` no sirve, también se mueve al confirmar. Un recordatorio cuyo momento
+    #: cae antes de esto ya estaba vencido cuando la franja se fijó, y no se manda.
+    franja_asignada_en: datetime | None = None
 
     @classmethod
     def registrar_a_posteriori(
@@ -222,6 +226,7 @@ class Turno:
             created_at=ahora,
             updated_at=ahora,
             intervalo_posterior_min=None,
+            franja_asignada_en=ahora,
         )
 
     # -- transiciones -----------------------------------------------------------------
@@ -238,12 +243,15 @@ class Turno:
         """
         self._transicionar_a(EstadoTurno.CANCELADO)
 
-    def reprogramar(self, franja: Franja, intervalo_posterior_min: int | None) -> None:
+    def reprogramar(
+        self, franja: Franja, intervalo_posterior_min: int | None, ahora: datetime
+    ) -> None:
         """Mueve el turno a otra franja **conservando el estado** (RN-02).
 
         No hay `estado` de por medio y no lo va a haber: la historia dice que la reprogramación
         no es un estado, y este método es donde esa frase se vuelve código. El intervalo es el
-        **actual** del recurso, o `None` en la corrección a posteriori.
+        **actual** del recurso, o `None` en la corrección a posteriori. `ahora` queda como el
+        momento en que se fijó la franja nueva (`franja_asignada_en`).
         """
         if self.estado not in ESTADOS_ABIERTOS:
             raise InvarianteViolada(
@@ -251,6 +259,7 @@ class Turno:
             )
         self.franja = franja
         self.intervalo_posterior_min = intervalo_posterior_min
+        self.franja_asignada_en = ahora
 
     def marcar_completado(self, ahora: datetime) -> None:
         """HU-E7-03. Sólo cuando el turno ya transcurrió (RN-01)."""

@@ -61,7 +61,9 @@ from cheatsheet.contexts.conversational.application.ports import (
     PortRepositorioFAQ,
     PortRepositorioMensaje,
     PortTranscriptor,
+    PortUsosDeFAQ,
 )
+from cheatsheet.contexts.conversational.application.respuesta_por_faq import RespuestaPorFAQ
 from cheatsheet.contexts.conversational.application.salida import SalidaAlCliente
 from cheatsheet.contexts.conversational.application.turnos_por_whatsapp import TurnosPorWhatsApp
 from cheatsheet.contexts.conversational.domain.conversacion import (
@@ -120,6 +122,7 @@ class ProcesarMensajeEntrante:
         mensajes: PortRepositorioMensaje,
         escalamientos: PortRepositorioEscalamiento,
         faqs: PortRepositorioFAQ,
+        usos: PortUsosDeFAQ,
         clientes: PortDirectorio,
         interprete: PortInterprete,
         transcriptor: PortTranscriptor,
@@ -132,13 +135,14 @@ class ProcesarMensajeEntrante:
         self._conversaciones = conversaciones
         self._mensajes = mensajes
         self._escalamientos = escalamientos
-        self._faqs = faqs
         self._clientes = clientes
         self._interprete = interprete
         self._transcriptor = transcriptor
-        self._embeddings = embeddings
         self._publicador = publicador
         self._salida = SalidaAlCliente(mensajes=mensajes, mensajeria=mensajeria)
+        self._faq = RespuestaPorFAQ(
+            faqs=faqs, usos=usos, embeddings=embeddings, salida=self._salida
+        )
         self._turnos = TurnosPorWhatsApp(
             conversaciones=conversaciones, salida=self._salida, agenda=agenda, publicador=publicador
         )
@@ -304,7 +308,7 @@ class ProcesarMensajeEntrante:
         if lectura.intencion is Intencion.TURNO:
             return await self._terminar(contexto, await self._turnos.atender(contexto, lectura))
         if lectura.intencion is Intencion.FAQ or lectura.intencion is Intencion.CONSULTA:
-            salida = await self._responder_faq(contexto, texto)
+            salida = await self._faq.responder(contexto, texto)
         else:
             # `PAGO` no tiene flujo automático en este épico: el cobro lo genera una persona
             # (HU-E6-03), así que lo honesto es derivar en vez de improvisar una respuesta.
@@ -323,23 +327,6 @@ class ProcesarMensajeEntrante:
         return Respuesta(
             contexto.conversacion.id, intencion or Intencion.DESCONOCIDA, False, desenlace.texto
         )
-
-    async def _responder_faq(self, contexto: ContextoDelMensaje, texto: str) -> str | None:
-        """HU-E8-03. Por significado (RN-02), y con umbral (RN-03).
-
-        **La respuesta es la que escribió la empresa, palabra por palabra.** El modelo no la
-        reescribe ni la resume: una FAQ es lo que el negocio decidió contestar, y dejar que un
-        modelo la parafrasee es dejar que cambie lo que la empresa dice.
-        """
-        vector = await self._embeddings.vectorizar(texto)
-        candidatas = await self._faqs.buscar_por_significado(vector, limite=1)
-        mejor = candidatas[0] if candidatas else None
-        if mejor is None or not mejor.alcanza:
-            # RN-03: ninguna FAQ alcanza, se ofrece derivar.
-            return await self._decir(contexto, MENSAJE_OFRECER_ASESOR)
-        mejor.faq.registrar_uso()
-        await self._faqs.guardar(mejor.faq)
-        return await self._decir(contexto, mejor.faq.respuesta)
 
     async def _escalar(self, contexto: ContextoDelMensaje, motivo: str) -> Respuesta:
         """HU-E8-05. Se registra el motivo, se avisa al cliente, y el agente calla."""

@@ -13,6 +13,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from cheatsheet.contexts.spreadsheet_sync.application.errors import PermisosDePlanillaInsuficientes
 from cheatsheet.contexts.spreadsheet_sync.application.mapeos import huella_de
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     FilaLeida,
@@ -37,7 +38,12 @@ from cheatsheet.contexts.spreadsheet_sync.domain.valores import (
 )
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
 from cheatsheet.shared.empresa import EmpresaId
-from cheatsheet.shared.errors import EntradaInvalida, ErrorDeDominio, InvarianteViolada
+from cheatsheet.shared.errors import (
+    EntradaInvalida,
+    ErrorDeDominio,
+    InvarianteViolada,
+    OperacionNoPermitida,
+)
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 
@@ -252,6 +258,86 @@ async def test_sin_errores_el_estado_es_completado() -> None:
     assert len(catalogo.ingeridas) == 1
 
 
+async def test_google_uses_same_processing_with_pre_read_rows() -> None:
+    mapeo = _mapeo_confirmado()
+    vinculo = VinculoDePlanilla(
+        id=uuid4(),
+        empresa_id=EMPRESA,
+        proveedor=ProveedorPlanilla.GOOGLE_SHEETS,
+        direccion=DireccionSync.SOLO_LECTURA,
+        hoja_empresa="Clientes",
+        identificador_externo="document-1",
+        created_at=AHORA,
+        updated_at=AHORA,
+    )
+    vinculo.asignar_mapeo(mapeo.id, ahora=AHORA)
+    catalogo = CatalogoFalso(frozenset({"roto"}))
+    resumen = await ProcesarPlanilla(
+        procesamientos=ProcesamientosFalsos(),
+        vinculos=VinculosFalsos(vinculo),
+        mapeos=MapeosFalsos(mapeo),
+        lector=LectorFalso(),
+        catalogo=catalogo,
+        publicador=PublicadorFalso(),
+    ).ejecutar(
+        empresa_id=EMPRESA,
+        vinculo_id=vinculo.id,
+        planilla=_planilla((2, "Ana", "roto"), (3, "Luis", "30712345671")),
+        ahora=AHORA,
+    )
+
+    assert resumen.procesamiento.filas_ok == 1
+    assert resumen.procesamiento.errores[0].numero_fila == 2
+    assert catalogo.ingeridas == [{"nombre": "Luis", "cuit": "30712345671"}]
+
+
+async def test_google_refuses_to_apply_confirmed_mapping_to_changed_headers() -> None:
+    mapeo = _mapeo_confirmado()
+    vinculo = _vinculo(mapeo.id)
+    with pytest.raises(InvarianteViolada, match="estructura"):
+        await ProcesarPlanilla(
+            procesamientos=ProcesamientosFalsos(),
+            vinculos=VinculosFalsos(vinculo),
+            mapeos=MapeosFalsos(mapeo),
+            lector=LectorFalso(),
+            catalogo=CatalogoFalso(),
+            publicador=PublicadorFalso(),
+        ).ejecutar(
+            empresa_id=EMPRESA,
+            vinculo_id=vinculo.id,
+            planilla=PlanillaLeida(columnas=("Otro",), filas=()),
+            ahora=AHORA,
+        )
+
+
+async def test_google_read_failure_is_visible_as_failed_processing() -> None:
+    mapeo = _mapeo_confirmado()
+    vinculo = _vinculo(mapeo.id)
+    catalogo = CatalogoFalso()
+
+    async def lectura_remota() -> PlanillaLeida:
+        raise PermisosDePlanillaInsuficientes("Reconectá la cuenta de Google")
+
+    resumen = await ProcesarPlanilla(
+        procesamientos=ProcesamientosFalsos(),
+        vinculos=VinculosFalsos(vinculo),
+        mapeos=MapeosFalsos(mapeo),
+        lector=LectorFalso(),
+        catalogo=catalogo,
+        publicador=PublicadorFalso(),
+    ).ejecutar(
+        empresa_id=EMPRESA,
+        vinculo_id=vinculo.id,
+        lectura_remota=lectura_remota,
+        ahora=AHORA,
+    )
+
+    assert resumen.procesamiento.estado is EstadoProcesamiento.FALLIDO
+    assert resumen.procesamiento.errores[0].motivo == "Reconectá la cuenta de Google"
+    assert resumen.procesamiento.filas_a_reprocesar == ()
+    assert catalogo.ingeridas == []
+
+
 async def test_muchas_filas_rotas_no_frenan_las_buenas() -> None:
     """La versión grande del caso 1: la mitad falla y la otra mitad entra igual."""
     filas = tuple(
@@ -385,7 +471,7 @@ async def test_solo_lectura_no_reprocesa() -> None:
         planilla=_planilla((2, "Kiosco Luis", "roto")), rechaza=frozenset({"roto"})
     )
 
-    with pytest.raises(EntradaInvalida):
+    with pytest.raises(OperacionNoPermitida):
         await PrepararReproceso(procesamientos).ejecutar(
             procesamiento_id=procesamiento.id, rol=RolUsuario.SOLO_LECTURA
         )

@@ -1,6 +1,6 @@
 /**
- * Todo lo que se alcanza sin sesión: el ingreso (PAN-ONB-01), el paso 2 del onboarding
- * (PAN-ONB-02), la aceptación de una invitación y el acceso del contador.
+ * Lo que se alcanza sin sesión y no tiene maqueta de dos columnas: hoy, el acceso del
+ * contador. El ingreso vive en `(ingreso)`; el onboarding y la invitación, en `(alta)`.
  *
  * **Estas pantallas no tienen el shell del panel, y por eso tienen maqueta propia.** Sin
  * sesión no hay barra lateral ni topbar, porque no hay a dónde navegar: quien llega está
@@ -13,6 +13,7 @@
  * contenidos principales.
  */
 
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 export default function PublicLayout({ children }: { readonly children: ReactNode }): JSX.Element {
@@ -21,9 +22,14 @@ export default function PublicLayout({ children }: { readonly children: ReactNod
       {/* El imagotipo de `docs/aidlc/inputs/prototipos/imagotipo.html`: símbolo, «Cheat» en
           primario y «Sheet» en acento. */}
       <div className="acc-marca">
-        <span className="acc-marca__simbolo" aria-hidden="true">
-          CS
-        </span>
+        <Image
+          className="acc-marca__simbolo"
+          src="/logo-simbolo.png"
+          alt=""
+          width={44}
+          height={44}
+          priority
+        />
         <span className="acc-marca__texto">
           <span className="acc-marca__nombre">
             Cheat<em>Sheet</em>

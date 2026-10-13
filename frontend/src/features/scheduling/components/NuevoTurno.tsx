@@ -31,7 +31,15 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Alert, Button, Campo, Casilla, Select, useAccionConNavegacion } from "@/shared";
+import {
+  Alert,
+  Button,
+  Campo,
+  Casilla,
+  Select,
+  SelectorDeFecha,
+  useAccionConNavegacion,
+} from "@/shared";
 
 import {
   ErrorDeTurno,
@@ -48,6 +56,8 @@ import { IconoDeReloj } from "./iconos";
 export interface PropsDeNuevoTurno {
   /** A quién se le agenda. Se elige antes, como en la emisión y en el cobro. */
   readonly clienteId: string;
+  /** Su nombre, resuelto del lado del servidor, para que el formulario diga para quién es (#167). */
+  readonly clienteNombre: string;
   readonly recursos: readonly Recurso[];
   readonly servicios: readonly ServicioAgendable[];
   /** Sólo el Administrador puede cargar una atención ya realizada (HU-E7-06 RN-07). */
@@ -56,6 +66,7 @@ export interface PropsDeNuevoTurno {
 
 export function NuevoTurno({
   clienteId,
+  clienteNombre,
   recursos,
   servicios,
   puedeRegistrarAPosteriori = false,
@@ -147,7 +158,10 @@ export function NuevoTurno({
         </span>
         <div>
           <h2>Datos del turno</h2>
-          <p>Elegí el recurso y el día; los horarios los ofrece el recurso.</p>
+          <p>
+            Para <strong>{clienteNombre}</strong>. Elegí el recurso y el día; los horarios los
+            ofrece el recurso.
+          </p>
         </div>
       </div>
 
@@ -208,15 +222,14 @@ export function NuevoTurno({
             onChange={(evento) => setInicioPasado(evento.target.value)}
           />
         ) : (
-          <Campo
+          <SelectorDeFecha
             id="turno-fecha"
             etiqueta="Fecha"
-            type="date"
             min={limites?.hoy}
             value={fecha}
-            onChange={(evento) => {
-              setFecha(evento.target.value);
-              void buscar(recursoId, servicioId, evento.target.value);
+            alCambiar={(valor) => {
+              setFecha(valor);
+              void buscar(recursoId, servicioId, valor);
             }}
           />
         )}

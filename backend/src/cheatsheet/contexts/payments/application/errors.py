@@ -14,6 +14,7 @@ reenvían explícitamente.
 from __future__ import annotations
 
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.transaccion import DespachoNoPersistido  # reexportado: ver shared/
 
 
 class CobroInexistente(EntradaInvalida):
@@ -31,6 +32,20 @@ class ClienteInexistente(EntradaInvalida):
 
 class ComprobanteDeOtroCliente(EntradaInvalida):
     """El comprobante pertenece a otro cliente: seria cobrar la deuda de otra persona."""
+
+
+class ClaveDeIdempotenciaReusada(EntradaInvalida):
+    """ADR-0013: la misma clave de pedido ya creo un cobro con **otros** datos.
+
+    Es un error del cliente, no un conflicto con el estado del negocio: por eso 422 y no 409.
+    """
+
+
+class PedidoEnCurso(InvarianteViolada):
+    """ADR-0013, respaldo: el indice unico de la clave salto pese al bloqueo consultivo.
+
+    Con el bloqueo no deberia pasar; si pasa, es un 409 con texto y nunca un 500.
+    """
 
 
 class CobroNoCancelable(InvarianteViolada):
@@ -84,13 +99,16 @@ class WebhookNoAutentico(EntradaInvalida):
 
 
 __all__ = [
+    "ClaveDeIdempotenciaReusada",
     "ClienteInexistente",
     "CobroInexistente",
     "CobroNoCancelable",
     "CobroNoReembolsable",
     "ComprobanteDeOtroCliente",
+    "DespachoNoPersistido",
     "MontoExcedeSaldo",
     "PasarelaNoDisponible",
+    "PedidoEnCurso",
     "RecordatorioDuplicado",
     "ReembolsoEnProceso",
     "ReembolsoNoCorregible",

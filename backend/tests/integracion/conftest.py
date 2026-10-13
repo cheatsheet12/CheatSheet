@@ -33,6 +33,12 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from tests.integracion.guarda import (
+    DestinoDeIntegracionRechazado,
+    argumentos_de_conexion_de_prueba,
+    verificar_destino,
+)
+
 RAIZ_BACKEND = Path(__file__).resolve().parents[2]
 
 
@@ -50,8 +56,28 @@ requiere_base = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(scope="session", autouse=True)
+def destino_verificado() -> None:
+    """Refuse to run the destructive suite against a database that is not meant for it.
+
+    Autouse and session-scoped, so it runs before the first fixture of the first test:
+    no migration, downgrade or cleanup can happen against a rejected destination, not
+    even from the test files that build their own engines or call alembic directly.
+    Without both URLs set, every test is skipped by `requiere_base` and there is
+    nothing to check.
+    """
+    url_app = _url("DATABASE_URL")
+    url_dueno = _url("DATABASE_URL_MIGRATIONS")
+    if url_app is None or url_dueno is None:
+        return
+    try:
+        verificar_destino(url_app, url_dueno)
+    except DestinoDeIntegracionRechazado as rechazo:
+        pytest.exit(str(rechazo), returncode=2)
+
+
 @pytest.fixture(scope="session")
-def esquema_migrado() -> None:
+def esquema_migrado(destino_verificado: None) -> None:
     """Bring the schema to head once per session, as the owner role.
 
     Running the real migrations rather than `metadata.create_all` is deliberate: it is
@@ -69,7 +95,9 @@ async def engine_aplicacion(esquema_migrado: None) -> AsyncIterator[AsyncEngine]
     """Engine connected as `cheatsheet_app` — the role that RLS actually constrains."""
     url = _url("DATABASE_URL")
     assert url is not None  # guarded by requiere_base
-    engine = create_async_engine(url, poolclass=None)
+    engine = create_async_engine(
+        url, poolclass=None, connect_args=argumentos_de_conexion_de_prueba(url)
+    )
     yield engine
     await engine.dispose()
 
@@ -79,7 +107,7 @@ async def engine_dueno(esquema_migrado: None) -> AsyncIterator[AsyncEngine]:
     """Engine connected as the owner. Used only to set up and inspect fixtures."""
     url = _url("DATABASE_URL_MIGRATIONS")
     assert url is not None
-    engine = create_async_engine(url)
+    engine = create_async_engine(url, connect_args=argumentos_de_conexion_de_prueba(url))
     yield engine
     await engine.dispose()
 
@@ -106,12 +134,16 @@ BORRADOS = (
     "DELETE FROM reporte",
     "DELETE FROM configuracion_de_paquete",
     # `mensaje` y `escalamiento` antes que `conversacion`, y `conversacion` antes que
-    # `cliente`: el orden va de la hoja a la raiz, como el resto de la lista.
+    # `cliente`: el orden va de la hoja a la raiz, como el resto de la lista. `faq_uso`
+    # apunta a `mensaje` sin cascada (un uso no desaparece con su mensaje), así que va antes.
+    "DELETE FROM faq_uso",
     "DELETE FROM mensaje",
     "DELETE FROM escalamiento",
     "DELETE FROM conversacion",
     "DELETE FROM faq",
     "DELETE FROM plantilla_de_notificacion",
+    # `recordatorio_de_turno` apunta a `turno` y a `empresa`: antes que `turno`.
+    "DELETE FROM recordatorio_de_turno",
     # `turno` antes que `cobro`: un turno apunta a la seña que lo reserva, y también al
     # cliente y al servicio. El orden va de la hoja a la raíz, como el resto de la lista.
     "DELETE FROM turno",
@@ -132,7 +164,7 @@ BORRADOS = (
     "DELETE FROM comprobante",
     "DELETE FROM punto_de_venta",
     "DELETE FROM registro_de_auditoria",
-    "DELETE FROM ticket_de_acceso",
+    "DELETE FROM ticket_de_plataforma",
     "DELETE FROM configuracion_de_integracion",
     "DELETE FROM respaldo_de_normalizacion",
     "DELETE FROM cliente_categoria",
@@ -140,6 +172,8 @@ BORRADOS = (
     "DELETE FROM categoria_empresa",
     "DELETE FROM servicio",
     "DELETE FROM cliente",
+    # `aceptacion_legal` apunta a `usuario` y a `empresa` con RESTRICT: antes que los dos.
+    "DELETE FROM aceptacion_legal",
     "DELETE FROM invitacion",
     "DELETE FROM refresh_token",
     "DELETE FROM usuario",

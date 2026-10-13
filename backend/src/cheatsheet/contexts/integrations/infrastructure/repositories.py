@@ -12,10 +12,15 @@ DEFINER` function and it returns nothing but company ids; the reasoning is with 
 from __future__ import annotations
 
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cheatsheet.contexts.integrations.application.errors import CuentaDeWhatsAppEnUso
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
-from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca, TicketDeAcceso
+from cheatsheet.contexts.integrations.domain.ticket import (
+    ServicioDeArca,
+    TicketDePlataforma,
+)
 from cheatsheet.contexts.integrations.domain.valores import (
     Ambiente,
     CredencialCifrada,
@@ -24,9 +29,30 @@ from cheatsheet.contexts.integrations.domain.valores import (
 )
 from cheatsheet.contexts.integrations.infrastructure.models import (
     ConfiguracionDeIntegracionORM,
-    TicketDeAccesoORM,
+    TicketDePlataformaORM,
 )
 from cheatsheet.shared.empresa import EmpresaId
+
+#: The unique index of migration 0037: one WhatsApp business account, one empresa.
+INDICE_WABA_UNICO = "uq_integracion_waba"
+MENSAJE_CUENTA_EN_USO = (
+    "Esa cuenta de WhatsApp Business ya está vinculada a otra empresa. "
+    "Verificá el ID de la cuenta que pegaste."
+)
+
+
+async def _volcar_a_la_base(sesion: AsyncSession) -> None:
+    """Flush, turning only the WABA index violation into a domain error (409, never a 500).
+
+    By name, as the payments repository does for its own index: any other violation is a
+    real defect and must stay one.
+    """
+    try:
+        await sesion.flush()
+    except IntegrityError as exc:
+        if INDICE_WABA_UNICO not in str(exc.orig):
+            raise
+        raise CuentaDeWhatsAppEnUso(MENSAJE_CUENTA_EN_USO) from exc
 
 
 def _a_dominio(fila: ConfiguracionDeIntegracionORM) -> ConfiguracionDeIntegracion:
@@ -77,14 +103,14 @@ class RepositorioIntegracionesSQL:
             pendiente_desde=configuracion.pendiente_desde,
         )
         self._sesion.add(fila)
-        await self._sesion.flush()
+        await _volcar_a_la_base(self._sesion)
 
     async def guardar(self, configuracion: ConfiguracionDeIntegracion) -> None:
         fila = await self._sesion.get(ConfiguracionDeIntegracionORM, configuracion.id)
         if fila is None:  # pragma: no cover — the aggregate was loaded from this session
             return
         _volcar(configuracion, fila)
-        await self._sesion.flush()
+        await _volcar_a_la_base(self._sesion)
 
     async def buscar(
         self, empresa_id: EmpresaId, sistema: SistemaExterno
@@ -124,58 +150,6 @@ class RepositorioIntegracionesSQL:
         return [_a_dominio(fila) for fila in filas]
 
 
-class RepositorioTicketsSQL:
-    """Implements `PortRepositorioTickets`.
-
-    Company-scoped like everything else in this context, so Row-Level Security is the
-    barrier — which matters more here than elsewhere: a ticket is a live session, and one
-    company reading another's would be speaking to ARCA as that company.
-    """
-
-    def __init__(self, sesion: AsyncSession) -> None:
-        self._sesion = sesion
-
-    async def agregar(self, ticket: TicketDeAcceso) -> None:
-        self._sesion.add(
-            TicketDeAccesoORM(
-                id=ticket.id,
-                empresa_id=ticket.empresa_id,
-                servicio=ticket.servicio.value,
-                contenido_cifrado=ticket.contenido.contenido,
-                algoritmo=ticket.contenido.algoritmo,
-                expira_en=ticket.expira_en,
-            )
-        )
-        await self._sesion.flush()
-
-    async def guardar(self, ticket: TicketDeAcceso) -> None:
-        fila = await self._sesion.get(TicketDeAccesoORM, ticket.id)
-        if fila is None:  # pragma: no cover — loaded from this same session
-            return
-        fila.contenido_cifrado = ticket.contenido.contenido
-        fila.algoritmo = ticket.contenido.algoritmo
-        fila.expira_en = ticket.expira_en
-        await self._sesion.flush()
-
-    async def buscar(
-        self, empresa_id: EmpresaId, servicio: ServicioDeArca
-    ) -> TicketDeAcceso | None:
-        consulta = select(TicketDeAccesoORM).where(
-            TicketDeAccesoORM.empresa_id == empresa_id,
-            TicketDeAccesoORM.servicio == servicio.value,
-        )
-        fila = (await self._sesion.execute(consulta)).scalar_one_or_none()
-        if fila is None:
-            return None
-        return TicketDeAcceso(
-            id=fila.id,
-            empresa_id=EmpresaId(fila.empresa_id),
-            servicio=ServicioDeArca(fila.servicio),
-            contenido=CredencialCifrada(contenido=fila.contenido_cifrado, algoritmo=fila.algoritmo),
-            expira_en=fila.expira_en,
-        )
-
-
 async def empresas_con_integracion_pendiente(sesion: AsyncSession) -> list[EmpresaId]:
     """Which companies have something waiting. **The only cross-tenant read in this context.**
 
@@ -210,6 +184,32 @@ async def empresas_con_integracion_de_arca(sesion: AsyncSession) -> list[Empresa
     return [EmpresaId(valor) for (valor,) in filas.all()]
 
 
+async def empresas_con_whatsapp_conectado(sesion: AsyncSession) -> list[EmpresaId]:
+    """Which companies have WhatsApp connected, with a WABA. The fourth cross-tenant read.
+
+    Feeds the reconciliation of WhatsApp templates (`plantillas-de-whatsapp-en-meta`). Its own
+    function, for the reason migration 0006 states: one question, no arguments, company ids and
+    nothing else — not the token, not the WABA id.
+    """
+    filas = await sesion.execute(text("SELECT empresa_id FROM empresas_con_whatsapp_conectado()"))
+    return [EmpresaId(valor) for (valor,) in filas.all()]
+
+
+async def empresas_de_la_cuenta_de_whatsapp(sesion: AsyncSession, waba_id: str) -> list[EmpresaId]:
+    """The company that owns a WABA id: the template webhook arrives at the app, not a company.
+
+    Meta does not allow a callback override for template status updates, so the event is routed
+    by the `entry[].id` it carries (the WABA id) and never by URL. It returns **only** company ids,
+    and **a list**: two companies claiming the same WABA is a configuration error the caller must
+    refuse to guess about.
+    """
+    filas = await sesion.execute(
+        text("SELECT empresa_id FROM empresa_de_la_cuenta_de_whatsapp(:waba_id)"),
+        {"waba_id": waba_id},
+    )
+    return [EmpresaId(valor) for (valor,) in filas.all()]
+
+
 async def empresas_con_integracion_de_mercadopago(sesion: AsyncSession) -> list[EmpresaId]:
     """Which companies have MercadoPago connected. The third cross-tenant read.
 
@@ -224,3 +224,47 @@ async def empresas_con_integracion_de_mercadopago(sesion: AsyncSession) -> list[
         text("SELECT empresa_id FROM empresas_con_integracion_de_mercadopago()")
     )
     return [EmpresaId(valor) for (valor,) in filas.all()]
+
+
+class RepositorioTicketsDePlataformaSQL:
+    """Implements `PortRepositorioTicketsDePlataforma` (ADR-0014).
+
+    `buscar_para_renovar` takes a row lock (`FOR UPDATE`) so two requests minting at once
+    queue behind each other instead of both asking WSAA, which would hand a ticket to one
+    and `coe.alreadyAuthenticated` to the other.
+    """
+
+    def __init__(self, sesion: AsyncSession) -> None:
+        self._sesion = sesion
+
+    async def buscar_para_renovar(self, servicio: ServicioDeArca) -> TicketDePlataforma | None:
+        consulta = (
+            select(TicketDePlataformaORM)
+            .where(TicketDePlataformaORM.servicio == servicio.value)
+            .with_for_update()
+        )
+        fila = (await self._sesion.execute(consulta)).scalar_one_or_none()
+        if fila is None:
+            return None
+        return TicketDePlataforma(
+            servicio=ServicioDeArca(fila.servicio),
+            contenido=CredencialCifrada(contenido=fila.contenido_cifrado, algoritmo=fila.algoritmo),
+            expira_en=fila.expira_en,
+        )
+
+    async def guardar(self, ticket: TicketDePlataforma) -> None:
+        fila = await self._sesion.get(TicketDePlataformaORM, ticket.servicio.value)
+        if fila is None:
+            self._sesion.add(
+                TicketDePlataformaORM(
+                    servicio=ticket.servicio.value,
+                    contenido_cifrado=ticket.contenido.contenido,
+                    algoritmo=ticket.contenido.algoritmo,
+                    expira_en=ticket.expira_en,
+                )
+            )
+        else:
+            fila.contenido_cifrado = ticket.contenido.contenido
+            fila.algoritmo = ticket.contenido.algoritmo
+            fila.expira_en = ticket.expira_en
+        await self._sesion.flush()

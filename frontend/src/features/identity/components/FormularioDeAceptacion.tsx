@@ -9,6 +9,10 @@
  * The password is asked twice. The rule is only "at least 8 characters" (HU-E1-01 RN-01)
  * and nothing more is imposed — but a typo in a password nobody can recover means the
  * invitation has to be revoked and reissued, so the confirmation earns its place.
+ *
+ * **It asks for the privacy policy and nothing else** (HU-E1-08 RN-04): the terms were
+ * accepted by the company's Administrator, and the invited person is not a party to them.
+ * The box starts unticked and the API refuses to activate the account without it.
  */
 
 "use client";
@@ -18,24 +22,36 @@ import { useState } from "react";
 import { Alert, Button, Campo, useAccionConNavegacion } from "@/shared";
 
 import { ErrorDeFormulario, aceptarInvitacion } from "../api/cliente";
+import { hayErrores, validarConsentimiento } from "../validacion/consentimiento";
+import type { ErroresDeConsentimiento } from "../validacion/consentimiento";
+import { CasillasLegales } from "./CasillasLegales";
 
 const LARGO_MINIMO_CONTRASENA = 8;
 
-interface Errores {
+interface Errores extends ErroresDeConsentimiento {
   readonly nombre?: string;
   readonly contrasena?: string;
   readonly confirmacion?: string;
   readonly general?: string;
 }
 
+const SIN_TEXTOS =
+  "No pudimos cargar los textos legales vigentes. Recargá la página para activar tu cuenta.";
+
 export interface PropsDeFormularioDeAceptacion {
   readonly token: string;
+  /** The privacy policy version in force, or `null` when the page could not read it. */
+  readonly versionDePrivacidad: string | null;
 }
 
-export function FormularioDeAceptacion({ token }: PropsDeFormularioDeAceptacion): JSX.Element {
+export function FormularioDeAceptacion({
+  token,
+  versionDePrivacidad,
+}: PropsDeFormularioDeAceptacion): JSX.Element {
   const [nombre, setNombre] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [confirmacion, setConfirmacion] = useState("");
+  const [aceptaciones, setAceptaciones] = useState({ terminos: false, privacidad: false });
   const [errores, setErrores] = useState<Errores>({});
   const { pendiente: enviando, ejecutar } = useAccionConNavegacion();
 
@@ -49,7 +65,11 @@ export function FormularioDeAceptacion({ token }: PropsDeFormularioDeAceptacion)
     if (contrasena !== confirmacion) {
       return { confirmacion: "Las contraseñas no coinciden." };
     }
-    return {};
+    const faltantes = validarConsentimiento(aceptaciones, false);
+    if (hayErrores(faltantes)) {
+      return faltantes;
+    }
+    return versionDePrivacidad === null ? { general: SIN_TEXTOS } : {};
   };
 
   const enviar = async (evento: React.FormEvent): Promise<void> => {
@@ -62,7 +82,13 @@ export function FormularioDeAceptacion({ token }: PropsDeFormularioDeAceptacion)
 
     try {
       await ejecutar(
-        () => aceptarInvitacion({ token, nombre: nombre.trim(), contrasena }),
+        () =>
+          aceptarInvitacion({
+            token,
+            nombre: nombre.trim(),
+            contrasena,
+            version_privacidad: versionDePrivacidad ?? "",
+          }),
         // Whoever accepts is already signed in. Where they land depends on whether the
         // company finished its onboarding, exactly as it does after signing in.
         (resultado, router) =>
@@ -124,6 +150,12 @@ export function FormularioDeAceptacion({ token }: PropsDeFormularioDeAceptacion)
             onChange={(evento) => setConfirmacion(evento.target.value)}
           />
         </div>
+        <CasillasLegales
+          aceptaciones={aceptaciones}
+          onCambio={setAceptaciones}
+          errores={errores}
+          soloPrivacidad
+        />
         <div className="acc-accion">
           <Button type="submit" cargando={enviando}>
             Activar mi cuenta

@@ -19,7 +19,7 @@ import os
 from collections.abc import AsyncIterator
 from dataclasses import replace
 from urllib.parse import parse_qs, urlparse
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -30,6 +30,7 @@ from cheatsheet.contexts.integrations.infrastructure.mercadopago.simulado import
     CODIGO_RECHAZADO,
     PREFIJO_SIMULADO,
 )
+from cheatsheet.contexts.payments.infrastructure.pasarela_simulada import PasarelaSimulada
 from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text
@@ -37,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 
 requiere_redis = pytest.mark.skipif(
     os.environ.get("REDIS_URL", "").strip() == "",
@@ -80,7 +82,12 @@ async def cliente(recursos: Recursos) -> AsyncIterator[httpx.AsyncClient]:
 async def _registrar(cliente: httpx.AsyncClient, email: str) -> str:
     respuesta = await cliente.post(
         "/auth/registro",
-        json={"email": email, "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": email,
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert respuesta.status_code == 201, respuesta.text
     return str(respuesta.json()["access_token"])
@@ -264,6 +271,11 @@ def _cobro(cliente_id: str) -> dict[str, str]:
     return {"cliente_id": cliente_id, "monto": "1210.00", "descripcion": "Consulta de septiembre"}
 
 
+def _con_clave(token: str, clave: UUID | None = None) -> dict[str, str]:
+    """Los encabezados de un `POST /cobros`: la clave del pedido es obligatoria (ADR-0013)."""
+    return {**_auth(token), "X-Idempotency-Key": str(clave or uuid4())}
+
+
 @pytest.mark.asyncio
 async def test_un_cobro_a_un_cliente_que_no_existe_responde_422_con_el_texto_de_la_historia(
     cliente: httpx.AsyncClient,
@@ -273,7 +285,7 @@ async def test_un_cobro_a_un_cliente_que_no_existe_responde_422_con_el_texto_de_
     token = await _registrar(cliente, "ana@empresa.com")
 
     respuesta = await cliente.post(
-        "/cobros", json=_cobro("00000000-0000-4000-8000-000000000000"), headers=_auth(token)
+        "/cobros", json=_cobro("00000000-0000-4000-8000-000000000000"), headers=_con_clave(token)
     )
 
     assert respuesta.status_code == 422
@@ -285,7 +297,7 @@ async def test_un_cobro_a_un_cliente_valido_responde_201(cliente: httpx.AsyncCli
     token = await _registrar(cliente, "ana@empresa.com")
     cliente_id = await _crear_cliente(cliente, token)
 
-    respuesta = await cliente.post("/cobros", json=_cobro(cliente_id), headers=_auth(token))
+    respuesta = await cliente.post("/cobros", json=_cobro(cliente_id), headers=_con_clave(token))
 
     assert respuesta.status_code == 201, respuesta.text
     assert respuesta.json()["cliente_id"] == cliente_id
@@ -299,7 +311,7 @@ async def test_un_cobro_a_un_cliente_inactivo_responde_422(cliente: httpx.AsyncC
         f"/clientes/{cliente_id}/estado", json={"activo": False}, headers=_auth(token)
     )
 
-    respuesta = await cliente.post("/cobros", json=_cobro(cliente_id), headers=_auth(token))
+    respuesta = await cliente.post("/cobros", json=_cobro(cliente_id), headers=_con_clave(token))
 
     assert respuesta.status_code == 422
 
@@ -313,6 +325,84 @@ async def test_un_monto_no_finito_o_gigante_responde_422_y_no_500(
 
     for monto in ("NaN", "Infinity", "100000000.01"):
         respuesta = await cliente.post(
-            "/cobros", json={**_cobro(cliente_id), "monto": monto}, headers=_auth(token)
+            "/cobros", json={**_cobro(cliente_id), "monto": monto}, headers=_con_clave(token)
         )
         assert respuesta.status_code == 422, (monto, respuesta.text)
+
+
+# ------------------------------------------------------------------ la clave del pedido · ADR-0013
+
+
+@pytest.fixture
+def pasarela_contada(monkeypatch: pytest.MonkeyPatch) -> PasarelaSimulada:
+    """Una pasarela simulada propia del test: `links` cuenta las preferencias que se pidieron."""
+    pasarela = PasarelaSimulada()
+
+    def _la_misma(*_: object) -> PasarelaSimulada:
+        return pasarela
+
+    monkeypatch.setattr("cheatsheet.api.routers.cobros.armar_pasarela", _la_misma)
+    return pasarela
+
+
+@pytest.mark.asyncio
+async def test_sin_la_clave_del_pedido_o_con_una_que_no_es_uuid_responde_422(
+    cliente: httpx.AsyncClient,
+) -> None:
+    """Caso 8. Obligatoria (P1) y con formato acotado (P4)."""
+    token = await _registrar(cliente, "ana@empresa.com")
+    cliente_id = await _crear_cliente(cliente, token)
+
+    sin = await cliente.post("/cobros", json=_cobro(cliente_id), headers=_auth(token))
+    mala = await cliente.post(
+        "/cobros",
+        json=_cobro(cliente_id),
+        headers={**_auth(token), "X-Idempotency-Key": "no-es-un-uuid"},
+    )
+
+    assert sin.status_code == 422, sin.text
+    assert sin.json()["detalle"] == (
+        "Falta la clave de idempotencia del pedido (encabezado X-Idempotency-Key)."
+    )
+    assert mala.status_code == 422, mala.text
+    assert mala.json()["detalle"] == "La clave de idempotencia del pedido no es valida."
+
+
+@pytest.mark.asyncio
+async def test_el_mismo_pedido_repetido_devuelve_el_mismo_cobro_y_una_sola_preferencia(
+    cliente: httpx.AsyncClient, pasarela_contada: PasarelaSimulada
+) -> None:
+    """Caso 9. Dos 201 con el mismo `id`; MercadoPago recibió una sola preferencia."""
+    token = await _registrar(cliente, "ana@empresa.com")
+    cliente_id = await _crear_cliente(cliente, token)
+    encabezados = _con_clave(token)
+
+    primero = await cliente.post("/cobros", json=_cobro(cliente_id), headers=encabezados)
+    segundo = await cliente.post("/cobros", json=_cobro(cliente_id), headers=encabezados)
+
+    assert primero.status_code == 201, primero.text
+    assert segundo.status_code == 201, segundo.text
+    assert segundo.json()["id"] == primero.json()["id"]
+    assert len(pasarela_contada.links) == 1
+    listado = await cliente.get("/cobros", headers=_auth(token))
+    assert len(listado.json()["cobros"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_la_misma_clave_con_otro_cuerpo_responde_422_y_no_crea_nada(
+    cliente: httpx.AsyncClient, pasarela_contada: PasarelaSimulada
+) -> None:
+    """Caso 10. Es un error del pedido: 422 `ClaveDeIdempotenciaReusada`, no 409."""
+    token = await _registrar(cliente, "ana@empresa.com")
+    cliente_id = await _crear_cliente(cliente, token)
+    encabezados = _con_clave(token)
+    await cliente.post("/cobros", json=_cobro(cliente_id), headers=encabezados)
+
+    otro = await cliente.post(
+        "/cobros", json={**_cobro(cliente_id), "monto": "999.00"}, headers=encabezados
+    )
+
+    assert otro.status_code == 422, otro.text
+    assert otro.json()["error"] == "ClaveDeIdempotenciaReusada"
+    assert "otros datos" in otro.json()["detalle"]
+    assert len(pasarela_contada.links) == 1

@@ -21,6 +21,7 @@ from celery import Celery
 from kombu.exceptions import KombuError
 
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.api.mensajeria import armar_mensajeria
 from cheatsheet.api.mercadopago import armar_cadena, armar_envio
 from cheatsheet.contexts.payments.application.recordatorios import (
     DespacharRecordatorios,
@@ -29,10 +30,12 @@ from cheatsheet.contexts.payments.application.recordatorios import (
 from cheatsheet.contexts.payments.infrastructure.ensamblado import Cobros
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     empresas_con_cobros_abiertos,
+    empresas_con_recordatorios_en_espera,
 )
 from cheatsheet.platform.database import sesion_sin_empresa
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
+from cheatsheet.platform.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.workers.celery_app import Cola, crear_celery
 from cheatsheet.workers.ejecucion import ejecutar_tarea
@@ -46,11 +49,18 @@ NOMBRE_EMPRESA = "payments.barrer_empresa"
 async def barrer_cobros(recursos: Recursos) -> int:
     """Reparte una tarea por empresa con algo abierto. Devuelve cuántas.
 
-    La sesión es **sin empresa**: la función `SECURITY DEFINER` que responde esta pregunta
-    tiene que correr fuera de RLS, o contestaría siempre por el mismo inquilino.
+    «Algo abierto» son los cobros abiertos **y** los recordatorios que esperan su reintento o
+    tienen un envío en curso (U7): un cobro que se pagó mientras su recordatorio esperaba no deja
+    a la empresa con nada abierto, y sin esta segunda pregunta la fila no se descartaría nunca.
+
+    La sesión es **sin empresa**: las funciones `SECURITY DEFINER` que responden estas preguntas
+    tienen que correr fuera de RLS, o contestarían siempre por el mismo inquilino.
     """
     async with sesion_sin_empresa(recursos.sesiones) as sesion:
-        empresas = await empresas_con_cobros_abiertos(sesion)
+        con_cobros = await empresas_con_cobros_abiertos(sesion)
+        con_recordatorios = await empresas_con_recordatorios_en_espera(sesion)
+    # Sin repetidas y en orden estable: una empresa con las dos cosas recibe una sola tarea.
+    empresas = list(dict.fromkeys([*con_cobros, *con_recordatorios]))
 
     for empresa_id in empresas:
         _encolar_empresa(recursos.settings, empresa_id)
@@ -62,6 +72,9 @@ async def barrer_cobros(recursos: Recursos) -> int:
 async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
     """Vence y despacha, **en ese orden y en la misma transacción**.
 
+    Cada cobro del despacho corre en su propio savepoint (`piezas.aislamiento`): un fallo en el
+    cobro K no deshace las filas de los cobros 1..K-1, cuyos mensajes ya salieron.
+
     El orden importa: un cobro que vence hoy tiene que estar `VENCIDO` antes de que la cadena
     lo evalúe, o su primer recordatorio se atrasaría una corrida entera. La transacción los
     junta para que no exista un instante en que uno pasó y el otro no.
@@ -70,6 +83,9 @@ async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
     async for unidad in unidad_de_trabajo(recursos, empresa_id):
         piezas = Cobros.armar(unidad)
         ahora = unidad.reloj.ahora()
+        # El canal se arma **una vez por empresa** (ADR-0011 §2): lee la integración de esa
+        # empresa, y el barrido corre en el worker con el mismo `WHATSAPP_ADAPTADOR` que la API.
+        canal = await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id)
 
         vencidos = await VencerCobros(cobros=piezas.cobros, publicador=unidad.publicador).ejecutar(
             empresa_id=empresa_id, ahora=ahora
@@ -78,18 +94,25 @@ async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
         resultado = await DespacharRecordatorios(
             cobros=piezas.cobros,
             recordatorios=piezas.recordatorios,
-            envio=armar_envio(recursos.settings),
+            envio=armar_envio(unidad, canal=canal),
             cadena=armar_cadena(unidad),
             publicador=unidad.publicador,
+            aislamiento=piezas.aislamiento,
+            # Confirma cada recordatorio antes y después de hablar con Meta (U7, D-U7-3, H1).
+            transaccion=ConfirmacionDeLaUnidad(unidad.sesion, empresa_id),
+            # El reloj real, no el `ahora` del barrido: ventanas y fechas se miden al escribir (S2).
+            reloj=unidad.reloj,
         ).ejecutar(empresa_id=empresa_id, ahora=ahora)
         despachados = resultado.procesados
 
-        if vencidos.procesados or despachados:
+        if vencidos.procesados or despachados or resultado.fallidos or resultado.reintentos:
             logger.info(
                 "barrido_de_cobros",
                 empresa_id=str(empresa_id),
                 vencidos=vencidos.procesados,
                 recordatorios=despachados,
+                recordatorios_fallidos=resultado.fallidos,
+                recordatorios_en_reintento=resultado.reintentos,
             )
     return despachados
 

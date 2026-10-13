@@ -1,8 +1,8 @@
 /**
  * PAN-COB-01 — Cobros · Listado (HU-E6-01).
  *
- * Las cuatro métricas del encabezado y el listado con su estado, que es lo que pide el primer
- * criterio de aceptación.
+ * El encabezado con «Nuevo cobro», las cuatro métricas, la barra de filtros y el listado con su
+ * estado, que es lo que pide el primer criterio de aceptación.
  *
  * **Las etiquetas no son los estados.** La historia es explícita: `APROBADO` se muestra
  * «Pagado» y `VENCIDO` se muestra «En mora». El dominio es la fuente de verdad y esto es
@@ -10,39 +10,42 @@
  * entiende.
  *
  * **Nada acá suma nada.** Las métricas llegan calculadas sobre el período entero: sumarlas en
- * el navegador sobre la página mostraría un total que cambia al pasar de hoja.
+ * el navegador sobre las filas mostraría un total que cambia con el filtro. El monto de cada
+ * fila es el texto que mandó la API.
  *
- * **Los chips y el `select` de estado son el mismo filtro.** Los chips son el atajo a los
- * cuatro estados que alguien mira todo el día; el `select` tiene los cinco del enum y es el
- * control que un lector de pantalla anuncia con su etiqueta. Los dos escriben `filtros.estado`
- * y los dos leen de ahí, así que no pueden mostrar cosas distintas.
+ * **La fila entera lleva al detalle**, y lo hace con un enlace de verdad: el concepto es un
+ * `<a>` y su zona clicable se estira sobre toda la fila (`::after`). Así funciona con teclado y
+ * lector de pantalla sin un `onClick` en el `<tr>`, y los botones de la fila (copiar, ⋯) quedan
+ * por encima y no navegan.
+ *
+ * **Acciones.** Desde el listado se puede ver el detalle, copiar y abrir el link. Cancelar y
+ * reembolsar siguen siendo del detalle: piden motivo, monto y confirmación, y un diálogo así
+ * sobre una fila de tabla se aprieta por error.
  */
 
 "use client";
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
-import {
-  Alert,
-  Badge,
-  Campo,
-  Card,
-  Select,
-  Tabla,
-  formatearFecha,
-  formatearNumero,
-} from "@/shared";
+import { Alert, Badge, Card, Tabla, formatearFecha, formatearNumero } from "@/shared";
 import type { Columna } from "@/shared";
 
 import {
   ETIQUETAS_DE_ESTADO,
   ErrorDeCobro,
+  MENSAJE_LINK_COPIADO,
   MENSAJE_SIN_RESULTADOS,
+  copiarLink,
   listarCobros,
   tonoDeEstado,
 } from "../api/cobro";
 import type { Cobro, FiltrosDeCobro, ListadoDeCobros as Listado } from "../api/cobro";
+import { HerramientasDeCobros, hayFiltrosActivos } from "./HerramientasDeCobros";
+import { LinkDePago, MenuDeCobro, VacioDeCobros, linkDe } from "./PiezasDeListadoDeCobros";
+import type { ResultadoDeCopia } from "./PiezasDeListadoDeCobros";
 import {
   ICONO_ALERTA,
   ICONO_BARRAS,
@@ -60,42 +63,20 @@ export interface PropsDeListadoDeCobros {
   readonly puedeGestionar: boolean;
 }
 
-/**
- * Los seis estados del enum, con la etiqueta de interfaz de cada uno.
- *
- * El valor que viaja es el del dominio y la etiqueta es lo que se lee: mandar «En mora» al
- * backend obligaría a traducir del otro lado, que es el seam donde una traducción mal hecha
- * hace que un filtro devuelva la lista entera.
- */
-const ESTADOS: readonly { valor: string; etiqueta: string }[] = [
-  { valor: "", etiqueta: "Todos los estados" },
-  { valor: "APROBADO", etiqueta: "Pagado" },
-  { valor: "PENDIENTE", etiqueta: "Pendiente" },
-  { valor: "VENCIDO", etiqueta: "En mora" },
-  { valor: "CANCELADO", etiqueta: "Cancelado" },
-  { valor: "REEMBOLSADO_PARCIAL", etiqueta: "Reembolsado parcialmente" },
-  { valor: "REEMBOLSADO", etiqueta: "Reembolsado" },
-];
+/** Cuánto dura el «✓ Copiado» en el botón antes de volver a «Copiar link». */
+const MS_DE_AVISO = 2200;
 
-/**
- * Los chips del prototipo: los cuatro cortes que se miran a diario.
- *
- * **Sin contador.** El prototipo dibuja un número al lado de cada chip; contar sobre
- * `listado.cobros` contaría la página y no el período, y un «3» que cambia al pasar de hoja
- * es peor que no tener número.
- */
-const CHIPS: readonly { valor: string; etiqueta: string; modificador: string }[] = [
-  { valor: "", etiqueta: "Todos", modificador: "" },
-  { valor: "APROBADO", etiqueta: "Pagados", modificador: " cob-chip--pagado" },
-  { valor: "PENDIENTE", etiqueta: "Pendientes", modificador: " cob-chip--pendiente" },
-  { valor: "VENCIDO", etiqueta: "En mora", modificador: " cob-chip--mora" },
-];
+/** Los estados en los que un vencimiento todavía dice algo: pagado o cancelado, no. */
+const ESTADOS_CON_VENCIMIENTO: readonly string[] = ["PENDIENTE", "VENCIDO"];
 
 export function ListadoDeCobros({ inicial, puedeGestionar }: PropsDeListadoDeCobros): JSX.Element {
+  const router = useRouter();
   const [listado, setListado] = useState<Listado>(inicial);
   const [filtros, setFiltros] = useState<FiltrosDeCobro>({});
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [copia, setCopia] = useState<{ id: string; resultado: "copiado" | "fallo" } | null>(null);
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
    * El día de hoy, y sólo después de montar.
    *
@@ -108,6 +89,11 @@ export function ListadoDeCobros({ inicial, puedeGestionar }: PropsDeListadoDeCob
 
   useEffect(() => {
     setHoy(new Date().toISOString().slice(0, 10));
+    return () => {
+      if (temporizador.current !== null) {
+        clearTimeout(temporizador.current);
+      }
+    };
   }, []);
 
   async function aplicar(cambios: FiltrosDeCobro): Promise<void> {
@@ -124,6 +110,28 @@ export function ListadoDeCobros({ inicial, puedeGestionar }: PropsDeListadoDeCob
     }
   }
 
+  function limpiar(): void {
+    void aplicar({ estado: "", desde: "", hasta: "" });
+  }
+
+  /** Copia el link y lo dice en la fila; si no se pudo, también: callar parece que copió. */
+  async function copiar(cobro: Cobro): Promise<void> {
+    const url = linkDe(cobro);
+    if (url === null) {
+      return;
+    }
+    const copiado = await copiarLink(url);
+    setCopia({ id: cobro.id, resultado: copiado ? "copiado" : "fallo" });
+    if (temporizador.current !== null) {
+      clearTimeout(temporizador.current);
+    }
+    temporizador.current = setTimeout(() => setCopia(null), MS_DE_AVISO);
+  }
+
+  function resultadoDe(cobro: Cobro): ResultadoDeCopia {
+    return copia?.id === cobro.id ? copia.resultado : null;
+  }
+
   const columnas: readonly Columna<Cobro>[] = [
     {
       clave: "concepto",
@@ -136,7 +144,7 @@ export function ListadoDeCobros({ inicial, puedeGestionar }: PropsDeListadoDeCob
             {inicialesDe(fila.descripcion)}
           </span>
           <span>
-            <Link href={`/cobros/${fila.id}`} className="cob-celda-cliente__nombre">
+            <Link href={`/cobros/${fila.id}`} className="cob-celda-cliente__nombre cob-lst-enlace">
               {fila.descripcion}
             </Link>
             <span className="cob-celda-cliente__ref">{referenciaDeCobro(fila.id)}</span>
@@ -153,7 +161,7 @@ export function ListadoDeCobros({ inicial, puedeGestionar }: PropsDeListadoDeCob
     {
       clave: "vence",
       titulo: "Vencimiento",
-      celda: (fila) => <Vencimiento venceEl={fila.vence_el} hoy={hoy} />,
+      celda: (fila) => <Vencimiento cobro={fila} hoy={hoy} />,
     },
     {
       clave: "estado",
@@ -165,17 +173,47 @@ export function ListadoDeCobros({ inicial, puedeGestionar }: PropsDeListadoDeCob
     {
       clave: "link",
       titulo: "Link de pago",
-      celda: (fila) =>
-        fila.tiene_link_activo ? (
-          <span className="cob-pastilla cob-pastilla--activo">Activo</span>
-        ) : (
-          <span className="cob-nada">—</span>
-        ),
+      celda: (fila) => (
+        <LinkDePago cobro={fila} resultado={resultadoDe(fila)} onCopiar={() => void copiar(fila)} />
+      ),
+    },
+    {
+      clave: "acciones",
+      titulo: "Acciones",
+      alDerecha: true,
+      celda: (fila) => (
+        <MenuDeCobro
+          cobro={fila}
+          onVer={() => router.push(`/cobros/${fila.id}`)}
+          onCopiar={() => void copiar(fila)}
+        />
+      ),
     },
   ];
 
+  const botonNuevo = (compacto: boolean): JSX.Element => (
+    <Link href="/cobros/nuevo" className={`cob-lst-cta${compacto ? " cob-lst-cta--compacto" : ""}`}>
+      <span className="cob-lst-cta__icono" aria-hidden="true">
+        <Plus size={14} strokeWidth={2.6} />
+      </span>
+      Nuevo cobro
+    </Link>
+  );
+
   return (
     <>
+      <header className="cob-lst-encabezado">
+        <div>
+          <p className="cob-lst-encabezado__eyebrow">Operaciones · Cobros</p>
+          <h1>Cobros</h1>
+          <p className="cob-lst-encabezado__intro">
+            Lo cobrado, lo pendiente y lo que está en mora, con la cadena de recordatorios corriendo
+            sola según la regla que configuraste.
+          </p>
+        </div>
+        {puedeGestionar && <div className="cob-lst-encabezado__acciones">{botonNuevo(false)}</div>}
+      </header>
+
       {error !== null && (
         <Alert tono="error" titulo="No se pudo completar">
           {error}
@@ -215,55 +253,27 @@ export function ListadoDeCobros({ inicial, puedeGestionar }: PropsDeListadoDeCob
         </div>
       </div>
 
-      <section className="cob-panel">
-        <div className="cob-barra">
-          <div className="cob-chips" role="group" aria-label="Filtros rápidos por estado">
-            {CHIPS.map((chip) => (
-              <button
-                key={chip.etiqueta}
-                type="button"
-                className={`cob-chip${chip.modificador}`}
-                aria-pressed={(filtros.estado ?? "") === chip.valor}
-                onClick={() => void aplicar({ estado: chip.valor })}
-              >
-                {chip.valor !== "" && <span className="cob-chip__punto" aria-hidden />}
-                {chip.etiqueta}
-              </button>
-            ))}
-          </div>
-          <div className="cob-barra__espacio" />
-          {puedeGestionar && (
-            <Link href="/cobros/nuevo" className="boton boton--primario cob-boton-enlace">
-              Generar cobro
-            </Link>
-          )}
-        </div>
+      <HerramientasDeCobros
+        filtros={filtros}
+        total={listado.cobros.length}
+        onCambiar={(cambios) => void aplicar(cambios)}
+        onLimpiar={limpiar}
+      />
 
-        <div className="cob-filtros">
-          <Campo
-            id="cobros-desde"
-            etiqueta="Desde"
-            type="date"
-            value={filtros.desde ?? ""}
-            onChange={(evento) => void aplicar({ desde: evento.target.value })}
+      <section
+        className={`cob-lst-panel${cargando ? " cob-cargando" : ""}`}
+        aria-busy={cargando}
+        aria-label="Cobros del período"
+      >
+        {listado.cobros.length === 0 ? (
+          <VacioDeCobros
+            hayFiltros={hayFiltrosActivos(filtros)}
+            puedeGestionar={puedeGestionar}
+            mensajeDeFiltro={MENSAJE_SIN_RESULTADOS}
+            alNuevo={botonNuevo(true)}
+            onLimpiar={limpiar}
           />
-          <Campo
-            id="cobros-hasta"
-            etiqueta="Hasta"
-            type="date"
-            value={filtros.hasta ?? ""}
-            onChange={(evento) => void aplicar({ hasta: evento.target.value })}
-          />
-          <Select
-            id="cobros-estado"
-            etiqueta="Estado"
-            opciones={ESTADOS}
-            value={filtros.estado ?? ""}
-            onChange={(evento) => void aplicar({ estado: evento.target.value })}
-          />
-        </div>
-
-        <div className={cargando ? "cob-cargando" : undefined} aria-busy={cargando}>
+        ) : (
           <Tabla
             titulo="Cobros del período"
             columnas={columnas}
@@ -271,24 +281,42 @@ export function ListadoDeCobros({ inicial, puedeGestionar }: PropsDeListadoDeCob
             claveDeFila={(fila) => fila.id}
             vacia={MENSAJE_SIN_RESULTADOS}
           />
-        </div>
+        )}
       </section>
+
+      {/* Lo que dice el botón, dicho también para quien no lo mira. */}
+      <p className="solo-lectores" role="status">
+        {copia === null
+          ? ""
+          : copia.resultado === "copiado"
+            ? MENSAJE_LINK_COPIADO
+            : "No se pudo copiar. Abrí el cobro y copialo a mano."}
+      </p>
     </>
   );
 }
 
-/** La fecha, y debajo cuánto falta o cuánto hace — en el color de la urgencia. */
+/**
+ * La fecha y, debajo, cuánto falta o cuánto hace — en el color de la urgencia.
+ *
+ * Sólo en los cobros que siguen abiertos: «hace 30 días» en rojo sobre un cobro ya pagado
+ * diría que hay una deuda que no existe. Ni el color ni las palabras son lógica de negocio
+ * nueva: salen de `restoHastaVencimiento`, que compara la fecha con hoy y nada más.
+ */
 function Vencimiento({
-  venceEl,
+  cobro,
   hoy,
 }: {
-  readonly venceEl: string;
+  readonly cobro: Cobro;
   readonly hoy: string | null;
 }): JSX.Element {
-  const resto = hoy === null ? null : restoHastaVencimiento(venceEl, hoy);
+  const resto =
+    hoy === null || !ESTADOS_CON_VENCIMIENTO.includes(cobro.estado)
+      ? null
+      : restoHastaVencimiento(cobro.vence_el, hoy);
   return (
     <>
-      <span className="cob-vence__fecha">{formatearFecha(venceEl)}</span>
+      <span className="cob-vence__fecha">{formatearFecha(cobro.vence_el)}</span>
       {resto !== null && (
         <span className={`cob-vence__resto cob-vence__resto--${resto.tono}`}>{resto.texto}</span>
       )}

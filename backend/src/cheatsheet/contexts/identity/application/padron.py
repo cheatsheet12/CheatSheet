@@ -37,6 +37,7 @@ from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import InvarianteViolada
 from cheatsheet.shared.events import PublicadorDeEventos
+from cheatsheet.shared.fiscal import CUIT
 from cheatsheet.shared.roles import RolUsuario
 
 #: What the audit log records when a check fails. Two actions rather than one action
@@ -75,8 +76,11 @@ class ConsultarPadronDeCuit:
     async def ejecutar(self, *, empresa_id: EmpresaId, cuit: str, rol: RolUsuario) -> VistaDePadron:
         """Administrador only: HU-E1-02's actor, and each call spends a request at ARCA."""
         exigir_administrador(rol)
+        # Format and check digit first (HU-E1-02: an invalid CUIT «no consulta a ARCA»). The
+        # panel already checks, but this is the API, and each lookup spends a request at ARCA.
+        valido = CUIT(cuit).valor
         try:
-            datos = await self._padron.consultar(empresa_id=empresa_id, cuit=cuit)
+            datos = await self._padron.consultar(empresa_id=empresa_id, cuit=valido)
         except PadronNoDisponible as exc:
             return VistaDePadron(EstadoDeConsulta.NO_DISPONIBLE, motivo=str(exc))
         if datos is None:

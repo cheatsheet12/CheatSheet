@@ -27,7 +27,7 @@ from cheatsheet.contexts.spreadsheet_sync.domain.valores import DireccionSync, P
 from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.modelo import ModeloDeLenguajeSimulado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 
@@ -237,7 +237,7 @@ async def test_solo_lectura_no_corrige_ni_confirma(
     vista = await _proponer(mapeos, publicador, ModeloEspia(), VinculosFalsos(_vinculo()))
     mapeo_id = vista.mapeo.id  # type: ignore[attr-defined]
 
-    with pytest.raises(EntradaInvalida):
+    with pytest.raises(OperacionNoPermitida):
         await CorregirMapeo(mapeos).ejecutar(
             mapeo_id=mapeo_id,
             rol=RolUsuario.SOLO_LECTURA,
@@ -246,7 +246,7 @@ async def test_solo_lectura_no_corrige_ni_confirma(
             ahora=AHORA,
         )
 
-    with pytest.raises(EntradaInvalida):
+    with pytest.raises(OperacionNoPermitida):
         await ConfirmarMapeo(mapeos=mapeos, publicador=publicador).ejecutar(
             empresa_id=EMPRESA,
             usuario_id=USUARIO,

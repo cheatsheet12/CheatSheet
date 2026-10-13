@@ -2,11 +2,14 @@
  * PAN-CFG-RN — Configuración · Reglas de negocio (HU-E11-01).
  *
  * Todos los roles ven las reglas con su tipo, prioridad y estado, que es lo que pide el primer
- * criterio. Sólo el Administrador edita, y el caso de uso lo refuerza.
+ * criterio. Sólo el Administrador edita, y el caso de uso lo refuerza. Debajo va el editor de la
+ * agenda de recordatorios de turno (`business_config`): la ruta compone dos features (R5) a partir
+ * del mismo `GET /reglas`.
  */
 
 import { redirect } from "next/navigation";
 
+import { AgendaDeNotificacion, agendaDe } from "@/features/business_config";
 import { ReglasDeNegocio } from "@/features/payments";
 import type { ListadoDeReglas } from "@/features/payments";
 import { llamarApi } from "@/lib/api";
@@ -37,6 +40,10 @@ export default async function PaginaDeReglas(): Promise<JSX.Element> {
         </div>
       </header>
       <ReglasDeNegocio inicial={listado} puedeEditar={claims.rol === "ADMINISTRADOR"} />
+      <AgendaDeNotificacion
+        inicial={agendaDe(listado)}
+        puedeEditar={claims.rol === "ADMINISTRADOR"}
+      />
     </>
   );
 }

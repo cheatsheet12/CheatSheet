@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 
 
 class RegistroDuplicado(Exception):
@@ -36,7 +36,7 @@ class SolicitudInexistente(EntradaInvalida):
     """La solicitud de soporte no existe para esta empresa."""
 
 
-class AccesoALaBitacoraDenegado(EntradaInvalida):
+class AccesoALaBitacoraDenegado(OperacionNoPermitida):
     """HU-E12-01 RN-05 y HU-E12-02 RN-04, textual: Solo Lectura no accede a la bitácora.
 
     El motivo está escrito en el encabezado de la épica 12: ese rol puede corresponder a un

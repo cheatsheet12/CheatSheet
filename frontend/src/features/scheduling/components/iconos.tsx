@@ -41,6 +41,83 @@ export function IconoDeCalendario(): JSX.Element {
   );
 }
 
+/** Flecha de navegación: `izquierda` retrocede el período, `derecha` lo avanza. */
+export function IconoDeFlecha({
+  sentido = "derecha",
+}: {
+  readonly sentido?: "izquierda" | "derecha";
+}): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path
+        d={sentido === "derecha" ? "M9.5 5.5 16 12l-6.5 6.5" : "M14.5 5.5 8 12l6.5 6.5"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** La grilla de días de la vista Mes. */
+export function IconoDeMes(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path d="M3.5 9.5h17M9.2 9.5v10M14.8 9.5v10M3.5 14.5h17" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Las tres filas de la vista Lista. */
+export function IconoDeLista(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+      <path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20" strokeLinecap="round" />
+      <path d="M4 6.5h.01M4 12h.01M4 17.5h.01" strokeLinecap="round" strokeWidth="2.6" />
+    </svg>
+  );
+}
+
+/** La grilla de la vista Semana. */
+export function IconoDeSemana(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path d="M9.2 4.5v15M14.8 4.5v15M3.5 10h17" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** La columna de la vista Día. */
+export function IconoDeDia(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path d="M3.5 10h17M8 14h8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Los deslizadores de «Más filtros». */
+export function IconoDeFiltro(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" strokeLinecap="round" />
+      <circle cx="15" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
+    </svg>
+  );
+}
+
+/** La «x» de «Limpiar filtros». */
+export function IconoDeLimpiar(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** Una persona, un espacio o un equipo: lo que se reserva. */
 export function IconoDeRecurso(): JSX.Element {
   return (

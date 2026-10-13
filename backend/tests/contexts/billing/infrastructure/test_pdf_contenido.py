@@ -24,6 +24,7 @@ from cheatsheet.contexts.billing.domain.comprobante import (
     ItemDeComprobante,
     Receptor,
 )
+from cheatsheet.contexts.billing.domain.leyendas import LEYENDA_MONOTRIBUTO
 from cheatsheet.contexts.billing.domain.punto_de_venta import TipoComprobante
 from cheatsheet.contexts.billing.infrastructure.pdf import (
     PIE,
@@ -31,6 +32,7 @@ from cheatsheet.contexts.billing.infrastructure.pdf import (
     clave_de,
     datos_del_encabezado,
     datos_del_receptor,
+    lineas_de_leyenda,
     renderizar,
 )
 from cheatsheet.shared.empresa import EmpresaId
@@ -135,3 +137,20 @@ def test_un_comprobante_sin_autorizar_no_es_descargable() -> None:
 
     assert not borrador.es_descargable
     assert borrador.estado is EstadoComprobante.BORRADOR
+
+
+def test_la_a_a_un_monotributista_imprime_la_leyenda() -> None:
+    """HU-E5-03 RN-13: la leyenda va en el PDF, no solo en pantalla."""
+    documento = comprobante()
+    documento.receptor = Receptor(
+        nombre="Cliente Ficticio", cuit="20222222223", condicion_iva=CondicionIVA.MONOTRIBUTO
+    )
+
+    lineas = lineas_de_leyenda(documento)
+
+    assert " ".join(lineas) == LEYENDA_MONOTRIBUTO
+    assert renderizar(documento, 1).startswith(b"%PDF-")
+
+
+def test_la_a_a_un_inscripto_no_imprime_leyenda() -> None:
+    assert lineas_de_leyenda(comprobante()) == []

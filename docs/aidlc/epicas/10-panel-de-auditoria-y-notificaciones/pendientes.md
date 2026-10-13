@@ -28,6 +28,14 @@ Hay dos formas de cerrarlo, y ninguna es un `JOIN` desde este contexto:
 **La segunda es la que este épico recomienda.** Queda escrita acá para que quien la haga no
 tenga que redescubrir por qué la primera es tentadora y peor.
 
+> **Resuelto en parte (13/10/2026, #176, unidad `busqueda-por-cliente`):** la pantalla resuelve el
+> nombre contra `master_data` y manda los ids (`cliente_id`); la búsqueda trae las operaciones sobre
+> `Cliente:<id>` y las que guardan ese `cliente_id` en su `detalle`. Las operaciones de turno ya lo
+> guardan —un id, nunca el nombre, así que D72 se respeta—. **Falta lo mismo en `payments` y
+> `billing`:** sus eventos todavía no dicen de qué cliente son, y una búsqueda por cliente no
+> encuentra sus cobros ni sus comprobantes. Las operaciones registradas antes del cambio no se
+> completan: la tabla es inmutable.
+
 ### 2. No hay forma de cerrar un ticket desde el panel · **decisión D80**
 
 Es deliberado —el estado lo mueve CheatSheet—, pero significa que un ticket abierto por error

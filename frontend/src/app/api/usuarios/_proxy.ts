@@ -11,26 +11,35 @@
 
 import { NextResponse } from "next/server";
 
-import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { CODIGO_DE_BLOQUEO_LEGAL, comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { respuestaDeError } from "@/app/api/auth/_sesion";
 
 export type Metodo = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+/**
+ * `cabeceras` es opcional y aditivo: las demás rutas no lo pasan y se comportan igual. Existe para
+ * que un pedido con efecto externo irreversible lleve su `X-Idempotency-Key` hasta el backend
+ * (ADR-0013); el BFF reenvía el encabezado entrante y nunca inventa uno.
+ */
 export async function reenviarAlBackend(
   ruta: string,
   metodo: Metodo,
   cuerpo?: unknown,
+  cabeceras?: Readonly<Record<string, string>>,
 ): Promise<NextResponse> {
   if (!haySesion()) {
     return NextResponse.json({ error: "NoAutenticado" }, { status: 401 });
   }
   try {
-    const datos = await llamarApi<unknown>(ruta, {
-      method: metodo,
-      ...(cuerpo !== undefined ? { body: cuerpo } : {}),
-    });
+    const datos = await comoRutaDelBff(() =>
+      llamarApi<unknown>(ruta, {
+        method: metodo,
+        ...(cuerpo !== undefined ? { body: cuerpo } : {}),
+        ...(cabeceras !== undefined ? { headers: cabeceras } : {}),
+      }),
+    );
     return NextResponse.json(datos ?? {});
   } catch (error) {
     if (!(error instanceof ErrorDeApi)) {
@@ -50,7 +59,17 @@ export async function reenviarAlBackend(
     // audiencia para la que ese texto seguro no fue escrito. Cierra `TODO.md` §10 para las
     // rutas de negocio; `ClienteDuplicado` recupera su mensaje sin dejar de ser un 409.
     if (error.status === 409) {
-      return NextResponse.json({ error: error.codigo, detalle: error.detalle }, { status: 409 });
+      return NextResponse.json(
+        { error: error.codigo, detalle: error.detalle, ...error.extra },
+        { status: 409 },
+      );
+    }
+    // **Un 403 por rol también lleva su frase**, por la misma razón: «Solo un Administrador
+    // puede reembolsar un cobro» está escrita para quien la lee, y sin ella la pantalla
+    // imprime `OperacionNoPermitida` (PRU-07, 11/10/2026). El 403 del bloqueo legal queda
+    // con su código solo: `VigilanteDeAceptacionLegal` lo reconoce por el código.
+    if (error.status === 403 && error.codigo !== CODIGO_DE_BLOQUEO_LEGAL) {
+      return NextResponse.json({ error: error.codigo, detalle: error.detalle }, { status: 403 });
     }
     return respuestaDeError(error);
   }

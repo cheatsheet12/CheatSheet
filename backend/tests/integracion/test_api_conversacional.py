@@ -34,6 +34,7 @@ from cheatsheet.platform.settings import Settings
 from tests.conftest import settings_de_prueba
 from tests.contexts.conversational.application.dobles import MensajeriaEnMemoria
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 
 pytestmark = [requiere_base, pytest.mark.integration, pytest.mark.asyncio]
 
@@ -72,7 +73,12 @@ async def _registrar(http: httpx.AsyncClient, email: str) -> tuple[str, str]:
     """Devuelve `(token, empresa_id)`. La empresa sale del JWT, sin consultar nada."""
     respuesta = await http.post(
         "/auth/registro",
-        json={"email": email, "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": email,
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert respuesta.status_code == 201, respuesta.text
     token = str(respuesta.json()["access_token"])
@@ -456,7 +462,7 @@ class TestFAQ:
             json={"pregunta": "¿Cuánto sale un corte?", "respuesta": "Sale $8000."},
         )
         assert creada.status_code == 201, creada.text
-        assert creada.json()["usos"] == 0
+        assert creada.json()["usos_total"] == 0
 
         listado = await cliente_http.get("/faqs", headers=_auth(token))
         assert len(listado.json()["faqs"]) == 1
@@ -521,7 +527,7 @@ class TestPlantillas:
         guardada = await cliente_http.put(
             f"/plantillas/{plantilla['id']}",
             headers=_auth(token),
-            json={"cuerpo": "{{nombre}}: te esperamos el {{fecha}}."},
+            json={"cuerpo": "Hola {{nombre}}: te esperamos el {{fecha}}."},
         )
 
         assert guardada.status_code == 200, guardada.text

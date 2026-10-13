@@ -20,10 +20,12 @@
 
 "use client";
 
+import { Bot, CircleAlert, CircleCheck, ListFilter, RefreshCw, ScrollText, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { Alert, Badge, Campo, Select, Tabla } from "@/shared";
+import { listarClientes } from "@/features/master_data";
+import { Alert, Badge, Campo, Select, SelectorDeFecha, Tabla } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
 import {
@@ -35,6 +37,7 @@ import {
   listarOperaciones,
 } from "../api/bitacora";
 import type { FiltrosDeBitacora, ListadoDeOperaciones, Operacion } from "../api/bitacora";
+import { entidadLegible, nombreDeAccion } from "./formato";
 import { MarcaDeIniciador, MarcaDeModulo, MomentoDeOperacion } from "./MarcasDeOperacion";
 
 export interface PropsDeBitacora {
@@ -76,6 +79,25 @@ export function paginasVisibles(actual: number, ultima: number): readonly number
   return [...new Set(dentro)].sort((una, otra) => una - otra);
 }
 
+/**
+ * Los ids de los clientes cuyo nombre coincide con la búsqueda (#176, HU-E12-01 RN-03).
+ *
+ * La bitácora no guarda nombres —es inmutable y la lee cualquiera con acceso a la auditoría,
+ * D72—, así que el nombre se resuelve acá contra `master_data` y la búsqueda manda los ids. Si
+ * esa consulta falla, se busca solo por texto, como antes: buscar algo es mejor que no buscar.
+ */
+async function clientesQueCoinciden(texto: string | undefined): Promise<readonly string[]> {
+  if (texto === undefined || texto.trim() === "") {
+    return [];
+  }
+  try {
+    const { clientes } = await listarClientes({ texto: texto.trim() });
+    return clientes.map((uno) => uno.id);
+  } catch {
+    return [];
+  }
+}
+
 export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
   const [listado, setListado] = useState<ListadoDeOperaciones>(inicial);
   const [filtros, setFiltros] = useState<FiltrosDeBitacora>({});
@@ -95,7 +117,12 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
     setError(null);
     setConsultando(true);
     try {
-      setListado(await listarOperaciones(siguientes));
+      const clientes = await clientesQueCoinciden(siguientes.texto);
+      setListado(
+        await (clientes.length > 0
+          ? listarOperaciones(siguientes, clientes)
+          : listarOperaciones(siguientes)),
+      );
     } catch (fallo) {
       setError(
         fallo instanceof ErrorDeBitacora ? fallo.message : "No se pudo consultar la bitácora.",
@@ -104,6 +131,34 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
       setConsultando(false);
     }
   }
+
+  async function limpiar(): Promise<void> {
+    await aplicar({
+      desde: "",
+      hasta: "",
+      modulo: "",
+      resultado: "",
+      iniciador: "",
+      texto: "",
+    });
+  }
+
+  const filtrosActivos = [
+    filtros.desde,
+    filtros.hasta,
+    filtros.modulo,
+    filtros.resultado,
+    filtros.iniciador,
+    filtros.texto,
+  ].filter((valor) => valor !== undefined && valor !== "").length;
+
+  // Los tres contadores de abajo cuentan lo que hay en esta página, no en todo el log: el
+  // backend devuelve una página por vez y sumar el resto exigiría otra consulta. Por eso las
+  // tarjetas lo dicen en su etiqueta.
+  const enPagina = listado.operaciones;
+  const conError = enPagina.filter((fila) => fila.resultado === "error").length;
+  const completadas = enPagina.length - conError;
+  const delAgente = enPagina.filter((fila) => fila.iniciador === "ia").length;
 
   const columnas: readonly Columna<Operacion>[] = [
     {
@@ -120,15 +175,29 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
       clave: "accion",
       titulo: "Operación",
       celda: (fila) => (
-        <Link className="log-op" href={`/auditoria/${fila.id}`}>
-          {fila.accion}
-        </Link>
+        <span className="log-op-celda">
+          <Link className="log-op" href={`/auditoria/${fila.id}`}>
+            {nombreDeAccion(fila.accion)}
+          </Link>
+          <code className="log-op-codigo">{fila.accion}</code>
+        </span>
       ),
     },
     {
       clave: "entidad",
       titulo: "Entidad afectada",
-      celda: (fila) => <span className="log-ent">{fila.entidad_afectada}</span>,
+      celda: (fila) => {
+        const legible = entidadLegible(fila.entidad_afectada);
+        if (legible === null) {
+          return <span className="log-ent">{fila.entidad_afectada}</span>;
+        }
+        return (
+          <span className="log-ent-celda" title={fila.entidad_afectada}>
+            <span className="log-ent-celda__tipo">{legible.tipo}</span>
+            <span className="log-ent">{legible.corto}</span>
+          </span>
+        );
+      },
     },
     {
       clave: "iniciador",
@@ -139,7 +208,9 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
       clave: "resultado",
       titulo: "Estado",
       celda: (fila) => (
-        <Badge estado={tonoDe(fila.resultado)}>{ETIQUETAS_DE_RESULTADO[fila.resultado]}</Badge>
+        <span className={`log-estado log-estado--${fila.resultado}`}>
+          <Badge estado={tonoDe(fila.resultado)}>{ETIQUETAS_DE_RESULTADO[fila.resultado]}</Badge>
+        </span>
       ),
     },
     {
@@ -165,51 +236,112 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
         </Alert>
       )}
 
-      <div className="log-filtros">
-        <Campo
-          id="log-desde"
-          etiqueta="Desde"
-          type="date"
-          value={filtros.desde ?? ""}
-          onChange={(evento) => void aplicar({ desde: evento.target.value })}
-        />
-        <Campo
-          id="log-hasta"
-          etiqueta="Hasta"
-          type="date"
-          value={filtros.hasta ?? ""}
-          onChange={(evento) => void aplicar({ hasta: evento.target.value })}
-        />
-        <Select
-          id="log-modulo"
-          etiqueta="Módulo"
-          opciones={MODULOS}
-          value={filtros.modulo ?? ""}
-          onChange={(evento) => void aplicar({ modulo: evento.target.value })}
-        />
-        <Select
-          id="log-resultado"
-          etiqueta="Estado"
-          opciones={RESULTADOS}
-          value={filtros.resultado ?? ""}
-          onChange={(evento) => void aplicar({ resultado: evento.target.value })}
-        />
-        <Select
-          id="log-iniciador"
-          etiqueta="Iniciador"
-          opciones={INICIADORES}
-          value={filtros.iniciador ?? ""}
-          onChange={(evento) => void aplicar({ iniciador: evento.target.value })}
-        />
-        <div className="log-filtros__ancho">
-          <Campo
-            id="log-texto"
-            etiqueta="Buscar"
-            type="search"
-            placeholder="Operación, entidad afectada, CAE…"
-            value={filtros.texto ?? ""}
-            onChange={(evento) => void aplicar({ texto: evento.target.value })}
+      <div className="log-resumen">
+        <div className="log-dato" style={{ "--i": 0 } as React.CSSProperties}>
+          <span className="log-dato__icono">
+            <ScrollText size={18} strokeWidth={2} aria-hidden="true" />
+          </span>
+          <span className="log-dato__texto">
+            <b>{listado.total}</b>
+            <small>
+              {filtrosActivos > 0 ? "Registros con estos filtros" : "Registros en total"}
+            </small>
+          </span>
+        </div>
+        <div className="log-dato" style={{ "--i": 1 } as React.CSSProperties}>
+          <span className="log-dato__icono log-dato__icono--ok">
+            <CircleCheck size={18} strokeWidth={2} aria-hidden="true" />
+          </span>
+          <span className="log-dato__texto">
+            <b>{completadas}</b>
+            <small>Completadas en esta página</small>
+          </span>
+        </div>
+        <div className="log-dato" style={{ "--i": 2 } as React.CSSProperties}>
+          <span className={`log-dato__icono${conError > 0 ? " log-dato__icono--error" : ""}`}>
+            <CircleAlert size={18} strokeWidth={2} aria-hidden="true" />
+          </span>
+          <span className="log-dato__texto">
+            <b>{conError}</b>
+            <small>Con error en esta página</small>
+          </span>
+        </div>
+        <div className="log-dato" style={{ "--i": 3 } as React.CSSProperties}>
+          <span className="log-dato__icono log-dato__icono--ia">
+            <Bot size={18} strokeWidth={2} aria-hidden="true" />
+          </span>
+          <span className="log-dato__texto">
+            <b>{delAgente}</b>
+            <small>Del agente de IA en esta página</small>
+          </span>
+        </div>
+      </div>
+
+      <div className="log-filtros-caja">
+        <div className="log-filtros-caja__cab">
+          <span className="log-filtros-caja__titulo">
+            <ListFilter size={16} strokeWidth={2} aria-hidden="true" />
+            Filtros
+            {filtrosActivos > 0 && <em>{filtrosActivos}</em>}
+          </span>
+          {filtrosActivos > 0 && (
+            <button
+              type="button"
+              className="log-limpiar"
+              disabled={consultando}
+              onClick={() => void limpiar()}
+            >
+              <X size={14} strokeWidth={2.4} aria-hidden="true" />
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+        <div className="log-filtros">
+          <SelectorDeFecha
+            id="log-desde"
+            etiqueta="Desde"
+            value={filtros.desde ?? ""}
+            max={filtros.hasta || undefined}
+            alCambiar={(valor) => void aplicar({ desde: valor })}
           />
+          <SelectorDeFecha
+            id="log-hasta"
+            etiqueta="Hasta"
+            value={filtros.hasta ?? ""}
+            min={filtros.desde || undefined}
+            alCambiar={(valor) => void aplicar({ hasta: valor })}
+          />
+          <Select
+            id="log-modulo"
+            etiqueta="Módulo"
+            opciones={MODULOS}
+            value={filtros.modulo ?? ""}
+            onChange={(evento) => void aplicar({ modulo: evento.target.value })}
+          />
+          <Select
+            id="log-resultado"
+            etiqueta="Estado"
+            opciones={RESULTADOS}
+            value={filtros.resultado ?? ""}
+            onChange={(evento) => void aplicar({ resultado: evento.target.value })}
+          />
+          <Select
+            id="log-iniciador"
+            etiqueta="Iniciador"
+            opciones={INICIADORES}
+            value={filtros.iniciador ?? ""}
+            onChange={(evento) => void aplicar({ iniciador: evento.target.value })}
+          />
+          <div className="log-filtros__ancho">
+            <Campo
+              id="log-texto"
+              etiqueta="Buscar"
+              type="search"
+              placeholder="Operación, entidad afectada, CAE…"
+              value={filtros.texto ?? ""}
+              onChange={(evento) => void aplicar({ texto: evento.target.value })}
+            />
+          </div>
         </div>
       </div>
 
@@ -223,6 +355,12 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
           disabled={consultando}
           onClick={() => void aplicar({ pagina })}
         >
+          <RefreshCw
+            size={14}
+            strokeWidth={2.2}
+            aria-hidden="true"
+            className={consultando ? "log-girar" : undefined}
+          />
           Actualizar
         </button>
       </div>

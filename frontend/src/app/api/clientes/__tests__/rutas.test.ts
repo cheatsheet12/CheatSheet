@@ -172,6 +172,25 @@ describe("con sesión", () => {
     });
   });
 
+  it("un 409 de CUIT duplicado también reenvía el id del cliente existente", async () => {
+    // HU-E4-01 — sin este campo el panel no puede «ofrecer ver el duplicado».
+    cookieDeSesion = "un-access-token";
+    llamarApi.mockRejectedValue(
+      new ErrorDeApi(409, "Ya existe un cliente con ese CUIT.", "ClienteDuplicado", {
+        cliente_existente_id: "c-1",
+      }),
+    );
+
+    const respuesta = await postCliente(pedido({ nombre: "Rosa", cuit: "30712345671" }));
+
+    expect(respuesta.status).toBe(409);
+    expect(await respuesta.json()).toEqual({
+      error: "ClienteDuplicado",
+      detalle: "Ya existe un cliente con ese CUIT.",
+      cliente_existente_id: "c-1",
+    });
+  });
+
   it("un cuerpo que no es JSON no rompe la ruta", async () => {
     cookieDeSesion = "un-access-token";
     llamarApi.mockResolvedValue(CLIENTE);
