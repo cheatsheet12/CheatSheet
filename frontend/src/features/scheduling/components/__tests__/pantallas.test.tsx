@@ -376,6 +376,39 @@ describe("PAN-AGE-02 — detalle del turno", () => {
     await waitFor(() => expect(cancelarTurno).toHaveBeenCalledWith("t1"));
   });
 
+  // #173: «se puede emitir el comprobante» sin un camino para emitirlo.
+  it("un turno completado ofrece facturar con el cliente ya elegido, y no a Solo Lectura", () => {
+    const completado: Turno = {
+      ...RESERVADO,
+      estado: "COMPLETADO",
+      ya_transcurrio: true,
+      habilita_facturacion: true,
+    };
+    const { rerender } = render(
+      <DetalleDeTurno
+        inicial={completado}
+        puedeGestionar
+        recurso="Consultorio 1"
+        servicio="Corte"
+        cliente={ANA}
+      />,
+    );
+
+    const facturar = screen.getByRole("link", { name: "Facturar" });
+    expect(facturar.getAttribute("href")).toBe("/facturacion/nueva?cliente=cl1");
+
+    rerender(
+      <DetalleDeTurno
+        inicial={completado}
+        puedeGestionar={false}
+        recurso="Consultorio 1"
+        servicio="Corte"
+        cliente={ANA}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "Facturar" })).toBeNull();
+  });
+
   it("enlaza la sena cuando el turno tiene un cobro asociado (HU-E6-07)", () => {
     render(
       <DetalleDeTurno

@@ -19,6 +19,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Alert, Badge, Button, Campo, Card, Casilla, Modal, formatearFecha } from "@/shared";
@@ -166,9 +167,20 @@ export function DetalleDeTurno({
 
         <Card titulo="Facturación">
           {turno.habilita_facturacion ? (
-            <p className="dm-intro">
-              El turno está completado, así que se puede emitir el comprobante del servicio.
-            </p>
+            <>
+              <p className="dm-intro">
+                El turno está completado, así que se puede emitir el comprobante del servicio.
+              </p>
+              {/* #173: el camino para emitirlo, con el cliente del turno ya elegido. */}
+              {puedeGestionar && (
+                <Link
+                  className="age-volver"
+                  href={`/facturacion/nueva?cliente=${turno.cliente_id}`}
+                >
+                  Facturar
+                </Link>
+              )}
+            </>
           ) : (
             <p className="dm-intro">
               Un turno habilita la emisión del comprobante cuando queda marcado como completado.
