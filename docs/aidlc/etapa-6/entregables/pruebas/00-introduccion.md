@@ -10,11 +10,10 @@ fuentes:
   - docs/aidlc/etapa-6/entregables/pruebas/
   - docs/staging-deployment.md
 observaciones: >
-  Borrador del integrador, armado el 13/10/2026 con las partes que existían ese día. Faltan PRU-01
-  (Vincenzo) y PRU-05 (Luciano). PRU-02 y PRU-06 se
-  corrigieron el 13/10/2026 al valor de Estado que admite reglas.md §5.1, y PRU-02 quedó con la
-  fecha de su ejecución. La tabla de resultados se completa cuando todas
-  las partes estén en estado listo.
+  Armado por el integrador el 13/10/2026 con las nueve partes. Ese mismo día PRU-02, PRU-05 y
+  PRU-06 se corrigieron al valor de Estado que admite reglas.md §5.1 (Aprobada · Fallida ·
+  Re-ejecutada), y PRU-02 quedó con la fecha de su ejecución. PRU-05 tiene el paso 8 sin
+  ejecutar, registrado en la parte.
 ---
 
 # Pruebas del sistema
@@ -92,11 +91,11 @@ Cada prueba termina en uno de tres estados:
 
 | Prueba | Fecha | Estado | Defectos encontrados |
 |---|---|---|---|
-| PRU-01 | — | Pendiente de entrega | — |
+| PRU-01 | 13/10/2026 | Aprobada | «Tipo de comprobante» ofrece también «Nota de crédito A» y no preselecciona Factura A (bug mayor) |
 | PRU-02 | 05/10/2026 | Aprobada | El detalle del cobro no ofrece regenerar el link (bug de frontend) |
 | PRU-03 | 12/10/2026 | Aprobada | — |
 | PRU-04 | 12/10/2026 | Aprobada | — |
-| PRU-05 | — | Pendiente de entrega | — |
+| PRU-05 | 13/10/2026 | Aprobada | — (el paso 8, con el Operador, no se ejecutó: el correo de staging no envía la invitación) |
 | PRU-06 | 12/10/2026 | Aprobada | — |
 | PRU-07 | 11/10/2026 | Re-ejecutada | La API rechazaba con 422 en lugar de 403; corregido y verificado en la segunda corrida |
 | PRU-08 | 12/10/2026 | Aprobada | — |
