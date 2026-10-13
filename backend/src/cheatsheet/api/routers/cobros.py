@@ -21,7 +21,12 @@ from uuid import UUID
 
 from cheatsheet.api.clave_de_pedido import exigir_clave_de_pedido
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
-from cheatsheet.api.mercadopago import armar_clientes, armar_pasarela, armar_saldos
+from cheatsheet.api.mercadopago import (
+    armar_clientes,
+    armar_pasarela,
+    armar_saldos,
+    armar_ver_cliente,
+)
 from cheatsheet.contexts.payments.application.cobros import (
     CancelarCobro,
     ListarCobros,
@@ -119,6 +124,11 @@ class CobroSalida(BaseModel):
 class DetalleSalida(CobroSalida):
     """PAN-COB-02: el cobro más sus recordatorios (HU-E6-02 RN-01) y sus reembolsos."""
 
+    #: HU-E6-02 criterio 1: el detalle muestra los datos del cliente, no sólo su id. Se
+    #: resuelven desde `master_data` en el composition root (el CUIT no vive en `payments`, D92).
+    cliente_nombre: str
+    #: El CUIT formateado para mostrar («20-22222222-3»); `null` si el cliente no tiene.
+    cliente_cuit: str | None
     recordatorios: list[RecordatorioSalida]
     #: Del más viejo al más nuevo. Las correcciones son filas negativas visibles (RN-08).
     reembolsos: list[ReembolsoSalida]
@@ -266,15 +276,20 @@ def _rutas(recursos: Recursos) -> APIRouter:
     @router.get("/{cobro_id}")
     async def ver(request: Request, cobro_id: UUID) -> DetalleSalida:
         """PAN-COB-02. Todos los roles leen (RN-04)."""
-        empresa_id, _, _ = actor(request)
+        empresa_id, _, rol = actor(request)
         salida: DetalleSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Cobros.armar(unidad)
             cobro = await VerCobro(piezas.cobros).ejecutar(cobro_id)
+            # El nombre y el CUIT del cliente salen de master_data (HU-E6-02 criterio 1): se
+            # resuelven acá, en el composition root, porque `payments` no ve el CUIT (D92).
+            cliente = await armar_ver_cliente(unidad).ejecutar(rol=rol, cliente_id=cobro.cliente_id)
             recordatorios = await VerRecordatorios(piezas.recordatorios).ejecutar(cobro_id)
             reembolsos = await VerReembolsos(piezas.reembolsos).ejecutar(cobro_id)
             salida = DetalleSalida(
                 **a_salida(cobro).model_dump(),
+                cliente_nombre=cliente.nombre,
+                cliente_cuit=cliente.cuit.formateado if cliente.cuit else None,
                 recordatorios=[_a_recordatorio(uno) for uno in recordatorios],
                 reembolsos=_a_reembolsos(reembolsos),
             )

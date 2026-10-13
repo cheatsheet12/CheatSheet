@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import time
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -36,6 +37,8 @@ from cheatsheet.contexts.conversational.infrastructure.canal import (
 from cheatsheet.contexts.conversational.infrastructure.interprete import (
     ESQUEMA_DE_LECTURA,
     SIN_LECTURA,
+    ConfiguracionDelInterprete,
+    InterpreteAnthropic,
     InterpreteSimulado,
     _interpretar,
     envolver,
@@ -53,6 +56,14 @@ class _Respuesta:
     """Lo que el SDK devuelve, con la forma justa que `_interpretar` lee."""
 
     content: list[Any]
+
+
+@dataclass(frozen=True, slots=True)
+class _RespuestaConStop:
+    """Lo mismo que `_Respuesta`, con el `stop_reason` que `leer` comprueba antes de leer."""
+
+    content: list[Any]
+    stop_reason: str
 
 
 def respondiendo(datos: object) -> _Respuesta:
@@ -118,8 +129,8 @@ class TestLaSegundaDefensa:
 
         assert set(propiedades["intencion"]["enum"]) == {uno.value for uno in Intencion}
         assert ESQUEMA_DE_LECTURA["additionalProperties"] is False
-        assert propiedades["confianza"]["minimum"] == 0
-        assert propiedades["confianza"]["maximum"] == 1
+        # La API rechaza los límites numéricos: el rango 0..1 lo comprueba `_interpretar`.
+        assert propiedades["confianza"] == {"type": "number"}
 
 
 class TestLaPrimeraDefensa:
@@ -320,6 +331,139 @@ def _objetos(esquema: object) -> list[dict[str, Any]]:
     return encontrados
 
 
+#: Palabras clave que la API de salidas estructuradas de Anthropic rechaza en un esquema crudo
+#: (`pattern` tampoco figura entre las admitidas, así que también se evita).
+_PALABRAS_NO_ADMITIDAS = frozenset(
+    {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minLength",
+        "maxLength",
+        "maxItems",
+        "pattern",
+    }
+)
+
+
+def _no_admitidos(esquema: object, ruta: str = "$") -> list[str]:
+    """Todo lo que la API rechazaría, a cualquier profundidad (incluye `anyOf` e `items`)."""
+    problemas: list[str] = []
+    if isinstance(esquema, dict):
+        for clave, valor in esquema.items():
+            if clave in _PALABRAS_NO_ADMITIDAS or (clave == "minItems" and valor > 1):
+                problemas.append(f"{ruta}.{clave}")
+            elif clave == "type" and isinstance(valor, list):
+                problemas.append(f"{ruta}.type como lista")
+            problemas.extend(_no_admitidos(valor, f"{ruta}.{clave}"))
+    elif isinstance(esquema, list):
+        for posicion, valor in enumerate(esquema):
+            problemas.extend(_no_admitidos(valor, f"{ruta}[{posicion}]"))
+    return problemas
+
+
+def _esquema_del_pedido() -> dict[str, Any]:
+    """La rama de tipo objeto del `pedido_de_turno`, sin importar cómo admita el `null`."""
+    declarado = ESQUEMA_DE_LECTURA["properties"]["pedido_de_turno"]
+    for rama in declarado.get("anyOf", [declarado]):
+        if rama.get("type") == "object" or "properties" in rama:
+            return dict(rama)
+    raise AssertionError("el pedido_de_turno no declara una rama de tipo objeto")
+
+
+class TestElEsquemaSoloUsaLoQueLaApiAdmite:
+    def test_ningun_nodo_usa_palabras_clave_no_admitidas(self) -> None:
+        """Caso 1. Un solo nodo rechazado deja al canal entero sin lectura (400)."""
+        assert _no_admitidos(ESQUEMA_DE_LECTURA) == []
+
+    @pytest.mark.asyncio
+    async def test_el_adaptador_envia_ese_esquema_y_lee_la_respuesta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Caso 2. Doble del cliente que rechaza lo que la API real rechaza; sin red."""
+        recibidos: list[dict[str, Any]] = []
+
+        class MensajesDelProveedor:
+            async def create(self, **kwargs: Any) -> _RespuestaConStop:
+                esquema = kwargs["output_config"]["format"]["schema"]
+                recibidos.append(esquema)
+                problemas = _no_admitidos(esquema)
+                if problemas:
+                    raise AssertionError(f"Anthropic rechaza {problemas} en un esquema crudo")
+                texto = json.dumps(
+                    {
+                        "intencion": "TURNO",
+                        "confianza": 0.92,
+                        "resumen": "quiere un turno",
+                        "pedido_de_turno": {"accion": "RESERVAR", "hora": "16:30"},
+                    }
+                )
+                return _RespuestaConStop(content=[_Bloque(text=texto)], stop_reason="end_turn")
+
+        adaptador = InterpreteAnthropic(
+            ConfiguracionDelInterprete(
+                api_key="test-key", modelo="claude-sonnet-5-5", timeout_segundos=1, max_tokens=512
+            )
+        )
+        monkeypatch.setattr(adaptador, "_cliente", SimpleNamespace(messages=MensajesDelProveedor()))
+
+        lectura = await adaptador.leer("quiero un turno a las 16:30")
+
+        assert recibidos == [ESQUEMA_DE_LECTURA]
+        assert lectura.intencion is Intencion.TURNO
+        assert lectura.confianza == 0.92
+        assert lectura.pedido_de_turno is not None
+        assert lectura.pedido_de_turno.hora == time(16, 30)
+
+
+class TestUnPedidoFueraDeLosLimitesSeDescarta:
+    """Caso 5. Los límites salieron del esquema; los comprueba el código antes de cualquier efecto."""
+
+    @pytest.mark.parametrize(
+        "pedido",
+        [
+            {"accion": "RESERVAR", "cuandos": [{"referencia": "HOY"}] * 4},
+            {"accion": "RESERVAR", "servicio": "x" * 61},
+            {"accion": "RESERVAR", "cuandos": [{"referencia": "DIA_DE_SEMANA", "dia_semana": 7}]},
+            {"accion": "RESERVAR", "cuandos": [{"referencia": "FECHA", "dia": 14, "mes": 13}]},
+            {"accion": "RESERVAR", "cuandos": [{"referencia": "FECHA", "dia": 32, "mes": 1}]},
+            {"accion": "RESERVAR", "hora": "25:00"},
+        ],
+    )
+    def test_el_pedido_se_descarta_y_la_lectura_conserva_la_intencion(self, pedido: object) -> None:
+        lectura = _interpretar(con_pedido(pedido))
+
+        assert lectura.pedido_de_turno is None
+        assert lectura.intencion is Intencion.TURNO
+        assert lectura.confianza == 0.9
+
+    def test_un_pedido_en_el_limite_exacto_se_acepta(self) -> None:
+        """El otro lado de cada límite: el recorte no puede volverse un rechazo de más."""
+        lectura = _interpretar(
+            con_pedido(
+                {
+                    "accion": "RESERVAR",
+                    "cuandos": [{"referencia": "DIA_DE_SEMANA", "dia_semana": 6}] * 3,
+                    "servicio": "x" * 60,
+                    "hora": "23:59",
+                }
+            )
+        )
+
+        assert lectura.pedido_de_turno is not None
+        assert len(lectura.pedido_de_turno.cuandos) == 3
+
+    def test_un_resumen_de_mas_de_200_caracteres_se_recorta(self) -> None:
+        """Caso 6. `maxLength` salió del esquema: el recorte es nuestro."""
+        lectura = _interpretar(
+            respondiendo({"intencion": "FAQ", "confianza": 0.8, "resumen": "y" * 201})
+        )
+
+        assert lectura.resumen == "y" * 200
+
+
 class TestElEsquemaEsCerradoEnTodosLosNiveles:
     def test_todos_los_objetos_prohiben_propiedades_extra(self) -> None:
         """Caso 3. Si un nivel quedara abierto, el modelo podría devolver campos sin validar."""
@@ -328,19 +472,27 @@ class TestElEsquemaEsCerradoEnTodosLosNiveles:
         assert len(objetos) >= 3  # la lectura, el pedido y cada `cuando`
         assert all(uno["additionalProperties"] is False for uno in objetos)
 
-    def test_los_valores_son_enums_o_rangos_cerrados(self) -> None:
-        pedido = ESQUEMA_DE_LECTURA["properties"]["pedido_de_turno"]["properties"]
+    def test_los_valores_son_enums_cerrados_y_los_rangos_se_comprueban_aca(self) -> None:
+        pedido = _esquema_del_pedido()["properties"]
         cuando = pedido["cuandos"]["items"]["properties"]
 
         assert set(pedido["accion"]["enum"]) == {uno.value for uno in AccionDeTurno}
         assert set(pedido["momento"]["enum"]) == {uno.value for uno in MomentoDelDia}
         assert set(cuando["referencia"]["enum"]) == {uno.value for uno in ReferenciaDeDia}
-        assert pedido["cuandos"]["maxItems"] == 3
-        assert pedido["servicio"]["maxLength"] == 60
-        assert pedido["hora"]["pattern"] == r"^([01]\d|2[0-3]):[0-5]\d$"
-        assert (cuando["dia_semana"]["minimum"], cuando["dia_semana"]["maximum"]) == (0, 6)
-        assert (cuando["dia"]["minimum"], cuando["dia"]["maximum"]) == (1, 31)
-        assert (cuando["mes"]["minimum"], cuando["mes"]["maximum"]) == (1, 12)
+        # Los rangos, el largo y el patrón los rechaza la API, así que viven del lado nuestro:
+        # los cubren `TestUnPedidoFueraDeLosLimitesSeDescarta` y el dominio.
+        assert set(pedido["cuandos"]) == {"type", "items"}
+        assert pedido["servicio"] == {"type": "string"}
+        assert pedido["hora"] == {"type": "string"}
+        assert cuando["dia_semana"] == cuando["dia"] == cuando["mes"] == {"type": "integer"}
+
+    def test_el_pedido_nulo_se_declara_con_anyof(self) -> None:
+        """`type: [..., "null"]` no es una forma admitida; `anyOf` con `null` sí."""
+        declarado = ESQUEMA_DE_LECTURA["properties"]["pedido_de_turno"]
+
+        assert "type" not in declarado
+        assert {"type": "null"} in declarado["anyOf"]
+        assert len(declarado["anyOf"]) == 2
 
     def test_el_pedido_es_opcional_para_no_romper_a_las_demas_intenciones(self) -> None:
         assert "pedido_de_turno" not in ESQUEMA_DE_LECTURA["required"]

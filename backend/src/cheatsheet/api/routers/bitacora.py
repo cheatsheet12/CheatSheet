@@ -228,6 +228,8 @@ def _rutas_de_bitacora(recursos: Recursos) -> APIRouter:
         resultado: Annotated[list[str] | None, Query()] = None,
         iniciador: Annotated[list[str] | None, Query()] = None,
         texto: Annotated[str | None, Query()] = None,
+        #: #176: los clientes cuyo nombre coincide con la búsqueda, resueltos por la pantalla.
+        cliente_id: Annotated[list[UUID] | None, Query()] = None,
         pagina: Annotated[int, Query(ge=1)] = 1,
     ) -> ListadoDeOperaciones:
         empresa_id, _, rol = _actor(request)
@@ -238,6 +240,7 @@ def _rutas_de_bitacora(recursos: Recursos) -> APIRouter:
             resultados=_miembros_de(Resultado, resultado, "resultado"),
             iniciadores=_miembros_de(Iniciador, iniciador, "iniciador"),
             texto=texto,
+            clientes=tuple(cliente_id or ()),
             limite=TAMANO_DE_PAGINA,
             desplazamiento=(pagina - 1) * TAMANO_DE_PAGINA,
         )

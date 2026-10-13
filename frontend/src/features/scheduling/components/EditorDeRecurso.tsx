@@ -13,7 +13,7 @@
 import { CalendarX, Clock, Wrench } from "lucide-react";
 import { useState } from "react";
 
-import { Alert, Button, Campo, Card, Select, SelectorDeFecha, Tabla } from "@/shared";
+import { Alert, Button, Campo, Card, Select, Tabla } from "@/shared";
 
 import {
   DIAS,
@@ -21,10 +21,10 @@ import {
   asociarServicios,
   configurarDisponibilidad,
   quitarExcepcion,
-  registrarExcepcion,
 } from "../api/recurso";
 import type { Patron, Recurso, ServicioAgendable } from "../api/recurso";
-import { nuevaFila } from "./recursosDatos";
+import { FormularioDeExcepcion } from "./FormularioDeExcepcion";
+import { horarioDeExcepcion, nuevaFila } from "./recursosDatos";
 import type { FilaDePatron } from "./recursosDatos";
 
 const OPCIONES_DE_DIA = DIAS.map((nombre, indice) => ({
@@ -62,7 +62,6 @@ export function EditorDeRecurso({
   const [asociados, setAsociados] = useState<readonly string[]>(recurso.servicios);
   // Texto y no número: así se puede escribir un valor inválido y ver el rechazo del backend.
   const [intervalo, setIntervalo] = useState(String(recurso.intervalo_entre_turnos_min));
-  const [fechaDeExcepcion, setFechaDeExcepcion] = useState("");
 
   const horarioInvertido = patrones.some((uno) => uno.hora_inicio >= uno.hora_fin);
   // Qué días quedan cubiertos por las franjas que se están editando. Es lo que pinta la tira de
@@ -263,6 +262,12 @@ export function EditorDeRecurso({
               celda: (fila) => ETIQUETAS_DE_EXCEPCION[fila.tipo],
             },
             {
+              clave: "horario",
+              titulo: "Horario",
+              // #165: el horario especial se ve con su franja; un día sin atención no tiene.
+              celda: (fila) => horarioDeExcepcion(fila),
+            },
+            {
               clave: "acciones",
               titulo: "Acciones",
               alDerecha: true,
@@ -284,31 +289,12 @@ export function EditorDeRecurso({
           claveDeFila={(fila) => fila.fecha}
           vacia="Este recurso no tiene excepciones configuradas."
         />
-        <div className="age-excepcion">
-          <SelectorDeFecha
-            id="excepcion-fecha"
-            etiqueta="Día sin atención"
-            value={fechaDeExcepcion}
-            alCambiar={setFechaDeExcepcion}
-          />
-          <Button
-            disabled={fechaDeExcepcion === ""}
-            cargando={trabajando}
-            onClick={() =>
-              void onCorrer(async () => {
-                onActualizado(
-                  await registrarExcepcion(recurso.id, {
-                    fecha: fechaDeExcepcion,
-                    tipo: "BLOQUEO",
-                  }),
-                );
-                setFechaDeExcepcion("");
-              }, "No se pudo agregar la excepción.")
-            }
-          >
-            Bloquear el día
-          </Button>
-        </div>
+        <FormularioDeExcepcion
+          recurso={recurso}
+          trabajando={trabajando}
+          onCorrer={onCorrer}
+          onActualizado={onActualizado}
+        />
       </Card>
 
       <div className="age-editor__pie">

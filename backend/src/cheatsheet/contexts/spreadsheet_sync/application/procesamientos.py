@@ -14,6 +14,7 @@ master_data`. This context asks in its own words; that one decides what a `Clien
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -21,8 +22,10 @@ from uuid import UUID, uuid4
 from cheatsheet.contexts.spreadsheet_sync.application.errors import (
     VinculoInexistente,
 )
+from cheatsheet.contexts.spreadsheet_sync.application.mapeos import huella_de
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     FilaParaIngerir,
+    PlanillaLeida,
     PortIngestaDeCatalogo,
     PortLectorDePlanilla,
     PortRepositorioMapeo,
@@ -89,8 +92,10 @@ class ProcesarPlanilla:
         *,
         empresa_id: EmpresaId,
         vinculo_id: UUID,
-        contenido: bytes,
-        nombre_de_archivo: str,
+        contenido: bytes | None = None,
+        nombre_de_archivo: str | None = None,
+        planilla: PlanillaLeida | None = None,
+        lectura_remota: Callable[[], Awaitable[PlanillaLeida]] | None = None,
         ahora: datetime,
         duracion_ms: int = 0,
         solo_filas: tuple[int, ...] | None = None,
@@ -119,15 +124,25 @@ class ProcesarPlanilla:
         )
         await self._procesamientos.agregar(procesamiento)
 
-        try:
-            planilla = self._lector.leer(contenido=contenido, nombre=nombre_de_archivo)
-        except ErrorDeDominio as exc:
-            # The file itself is unreadable: nothing was ingested and there is nothing to
-            # correct row by row, which is a different ending from «con errores».
-            procesamiento.abortar(motivo=str(exc), duracion_ms=duracion_ms, ahora=ahora)
-            await self._procesamientos.actualizar(procesamiento)
-            await self._auditar(procesamiento, ahora=ahora)
-            return ResumenDeProcesamiento(procesamiento)
+        if planilla is None:
+            try:
+                planilla = await self._leer_fuente(
+                    contenido=contenido,
+                    nombre_de_archivo=nombre_de_archivo,
+                    lectura_remota=lectura_remota,
+                )
+            except ErrorDeDominio as exc:
+                # The file itself is unreadable: nothing was ingested and there is nothing to
+                # correct row by row, which is a different ending from «con errores».
+                procesamiento.abortar(motivo=str(exc), duracion_ms=duracion_ms, ahora=ahora)
+                await self._procesamientos.actualizar(procesamiento)
+                await self._auditar(procesamiento, ahora=ahora)
+                return ResumenDeProcesamiento(procesamiento)
+
+        if huella_de(planilla.columnas) != mapeo.huella_encabezado:
+            raise InvarianteViolada(
+                "La estructura de la planilla cambió; revisá el mapeo antes de procesarla"
+            )
 
         objetivo = planilla.solo(solo_filas) if solo_filas is not None else planilla
 
@@ -144,6 +159,19 @@ class ProcesarPlanilla:
 
         await self._auditar(procesamiento, ahora=ahora)
         return ResumenDeProcesamiento(procesamiento)
+
+    async def _leer_fuente(
+        self,
+        *,
+        contenido: bytes | None,
+        nombre_de_archivo: str | None,
+        lectura_remota: Callable[[], Awaitable[PlanillaLeida]] | None,
+    ) -> PlanillaLeida:
+        if lectura_remota is not None:
+            return await lectura_remota()
+        if contenido is None or nombre_de_archivo is None:
+            raise EntradaInvalida("Falta la fuente de la planilla para procesar")
+        return self._lector.leer(contenido=contenido, nombre=nombre_de_archivo)
 
     async def _procesar_fila(
         self,

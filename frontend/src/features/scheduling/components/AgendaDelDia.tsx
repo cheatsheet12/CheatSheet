@@ -38,7 +38,7 @@ import { CalendarioDeMes } from "./CalendarioDeMes";
 import { CalendarioDeTurnos } from "./CalendarioDeTurnos";
 import { IconoDeCalendario, IconoDeMas, IconoDeRecurso } from "./iconos";
 import { ListaDeTurnos } from "./ListaDeTurnos";
-import { diaDe, rangoDeVista, sumarDias, sumarMeses } from "./calendario";
+import { diaDe, rangoDeFechas, rangoDeVista, sumarDias, sumarMeses } from "./calendario";
 import type { VistaDeAgenda } from "./calendario";
 import type { NombresDeAgenda } from "./nombres";
 
@@ -93,7 +93,12 @@ function parametrosDe(
   ancla: string,
   filtros: FiltrosDeAgenda,
 ): FiltrosDeAgenda {
-  return vista === "lista" ? filtros : { ...filtros, ...rangoDeVista(vista, ancla) };
+  if (vista !== "lista") {
+    return { ...filtros, ...rangoDeVista(vista, ancla) };
+  }
+  // #85: las fechas del filtro viajan como días completos, no como fechas sueltas.
+  const { desde, hasta, ...resto } = filtros;
+  return { ...resto, ...rangoDeFechas(desde, hasta) };
 }
 
 export function AgendaDelDia({

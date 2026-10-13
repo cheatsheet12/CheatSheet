@@ -6,6 +6,7 @@ estado: listo
 hu: [HS-T3, HU-E7-02, HU-E7-06, HU-E8-03, HU-E8-04, HS-T7]
 fuentes:
   - docs/adr/0006-staging-hosting-render.md
+  - docs/adr/0014-arca-web-service-delegation.md
   - docs/configuration-management.md
   - docs/staging-deployment.md
   - docs/architecture.md
@@ -119,7 +120,8 @@ cierre de este documento quedan pendientes:
 |---|---|---|
 | Canal real de WhatsApp para recordatorios de cobro y avisos de turno, que hoy solo se registran en el log | HS-T3, HU-E7-02, HU-E7-06, HU-E8-04 | PLAN-§2 |
 | Proveedor de embeddings y de transcripción de audios para el agente de WhatsApp, que hoy corren simulados | HU-E8-03, HS-T7 | PLAN-§2 |
-| Credenciales de producción de ARCA (certificado fiscal), MercadoPago, WhatsApp Business, inicio de sesión con Google y correo transaccional | Todos los módulos con integración externa | PLAN-§2 |
+| Certificado de plataforma productivo de ARCA a nombre de CheatSheet y delegación de «Facturación Electrónica» de la empresa piloto en la CUIT de CheatSheet | Facturación electrónica y validación de CUIT contra el padrón | PLAN-§1 |
+| Credenciales de producción de MercadoPago, WhatsApp Business, inicio de sesión con Google y correo transaccional | Todos los demás módulos con integración externa | PLAN-§2 |
 | Decisión sobre el proveedor de alojamiento de producción | Todo el sistema | PLAN-§2 |
 
 ## Organización del plan

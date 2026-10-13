@@ -37,8 +37,8 @@ PAGADO = datetime(2026, 8, 3, 15, 30, tzinfo=UTC)
 VENCE = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
 
 CREAR_CLIENTE = text(
-    "INSERT INTO cliente (id, empresa_id, nombre, origen, activo, created_at, updated_at) "
-    "VALUES (:id, :empresa_id, 'Acme SA', 'PANEL', true, :ahora, :ahora)"
+    "INSERT INTO cliente (id, empresa_id, nombre, cuit, origen, activo, created_at, updated_at) "
+    "VALUES (:id, :empresa_id, 'Acme SA', '20222222223', 'PANEL', true, :ahora, :ahora)"
 )
 CREAR_COBRO = text(
     "INSERT INTO cobro (id, empresa_id, cliente_id, monto, descripcion, estado, vence_el, "
@@ -145,3 +145,25 @@ async def test_un_cobro_sin_pagar_no_tiene_fecha_de_pago(
     assert cuerpo["fecha_pago"] is None
     assert cuerpo["fecha_pago_aproximada"] is False
     assert cuerpo["medio_de_pago"] == "LINK_MERCADOPAGO"
+
+
+async def test_el_detalle_devuelve_el_nombre_y_el_cuit_del_cliente(
+    cliente_http: httpx.AsyncClient, engine_dueno: AsyncEngine
+) -> None:
+    """HU-E6-02 criterio 1: el detalle muestra los datos del cliente, no sólo su id.
+
+    El nombre y el CUIT salen de `master_data` (resueltos en el composition root, no por el
+    puerto de `payments`, que por D92 no ve el CUIT). El CUIT se devuelve formateado para mostrar.
+    """
+    token, cobro_id = await _empresa_con_cobro(
+        cliente_http, engine_dueno, estado="PENDIENTE", fecha=None, aproximada=False
+    )
+
+    respuesta = await cliente_http.get(
+        f"/cobros/{cobro_id}", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert respuesta.status_code == 200, respuesta.text
+    cuerpo = respuesta.json()
+    assert cuerpo["cliente_nombre"] == "Acme SA"
+    assert cuerpo["cliente_cuit"] == "20-22222222-3"
