@@ -243,6 +243,19 @@ class PlanillaLeida:
         )
 
 
+class PortLecturaDeHoja(Protocol):
+    """Read one provider sheet using this company's short-lived access token."""
+
+    async def leer_hoja(
+        self,
+        *,
+        token: str,
+        identificador: str,
+        hoja: str,
+        max_filas: int | None = None,
+    ) -> PlanillaLeida: ...
+
+
 class PortLectorDePlanilla(Protocol):
     """Turns bytes into headers and rows. Validates nothing -- see the adapter."""
 

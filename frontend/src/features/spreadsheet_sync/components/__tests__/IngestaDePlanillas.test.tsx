@@ -102,6 +102,29 @@ function archivo(nombre: string): File {
 }
 
 describe("IngestaDePlanillas", () => {
+  it("ofrece revisar el mapeo de un vínculo Google real", () => {
+    render(
+      <IngestaDePlanillas
+        inicial={{
+          vinculos: [
+            {
+              ...VINCULO,
+              proveedor: "GOOGLE_SHEETS",
+              nombre_archivo: null,
+              hoja_empresa: "Clientes",
+            },
+          ],
+        }}
+        cargasIniciales={[]}
+        puedeEditar
+      />,
+    );
+
+    expect(screen.getByText("Revisar mapeo").closest("a")?.getAttribute("href")).toBe(
+      "/ingesta/mapeo/v1",
+    );
+  });
+
   it("muestra las cargas recientes con su proveedor y su estado", () => {
     render(<IngestaDePlanillas inicial={INICIAL} cargasIniciales={[]} puedeEditar />);
 

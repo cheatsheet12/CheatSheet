@@ -45,7 +45,7 @@ async def test_write_back_sends_every_record_beyond_the_first_batch(
 
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(transport=httpx.MockTransport(respond), **kwargs),
     )
@@ -93,7 +93,7 @@ async def test_first_write_creates_and_protects_own_sheet(
 
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(transport=httpx.MockTransport(respond), **kwargs),
     )
@@ -118,7 +118,7 @@ async def test_revoked_sheet_access_does_not_report_success(
 ) -> None:
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(
             transport=httpx.MockTransport(lambda _request: httpx.Response(403)), **kwargs
@@ -158,7 +158,7 @@ async def test_second_batch_failure_is_not_reported_as_complete(
 
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(transport=httpx.MockTransport(respond), **kwargs),
     )
