@@ -79,7 +79,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | recordatorio-de-turno | scheduling | HU-E8-04, HU-E11-01 | plantillas-de-whatsapp-en-meta, entregas-de-whatsapp | Luciano | feature/scheduling-recordatorio-de-turno (tramos 1, 2, 3) | mergeada |
 | Agente de WhatsApp y atención humana | wamid-entrante-largo | conversational | HS-T2 | entregas-de-whatsapp | Luciano | fix/conversational-wamid-entrante-largo | mergeada |
 | Agente de WhatsApp y atención humana | dobles-de-conversational-por-responsabilidad | conversational | HS-T2 | entregas-de-whatsapp | Luciano | fix/conversational-dobles-por-responsabilidad | mergeada |
-| Agente de WhatsApp y atención humana | corregir-esquema-de-lectura-anthropic | conversational | HU-E8-01, HU-E8-02 | agente-y-atencion-humana | Luciano | fix/conversational-esquema-de-lectura-anthropic | en curso |
+| Agente de WhatsApp y atención humana | corregir-esquema-de-lectura-anthropic | conversational | HU-E8-01, HU-E8-02 | agente-y-atencion-humana | Luciano | fix/conversational-esquema-de-lectura-anthropic | en revisión |
 | Cobros y recordatorios | recordatorio-por-email | payments | HS-T3 | canal-real-de-whatsapp | Luciano | — | pendiente |
 | Cimientos, identidad y bitácora | integracion-en-neon | tests de integración (`backend/tests/integracion`, transversal) | — | — | Luciano | feature/infra-integracion-en-neon | mergeada |
 
