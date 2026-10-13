@@ -188,7 +188,9 @@ class RepositorioClientePostgres:
         filtrada = _filtrar(base, filtros)
         total = await self._sesion.scalar(select(func.count()).select_from(filtrada.subquery()))
         filas = await self._sesion.scalars(
-            filtrada.order_by(ClienteORM.nombre).limit(pagina.limite).offset(pagina.desplazamiento)
+            filtrada.order_by(ClienteORM.nombre, ClienteORM.id)
+            .limit(pagina.limite)
+            .offset(pagina.desplazamiento)
         )
         return [_a_dominio(fila) for fila in filas], int(total or 0)
 

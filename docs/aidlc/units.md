@@ -28,6 +28,9 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Sincronización de planillas | vinculo-de-planilla | spreadsheet_sync | HU-E2-04 | — | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
 | Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
 | Sincronización de planillas | corregir-esquema-mapeo-anthropic | spreadsheet_sync | HU-E3-01 | mapeo-asistido | Juan | fix/spreadsheet_sync-esquema-mapeo-anthropic | en revisión |
+| Sincronización de planillas | google-real-y-write-back | spreadsheet_sync | HU-E3-07 (completa OAuth de HU-E2-04) | sincronizacion-y-write-back | Juan | fix/spreadsheet_sync-google-write-back-real | en revisión |
+| Sincronización de planillas | mapeo-google-sheets-real | spreadsheet_sync | HU-E3-01, HU-E3-02, HU-E3-03, HU-E3-05, HU-E3-06 (Google Sheets) | google-real-y-write-back | Juan | fix/spreadsheet_sync-mapeo-google-real | en curso |
+| Sincronización de planillas | sincronizacion-incremental-real | spreadsheet_sync | HU-E3-04 | google-real-y-write-back | Juan | fix/spreadsheet_sync-incremental-real | pendiente |
 | Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
 | Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
 | Facturación electrónica | parametros-fiscales | reference_data | HS-T4 | — | Cristian | feature/billing-facturacion-electronica | mergeada |
@@ -76,8 +79,13 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | recordatorio-de-turno | scheduling | HU-E8-04, HU-E11-01 | plantillas-de-whatsapp-en-meta, entregas-de-whatsapp | Luciano | feature/scheduling-recordatorio-de-turno (tramos 1, 2, 3) | mergeada |
 | Agente de WhatsApp y atención humana | wamid-entrante-largo | conversational | HS-T2 | entregas-de-whatsapp | Luciano | fix/conversational-wamid-entrante-largo | mergeada |
 | Agente de WhatsApp y atención humana | dobles-de-conversational-por-responsabilidad | conversational | HS-T2 | entregas-de-whatsapp | Luciano | fix/conversational-dobles-por-responsabilidad | mergeada |
+| Agente de WhatsApp y atención humana | corregir-esquema-de-lectura-anthropic | conversational | HU-E8-01, HU-E8-02 | agente-y-atencion-humana | Luciano | fix/conversational-esquema-de-lectura-anthropic | en revisión |
 | Cobros y recordatorios | recordatorio-por-email | payments | HS-T3 | canal-real-de-whatsapp | Luciano | — | pendiente |
 | Cimientos, identidad y bitácora | integracion-en-neon | tests de integración (`backend/tests/integracion`, transversal) | — | — | Luciano | feature/infra-integracion-en-neon | mergeada |
+| Cimientos, identidad y bitácora | mypy-en-pre-commit | infra (`.pre-commit-config.yaml`, transversal) | — (unidad técnica) | — | Emanuel | fix/infra-mypy-en-pre-commit | en revisión |
+| Agenda y recursos | agenda-con-una-sola-fecha | scheduling | HU-E7-01 | mypy-en-pre-commit | Emanuel | fix/scheduling-agenda-con-una-sola-fecha | en revisión |
+| Panel de auditoría y notificaciones | busqueda-por-cliente | observability | HU-E12-01 | mypy-en-pre-commit | Emanuel | fix/observability-busqueda-por-cliente | en revisión |
+| Agenda y recursos | cliente-en-el-turno | scheduling | HU-E7-02, HU-E7-06 | — | Emanuel | fix/scheduling-cliente-en-el-turno | en revisión |
 | Agenda y recursos | confirmar-cancelacion | scheduling | HU-E7-02 | — | Emanuel | fix/scheduling-confirmar-cancelacion | en revisión |
 
 

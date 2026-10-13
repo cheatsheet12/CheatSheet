@@ -36,6 +36,22 @@ import {
 } from "../api/turno";
 import type { Turno } from "../api/turno";
 
+/** Lo mismo que la página muestra para un recurso o un servicio que no encuentra. */
+const SIN_DATO = "—";
+
+/**
+ * Lo que el detalle muestra del cliente del turno, resuelto del lado del servidor (#167).
+ *
+ * Es la forma de `master_data` reducida a lo que esta pantalla usa: quien atiende el teléfono
+ * necesita saber con quién habla y cómo contactarlo. El CUIT llega ya formateado por la API.
+ */
+export interface ClienteDelTurno {
+  readonly nombre: string;
+  readonly cuit: string | null;
+  readonly contacto_whatsapp: string | null;
+  readonly contacto_email: string | null;
+}
+
 export interface PropsDeDetalleDeTurno {
   readonly inicial: Turno;
   /** Administrador y Operador gestionan (HU-E7-02, HU-E7-03). */
@@ -44,6 +60,8 @@ export interface PropsDeDetalleDeTurno {
   readonly recurso: string;
   /** El nombre del servicio, ídem. */
   readonly servicio: string;
+  /** El cliente, ídem; `null` si no se pudo leer, y entonces cada dato se muestra «—». */
+  readonly cliente: ClienteDelTurno | null;
   /** Sólo el Administrador puede corregir a posteriori (HU-E7-02 RN-07). */
   readonly puedeRegistrarAPosteriori?: boolean;
 }
@@ -53,6 +71,7 @@ export function DetalleDeTurno({
   puedeGestionar,
   recurso,
   servicio,
+  cliente,
   puedeRegistrarAPosteriori = false,
 }: PropsDeDetalleDeTurno): JSX.Element {
   const [turno, setTurno] = useState<Turno>(inicial);
@@ -118,6 +137,15 @@ export function DetalleDeTurno({
       <div className="fac-detalle">
         <Card titulo="Turno">
           <dl className="fac-datos">
+            {/* #167: para quién es el turno y cómo contactarlo, sin salir de la pantalla. */}
+            <dt>Cliente</dt>
+            <dd>{cliente?.nombre ?? SIN_DATO}</dd>
+            <dt>CUIT</dt>
+            <dd>{cliente?.cuit ?? SIN_DATO}</dd>
+            <dt>WhatsApp</dt>
+            <dd>{cliente?.contacto_whatsapp ?? SIN_DATO}</dd>
+            <dt>Email</dt>
+            <dd>{cliente?.contacto_email ?? SIN_DATO}</dd>
             <dt>Servicio</dt>
             <dd>{servicio}</dd>
             <dt>Recurso</dt>

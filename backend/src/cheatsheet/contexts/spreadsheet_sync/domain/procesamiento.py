@@ -184,6 +184,8 @@ class ProcesamientoDePlanilla:
         and the story would have to be about deduplication instead of about correcting
         four rows.
         """
+        if self.estado is not EstadoProcesamiento.CON_ERRORES:
+            return ()
         return tuple(sorted({e.numero_fila for e in self.errores_pendientes}))
 
     def _exigir_en_curso(self) -> None:
