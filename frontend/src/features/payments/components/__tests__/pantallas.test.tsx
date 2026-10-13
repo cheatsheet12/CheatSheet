@@ -21,6 +21,7 @@ const listarCobros = vi.fn();
 const verCobro = vi.fn();
 const generarCobro = vi.fn();
 const cancelarCobro = vi.fn();
+const regenerarLink = vi.fn();
 const reembolsarCobro = vi.fn();
 const actualizarReembolso = vi.fn();
 const registrarReembolso = vi.fn();
@@ -36,6 +37,7 @@ vi.mock("@/features/payments/api/cobro", async () => {
     verCobro: (...args: unknown[]) => verCobro(...args),
     generarCobro: (...args: unknown[]) => generarCobro(...args),
     cancelarCobro: (...args: unknown[]) => cancelarCobro(...args),
+    regenerarLink: (...args: unknown[]) => regenerarLink(...args),
     reembolsarCobro: (...args: unknown[]) => reembolsarCobro(...args),
     actualizarReembolso: (...args: unknown[]) => actualizarReembolso(...args),
     registrarReembolso: (...args: unknown[]) => registrarReembolso(...args),
@@ -115,6 +117,8 @@ const LISTADO: ListadoDeCobrosRespuesta = {
 
 const DETALLE: DetalleDeCobroRespuesta = {
   ...PENDIENTE,
+  cliente_nombre: "Ana Prueba",
+  cliente_cuit: "20-22222222-3",
   recordatorios: [
     {
       id: "r1",
@@ -230,6 +234,13 @@ describe("PAN-COB-02 — detalle del cobro", () => {
     expect(screen.getByText("Programado")).toBeTruthy();
   });
 
+  it("muestra el nombre y el CUIT del cliente (HU-E6-02 criterio 1)", () => {
+    render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar />);
+
+    expect(screen.getByText("Ana Prueba")).toBeTruthy();
+    expect(screen.getByText("20-22222222-3")).toBeTruthy();
+  });
+
   it("avisa cuando no pudo copiar el link en vez de callarse", async () => {
     // Sin `navigator.clipboard`: exactamente lo que pasa fuera de un contexto seguro.
     render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar />);
@@ -245,6 +256,27 @@ describe("PAN-COB-02 — detalle del cobro", () => {
   it("no ofrece reembolsar sobre un cobro que no esta pagado", () => {
     render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar />);
     expect(screen.queryByRole("button", { name: "Reembolsar" })).toBeNull();
+  });
+
+  it("regenera el link activo y muestra el nuevo (HU-E6-03: invalida el anterior)", async () => {
+    regenerarLink.mockResolvedValue({
+      ...PENDIENTE,
+      url_de_pago: "https://mp.test/checkout/co1-nuevo",
+    });
+    verCobro.mockResolvedValue({ ...DETALLE, url_de_pago: "https://mp.test/checkout/co1-nuevo" });
+    render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Regenerar link" }));
+
+    await waitFor(() => {
+      expect(regenerarLink).toHaveBeenCalledWith("co1");
+    });
+    expect(await screen.findByText("https://mp.test/checkout/co1-nuevo")).toBeTruthy();
+  });
+
+  it("no ofrece regenerar el link a quien no puede gestionar (HU-E6-03: Admin/Operador)", () => {
+    render(<DetalleDeCobro inicial={DETALLE} puedeGestionar={false} puedeReembolsar={false} />);
+    expect(screen.queryByRole("button", { name: "Regenerar link" })).toBeNull();
   });
 
   it("le esconde el reembolso al Operador aunque el cobro este pagado (RN-05)", () => {
@@ -293,6 +325,51 @@ describe("PAN-COB-02 — detalle del cobro", () => {
         "MercadoPago rechazó el reembolso. El cobro sigue figurando como pagado.",
       ),
     ).toBeTruthy();
+  });
+
+  it("muestra el error del reembolso dentro del modal, no detras (Bug 5)", async () => {
+    reembolsarCobro.mockRejectedValue(
+      new ErrorDeCobro(
+        "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+      ),
+    );
+    render(<DetalleDeCobro inicial={PAGADO} puedeGestionar puedeReembolsar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reembolsar" }));
+    const modal = screen.getByRole("dialog", { name: "Reembolsar" });
+    fireEvent.click(within(modal).getByRole("button", { name: "Confirmar reembolso" }));
+
+    // El mensaje tiene que estar DENTRO del diálogo, no detrás del overlay (invisible).
+    expect(
+      await within(modal).findByText(
+        "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("al cerrar el modal con error, no lo deja colgado arriba (Bug 5)", async () => {
+    reembolsarCobro.mockRejectedValue(
+      new ErrorDeCobro(
+        "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+      ),
+    );
+    render(<DetalleDeCobro inicial={PAGADO} puedeGestionar puedeReembolsar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reembolsar" }));
+    const modal = screen.getByRole("dialog", { name: "Reembolsar" });
+    fireEvent.click(within(modal).getByRole("button", { name: "Confirmar reembolso" }));
+    await within(modal).findByText(
+      "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+    );
+
+    // Al cerrar el modal se descarta la acción; el error no debe reaparecer arriba.
+    fireEvent.click(within(modal).getByRole("button", { name: "Volver" }));
+
+    expect(
+      screen.queryByText(
+        "El monto a reembolsar no puede superar el monto pendiente de reembolso del cobro.",
+      ),
+    ).toBeNull();
   });
 
   it("avisa cuando MercadoPago no pudo invalidar el link al cancelar", async () => {

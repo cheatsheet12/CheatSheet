@@ -157,7 +157,7 @@ export function TarjetaDePlanilla({
               Procesar
             </Button>
           )}
-          {vinculo.nombre_archivo !== null && (
+          {vinculo.proveedor !== "EXCEL_ONLINE" && (
             <Link
               className={vinculo.tiene_mapeo ? "ing-accion" : "ing-accion ing-accion--principal"}
               href={`/ingesta/mapeo/${vinculo.id}`}

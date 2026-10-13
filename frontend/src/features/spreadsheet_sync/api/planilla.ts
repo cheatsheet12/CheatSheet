@@ -124,11 +124,14 @@ export function identificadorDePlanilla(enlace: string): string | null {
   return limpio;
 }
 
-export async function iniciarVinculacionConGoogle(documento: string): Promise<string> {
+export async function iniciarVinculacionConGoogle(
+  documento: string,
+  direccion: DireccionSync = "SOLO_LECTURA",
+): Promise<string> {
   const respuesta = await fetch("/api/planillas/google/autorizacion", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ documento }),
+    body: JSON.stringify({ documento, direccion }),
   });
   if (!respuesta.ok) {
     await fallar(respuesta);
@@ -280,6 +283,8 @@ export interface DetalleDeCarga {
   readonly errores: readonly ErrorDeFila[];
   /** False para Solo Lectura (RN-04) y también cuando no falló nada. */
   readonly puede_reprocesar: boolean;
+  /** Google se corrige en la hoja fuente; el editor local lee archivos subidos. */
+  readonly puede_corregir_filas?: boolean;
 }
 
 export interface ListadoDeCargas {

@@ -31,8 +31,29 @@ import { nombreDeAccion } from "./formato";
 import { MarcaDeIniciador } from "./MarcasDeOperacion";
 import { TimelineDeEjecucion } from "./TimelineDeEjecucion";
 
+/** Quién hizo la operación, resuelto del lado del servidor desde los usuarios de la empresa (#169). */
+export interface ResponsableDeOperacion {
+  readonly nombre: string;
+  readonly email: string;
+}
+
 export interface PropsDeDetalleDeOperacion {
   readonly detalle: Detalle;
+  /**
+   * El usuario que la ejecutó. `null` o ausente cuando no se pudo resolver: entonces se muestra
+   * el id, que es feo pero es cierto — una celda vacía haría pensar que no hubo responsable.
+   */
+  readonly responsable?: ResponsableDeOperacion | null;
+}
+
+function textoDelResponsable(
+  usuarioId: string | null,
+  responsable: ResponsableDeOperacion | null,
+): string {
+  if (usuarioId === null) {
+    return "Sin usuario: la ejecutó la plataforma";
+  }
+  return responsable === null ? usuarioId : `${responsable.nombre} · ${responsable.email}`;
 }
 
 function tonoDe(resultado: Operacion["resultado"]): EstadoDeBadge {
@@ -61,7 +82,10 @@ function Par({ clave, mono = false, children }: PropsDePar): JSX.Element {
   );
 }
 
-export function DetalleDeOperacion({ detalle }: PropsDeDetalleDeOperacion): JSX.Element {
+export function DetalleDeOperacion({
+  detalle,
+  responsable = null,
+}: PropsDeDetalleDeOperacion): JSX.Element {
   const { operacion } = detalle;
   const entradas = Object.entries(detalle.detalle);
 
@@ -134,9 +158,7 @@ export function DetalleDeOperacion({ detalle }: PropsDeDetalleDeOperacion): JSX.
           <Par clave="Entidad afectada" mono>
             {operacion.entidad_afectada}
           </Par>
-          <Par clave="Responsable">
-            {operacion.usuario_id ?? "Sin usuario: la ejecutó la plataforma"}
-          </Par>
+          <Par clave="Responsable">{textoDelResponsable(operacion.usuario_id, responsable)}</Par>
         </dl>
       </section>
 

@@ -66,6 +66,19 @@ describe("PaginaDeIngesta", () => {
     expect(llamarApi).toHaveBeenCalledWith("/planillas/cargas");
   });
 
+  it("muestra el error de vinculación que devolvió el callback de Google", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) =>
+      ruta === "/planillas" ? { vinculos: [] } : { cargas: [] },
+    );
+
+    const html = renderToString(
+      await PaginaDeIngesta({ searchParams: { error: "Google rechazó la consulta con 403" } }),
+    );
+
+    expect(html).toContain("Google rechazó la consulta con 403");
+  });
+
   it("le da la zona de carga al Administrador", async () => {
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
     llamarApi.mockImplementation((ruta: string) =>

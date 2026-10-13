@@ -3701,6 +3701,14 @@
  * contra la misma línea. */
 
 .age-barra {
+  /*
+   * #171: los turnos de abajo entran con `age-entra` (opacity + transform, fill `both`), y eso
+   * le da a cada uno su propio contexto de apilamiento. Como vienen después en el HTML, tapaban
+   * el calendario de «Desde» y «Hasta»: su `z-index` sólo vale dentro de la barra. La barra
+   * entera sube por encima de la lista.
+   */
+  position: relative;
+  z-index: 2;
   margin: 0 0 var(--space-4);
   padding: 10px;
   background: var(--card);

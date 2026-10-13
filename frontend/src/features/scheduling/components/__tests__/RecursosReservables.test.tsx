@@ -43,6 +43,8 @@ import { ErrorDeRecurso, MENSAJE_HORARIO_INVERTIDO } from "@/features/scheduling
 import type { ListadoDeRecursos, Recurso, ServicioAgendable } from "@/features/scheduling";
 import { elegirFecha } from "@/shared/ui/__tests__/elegir-fecha";
 
+const { franjaDeApertura } = await import("@/features/scheduling/components/recursosDatos");
+
 const { RecursosReservables } = await import(
   "@/features/scheduling/components/RecursosReservables"
 );
@@ -364,7 +366,7 @@ describe("PAN-AGE-03", () => {
     render(<RecursosReservables inicial={LISTADO} servicios={[CORTE]} puedeEditar />);
     fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
 
-    elegirFecha("Día sin atención", "2027-12-25");
+    elegirFecha("Fecha de la excepción", "2027-12-25");
     fireEvent.click(screen.getByRole("button", { name: "Bloquear el día" }));
 
     await waitFor(() => {
@@ -381,6 +383,74 @@ describe("PAN-AGE-03", () => {
     await waitFor(() => {
       expect(quitarExcepcion).toHaveBeenCalledWith("r1", "2027-09-05");
     });
+  });
+
+  // #165: el panel solo cargaba «Día sin atención»; el horario especial no tenía formulario.
+  it("carga un horario especial con su franja en la zona de la agenda", async () => {
+    registrarExcepcion.mockResolvedValue(RECURSO);
+    listarRecursos.mockResolvedValue(LISTADO);
+    render(<RecursosReservables inicial={LISTADO} servicios={[CORTE]} puedeEditar />);
+    fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
+
+    fireEvent.change(screen.getByLabelText("Tipo de excepción"), {
+      target: { value: "APERTURA_ESPECIAL" },
+    });
+    elegirFecha("Fecha de la excepción", "2027-10-16");
+    fireEvent.change(screen.getByLabelText("Hora de apertura"), { target: { value: "10:00" } });
+    fireEvent.change(screen.getByLabelText("Hora de cierre"), { target: { value: "14:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar horario especial" }));
+
+    await waitFor(() => {
+      expect(registrarExcepcion).toHaveBeenCalledWith("r1", {
+        fecha: "2027-10-16",
+        tipo: "APERTURA_ESPECIAL",
+        franja_inicio: "2027-10-16T10:00:00-03:00",
+        franja_duracion_min: 240,
+      });
+    });
+  });
+
+  it("no deja guardar un horario especial que cierra antes de abrir, y lo dice", () => {
+    render(<RecursosReservables inicial={LISTADO} servicios={[CORTE]} puedeEditar />);
+    fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
+
+    fireEvent.change(screen.getByLabelText("Tipo de excepción"), {
+      target: { value: "APERTURA_ESPECIAL" },
+    });
+    elegirFecha("Fecha de la excepción", "2027-10-16");
+    fireEvent.change(screen.getByLabelText("Hora de apertura"), { target: { value: "15:00" } });
+    fireEvent.change(screen.getByLabelText("Hora de cierre"), { target: { value: "10:00" } });
+
+    const excepciones = within(tarjeta("Excepciones"));
+    expect(excepciones.getByText(MENSAJE_HORARIO_INVERTIDO)).toBeTruthy();
+    const guardar = excepciones.getByRole("button", { name: "Guardar horario especial" });
+    expect(guardar.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(guardar);
+    expect(registrarExcepcion).not.toHaveBeenCalled();
+  });
+
+  it("muestra el horario de un horario especial en la tabla de excepciones", () => {
+    const conApertura: Recurso = {
+      ...RECURSO,
+      excepciones: [
+        ...RECURSO.excepciones,
+        {
+          fecha: "2027-09-11",
+          tipo: "APERTURA_ESPECIAL",
+          franja_inicio: "2027-09-11T10:00:00-03:00",
+          franja_duracion_min: 240,
+        },
+      ],
+    };
+    render(
+      <RecursosReservables inicial={{ recursos: [conApertura] }} servicios={[CORTE]} puedeEditar />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Configurar" }));
+
+    const excepciones = within(tarjeta("Excepciones"));
+    expect(excepciones.getByText("Horario")).toBeTruthy();
+    expect(excepciones.getByText("10:00–14:00")).toBeTruthy();
+    expect(excepciones.getByText("—")).toBeTruthy();
   });
 
   it("asocia y desasocia servicios reemplazando la lista", async () => {
@@ -424,5 +494,29 @@ describe("PAN-AGE-03", () => {
         servicios: [],
       });
     });
+  });
+});
+
+describe("franjaDeApertura", () => {
+  it("arma la franja con el desfase de la agenda y la duración en minutos", () => {
+    expect(franjaDeApertura("2027-10-16", "10:00", "14:00")).toEqual({
+      franja_inicio: "2027-10-16T10:00:00-03:00",
+      franja_duracion_min: 240,
+    });
+  });
+
+  it("un horario nocturno queda en su fecha local, no en la de UTC", () => {
+    // 20:00 en Buenos Aires ya es el día siguiente en UTC; el backend exige la fecha local.
+    expect(franjaDeApertura("2027-10-16", "20:00", "23:30")).toEqual({
+      franja_inicio: "2027-10-16T20:00:00-03:00",
+      franja_duracion_min: 210,
+    });
+  });
+
+  it("no arma nada si falta un dato o si cierra antes de abrir", () => {
+    expect(franjaDeApertura("", "10:00", "14:00")).toBeNull();
+    expect(franjaDeApertura("2027-10-16", "", "14:00")).toBeNull();
+    expect(franjaDeApertura("2027-10-16", "14:00", "14:00")).toBeNull();
+    expect(franjaDeApertura("2027-10-16", "15:00", "10:00")).toBeNull();
   });
 });

@@ -53,6 +53,11 @@ class FiltrosDeBitacora:
     #: **nombre** de un cliente exigiría un join contra otro contexto, que R3 no permite y que
     #: además convertiría la bitácora en una vista de clientes.
     texto: str | None = None
+    #: Los clientes cuyo nombre coincide con `texto`, resueltos por la pantalla contra
+    #: `master_data` (#176). La búsqueda trae además las operaciones sobre `Cliente:<id>` y las
+    #: que guardan ese `cliente_id` en su detalle —los turnos—. Ids y nunca nombres: el nombre
+    #: no entra en la bitácora (D72), y este contexto no conoce a `master_data` (R3).
+    clientes: tuple[UUID, ...] = ()
     limite: int = 500
     #: Desde qué fila continuar. Un desplazamiento y no un cursor porque la pantalla del panel
     #: es una tabla con paginado clásico, y un `OFFSET` sobre un índice por timestamp es
