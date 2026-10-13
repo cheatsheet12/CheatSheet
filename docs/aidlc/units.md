@@ -96,6 +96,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Panel de auditoría y notificaciones | rotulos-de-la-bitacora | observability | HU-E12-01 | — | Emanuel | fix/observability-rotulos-de-la-bitacora | en revisión |
 | Panel de auditoría y notificaciones | menu-sin-bitacora-para-lectura | observability | HU-E12-01 | — | Emanuel | fix/observability-menu-sin-bitacora-para-lectura | en revisión |
 | Agenda y recursos | elegir-cliente-en-nuevo-turno | scheduling | HU-E7-06 | — | Emanuel | fix/scheduling-elegir-cliente-en-nuevo-turno | en curso |
+| Agenda y recursos | error-dentro-del-modal | scheduling | HU-E7-02, HU-E7-04, HU-E7-05 | — | Emanuel | fix/scheduling-error-dentro-del-modal | en revisión |
 
 
 ---

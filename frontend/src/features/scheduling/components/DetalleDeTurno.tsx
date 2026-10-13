@@ -101,6 +101,7 @@ export function DetalleDeTurno({
     try {
       setTurno(await accion());
       setReprogramando(false);
+      setCancelando(false);
       setCorreccion(false);
     } catch (fallo) {
       setError(mensajeDe(fallo, porDefecto));
@@ -109,13 +110,28 @@ export function DetalleDeTurno({
     }
   }
 
+  // Con un diálogo abierto, el error se lee adentro y no en la página que queda detrás (#74).
+  // Abrir o cerrar un diálogo borra el error anterior: no es de lo que se va a hacer ahora.
+  const conDialogo = reprogramando || cancelando;
+  const alerta = error !== null && (
+    <Alert tono="error" titulo="No se pudo completar">
+      {error}
+    </Alert>
+  );
+
+  function abrir(dialogo: (abierto: boolean) => void): void {
+    setError(null);
+    dialogo(true);
+  }
+
+  function cerrar(dialogo: (abierto: boolean) => void): void {
+    dialogo(false);
+    setError(null);
+  }
+
   return (
     <>
-      {error !== null && (
-        <Alert tono="error" titulo="No se pudo completar">
-          {error}
-        </Alert>
-      )}
+      {!conDialogo && alerta}
 
       {/*
        * La hora, la fecha y el estado suben a una tira propia y **salen de la lista de
@@ -191,10 +207,10 @@ export function DetalleDeTurno({
 
       {puedeGestionar && abierto && (
         <div className="fac-acciones">
-          <Button variante="secundario" onClick={() => setReprogramando(true)}>
+          <Button variante="secundario" onClick={() => abrir(setReprogramando)}>
             Reprogramar
           </Button>
-          <Button variante="destructivo" onClick={() => setCancelando(true)}>
+          <Button variante="destructivo" onClick={() => abrir(setCancelando)}>
             Cancelar turno
           </Button>
         </div>
@@ -233,22 +249,21 @@ export function DetalleDeTurno({
         </div>
       )}
 
-      <Modal abierto={cancelando} titulo="Cancelar turno" onCerrar={() => setCancelando(false)}>
+      <Modal abierto={cancelando} titulo="Cancelar turno" onCerrar={() => cerrar(setCancelando)}>
+        {alerta}
         <p className="dm-intro">
           El turno pasa a <strong>Cancelado</strong> y se le avisa al cliente por WhatsApp si tiene
           número registrado. No se puede deshacer.
         </p>
         <div className="dm-formulario__acciones">
-          <Button variante="secundario" onClick={() => setCancelando(false)}>
+          <Button variante="secundario" onClick={() => cerrar(setCancelando)}>
             Volver
           </Button>
           <Button
             variante="destructivo"
             cargando={trabajando}
             onClick={() => {
-              // Se cierra antes de pedir: si el backend rechaza, el motivo se lee en la página y
-              // no queda detrás del diálogo.
-              setCancelando(false);
+              // El diálogo se cierra cuando el backend acepta; si rechaza, el motivo se lee acá.
               void correr(() => cancelarTurno(turno.id), "No se pudo cancelar el turno.");
             }}
           >
@@ -260,7 +275,7 @@ export function DetalleDeTurno({
       <Modal
         abierto={reprogramando}
         titulo="Reprogramar turno"
-        onCerrar={() => setReprogramando(false)}
+        onCerrar={() => cerrar(setReprogramando)}
       >
         <form
           className="dm-formulario"
@@ -272,6 +287,7 @@ export function DetalleDeTurno({
             );
           }}
         >
+          {alerta}
           <p className="dm-intro">
             El turno se mueve al horario nuevo y <strong>conserva su estado</strong>. Si la franja
             está ocupada, queda donde está.
@@ -295,7 +311,7 @@ export function DetalleDeTurno({
             </Casilla>
           )}
           <div className="dm-formulario__acciones">
-            <Button variante="secundario" onClick={() => setReprogramando(false)}>
+            <Button variante="secundario" onClick={() => cerrar(setReprogramando)}>
               Volver
             </Button>
             <Button type="submit" disabled={nuevoInicio === ""} cargando={trabajando}>
