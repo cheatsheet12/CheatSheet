@@ -165,11 +165,20 @@ class EscribirDeVueltaEnPlanilla:
 
         # Guard 3: only what the panel or the agent produced. A record whose `origen` is
         # PLANILLA came from this sheet, and writing it back is the loop.
-        filas = await self._registros.pendientes_de_escritura(desde=vinculo.ultima_escritura)
-        if not filas:
+        pendientes = await self._registros.pendientes_de_escritura(desde=vinculo.ultima_escritura)
+        if not pendientes:
             return ResultadoDeSincronizacion(vinculo_id=vinculo_id)
+        # The adapter rewrites its own sheet from A1. Send a complete snapshot: sending
+        # only the changes would silently replace the oldest records with the newest.
+        filas = (
+            pendientes
+            if vinculo.ultima_escritura is None
+            else await self._registros.pendientes_de_escritura(desde=None)
+        )
 
-        hoja = vinculo.hoja_cheatsheet or HOJA_DE_CHEATSHEET
+        # A link owns a unique sheet. Reusing a fixed title could overwrite a sheet the
+        # company had already created with that name.
+        hoja = vinculo.hoja_cheatsheet or f"{HOJA_DE_CHEATSHEET} {vinculo.id.hex[:8]}"
         await self._escritura.escribir(
             identificador=_exigir_identificador(vinculo), hoja=hoja, filas=filas
         )

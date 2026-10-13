@@ -80,8 +80,25 @@ const TURNO = {
   habilita_facturacion: false,
 };
 
+const CLIENTE = {
+  id: "cl1",
+  nombre: "Ana Prueba",
+  cuit: "20-22222222-3",
+  condicion_iva: null,
+  contacto_whatsapp: "5491100000000",
+  contacto_email: "ana.prueba@estudio-ejemplo.test",
+  origen: "PANEL",
+  activo: true,
+};
+
 /** Contesta según la ruta: estas páginas piden dos o tres cosas distintas cada una. */
 function porRuta(ruta: string): unknown {
+  if (ruta.startsWith("/clientes/")) {
+    return CLIENTE;
+  }
+  if (ruta.startsWith("/clientes")) {
+    return { clientes: [CLIENTE], total: 1 };
+  }
   if (ruta.startsWith("/turnos/")) {
     return TURNO;
   }
@@ -142,6 +159,35 @@ describe("PaginaDeTurno", () => {
     expect(html).toContain("Corte de pelo");
   });
 
+  // #167: el detalle no decía para quién era el turno.
+  it("muestra el cliente del turno con su CUIT y su contacto", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) => Promise.resolve(porRuta(ruta)));
+
+    const html = renderToString(await PaginaDeTurno({ params: { turnoId: "t1" } }));
+
+    expect(llamarApi).toHaveBeenCalledWith("/clientes/cl1");
+    expect(html).toContain("Ana Prueba");
+    expect(html).toContain("20-22222222-3");
+    expect(html).toContain("5491100000000");
+    expect(html).toContain("ana.prueba@estudio-ejemplo.test");
+  });
+
+  it("sigue en pie si el cliente no se pudo leer, con «—» en sus datos", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) =>
+      ruta.startsWith("/clientes/")
+        ? Promise.reject(new ErrorDeApi(422, "No existe", "ClienteNoEncontrado"))
+        : Promise.resolve(porRuta(ruta)),
+    );
+
+    const html = renderToString(await PaginaDeTurno({ params: { turnoId: "t1" } }));
+
+    expect(html).toContain("Consultorio 1");
+    expect(html).not.toContain("Ana Prueba");
+    expect(html.match(/<dd>—<\/dd>/g)).toHaveLength(4);
+  });
+
   it("le esconde las acciones a Solo Lectura", async () => {
     llamarApi.mockImplementation((ruta: string) => Promise.resolve(porRuta(ruta)));
 
@@ -172,6 +218,17 @@ describe("PaginaDeNuevoTurno", () => {
 
     expect(html).toContain("Elegí primero para quién es el turno");
     expect(llamarApi).not.toHaveBeenCalled();
+  });
+
+  // #167: el cliente viajaba solo en la URL; el formulario no decía para quién era el turno.
+  it("dice para qué cliente es el turno", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) => Promise.resolve(porRuta(ruta)));
+
+    const html = renderToString(await PaginaDeNuevoTurno({ searchParams: { cliente: "cl1" } }));
+
+    expect(llamarApi).toHaveBeenCalledWith("/clientes/cl1");
+    expect(html).toContain("Ana Prueba");
   });
 
   it("pide solo los recursos activos", async () => {

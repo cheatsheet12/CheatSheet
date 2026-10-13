@@ -24,6 +24,14 @@ vi.mock("@/features/observability/api/bitacora", async () => {
   return { ...real, listarOperaciones: (...args: unknown[]) => listarOperaciones(...args) };
 });
 
+// #176: la pantalla busca los clientes por nombre en master_data antes de pedir el listado.
+const listarClientes = vi.fn();
+vi.mock("@/features/master_data", async () => {
+  const real =
+    await vi.importActual<typeof import("@/features/master_data")>("@/features/master_data");
+  return { ...real, listarClientes: (...args: unknown[]) => listarClientes(...args) };
+});
+
 const marcarComoLeida = vi.fn();
 const abrirSolicitud = vi.fn();
 const listarSolicitudes = vi.fn();
@@ -165,6 +173,32 @@ describe("PAN-LOG-01 · el listado", () => {
     });
   });
 
+  // #176: por nombre no encontraba nada; ahora manda los ids de los clientes que coinciden.
+  it("buscar un nombre manda los ids de los clientes que coinciden", async () => {
+    listarClientes.mockResolvedValue({ clientes: [{ id: "c1" }, { id: "c2" }], total: 2 });
+    listarOperaciones.mockResolvedValue({ operaciones: [OPERACION], total: 1 });
+    render(<Bitacora inicial={{ operaciones: [OPERACION], total: 1 }} />);
+
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "Ana" } });
+
+    await waitFor(() => {
+      expect(listarClientes).toHaveBeenCalledWith({ texto: "Ana" });
+      expect(listarOperaciones).toHaveBeenLastCalledWith({ texto: "Ana", pagina: 1 }, ["c1", "c2"]);
+    });
+  });
+
+  it("si la búsqueda de clientes falla, busca solo por texto", async () => {
+    listarClientes.mockRejectedValue(new Error("sin conexión"));
+    listarOperaciones.mockResolvedValue({ operaciones: [OPERACION], total: 1 });
+    render(<Bitacora inicial={{ operaciones: [OPERACION], total: 1 }} />);
+
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "Ana" } });
+
+    await waitFor(() => {
+      expect(listarOperaciones).toHaveBeenLastCalledWith({ texto: "Ana", pagina: 1 });
+    });
+  });
+
   it("no pagina cuando entra todo en una página", () => {
     render(<Bitacora inicial={{ operaciones: [OPERACION], total: 1 }} />);
 
@@ -279,17 +313,15 @@ describe("PAN-SOP-01 · soporte", () => {
     expect(within(screen.getByRole("table")).getByText("No puedo emitir")).toBeTruthy();
   });
 
-  it("el botón está deshabilitado hasta que haya asunto y descripción", () => {
+  // #174: el botón deshabilitado no decía por qué; el criterio pide la frase de la historia.
+  it("enviar sin asunto o sin descripción muestra la frase de la historia y no manda nada", () => {
     render(<Soporte inicial={[]} puedeAbrir />);
 
-    const boton = screen.getByRole("button", { name: "Enviar" }) as HTMLButtonElement;
-    expect(boton.disabled).toBe(true);
-
     fireEvent.change(screen.getByLabelText("Asunto"), { target: { value: "No puedo emitir" } });
-    expect(boton.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
 
-    fireEvent.change(screen.getByLabelText("Descripción"), { target: { value: "ARCA falla" } });
-    expect(boton.disabled).toBe(false);
+    expect(screen.getByText(MENSAJE_CAMPOS_OBLIGATORIOS)).toBeTruthy();
+    expect(abrirSolicitud).not.toHaveBeenCalled();
   });
 
   it("enviar refresca el listado y limpia el formulario", async () => {

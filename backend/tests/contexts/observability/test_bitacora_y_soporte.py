@@ -89,12 +89,22 @@ class RegistrosEnMemoria:
             if (not filtros.modulos or uno.modulo in filtros.modulos)
             and (not filtros.resultados or uno.resultado in filtros.resultados)
             and (not filtros.iniciadores or uno.iniciador in filtros.iniciadores)
-            and (
-                filtros.texto is None
-                or filtros.texto.lower() in uno.accion.lower()
-                or filtros.texto.lower() in uno.entidad_afectada.lower()
-            )
+            and _coincide_con_la_busqueda(uno, filtros)
         ]
+
+
+def _coincide_con_la_busqueda(uno: RegistroDeAuditoria, filtros: FiltrosDeBitacora) -> bool:
+    if filtros.texto is None and not filtros.clientes:
+        return True
+    texto = (filtros.texto or "").lower()
+    por_texto = bool(texto) and (
+        texto in uno.accion.lower() or texto in uno.entidad_afectada.lower()
+    )
+    ids = {str(cliente) for cliente in filtros.clientes}
+    por_cliente = uno.entidad_afectada in {f"Cliente:{cliente}" for cliente in ids} or (
+        (uno.detalle or {}).get("cliente_id") in ids
+    )
+    return por_texto or por_cliente
 
 
 class SolicitudesEnMemoria:
@@ -224,6 +234,38 @@ class TestFiltros:
 
         assert len(por_accion) == 1
         assert por_accion[0].id == por_entidad[0].id
+
+    @pytest.mark.asyncio
+    async def test_buscar_un_cliente_trae_su_alta_y_sus_turnos(self) -> None:
+        """#176 (HU-E12-01 RN-03): «busco por cliente — filtra las operaciones relacionadas».
+
+        La pantalla resuelve el nombre contra `master_data` y manda los ids; la bitácora trae
+        las operaciones sobre `Cliente:<id>` y las que guardan ese `cliente_id` en su detalle.
+        """
+        cliente, otro = uuid4(), uuid4()
+        registros = RegistrosEnMemoria(
+            _registro(accion="cliente_registrado", entidad=f"Cliente:{cliente}"),
+            _registro(
+                accion="reservar_turno",
+                entidad="Turno:t1",
+                detalle={"cliente_id": str(cliente)},
+            ),
+            _registro(
+                accion="reservar_turno",
+                entidad="Turno:t2",
+                detalle={"cliente_id": str(otro)},
+            ),
+            _registro(accion="emitir_comprobante", entidad="Comprobante:1"),
+        )
+
+        encontrados = await ListarOperaciones(registros).ejecutar(
+            FiltrosDeBitacora(texto="Ana", clientes=(cliente,)), rol=RolUsuario.ADMINISTRADOR
+        )
+
+        assert sorted(uno.entidad_afectada for uno in encontrados) == [
+            f"Cliente:{cliente}",
+            "Turno:t1",
+        ]
 
     @pytest.mark.asyncio
     async def test_contar_no_pagina(self) -> None:

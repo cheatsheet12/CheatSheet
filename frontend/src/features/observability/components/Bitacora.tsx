@@ -24,6 +24,7 @@ import { Bot, CircleAlert, CircleCheck, ListFilter, RefreshCw, ScrollText, X } f
 import Link from "next/link";
 import { useState } from "react";
 
+import { listarClientes } from "@/features/master_data";
 import { Alert, Badge, Campo, Select, SelectorDeFecha, Tabla } from "@/shared";
 import type { Columna, EstadoDeBadge } from "@/shared";
 
@@ -78,6 +79,25 @@ export function paginasVisibles(actual: number, ultima: number): readonly number
   return [...new Set(dentro)].sort((una, otra) => una - otra);
 }
 
+/**
+ * Los ids de los clientes cuyo nombre coincide con la búsqueda (#176, HU-E12-01 RN-03).
+ *
+ * La bitácora no guarda nombres —es inmutable y la lee cualquiera con acceso a la auditoría,
+ * D72—, así que el nombre se resuelve acá contra `master_data` y la búsqueda manda los ids. Si
+ * esa consulta falla, se busca solo por texto, como antes: buscar algo es mejor que no buscar.
+ */
+async function clientesQueCoinciden(texto: string | undefined): Promise<readonly string[]> {
+  if (texto === undefined || texto.trim() === "") {
+    return [];
+  }
+  try {
+    const { clientes } = await listarClientes({ texto: texto.trim() });
+    return clientes.map((uno) => uno.id);
+  } catch {
+    return [];
+  }
+}
+
 export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
   const [listado, setListado] = useState<ListadoDeOperaciones>(inicial);
   const [filtros, setFiltros] = useState<FiltrosDeBitacora>({});
@@ -97,7 +117,12 @@ export function Bitacora({ inicial }: PropsDeBitacora): JSX.Element {
     setError(null);
     setConsultando(true);
     try {
-      setListado(await listarOperaciones(siguientes));
+      const clientes = await clientesQueCoinciden(siguientes.texto);
+      setListado(
+        await (clientes.length > 0
+          ? listarOperaciones(siguientes, clientes)
+          : listarOperaciones(siguientes)),
+      );
     } catch (fallo) {
       setError(
         fallo instanceof ErrorDeBitacora ? fallo.message : "No se pudo consultar la bitácora.",

@@ -257,6 +257,32 @@ async def test_el_monto_del_pago_sigue_leyendose_como_decimal() -> None:
     assert pago.esta_aprobado
 
 
+async def test_el_external_reference_del_pago_es_el_id_del_cobro() -> None:
+    cobro_id = uuid4()
+    pago = await _pasarela(Grabadora(_pago(external_reference=str(cobro_id)))).consultar_pago(
+        empresa_id=EMPRESA, payment_id="1"
+    )
+
+    assert pago.cobro_id == cobro_id
+
+
+@pytest.mark.parametrize("referencia", [None, "", "pedido-42", 42])
+async def test_un_external_reference_que_no_es_nuestro_no_ata_nada(referencia: Any) -> None:
+    pago = await _pasarela(Grabadora(_pago(external_reference=referencia))).consultar_pago(
+        empresa_id=EMPRESA, payment_id="1"
+    )
+
+    assert pago.cobro_id is None
+
+
+async def test_la_merchant_order_no_se_toma_por_preferencia() -> None:
+    pago = await _pasarela(Grabadora(_pago(order={"id": "45238603224"}))).consultar_pago(
+        empresa_id=EMPRESA, payment_id="1"
+    )
+
+    assert pago.preference_id is None
+
+
 async def test_el_simulado_informa_una_fecha_de_aprobacion_real() -> None:
     """Una demo local no debe mostrar «aproximada»: el doble devuelve la hora actual en UTC."""
     antes = datetime.now(UTC)
