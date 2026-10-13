@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -31,7 +31,9 @@ from cheatsheet.contexts.spreadsheet_sync.application.errors import (
 )
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     DocumentoVinculado,
+    FilaLeida,
     HojaDePlanilla,
+    PlanillaLeida,
     TokensDePlanilla,
 )
 from cheatsheet.contexts.spreadsheet_sync.domain.valores import MENSAJE_SIN_PERMISOS
@@ -50,6 +52,8 @@ ALCANCE = "https://www.googleapis.com/auth/drive.file"
 TIMEOUT_SEGUNDOS = 15.0
 MAX_INTENTOS = 3
 ESPERA_BASE = 0.5
+FILAS_POR_LOTE = 500
+LIMITE_LECTURA_BYTES = 25 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +161,61 @@ class ProveedorGoogleSheets:
             hojas=hojas,
         )
 
+    async def leer_hoja(
+        self,
+        *,
+        token: str,
+        identificador: str,
+        hoja: str,
+        max_filas: int | None = None,
+    ) -> PlanillaLeida:
+        """Read formatted cell text in bounded requests, preserving Google row numbers."""
+        documento = await self.describir_documento(token=token, identificador=identificador)
+        fuente = next((item for item in documento.hojas if item.nombre == hoja), None)
+        if fuente is None:
+            raise ProveedorDePlanillaNoDisponible("La hoja vinculada ya no existe en Google Sheets")
+        hasta = fuente.filas_estimadas
+        if max_filas is not None:
+            hasta = min(hasta, max_filas)
+        columnas: tuple[str, ...] = ()
+        filas: list[FilaLeida] = []
+        tamanio = 0
+        nombre_rango = hoja.replace("'", "''")
+        for inicio in range(1, hasta + 1, FILAS_POR_LOTE):
+            fin = min(inicio + FILAS_POR_LOTE - 1, hasta)
+            rango = quote(f"'{nombre_rango}'!{inicio}:{fin}", safe="")
+            respuesta = await self._pedir(
+                "GET",
+                f"{URL_HOJAS}/{identificador}/values/{rango}",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"valueRenderOption": "FORMATTED_VALUE"},
+            )
+            valores = respuesta.get("values", [])
+            if not isinstance(valores, list):
+                raise ProveedorDePlanillaNoDisponible("Google devolvio filas con formato invalido")
+            for numero, celdas in enumerate(valores, start=inicio):
+                if not isinstance(celdas, list):
+                    raise ProveedorDePlanillaNoDisponible("Google devolvio una fila invalida")
+                textos = tuple(str(valor).strip() for valor in celdas)
+                tamanio += sum(len(valor.encode("utf-8")) for valor in textos)
+                if tamanio > LIMITE_LECTURA_BYTES:
+                    raise ProveedorDePlanillaNoDisponible(
+                        "La planilla supera el limite de 25 MB para procesar"
+                    )
+                if numero == 1:
+                    columnas = textos
+                elif any(textos):
+                    filas.append(
+                        FilaLeida(
+                            numero=numero,
+                            celdas={
+                                columna: textos[indice] if indice < len(textos) else ""
+                                for indice, columna in enumerate(columnas)
+                            },
+                        )
+                    )
+        return PlanillaLeida(columnas=columnas, filas=tuple(filas))
+
     async def _pedir(self, metodo: str, url: str, **kwargs: Any) -> dict[str, Any]:
         """One call, with the timeout and bounded retry CLAUDE.md §5 requires.
 
@@ -172,7 +231,7 @@ class ProveedorGoogleSheets:
                     raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
                 if url == URL_TOKEN and respuesta.status_code == 400:
                     raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
-                if 400 <= respuesta.status_code < 500:
+                if 400 <= respuesta.status_code < 500 and respuesta.status_code != 429:
                     raise ProveedorDePlanillaNoDisponible(
                         f"Google rechazo la consulta con {respuesta.status_code}"
                     )
@@ -231,4 +290,18 @@ class ProveedorDePlanillaSimulado:
             identificador_externo=identificador,
             nombre="Planilla de prueba",
             hojas=(HojaDePlanilla(nombre="Clientes", filas_estimadas=120),),
+        )
+
+    async def leer_hoja(
+        self,
+        *,
+        token: str,
+        identificador: str,
+        hoja: str,
+        max_filas: int | None = None,
+    ) -> PlanillaLeida:
+        del token, identificador, hoja, max_filas
+        return PlanillaLeida(
+            columnas=("Nombre", "CUIT"),
+            filas=(FilaLeida(numero=2, celdas={"Nombre": "Cliente de prueba", "CUIT": ""}),),
         )

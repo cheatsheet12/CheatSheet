@@ -283,6 +283,8 @@ export interface DetalleDeCarga {
   readonly errores: readonly ErrorDeFila[];
   /** False para Solo Lectura (RN-04) y también cuando no falló nada. */
   readonly puede_reprocesar: boolean;
+  /** Google se corrige en la hoja fuente; el editor local lee archivos subidos. */
+  readonly puede_corregir_filas?: boolean;
 }
 
 export interface ListadoDeCargas {
