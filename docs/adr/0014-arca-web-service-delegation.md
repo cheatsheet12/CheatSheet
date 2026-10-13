@@ -55,6 +55,9 @@ CUIT. Companies no longer upload certificates.**
    so a per-company ticket would make the second company to connect fail for twelve hours.
    They live in a new table, `ticket_de_plataforma`, keyed by service, encrypted as before.
    It has no `empresa_id` and therefore no Row-Level Security; it holds no company data.
+   **A minted ticket is committed in its own transaction**, never in the request that asked
+   for it: losing it to that request's rollback blocks WSAA for every company until it
+   expires (found in `staging` on 2026-10-13, fixed by `ticket-de-plataforma-persistido`).
    **Gap in the DER**, declared here: the DER models what a company gives us, and a platform
    ticket is not that.
 3. **`<Auth><Cuit>` is the company's CUIT**, recorded on its ARCA integration when it connects.

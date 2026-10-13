@@ -11,9 +11,12 @@ DEFINER` function and it returns nothing but company ids; the reasoning is with 
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from cheatsheet.contexts.integrations.application.errors import CuentaDeWhatsAppEnUso
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
@@ -28,6 +31,7 @@ from cheatsheet.contexts.integrations.domain.valores import (
     SistemaExterno,
 )
 from cheatsheet.contexts.integrations.infrastructure.models import (
+    TABLA_TICKET_DE_PLATAFORMA,
     ConfiguracionDeIntegracionORM,
     TicketDePlataformaORM,
 )
@@ -229,42 +233,57 @@ async def empresas_con_integracion_de_mercadopago(sesion: AsyncSession) -> list[
 class RepositorioTicketsDePlataformaSQL:
     """Implements `PortRepositorioTicketsDePlataforma` (ADR-0014).
 
-    `buscar_para_renovar` takes a row lock (`FOR UPDATE`) so two requests minting at once
-    queue behind each other instead of both asking WSAA, which would hand a ticket to one
-    and `coe.alreadyAuthenticated` to the other.
+    **A reservation is its own transaction, on its own connection**, opened on the engine of
+    the request's session and committed when the reservation ends. Writing the ticket in the
+    request's transaction lost it to any later rollback — a rejected connection, a failed
+    emission — and WSAA then refused a new one for twelve hours (staging, 2026-10-13). The
+    table has no Row-Level Security (ADR-0014 §2), so the new session declares no company.
+
+    Exclusivity is a transaction-scoped advisory lock per service rather than `FOR UPDATE`:
+    a row lock needs a row, and the first two requests ever would both find none and both
+    ask WSAA. The lock is released with the commit, so it lasts one `LoginCms`, not a request.
     """
 
     def __init__(self, sesion: AsyncSession) -> None:
         self._sesion = sesion
 
-    async def buscar_para_renovar(self, servicio: ServicioDeArca) -> TicketDePlataforma | None:
-        consulta = (
-            select(TicketDePlataformaORM)
-            .where(TicketDePlataformaORM.servicio == servicio.value)
-            .with_for_update()
-        )
-        fila = (await self._sesion.execute(consulta)).scalar_one_or_none()
-        if fila is None:
+    @asynccontextmanager
+    async def reservar(self, servicio: ServicioDeArca) -> AsyncIterator[ReservaDeTicketSQL]:
+        bind = self._sesion.bind
+        engine = bind if isinstance(bind, AsyncEngine) else bind.engine
+        async with AsyncSession(engine, expire_on_commit=False) as sesion, sesion.begin():
+            await sesion.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:clave))"),
+                {"clave": f"{TABLA_TICKET_DE_PLATAFORMA}:{servicio.value}"},
+            )
+            fila = await sesion.get(TicketDePlataformaORM, servicio.value)
+            yield ReservaDeTicketSQL(sesion, fila)
+
+
+class ReservaDeTicketSQL:
+    """Implements `ReservaDeTicket` over the reservation's own session."""
+
+    def __init__(self, sesion: AsyncSession, fila: TicketDePlataformaORM | None) -> None:
+        self._sesion = sesion
+        self._fila = fila
+
+    @property
+    def guardado(self) -> TicketDePlataforma | None:
+        if self._fila is None:
             return None
         return TicketDePlataforma(
-            servicio=ServicioDeArca(fila.servicio),
-            contenido=CredencialCifrada(contenido=fila.contenido_cifrado, algoritmo=fila.algoritmo),
-            expira_en=fila.expira_en,
+            servicio=ServicioDeArca(self._fila.servicio),
+            contenido=CredencialCifrada(
+                contenido=self._fila.contenido_cifrado, algoritmo=self._fila.algoritmo
+            ),
+            expira_en=self._fila.expira_en,
         )
 
     async def guardar(self, ticket: TicketDePlataforma) -> None:
-        fila = await self._sesion.get(TicketDePlataformaORM, ticket.servicio.value)
-        if fila is None:
-            self._sesion.add(
-                TicketDePlataformaORM(
-                    servicio=ticket.servicio.value,
-                    contenido_cifrado=ticket.contenido.contenido,
-                    algoritmo=ticket.contenido.algoritmo,
-                    expira_en=ticket.expira_en,
-                )
-            )
-        else:
-            fila.contenido_cifrado = ticket.contenido.contenido
-            fila.algoritmo = ticket.contenido.algoritmo
-            fila.expira_en = ticket.expira_en
+        if self._fila is None:
+            self._fila = TicketDePlataformaORM(servicio=ticket.servicio.value)
+            self._sesion.add(self._fila)
+        self._fila.contenido_cifrado = ticket.contenido.contenido
+        self._fila.algoritmo = ticket.contenido.algoritmo
+        self._fila.expira_en = ticket.expira_en
         await self._sesion.flush()

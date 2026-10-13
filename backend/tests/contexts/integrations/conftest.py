@@ -8,7 +8,8 @@ instead of leaving them agreeing with an interface that no longer exists.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -29,7 +30,7 @@ from cheatsheet.contexts.integrations.application.ports import (
     TicketEmitido,
 )
 from cheatsheet.contexts.integrations.domain.configuracion import ConfiguracionDeIntegracion
-from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
+from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca, TicketDePlataforma
 from cheatsheet.contexts.integrations.domain.valores import (
     Ambiente,
     CredencialCifrada,
@@ -256,6 +257,41 @@ def publicador() -> PublicadorFalso:
 @pytest.fixture
 def empresa_id() -> EmpresaId:
     return EmpresaId(uuid4())
+
+
+class TicketsEnMemoria:
+    """`PortRepositorioTicketsDePlataforma` sin base: una fila por servicio.
+
+    Como el adaptador real, lo guardado dentro de una reserva queda solo si la reserva termina
+    bien; una reserva que termina con una excepción no deja nada.
+    """
+
+    def __init__(self) -> None:
+        self.filas: dict[ServicioDeArca, TicketDePlataforma] = {}
+        self.guardados = 0
+
+    @asynccontextmanager
+    async def reservar(self, servicio: ServicioDeArca) -> AsyncIterator[ReservaEnMemoria]:
+        reserva = ReservaEnMemoria(self.filas.get(servicio))
+        yield reserva
+        if reserva.nuevo is not None:
+            self.guardados += 1
+            self.filas[servicio] = reserva.nuevo
+
+
+class ReservaEnMemoria:
+    """`ReservaDeTicket` sin base."""
+
+    def __init__(self, guardado: TicketDePlataforma | None) -> None:
+        self._guardado = guardado
+        self.nuevo: TicketDePlataforma | None = None
+
+    @property
+    def guardado(self) -> TicketDePlataforma | None:
+        return self._guardado
+
+    async def guardar(self, ticket: TicketDePlataforma) -> None:
+        self.nuevo = ticket
 
 
 class EmisorProgramado:
