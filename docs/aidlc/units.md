@@ -29,7 +29,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Sincronización de planillas | mapeo-asistido | spreadsheet_sync | HU-E3-01, HU-E3-02 | vinculo-de-planilla | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
 | Sincronización de planillas | corregir-esquema-mapeo-anthropic | spreadsheet_sync | HU-E3-01 | mapeo-asistido | Juan | fix/spreadsheet_sync-esquema-mapeo-anthropic | en revisión |
 | Sincronización de planillas | google-real-y-write-back | spreadsheet_sync | HU-E3-07 (completa OAuth de HU-E2-04) | sincronizacion-y-write-back | Juan | fix/spreadsheet_sync-google-write-back-real | en revisión |
-| Sincronización de planillas | mapeo-google-sheets-real | spreadsheet_sync | HU-E3-01, HU-E3-02 (Google Sheets) | google-real-y-write-back | Juan | fix/spreadsheet_sync-mapeo-google-real | en curso |
+| Sincronización de planillas | mapeo-google-sheets-real | spreadsheet_sync | HU-E3-01, HU-E3-02, HU-E3-03, HU-E3-05, HU-E3-06 (Google Sheets) | google-real-y-write-back | Juan | fix/spreadsheet_sync-mapeo-google-real | en curso |
 | Sincronización de planillas | sincronizacion-incremental-real | spreadsheet_sync | HU-E3-04 | google-real-y-write-back | Juan | fix/spreadsheet_sync-incremental-real | pendiente |
 | Sincronización de planillas | carga-y-errores | spreadsheet_sync | HU-E3-03, HU-E3-05, HU-E3-06 | dlq-y-tareas-asincronas, mapeo-asistido | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
 | Sincronización de planillas | sincronizacion-y-write-back | spreadsheet_sync | HU-E3-04, HU-E3-07 | carga-y-errores | Cristian | feature/spreadsheet_sync-sincronizacion-de-planillas | mergeada |
