@@ -232,6 +232,22 @@ class ProveedorGoogleSheets:
                 if url == URL_TOKEN and respuesta.status_code == 400:
                     raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
                 if 400 <= respuesta.status_code < 500 and respuesta.status_code != 429:
+                    detalle = _detalle_de_error_google(respuesta)
+                    logger.warning(
+                        "google_sheets_consulta_rechazada",
+                        codigo=respuesta.status_code,
+                        estado=detalle[0],
+                        razon=detalle[1],
+                    )
+                    if (
+                        respuesta.status_code == 400
+                        and detalle[2] is not None
+                        and "not supported for this document" in detalle[2].casefold()
+                    ):
+                        raise ProveedorDePlanillaNoDisponible(
+                            "El archivo elegido no es una Hoja de cálculo de Google. "
+                            "Convertí el Excel en Google Sheets o subilo desde Ingesta."
+                        )
                     raise ProveedorDePlanillaNoDisponible(
                         f"Google rechazo la consulta con {respuesta.status_code}"
                     )
@@ -247,6 +263,32 @@ class ProveedorGoogleSheets:
         raise ProveedorDePlanillaNoDisponible(
             "No pudimos comunicarnos con Google Sheets. Intentalo de nuevo en un momento."
         ) from ultimo
+
+
+def _detalle_de_error_google(
+    respuesta: httpx.Response,
+) -> tuple[str | None, str | None, str | None]:
+    """Extract only bounded diagnostic codes; never log the request URL, token or file ID."""
+    try:
+        cuerpo = respuesta.json()
+    except ValueError:
+        return None, None, None
+    if not isinstance(cuerpo, dict) or not isinstance(cuerpo.get("error"), dict):
+        return None, None, None
+    error = cuerpo["error"]
+    estado = error.get("status")
+    detalles = error.get("errors")
+    razon = (
+        detalles[0].get("reason")
+        if isinstance(detalles, list) and detalles and isinstance(detalles[0], dict)
+        else None
+    )
+    mensaje = error.get("message")
+    return (
+        estado[:80] if isinstance(estado, str) else None,
+        razon[:80] if isinstance(razon, str) else None,
+        mensaje if isinstance(mensaje, str) else None,
+    )
 
 
 class ProveedorDePlanillaSimulado:

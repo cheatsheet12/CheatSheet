@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 from cheatsheet.contexts.integrations.application.credenciales_oauth import CredencialOAuthRevocada
+from cheatsheet.contexts.spreadsheet_sync.application.errors import ProveedorDePlanillaNoDisponible
 from cheatsheet.contexts.spreadsheet_sync.infrastructure import google_sheets as modulo
 
 pytestmark = pytest.mark.asyncio
@@ -81,3 +82,32 @@ async def test_revoked_refresh_token_requires_reconnection(monkeypatch: pytest.M
 
     with pytest.raises(CredencialOAuthRevocada):
         await provider.renovar(b"revoked")
+
+
+async def test_non_native_spreadsheet_has_actionable_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = httpx.AsyncClient
+    monkeypatch.setattr(
+        modulo.httpx,
+        "AsyncClient",
+        lambda **kwargs: client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    400,
+                    json={
+                        "error": {
+                            "code": 400,
+                            "message": "This operation is not supported for this document",
+                            "status": "FAILED_PRECONDITION",
+                        }
+                    },
+                )
+            ),
+            **kwargs,
+        ),
+    )
+    provider = modulo.ProveedorGoogleSheets(
+        modulo.ConfiguracionGoogleSheets("client-id", "client-secret", "https://app.test/callback")
+    )
+
+    with pytest.raises(ProveedorDePlanillaNoDisponible, match="Hoja de cálculo de Google"):
+        await provider.describir_documento(token="token", identificador="document-1")

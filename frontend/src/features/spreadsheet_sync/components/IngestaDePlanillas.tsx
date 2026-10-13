@@ -62,6 +62,8 @@ export interface PropsDeIngesta {
   /** `Cargas recientes` de PAN-ING-01. Lo lee todo rol (HU-E3-05 RN-04). */
   readonly cargasIniciales: readonly Carga[];
   readonly puedeEditar: boolean;
+  /** Error de la vuelta OAuth, que llega como query param al recargar la página. */
+  readonly errorInicial?: string | null;
 }
 /**
  * Cómo se ve cada estado de un procesamiento.
@@ -170,10 +172,11 @@ export function IngestaDePlanillas({
   inicial,
   cargasIniciales,
   puedeEditar,
+  errorInicial = null,
 }: PropsDeIngesta): JSX.Element {
   const [listado, setListado] = useState<ListadoDeVinculos>(inicial);
   const [cargas, setCargas] = useState<readonly Carga[]>(cargasIniciales);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(errorInicial);
   const [aviso, setAviso] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
