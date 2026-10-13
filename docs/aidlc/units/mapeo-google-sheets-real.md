@@ -60,7 +60,7 @@ Una planilla Google ya vinculada muestra «Revisar mapeo». El panel lee encabez
 |---|---|---|
 | 1 · Plan | 2026-10-12 | Juan aprobó el mapeo de Google Sheets y amplió el alcance para incluir la ingesta inicial de filas |
 | 2 · Verificación | 2026-10-12 | 3306 tests backend y 1434 frontend pasan; Ruff, MyPy, TypeScript y ESLint pasan. 655 tests de integración se omiten sin PostgreSQL/Redis. Prueba manual con Google real pendiente. |
-| 3 · PR | | |
+| 3 · PR | 2026-10-12 | PR borrador #206 contra `develop`; revisión de Vincenzo y prueba manual en staging pendientes |
 
 ## Decisiones tomadas durante la unidad
 
