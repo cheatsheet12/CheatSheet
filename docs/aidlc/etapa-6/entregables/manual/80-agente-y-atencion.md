@@ -47,9 +47,12 @@ observaciones: >
   desactualizada o llamando a la API. Tras «Dar por finalizada», la pastilla del hilo dice «La
   atiende el agente» aunque la conversación quede archivada (la lista sí dice «Conversación
   archivada»). 3) HU-E9-04: el encabezado de la pantalla dice que el agente busca por
-  significado, pero el proveedor de vectores es el simulado (api/conversacional.py, pendiente 1
-  del épico 8): el agente solo reconoce una pregunta idéntica, letra por letra, a la «Pregunta
-  disparadora». El estado «Todavía no buscable» solo aparece si ese proveedor falla. PAN-WA-02 del
+  significado y que no hace falta que el cliente escriba la pregunta igual, pero el proveedor de
+  vectores es el simulado (api/conversacional.py y EmbeddingsSimulados en
+  infrastructure/canal.py, también en develop al 13/10/2026; pendiente 1 del épico 8): el agente
+  solo reconoce una pregunta idéntica, letra por letra, a la «Pregunta disparadora». El capítulo
+  describe el código; la variante con otra redacción no se probó en staging. El estado «Todavía no
+  buscable» solo aparece si ese proveedor falla. PAN-WA-02 del
   prototipo incluye mensaje de bienvenida y número conectado, que la pantalla no tiene, y el
   interruptor «Agente activo» no existe (pendiente 23). 4) HU-E11-02: el listado muestra el
   nombre legible de cada plantilla y su texto, no el código; canal e idioma se dicen una vez
@@ -57,12 +60,14 @@ observaciones: >
   editarla no cambia ningún mensaje. Una plantilla sin aprobar no bloquea el mensaje: el sistema
   envía el texto de fábrica. 5) HS-T2 RN-04: el horario se edita en «Respuestas frecuentes»
   (PAN-WA-02); si nunca se configuró, la tarjeta muestra valores precargados que no se guardan
-  hasta pulsar «Guardar». 6) Depende del entorno y debe confirmarse en staging: allí WhatsApp está
-  simulado (render.yaml, WHATSAPP_ADAPTADOR) y «Enviar a revisión» aprueba la plantilla de
+  hasta pulsar «Guardar». 6) Depende del entorno. En staging (capturas del 13/10/2026) WhatsApp está
+  simulado (render.yaml, WHATSAPP_ADAPTADOR) y «Enviar a revisión» aprobó la plantilla de
   inmediato; la aprobación real de Meta y los estados «Entregado» y «Leído» no se pudieron
-  verificar en pantalla (TODO.md 22.35 a 22.54). El intérprete del agente en staging es el
-  simulado por palabras clave (LLM_ADAPTADOR); la extracción del modelo real no se verificó
-  (pendiente 21). 7) Un Operador o Solo Lectura que llame a la API para una acción de
+  verificar en pantalla (TODO.md 22.35 a 22.54). El intérprete del agente en staging es el modelo
+  real (LLM_ADAPTADOR=anthropic): clasificó las preguntas frecuentes como «Pregunta frecuente»,
+  «asdf», «qwerty» y «zxcv» como «Sin clasificar», y «Quiero hablar con una persona» se escaló con
+  el motivo «El cliente pidió hablar con una persona»; la extracción del modelo real no se
+  verificó en estas capturas (pendiente 21). 7) Un Operador o Solo Lectura que llame a la API para una acción de
   Administrador recibe un 403 sin la frase del motivo en pantalla; el panel no ofrece esos
   controles. 8) La reserva y la cancelación por WhatsApp se resumen solo en lo que llega al
   panel (detalle en docs/aidlc/units/); la regla de recordatorios es de MAN-60 y la agenda, de
@@ -108,24 +113,24 @@ HU-E9-01 — Atender una conversación escalada. Una conversación está escalad
 
 La bandeja muestra a la izquierda los hilos, con los contadores «N hilos» y «N esperan», y a la derecha el hilo elegido. Abre filtrada por «Esperan a un asesor», que incluye los hilos ya tomados; «Todas» agrega el resto. La pastilla de cada hilo indica su estado: «Espera un asesor» (nadie tomó el escalamiento), «En atención» (alguien lo tomó y el agente no responde) o «La atiende el agente» (no hay escalamiento abierto).
 
-![Figura MAN-80-1 — La bandeja de conversaciones filtrada por «Esperan a un asesor»](capturas/MAN-80_1.png)
+![Figura MAN-80-1 — La bandeja de conversaciones filtrada por «Esperan a un asesor», con dos hilos en «Espera un asesor» y ningún hilo abierto a la derecha](capturas/MAN-80_1.png)
 
 Al abrir un hilo, la lista pasa a mostrar «Todas» y el historial completo aparece a la derecha, con el recuadro «Esperando a un asesor» y el motivo. Cada mensaje indica su autor («Cliente», «Agente», «Operador» o «Sistema», para los avisos automáticos de turnos), la hora, su clasificación («Turno», «Consulta», «Pago», «Pregunta frecuente» o «Sin clasificar») y, si salió, su estado: «Enviado», «Entregado», «Leído» o «No se pudo enviar», con el motivo debajo. El estado avanza cuando WhatsApp informa la entrega; si no la informa, queda en «Enviado».
 
-![Figura MAN-80-2 — Un hilo escalado con el historial completo y el botón «Tomar la conversación»](capturas/MAN-80_2.png)
+![Figura MAN-80-2 — Un hilo escalado con el historial completo, el recuadro «Esperando a un asesor» y el botón «Tomar la conversación»](capturas/MAN-80_2.png)
 
 #### Paso a paso
 
 1. Ingresar a «Menú › Operaciones › Agente WhatsApp».
 2. Identificar los hilos con la pastilla «Espera un asesor». Para buscar, escribir en «Buscar por motivo o estado».
 3. Hacer clic en el hilo y leer el historial: el cliente no tiene que repetir lo que ya dijo.
-4. Pulsar «Tomar la conversación». La pastilla pasa a «En atención» y el agente deja de responder. La toma queda en el Log de operaciones como «Tomar escalamiento».
+4. Pulsar «Tomar la conversación». La pastilla pasa a «En atención» y el agente deja de responder. La toma queda en el Log de operaciones como «Tomar escalamiento». La lista de la izquierda sigue mostrando «Espera un asesor» hasta recargar la pantalla.
 5. Escribir la respuesta en el campo «Escribí tu respuesta…» y pulsar «Enviar». El mensaje sale por WhatsApp y aparece con el autor «Operador».
 6. Si el motivo es «Cancelación de turno con seña», decidir qué hacer con el turno desde «Menú › Operaciones › Agenda» (MAN-70) y avisar al cliente por este hilo.
 
-![Figura MAN-80-3 — El hilo en atención, con la respuesta del Operador en el historial](capturas/MAN-80_3.png)
+![Figura MAN-80-3 — El hilo en «En atención», con la respuesta del Operador en el historial y la caja «Escribí tu respuesta…»](capturas/MAN-80_3.png)
 
-El hilo no se actualiza solo: para ver mensajes nuevos del cliente, volver a abrirlo.
+El hilo y la lista no se actualizan solos: para ver mensajes nuevos del cliente o el cambio de estado en la bandeja, recargar la pantalla y volver a abrir el hilo.
 
 #### Mensajes y errores frecuentes
 
@@ -154,7 +159,7 @@ HU-E9-02 — Resolver y cerrar un escalamiento. El escalamiento se cierra de una
 3. Pulsar «Devolver al agente» o «Dar por finalizada».
 4. Verificar que la pastilla dice «La atiende el agente», que aparece «Este hilo no tiene ningún escalamiento abierto.» y que desaparecen la caja de respuesta y la tarjeta de cierre.
 
-![Figura MAN-80-4 — La tarjeta «Cerrar el escalamiento» con la clasificación y los dos botones de cierre](capturas/MAN-80_4.png)
+![Figura MAN-80-4 — La tarjeta «Cerrar el escalamiento» con «Consulta» elegida en «Clasificación al devolver» y los botones «Devolver al agente» y «Dar por finalizada»](capturas/MAN-80_4.png)
 
 #### Mensajes y errores frecuentes
 
@@ -164,11 +169,11 @@ HU-E9-02 — Resolver y cerrar un escalamiento. El escalamiento se cierra de una
 
 ### Administrar las respuestas frecuentes
 
-HU-E9-04 — Administrar el repositorio de FAQ. Una respuesta frecuente es una pregunta y la respuesta que el agente envía tal cual, sin que ningún modelo la reescriba. Hoy el agente reconoce una pregunta solo cuando el mensaje del cliente es idéntico, letra por letra, a la «Pregunta disparadora»; si ninguna coincide, ofrece derivar con un asesor. La búsqueda por significado depende de un proveedor externo que todavía no está conectado.
+HU-E9-04 — Administrar el repositorio de FAQ. Una respuesta frecuente es una pregunta y la respuesta que el agente envía tal cual, sin que ningún modelo la reescriba. Hoy el agente reconoce una pregunta solo cuando el mensaje del cliente es idéntico, letra por letra, a la «Pregunta disparadora»; si ninguna coincide, ofrece derivar con un asesor. El encabezado de la pantalla dice que el agente busca por significado, pero esa búsqueda depende de un proveedor externo que todavía no está conectado: hasta entonces la redacción del cliente debe coincidir con la pregunta cargada.
 
 El listado muestra «Pregunta», «Respuesta», «Estado» («Disponible» o «Todavía no buscable») y los usos «Este mes», «Mes anterior» y «Total», por mes calendario en hora de Argentina. Un uso se cuenta cuando el agente respondió con esa respuesta y el mensaje de WhatsApp salió. Las más usadas este mes van primero.
 
-![Figura MAN-80-5 — El listado de respuestas frecuentes con sus usos del mes, del mes anterior y totales](capturas/MAN-80_5.png)
+![Figura MAN-80-5 — El listado de respuestas frecuentes, con tres respuestas «Disponible» y sus usos de este mes, del mes anterior y totales](capturas/MAN-80_5.png)
 
 #### Paso a paso
 
@@ -180,9 +185,9 @@ El listado muestra «Pregunta», «Respuesta», «Estado» («Disponible» o «T
 6. Para ver su uso, pulsar «Ver uso». La tarjeta «Uso de la respuesta» muestra los usos y la participación de la respuesta antes y después de su última edición (hasta 30 días a cada lado). Pulsar «Cerrar» para volver.
 7. Para quitarla, pulsar «Eliminar» y confirmar con «Eliminar» en la ventana «Eliminar respuesta». El agente deja de usarla de inmediato. La eliminación no se deshace.
 
-![Figura MAN-80-6 — La tarjeta «Agregar respuesta» con «Pregunta disparadora» y «Respuesta»](capturas/MAN-80_6.png)
+![Figura MAN-80-6 — La tarjeta «Agregar respuesta» con «Pregunta disparadora» y «Respuesta» completas, antes de guardar](capturas/MAN-80_6.png)
 
-![Figura MAN-80-7 — La tarjeta «Uso de la respuesta» con los usos y la participación](capturas/MAN-80_7.png)
+![Figura MAN-80-7 — La tarjeta «Uso de la respuesta» de una respuesta sin ediciones: usos de este mes, del mes anterior y totales, y la frase que explica por qué no hay con qué comparar](capturas/MAN-80_7.png)
 
 #### Mensajes y errores frecuentes
 
@@ -212,12 +217,12 @@ Los textos son fijos del sistema; la empresa no puede editarlos.
 1. Ingresar a «Menú › Sistema › Respuestas frecuentes». La tarjeta «Horarios de atención» está arriba.
 2. Para cada día, tildar el día y completar «Desde» y «Hasta». Para un horario cortado, pulsar «Agregar franja»; para atender hasta el final del día, tildar «Hasta la medianoche». «Quitar» elimina una franja y, con la última, el día queda en «Cerrado».
 3. En «Fuera de horario», elegir una de las dos políticas.
-4. En la tarjeta «Fechas sin atención», elegir una fecha en «Día sin atención» (un feriado o unas vacaciones) y pulsar «Agregar fecha». Ese día se atiende como fuera de horario. «Quitar» elimina una fecha. El tope es de 200 fechas y no hay calendario automático de feriados.
+4. En la tarjeta «Fechas sin atención», elegir una fecha en «Día sin atención» (un feriado o unas vacaciones) y pulsar «Agregar fecha». La fecha cargada figura en la lista con el formato aaaa-mm-dd y se atiende como fuera de horario. «Quitar» elimina una fecha. El tope es de 200 fechas y no hay calendario automático de feriados.
 5. Pulsar «Guardar». Aparece «Horario guardado.».
 
-![Figura MAN-80-8 — La tarjeta «Horarios de atención» con las franjas por día y la política «Fuera de horario»](capturas/MAN-80_8.png)
+![Figura MAN-80-8 — La tarjeta «Horarios de atención» con las franjas de lunes a viernes: el lunes en dos franjas (de 09:00 a 13:00 y de 16:00 a 20:00)](capturas/MAN-80_8.png)
 
-![Figura MAN-80-9 — La tarjeta «Fechas sin atención» con una fecha cargada](capturas/MAN-80_9.png)
+![Figura MAN-80-9 — El horario completo: sábado de 09:00 a 14:00, domingo «Cerrado», «Fuera de horario» con la primera opción elegida, la fecha sin atención 2026-11-20 y el aviso «Horario guardado.»](capturas/MAN-80_9.png)
 
 El horario es una regla de negocio llamada «Horario de atención». Para volver al comportamiento sin horario, pulsar «Desactivar» en su fila de «Menú › Sistema › Reglas de negocio» (MAN-60); guardar el horario de nuevo la reactiva.
 
@@ -258,7 +263,7 @@ WhatsApp exige que Meta apruebe una plantilla antes de enviarla fuera de las 24 
 
 Si los recordatorios de turno están activos, WhatsApp está conectado y «Recordatorio de turno» no está «Aprobada», aparece el aviso «Los recordatorios de turno pueden no llegar».
 
-![Figura MAN-80-10 — El listado de plantillas con el estado de aprobación de cada una](capturas/MAN-80_10.png)
+![Figura MAN-80-10 — El listado de plantillas: tres «Aprobada» (Recordatorio de turno, Cancelación de turno y Confirmación de turno) con la fecha desde la que se pueden editar, y tres «Sin enviar a Meta»](capturas/MAN-80_10.png)
 
 #### Paso a paso
 
@@ -269,7 +274,7 @@ Si los recordatorios de turno están activos, WhatsApp está conectado y «Recor
 5. Para enviar a Meta una plantilla «Sin enviar a Meta» o «Rechazada» sin cambiar su texto, pulsar «Enviar a revisión».
 6. Recargar la pantalla para ver el estado: cambia cuando Meta responde.
 
-![Figura MAN-80-11 — El editor de una plantilla con «Variables disponibles» y «Texto del mensaje»](capturas/MAN-80_11.png)
+![Figura MAN-80-11 — El editor de la plantilla «Confirmación de turno» con «Variables disponibles» y «Texto del mensaje», antes de enviar ninguna plantilla a revisión](capturas/MAN-80_11.png)
 
 #### Mensajes y errores frecuentes
 
