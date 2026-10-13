@@ -73,6 +73,9 @@ warn_unreachable = true
 warn_no_return = true
 show_error_codes = true
 pretty = true
+# backend/scripts/local_ci is imported as `local_ci` (see run_local_ci.py), so the
+# tests that exercise it can be type-checked against the real package.
+mypy_path = "backend/scripts"
 exclude = ['^\.venv/', '^venv/', '^node_modules/', '^build/', '^dist/']
 # Where our own package lives. The project environment finds `cheatsheet` because it is
 # installed in editable mode; the pre-commit hook runs in an isolated environment where it is
@@ -128,7 +131,7 @@ python_functions = ["test_*"]
 # The backend package lives under backend/src (installed with `pip install -e backend/`);
 # this makes the sibling `tests` package importable, so a test can reuse the fixtures
 # and fakes in tests/conftest.py by name.
-pythonpath = ["backend"]
+pythonpath = ["backend", "backend/scripts"]
 testpaths = ["backend/tests"]
 # Nearly everything below the API is async. Declaring the mode here rather than
 # decorating every module keeps the marker meaningful where it is written.

@@ -23,6 +23,10 @@ Rules ([`../../docs/code-standards.md`](../../docs/code-standards.md) §4):
 
 Every fixed bug starts with the test that reproduces it.
 
+To run the whole CI pipeline locally (PostgreSQL, Redis, RLS checks, coverage, frontend)
+see [`../scripts/local_ci/README.md`](../scripts/local_ci/README.md) and
+[ADR-0016](../../docs/adr/0016-local-ci-verification.md).
+
 ## PostgreSQL integration suite (`tests/integracion/`)
 
 These tests need a real PostgreSQL (Row-Level Security has no fake). They are
