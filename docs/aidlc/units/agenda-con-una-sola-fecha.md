@@ -120,7 +120,7 @@ Los casos 1 a 3 se escriben **antes** del arreglo y tienen que fallar con el có
 |---|---|---|
 | 1 · Plan | 2026-10-12 | aprobado con la opción A de P1: una sola fecha = ese día completo |
 | 2 · Verificación | 2026-10-13 | Backend: ruff ✔, mypy ✔ (862 archivos), pytest 3275 ✔ / 655 omitidos (sin PostgreSQL ni Redis locales). Frontend: lint ✔, typecheck ✔, 1429 tests ✔, cobertura 90,92 %. Hook de pre-commit ✔ con el arreglo de `mypy-en-pre-commit` |
-| 3 · PR | | |
+| 3 · PR | 2026-10-13 | PR #203 a `develop`, apoyado en #202 (hook `mypy` de pre-commit). CI bloqueado por la facturación de Actions de la organización |
 
 ## Decisiones tomadas durante la unidad
 - El test de la fecha sin zona arma el `datetime` con `fromisoformat` en lugar de silenciar la regla DTZ001 de ruff: es lo mismo que recibe FastAPI del query string.
