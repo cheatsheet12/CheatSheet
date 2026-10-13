@@ -210,7 +210,7 @@ async def test_buscar_al_cliente_en_la_bitacora_trae_su_alta_y_su_turno(
 
     assert propia.status_code == 200, propia.text
     entidades = {uno["entidad_afectada"] for uno in propia.json()["operaciones"]}
-    assert entidades == {f"Cliente:{escena.cliente_id}", f"Turno:{creado.json()['id']}"}
+    assert entidades == {f"cliente:{escena.cliente_id}", f"Turno:{creado.json()['id']}"}
     assert ajena.json()["total"] == 0
 
 

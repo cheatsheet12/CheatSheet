@@ -101,7 +101,7 @@ def _coincide_con_la_busqueda(uno: RegistroDeAuditoria, filtros: FiltrosDeBitaco
         texto in uno.accion.lower() or texto in uno.entidad_afectada.lower()
     )
     ids = {str(cliente) for cliente in filtros.clientes}
-    por_cliente = uno.entidad_afectada in {f"Cliente:{cliente}" for cliente in ids} or (
+    por_cliente = uno.entidad_afectada in {f"cliente:{cliente}" for cliente in ids} or (
         (uno.detalle or {}).get("cliente_id") in ids
     )
     return por_texto or por_cliente
@@ -244,7 +244,7 @@ class TestFiltros:
         """
         cliente, otro = uuid4(), uuid4()
         registros = RegistrosEnMemoria(
-            _registro(accion="cliente_registrado", entidad=f"Cliente:{cliente}"),
+            _registro(accion="cliente_registrado", entidad=f"cliente:{cliente}"),
             _registro(
                 accion="reservar_turno",
                 entidad="Turno:t1",
@@ -262,10 +262,10 @@ class TestFiltros:
             FiltrosDeBitacora(texto="Ana", clientes=(cliente,)), rol=RolUsuario.ADMINISTRADOR
         )
 
-        assert sorted(uno.entidad_afectada for uno in encontrados) == [
-            f"Cliente:{cliente}",
+        assert {uno.entidad_afectada for uno in encontrados} == {
+            f"cliente:{cliente}",
             "Turno:t1",
-        ]
+        }
 
     @pytest.mark.asyncio
     async def test_contar_no_pagina(self) -> None:
