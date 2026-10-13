@@ -14,7 +14,10 @@ export type { PropsDeBitacora } from "./components/Bitacora";
 export { CentroDeNotificaciones } from "./components/CentroDeNotificaciones";
 export type { PropsDeCentroDeNotificaciones } from "./components/CentroDeNotificaciones";
 export { DetalleDeOperacion } from "./components/DetalleDeOperacion";
-export type { PropsDeDetalleDeOperacion } from "./components/DetalleDeOperacion";
+export type {
+  PropsDeDetalleDeOperacion,
+  ResponsableDeOperacion,
+} from "./components/DetalleDeOperacion";
 export { Soporte } from "./components/Soporte";
 export type { PropsDeSoporte } from "./components/Soporte";
 export {
