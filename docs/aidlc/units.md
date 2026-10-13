@@ -79,6 +79,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cobros y recordatorios | recordatorio-por-email | payments | HS-T3 | canal-real-de-whatsapp | Luciano | — | pendiente |
 | Cimientos, identidad y bitácora | integracion-en-neon | tests de integración (`backend/tests/integracion`, transversal) | — | — | Luciano | feature/infra-integracion-en-neon | mergeada |
 | Cimientos, identidad y bitácora | mypy-en-pre-commit | infra (`.pre-commit-config.yaml`, transversal) | — (unidad técnica) | — | Emanuel | fix/infra-mypy-en-pre-commit | en revisión |
+| Conexión con los servicios externos | pem-de-prueba-sin-falso-positivo | integrations | — (unidad técnica) | mypy-en-pre-commit | Emanuel | fix/integrations-pem-de-prueba-sin-falso-positivo | en revisión |
 
 
 ---
