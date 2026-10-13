@@ -70,8 +70,8 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   try {
-    await comoRutaDelBff(() =>
-      llamarApi("/planillas/google", {
+    const vinculo = await comoRutaDelBff(() =>
+      llamarApi<{ id: string }>("/planillas/google", {
         method: "POST",
         headers: { Cookie: `${COOKIE_ESTADO}=${guardado}` },
         body: {
@@ -86,7 +86,9 @@ export async function GET(request: Request): Promise<NextResponse> {
         },
       }),
     );
-    const hecho = aIngesta();
+    const hecho = NextResponse.redirect(
+      new URL(`/ingesta/mapeo/${encodeURIComponent(vinculo.id)}`, urlDeLaApp()),
+    );
     hecho.cookies.delete(COOKIE_ESTADO);
     hecho.cookies.delete(COOKIE_DOCUMENTO);
     hecho.cookies.delete(COOKIE_DIRECCION);

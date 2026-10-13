@@ -20,6 +20,7 @@ interface GoogleApis {
     ViewId: { SPREADSHEETS: string };
     PickerBuilder: new () => {
       addView: (view: string) => PickerBuilder;
+      setSelectableMimeTypes: (types: string) => PickerBuilder;
       setOAuthToken: (token: string) => PickerBuilder;
       setDeveloperKey: (key: string) => PickerBuilder;
       setAppId: (id: string) => PickerBuilder;
@@ -31,6 +32,7 @@ interface GoogleApis {
 
 interface PickerBuilder {
   addView(view: string): PickerBuilder;
+  setSelectableMimeTypes(types: string): PickerBuilder;
   setOAuthToken(token: string): PickerBuilder;
   setDeveloperKey(key: string): PickerBuilder;
   setAppId(id: string): PickerBuilder;
@@ -106,6 +108,7 @@ export async function seleccionarPlanillaConGoogle(): Promise<string | null> {
   return new Promise<string | null>((resolve) => {
     new google.picker.PickerBuilder()
       .addView(google.picker.ViewId.SPREADSHEETS)
+      .setSelectableMimeTypes("application/vnd.google-apps.spreadsheet")
       .setOAuthToken(token)
       .setDeveloperKey(API_KEY)
       .setAppId(PROJECT_NUMBER)
