@@ -284,7 +284,7 @@ async def test_el_operador_no_edita(monkeypatch: pytest.MonkeyPatch) -> None:
         montaje, "PUT", f"/plantillas/{montaje.plantilla.id}", {"cuerpo": CUERPO_NUEVO}
     )
 
-    assert respuesta.status_code == 422
+    assert respuesta.status_code == 403
     assert "Administrador" in respuesta.json()["detalle"]
     assert montaje.revision.creaciones == []
 
@@ -318,5 +318,5 @@ async def test_enviar_a_revision_solo_lo_hace_el_administrador(
 
     respuesta = await _llamar(montaje, "POST", f"/plantillas/{montaje.plantilla.id}/envio")
 
-    assert respuesta.status_code == 422
+    assert respuesta.status_code == 403
     assert montaje.revision.creaciones == []

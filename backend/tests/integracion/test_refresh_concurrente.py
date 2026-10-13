@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -79,7 +80,12 @@ async def entorno(esquema_migrado: None) -> AsyncIterator[Entorno]:
 async def _registrar(cliente: httpx.AsyncClient, email: str) -> dict[str, str]:
     respuesta = await cliente.post(
         "/auth/registro",
-        json={"email": email, "contrasena": CONTRASENA, "nombre": "Ana Perez"},
+        json={
+            "email": email,
+            "contrasena": CONTRASENA,
+            "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
+        },
     )
     assert respuesta.status_code == 201, respuesta.text
     cuerpo: dict[str, str] = respuesta.json()

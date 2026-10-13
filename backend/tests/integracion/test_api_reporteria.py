@@ -50,7 +50,10 @@ from cheatsheet.contexts.reporting.infrastructure.repositories import (
     RepositorioTokenContablePostgres,
 )
 from cheatsheet.platform.almacenamiento import AlmacenamientoEnMemoria, ArchivoGuardado
-from cheatsheet.platform.database import crear_sessionmaker, sesion_de_empresa
+from cheatsheet.platform.database import (
+    crear_sessionmaker,
+    sesion_de_empresa,
+)
 from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.empresa import EmpresaId
 from sqlalchemy import text
@@ -58,6 +61,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from tests.conftest import settings_de_prueba
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import CONSENTIMIENTO
+from tests.integracion.guarda import argumentos_de_conexion_de_prueba
 from tests.integracion.test_api_bitacora import _sesion_de_solo_lectura
 
 pytestmark = [requiere_base, pytest.mark.integration]
@@ -93,6 +98,7 @@ async def _sesion_admin(http: httpx.AsyncClient) -> tuple[str, EmpresaId]:
             "email": f"{uuid4()}@cheatsheet.ar",
             "contrasena": CONTRASENA,
             "nombre": "Ana Perez",
+            "consentimiento": CONSENTIMIENTO,
         },
     )
     assert respuesta.status_code == 201, respuesta.text
@@ -112,7 +118,10 @@ async def _sembrar_enlace(empresa_id: EmpresaId, paquete_id: str) -> None:
     así que el token se siembra con un digesto conocido, exactamente como lo guardaría el caso
     de uso.
     """
-    engine = create_async_engine(os.environ["DATABASE_URL"])
+    engine = create_async_engine(
+        os.environ["DATABASE_URL"],
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL"]),
+    )
     sesiones = crear_sessionmaker(engine)
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
         await RepositorioTokenContablePostgres(sesion).agregar(
@@ -130,7 +139,10 @@ async def _sembrar_enlace(empresa_id: EmpresaId, paquete_id: str) -> None:
 
 
 async def _revocar(empresa_id: EmpresaId) -> None:
-    engine = create_async_engine(os.environ["DATABASE_URL"])
+    engine = create_async_engine(
+        os.environ["DATABASE_URL"],
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL"]),
+    )
     sesiones = crear_sessionmaker(engine)
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
         repo = RepositorioTokenContablePostgres(sesion)
@@ -441,7 +453,10 @@ async def _sembrar_cobros_de_marzo(empresa_id: EmpresaId) -> None:
     creado = datetime(2026, 2, 10, 12, 0, tzinfo=UTC)
     pagado_el = datetime(2026, 3, 5, 12, 0, tzinfo=UTC)
     cliente_id = uuid4()
-    engine = create_async_engine(os.environ["DATABASE_URL"])
+    engine = create_async_engine(
+        os.environ["DATABASE_URL"],
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL"]),
+    )
     sesiones = crear_sessionmaker(engine)
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
         await sesion.execute(
@@ -629,7 +644,10 @@ async def test_el_paquete_registra_totales(cliente_http: httpx.AsyncClient) -> N
     creado = await cliente_http.post("/reporteria/paquetes", headers=_auth(token), json={})
     assert creado.status_code == 201, creado.text
 
-    engine = create_async_engine(os.environ["DATABASE_URL"])
+    engine = create_async_engine(
+        os.environ["DATABASE_URL"],
+        connect_args=argumentos_de_conexion_de_prueba(os.environ["DATABASE_URL"]),
+    )
     sesiones = crear_sessionmaker(engine)
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:
         paquetes = await RepositorioPaquetePostgres(sesion).listar()

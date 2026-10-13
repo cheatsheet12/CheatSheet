@@ -128,14 +128,18 @@ describe("con sesión", () => {
     });
   });
 
-  it("un 403 del backend llega como 403 y con su código", async () => {
+  it("un 403 por rol llega como 403, con su código y la frase del backend", async () => {
+    // Visto en PRU-07 (11/10/2026): sin la frase, la pantalla mostraba el nombre de la clase.
     cookieDeSesion = "un-access-token";
     llamarApi.mockRejectedValue(new ErrorDeApi(403, "Solo un Administrador", "PermisoDenegado"));
 
     const respuesta = await postInvitacion(pedido({ email: "beto@empresa.com" }));
 
     expect(respuesta.status).toBe(403);
-    expect(await respuesta.json()).toEqual({ error: "PermisoDenegado" });
+    expect(await respuesta.json()).toEqual({
+      error: "PermisoDenegado",
+      detalle: "Solo un Administrador",
+    });
   });
 
   it("las preferencias se guardan tal como llegaron del formulario", async () => {

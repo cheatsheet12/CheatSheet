@@ -34,7 +34,7 @@ from cheatsheet.contexts.spreadsheet_sync.domain.procesamiento import (
 from cheatsheet.platform.almacenamiento import ArchivoGuardado
 from cheatsheet.shared.auditoria import EventoAuditable
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, ErrorDeDominio
+from cheatsheet.shared.errors import EntradaInvalida, ErrorDeDominio, OperacionNoPermitida
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.roles import RolUsuario
 
@@ -388,7 +388,7 @@ async def test_solo_lectura_mira_pero_no_corrige() -> None:
     procesamiento = _procesamiento()
     corrector, _, catalogo, _ = _corrector(procesamiento)
 
-    with pytest.raises(EntradaInvalida, match=MOTIVO_SIN_PERMISO):
+    with pytest.raises(OperacionNoPermitida, match=MOTIVO_SIN_PERMISO):
         await _corregir(
             corrector, procesamiento, valores={"nombre": "A"}, rol=RolUsuario.SOLO_LECTURA
         )

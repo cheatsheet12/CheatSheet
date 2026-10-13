@@ -47,7 +47,7 @@ from cheatsheet.contexts.billing.domain.comprobante import (
 )
 from cheatsheet.contexts.billing.domain.punto_de_venta import PuntoDeVenta, TipoComprobante
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.events import EventoDeDominio
 from cheatsheet.shared.fiscal import CondicionIVA
 from cheatsheet.shared.roles import RolUsuario
@@ -358,7 +358,7 @@ async def test_solo_lectura_no_emite(punto: PuntoDeVenta) -> None:
     comprobantes, cola, arca = ComprobantesFalsos(), ColaFalsa(), ArcaFalso()
     emitir, _, _ = _emisor(punto, arca, comprobantes, cola)
 
-    with pytest.raises(EntradaInvalida):
+    with pytest.raises(OperacionNoPermitida):
         await emitir.ejecutar(
             empresa_id=EMPRESA,
             usuario_id=USUARIO,

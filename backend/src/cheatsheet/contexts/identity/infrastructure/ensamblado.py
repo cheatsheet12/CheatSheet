@@ -14,11 +14,13 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from cheatsheet.api.dependencies import UnidadDeTrabajo
+from cheatsheet.contexts.identity.application.aceptaciones import RegistradorDeAceptaciones
 from cheatsheet.contexts.identity.application.ports import (
     PortEmisorDeTokens,
     PortEnvioDeEmail,
     PortHashDeContrasena,
     PortProveedorOAuth,
+    PortRepositorioAceptacionLegal,
     PortRepositorioEmpresa,
     PortRepositorioInvitacion,
     PortRepositorioRefreshToken,
@@ -26,10 +28,14 @@ from cheatsheet.contexts.identity.application.ports import (
     PortTokenDeInvitacion,
 )
 from cheatsheet.contexts.identity.application.sesiones import EmisorDeSesiones
+from cheatsheet.contexts.identity.infrastructure.aceptaciones import (
+    RepositorioAceptacionLegalPostgres,
+)
 from cheatsheet.contexts.identity.infrastructure.email_invitacion import (
     EnviadorDeConsola,
     EnviadorSMTP,
 )
+from cheatsheet.contexts.identity.infrastructure.legal.catalogo import catalogo_publicado
 from cheatsheet.contexts.identity.infrastructure.oauth_falso import ProveedorOAuthSimulado
 from cheatsheet.contexts.identity.infrastructure.oauth_google import (
     ConfiguracionOAuthGoogle,
@@ -66,6 +72,8 @@ class Identidad:
     tokens_de_invitacion: PortTokenDeInvitacion
     emisor: EmisorDeSesiones
     vida_invitacion: timedelta
+    aceptaciones: PortRepositorioAceptacionLegal
+    registrador: RegistradorDeAceptaciones
 
     @classmethod
     def armar(cls, unidad: UnidadDeTrabajo, settings: Settings) -> Identidad:
@@ -74,6 +82,7 @@ class Identidad:
             vida_acceso=timedelta(minutes=settings.jwt_access_ttl_minutos),
         )
         refrescos = RepositorioRefreshTokenPostgres(unidad.sesion)
+        aceptaciones = RepositorioAceptacionLegalPostgres(unidad.sesion)
         return cls(
             empresas=RepositorioEmpresaPostgres(unidad.sesion),
             usuarios=RepositorioUsuarioPostgres(unidad.sesion),
@@ -88,6 +97,12 @@ class Identidad:
                 vida_refresh=timedelta(days=settings.refresh_ttl_dias),
             ),
             vida_invitacion=timedelta(days=settings.invitacion_ttl_dias),
+            aceptaciones=aceptaciones,
+            registrador=RegistradorDeAceptaciones(
+                catalogo=catalogo_publicado(),
+                aceptaciones=aceptaciones,
+                publicador=unidad.publicador,
+            ),
         )
 
 

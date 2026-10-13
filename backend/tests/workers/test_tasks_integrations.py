@@ -15,6 +15,7 @@ el resto se inyecta.
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -35,6 +36,7 @@ from cheatsheet.workers import (
     tasks_payments,
     tasks_reference_data,
     tasks_reporting,
+    tasks_scheduling,
     tasks_spreadsheet,
 )
 from cheatsheet.workers.base import EjecutorIdempotente
@@ -201,15 +203,22 @@ async def test_un_desenlace_avisa_a_todos_los_administradores(
     assert espia.avisos[0].estado is EstadoDeConexion.CONECTADO
 
 
+def _minutos_entre_disparos(programa: Any) -> float:
+    """Effective period of a schedule, whether a `timedelta` or an aligned `crontab`."""
+    if isinstance(programa, timedelta):
+        return programa.total_seconds() / 60
+    return (24 * 60) / (len(programa.minute) * len(programa.hour))
+
+
 def test_beat_programa_el_barrido_con_el_intervalo_configurado() -> None:
     """La primera entrada real de Beat. El intervalo es configuración, no una constante."""
-    settings: Settings = replace(settings_de_prueba(), whatsapp_sondeo_minutos=45)
+    settings: Settings = replace(settings_de_prueba(), whatsapp_sondeo_minutos=20)
 
     entradas = programacion(settings)
 
     entrada = entradas["sondear-integraciones-pendientes"]
     assert entrada["task"] == tasks_integrations.NOMBRE_BARRIDO
-    assert entrada["schedule"].total_seconds() == 45 * 60
+    assert entrada["schedule"].minute == set(range(0, 60, 20))
     assert entrada["options"]["queue"] == "integrations_sync"
 
 
@@ -236,7 +245,9 @@ def test_beat_programa_la_revision_de_vencimientos_una_vez_por_dia() -> None:
 
     entrada = entradas["revisar-vencimientos-de-credenciales"]
     assert entrada["task"] == tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS
-    assert entrada["schedule"].total_seconds() == 24 * 60 * 60
+    assert _minutos_entre_disparos(entrada["schedule"]) == 24 * 60
+    assert entrada["schedule"].minute == {0}
+    assert entrada["schedule"].hour == {0}
     assert entrada["options"]["queue"] == "integrations_sync"
 
 
@@ -250,7 +261,7 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
     """
     entradas = programacion(settings_de_prueba())
 
-    assert len(entradas) == 11
+    assert len(entradas) == 12
     assert {e["task"] for e in entradas.values()} == {
         tasks_integrations.NOMBRE_BARRIDO,
         tasks_integrations.NOMBRE_BARRIDO_VENCIMIENTOS,
@@ -283,6 +294,9 @@ def test_todas_las_entradas_de_beat_conviven() -> None:
         # cuyo webhook de estado no llegó (no admite override por cuenta) quedaria
         # `PENDIENTE` para siempre y los recordatorios saldrian como texto.
         tasks_business_config.NOMBRE_BARRIDO,
+        # U8: despacha el recordatorio de turno de cada empresa con un turno por recordar. Sin
+        # esta entrada HU-E8-04 no se cumple: nadie recordaría un turno.
+        tasks_scheduling.NOMBRE_BARRIDO,
     }
 
 
@@ -295,14 +309,24 @@ def test_los_parametros_fiscales_son_la_entrada_menos_frecuente() -> None:
     entrada = programacion(settings_de_prueba())["sincronizar-parametros-fiscales"]
 
     assert entrada["task"] == tasks_reference_data.NOMBRE_SINCRONIZAR
-    assert entrada["schedule"].total_seconds() == 24 * 60 * 60
-    # Es la entrada más espaciada de todas.
+    assert _minutos_entre_disparos(entrada["schedule"]) == 24 * 60
+    # Es la entrada más espaciada de todas, comparando la frecuencia efectiva de cada una
+    # (`crontab` incluidas): una entrada nueva menos frecuente rompe este test.
     otras = [
-        e["schedule"].total_seconds()
+        _minutos_entre_disparos(e["schedule"])
         for nombre, e in programacion(settings_de_prueba()).items()
         if nombre != "sincronizar-parametros-fiscales"
     ]
-    assert entrada["schedule"].total_seconds() >= max(otras)
+    assert _minutos_entre_disparos(entrada["schedule"]) >= max(otras)
+
+
+def test_los_parametros_fiscales_configurados_se_anclan_al_reloj() -> None:
+    settings = replace(settings_de_prueba(), parametros_fiscales_horas=6)
+
+    entrada = programacion(settings)["sincronizar-parametros-fiscales"]
+
+    assert entrada["schedule"].minute == {0}
+    assert entrada["schedule"].hour == {0, 6, 12, 18}
 
 
 def test_la_sincronizacion_incremental_corre_por_hora_y_en_su_propia_cola() -> None:
@@ -314,7 +338,8 @@ def test_la_sincronizacion_incremental_corre_por_hora_y_en_su_propia_cola() -> N
     entrada = programacion(settings_de_prueba())["sincronizar-planillas"]
 
     assert entrada["task"] == tasks_spreadsheet.NOMBRE_BARRIDO_SYNC
-    assert entrada["schedule"].total_seconds() == 60 * 60
+    assert entrada["schedule"].minute == {0}
+    assert entrada["schedule"].hour == set(range(24))
     assert entrada["options"]["queue"] == "incremental_sync"
 
 
@@ -327,8 +352,50 @@ def test_el_barrido_de_la_dlq_corre_seguido_y_en_notifications() -> None:
     entrada = programacion(settings_de_prueba())["barrer-tareas-agotadas"]
 
     assert entrada["task"] == tasks_observability.NOMBRE_BARRIDO
-    assert entrada["schedule"].total_seconds() == 15 * 60
+    assert entrada["schedule"].minute == {0, 15, 30, 45}
     assert entrada["options"]["queue"] == "notifications"
+
+
+def test_la_reconciliacion_de_comprobantes_usa_el_intervalo_configurado() -> None:
+    """Cinco minutos por defecto (D17); staging lo sube para que la base pueda dormirse."""
+    por_defecto = programacion(settings_de_prueba())["reconciliar-comprobantes-en-vuelo"]
+    assert por_defecto["schedule"].minute == set(range(0, 60, 5))
+
+    settings = replace(settings_de_prueba(), billing_reconciliacion_minutos=60)
+    configurada = programacion(settings)["reconciliar-comprobantes-en-vuelo"]
+
+    assert configurada["task"] == tasks_billing.NOMBRE_RECONCILIAR
+    assert configurada["schedule"].minute == {0}
+    assert configurada["schedule"].hour == set(range(24))
+
+
+def test_las_entradas_que_tocan_la_base_comparten_el_minuto_cero() -> None:
+    """Neon duerme tras cinco minutos ociosos: si todas disparan juntas, despierta una vez.
+
+    Con un `timedelta` cada tarea cuenta desde el arranque de Beat y la base nunca duerme.
+    El minuto 0 de cada hora tiene que estar en el conjunto de disparo de todas, y las
+    entradas de periodo largo no pueden disparar en otro minuto.
+    """
+    entradas = programacion(settings_de_prueba())
+    alineadas = [
+        "sondear-integraciones-pendientes",
+        "sincronizar-planillas",
+        "reconciliar-comprobantes-en-vuelo",
+        "barrer-cobros",
+        "reindexar-faqs",
+        "barrer-tareas-agotadas",
+        "revisar-vencimientos-de-credenciales",
+        "renovar-credenciales-oauth",
+        "sincronizar-parametros-fiscales",
+        "armar-paquetes-contables",
+    ]
+
+    for nombre in alineadas:
+        assert 0 in entradas[nombre]["schedule"].minute, nombre
+        assert 0 in entradas[nombre]["schedule"].hour, nombre
+    assert entradas["barrer-cobros"]["schedule"].minute == {0}
+    assert entradas["reindexar-faqs"]["schedule"].minute == {0}
+    assert entradas["reindexar-faqs"]["schedule"].hour == {0, 6, 12, 18}
 
 
 def test_la_renovacion_corre_a_diario() -> None:
@@ -336,7 +403,9 @@ def test_la_renovacion_corre_a_diario() -> None:
     entrada = programacion(settings_de_prueba())["renovar-credenciales-oauth"]
 
     assert entrada["task"] == tasks_integrations.NOMBRE_BARRIDO_RENOVACION
-    assert entrada["schedule"].total_seconds() == 24 * 60 * 60
+    assert _minutos_entre_disparos(entrada["schedule"]) == 24 * 60
+    assert entrada["schedule"].minute == {0}
+    assert entrada["schedule"].hour == {0}
     assert entrada["options"]["queue"] == "integrations_sync"
 
 

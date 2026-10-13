@@ -74,6 +74,7 @@ from cheatsheet.contexts.integrations.infrastructure.repositories import (
 from cheatsheet.platform.database import sesion_sin_empresa
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
+from cheatsheet.shared.externo_id import LARGO_MAXIMO_EXTERNO_ID
 from fastapi import APIRouter, Query, Request, Response, status
 
 logger = obtener_logger(__name__)
@@ -329,6 +330,8 @@ def _traducir(mensaje: dict[str, Any]) -> MensajeEntrante | None:
         # Sin id no hay idempotencia y sin número no hay a quién contestarle. Los dos hacen
         # que el mensaje sea imposible de procesar, no que el sistema esté roto.
         return None
+    if not _id_es_utilizable(externo_id):
+        return None
 
     texto = None
     cuerpo = mensaje.get("text")
@@ -352,6 +355,22 @@ def _traducir(mensaje: dict[str, Any]) -> MensajeEntrante | None:
         audio_id=audio_id,
         momento=_momento(mensaje.get("timestamp")),
     )
+
+
+def _id_es_utilizable(externo_id: str) -> bool:
+    """El `wamid` es la clave de idempotencia del mensaje: tiene que existir y entrar en su columna.
+
+    Vacío, `buscar_por_externo_id` lo confundiría con cualquier mensaje anterior sin id y lo daría
+    por ya procesado; más largo que `LARGO_MAXIMO_EXTERNO_ID`, el `INSERT` falla y sale un 500 que
+    Meta reintenta (y cada reintento vuelve a transcribir el audio). Procesarlo sin clave sería
+    peor —respuestas y reservas duplicadas—, así que se descarta. El log lleva solo el largo y el
+    motivo: nunca el id, el teléfono ni el texto.
+    """
+    if externo_id and len(externo_id) <= LARGO_MAXIMO_EXTERNO_ID:
+        return True
+    motivo = "vacio" if not externo_id else "demasiado_largo"
+    logger.warning("whatsapp_id_entrante_inutilizable", largo=len(externo_id), motivo=motivo)
+    return False
 
 
 def _momento(crudo: Any) -> datetime | None:

@@ -16,6 +16,10 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from cheatsheet.contexts.identity.application.aceptaciones import (
+    Consentimiento,
+    RegistradorDeAceptaciones,
+)
 from cheatsheet.contexts.identity.application.errors import UltimoAdministradorActivo
 from cheatsheet.contexts.identity.application.invitaciones import (
     AceptarInvitacion,
@@ -29,6 +33,10 @@ from cheatsheet.contexts.identity.application.sesiones import (
 )
 from cheatsheet.contexts.identity.application.usuarios import DesactivarUsuario
 from cheatsheet.contexts.identity.domain.valores import Email, HashDeContrasena, RolUsuario
+from cheatsheet.contexts.identity.infrastructure.aceptaciones import (
+    RepositorioAceptacionLegalPostgres,
+)
+from cheatsheet.contexts.identity.infrastructure.legal.catalogo import catalogo_publicado
 from cheatsheet.contexts.identity.infrastructure.repositories import (
     RepositorioEmpresaPostgres,
     RepositorioInvitacionPostgres,
@@ -54,6 +62,7 @@ from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.integracion.conftest import requiere_base
+from tests.integracion.consentimiento import VERSION_DE_PRIVACIDAD, VERSION_DE_TERMINOS
 
 pytestmark = [requiere_base, pytest.mark.integration]
 
@@ -83,6 +92,14 @@ def _tokens() -> EmisorDeTokensJWT:
     return EmisorDeTokensJWT(secreto=SECRETO, vida_acceso=timedelta(minutes=15))
 
 
+def _registrador(sesion: AsyncSession) -> RegistradorDeAceptaciones:
+    return RegistradorDeAceptaciones(
+        catalogo=catalogo_publicado(),
+        aceptaciones=RepositorioAceptacionLegalPostgres(sesion),
+        publicador=PublicadorNulo(),
+    )
+
+
 def _emisor(sesion: AsyncSession) -> EmisorDeSesiones:
     return EmisorDeSesiones(
         tokens=_tokens(),
@@ -102,12 +119,15 @@ async def _crear_cuenta(
             usuarios=RepositorioUsuarioPostgres(sesion),
             hasher=HasherFalso(),
             publicador=PublicadorNulo(),
+            registrador=_registrador(sesion),
         ).ejecutar(
             empresa_id=empresa_id,
             email=Email(email),
             contrasena=CONTRASENA,
             nombre="Ana Perez",
-            version_terminos="1.0",
+            consentimiento=Consentimiento(
+                version_terminos=VERSION_DE_TERMINOS, version_privacidad=VERSION_DE_PRIVACIDAD
+            ),
             ahora=datetime.now(UTC),
         )
     return empresa_id, registrada.usuario.id
@@ -287,10 +307,12 @@ async def test_aceptar_una_invitacion_funciona_sin_sesion_previa(
             hasher=HasherFalso(),
             emisor=_emisor(sesion),
             publicador=PublicadorNulo(),
+            registrador=_registrador(sesion),
         ).ejecutar(
             token=token,
             nombre="Beto Gomez",
             contrasena=CONTRASENA,
+            version_privacidad=VERSION_DE_PRIVACIDAD,
             ahora=datetime.now(UTC),
         )
 
@@ -345,10 +367,12 @@ async def test_la_carrera_del_ultimo_administrador_la_gana_uno_solo(
             hasher=HasherFalso(),
             emisor=_emisor(sesion),
             publicador=PublicadorNulo(),
+            registrador=_registrador(sesion),
         ).ejecutar(
             token=segundo_token,
             nombre="Beto Gomez",
             contrasena=CONTRASENA,
+            version_privacidad=VERSION_DE_PRIVACIDAD,
             ahora=datetime.now(UTC),
         )
     async with sesion_de_empresa(sesiones, empresa_id) as sesion:

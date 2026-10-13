@@ -10,7 +10,7 @@
 
 import { NextResponse } from "next/server";
 
-import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { respuestaDeError } from "@/app/api/auth/_sesion";
@@ -26,7 +26,7 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({ error: "NoAutenticado" }, { status: 401 });
   }
   try {
-    return NextResponse.json(await llamarApi<unknown>("/auth/empresa"));
+    return NextResponse.json(await comoRutaDelBff(() => llamarApi<unknown>("/auth/empresa")));
   } catch (error) {
     return respuestaDeError(error instanceof ErrorDeApi ? error : null);
   }
@@ -38,10 +38,12 @@ export async function PUT(request: Request): Promise<NextResponse> {
   }
   const cuerpo: unknown = await request.json();
   try {
-    const resultado = await llamarApi<RespuestaDeEmpresa>("/auth/empresa", {
-      method: "PUT",
-      body: cuerpo,
-    });
+    const resultado = await comoRutaDelBff(() =>
+      llamarApi<RespuestaDeEmpresa>("/auth/empresa", {
+        method: "PUT",
+        body: cuerpo,
+      }),
+    );
     return NextResponse.json(resultado);
   } catch (error) {
     return respuestaDeError(error instanceof ErrorDeApi ? error : null);

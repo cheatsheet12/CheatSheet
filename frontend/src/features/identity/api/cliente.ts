@@ -6,10 +6,17 @@
  * not allowed to read (ADR-011).
  */
 
+/** The versions the person ticked, exactly as `/legal/vigentes` showed them (HU-E1-08 RN-03). */
+export interface Consentimiento {
+  readonly version_terminos: string;
+  readonly version_privacidad: string;
+}
+
 export interface DatosDeRegistro {
   readonly email: string;
   readonly contrasena: string;
   readonly nombre: string;
+  readonly consentimiento: Consentimiento;
 }
 
 export interface DatosDeIngreso {
@@ -37,6 +44,12 @@ export interface EmpresaActual {
   readonly condicion_iva: string | null;
   readonly nombre_responsable: string | null;
   readonly email_contacto: string | null;
+  /**
+   * Legal documents the person owes (HU-E1-03 RN-03, HU-E1-08 RN-05); empty when they are up to
+   * date. Optional only because the panel may be deployed before the API that sends it: an
+   * absent field reads as "nothing pending", never as a block.
+   */
+  readonly aceptaciones_pendientes?: readonly DocumentoLegal[];
 }
 
 /**
@@ -79,10 +92,61 @@ export interface DatosDeInvitacion {
   readonly rol: RolUsuario;
 }
 
+/** The closed set of legal documents (mirrors `DocumentoLegal` in the backend). */
+export type DocumentoLegal = "TERMINOS" | "PRIVACIDAD";
+
+/** What `GET /legal/terminos` and `GET /legal/privacidad` answer: the version in force. */
+export interface DocumentoLegalPublicado {
+  readonly documento: DocumentoLegal;
+  readonly version: string;
+  /** `YYYY-MM-DD`, a calendar day in Argentina. */
+  readonly vigente_desde: string;
+  /** Still pending legal validation (HU-E1-08 RN-07). */
+  readonly borrador: boolean;
+  /** Markdown subset: `##` headings, paragraphs and `-` lists. */
+  readonly texto: string;
+}
+
+/** One entry of `GET /legal/vigentes`. */
+export interface VersionVigente {
+  readonly version: string;
+  /** `YYYY-MM-DD`, a calendar day in Argentina. */
+  readonly vigente_desde: string;
+  readonly borrador: boolean;
+}
+
+/** What `GET /legal/vigentes` answers: the version in force of each document. */
+export interface VersionesVigentes {
+  readonly terminos: VersionVigente;
+  readonly privacidad: VersionVigente;
+}
+
+/** One entry of `GET /legal/pendientes`: a document the person must accept, and its version. */
+export interface PendienteLegal {
+  readonly documento: DocumentoLegal;
+  readonly version: string;
+  /** `YYYY-MM-DD`, a calendar day in Argentina. */
+  readonly vigente_desde: string;
+  readonly borrador: boolean;
+}
+
+/** What `GET /legal/pendientes` answers. */
+export interface PendientesLegales {
+  readonly pendientes: readonly PendienteLegal[];
+}
+
+/** A `(document, version)` pair the person accepts, exactly as `/legal/pendientes` listed it. */
+export interface DocumentoAceptado {
+  readonly documento: DocumentoLegal;
+  readonly version: string;
+}
+
 export interface DatosDeAceptacion {
   readonly token: string;
   readonly nombre: string;
   readonly contrasena: string;
+  /** HU-E1-08 RN-04: the invitee accepts the privacy policy and nothing else. */
+  readonly version_privacidad: string;
 }
 
 /** `{"FACTURACION": ["EMAIL", "PANEL"], …}` — the shape of the `pref_suscripciones` column. */
@@ -153,6 +217,11 @@ function mensajeDe(datos: unknown, status: number): string {
       return "La empresa debe conservar al menos un Administrador activo.";
     case "InvitacionInvalida":
       return "Esta invitación no es válida o ya fue utilizada.";
+    case "AceptacionLegalPendiente":
+      return "Tenés que aceptar los textos legales vigentes para seguir.";
+    case "VersionLegalDesactualizada":
+      return "Actualizamos los textos legales. Recargá la página, leelos y volvé a aceptarlos.";
+    case "ConsentimientoRequerido":
     case "EntradaInvalida":
       return typeof datos === "object" && datos !== null && "detalle" in datos
         ? String(datos.detalle)
@@ -230,4 +299,12 @@ export async function guardarPreferencias(datos: CambioDePreferencias): Promise<
  */
 export async function aceptarInvitacion(datos: DatosDeAceptacion): Promise<ResultadoDeSesion> {
   return enviar<ResultadoDeSesion>("/api/auth/invitaciones/aceptar", datos);
+}
+
+/**
+ * Accepting the legal documents in force from inside a session (HU-E1-03 RN-03, HU-E1-08
+ * RN-05). The backend re-validates every version, and an Operador sending the terms is refused.
+ */
+export async function aceptarDocumentos(documentos: readonly DocumentoAceptado[]): Promise<void> {
+  await enviar<unknown>("/api/legal/aceptaciones", { documentos });
 }

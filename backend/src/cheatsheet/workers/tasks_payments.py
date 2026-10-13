@@ -30,10 +30,12 @@ from cheatsheet.contexts.payments.application.recordatorios import (
 from cheatsheet.contexts.payments.infrastructure.ensamblado import Cobros
 from cheatsheet.contexts.payments.infrastructure.repositories import (
     empresas_con_cobros_abiertos,
+    empresas_con_recordatorios_en_espera,
 )
 from cheatsheet.platform.database import sesion_sin_empresa
 from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
+from cheatsheet.platform.transaccion import ConfirmacionDeLaUnidad
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.workers.celery_app import Cola, crear_celery
 from cheatsheet.workers.ejecucion import ejecutar_tarea
@@ -47,11 +49,18 @@ NOMBRE_EMPRESA = "payments.barrer_empresa"
 async def barrer_cobros(recursos: Recursos) -> int:
     """Reparte una tarea por empresa con algo abierto. Devuelve cuántas.
 
-    La sesión es **sin empresa**: la función `SECURITY DEFINER` que responde esta pregunta
-    tiene que correr fuera de RLS, o contestaría siempre por el mismo inquilino.
+    «Algo abierto» son los cobros abiertos **y** los recordatorios que esperan su reintento o
+    tienen un envío en curso (U7): un cobro que se pagó mientras su recordatorio esperaba no deja
+    a la empresa con nada abierto, y sin esta segunda pregunta la fila no se descartaría nunca.
+
+    La sesión es **sin empresa**: las funciones `SECURITY DEFINER` que responden estas preguntas
+    tienen que correr fuera de RLS, o contestarían siempre por el mismo inquilino.
     """
     async with sesion_sin_empresa(recursos.sesiones) as sesion:
-        empresas = await empresas_con_cobros_abiertos(sesion)
+        con_cobros = await empresas_con_cobros_abiertos(sesion)
+        con_recordatorios = await empresas_con_recordatorios_en_espera(sesion)
+    # Sin repetidas y en orden estable: una empresa con las dos cosas recibe una sola tarea.
+    empresas = list(dict.fromkeys([*con_cobros, *con_recordatorios]))
 
     for empresa_id in empresas:
         _encolar_empresa(recursos.settings, empresa_id)
@@ -89,16 +98,21 @@ async def barrer_empresa(recursos: Recursos, empresa_id: EmpresaId) -> int:
             cadena=armar_cadena(unidad),
             publicador=unidad.publicador,
             aislamiento=piezas.aislamiento,
+            # Confirma cada recordatorio antes y después de hablar con Meta (U7, D-U7-3, H1).
+            transaccion=ConfirmacionDeLaUnidad(unidad.sesion, empresa_id),
+            # El reloj real, no el `ahora` del barrido: ventanas y fechas se miden al escribir (S2).
+            reloj=unidad.reloj,
         ).ejecutar(empresa_id=empresa_id, ahora=ahora)
         despachados = resultado.procesados
 
-        if vencidos.procesados or despachados or resultado.fallidos:
+        if vencidos.procesados or despachados or resultado.fallidos or resultado.reintentos:
             logger.info(
                 "barrido_de_cobros",
                 empresa_id=str(empresa_id),
                 vencidos=vencidos.procesados,
                 recordatorios=despachados,
                 recordatorios_fallidos=resultado.fallidos,
+                recordatorios_en_reintento=resultado.reintentos,
             )
     return despachados
 

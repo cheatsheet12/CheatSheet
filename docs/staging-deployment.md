@@ -68,8 +68,12 @@ and the OAuth2 `state` memory, the idempotency registry and half of `/health` li
 5. **Dockerfile Path**: `./backend/Dockerfile`
 6. **Docker Build Context Directory**: `./backend` — the image needs nothing from `frontend/` or
    `docs/`, and the whole context is uploaded to the builder on every build.
-7. **Health Check Path**: `/health`. It answers 503 while PostgreSQL or Redis is unreachable, so
-   Render never routes traffic to an instance that cannot serve.
+7. **Health Check Path**: `/health/live`. It answers 200 while the process is up and touches
+   neither PostgreSQL nor Redis. Do **not** use `/health` here: Render probes every few seconds,
+   and `/health` runs `SELECT 1`, which keeps Neon's compute awake around the clock and burns the
+   free plan's monthly compute hours. `/health` stays the full readiness check (503 while a
+   dependency is down) and is what CI polls after a deploy. `render.yaml` is not read by Render
+   (§0), so **change the path in the dashboard too**: service -> Settings -> Health Check Path.
 8. **Auto-Deploy**: **No**. See §0.
 9. **Environment variables** — add these before the first deploy, or it will boot-loop on
    `ConfiguracionFaltante`:
@@ -206,6 +210,53 @@ line is in the worker's logs, not the API's**, because the worker sends the invi
 
 ---
 
+### 4 bis.4 Let the database sleep (Neon compute budget)
+
+Neon's Free plan gives 100 compute-unit hours per project per month, and suspends the compute
+after five idle minutes. A compute that never sleeps costs 0.25 CU x 24 h = 6 CU-h per day, which
+exhausts the month in about 17 days. Two things kept it awake, and both are fixed in code:
+
+- the Render health check ran `SELECT 1` every few seconds -> use `/health/live` (§3, step 7);
+- every periodic task fired at its own offset from Beat's boot -> they now fire at the same
+  wall-clock instants (minute 0 of the hour; the daily ones at 00:00), so the database wakes once
+  per period. This covers every database-touching entry, including the daily ones and the fiscal
+  parameters sync (`PARAMETROS_FISCALES_HORAS`, in hours). Intervals must tile the hour or the day
+  exactly (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720 or 1440
+  minutes; for `PARAMETROS_FISCALES_HORAS`: 1, 2, 3, 4, 6, 8, 12 or 24 hours); anything else, such
+  as 0, a negative number, 7 or 45, stops the process at boot with a message naming the variable.
+  This is stricter than before: 0 and negative values used to be clamped silently.
+
+#### Pre-deploy checklist (do it before deploying this change)
+
+Both the API and the worker read these settings at startup, so a bad value crashes **both**
+services into a boot loop. Check **both** Render services (API and worker), not just the worker:
+
+- [ ] `WHATSAPP_SONDEO_MINUTOS`, `WHATSAPP_PLANTILLAS_MINUTOS`, `DLQ_BARRIDO_MINUTOS`,
+  `SYNC_PLANILLAS_MINUTOS` and `BILLING_RECONCILIACION_MINUTOS`, if set, are one of: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60,
+  120, 180, 240, 360, 480, 720, 1440. Unset is fine (the defaults are valid).
+- [ ] `PARAMETROS_FISCALES_HORAS`, if set, is one of: 1, 2, 3, 4, 6, 8, 12, 24. Unset is fine.
+- [ ] API service -> Settings -> **Health Check Path** is `/health/live`. Without this the health
+  check keeps running `SELECT 1` every few seconds, the database never sleeps and this change saves
+  nothing (`render.yaml` is not read by Render).
+
+The remaining lever is how often the tasks fire. Set these on the **worker** (the only service
+running Beat) in the Render dashboard:
+
+| Variable | Default | Staging | What you give up |
+| --- | --- | --- | --- |
+| `BILLING_RECONCILIACION_MINUTOS` | 5 | 60 | A voucher whose ARCA answer was lost waits up to an hour to be reconciled instead of five minutes |
+| `DLQ_BARRIDO_MINUTOS` | 15 | 120 | A task that ran out of retries is retired to the dead-letter state up to two hours later |
+| `WHATSAPP_SONDEO_MINUTOS` | 30 | 120 | A WhatsApp number's Meta verification result is noticed up to two hours later |
+| `WHATSAPP_PLANTILLAS_MINUTOS` | 30 | 120 | A template status change whose Meta webhook was lost is reconciled up to two hours later |
+| `SYNC_PLANILLAS_MINUTOS` | 60 | 240 | A live spreadsheet is re-read every four hours instead of every hour |
+
+With these values every sweep lands on an even hour or on a multiple of four, so the compute wakes
+roughly once an hour (the hourly payment sweep) and for about five minutes each time: well under
+1 CU-h per day. Production keeps the defaults. Any value that does not divide the hour or the day
+is refused at boot, so a typo cannot silently change how often a billing sweep runs.
+
+---
+
 ## 5. Cross-wire the two URLs
 
 The two services each need the other's address, which is why this is a step of its own.
@@ -303,3 +354,39 @@ go green.
 | MercadoPago returns `invalid_grant` on the first connection attempt | `APP_BASE_URL` does not match the `redirect_uri` registered in the MercadoPago application, character for character. §5 |
 | The first request after a quiet period takes ~30 s | The free plan suspends idle services and Neon suspends idle compute. Both are waking. Not a fault |
 | A migration failed and the services still serve the old version | That is the design: the job aborts before the deploy hooks. Fix the migration and push again |
+
+---
+
+## 10. Google Sheets write-back (HU-E3-07)
+
+The staging adapter remains simulated until a teammate with Google Cloud and Render access
+configures the real connection. For a real test:
+
+1. In Google Cloud, enable the Google Drive, Google Picker and Google Sheets APIs. Register
+   the panel origin as an authorized JavaScript origin and both
+   `{APP_BASE_URL}/api/auth/google/callback` (sign-in) and
+   `{APP_BASE_URL}/api/planillas/google/callback` (spreadsheet linking) as authorized
+   redirect URIs on the web OAuth client. The OAuth consent screen needs the `drive.file`
+   scope and the test users.
+2. Restrict a browser API key to the panel origin and `https://docs.google.com/*`
+   (Picker runs inside Google's iframe), and to the Picker and Drive APIs. Give the panel the
+   public `NEXT_PUBLIC_GOOGLE_PICKER_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_PICKER_API_KEY` and
+   `NEXT_PUBLIC_GOOGLE_PICKER_PROJECT_NUMBER` values, then rebuild it. The client ID must
+   match the backend's OAuth client ID; these are public identifiers, never its secret.
+3. Give both API and worker the same `GOOGLE_OAUTH_CLIENT_ID`,
+   `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` and
+   `SECRETS_ENCRYPTION_KEY`. Set `PLANILLA_ADAPTADOR=google` in both services. Set
+   `GOOGLE_OAUTH_REDIRECT_URI` to the **sign-in** callback, byte for byte. Spreadsheet
+   linking derives its own callback from `APP_BASE_URL`, which must be the panel's public
+   origin in both services. Configuring this OAuth client also switches Google sign-in
+   from the simulated provider to the real one in staging; verify sign-in before a demo.
+4. Link a **new** Google Sheet from the panel, enable writing back, and select the file in
+   Picker. Links made under the simulated adapter or before refresh tokens were persisted
+   must be reconnected. Create a customer in the panel, run the company sync task or wait
+   for Beat, and check the separate protected `CheatSheet (no editar) <id>` sheet. Confirm
+   the original sheet has not changed. All Sheets linked by one company must be reachable
+   by its connected Google account; linking from another account does not replace the
+   existing grant. A revoked grant requires reconnecting the link.
+
+This manual provider test requires access to both Google Cloud and Render. The unit tests
+exercise the protocol through HTTP doubles only.

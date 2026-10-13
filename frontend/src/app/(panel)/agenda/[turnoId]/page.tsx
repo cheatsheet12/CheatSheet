@@ -4,16 +4,22 @@
  * Su propia URL y no un modal sobre la agenda: es la página que alguien deja abierta mientras
  * habla por teléfono con un cliente que quiere cambiar el horario.
  *
- * El nombre del recurso y el del servicio se resuelven del lado del servidor. Un id en una
- * pantalla no le dice nada a quien la mira, y pedirlos desde el componente sería una consulta
- * más por cada turno que alguien abre.
+ * El nombre del recurso, el del servicio y los datos del cliente se resuelven del lado del
+ * servidor. Un id en una pantalla no le dice nada a quien la mira, y pedirlos desde el
+ * componente sería una consulta más por cada turno que alguien abre.
  */
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import type { Cliente } from "@/features/master_data";
 import { DetalleDeTurno } from "@/features/scheduling";
-import type { ListadoDeRecursos, ServicioAgendable, Turno } from "@/features/scheduling";
+import type {
+  ClienteDelTurno,
+  ListadoDeRecursos,
+  ServicioAgendable,
+  Turno,
+} from "@/features/scheduling";
 import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
 
@@ -38,9 +44,10 @@ export default async function PaginaDeTurno({ params }: Props): Promise<JSX.Elem
     notFound();
   }
 
-  const [recursos, servicios] = await Promise.all([
+  const [recursos, servicios, cliente] = await Promise.all([
     llamarApi<ListadoDeRecursos>("/recursos"),
     llamarApi<readonly ServicioAgendable[]>("/recursos/servicios"),
+    leerCliente(turno.cliente_id),
   ]);
 
   return (
@@ -65,10 +72,35 @@ export default async function PaginaDeTurno({ params }: Props): Promise<JSX.Elem
         puedeGestionar={claims.rol === "ADMINISTRADOR" || claims.rol === "OPERADOR"}
         recurso={recursos.recursos.find((uno) => uno.id === turno.recurso_id)?.nombre ?? "—"}
         servicio={servicios.find((uno) => uno.id === turno.servicio_id)?.nombre ?? "—"}
+        cliente={cliente}
         puedeRegistrarAPosteriori={claims.rol === "ADMINISTRADOR"}
       />
     </div>
   );
+}
+
+/**
+ * El cliente del turno (#167), o `null` si la API no lo devolvió.
+ *
+ * Una respuesta de error de la API —cualquier código— deja la página en pie: el turno es lo
+ * que se vino a ver, y sin el cliente se lo puede seguir cancelando o reprogramando. El
+ * componente muestra «—» en cada dato.
+ */
+async function leerCliente(clienteId: string): Promise<ClienteDelTurno | null> {
+  try {
+    const cliente = await llamarApi<Cliente>(`/clientes/${clienteId}`);
+    return {
+      nombre: cliente.nombre,
+      cuit: cliente.cuit,
+      contacto_whatsapp: cliente.contacto_whatsapp,
+      contacto_email: cliente.contacto_email,
+    };
+  } catch (error) {
+    if (error instanceof ErrorDeApi) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 async function leer(turnoId: string): Promise<Turno | null> {

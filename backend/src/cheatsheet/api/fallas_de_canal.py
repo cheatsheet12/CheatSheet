@@ -12,11 +12,12 @@ El patrón es el de `_RevisionViaMeta` en `mensajeria.py`. El motivo es un códi
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Protocol
 
 from cheatsheet.contexts.conversational.application.errors import (
     MensajeriaNoDisponible,
+    MensajeriaSaturada,
     motivo_de_falla_de,
 )
 
@@ -31,13 +32,26 @@ class _Canal(Protocol):
     ) -> str: ...
 
 
+class _FabricaDeFalla(Protocol):
+    def __call__(self, codigo: str, *, transitoria: bool) -> Exception: ...
+
+
+def _traducir(error: MensajeriaNoDisponible, falla: _FabricaDeFalla) -> Exception:
+    """El motivo, más si vale otro intento: solo la saturación lo es (D-U7-3).
+
+    Un código de Meta no alcanza para decidirlo (131056 puede venir de un 429 o de un rechazo): lo
+    dice la clase del error. `EnvioIncierto` (timeout de lectura) nunca es transitorio.
+    """
+    return falla(motivo_de_falla_de(error), transitoria=isinstance(error, MensajeriaSaturada))
+
+
 class CanalConFallasTraducidas:
-    """Un canal que levanta `falla(codigo)` en lugar de los errores de `conversational`.
+    """Un canal que levanta `falla(codigo, transitoria=...)` y no los errores de `conversational`.
 
     Cualquier otra excepción se propaga tal cual: el adaptador consumidor ya sabe tratarla.
     """
 
-    def __init__(self, canal: _Canal, falla: Callable[[str], Exception]) -> None:
+    def __init__(self, canal: _Canal, falla: _FabricaDeFalla) -> None:
         self._canal = canal
         self._falla = falla
 
@@ -45,7 +59,7 @@ class CanalConFallasTraducidas:
         try:
             return await self._canal.enviar(telefono=telefono, texto=texto)
         except MensajeriaNoDisponible as exc:
-            raise self._falla(motivo_de_falla_de(exc)) from exc
+            raise _traducir(exc, self._falla) from exc
 
     async def enviar_plantilla(
         self, *, telefono: str, nombre: str, idioma: str, parametros: Mapping[str, str]
@@ -55,7 +69,7 @@ class CanalConFallasTraducidas:
                 telefono=telefono, nombre=nombre, idioma=idioma, parametros=parametros
             )
         except MensajeriaNoDisponible as exc:
-            raise self._falla(motivo_de_falla_de(exc)) from exc
+            raise _traducir(exc, self._falla) from exc
 
 
 __all__ = ["CanalConFallasTraducidas"]

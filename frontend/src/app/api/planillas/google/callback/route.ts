@@ -20,18 +20,27 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
-import { COOKIE_DOCUMENTO, COOKIE_ESTADO } from "@/app/api/planillas/google/autorizacion/route";
+import { urlDeLaApp } from "@/app/api/auth/google/route";
+import {
+  COOKIE_DIRECCION,
+  COOKIE_DOCUMENTO,
+  COOKIE_ESTADO,
+} from "@/app/api/planillas/google/autorizacion/route";
 
 export const dynamic = "force-dynamic";
 
 const PREFIJO_SIMULADO = "simulado:";
 
-/** A dónde vuelve el usuario, con un motivo si algo salió mal. */
-function aIngesta(origen: string, motivo?: string): NextResponse {
-  const destino = new URL("/ingesta", origen);
+/**
+ * A dónde vuelve el usuario, con un motivo si algo salió mal. **Siempre por la dirección
+ * pública**: detrás del proxy de Render la petición llega a `localhost:10000`, y armar la
+ * vuelta con ella dejaba a la persona en una página de error (staging, 11/10/2026).
+ */
+function aIngesta(motivo?: string): NextResponse {
+  const destino = new URL("/ingesta", urlDeLaApp());
   if (motivo !== undefined) {
     destino.searchParams.set("error", motivo);
   }
@@ -41,7 +50,7 @@ function aIngesta(origen: string, motivo?: string): NextResponse {
 export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
   if (!haySesion()) {
-    return NextResponse.redirect(new URL("/", url.origin));
+    return NextResponse.redirect(new URL("/", urlDeLaApp()));
   }
 
   const codigo = url.searchParams.get("code");
@@ -49,7 +58,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (codigo === null || estado === null) {
     // Google manda `error=access_denied` cuando la persona rechaza el consentimiento, y
     // eso no es una falla: es una respuesta.
-    return aIngesta(url.origin, "No se completó la vinculación con Google.");
+    return aIngesta("No se completó la vinculación con Google.");
   }
 
   // El guarda anti-CSRF: sin esto, cualquiera que logre que el navegador de la persona
@@ -57,33 +66,35 @@ export async function GET(request: Request): Promise<NextResponse> {
   // porque es el único que ve la cookie, y se reenvía para que el backend compare la suya.
   const guardado = cookies().get(COOKIE_ESTADO)?.value;
   if (guardado === undefined || guardado !== estado) {
-    return aIngesta(
-      url.origin,
-      "La autorización no coincide con la que iniciaste. Volvé a intentarlo.",
-    );
+    return aIngesta("La autorización no coincide con la que iniciaste. Volvé a intentarlo.");
   }
 
   try {
-    await llamarApi("/planillas/google", {
-      method: "POST",
-      headers: { Cookie: `${COOKIE_ESTADO}=${guardado}` },
-      body: {
-        codigo,
-        // La planilla que la persona eligió antes de irse. Si la cookie se perdió, el
-        // código simulado trae uno usable; el real no, y el backend lo dirá.
-        identificador_documento:
-          cookies().get(COOKIE_DOCUMENTO)?.value ??
-          (codigo.startsWith(PREFIJO_SIMULADO) ? codigo.slice(PREFIJO_SIMULADO.length) : codigo),
-        estado,
-      },
-    });
-    const hecho = aIngesta(url.origin);
+    const vinculo = await comoRutaDelBff(() =>
+      llamarApi<{ id: string }>("/planillas/google", {
+        method: "POST",
+        headers: { Cookie: `${COOKIE_ESTADO}=${guardado}` },
+        body: {
+          codigo,
+          // La planilla que la persona eligió antes de irse. Si la cookie se perdió, el
+          // código simulado trae uno usable; el real no, y el backend lo dirá.
+          identificador_documento:
+            cookies().get(COOKIE_DOCUMENTO)?.value ??
+            (codigo.startsWith(PREFIJO_SIMULADO) ? codigo.slice(PREFIJO_SIMULADO.length) : codigo),
+          estado,
+          direccion: cookies().get(COOKIE_DIRECCION)?.value ?? "SOLO_LECTURA",
+        },
+      }),
+    );
+    const hecho = NextResponse.redirect(
+      new URL(`/ingesta/mapeo/${encodeURIComponent(vinculo.id)}`, urlDeLaApp()),
+    );
     hecho.cookies.delete(COOKIE_ESTADO);
     hecho.cookies.delete(COOKIE_DOCUMENTO);
+    hecho.cookies.delete(COOKIE_DIRECCION);
     return hecho;
   } catch (error) {
     return aIngesta(
-      url.origin,
       error instanceof ErrorDeApi ? error.detalle : "No se pudo vincular la planilla.",
     );
   }

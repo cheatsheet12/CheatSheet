@@ -14,10 +14,7 @@ from cheatsheet.contexts.identity.application.errors import (
     ReusoDeRefreshDetectado,
     SesionInvalida,
 )
-from cheatsheet.contexts.identity.application.onboarding import (
-    AceptarTerminos,
-    CompletarDatosDeEmpresa,
-)
+from cheatsheet.contexts.identity.application.onboarding import CompletarDatosDeEmpresa
 from cheatsheet.contexts.identity.application.registro import (
     RegistrarConGoogle,
     RegistrarEmpresa,
@@ -43,26 +40,38 @@ from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
 
 from tests.conftest import INSTANTE_FIJO
-from tests.contexts.identity.conftest import CONTRASENA, CUIT_VALIDO, usuario_de_prueba
+from tests.contexts.identity.conftest import (
+    CONSENTIMIENTO,
+    CONTRASENA,
+    CUIT_VALIDO,
+    VERSION_DE_TERMINOS,
+    usuario_de_prueba,
+)
 
 pytestmark = pytest.mark.asyncio
 
 
-def _registrar(empresas, usuarios, hasher, publicador) -> RegistrarEmpresa:
+def _registrar(empresas, usuarios, hasher, publicador, registrador) -> RegistrarEmpresa:
     return RegistrarEmpresa(
-        empresas=empresas, usuarios=usuarios, hasher=hasher, publicador=publicador
+        empresas=empresas,
+        usuarios=usuarios,
+        hasher=hasher,
+        publicador=publicador,
+        registrador=registrador,
     )
 
 
-async def test_registrarse_crea_empresa_y_administrador(empresas, usuarios, hasher, publicador):
+async def test_registrarse_crea_empresa_y_administrador(
+    empresas, usuarios, hasher, publicador, registrador
+):
     empresa_id = EmpresaId(uuid4())
 
-    resultado = await _registrar(empresas, usuarios, hasher, publicador).ejecutar(
+    resultado = await _registrar(empresas, usuarios, hasher, publicador, registrador).ejecutar(
         empresa_id=empresa_id,
         email=Email("ana@empresa.com"),
         contrasena=CONTRASENA,
         nombre="Ana Perez",
-        version_terminos="1.0",
+        consentimiento=CONSENTIMIENTO,
         ahora=INSTANTE_FIJO,
     )
 
@@ -73,30 +82,32 @@ async def test_registrarse_crea_empresa_y_administrador(empresas, usuarios, hash
 
 
 async def test_registrarse_acepta_los_terminos_en_el_mismo_acto(
-    empresas, usuarios, hasher, publicador
+    empresas, usuarios, hasher, publicador, registrador
 ):
     """HU-E1-03 RN-02: acceptance completes the registration, it is not a later step."""
-    resultado = await _registrar(empresas, usuarios, hasher, publicador).ejecutar(
+    resultado = await _registrar(empresas, usuarios, hasher, publicador, registrador).ejecutar(
         empresa_id=EmpresaId(uuid4()),
         email=Email("ana@empresa.com"),
         contrasena=CONTRASENA,
         nombre="Ana",
-        version_terminos="3.2",
+        consentimiento=CONSENTIMIENTO,
         ahora=INSTANTE_FIJO,
     )
 
     assert resultado.empresa.terminos is not None
-    assert resultado.empresa.terminos.version == "3.2"
+    assert resultado.empresa.terminos.version == VERSION_DE_TERMINOS
 
 
-async def test_el_registro_queda_en_la_bitacora(empresas, usuarios, hasher, publicador):
+async def test_el_registro_queda_en_la_bitacora(
+    empresas, usuarios, hasher, publicador, registrador
+):
     """The first real use of the HS-T5 mechanism the previous unit built."""
-    await _registrar(empresas, usuarios, hasher, publicador).ejecutar(
+    await _registrar(empresas, usuarios, hasher, publicador, registrador).ejecutar(
         empresa_id=EmpresaId(uuid4()),
         email=Email("ana@empresa.com"),
         contrasena=CONTRASENA,
         nombre="Ana",
-        version_terminos="1.0",
+        consentimiento=CONSENTIMIENTO,
         ahora=INSTANTE_FIJO,
         direccion_ip="190.0.0.1",
     )
@@ -109,9 +120,11 @@ async def test_el_registro_queda_en_la_bitacora(empresas, usuarios, hasher, publ
     assert evento.usuario_id is not None
 
 
-async def test_un_email_ya_registrado_es_rechazado(empresas, usuarios, hasher, publicador):
+async def test_un_email_ya_registrado_es_rechazado(
+    empresas, usuarios, hasher, publicador, registrador
+):
     """HU-E1-01 RN-03."""
-    caso = _registrar(empresas, usuarios, hasher, publicador)
+    caso = _registrar(empresas, usuarios, hasher, publicador, registrador)
 
     async def registrar(email: str) -> None:
         await caso.ejecutar(
@@ -119,7 +132,7 @@ async def test_un_email_ya_registrado_es_rechazado(empresas, usuarios, hasher, p
             email=Email(email),
             contrasena=CONTRASENA,
             nombre="Ana",
-            version_terminos="1.0",
+            consentimiento=CONSENTIMIENTO,
             ahora=INSTANTE_FIJO,
         )
 
@@ -130,15 +143,15 @@ async def test_un_email_ya_registrado_es_rechazado(empresas, usuarios, hasher, p
 
 
 async def test_el_mismo_email_en_otra_capitalizacion_tambien(
-    empresas, usuarios, hasher, publicador
+    empresas, usuarios, hasher, publicador, registrador
 ):
-    caso = _registrar(empresas, usuarios, hasher, publicador)
+    caso = _registrar(empresas, usuarios, hasher, publicador, registrador)
     await caso.ejecutar(
         empresa_id=EmpresaId(uuid4()),
         email=Email("ana@empresa.com"),
         contrasena=CONTRASENA,
         nombre="Ana",
-        version_terminos="1.0",
+        consentimiento=CONSENTIMIENTO,
         ahora=INSTANTE_FIJO,
     )
 
@@ -148,20 +161,22 @@ async def test_el_mismo_email_en_otra_capitalizacion_tambien(
             email=Email("ANA@EMPRESA.COM"),
             contrasena=CONTRASENA,
             nombre="Ana",
-            version_terminos="1.0",
+            consentimiento=CONSENTIMIENTO,
             ahora=INSTANTE_FIJO,
         )
 
 
-async def test_una_contrasena_corta_no_llega_a_crear_nada(empresas, usuarios, hasher, publicador):
+async def test_una_contrasena_corta_no_llega_a_crear_nada(
+    empresas, usuarios, hasher, publicador, registrador
+):
     """Validation happens before any write, so a rejected form leaves no orphan."""
     with pytest.raises(EntradaInvalida):
-        await _registrar(empresas, usuarios, hasher, publicador).ejecutar(
+        await _registrar(empresas, usuarios, hasher, publicador, registrador).ejecutar(
             empresa_id=EmpresaId(uuid4()),
             email=Email("ana@empresa.com"),
             contrasena="corta",
             nombre="Ana",
-            version_terminos="1.0",
+            consentimiento=CONSENTIMIENTO,
             ahora=INSTANTE_FIJO,
         )
 
@@ -169,13 +184,15 @@ async def test_una_contrasena_corta_no_llega_a_crear_nada(empresas, usuarios, ha
     assert usuarios.usuarios == {}
 
 
-async def test_la_contrasena_se_guarda_hasheada(empresas, usuarios, hasher, publicador):
-    resultado = await _registrar(empresas, usuarios, hasher, publicador).ejecutar(
+async def test_la_contrasena_se_guarda_hasheada(
+    empresas, usuarios, hasher, publicador, registrador
+):
+    resultado = await _registrar(empresas, usuarios, hasher, publicador, registrador).ejecutar(
         empresa_id=EmpresaId(uuid4()),
         email=Email("ana@empresa.com"),
         contrasena=CONTRASENA,
         nombre="Ana",
-        version_terminos="1.0",
+        consentimiento=CONSENTIMIENTO,
         ahora=INSTANTE_FIJO,
     )
 
@@ -185,16 +202,16 @@ async def test_la_contrasena_se_guarda_hasheada(empresas, usuarios, hasher, publ
 
 
 async def test_registrarse_con_google_no_deja_contrasena(
-    empresas, usuarios, publicador, perfil_de_google
+    empresas, usuarios, publicador, registrador, perfil_de_google
 ):
     """HU-E1-01 RN-02: that person never chose a password here."""
     resultado = await RegistrarConGoogle(
-        empresas=empresas, usuarios=usuarios, publicador=publicador
+        empresas=empresas, usuarios=usuarios, publicador=publicador, registrador=registrador
     ).ejecutar(
         empresa_id=EmpresaId(uuid4()),
         email=perfil_de_google.email,
         nombre=perfil_de_google.nombre,
-        version_terminos="1.0",
+        consentimiento=CONSENTIMIENTO,
         ahora=INSTANTE_FIJO,
     )
 
@@ -203,16 +220,18 @@ async def test_registrarse_con_google_no_deja_contrasena(
 
 
 async def test_google_tambien_rechaza_un_email_ya_registrado(
-    empresas, usuarios, publicador, perfil_de_google
+    empresas, usuarios, publicador, registrador, perfil_de_google
 ):
-    caso = RegistrarConGoogle(empresas=empresas, usuarios=usuarios, publicador=publicador)
+    caso = RegistrarConGoogle(
+        empresas=empresas, usuarios=usuarios, publicador=publicador, registrador=registrador
+    )
 
     async def registrar() -> None:
         await caso.ejecutar(
             empresa_id=EmpresaId(uuid4()),
             email=perfil_de_google.email,
             nombre=perfil_de_google.nombre,
-            version_terminos="1.0",
+            consentimiento=CONSENTIMIENTO,
             ahora=INSTANTE_FIJO,
         )
 
@@ -491,32 +510,3 @@ async def test_solo_un_administrador_completa_los_datos_fiscales(empresas, publi
     assert guardada is not None
     # The rejection has to leave nothing behind: a 403 that still wrote is not a control.
     assert guardada.razon_social is None
-
-
-async def test_reaceptar_terminos_actualiza_la_version(empresas, publicador):
-    """HU-E1-03 RN-03."""
-    empresa_id = EmpresaId(uuid4())
-    empresa = Empresa(id=empresa_id)
-    empresa.aceptar_terminos("1.0", INSTANTE_FIJO)
-    await empresas.agregar(empresa)
-
-    resultado = await AceptarTerminos(empresas=empresas, publicador=publicador).ejecutar(
-        empresa_id=empresa_id,
-        usuario_id=UsuarioId(uuid4()),
-        version="2.0",
-        ahora=INSTANTE_FIJO,
-    )
-
-    assert resultado.terminos is not None
-    assert resultado.terminos.version == "2.0"
-    assert resultado.debe_reaceptar_terminos("2.0") is False
-
-
-async def test_aceptar_terminos_de_una_empresa_inexistente_falla(empresas, publicador):
-    with pytest.raises(InvarianteViolada):
-        await AceptarTerminos(empresas=empresas, publicador=publicador).ejecutar(
-            empresa_id=EmpresaId(uuid4()),
-            usuario_id=UsuarioId(uuid4()),
-            version="2.0",
-            ahora=INSTANTE_FIJO,
-        )

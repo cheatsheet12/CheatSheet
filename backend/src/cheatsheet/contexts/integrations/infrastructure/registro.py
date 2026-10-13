@@ -13,7 +13,6 @@ grew optional slots rather than the registry growing a special case per provider
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
 
 from cheatsheet.contexts.integrations.application.ports import (
     PortAutorizacionOAuth,
@@ -81,8 +80,6 @@ SISTEMAS_DEL_EPICO: tuple[SistemaExterno, ...] = (
     SistemaExterno.WHATSAPP,
 )
 
-#: Used by the registry built without `Settings` (tests, and the fully simulated path).
-AVISO_POR_DEFECTO = timedelta(days=30)
 
 #: Where the simulated OAuth redirect lands when there is no `Settings` to read it from.
 RETORNO_POR_DEFECTO = "http://localhost:3000/configuracion/integraciones"
@@ -136,9 +133,7 @@ class RegistroDeAdaptadores:
         """Every system answered by a stand-in. For tests that do not care which."""
         reloj = RelojDelSistema()
         simulado_whatsapp = WhatsAppSimulado(entorno)
-        simulado_arca = ArcaSimuladoPorDelegacion(
-            entorno=entorno, reloj=reloj, aviso=AVISO_POR_DEFECTO
-        )
+        simulado_arca = ArcaSimuladoPorDelegacion(entorno=entorno, reloj=reloj)
         simulado_mp = MercadoPagoSimulado(
             entorno=entorno, reloj=reloj, redirect_uri=RETORNO_POR_DEFECTO
         )
@@ -215,7 +210,6 @@ def emisor_de_arca(settings: Settings, reloj: Reloj) -> PortEmisorDeTickets:
         return ArcaSimuladoPorDelegacion(
             entorno=settings.entorno,
             reloj=reloj,
-            aviso=timedelta(days=settings.arca_aviso_vencimiento_dias),
         )
     # **Two hosts, and this is where the choice is made.** `Ambiente` comes from `APP_ENV`
     # and never from the request, so this line is the difference between practising and
@@ -241,7 +235,6 @@ def _par_de_arca(
         simulado = ArcaSimuladoPorDelegacion(
             entorno=settings.entorno,
             reloj=reloj,
-            aviso=timedelta(days=settings.arca_aviso_vencimiento_dias),
         )
         return ParDeAdaptadores(
             conector=simulado,
@@ -282,7 +275,6 @@ def _padron_de_arca(settings: Settings, reloj: Reloj, url: str) -> PortConsultaD
         return ArcaSimuladoPorDelegacion(
             entorno=settings.entorno,
             reloj=reloj,
-            aviso=timedelta(days=settings.arca_aviso_vencimiento_dias),
         )
     return ClientePadronA5(
         ConfiguracionPadron(url=url, timeout_segundos=float(settings.arca_timeout_segundos))

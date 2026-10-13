@@ -43,7 +43,7 @@ from cheatsheet.contexts.payments.domain.recordatorio import (
     EstadoEntrega as EstadoDeRecordatorio,
 )
 from cheatsheet.contexts.payments.domain.recordatorio import Recordatorio
-from cheatsheet.contexts.payments.infrastructure.repositories import (
+from cheatsheet.contexts.payments.infrastructure.repositorio_recordatorio import (
     RepositorioRecordatoriosPostgres,
 )
 from cheatsheet.platform.database import sesion_de_empresa

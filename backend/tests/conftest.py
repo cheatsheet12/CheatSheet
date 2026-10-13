@@ -41,6 +41,10 @@ from cheatsheet.shared.empresa import EmpresaId
 
 INSTANTE_FIJO = datetime(2026, 8, 12, 15, 30, tzinfo=UTC)
 
+#: A day on which the published legal catalogue has a version in force for every document (the
+#: first texts take effect on 2026-10-10). `create_app` refuses to boot on a clock without one.
+INSTANTE_CON_TEXTOS_VIGENTES = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+
 
 class RepositorioDeAuditoriaEnMemoria:
     """A real implementation of `PortRegistroDeAuditoria`, backed by a dict.
@@ -101,7 +105,6 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         jwt_secret="fake-secret-for-tests",
         jwt_access_ttl_minutos=15,
         refresh_ttl_dias=30,
-        terminos_version_vigente="1.0",
         # `CifradoAesGcm` validates the length at construction, so this has to decode to
         # exactly 32 bytes — a placeholder string would fail every test that builds
         # `Settings`. Encoded here rather than pasted as base64 on purpose: a literal
@@ -118,6 +121,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         whatsapp_timeout_segundos=1,
         whatsapp_sondeo_minutos=30,
         whatsapp_plantillas_minutos=30,
+        recordatorio_de_turno_minutos=15,
         # Un secreto de prueba, no vacio: con la cadena vacia **ninguna firma vale** (HS-T2),
         # asi que dejarlo en blanco haria que el test del camino feliz del webhook pasara por
         # el motivo equivocado.
@@ -134,7 +138,6 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         arca_padron_url_produccion="https://padron.invalid/personaServiceA5",
         arca_timeout_segundos=1,
         arca_margen_renovacion_minutos=30,
-        arca_aviso_vencimiento_dias=30,
         arca_credencial_plataforma=b"",
         # The simulator again, and a host that does not resolve. The application
         # credentials are placeholders: nothing in the suite exchanges a real code.
@@ -186,6 +189,7 @@ def settings_de_prueba(entorno: Entorno = Entorno.TEST) -> Settings:
         llm_timeout_segundos=1.0,
         llm_max_tokens=1024,
         sync_planillas_minutos=60,
+        billing_reconciliacion_minutos=5,
         # The simulator and hosts that do not resolve: a test that ever reached WSFEv1
         # would fail loudly instead of quietly asking ARCA for a catalogue.
         catalogos_fiscales_adaptador=AdaptadorDeCatalogos.SIMULADO,

@@ -25,6 +25,7 @@ from io import BytesIO
 from typing import Protocol
 
 from cheatsheet.contexts.billing.domain.comprobante import Comprobante
+from cheatsheet.contexts.billing.domain.leyendas import leyenda_de
 from cheatsheet.contexts.billing.domain.punto_de_venta import TipoComprobante
 from cheatsheet.platform.almacenamiento import AlmacenamientoNoDisponible
 from cheatsheet.platform.telemetry import obtener_logger
@@ -104,6 +105,15 @@ def datos_del_receptor(comprobante: Comprobante) -> list[tuple[str, str]]:
 #: Printed at the foot of every page. It is what stops a PDF sitting in a folder from
 #: looking as authoritative as the record, which it is not (RN-03).
 PIE = "Representacion impresa. El comprobante fiscal es el registro electronico y su CAE."
+
+
+def lineas_de_leyenda(comprobante: Comprobante) -> list[str]:
+    """HU-E5-03 RN-13, cut in two: on one line at this size it runs off the page."""
+    leyenda = leyenda_de(comprobante)
+    if leyenda is None:
+        return []
+    corte = leyenda.rfind(" ", 0, len(leyenda) // 2 + 10)
+    return [leyenda[:corte], leyenda[corte + 1 :]]
 
 
 def renderizar(comprobante: Comprobante, punto_numero: int) -> bytes:
@@ -191,6 +201,10 @@ def renderizar(comprobante: Comprobante, punto_numero: int) -> bytes:
     pagina.drawRightString(158 * mm, y, "TOTAL:")
     pagina.drawRightString(190 * mm, y, _monto(comprobante.total))
 
+    pagina.setFont("Helvetica", 8)
+    for renglon, texto in enumerate(lineas_de_leyenda(comprobante)):
+        pagina.drawString(20 * mm, (30 - 4 * renglon) * mm, texto)
+
     pagina.setFont("Helvetica-Oblique", 7)
     pagina.drawString(20 * mm, 15 * mm, PIE)
 
@@ -242,5 +256,6 @@ __all__ = [
     "clave_de",
     "datos_del_encabezado",
     "datos_del_receptor",
+    "lineas_de_leyenda",
     "renderizar",
 ]

@@ -39,7 +39,7 @@ from cheatsheet.contexts.payments.domain.cobro import (
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada
+from cheatsheet.shared.errors import EntradaInvalida, InvarianteViolada, OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -55,7 +55,7 @@ MONTO_MAXIMO_DE_COBRO = Decimal("100000000.00")
 
 def exigir_gestor(rol: RolUsuario) -> None:
     if rol not in (RolUsuario.ADMINISTRADOR, RolUsuario.OPERADOR):
-        raise EntradaInvalida(MOTIVO_SIN_PERMISO)
+        raise OperacionNoPermitida(MOTIVO_SIN_PERMISO)
 
 
 def monto_desde(texto: str) -> Decimal:
@@ -132,10 +132,12 @@ class VerCobro:
 
 
 class RegenerarLink:
-    """El último criterio de HU-E6-03: se invalida el anterior y se activa el nuevo.
+    """El último criterio de HU-E6-03: se invalida el anterior **en MercadoPago** y se activa el nuevo.
 
-    Invalidar es reemplazar el objeto (`asignar_link`), no sacar uno de una lista: no hay
-    forma de olvidarse del viejo porque nunca hubo dos.
+    En el agregado hay un solo link —`asignar_link` lo reemplaza, no hay una lista de la que
+    olvidarse—, pero el anterior también vive en MercadoPago, donde sigue siendo una preferencia
+    cobrable hasta que se la invalida. Por eso la regeneración mata la preferencia vieja antes de
+    guardar la nueva; si no, un pago por el link viejo quedaría sin imputar (RN-04, pago huérfano).
     """
 
     def __init__(
@@ -166,9 +168,26 @@ class RegenerarLink:
         if cobro is None:
             raise CobroInexistente("El cobro no existe")
 
+        # Primero el nuevo: si MercadoPago no responde, el cobro queda con su link anterior
+        # intacto y nada se escribe.
         link = await self._pasarela.crear_link(
             empresa_id=empresa_id, cobro=cobro, url_de_retorno=self._url_de_retorno
         )
+
+        # **El anterior se invalida en MercadoPago, no sólo acá** (HU-E6-03 crit. 5, RN-04). El
+        # link viejo ya está en el WhatsApp del cliente y sigue siendo una preferencia cobrable;
+        # un pago por él llega con la preferencia anterior y, como el cobro ya referencia la
+        # nueva, `ConfirmarPago` no lo imputa a ninguna deuda (pago huérfano). Si MercadoPago no
+        # confirma que murió, la regeneración no ocurre —una operación sobre plata no se hace a
+        # medias, igual que la cancelación— y el cobro conserva su único link cobrable. Sin link
+        # o ya vencido no hay nada que invalidar: la preferencia se creó con
+        # `expiration_date_to = vence_el`, así que vencer y «el proveedor ya no lo acepta» son el
+        # mismo hecho.
+        if cobro.link is not None and not cobro.esta_vencido_a(ahora):
+            await self._pasarela.invalidar_link(
+                empresa_id=empresa_id, preference_id=cobro.link.preference_id, ahora=ahora
+            )
+
         cobro.asignar_link(link, ahora)
         await self._cobros.guardar(cobro)
 

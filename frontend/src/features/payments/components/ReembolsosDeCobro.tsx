@@ -31,6 +31,7 @@ import {
   SelectorDeFecha,
   formatearFecha,
   formatearNumero,
+  montoDesdeTexto,
 } from "@/shared";
 
 import {
@@ -42,7 +43,8 @@ import {
   registrarReembolso,
   tieneReembolsos,
 } from "../api/cobro";
-import type { DetalleDeCobro as Detalle, Reembolso } from "../api/cobro";
+import type { DetalleDeCobro as Detalle } from "../api/cobro";
+import type { Reembolso } from "../api/reembolso";
 
 function mensajeDe(fallo: unknown, porDefecto: string): string {
   return fallo instanceof ErrorDeCobro ? fallo.message : porDefecto;
@@ -165,7 +167,12 @@ export function ReembolsosDeCobro({
     setError(null);
     setTrabajando(true);
     try {
-      await registrarReembolso(cobro.id, { monto, fecha, referencia, motivo });
+      await registrarReembolso(cobro.id, {
+        monto: montoDesdeTexto(monto) ?? monto,
+        fecha,
+        referencia,
+        motivo,
+      });
       setRegistrando(false);
       await alCambiar();
     } catch (fallo) {

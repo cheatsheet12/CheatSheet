@@ -92,6 +92,15 @@ describe("CarcasaDelPanel", () => {
     expect(document.activeElement).toBe(disparador);
   });
 
+  it("enlaza los términos y la política desde la barra lateral", () => {
+    montar();
+
+    const legales = screen.getByRole("navigation", { name: "Información legal" });
+    expect([...legales.querySelectorAll("a")].map((enlace) => enlace.getAttribute("href"))).toEqual(
+      ["/terminos", "/privacidad"],
+    );
+  });
+
   it("muestra las migas de la pantalla actual", () => {
     ruta.actual = "/cobros";
     montar();

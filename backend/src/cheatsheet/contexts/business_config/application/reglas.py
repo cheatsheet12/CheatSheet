@@ -28,7 +28,7 @@ from cheatsheet.contexts.business_config.domain.regla import (
 )
 from cheatsheet.shared.auditoria import EventoAuditable, Modulo, Resultado
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.events import PublicadorDeEventos
 from cheatsheet.shared.roles import RolUsuario
 
@@ -37,7 +37,7 @@ MOTIVO_SOLO_ADMIN = "Solo un Administrador puede configurar las reglas de negoci
 
 def _exigir_administrador(rol: RolUsuario) -> None:
     if rol is not RolUsuario.ADMINISTRADOR:
-        raise EntradaInvalida(MOTIVO_SOLO_ADMIN)
+        raise OperacionNoPermitida(MOTIVO_SOLO_ADMIN)
 
 
 class ListarReglas:
@@ -166,7 +166,7 @@ class CambiarEstadoDeRegla:
 class ConsultarReglasVigentes:
     """El Open Host Service: qué reglas rigen ahora, resueltas por prioridad (RN-05).
 
-    **No comprueba rol**, por la misma razón que `ObtenerTicketDeAcceso` no comprueba
+    **No comprueba rol**, por la misma razón que `ObtenerTicketDePlataforma` no comprueba
     ninguno: el llamador es otro contexto actuando por una empresa, y quien le pidió *a él*
     es donde vive la autorización.
 

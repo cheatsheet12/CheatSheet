@@ -234,6 +234,28 @@ async def test_dos_comprobantes_con_el_mismo_numero_y_tipo_se_rechazan(
         )
 
 
+async def test_el_numero_de_un_rechazado_se_puede_volver_a_emitir(
+    sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
+) -> None:
+    """Un rechazo devuelve el número (ARCA no lo consumió): el siguiente lo toma sin choque."""
+    empresa_id = await _empresa(engine_dueno)
+    cliente_id = await _cliente(engine_dueno, empresa_id)
+    punto = await _punto(sesiones, empresa_id)
+    rechazado = _comprobante(
+        empresa_id, cliente_id, punto, numero=2, estado=EstadoComprobante.ENVIADO_A_ARCA
+    )
+    rechazado.rechazar("Error 10246: algo")
+    await _guardar(sesiones, empresa_id, rechazado)
+
+    await _guardar(
+        sesiones,
+        empresa_id,
+        _comprobante(
+            empresa_id, cliente_id, punto, numero=2, estado=EstadoComprobante.ENVIADO_A_ARCA
+        ),
+    )
+
+
 async def test_el_mismo_numero_en_dos_tipos_distintos_convive(
     sesiones: async_sessionmaker[AsyncSession], engine_dueno: AsyncEngine
 ) -> None:

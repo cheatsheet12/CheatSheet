@@ -42,7 +42,7 @@ from cheatsheet.contexts.reporting.domain.reporte import (
     TipoReporte,
 )
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 from tests.contexts.reporting.application.dobles import (
@@ -134,7 +134,7 @@ class TestGenerar:
     @pytest.mark.asyncio
     async def test_solo_lectura_no_genera(self) -> None:
         escenario = Escenario()
-        with pytest.raises(EntradaInvalida):
+        with pytest.raises(OperacionNoPermitida):
             await escenario.generar(rol=RolUsuario.SOLO_LECTURA)
         assert escenario.reportes.reportes == {}
 

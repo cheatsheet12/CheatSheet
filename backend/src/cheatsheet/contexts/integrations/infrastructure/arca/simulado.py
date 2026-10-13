@@ -1,4 +1,4 @@
-"""A stand-in for ARCA, for every environment without a real fiscal certificate.
+"""A stand-in for ARCA, for every environment without the platform certificate.
 
 Same guard rails as every other stand-in in this context: it validates nothing against a
 real service, and **constructing it in `production` raises** — a `RuntimeError` at build
@@ -6,10 +6,8 @@ time, before the process serves a request. Here that matters more than anywhere 
 company believing it is connected to ARCA when nothing ever reached ARCA is a company that
 believes it can invoice.
 
-**It reuses the real credential parsing and the real expiry mapping.** Only the network
-call is replaced. So a certificate that is malformed, whose key does not match, or that has
-already expired is rejected on a laptop exactly as it would be in production — and the
-three states of the card come out of the same function either way.
+It answers as ARCA would under web service delegation (ADR-0014): connecting reads the
+company's CUIT, and a CUIT starting with `PREFIJO_SIN_DELEGACION` has not delegated.
 
 The ticket it mints is fake and says so. Nothing downstream can mistake it for one that
 ARCA would accept.
@@ -35,6 +33,7 @@ from cheatsheet.contexts.integrations.application.ports import (
     ResultadoDeConexion,
     ResultadoDeVerificacion,
     TicketEmitido,
+    TicketVigente,
 )
 from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
 from cheatsheet.contexts.integrations.domain.valores import (
@@ -42,18 +41,12 @@ from cheatsheet.contexts.integrations.domain.valores import (
     EstadoDeConexion,
     SistemaExterno,
 )
-from cheatsheet.contexts.integrations.infrastructure.arca import firma
-from cheatsheet.contexts.integrations.infrastructure.arca.adaptadores import (
-    SERVICIO_DE_VALIDACION,
-    parametros_de_la_credencial,
-)
 from cheatsheet.contexts.integrations.infrastructure.arca.delegacion import (
     MENSAJE_SIN_DELEGACION,
     cuit_del_material,
     formatear,
     resultado_delegado,
 )
-from cheatsheet.contexts.integrations.infrastructure.arca.mapeo import estado_por_vencimiento
 from cheatsheet.contexts.integrations.infrastructure.arca.padron import leer_persona
 from cheatsheet.platform.settings import Entorno
 from cheatsheet.shared.clock import Reloj
@@ -91,69 +84,17 @@ def _rechazar_en_produccion(entorno: Entorno) -> None:
         )
 
 
-class ArcaSimulado:
-    """Implements the four ARCA ports at once, without a socket."""
-
-    def __init__(self, *, entorno: Entorno, reloj: Reloj, aviso: timedelta) -> None:
-        _rechazar_en_produccion(entorno)
-        self._reloj = reloj
-        self._aviso = aviso
-
-    async def emitir(self, credencial: bytes, servicio: ServicioDeArca) -> TicketEmitido:
-        fiscal = firma.leer_credencial(credencial)
-        ahora = self._reloj.ahora()
-        firma.exigir_vigente(fiscal, ahora)
-        return TicketEmitido(
-            servicio=servicio,
-            contenido=f"{PREFIJO_SIMULADO}-{secrets.token_hex(8)}".encode(),
-            expira_en=ahora + DURACION_DEL_TICKET,
-        )
-
-    async def conectar(self, material: MaterialDeConexion) -> ResultadoDeConexion:
-        fiscal = firma.leer_credencial(material.contenido)
-        firma.exigir_vigente(fiscal, self._reloj.ahora())
-        if not material.contenido.strip():
-            raise ConexionRechazada("Falta la credencial fiscal")
-        ticket = await self.emitir(material.contenido, SERVICIO_DE_VALIDACION)
-        return ResultadoDeConexion(
-            credencial=material.contenido,
-            parametros=parametros_de_la_credencial(fiscal),
-            tickets=(ticket,),
-        )
-
-    async def consultar(
-        self, *, ticket: bytes, parametros: Mapping[str, Any], cuit: str
-    ) -> DatosDePadron | None:
-        """Fabricates a `getPersona` answer and reads it back with the real parser."""
-        del ticket, parametros  # the stand-in authenticates nothing
-        digitos = "".join(c for c in cuit if c.isdigit())
-        if digitos.startswith(PREFIJO_INEXISTENTE):
-            return None
-        return leer_persona(_respuesta_simulada(digitos), digitos)
-
-    async def verificar(
-        self, credencial: bytes, parametros: dict[str, Any]
-    ) -> ResultadoDeVerificacion:
-        del parametros
-        try:
-            fiscal = firma.leer_credencial(credencial)
-        except ConexionRechazada as exc:
-            # Same answer the real adapter gives, for the same reason: a stored credential
-            # that no longer parses is a data problem, and it belongs on the card.
-            return ResultadoDeVerificacion(
-                EstadoDeConexion.ATENCION, f"No se pudo leer la credencial guardada: {exc}"
-            )
-        estado, detalle = estado_por_vencimiento(fiscal.vence_en, self._reloj.ahora(), self._aviso)
-        return ResultadoDeVerificacion(estado, detalle, parametros_de_la_credencial(fiscal))
-
-
-class ArcaSimuladoPorDelegacion(ArcaSimulado):
+class ArcaSimuladoPorDelegacion:
     """The stand-in under ADR-0014: companies delegate, the platform holds the certificate.
 
     Connecting reads the company's CUIT and answers as ARCA would about its delegation; a
     CUIT starting with `PREFIJO_SIN_DELEGACION` has not delegated. There is no platform
     certificate in a simulated deployment, so minting a ticket reads no credential.
     """
+
+    def __init__(self, *, entorno: Entorno, reloj: Reloj) -> None:
+        _rechazar_en_produccion(entorno)
+        self._reloj = reloj
 
     async def emitir(self, credencial: bytes, servicio: ServicioDeArca) -> TicketEmitido:
         del credencial  # no platform certificate exists in a simulated deployment
@@ -169,6 +110,16 @@ class ArcaSimuladoPorDelegacion(ArcaSimulado):
             raise ConexionRechazada(MENSAJE_SIN_DELEGACION.format(cuit=formatear(cuit)))
         return resultado_delegado(cuit)
 
+    async def consultar(
+        self, *, ticket: bytes, parametros: Mapping[str, Any], cuit: str
+    ) -> DatosDePadron | None:
+        """Fabricates a `getPersona` answer and reads it back with the real parser."""
+        del ticket, parametros  # the stand-in authenticates nothing
+        digitos = "".join(c for c in cuit if c.isdigit())
+        if digitos.startswith(PREFIJO_INEXISTENTE):
+            return None
+        return leer_persona(_respuesta_simulada(digitos), digitos)
+
     async def verificar(
         self, credencial: bytes, parametros: dict[str, Any]
     ) -> ResultadoDeVerificacion:
@@ -180,6 +131,27 @@ class ArcaSimuladoPorDelegacion(ArcaSimulado):
             )
         return ResultadoDeVerificacion(
             EstadoDeConexion.CONECTADO, None, resultado_delegado(cuit).parametros
+        )
+
+
+class TicketDePadronSimulado:
+    """The padrón's ticket when the padrón is simulated and WSFE is not (ADR-0014 point 7).
+
+    A simulated registry authenticates nothing, so asking WSAA for its ticket only adds a
+    way to fail: an outage, or a WSASS authorization nobody created, would break a lookup
+    that never leaves the process. Nothing is persisted either — a fabricated ticket in
+    `ticket_de_plataforma` would be sent to the real padrón the day it is switched on.
+    """
+
+    def __init__(self, *, entorno: Entorno, reloj: Reloj) -> None:
+        _rechazar_en_produccion(entorno)
+        self._reloj = reloj
+
+    async def ejecutar(self, servicio: ServicioDeArca) -> TicketVigente:
+        return TicketVigente(
+            servicio=servicio,
+            contenido=f"{PREFIJO_SIMULADO}-{secrets.token_hex(8)}".encode(),
+            expira_en=self._reloj.ahora() + DURACION_DEL_TICKET,
         )
 
 

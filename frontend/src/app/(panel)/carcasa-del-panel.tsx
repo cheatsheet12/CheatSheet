@@ -22,6 +22,8 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { EnlacesLegales } from "@/features/identity";
+
 import { MenuDeUsuario } from "./menu-de-usuario";
 import { NavegacionLateral, ubicacionDe } from "./navegacion-lateral";
 
@@ -162,6 +164,9 @@ export function CarcasaDelPanel({
             )}
           </button>
         </div>
+
+        {/* HU-E1-08 RN-06: la política se lee desde el panel, no sólo antes de entrar. */}
+        <EnlacesLegales className="sidebar__legales" />
       </aside>
 
       {cajonAbierto ? (

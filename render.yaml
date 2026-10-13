@@ -64,10 +64,11 @@ services:
     # The context is `backend/`, not the repository root: the image needs nothing from
     # `frontend/` or `docs/`, and a smaller context is a faster and narrower build.
     dockerContext: ./backend
-    # /health answers 503 when PostgreSQL or Redis is unreachable, so an instance
-    # that cannot serve is never routed traffic. It was written before this unit
-    # and needed no change.
-    healthCheckPath: /health
+    # /health/live touches neither PostgreSQL nor Redis. Render probes every few seconds
+    # while the instance is awake, and a probe that ran SELECT 1 kept Neon's compute from
+    # ever suspending. /health stays the full readiness check (503 when PostgreSQL or
+    # Redis is down) and is what the post-deploy poll in CI uses.
+    healthCheckPath: /health/live
     envVars:
       - key: APP_ENV
         value: staging
@@ -88,6 +89,7 @@ services:
       # character or the exchange fails with `invalid_grant`.
       - key: APP_BASE_URL
         sync: false
+
       # This service's own public URL. Every MercadoPago link carries
       # {API_URL_PUBLICA}/webhooks/mercadopago/{empresa_id} as notification_url;
       # required when MERCADOPAGO_ADAPTADOR=mercadopago.
@@ -260,6 +262,13 @@ services:
       # own machine. Same variable name as on the API, same value, different
       # reason -- there it is what the MercadoPago redirect_uri derives from.
       - key: APP_BASE_URL
+        sync: false
+      # Public Picker configuration, required at build time for real Google links.
+      - key: NEXT_PUBLIC_GOOGLE_PICKER_CLIENT_ID
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_PICKER_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_PICKER_PROJECT_NUMBER
         sync: false
 
   # -------------------------------------------------------------------------

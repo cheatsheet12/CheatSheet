@@ -14,7 +14,7 @@
 
 import { NextResponse } from "next/server";
 
-import { ErrorDeApi, llamarApi } from "@/lib/api";
+import { comoRutaDelBff, ErrorDeApi, llamarApi } from "@/lib/api";
 import { haySesion } from "@/lib/session";
 
 import { respuestaDeError } from "@/app/api/auth/_sesion";
@@ -31,6 +31,7 @@ export const COOKIE_ESTADO = "planilla_oauth_state";
  * Una cookie corta es exactamente eso, y muere con el `state`.
  */
 export const COOKIE_DOCUMENTO = "planilla_oauth_documento";
+export const COOKIE_DIRECCION = "planilla_oauth_direccion";
 /** Lo suficiente para elegir un archivo, y poco para que una pestaña olvidada no sea una invitación. */
 const TTL_SEGUNDOS = 600;
 
@@ -38,17 +39,32 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!haySesion()) {
     return NextResponse.json({ error: "NoAutenticado" }, { status: 401 });
   }
-  const { documento } = (await cuerpoDe(request)) as { documento?: string };
+  const { documento, direccion } = (await cuerpoDe(request)) as {
+    documento?: string;
+    direccion?: string;
+  };
   if (typeof documento !== "string" || documento.trim() === "") {
     return NextResponse.json(
       { error: "EntradaInvalida", detalle: "Falta el enlace de la planilla." },
       { status: 422 },
     );
   }
+  if (
+    direccion !== undefined &&
+    direccion !== "SOLO_LECTURA" &&
+    direccion !== "LECTURA_Y_ESCRITURA"
+  ) {
+    return NextResponse.json(
+      { error: "EntradaInvalida", detalle: "Dirección inválida." },
+      { status: 422 },
+    );
+  }
   try {
-    const datos = await llamarApi<{ url: string }>("/planillas/google/autorizacion", {
-      method: "POST",
-    });
+    const datos = await comoRutaDelBff(() =>
+      llamarApi<{ url: string }>("/planillas/google/autorizacion", {
+        method: "POST",
+      }),
+    );
     const respuesta = NextResponse.json(datos);
 
     // El `state` viaja dentro de la URL que el backend arma. Leerlo de ahí evita que el
@@ -63,6 +79,12 @@ export async function POST(request: Request): Promise<NextResponse> {
         maxAge: TTL_SEGUNDOS,
       });
       respuesta.cookies.set(COOKIE_DOCUMENTO, documento.trim(), {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: TTL_SEGUNDOS,
+      });
+      respuesta.cookies.set(COOKIE_DIRECCION, direccion ?? "SOLO_LECTURA", {
         httpOnly: true,
         sameSite: "lax",
         path: "/",

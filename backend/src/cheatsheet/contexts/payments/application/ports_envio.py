@@ -6,7 +6,6 @@ uno es un contrato del *consumidor* (`recordatorios.py` y el adaptador de envío
 
 from __future__ import annotations
 
-from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
@@ -19,11 +18,16 @@ class FallaDelCanal(Exception):
     `conversational` a esta (R3), y el adaptador de envío la lee sin importar a ese contexto.
     `codigo` es un código de Meta (`"131047"`) o una clase corta (`"INCIERTO"`); nunca el texto del
     error, que puede traer el número.
+
+    `transitoria` dice si vale otro intento más tarde (5xx, 429, throttling, sin conexión: el canal
+    ya agotó los suyos). Un rechazo permanente (4xx) o un resultado incierto (timeout de lectura:
+    Meta pudo haberlo aceptado) **no** lo son, y por defecto una falla no lo es.
     """
 
-    def __init__(self, codigo: str) -> None:
+    def __init__(self, codigo: str, *, transitoria: bool = False) -> None:
         super().__init__(codigo)
         self.codigo = codigo
+        self.transitoria = transitoria
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,19 +51,8 @@ class PortContactoDeCliente(Protocol):
     async def contacto_de(self, cliente_id: UUID) -> ContactoDeCobro | None: ...
 
 
-class PortAislamiento(Protocol):
-    """Pide un savepoint sin que `application/` importe SQLAlchemy (R2).
-
-    Lo que pasa adentro del bloque se confirma o se deshace **solo**, sin tocar el resto de la
-    transacción. Es lo que permite al barrido de recordatorios despachar varios cobros en una
-    sola transacción sin que el fallo del K deshaga las filas de los K-1 cuyos mensajes ya
-    salieron (si las deshiciera, el barrido siguiente los mandaría de nuevo).
-
-    Si la base rechaza algo adentro, el bloque se deshace y **sale `DespachoNoPersistido`**;
-    cualquier otra excepción se propaga tal cual, también deshaciendo el bloque.
-    """
-
-    def aislar(self) -> AbstractAsyncContextManager[None]: ...
-
-
-__all__ = ["ContactoDeCobro", "FallaDelCanal", "PortAislamiento", "PortContactoDeCliente"]
+__all__ = [
+    "ContactoDeCobro",
+    "FallaDelCanal",
+    "PortContactoDeCliente",
+]

@@ -52,11 +52,10 @@ export type {
   FiltrosDeCobro,
   ListadoDeCobros as ListadoDeCobrosRespuesta,
   MetricasDeCobros,
-  OrigenDeReembolso,
-  Recordatorio,
-  Reembolso,
   ReembolsoManualNuevo,
 } from "./api/cobro";
+export type { Recordatorio } from "./api/recordatorio";
+export type { OrigenDeReembolso, Reembolso } from "./api/reembolso";
 export {
   CANALES,
   ETIQUETAS_DE_TIPO,

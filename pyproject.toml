@@ -77,6 +77,10 @@ pretty = true
 # tests that exercise it can be type-checked against the real package.
 mypy_path = "backend/scripts"
 exclude = ['^\.venv/', '^venv/', '^node_modules/', '^build/', '^dist/']
+# Where our own package lives. The project environment finds `cheatsheet` because it is
+# installed in editable mode; the pre-commit hook runs in an isolated environment where it is
+# not, and every `cheatsheet.*` import was "import-not-found" there.
+mypy_path = "backend/src"
 
 # Third-party libraries without stubs must not break the build on their own,
 # but our own code is never left untyped.
@@ -95,6 +99,9 @@ module = [
     # Draws the printable representation of a `Comprobante` (HU-E5-02 RN-03). Ships no
     # stubs and has no stub package.
     "reportlab.*",
+    # The PostgreSQL driver: its exceptions are translated at the session-check adapter
+    # (connect-time errors SQLAlchemy does not wrap). Ships no stubs or py.typed.
+    "asyncpg.*",
 ]
 ignore_missing_imports = true
 

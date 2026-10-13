@@ -101,6 +101,10 @@ class PagoRecibido:
     #: lo informó o no se pudo leer: el dominio entonces usa el momento de la confirmación y
     #: marca la fecha como aproximada.
     fecha_aprobacion: datetime | None = None
+    #: El cobro al que pertenece el pago, tal como lo devolvió MercadoPago en
+    #: `external_reference`. Es el dato que ata un pago de Checkout Pro a su cobro: el pago
+    #: casi nunca trae `preference_id`. `None` si falta o no es un id nuestro.
+    cobro_id: UUID | None = None
 
     @property
     def esta_aprobado(self) -> bool:
@@ -253,6 +257,16 @@ class PortRepositorioRecordatorios(Protocol):
         simplemente no existe. `para_actualizar` bloquea la fila hasta el fin de la transacción:
         los callbacks leen, mutan y reescriben, y dos en paralelo se pisarían.
         """
+        ...
+
+    async def buscar_para_actualizar(self, recordatorio_id: UUID) -> Recordatorio | None:
+        """La fila **bloqueada y releída** (U7, D-U7-3): quien la toma para un intento decide sobre
+        lo que otro barrido dejó confirmado, y dos barridos solapados no mandan lo mismo."""
+        ...
+
+    async def pendientes_de_reintento(self, ahora: datetime) -> list[Recordatorio]:
+        """Las filas sin enviar con `proximo_intento_en <= ahora`: un reintento que toca, o un
+        envío en curso cuya ventana venció (resultado incierto)."""
         ...
 
     async def de_cobro(self, cobro_id: UUID) -> list[Recordatorio]: ...

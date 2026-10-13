@@ -210,7 +210,6 @@ def crear_router(recursos: Recursos) -> APIRouter:
                 integraciones=piezas.integraciones,
                 # ARCA mints an access ticket while validating and ARCA refuses to issue
                 # another for twelve hours, so it has to be kept (ADR-0004).
-                tickets=piezas.tickets,
                 cifrado=piezas.cifrado,
                 adaptadores=piezas.adaptadores,
                 publicador=unidad.publicador,
@@ -270,7 +269,6 @@ def _rutas_de_autorizacion(recursos: Recursos) -> APIRouter:
                 memoria=crear_memoria_de_autorizacion(recursos.redis),
                 conectar=ConectarIntegracion(
                     integraciones=piezas.integraciones,
-                    tickets=piezas.tickets,
                     cifrado=piezas.cifrado,
                     adaptadores=piezas.adaptadores,
                     publicador=unidad.publicador,

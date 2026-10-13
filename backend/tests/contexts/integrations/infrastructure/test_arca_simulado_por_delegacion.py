@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 import pytest
 from cheatsheet.contexts.integrations.application.errors import ConexionRechazada
 from cheatsheet.contexts.integrations.application.ports import MaterialDeConexion
@@ -11,8 +9,10 @@ from cheatsheet.contexts.integrations.application.ticket import desempaquetar
 from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca
 from cheatsheet.contexts.integrations.domain.valores import CLAVE_CUIT, EstadoDeConexion
 from cheatsheet.contexts.integrations.infrastructure.arca.simulado import (
+    PREFIJO_SIMULADO,
     PREFIJO_SIN_DELEGACION,
     ArcaSimuladoPorDelegacion,
+    TicketDePadronSimulado,
 )
 from cheatsheet.platform.settings import Entorno
 from cheatsheet.shared.clock import RelojFijo
@@ -23,9 +23,7 @@ pytestmark = pytest.mark.asyncio
 
 
 def _simulado() -> ArcaSimuladoPorDelegacion:
-    return ArcaSimuladoPorDelegacion(
-        entorno=Entorno.LOCAL, reloj=RelojFijo(INSTANTE_FIJO), aviso=timedelta(days=30)
-    )
+    return ArcaSimuladoPorDelegacion(entorno=Entorno.LOCAL, reloj=RelojFijo(INSTANTE_FIJO))
 
 
 def _material(cuit: str) -> MaterialDeConexion:
@@ -60,6 +58,19 @@ async def test_la_verificacion_simulada_conserva_el_estado() -> None:
 
 def test_no_se_construye_en_produccion() -> None:
     with pytest.raises(RuntimeError):
-        ArcaSimuladoPorDelegacion(
-            entorno=Entorno.PRODUCTION, reloj=RelojFijo(INSTANTE_FIJO), aviso=timedelta(days=30)
-        )
+        ArcaSimuladoPorDelegacion(entorno=Entorno.PRODUCTION, reloj=RelojFijo(INSTANTE_FIJO))
+
+
+async def test_el_ticket_del_padron_simulado_no_pasa_por_wsaa() -> None:
+    """Con el padrón simulado y WSFE real, el padrón no depende de WSAA ni de WSASS."""
+    ticket = await TicketDePadronSimulado(
+        entorno=Entorno.STAGING, reloj=RelojFijo(INSTANTE_FIJO)
+    ).ejecutar(ServicioDeArca.PADRON_A5)
+
+    assert ticket.servicio is ServicioDeArca.PADRON_A5
+    assert ticket.contenido.startswith(PREFIJO_SIMULADO.encode())
+
+
+def test_el_ticket_del_padron_simulado_no_existe_en_produccion() -> None:
+    with pytest.raises(RuntimeError, match="produccion"):
+        TicketDePadronSimulado(entorno=Entorno.PRODUCTION, reloj=RelojFijo(INSTANTE_FIJO))

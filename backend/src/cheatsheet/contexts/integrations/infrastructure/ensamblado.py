@@ -13,18 +13,19 @@ from datetime import timedelta
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cheatsheet.contexts.integrations.application.padron import PortTicketDePadron
 from cheatsheet.contexts.integrations.application.ports import (
     PortAvisoDeIntegracion,
     PortCifradoDeCredenciales,
     PortMemoriaDeAutorizacion,
     PortRegistroDeAdaptadores,
     PortRepositorioIntegraciones,
-    PortRepositorioTickets,
 )
 from cheatsheet.contexts.integrations.application.tickets_de_plataforma import (
     ObtenerTicketDePlataforma,
 )
 from cheatsheet.contexts.integrations.infrastructure.arca.firma import leer_credencial
+from cheatsheet.contexts.integrations.infrastructure.arca.simulado import TicketDePadronSimulado
 from cheatsheet.contexts.integrations.infrastructure.autorizaciones import (
     MemoriaDeAutorizacionRedis,
 )
@@ -37,10 +38,9 @@ from cheatsheet.contexts.integrations.infrastructure.registro import (
 from cheatsheet.contexts.integrations.infrastructure.repositories import (
     RepositorioIntegracionesSQL,
     RepositorioTicketsDePlataformaSQL,
-    RepositorioTicketsSQL,
 )
 from cheatsheet.platform.email import crear_transporte
-from cheatsheet.platform.settings import Settings
+from cheatsheet.platform.settings import AdaptadorDeArca, Settings
 from cheatsheet.shared.clock import RelojDelSistema
 
 
@@ -49,11 +49,12 @@ class Integraciones:
     """The pieces one request needs."""
 
     integraciones: PortRepositorioIntegraciones
-    tickets: PortRepositorioTickets
     cifrado: PortCifradoDeCredenciales
     adaptadores: PortRegistroDeAdaptadores
     #: ADR-0014: the platform certificate's ticket, bound to this request's transaction.
     tickets_de_plataforma: ObtenerTicketDePlataforma
+    #: The padrón's ticket: the platform's, or a fabricated one when the padrón is simulated.
+    tickets_de_padron: PortTicketDePadron
 
     @classmethod
     def armar(cls, sesion: AsyncSession, settings: Settings) -> Integraciones:
@@ -69,10 +70,14 @@ class Integraciones:
         )
         return cls(
             integraciones=RepositorioIntegracionesSQL(sesion),
-            tickets=RepositorioTicketsSQL(sesion),
             cifrado=cifrado,
             adaptadores=RegistroDeAdaptadores.desde_settings(settings, tickets_de_plataforma),
             tickets_de_plataforma=tickets_de_plataforma,
+            tickets_de_padron=(
+                TicketDePadronSimulado(entorno=settings.entorno, reloj=reloj)
+                if settings.arca_padron_adaptador is AdaptadorDeArca.SIMULADO
+                else tickets_de_plataforma
+            ),
         )
 
 

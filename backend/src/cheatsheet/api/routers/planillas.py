@@ -26,7 +26,9 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
+from cheatsheet.api.credenciales_planilla import credenciales_de_planilla
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
+from cheatsheet.contexts.integrations.application.credenciales_oauth import CredencialOAuthRevocada
 from cheatsheet.contexts.master_data.infrastructure.ensamblado import DatosMaestros
 from cheatsheet.contexts.spreadsheet_sync.application.correcciones import (
     CorregirFila,
@@ -74,12 +76,14 @@ from cheatsheet.contexts.spreadsheet_sync.infrastructure.catalogo import Ingesta
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.ensamblado import (
     Planillas,
     almacenamiento,
+    lectura_de_planilla,
     modelo_de_lenguaje,
     proveedor_de_planilla,
 )
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.lector import LectorDePlanilla
+from cheatsheet.platform.settings import AdaptadorDePlanilla
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import EntradaInvalida, OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 from cheatsheet.workers.tasks_spreadsheet import encolar_procesamiento
 from fastapi import APIRouter, Request, Response, status
@@ -184,6 +188,7 @@ class DetalleDeCargaSalida(BaseModel):
     errores: list[ErrorDeFilaSalida]
     #: False for Solo Lectura (RN-04), and also when nothing failed.
     puede_reprocesar: bool
+    puede_corregir_filas: bool
 
 
 def _detalle_a_salida(
@@ -198,6 +203,11 @@ def _detalle_a_salida(
         ],
         puede_reprocesar=(
             rol is not RolUsuario.SOLO_LECTURA and bool(procesamiento.filas_a_reprocesar)
+        ),
+        puede_corregir_filas=(
+            rol is not RolUsuario.SOLO_LECTURA
+            and bool(procesamiento.filas_a_reprocesar)
+            and procesamiento.referencia_archivo is not None
         ),
     )
 
@@ -357,11 +367,32 @@ def _rutas_de_encabezados(recursos: Recursos) -> APIRouter:
         salida: EncabezadosSalida | None = None
         async for unidad in unidad_de_trabajo(recursos, empresa_id):
             piezas = Planillas.armar(unidad)
+            vinculo = await piezas.vinculos.buscar_por_id(vinculo_id)
+            token: str | None = None
+            if vinculo is not None and vinculo.proveedor is ProveedorPlanilla.GOOGLE_SHEETS:
+                if recursos.settings.planilla_adaptador is AdaptadorDePlanilla.GOOGLE:
+                    if vinculo.configuracion_integracion_id is None:
+                        raise EntradaInvalida("La planilla de Google requiere reconectar la cuenta")
+                    try:
+                        token = await credenciales_de_planilla(
+                            unidad.sesion, recursos.settings
+                        ).obtener(
+                            empresa_id=empresa_id,
+                            configuracion_id=vinculo.configuracion_integracion_id,
+                            ahora=unidad.reloj.ahora(),
+                        )
+                    except CredencialOAuthRevocada as exc:
+                        raise PermisosDePlanillaInsuficientes(
+                            "La planilla de Google requiere reconectar la cuenta"
+                        ) from exc
+                else:
+                    token = vinculo.identificador_externo
             columnas = await LeerEncabezados(
                 vinculos=piezas.vinculos,
                 almacenamiento=almacenamiento(recursos.settings),
                 lector=LectorDePlanilla(),
-            ).ejecutar(vinculo_id=vinculo_id)
+                lector_remoto=lectura_de_planilla(recursos.settings),
+            ).ejecutar(vinculo_id=vinculo_id, token=token)
             salida = EncabezadosSalida(
                 columnas=[ColumnaEntrada(nombre=c.nombre, ejemplo=c.ejemplo) for c in columnas]
             )
@@ -535,6 +566,11 @@ def _rutas_de_google(recursos: Recursos) -> APIRouter:
                 vinculos=piezas.vinculos,
                 proveedor=proveedor_de_planilla(recursos.settings),
                 publicador=unidad.publicador,
+                credenciales=(
+                    credenciales_de_planilla(unidad.sesion, recursos.settings)
+                    if recursos.settings.planilla_adaptador is AdaptadorDePlanilla.GOOGLE
+                    else None
+                ),
             ).ejecutar(
                 empresa_id=empresa_id,
                 usuario_id=usuario_id,
@@ -655,7 +691,7 @@ def _rutas_de_procesamiento(recursos: Recursos) -> APIRouter:
         """
         empresa_id, _, rol = _actor(request)
         if rol is RolUsuario.SOLO_LECTURA:
-            raise EntradaInvalida("Un usuario de Solo Lectura no puede procesar una planilla")
+            raise OperacionNoPermitida("Un usuario de Solo Lectura no puede procesar una planilla")
 
         aceptado = encolar_procesamiento(
             recursos.settings, empresa_id=empresa_id, vinculo_id=entrada.vinculo_id

@@ -45,6 +45,7 @@ const mensaje = (id: string, momento: string, extra: Partial<Mensaje> = {}): Men
   intencion: null,
   estado_entrega: null,
   origen: null,
+  motivo_de_falla: null,
   ...extra,
 });
 

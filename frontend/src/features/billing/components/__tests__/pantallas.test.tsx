@@ -61,6 +61,7 @@ const AUTORIZADO: Comprobante = {
   cae: "75123456789012",
   cae_vence_el: "2026-09-17",
   motivo_de_rechazo: null,
+  leyenda: null,
   subtotal: "2000.00",
   total_iva: "420.00",
   total: "2420.00",
@@ -218,6 +219,19 @@ describe("el detalle", () => {
 
     expect(screen.getByText(/Error 10016/)).toBeDefined();
     expect(screen.queryByText("Descargar PDF")).toBeNull();
+  });
+
+  it("una Factura A a un Monotributista lleva la leyenda de RN-13", () => {
+    const aMonotributista: Comprobante = {
+      ...AUTORIZADO,
+      receptor_condicion_iva: "MONOTRIBUTO",
+      leyenda:
+        "El crédito fiscal discriminado en el presente comprobante, sólo podrá ser computado",
+    };
+
+    render(<DetalleDeComprobante comprobante={aMonotributista} puntoNumero={1} />);
+
+    expect(screen.getByText(/sólo podrá ser computado/)).toBeDefined();
   });
 
   it("un comprobante esperando a ARCA avisa que no se vuelva a emitir", () => {

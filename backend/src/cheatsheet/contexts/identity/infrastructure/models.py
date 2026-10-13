@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, Index, String
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -16,6 +16,7 @@ TABLA_EMPRESA = "empresa"
 TABLA_USUARIO = "usuario"
 TABLA_REFRESH = "refresh_token"
 TABLA_INVITACION = "invitacion"
+TABLA_ACEPTACION_LEGAL = "aceptacion_legal"
 
 
 class EmpresaORM(Base):
@@ -97,3 +98,49 @@ class InvitacionORM(Base):
     revocada: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (Index("ix_invitacion_empresa", "empresa_id"),)
+
+
+class AceptacionLegalORM(Base):
+    """One acceptance of one version of one legal document (HU-E1-08 RN-02).
+
+    Insert-only for the application role (migration 0041): evidence is never edited. The
+    foreign keys are declared in the migration, as for the rest of this context.
+    """
+
+    __tablename__ = TABLA_ACEPTACION_LEGAL
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    empresa_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    # Empty only for the terms of a company registered before this table existed and whose
+    # registration event could not be found (migration 0041).
+    usuario_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
+    documento: Mapped[str] = mapped_column(String(20), nullable=False)
+    version: Mapped[str] = mapped_column(String(20), nullable=False)
+    fecha_aceptacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "documento IN ('TERMINOS', 'PRIVACIDAD')", name="ck_aceptacion_legal_documento"
+        ),
+        CheckConstraint(
+            "usuario_id IS NOT NULL OR documento = 'TERMINOS'", name="ck_aceptacion_legal_usuario"
+        ),
+        Index("ix_aceptacion_legal_empresa", "empresa_id"),
+        Index(
+            "uq_aceptacion_legal_privacidad",
+            "usuario_id",
+            "version",
+            unique=True,
+            postgresql_where=text("documento = 'PRIVACIDAD'"),
+        ),
+        Index(
+            "uq_aceptacion_legal_terminos",
+            "empresa_id",
+            "version",
+            unique=True,
+            postgresql_where=text("documento = 'TERMINOS'"),
+        ),
+    )

@@ -11,10 +11,15 @@ aprobada la de `recordatorio_de_cobro`, el recordatorio sale **siempre** como pl
 sale el texto de fabrica de este modulo, **nunca el cuerpo editado de una plantilla no aprobada**
 (RN-04).
 
-**Nunca levanta.** Un fallo del canal es un recordatorio `FALLIDO`, no una excepcion: el barrido
-sigue con el cobro siguiente y el paso queda registrado, asi el indice `(cobro_id, paso)` no lo
-deja salir de nuevo. El `except` es amplio porque el adaptador no puede importar las excepciones
-de `conversational`; el codigo de Meta ya quedo en el log del canal.
+**Dos tiempos (U7, S1).** `preparar` lee el contacto y la plantilla (toda la E/S de base) y
+`mandar` solo habla con el canal: la llamada a Meta no toca la base. `preparar` deja pasar lo que
+la base rechaza (`SQLAlchemyError`: se deshace el savepoint de la reserva y no queda fila); `mandar`
+no levanta nunca.
+
+**Nunca levanta por el canal.** Un fallo del canal es un recordatorio `FALLIDO`, no una excepcion:
+el barrido sigue con el cobro siguiente y el paso queda registrado, asi el indice `(cobro_id,
+paso)` no lo deja salir de nuevo. El `except` es amplio porque el adaptador no puede importar las
+excepciones de `conversational`; el codigo de Meta ya quedo en el log del canal.
 
 Sin plantilla aprobada, fuera de la ventana Meta contesta 131047: el recordatorio queda
 `FALLIDO`, visible en PAN-COB-02 y nunca silencioso (el codigo queda en el log del canal).
@@ -27,7 +32,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Protocol
 
-from cheatsheet.contexts.payments.application.ports_de_recordatorios import ResultadoDeEnvio
+from sqlalchemy.exc import SQLAlchemyError
+
+from cheatsheet.contexts.payments.application.ports_de_recordatorios import (
+    MensajeListo,
+    PlantillaLista,
+    ResultadoDeEnvio,
+)
 from cheatsheet.contexts.payments.application.ports_envio import (
     FallaDelCanal,
     PortContactoDeCliente,
@@ -133,9 +144,10 @@ class EnvioPorWhatsApp:
         self._contactos = contactos
         self._plantillas = plantillas
 
-    async def enviar(
+    async def preparar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, canal: str, paso: int
-    ) -> ResultadoDeEnvio:
+    ) -> MensajeListo | ResultadoDeEnvio:
+        """Lee el contacto y la plantilla: **toda la E/S de base del envío está acá** (U7, S1)."""
         del empresa_id
         if canal != CANAL_WHATSAPP:
             logger.warning(
@@ -143,22 +155,19 @@ class EnvioPorWhatsApp:
             )
             return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo="CANAL_NO_SOPORTADO")
         try:
-            return await self._mandar(cobro, paso)
+            return await self._armar(cobro, canal, paso)
+        except SQLAlchemyError:
+            # Lo que la base rechaza **no** se traga: el savepoint de la reserva se deshace, no
+            # queda fila y el barrido siguiente lo evalúa de nuevo. Tragarlo dejaría la
+            # transacción abortada y rompería a los demás cobros de la empresa.
+            raise
         except Exception as exc:  # noqa: BLE001 — ver el docstring del modulo
-            # Acotado por el motivo: este adaptador no puede importar las excepciones de
-            # `conversational` (R3), y **nada puede voltear el barrido**. Solo la clase de la
-            # excepcion, nunca su texto: puede traer el numero.
             logger.warning(
-                "recordatorio_fallido",
-                cobro_id=str(cobro.id),
-                paso=paso,
-                causa=type(exc).__name__,
+                "recordatorio_fallido", cobro_id=str(cobro.id), paso=paso, causa=type(exc).__name__
             )
-            # `FallaDelCanal` trae el motivo que la raiz tradujo; cualquier otra cosa es `ERROR`.
-            codigo = exc.codigo if isinstance(exc, FallaDelCanal) else "ERROR"
-            return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo=codigo)
+            return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo="ERROR")
 
-    async def _mandar(self, cobro: Cobro, paso: int) -> ResultadoDeEnvio:
+    async def _armar(self, cobro: Cobro, canal: str, paso: int) -> MensajeListo | ResultadoDeEnvio:
         contacto = await self._contactos.contacto_de(cobro.cliente_id)
         if contacto is None:
             logger.info("recordatorio_sin_telefono", cobro_id=str(cobro.id), paso=paso)
@@ -167,18 +176,56 @@ class EnvioPorWhatsApp:
             CODIGO_RECORDATORIO, variables_de_recordatorio(nombre=contacto.nombre, cobro=cobro)
         )
         if plantilla is not None:
-            externo_id = await self._canal.enviar_plantilla(
+            return MensajeListo(
+                cobro_id=cobro.id,
+                paso=paso,
+                canal=canal,
                 telefono=contacto.telefono,
-                nombre=plantilla.nombre_en_meta,
-                idioma=plantilla.idioma,
-                parametros=plantilla.parametros,
+                plantilla=PlantillaLista(
+                    nombre_en_meta=plantilla.nombre_en_meta,
+                    idioma=plantilla.idioma,
+                    parametros=dict(plantilla.parametros),
+                ),
             )
-        else:
-            externo_id = await self._canal.enviar(
-                telefono=contacto.telefono,
-                texto=texto_de_recordatorio(nombre=contacto.nombre, cobro=cobro),
+        return MensajeListo(
+            cobro_id=cobro.id,
+            paso=paso,
+            canal=canal,
+            telefono=contacto.telefono,
+            texto=texto_de_recordatorio(nombre=contacto.nombre, cobro=cobro),
+        )
+
+    async def mandar(self, mensaje: MensajeListo) -> ResultadoDeEnvio:
+        """Solo habla con el canal: **ninguna lectura de base** (U7, S1)."""
+        try:
+            externo_id = await self._por_el_canal(mensaje)
+        except Exception as exc:  # noqa: BLE001 — ver el docstring del modulo
+            # Acotado por el motivo: este adaptador no puede importar las excepciones de
+            # `conversational` (R3), y **nada puede voltear el barrido**. Solo la clase de la
+            # excepcion, nunca su texto: puede traer el numero.
+            logger.warning(
+                "recordatorio_fallido",
+                cobro_id=str(mensaje.cobro_id),
+                paso=mensaje.paso,
+                causa=type(exc).__name__,
             )
+            # `FallaDelCanal` trae el motivo que la raiz tradujo; cualquier otra cosa es `ERROR`.
+            if isinstance(exc, FallaDelCanal):
+                return ResultadoDeEnvio(
+                    estado=EstadoEntrega.FALLIDO, codigo=exc.codigo, transitoria=exc.transitoria
+                )
+            return ResultadoDeEnvio(estado=EstadoEntrega.FALLIDO, codigo="ERROR")
         return ResultadoDeEnvio(estado=EstadoEntrega.ENVIADO, externo_id=externo_id)
+
+    async def _por_el_canal(self, mensaje: MensajeListo) -> str:
+        if mensaje.plantilla is not None:
+            return await self._canal.enviar_plantilla(
+                telefono=mensaje.telefono,
+                nombre=mensaje.plantilla.nombre_en_meta,
+                idioma=mensaje.plantilla.idioma,
+                parametros=mensaje.plantilla.parametros,
+            )
+        return await self._canal.enviar(telefono=mensaje.telefono, texto=mensaje.texto or "")
 
 
 __all__ = [

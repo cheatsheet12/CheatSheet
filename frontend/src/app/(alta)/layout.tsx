@@ -14,11 +14,14 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
+import { VigilanteDeAceptacionLegal } from "@/features/identity";
+
 import { PanelDelAlta } from "./_componentes/PanelDelAlta";
 
 export default function LayoutDelAlta({ children }: { readonly children: ReactNode }): JSX.Element {
   return (
     <div className="lgn alta">
+      <VigilanteDeAceptacionLegal />
       <aside className="lgn-marca alta-panel" aria-label="Tu alta en CheatSheet">
         <div className="lgn-fondo" aria-hidden="true" />
 

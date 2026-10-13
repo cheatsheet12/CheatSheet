@@ -39,7 +39,7 @@ from cheatsheet.contexts.business_config.domain.plantilla import (
 from cheatsheet.contexts.business_config.domain.regla import CanalNotificacion
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.empresa import EmpresaId
-from cheatsheet.shared.errors import EntradaInvalida
+from cheatsheet.shared.errors import OperacionNoPermitida
 from cheatsheet.shared.roles import RolUsuario
 
 logger = obtener_logger(__name__)
@@ -90,7 +90,7 @@ IDIOMA_POR_DEFECTO = "es_AR"
 
 def exigir_administrador(rol: RolUsuario) -> None:
     if rol is not RolUsuario.ADMINISTRADOR:
-        raise EntradaInvalida(MOTIVO_SOLO_ADMIN)
+        raise OperacionNoPermitida(MOTIVO_SOLO_ADMIN)
 
 
 class ListarPlantillas:

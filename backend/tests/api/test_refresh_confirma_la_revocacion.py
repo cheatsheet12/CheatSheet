@@ -32,7 +32,7 @@ from cheatsheet.shared.clock import RelojFijo
 from cheatsheet.shared.empresa import EmpresaId
 from fastapi import FastAPI
 
-from tests.conftest import INSTANTE_FIJO, settings_de_prueba
+from tests.conftest import INSTANTE_CON_TEXTOS_VIGENTES, INSTANTE_FIJO, settings_de_prueba
 
 _RUTA = "/auth/refresh"
 _CUERPO = {"refresh_token": "cualquiera"}
@@ -102,7 +102,7 @@ def _armar_app(monkeypatch: pytest.MonkeyPatch, error: Exception) -> tuple[FastA
         engine=None,  # type: ignore[arg-type]  # never dereferenced: everything is replaced
         sesiones=None,  # type: ignore[arg-type]
         redis=None,  # type: ignore[arg-type]
-        reloj=RelojFijo(INSTANTE_FIJO),
+        reloj=RelojFijo(INSTANTE_CON_TEXTOS_VIGENTES),
     )
     return create_app(settings, recursos), estado
 
