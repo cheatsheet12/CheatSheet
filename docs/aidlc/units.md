@@ -85,6 +85,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Cimientos, identidad y bitácora | mypy-en-pre-commit | infra (`.pre-commit-config.yaml`, transversal) | — (unidad técnica) | — | Emanuel | fix/infra-mypy-en-pre-commit | en revisión |
 | Agenda y recursos | agenda-con-una-sola-fecha | scheduling | HU-E7-01 | mypy-en-pre-commit | Emanuel | fix/scheduling-agenda-con-una-sola-fecha | en revisión |
 | Panel de auditoría y notificaciones | busqueda-por-cliente | observability | HU-E12-01 | mypy-en-pre-commit | Emanuel | fix/observability-busqueda-por-cliente | en revisión |
+| Agenda y recursos | cliente-en-el-turno | scheduling | HU-E7-02, HU-E7-06 | — | Emanuel | fix/scheduling-cliente-en-el-turno | en revisión |
 
 
 ---
