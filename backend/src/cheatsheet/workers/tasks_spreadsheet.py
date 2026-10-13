@@ -17,6 +17,8 @@ the task with its reason attached instead of retrying it forever.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -31,15 +33,19 @@ from cheatsheet.contexts.spreadsheet_sync.application.errors import (
     PermisosDePlanillaInsuficientes,
     ProveedorDePlanillaNoDisponible,
 )
+from cheatsheet.contexts.spreadsheet_sync.application.ports import PlanillaLeida
 from cheatsheet.contexts.spreadsheet_sync.application.procesamientos import ProcesarPlanilla
 from cheatsheet.contexts.spreadsheet_sync.application.sincronizacion import (
     EscribirDeVueltaEnPlanilla,
 )
+from cheatsheet.contexts.spreadsheet_sync.domain.valores import ProveedorPlanilla
+from cheatsheet.contexts.spreadsheet_sync.domain.vinculo import VinculoDePlanilla
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.catalogo import IngestaEnMasterData
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.ensamblado import (
     Planillas,
     almacenamiento,
     escritura_de_planilla,
+    lectura_de_planilla,
 )
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.escritura import RegistrosDeMasterData
 from cheatsheet.contexts.spreadsheet_sync.infrastructure.lector import LectorDePlanilla
@@ -61,6 +67,32 @@ NOMBRE_PROCESAR = "spreadsheet_sync.procesar_planilla"
 REINTENTOS = PoliticaDeReintentos()
 
 
+async def _leer_google(
+    *, recursos: Recursos, unidad: Any, empresa_id: EmpresaId, vinculo: VinculoDePlanilla
+) -> PlanillaLeida:
+    identificador = vinculo.identificador_externo
+    if identificador is None:
+        raise PermisosDePlanillaInsuficientes("La planilla de Google requiere reconexion")
+    if recursos.settings.planilla_adaptador is AdaptadorDePlanilla.GOOGLE:
+        if vinculo.configuracion_integracion_id is None:
+            raise PermisosDePlanillaInsuficientes("La planilla de Google requiere reconexion")
+        try:
+            token = await credenciales_de_planilla(unidad.sesion, recursos.settings).obtener(
+                empresa_id=empresa_id,
+                configuracion_id=vinculo.configuracion_integracion_id,
+                ahora=unidad.reloj.ahora(),
+            )
+        except CredencialOAuthRevocada as exc:
+            raise PermisosDePlanillaInsuficientes(
+                "La planilla de Google requiere reconectar la cuenta"
+            ) from exc
+    else:
+        token = identificador
+    return await lectura_de_planilla(recursos.settings).leer_hoja(
+        token=token, identificador=identificador, hoja=vinculo.hoja_empresa
+    )
+
+
 async def procesar_planilla(
     recursos: Recursos,
     *,
@@ -69,20 +101,34 @@ async def procesar_planilla(
     solo_filas: tuple[int, ...] | None = None,
     origen_id: UUID | None = None,
 ) -> int:
-    """Read the linked file and run it. Returns how many rows were ingested."""
+    """Read the linked source and run it. Returns how many rows were ingested."""
     filas_ok = 0
     async for unidad in unidad_de_trabajo(recursos, empresa_id):
         piezas = Planillas.armar(unidad)
         maestros = DatosMaestros.armar(unidad)
 
         vinculo = await piezas.vinculos.buscar_por_id(vinculo_id)
-        if vinculo is None or vinculo.archivo is None:
-            # Only uploaded files are processed here. A Google Sheets link is read by the
-            # incremental sync of unit 5, which speaks to the provider rather than R2.
-            logger.warning("planilla_sin_archivo_para_procesar", vinculo_id=str(vinculo_id))
+        if vinculo is None:
+            logger.warning("planilla_inexistente_para_procesar", vinculo_id=str(vinculo_id))
             return 0
-
-        contenido = await almacenamiento(recursos.settings).leer(vinculo.archivo.clave)
+        contenido: bytes | None = None
+        nombre_de_archivo: str | None = None
+        lectura_remota: Callable[[], Awaitable[PlanillaLeida]] | None = None
+        if vinculo.archivo is not None:
+            contenido = await almacenamiento(recursos.settings).leer(vinculo.archivo.clave)
+            nombre_de_archivo = vinculo.archivo.nombre_original
+        elif vinculo.proveedor is ProveedorPlanilla.GOOGLE_SHEETS:
+            lectura_remota = partial(
+                _leer_google,
+                recursos=recursos,
+                unidad=unidad,
+                empresa_id=empresa_id,
+                vinculo=vinculo,
+            )
+        else:
+            raise ProveedorDePlanillaNoDisponible(
+                "Este proveedor todavia no permite procesar planillas"
+            )
 
         resumen = await ProcesarPlanilla(
             procesamientos=piezas.procesamientos,
@@ -95,7 +141,8 @@ async def procesar_planilla(
             empresa_id=empresa_id,
             vinculo_id=vinculo_id,
             contenido=contenido,
-            nombre_de_archivo=vinculo.archivo.nombre_original,
+            nombre_de_archivo=nombre_de_archivo,
+            lectura_remota=lectura_remota,
             ahora=unidad.reloj.ahora(),
             solo_filas=solo_filas,
             origen_id=origen_id,

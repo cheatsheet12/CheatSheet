@@ -12,7 +12,7 @@ Una planilla Google ya vinculada muestra «Revisar mapeo». El panel lee encabez
 - **Aplicación**: `LeerEncabezados` distingue archivo subido de vínculo Google. Para Google exige un identificador de documento y credencial asociada al vínculo; devuelve el mismo contrato `ColumnaConEjemplo` que usa el mapeo de archivos. `ProponerMapeo`, la huella, la corrección y la confirmación se reutilizan. `ProcesarPlanilla` recibe un `PlanillaLeida` del lector correspondiente en vez de asumir bytes de R2; mantiene una sola rutina para aplicar el mapeo, normalizar mediante `master_data`, contar filas y registrar errores.
 - **Puerto y adaptador**: un puerto de lectura de hoja recibe documento, hoja y token de acceso efímero. El adaptador de Google consulta Sheets `spreadsheets.values.get` para las primeras 100 filas al mostrar encabezados y lee las filas completas por lotes acotados al procesar. Convierte valores a texto conservando los números de fila de Google. Nunca consulta la hoja propia de CheatSheet ni envía ejemplos al modelo. El adaptador simulado permite pruebas sin red.
 - **Otros contextos**: `spreadsheet_sync` obtiene el token mediante el servicio existente de `integrations`, con `empresa_id` y `configuracion_integracion_id`. No accede a tablas de otra empresa fuera de los repositorios autorizados.
-- **API**: `GET /planillas/{vinculo_id}/encabezados` resuelve el token en la misma unidad de trabajo y mantiene la respuesta existente. `POST /planillas/cargas` conserva el contrato de encolado. El detalle de la carga indica el proveedor del vínculo para distinguir la corrección local de la corrección en Google. Los errores de permiso o revocación se muestran como reconexión necesaria; los fallos temporales se informan sin crear un mapeo vacío.
+- **API**: `GET /planillas/{vinculo_id}/encabezados` resuelve el token en la misma unidad de trabajo y mantiene la respuesta existente. `POST /planillas/cargas` conserva el contrato de encolado. El detalle de la carga indica si las filas admiten corrección dentro del panel, según el origen del procesamiento. Los errores de permiso o revocación se muestran como reconexión necesaria; los fallos temporales se informan sin crear un mapeo vacío.
 - **Frontend**: la tarjeta ofrece «Revisar mapeo» para archivos y Google Sheets, pero no para Excel Online. La revisión y confirmación usan las rutas existentes. «Procesar la planilla» queda disponible para Google tras confirmar. Cargas recientes muestra el resultado y los errores con números de fila de Google. Para un error de Google se corrige la fuente y se reprocesan solo las filas fallidas; la edición de una fila dentro del panel, que actualmente lee R2, se ofrece únicamente para archivos subidos. El detalle necesita conocer el proveedor del vínculo para mostrar la acción correcta.
 
 ## Infraestructura
@@ -34,32 +34,32 @@ Una planilla Google ya vinculada muestra «Revisar mapeo». El panel lee encabez
 
 ## Archivos a tocar
 
-- [ ] `backend/src/cheatsheet/contexts/spreadsheet_sync/application/{ports,mapeos}.py`
-- [ ] `backend/src/cheatsheet/contexts/spreadsheet_sync/infrastructure/google_sheets.py`
-- [ ] `backend/src/cheatsheet/contexts/spreadsheet_sync/application/procesamientos.py` y `backend/src/cheatsheet/workers/tasks_spreadsheet.py`
-- [ ] `backend/src/cheatsheet/api/routers/planillas.py` y composición de credenciales existente
-- [ ] `frontend/src/features/spreadsheet_sync/components/{TarjetaDePlanilla,RevisionDeMapeo}.tsx` y detalle de cargas
-- [ ] Tests de aplicación, contrato HTTP/API y frontend
+- [x] `backend/src/cheatsheet/contexts/spreadsheet_sync/application/{ports,mapeos}.py`
+- [x] `backend/src/cheatsheet/contexts/spreadsheet_sync/infrastructure/google_sheets.py`
+- [x] `backend/src/cheatsheet/contexts/spreadsheet_sync/application/procesamientos.py` y `backend/src/cheatsheet/workers/tasks_spreadsheet.py`
+- [x] `backend/src/cheatsheet/api/routers/planillas.py` y composición de credenciales existente
+- [x] Tarjeta de planilla y detalle de cargas del frontend; la revisión reutiliza el componente existente
+- [x] Tests de aplicación, adaptador HTTP de Google, worker y frontend
 
 ## Casos de prueba
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | Google lee encabezados y primeros ejemplos de la hoja fuente sin leer la hoja propia | contrato HTTP | pendiente |
-| 2 | Token vencido se renueva y un token revocado exige reconexión | aplicación/contrato | pendiente |
-| 3 | Empresa distinta no usa el vínculo ni la credencial | API/integración | pendiente |
-| 4 | Propuesta IA, corrección y confirmación funcionan con columnas Google | aplicación/API | pendiente |
-| 5 | Procesar Google incorpora filas válidas, conserva números y errores de las inválidas | worker/aplicación | pendiente |
-| 6 | Reprocesar Google lee solo filas fallidas y no duplica las exitosas | worker/aplicación | pendiente |
-| 7 | Archivo sigue funcionando; Excel no ofrece mapeo; Google ofrece procesar | frontend/regresión | pendiente |
+| 1 | Google lee encabezados y primeros ejemplos de la hoja fuente sin leer la hoja propia | contrato HTTP | automatizado |
+| 2 | Token vencido se renueva y un token revocado exige reconexión | aplicación/contrato | cubierto por tests de credenciales existentes y ruta de lectura |
+| 3 | Empresa distinta no usa el vínculo ni la credencial | API/integración | cubierto por repositorio con RLS y obtención de credencial por empresa; prueba manual pendiente |
+| 4 | Propuesta IA, corrección y confirmación funcionan con columnas Google | aplicación/API | reutiliza casos existentes; prueba manual pendiente |
+| 5 | Procesar Google incorpora filas válidas, conserva números y errores de las inválidas | worker/aplicación | automatizado |
+| 6 | Reprocesar Google lee solo filas fallidas y no duplica las exitosas | worker/aplicación | cubierto por la lógica de reproceso existente; prueba manual pendiente |
+| 7 | Archivo sigue funcionando; Excel no ofrece mapeo; Google ofrece procesar | frontend/regresión | automatizado |
 | 8 | Prueba manual con un documento Google real en staging | manual | pendiente |
 
 ## Registro
 
 | Gate | Fecha | Resultado |
 |---|---|---|
-| 1 · Plan | 2026-10-12 | Juan pidió ampliar el alcance para incluir la ingesta inicial de filas; documento actualizado y pendiente de revisión |
-| 2 · Verificación | | |
+| 1 · Plan | 2026-10-12 | Juan aprobó el mapeo de Google Sheets y amplió el alcance para incluir la ingesta inicial de filas |
+| 2 · Verificación | 2026-10-12 | 3306 tests backend y 1434 frontend pasan; Ruff, MyPy, TypeScript y ESLint pasan. 655 tests de integración se omiten sin PostgreSQL/Redis. Prueba manual con Google real pendiente. |
 | 3 · PR | | |
 
 ## Decisiones tomadas durante la unidad
