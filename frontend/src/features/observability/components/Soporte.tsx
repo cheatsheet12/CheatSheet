@@ -197,13 +197,14 @@ export function Soporte({ inicial, puedeAbrir }: PropsDeSoporte): JSX.Element {
           </Card>
         )}
 
-        <Card titulo="Mis solicitudes">
+        {/* #178: el listado es de la empresa, no de quien lo mira (D82). */}
+        <Card titulo="Solicitudes de la empresa">
           <Tabla
             titulo="Solicitudes de soporte"
             columnas={columnas}
             filas={solicitudes}
             claveDeFila={(fila) => fila.id}
-            vacia="Todavía no abriste ninguna solicitud."
+            vacia="La empresa todavía no abrió ninguna solicitud."
           />
         </Card>
       </div>
