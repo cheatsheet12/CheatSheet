@@ -137,6 +137,30 @@ export function RecursosReservables({
     }
   }
 
+  // Con un diálogo abierto, el error se lee adentro y no en la página que queda detrás (#74).
+  // Abrir o cerrar un diálogo borra el error anterior: no es de lo que se va a hacer ahora.
+  const conDialogo = creando || editando !== null;
+
+  function abrirCreacion(): void {
+    setError(null);
+    setCreando(true);
+  }
+
+  function cerrarCreacion(): void {
+    setCreando(false);
+    setError(null);
+  }
+
+  function abrirEditor(recurso: Recurso): void {
+    setError(null);
+    setEditando(recurso);
+  }
+
+  function cerrarEditor(): void {
+    setEditando(null);
+    setError(null);
+  }
+
   function limpiarFiltros(): void {
     setTexto("");
     setFiltroDeTipo("");
@@ -156,12 +180,12 @@ export function RecursosReservables({
         </div>
         {puedeEditar && (
           <div className="age-encabezado__acciones">
-            <BotonDeAgregar onClick={() => setCreando(true)} />
+            <BotonDeAgregar onClick={abrirCreacion} />
           </div>
         )}
       </div>
 
-      {error !== null && (
+      {error !== null && !conDialogo && (
         <Alert tono="error" titulo="No se pudo completar">
           {error}
         </Alert>
@@ -176,7 +200,7 @@ export function RecursosReservables({
           <p className="age-vacio-recursos__texto">
             Sin al menos un recurso activo no se pueden reservar turnos.
           </p>
-          {puedeEditar && <BotonDeAgregar compacto onClick={() => setCreando(true)} />}
+          {puedeEditar && <BotonDeAgregar compacto onClick={abrirCreacion} />}
         </div>
       ) : (
         <>
@@ -211,7 +235,7 @@ export function RecursosReservables({
                   nombresDeServicio={nombresDeServicio}
                   puedeEditar={puedeEditar}
                   indice={indice}
-                  onConfigurar={setEditando}
+                  onConfigurar={abrirEditor}
                   onAlternarEstado={(uno) =>
                     void correr(
                       () => cambiarEstadoDeRecurso(uno.id, !uno.activo),
@@ -225,7 +249,7 @@ export function RecursosReservables({
         </>
       )}
 
-      <Modal abierto={creando} titulo="Agregar recurso" onCerrar={() => setCreando(false)}>
+      <Modal abierto={creando} titulo="Agregar recurso" onCerrar={cerrarCreacion}>
         <form
           className="dm-formulario"
           onSubmit={(evento) => {
@@ -237,6 +261,11 @@ export function RecursosReservables({
             }, "No se pudo crear el recurso.");
           }}
         >
+          {error !== null && (
+            <Alert tono="error" titulo="No se pudo completar">
+              {error}
+            </Alert>
+          )}
           <p className="dm-intro">
             El recurso nace activo y <strong>sin servicios asociados</strong>, así que todavía no
             acepta reservas. El horario y los servicios se configuran después.
@@ -255,7 +284,7 @@ export function RecursosReservables({
             onChange={(evento) => setTipo(evento.target.value as TipoRecurso)}
           />
           <div className="dm-formulario__acciones">
-            <Button variante="secundario" onClick={() => setCreando(false)}>
+            <Button variante="secundario" onClick={cerrarCreacion}>
               Volver
             </Button>
             <Button type="submit" disabled={nombre.trim() === ""} cargando={trabajando}>
@@ -268,7 +297,7 @@ export function RecursosReservables({
       <Modal
         abierto={editando !== null}
         titulo={editando === null ? "" : `Configurar ${editando.nombre}`}
-        onCerrar={() => setEditando(null)}
+        onCerrar={cerrarEditor}
       >
         {editando !== null && (
           <EditorDeRecurso
@@ -276,9 +305,10 @@ export function RecursosReservables({
             recurso={editando}
             servicios={servicios}
             trabajando={trabajando}
+            error={error}
             onCorrer={correr}
             onActualizado={setEditando}
-            onCerrar={() => setEditando(null)}
+            onCerrar={cerrarEditor}
           />
         )}
       </Modal>

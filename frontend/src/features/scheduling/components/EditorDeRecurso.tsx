@@ -43,6 +43,11 @@ export interface PropsDeEditorDeRecurso {
   readonly recurso: Recurso;
   readonly servicios: readonly ServicioAgendable[];
   readonly trabajando: boolean;
+  /**
+   * El rechazo de la última operación, o `null`. Se muestra en el pie fijo y no arriba: el
+   * diálogo es largo, y el pie es lo que se ve al apretar cualquiera de sus botones (#74).
+   */
+  readonly error: string | null;
   /** Corre una operación, refresca el listado y muestra el error si falla. */
   readonly onCorrer: (accion: () => Promise<unknown>, porDefecto: string) => Promise<void>;
   /** El recurso que devuelve el backend tras agregar o quitar una excepción. */
@@ -54,6 +59,7 @@ export function EditorDeRecurso({
   recurso,
   servicios,
   trabajando,
+  error,
   onCorrer,
   onActualizado,
   onCerrar,
@@ -298,9 +304,16 @@ export function EditorDeRecurso({
       </Card>
 
       <div className="age-editor__pie">
-        <Button variante="secundario" onClick={onCerrar}>
-          Listo
-        </Button>
+        {error !== null && (
+          <Alert tono="error" titulo="No se pudo completar">
+            {error}
+          </Alert>
+        )}
+        <div className="age-editor__pie-acciones">
+          <Button variante="secundario" onClick={onCerrar}>
+            Listo
+          </Button>
+        </div>
       </div>
     </div>
   );
