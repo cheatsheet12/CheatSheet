@@ -43,12 +43,14 @@ import {
   ErrorDeCobro,
   LARGO_MINIMO_DE_MOTIVO,
   MENSAJE_LINK_COPIADO,
+  MENSAJE_LINK_REGENERADO,
   MENSAJE_MOTIVO_CORTO,
   MENSAJE_PAGO_HUERFANO,
   cancelarCobro,
   copiarLink,
   pendienteDeReembolso,
   reembolsarCobro,
+  regenerarLink,
   tieneReembolsos,
   tonoDeEstado,
   verCobro,
@@ -80,6 +82,7 @@ export function DetalleDeCobro({
   const [montoAReembolsar, setMontoAReembolsar] = useState(pendienteDeReembolso(inicial));
   const [trabajando, setTrabajando] = useState(false);
   const [copiando, setCopiando] = useState(false);
+  const [regenerando, setRegenerando] = useState(false);
 
   async function recargar(): Promise<void> {
     setCobro(await verCobro(cobro.id));
@@ -98,6 +101,22 @@ export function DetalleDeCobro({
     setCopiando(false);
     // Se dice cuando **no** se pudo: alguien que apretó «copiar» y no ve nada asume que copió.
     setAviso(copiado ? MENSAJE_LINK_COPIADO : "No se pudo copiar. Copialo a mano desde el link.");
+  }
+
+  /** HU-E6-03: un link nuevo invalida el anterior y activa el nuevo (Administrador u Operador). */
+  async function regenerar(): Promise<void> {
+    setError(null);
+    setAviso(null);
+    setRegenerando(true);
+    try {
+      await regenerarLink(cobro.id);
+      await recargar();
+      setAviso(MENSAJE_LINK_REGENERADO);
+    } catch (fallo) {
+      setError(mensajeDe(fallo, "No se pudo regenerar el link de pago."));
+    } finally {
+      setRegenerando(false);
+    }
   }
 
   async function cancelar(): Promise<void> {
@@ -132,15 +151,30 @@ export function DetalleDeCobro({
 
   /** El pendiente precargado: lo que falta devolver, no el monto entero (puede ser parcial). */
   function abrirReembolso(): void {
+    setError(null);
     setMontoAReembolsar(pendienteDeReembolso(cobro));
     setReembolsando(true);
+  }
+
+  // Cerrar un modal descarta la acción: el error que mostraba también se va, para que no
+  // reaparezca arriba una vez que el modal ya no está.
+  function cerrarReembolso(): void {
+    setError(null);
+    setReembolsando(false);
+  }
+
+  function cerrarCancelacion(): void {
+    setError(null);
+    setCancelando(false);
   }
 
   const motivoCorto = motivo.trim().length < LARGO_MINIMO_DE_MOTIVO;
 
   return (
     <>
-      {error !== null && (
+      {/* Con un modal abierto el error va adentro del modal (más abajo): si se pintara acá,
+          el overlay del modal lo taparía y el usuario no vería por qué falló la acción. */}
+      {error !== null && !cancelando && !reembolsando && (
         <Alert tono="error" titulo="No se pudo completar">
           {error}
         </Alert>
@@ -186,6 +220,15 @@ export function DetalleDeCobro({
 
             <p className="cob-rotulo">Detalle del cobro</p>
             <dl className="cob-kv">
+              {/* HU-E6-02 criterio 1: los datos del cliente, no sólo su id. */}
+              <div className="cob-kv__par">
+                <dt>Cliente</dt>
+                <dd>{cobro.cliente_nombre}</dd>
+              </div>
+              <div className="cob-kv__par">
+                <dt>CUIT</dt>
+                <dd className="cob-mono">{cobro.cliente_cuit ?? "—"}</dd>
+              </div>
               <div className="cob-kv__par">
                 <dt>Concepto</dt>
                 <dd>{cobro.descripcion}</dd>
@@ -246,6 +289,15 @@ export function DetalleDeCobro({
                 <Button variante="secundario" cargando={copiando} onClick={() => void copiar()}>
                   Copiar link
                 </Button>
+                {puedeGestionar && (
+                  <Button
+                    variante="secundario"
+                    cargando={regenerando}
+                    onClick={() => void regenerar()}
+                  >
+                    Regenerar link
+                  </Button>
+                )}
               </div>
             ) : (
               <p className="cob-vacio">
@@ -280,7 +332,13 @@ export function DetalleDeCobro({
           {(puedeGestionar || puedeReembolsar) && (
             <div className="cob-acciones">
               {puedeGestionar && cobro.tiene_link_activo && (
-                <Button variante="destructivo" onClick={() => setCancelando(true)}>
+                <Button
+                  variante="destructivo"
+                  onClick={() => {
+                    setError(null);
+                    setCancelando(true);
+                  }}
+                >
                   Cancelar cobro
                 </Button>
               )}
@@ -297,7 +355,7 @@ export function DetalleDeCobro({
         </section>
       </div>
 
-      <Modal abierto={cancelando} titulo="Cancelar cobro" onCerrar={() => setCancelando(false)}>
+      <Modal abierto={cancelando} titulo="Cancelar cobro" onCerrar={cerrarCancelacion}>
         <form
           className="dm-formulario cob-modal"
           onSubmit={(evento) => {
@@ -305,6 +363,7 @@ export function DetalleDeCobro({
             void cancelar();
           }}
         >
+          {error !== null && <Alert tono="error">{error}</Alert>}
           <p className="dm-intro">
             Se da de baja la deuda, se invalida el link y se detienen los recordatorios. Queda
             registrado con el motivo.
@@ -317,7 +376,7 @@ export function DetalleDeCobro({
             onChange={(evento) => setMotivo(evento.target.value)}
           />
           <div className="dm-formulario__acciones">
-            <Button variante="secundario" onClick={() => setCancelando(false)}>
+            <Button variante="secundario" onClick={cerrarCancelacion}>
               Volver
             </Button>
             <Button type="submit" disabled={motivoCorto} cargando={trabajando}>
@@ -327,7 +386,7 @@ export function DetalleDeCobro({
         </form>
       </Modal>
 
-      <Modal abierto={reembolsando} titulo="Reembolsar" onCerrar={() => setReembolsando(false)}>
+      <Modal abierto={reembolsando} titulo="Reembolsar" onCerrar={cerrarReembolso}>
         <form
           className="dm-formulario cob-modal"
           onSubmit={(evento) => {
@@ -335,6 +394,7 @@ export function DetalleDeCobro({
             void reembolsar();
           }}
         >
+          {error !== null && <Alert tono="error">{error}</Alert>}
           <p className="dm-intro">
             Se le pide el reembolso a MercadoPago. Puede ser parcial y se puede repetir hasta
             completar el monto. Hasta que conteste, el estado del cobro no cambia.
@@ -348,7 +408,7 @@ export function DetalleDeCobro({
             onChange={(evento) => setMontoAReembolsar(evento.target.value)}
           />
           <div className="dm-formulario__acciones">
-            <Button variante="secundario" onClick={() => setReembolsando(false)}>
+            <Button variante="secundario" onClick={cerrarReembolso}>
               Volver
             </Button>
             <Button type="submit" cargando={trabajando}>

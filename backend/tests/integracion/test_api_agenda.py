@@ -188,6 +188,33 @@ async def test_reservar_devuelve_201_y_el_turno_aparece_en_la_agenda(
 
 
 @pytest.mark.asyncio
+async def test_buscar_al_cliente_en_la_bitacora_trae_su_alta_y_su_turno(
+    cliente_http: httpx.AsyncClient,
+) -> None:
+    """#176 (HU-E12-01 RN-03), contra PostgreSQL: el `WHERE` de la búsqueda por cliente.
+
+    El turno guarda el `cliente_id` en el detalle de su operación, y la bitácora lo encuentra
+    junto con el alta del cliente. Bajo RLS, el mismo id pedido por otra empresa no trae nada.
+    """
+    escena = await _escena(cliente_http, "agenda-bitacora@test.local")
+    creado = await cliente_http.post("/turnos", headers=_auth(escena.token), json=escena.turno())
+    assert creado.status_code == 201, creado.text
+
+    propia = await cliente_http.get(
+        "/bitacora", headers=_auth(escena.token), params={"cliente_id": escena.cliente_id}
+    )
+    otra_empresa = await _token(cliente_http, "agenda-bitacora-ajena@test.local")
+    ajena = await cliente_http.get(
+        "/bitacora", headers=_auth(otra_empresa), params={"cliente_id": escena.cliente_id}
+    )
+
+    assert propia.status_code == 200, propia.text
+    entidades = {uno["entidad_afectada"] for uno in propia.json()["operaciones"]}
+    assert entidades == {f"Cliente:{escena.cliente_id}", f"Turno:{creado.json()['id']}"}
+    assert ajena.json()["total"] == 0
+
+
+@pytest.mark.asyncio
 async def test_la_franja_ocupada_es_un_422_con_la_frase_de_la_historia(
     cliente_http: httpx.AsyncClient,
 ) -> None:

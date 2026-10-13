@@ -509,6 +509,10 @@ async def _auditar(
             accion=accion,
             entidad_afectada=f"Turno:{turno.id}",
             resultado=Resultado.COMPLETADO,
+            # #176: de qué cliente es el turno, para que buscarlo en la bitácora encuentre sus
+            # turnos. El id y nunca el nombre: la tabla es inmutable y la lee cualquiera con
+            # acceso a la auditoría (D72).
+            detalle={"cliente_id": str(turno.cliente_id)},
         )
     )
 

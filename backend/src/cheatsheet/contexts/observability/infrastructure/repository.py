@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import ColumnElement, Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -150,15 +150,30 @@ def _acotar(consulta: Select[Any], filtros: FiltrosDeBitacora) -> Select[Any]:
         consulta = consulta.where(
             RegistroDeAuditoriaORM.iniciador.in_([uno.value for uno in filtros.iniciadores])
         )
-    if filtros.texto:
-        # `ILIKE` sobre las dos columnas donde está escrito qué se hizo y sobre qué. El
-        # patrón se pasa como parámetro y nunca interpolado: lo escribe un usuario en una caja
-        # de búsqueda, que es exactamente la entrada que no se concatena en un SQL.
-        patron = f"%{filtros.texto.strip()}%"
-        consulta = consulta.where(
-            or_(
-                RegistroDeAuditoriaORM.accion.ilike(patron),
-                RegistroDeAuditoriaORM.entidad_afectada.ilike(patron),
-            )
-        )
+    if filtros.texto or filtros.clientes:
+        consulta = consulta.where(or_(*_condiciones_de_busqueda(filtros)))
     return consulta
+
+
+def _condiciones_de_busqueda(filtros: FiltrosDeBitacora) -> list[ColumnElement[bool]]:
+    """Lo que «Buscar» puede encontrar; basta con que se cumpla una (HU-E12-01 RN-03).
+
+    El texto se busca con `ILIKE` sobre las dos columnas donde está escrito qué se hizo y sobre
+    qué. El patrón y los ids se pasan como parámetros y nunca interpolados: los escribe —o los
+    elige— un usuario, que es exactamente la entrada que no se concatena en un SQL.
+
+    Los clientes (#176) traen las operaciones sobre `Cliente:<id>` y las que guardan ese
+    `cliente_id` en su detalle, que es como un turno dice de quién es.
+    """
+    condiciones: list[ColumnElement[bool]] = []
+    if filtros.texto:
+        patron = f"%{filtros.texto.strip()}%"
+        condiciones.append(RegistroDeAuditoriaORM.accion.ilike(patron))
+        condiciones.append(RegistroDeAuditoriaORM.entidad_afectada.ilike(patron))
+    if filtros.clientes:
+        ids = [str(uno) for uno in filtros.clientes]
+        condiciones.append(
+            RegistroDeAuditoriaORM.entidad_afectada.in_([f"Cliente:{uno}" for uno in ids])
+        )
+        condiciones.append(RegistroDeAuditoriaORM.detalle["cliente_id"].astext.in_(ids))
+    return condiciones
