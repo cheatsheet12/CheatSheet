@@ -74,6 +74,12 @@ interface EntradaDeNavegacion {
   readonly href: string;
   readonly etiqueta: string;
   readonly icono: NombreDeIcono;
+  /**
+   * Los roles que ven la entrada; sin la lista, la ven todos. Esconder es una cortesía: la API
+   * rechaza igual. Pero ofrecer una pantalla que contesta «no accedés» le hace perder el tiempo
+   * a quien entra (#179).
+   */
+  readonly roles?: readonly string[];
 }
 
 interface GrupoDeNavegacion {
@@ -101,7 +107,13 @@ export const NAVEGACION: readonly GrupoDeNavegacion[] = [
     titulo: "Análisis",
     entradas: [
       { href: "/reportes", etiqueta: "Reportes", icono: "reportes" },
-      { href: "/auditoria", etiqueta: "Log de operaciones", icono: "log" },
+      {
+        href: "/auditoria",
+        etiqueta: "Log de operaciones",
+        icono: "log",
+        // HU-E12-01 RN-05: Solo Lectura no accede a la bitácora.
+        roles: ["ADMINISTRADOR", "OPERADOR"],
+      },
     ],
   },
   {
@@ -202,9 +214,28 @@ function Chevron(): JSX.Element {
 interface PropiedadesDeNavegacion {
   /** Barra reducida a iconos: las etiquetas pasan a `title` y los grupos se muestran abiertos. */
   readonly colapsada?: boolean;
+  /** El rol de la sesión. Sin él se muestra todo, como antes. */
+  readonly rol?: string;
 }
 
-export function NavegacionLateral({ colapsada = false }: PropiedadesDeNavegacion): JSX.Element {
+/** Los grupos con las entradas que ese rol ve; un grupo que queda vacío no se muestra. */
+function navegacionPara(rol: string | undefined): readonly GrupoDeNavegacion[] {
+  if (rol === undefined) {
+    return NAVEGACION;
+  }
+  return NAVEGACION.map((grupo) => ({
+    ...grupo,
+    entradas: grupo.entradas.filter(
+      (entrada) => entrada.roles === undefined || entrada.roles.includes(rol),
+    ),
+  })).filter((grupo) => grupo.entradas.length > 0);
+}
+
+export function NavegacionLateral({
+  colapsada = false,
+  rol,
+}: PropiedadesDeNavegacion): JSX.Element {
+  const grupos = navegacionPara(rol);
   const activo = hrefActivo(usePathname() ?? "", HREFS);
   const nav = useRef<HTMLElement>(null);
   const contenido = useRef<HTMLDivElement>(null);
@@ -318,7 +349,7 @@ export function NavegacionLateral({ colapsada = false }: PropiedadesDeNavegacion
       <nav ref={nav} aria-label="Secciones" className="nav" onScroll={medir}>
         <div ref={contenido} className="nav__contenido">
           <div ref={pildora} className="nav__pildora" aria-hidden="true" />
-          {NAVEGACION.map((grupo, indice) => {
+          {grupos.map((grupo, indice) => {
             const abierto = !cerrados.has(grupo.titulo);
             const idLista = `nav-grupo-${grupo.titulo}`;
             const contieneLaActiva = grupo.titulo === grupoActivo;

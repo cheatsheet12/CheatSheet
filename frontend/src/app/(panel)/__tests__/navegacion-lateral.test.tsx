@@ -192,3 +192,22 @@ describe("ubicacionDe", () => {
     expect(ubicacionDe("/nada")).toBeNull();
   });
 });
+
+// #179: Solo Lectura no accede a la bitácora (HU-E12-01 RN-05); el menú no debe ofrecerla.
+describe("NavegacionLateral según el rol", () => {
+  it("no le ofrece «Log de operaciones» a Solo Lectura", () => {
+    render(<NavegacionLateral rol="SOLO_LECTURA" />);
+
+    expect(screen.queryByRole("link", { name: /Log de operaciones/ })).toBeNull();
+    expect(screen.getByRole("link", { name: /Reportes/ })).toBeTruthy();
+  });
+
+  it("se la ofrece al Administrador y al Operador", () => {
+    const { unmount } = render(<NavegacionLateral rol="ADMINISTRADOR" />);
+    expect(screen.getByRole("link", { name: /Log de operaciones/ })).toBeTruthy();
+    unmount();
+
+    render(<NavegacionLateral rol="OPERADOR" />);
+    expect(screen.getByRole("link", { name: /Log de operaciones/ })).toBeTruthy();
+  });
+});
