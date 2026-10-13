@@ -220,6 +220,15 @@ export function DetalleDeCobro({
 
             <p className="cob-rotulo">Detalle del cobro</p>
             <dl className="cob-kv">
+              {/* HU-E6-02 criterio 1: los datos del cliente, no sólo su id. */}
+              <div className="cob-kv__par">
+                <dt>Cliente</dt>
+                <dd>{cobro.cliente_nombre}</dd>
+              </div>
+              <div className="cob-kv__par">
+                <dt>CUIT</dt>
+                <dd className="cob-mono">{cobro.cliente_cuit ?? "—"}</dd>
+              </div>
               <div className="cob-kv__par">
                 <dt>Concepto</dt>
                 <dd>{cobro.descripcion}</dd>

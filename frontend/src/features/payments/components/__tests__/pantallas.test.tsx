@@ -117,6 +117,8 @@ const LISTADO: ListadoDeCobrosRespuesta = {
 
 const DETALLE: DetalleDeCobroRespuesta = {
   ...PENDIENTE,
+  cliente_nombre: "Ana Prueba",
+  cliente_cuit: "20-22222222-3",
   recordatorios: [
     {
       id: "r1",
@@ -230,6 +232,13 @@ describe("PAN-COB-02 — detalle del cobro", () => {
     expect(screen.getByText("ENVIADO")).toBeTruthy();
     // Un guion diria «salio y no sabemos que paso», que es otra cosa.
     expect(screen.getByText("Programado")).toBeTruthy();
+  });
+
+  it("muestra el nombre y el CUIT del cliente (HU-E6-02 criterio 1)", () => {
+    render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar />);
+
+    expect(screen.getByText("Ana Prueba")).toBeTruthy();
+    expect(screen.getByText("20-22222222-3")).toBeTruthy();
   });
 
   it("avisa cuando no pudo copiar el link en vez de callarse", async () => {
