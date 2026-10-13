@@ -109,7 +109,7 @@ Los casos 1 y 4 se escriben **antes** del arreglo y tienen que fallar con el có
 |---|---|---|
 | 1 · Plan | 2026-10-13 | aprobado sin cambios |
 | 2 · Verificación | 2026-10-13 | aprobado. Backend: ruff ✔, mypy ✔, pytest 3272 ✔ / 656 omitidos (incluye el test de integración nuevo, sin base local). Frontend: lint ✔, typecheck ✔, 1429 tests ✔, cobertura 90,84 % |
-| 3 · PR | 2026-10-13 | aprobado por adelantado; push hecho, el PR lo abre el usuario |
+| 3 · PR | 2026-10-13 | PR #219 a `develop`, apoyado en #202. CI bloqueado por la facturación de Actions de la organización |
 
 ## Decisiones tomadas durante la unidad
 - La rama se apoya en `fix/infra-mypy-en-pre-commit` (#202): sin ese arreglo, el hook `mypy` de pre-commit no deja commitear Python. Hasta que #202 se mergee, este PR muestra también su commit.
