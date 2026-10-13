@@ -204,8 +204,8 @@ una preferencia personal— de todo lo demás, que es de la empresa.
 
 ## D101 — una **operación fallida** es una falla de ejecución, no un rechazo de validación
 
-> Agregada el 13/10/2026, durante las pruebas manuales de la Etapa 6 (issue #168). Pendiente de
-> confirmación del revisor de HS-T5.
+> Agregada el 13/10/2026, durante las pruebas manuales de la Etapa 6 (issue #168), con el acuerdo
+> del revisor de HS-T5.
 
 La prueba en staging encontró que ningún rechazo de Agenda —franja ocupada, horario pasado,
 excepción duplicada, slot fuera de rango— llega a la bitácora con resultado `ERROR`, y lo leyó
