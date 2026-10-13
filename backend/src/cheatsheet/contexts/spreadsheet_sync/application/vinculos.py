@@ -24,6 +24,7 @@ from cheatsheet.contexts.spreadsheet_sync.application.errors import (
 )
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     PortAlmacenamientoDeArchivos,
+    PortCredencialesDePlanilla,
     PortProveedorDePlanilla,
     PortRepositorioVinculo,
 )
@@ -103,10 +104,12 @@ class ConfirmarVinculacionConGoogle:
         vinculos: PortRepositorioVinculo,
         proveedor: PortProveedorDePlanilla,
         publicador: PublicadorDeEventos,
+        credenciales: PortCredencialesDePlanilla | None = None,
     ) -> None:
         self._vinculos = vinculos
         self._proveedor = proveedor
         self._publicador = publicador
+        self._credenciales = credenciales
 
     async def ejecutar(
         self,
@@ -125,10 +128,27 @@ class ConfirmarVinculacionConGoogle:
         if not codigo.strip():
             raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
 
-        token = await self._proveedor.canjear_codigo(codigo)
+        tokens = await self._proveedor.canjear_codigo(codigo)
         documento = await self._proveedor.describir_documento(
-            token=token, identificador=identificador_documento
+            token=tokens.acceso, identificador=identificador_documento
         )
+
+        credencial_id = configuracion_integracion_id
+        if tokens.renovacion:
+            if self._credenciales is None:
+                raise RuntimeError("Falta el almacenamiento de la credencial de Google")
+            credencial_id = await self._credenciales.guardar(
+                empresa_id=empresa_id, renovacion=tokens.renovacion, ahora=ahora
+            )
+            # The company keeps one connected Google grant for all its links. A second
+            # OAuth consent might come from another account: only link the file if the
+            # grant that the worker will actually use can open it too.
+            acceso_del_worker = await self._credenciales.obtener(
+                empresa_id=empresa_id, configuracion_id=credencial_id, ahora=ahora
+            )
+            documento = await self._proveedor.describir_documento(
+                token=acceso_del_worker, identificador=identificador_documento
+            )
 
         vinculo = VinculoDePlanilla(
             id=uuid4(),
@@ -139,7 +159,7 @@ class ConfirmarVinculacionConGoogle:
             # prototype does not draw one; when a story asks for it, this is the line.
             hoja_empresa=documento.hojas[0].nombre,
             identificador_externo=documento.identificador_externo,
-            configuracion_integracion_id=configuracion_integracion_id,
+            configuracion_integracion_id=credencial_id,
             created_at=ahora,
             updated_at=ahora,
         )

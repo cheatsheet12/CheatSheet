@@ -74,6 +74,10 @@ warn_no_return = true
 show_error_codes = true
 pretty = true
 exclude = ['^\.venv/', '^venv/', '^node_modules/', '^build/', '^dist/']
+# Where our own package lives. The project environment finds `cheatsheet` because it is
+# installed in editable mode; the pre-commit hook runs in an isolated environment where it is
+# not, and every `cheatsheet.*` import was "import-not-found" there.
+mypy_path = "backend/src"
 
 # Third-party libraries without stubs must not break the build on their own,
 # but our own code is never left untyped.

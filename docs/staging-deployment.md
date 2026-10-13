@@ -354,3 +354,39 @@ go green.
 | MercadoPago returns `invalid_grant` on the first connection attempt | `APP_BASE_URL` does not match the `redirect_uri` registered in the MercadoPago application, character for character. §5 |
 | The first request after a quiet period takes ~30 s | The free plan suspends idle services and Neon suspends idle compute. Both are waking. Not a fault |
 | A migration failed and the services still serve the old version | That is the design: the job aborts before the deploy hooks. Fix the migration and push again |
+
+---
+
+## 10. Google Sheets write-back (HU-E3-07)
+
+The staging adapter remains simulated until a teammate with Google Cloud and Render access
+configures the real connection. For a real test:
+
+1. In Google Cloud, enable the Google Drive, Google Picker and Google Sheets APIs. Register
+   the panel origin as an authorized JavaScript origin and both
+   `{APP_BASE_URL}/api/auth/google/callback` (sign-in) and
+   `{APP_BASE_URL}/api/planillas/google/callback` (spreadsheet linking) as authorized
+   redirect URIs on the web OAuth client. The OAuth consent screen needs the `drive.file`
+   scope and the test users.
+2. Restrict a browser API key to the panel origin and `https://docs.google.com/*`
+   (Picker runs inside Google's iframe), and to the Picker and Drive APIs. Give the panel the
+   public `NEXT_PUBLIC_GOOGLE_PICKER_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_PICKER_API_KEY` and
+   `NEXT_PUBLIC_GOOGLE_PICKER_PROJECT_NUMBER` values, then rebuild it. The client ID must
+   match the backend's OAuth client ID; these are public identifiers, never its secret.
+3. Give both API and worker the same `GOOGLE_OAUTH_CLIENT_ID`,
+   `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` and
+   `SECRETS_ENCRYPTION_KEY`. Set `PLANILLA_ADAPTADOR=google` in both services. Set
+   `GOOGLE_OAUTH_REDIRECT_URI` to the **sign-in** callback, byte for byte. Spreadsheet
+   linking derives its own callback from `APP_BASE_URL`, which must be the panel's public
+   origin in both services. Configuring this OAuth client also switches Google sign-in
+   from the simulated provider to the real one in staging; verify sign-in before a demo.
+4. Link a **new** Google Sheet from the panel, enable writing back, and select the file in
+   Picker. Links made under the simulated adapter or before refresh tokens were persisted
+   must be reconnected. Create a customer in the panel, run the company sync task or wait
+   for Beat, and check the separate protected `CheatSheet (no editar) <id>` sheet. Confirm
+   the original sheet has not changed. All Sheets linked by one company must be reachable
+   by its connected Google account; linking from another account does not replace the
+   existing grant. A revoked grant requires reconnecting the link.
+
+This manual provider test requires access to both Google Cloud and Render. The unit tests
+exercise the protocol through HTTP doubles only.

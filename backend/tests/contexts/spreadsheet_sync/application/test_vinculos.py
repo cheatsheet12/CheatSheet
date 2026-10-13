@@ -15,6 +15,10 @@ from cheatsheet.contexts.spreadsheet_sync.application.errors import (
     PermisosDePlanillaInsuficientes,
     VinculoInexistente,
 )
+from cheatsheet.contexts.spreadsheet_sync.application.ports import (
+    DocumentoVinculado,
+    TokensDePlanilla,
+)
 from cheatsheet.contexts.spreadsheet_sync.application.vinculos import (
     ConfirmarVinculacionConGoogle,
     DesvincularPlanilla,
@@ -120,6 +124,102 @@ async def test_vincular_google_guarda_el_vinculo_y_lo_audita(
     assert vinculo.hoja_empresa == "Clientes"
     assert len(publicador.eventos) == 1
     assert vinculos.vinculos[vinculo.id] is vinculo
+
+
+async def test_vinculo_guarda_referencia_a_su_credencial_renovable(
+    vinculos: RepositorioFalso,
+    publicador: PublicadorFalso,
+) -> None:
+    credential_id = uuid4()
+
+    class CredencialesFalsas:
+        async def guardar(self, *, empresa_id: EmpresaId, renovacion: str, ahora: datetime) -> UUID:
+            assert empresa_id == EMPRESA
+            assert renovacion == "refresh-company-one"
+            assert ahora == AHORA
+            return credential_id
+
+        async def obtener(
+            self, *, empresa_id: EmpresaId, configuracion_id: UUID, ahora: datetime
+        ) -> str:
+            assert empresa_id == EMPRESA
+            assert configuracion_id == credential_id
+            assert ahora == AHORA
+            return "short-lived"
+
+    class ProveedorConRenovacion(ProveedorDePlanillaSimulado):
+        async def canjear_codigo(self, codigo: str) -> TokensDePlanilla:
+            assert codigo
+            return TokensDePlanilla(acceso="short-lived", renovacion="refresh-company-one")
+
+    vinculo = await ConfirmarVinculacionConGoogle(
+        vinculos=vinculos,
+        proveedor=ProveedorConRenovacion(),
+        publicador=publicador,
+        credenciales=CredencialesFalsas(),
+    ).ejecutar(
+        empresa_id=EMPRESA,
+        usuario_id=USUARIO,
+        rol=RolUsuario.ADMINISTRADOR,
+        codigo=CODIGO,
+        identificador_documento="1AbCdEf",
+        direccion=DireccionSync.LECTURA_Y_ESCRITURA,
+        ahora=AHORA,
+    )
+
+    assert vinculo.configuracion_integracion_id == credential_id
+
+
+async def test_second_link_must_be_accessible_with_the_credential_kept_for_the_company(
+    vinculos: RepositorioFalso, publicador: PublicadorFalso
+) -> None:
+    credential_id = uuid4()
+
+    class ExistingCredential:
+        async def guardar(self, *, empresa_id: EmpresaId, renovacion: str, ahora: datetime) -> UUID:
+            assert empresa_id == EMPRESA
+            assert renovacion == "refresh-new"
+            assert ahora == AHORA
+            return credential_id
+
+        async def obtener(
+            self, *, empresa_id: EmpresaId, configuracion_id: UUID, ahora: datetime
+        ) -> str:
+            assert empresa_id == EMPRESA
+            assert configuracion_id == credential_id
+            assert ahora == AHORA
+            return "token-for-first-account"
+
+    class DifferentAccount(ProveedorDePlanillaSimulado):
+        async def canjear_codigo(self, codigo: str) -> TokensDePlanilla:
+            assert codigo == CODIGO
+            return TokensDePlanilla(acceso="token-for-second-account", renovacion="refresh-new")
+
+        async def describir_documento(
+            self, *, token: str, identificador: str
+        ) -> DocumentoVinculado:
+            if token == "token-for-first-account":
+                raise PermisosDePlanillaInsuficientes(
+                    "La cuenta vinculada no puede abrir esa planilla"
+                )
+            return await super().describir_documento(token=token, identificador=identificador)
+
+    with pytest.raises(PermisosDePlanillaInsuficientes):
+        await ConfirmarVinculacionConGoogle(
+            vinculos=vinculos,
+            proveedor=DifferentAccount(),
+            publicador=publicador,
+            credenciales=ExistingCredential(),
+        ).ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.ADMINISTRADOR,
+            codigo=CODIGO,
+            identificador_documento="second-file",
+            direccion=DireccionSync.LECTURA_Y_ESCRITURA,
+            ahora=AHORA,
+        )
+    assert not vinculos.vinculos
 
 
 async def test_sin_permisos_no_se_crea_el_vinculo(

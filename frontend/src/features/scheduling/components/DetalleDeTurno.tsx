@@ -19,6 +19,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Alert, Badge, Button, Campo, Card, Casilla, Modal, formatearFecha } from "@/shared";
@@ -36,6 +37,22 @@ import {
 } from "../api/turno";
 import type { Turno } from "../api/turno";
 
+/** Lo mismo que la página muestra para un recurso o un servicio que no encuentra. */
+const SIN_DATO = "—";
+
+/**
+ * Lo que el detalle muestra del cliente del turno, resuelto del lado del servidor (#167).
+ *
+ * Es la forma de `master_data` reducida a lo que esta pantalla usa: quien atiende el teléfono
+ * necesita saber con quién habla y cómo contactarlo. El CUIT llega ya formateado por la API.
+ */
+export interface ClienteDelTurno {
+  readonly nombre: string;
+  readonly cuit: string | null;
+  readonly contacto_whatsapp: string | null;
+  readonly contacto_email: string | null;
+}
+
 export interface PropsDeDetalleDeTurno {
   readonly inicial: Turno;
   /** Administrador y Operador gestionan (HU-E7-02, HU-E7-03). */
@@ -44,6 +61,8 @@ export interface PropsDeDetalleDeTurno {
   readonly recurso: string;
   /** El nombre del servicio, ídem. */
   readonly servicio: string;
+  /** El cliente, ídem; `null` si no se pudo leer, y entonces cada dato se muestra «—». */
+  readonly cliente: ClienteDelTurno | null;
   /** Sólo el Administrador puede corregir a posteriori (HU-E7-02 RN-07). */
   readonly puedeRegistrarAPosteriori?: boolean;
 }
@@ -53,11 +72,14 @@ export function DetalleDeTurno({
   puedeGestionar,
   recurso,
   servicio,
+  cliente,
   puedeRegistrarAPosteriori = false,
 }: PropsDeDetalleDeTurno): JSX.Element {
   const [turno, setTurno] = useState<Turno>(inicial);
   const [error, setError] = useState<string | null>(null);
   const [reprogramando, setReprogramando] = useState(false);
+  // #172: cancelar no se deshace y le avisa al cliente, así que se confirma antes.
+  const [cancelando, setCancelando] = useState(false);
   const [nuevoInicio, setNuevoInicio] = useState("");
   const [trabajando, setTrabajando] = useState(false);
   const [correccion, setCorreccion] = useState(false);
@@ -116,6 +138,15 @@ export function DetalleDeTurno({
       <div className="fac-detalle">
         <Card titulo="Turno">
           <dl className="fac-datos">
+            {/* #167: para quién es el turno y cómo contactarlo, sin salir de la pantalla. */}
+            <dt>Cliente</dt>
+            <dd>{cliente?.nombre ?? SIN_DATO}</dd>
+            <dt>CUIT</dt>
+            <dd>{cliente?.cuit ?? SIN_DATO}</dd>
+            <dt>WhatsApp</dt>
+            <dd>{cliente?.contacto_whatsapp ?? SIN_DATO}</dd>
+            <dt>Email</dt>
+            <dd>{cliente?.contacto_email ?? SIN_DATO}</dd>
             <dt>Servicio</dt>
             <dd>{servicio}</dd>
             <dt>Recurso</dt>
@@ -136,9 +167,20 @@ export function DetalleDeTurno({
 
         <Card titulo="Facturación">
           {turno.habilita_facturacion ? (
-            <p className="dm-intro">
-              El turno está completado, así que se puede emitir el comprobante del servicio.
-            </p>
+            <>
+              <p className="dm-intro">
+                El turno está completado, así que se puede emitir el comprobante del servicio.
+              </p>
+              {/* #173: el camino para emitirlo, con el cliente del turno ya elegido. */}
+              {puedeGestionar && (
+                <Link
+                  className="age-volver"
+                  href={`/facturacion/nueva?cliente=${turno.cliente_id}`}
+                >
+                  Facturar
+                </Link>
+              )}
+            </>
           ) : (
             <p className="dm-intro">
               Un turno habilita la emisión del comprobante cuando queda marcado como completado.
@@ -152,13 +194,7 @@ export function DetalleDeTurno({
           <Button variante="secundario" onClick={() => setReprogramando(true)}>
             Reprogramar
           </Button>
-          <Button
-            variante="destructivo"
-            cargando={trabajando}
-            onClick={() =>
-              void correr(() => cancelarTurno(turno.id), "No se pudo cancelar el turno.")
-            }
-          >
+          <Button variante="destructivo" onClick={() => setCancelando(true)}>
             Cancelar turno
           </Button>
         </div>
@@ -196,6 +232,30 @@ export function DetalleDeTurno({
           </Button>
         </div>
       )}
+
+      <Modal abierto={cancelando} titulo="Cancelar turno" onCerrar={() => setCancelando(false)}>
+        <p className="dm-intro">
+          El turno pasa a <strong>Cancelado</strong> y se le avisa al cliente por WhatsApp si tiene
+          número registrado. No se puede deshacer.
+        </p>
+        <div className="dm-formulario__acciones">
+          <Button variante="secundario" onClick={() => setCancelando(false)}>
+            Volver
+          </Button>
+          <Button
+            variante="destructivo"
+            cargando={trabajando}
+            onClick={() => {
+              // Se cierra antes de pedir: si el backend rechaza, el motivo se lee en la página y
+              // no queda detrás del diálogo.
+              setCancelando(false);
+              void correr(() => cancelarTurno(turno.id), "No se pudo cancelar el turno.");
+            }}
+          >
+            Sí, cancelar el turno
+          </Button>
+        </div>
+      </Modal>
 
       <Modal
         abierto={reprogramando}

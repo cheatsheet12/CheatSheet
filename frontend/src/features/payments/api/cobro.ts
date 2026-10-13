@@ -64,6 +64,10 @@ export interface Cobro {
 }
 
 export interface DetalleDeCobro extends Cobro {
+  /** HU-E6-02 criterio 1: el detalle muestra los datos del cliente, no solo su id. */
+  readonly cliente_nombre: string;
+  /** CUIT formateado para mostrar («20-22222222-3»); `null` si el cliente no tiene. */
+  readonly cliente_cuit: string | null;
   readonly recordatorios: readonly Recordatorio[];
   /** Del más viejo al más nuevo; las correcciones son filas negativas visibles. */
   readonly reembolsos: readonly Reembolso[];
@@ -108,6 +112,8 @@ export const MENSAJE_SIN_CONCEPTO = "Debe ingresar un concepto para el cobro.";
 export const MENSAJE_MONTO_NO_POSITIVO = "El monto debe ser mayor a cero.";
 export const MENSAJE_MOTIVO_CORTO = "El motivo debe tener al menos 10 caracteres.";
 export const MENSAJE_LINK_COPIADO = "Link copiado al portapapeles.";
+export const MENSAJE_LINK_REGENERADO =
+  "Se generó un nuevo link de pago; el anterior quedó invalidado.";
 export const MENSAJE_MP_CAIDO = "No se pudo generar el link de pago. Intente nuevamente.";
 
 /**
