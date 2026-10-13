@@ -26,7 +26,7 @@ const IDIOMA = PREFERENCIAS_POR_DEFECTO.idioma;
  * Se manda en el rango de la vista para que el backend lo lea como el comienzo del día de la
  * agenda y no como la medianoche de otra zona.
  */
-const DESFASE = "-03:00";
+export const DESFASE = "-03:00";
 
 export const MINUTOS_POR_DIA = 24 * 60;
 
