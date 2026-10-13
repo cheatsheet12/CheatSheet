@@ -22,6 +22,7 @@ from cheatsheet.api.dependencies import UnidadDeTrabajo
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     PortAlmacenamientoDeArchivos,
     PortEscrituraDePlanilla,
+    PortLecturaDeHoja,
     PortModeloDeLenguaje,
     PortProveedorDePlanilla,
     PortRepositorioMapeo,
@@ -126,3 +127,11 @@ def escritura_de_planilla(
     if settings.planilla_adaptador is AdaptadorDePlanilla.GOOGLE:
         return EscrituraEnGoogleSheets(ConfiguracionDeEscritura(token=token or ""))
     return EscrituraSimulada(settings.entorno)
+
+
+def lectura_de_planilla(settings: Settings) -> PortLecturaDeHoja:
+    """Read from the linked provider without exposing its API to application code."""
+    proveedor = proveedor_de_planilla(settings)
+    if isinstance(proveedor, (ProveedorGoogleSheets, ProveedorDePlanillaSimulado)):
+        return proveedor
+    raise RuntimeError("El proveedor de planillas no permite leer la hoja")

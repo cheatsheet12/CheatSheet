@@ -49,7 +49,7 @@ describe("GET /api/planillas/google/callback", () => {
       ),
     );
 
-    expect(respuesta.headers.get("location")).toBe("https://panel.ejemplo.test/ingesta");
+    expect(respuesta.headers.get("location")).toBe("https://panel.ejemplo.test/ingesta/mapeo/v1");
     expect(llamarApi).toHaveBeenCalledWith(
       "/planillas/google",
       expect.objectContaining({

@@ -56,6 +56,14 @@ logger = obtener_logger(__name__)
 #: Los prompts viven en archivos versionados, nunca embebidos en la lógica (`CLAUDE.md` §5).
 DIRECTORIO_DE_PROMPTS = Path(__file__).parent / "prompts"
 
+# The Anthropic structured-outputs API rejects numeric constraints (minimum, maximum, ...), string
+# constraints (minLength, maxLength), array bounds (maxItems, minItems > 1) and does not list
+# `pattern` as supported, answering 400 to the whole request. So the schemas below declare only
+# types, enums, `required` and `additionalProperties: false`. The bounds are NOT lost: they are
+# enforced locally, after the response, by `_interpretar` (confianza 0..1, resumen <= 200),
+# `leer_pedido` (hora HH:MM) and the domain `PedidoDeTurno` / `Cuando` (<= 3 cuandos, servicio
+# <= 60, dia_semana 0-6, dia 1-31, mes 1-12). Anything out of bounds is discarded.
+
 #: Un día pedido, como lo dijo el cliente. El modelo **no calcula fechas**: devuelve la referencia
 #: y el código la resuelve (T5).
 _ESQUEMA_DE_CUANDO: dict[str, Any] = {
@@ -64,24 +72,24 @@ _ESQUEMA_DE_CUANDO: dict[str, Any] = {
     "required": ["referencia"],
     "properties": {
         "referencia": {"type": "string", "enum": [uno.value for uno in ReferenciaDeDia]},
-        "dia_semana": {"type": "integer", "minimum": 0, "maximum": 6},
-        "dia": {"type": "integer", "minimum": 1, "maximum": 31},
-        "mes": {"type": "integer", "minimum": 1, "maximum": 12},
+        "dia_semana": {"type": "integer"},
+        "dia": {"type": "integer"},
+        "mes": {"type": "integer"},
     },
 }
 
-#: Lo que el cliente pidió sobre un turno. Todo enum o rango cerrado: la acción la ejecuta el motor
+#: Lo que el cliente pidió sobre un turno. Todo enum cerrado: la acción la ejecuta el motor
 #: de `scheduling`, y estos campos sólo orientan qué horarios se ofrecen.
 _ESQUEMA_DE_PEDIDO: dict[str, Any] = {
-    "type": ["object", "null"],
+    "type": "object",
     "additionalProperties": False,
     "required": ["accion"],
     "properties": {
         "accion": {"type": "string", "enum": [uno.value for uno in AccionDeTurno]},
-        "cuandos": {"type": "array", "maxItems": 3, "items": _ESQUEMA_DE_CUANDO},
+        "cuandos": {"type": "array", "items": _ESQUEMA_DE_CUANDO},
         "momento": {"type": "string", "enum": [uno.value for uno in MomentoDelDia]},
-        "hora": {"type": "string", "pattern": r"^([01]\d|2[0-3]):[0-5]\d$"},
-        "servicio": {"type": "string", "maxLength": 60},
+        "hora": {"type": "string"},
+        "servicio": {"type": "string"},
     },
 }
 
@@ -93,9 +101,10 @@ ESQUEMA_DE_LECTURA: dict[str, Any] = {
     "required": ["intencion", "confianza", "resumen"],
     "properties": {
         "intencion": {"type": "string", "enum": [uno.value for uno in Intencion]},
-        "confianza": {"type": "number", "minimum": 0, "maximum": 1},
-        "resumen": {"type": "string", "maxLength": 200},
-        "pedido_de_turno": _ESQUEMA_DE_PEDIDO,
+        "confianza": {"type": "number"},
+        "resumen": {"type": "string"},
+        # `anyOf` with `null` is the documented form; `type: ["object", "null"]` is not.
+        "pedido_de_turno": {"anyOf": [_ESQUEMA_DE_PEDIDO, {"type": "null"}]},
     },
 }
 
