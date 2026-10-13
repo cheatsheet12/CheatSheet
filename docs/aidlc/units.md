@@ -88,6 +88,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agenda y recursos | cliente-en-el-turno | scheduling | HU-E7-02, HU-E7-06 | — | Emanuel | fix/scheduling-cliente-en-el-turno | en revisión |
 | Agenda y recursos | confirmar-cancelacion | scheduling | HU-E7-02 | — | Emanuel | fix/scheduling-confirmar-cancelacion | en revisión |
 | Agenda y recursos | facturar-turno-completado | scheduling | HU-E7-03 | — | Emanuel | fix/scheduling-facturar-turno-completado | en revisión |
+| Panel de auditoría y notificaciones | soporte-campos-obligatorios | observability | HU-E9-03 | — | Emanuel | fix/observability-soporte-campos-obligatorios | en revisión |
 
 
 ---
