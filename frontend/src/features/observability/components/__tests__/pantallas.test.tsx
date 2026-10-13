@@ -202,6 +202,30 @@ describe("PAN-LOG-02 · el detalle", () => {
     expect(screen.getByText("La operación falló")).toBeTruthy();
   });
 
+  // #169: «Responsable» mostraba el id del usuario; quien audita no sabía quién había sido.
+  it("muestra el nombre y el email del responsable, no su id", () => {
+    render(
+      <DetalleDeOperacion
+        detalle={{ ...DETALLE, operacion: { ...OPERACION, usuario_id: "u-1" } }}
+        responsable={{
+          nombre: "Administración Ejemplo",
+          email: "admin.gomez@estudio-ejemplo.test",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText("Administración Ejemplo · admin.gomez@estudio-ejemplo.test"),
+    ).toBeTruthy();
+    expect(screen.queryByText("u-1")).toBeNull();
+  });
+
+  it("una operación sin usuario dice que la ejecutó la plataforma", () => {
+    render(<DetalleDeOperacion detalle={DETALLE} responsable={null} />);
+
+    expect(screen.getByText("Sin usuario: la ejecutó la plataforma")).toBeTruthy();
+  });
+
   it("una operación sin pasos no tiene duración medida", () => {
     render(
       <DetalleDeOperacion
