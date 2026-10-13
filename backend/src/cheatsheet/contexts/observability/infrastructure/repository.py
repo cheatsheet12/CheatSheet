@@ -162,8 +162,9 @@ def _condiciones_de_busqueda(filtros: FiltrosDeBitacora) -> list[ColumnElement[b
     qué. El patrón y los ids se pasan como parámetros y nunca interpolados: los escribe —o los
     elige— un usuario, que es exactamente la entrada que no se concatena en un SQL.
 
-    Los clientes (#176) traen las operaciones sobre `Cliente:<id>` y las que guardan ese
-    `cliente_id` en su detalle, que es como un turno dice de quién es.
+    Los clientes (#176) traen las operaciones sobre `cliente:<id>` y las que guardan ese
+    `cliente_id` en su detalle, que es como un turno dice de quién es. El prefijo va en
+    minúscula porque así lo escribe `master_data`, y así está todo el historial guardado.
     """
     condiciones: list[ColumnElement[bool]] = []
     if filtros.texto:
@@ -173,7 +174,7 @@ def _condiciones_de_busqueda(filtros: FiltrosDeBitacora) -> list[ColumnElement[b
     if filtros.clientes:
         ids = [str(uno) for uno in filtros.clientes]
         condiciones.append(
-            RegistroDeAuditoriaORM.entidad_afectada.in_([f"Cliente:{uno}" for uno in ids])
+            RegistroDeAuditoriaORM.entidad_afectada.in_([f"cliente:{uno}" for uno in ids])
         )
         condiciones.append(RegistroDeAuditoriaORM.detalle["cliente_id"].astext.in_(ids))
     return condiciones
