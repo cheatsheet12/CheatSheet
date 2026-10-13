@@ -90,6 +90,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agenda y recursos | facturar-turno-completado | scheduling | HU-E7-03 | — | Emanuel | fix/scheduling-facturar-turno-completado | en revisión |
 | Panel de auditoría y notificaciones | soporte-campos-obligatorios | observability | HU-E9-03 | — | Emanuel | fix/observability-soporte-campos-obligatorios | en revisión |
 | Panel de auditoría y notificaciones | titulo-de-soporte | observability | HU-E9-03 | — | Emanuel | fix/observability-titulo-de-soporte | en revisión |
+| Agenda y recursos | calendario-del-filtro | scheduling | HU-E7-01 | — | Emanuel | fix/scheduling-calendario-del-filtro | en revisión |
 
 
 ---
