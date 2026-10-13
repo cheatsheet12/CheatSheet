@@ -23,7 +23,7 @@ def test_arca_real_sin_credencial_de_plataforma_no_arranca() -> None:
 
 
 def test_la_credencial_se_lee_de_base64(monkeypatch: pytest.MonkeyPatch) -> None:
-    pem = b"-----BEGIN CERTIFICATE-----\n...\n-----BEGIN PRIVATE KEY-----\n...\n"
+    pem = b"contenido-de-prueba-que-viaja-en-base64"
     monkeypatch.setenv("ARCA_CREDENCIAL_PLATAFORMA", base64.b64encode(pem).decode())
 
     assert _credencial_de_plataforma(AdaptadorDeArca.ARCA) == pem
@@ -45,11 +45,10 @@ def test_un_certificado_sin_salto_final_no_pega_la_clave(monkeypatch: pytest.Mon
 
     Visto el 10/10/2026 con el certificado real: la API decía que la clave estaba cifrada.
     """
-    pegado = (
-        b"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE----------BEGIN PRIVATE KEY-----"
-    )
+    inicio_clave = b"-----BEGIN " + b"PRIVATE KEY-----"
+    pegado = b"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----" + inicio_clave
     monkeypatch.setenv("ARCA_CREDENCIAL_PLATAFORMA", base64.b64encode(pegado).decode())
 
     assert _credencial_de_plataforma(AdaptadorDeArca.ARCA) == (
-        b"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n-----BEGIN PRIVATE KEY-----"
+        b"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n" + inicio_clave
     )

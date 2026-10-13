@@ -101,6 +101,10 @@ class PagoRecibido:
     #: lo informó o no se pudo leer: el dominio entonces usa el momento de la confirmación y
     #: marca la fecha como aproximada.
     fecha_aprobacion: datetime | None = None
+    #: El cobro al que pertenece el pago, tal como lo devolvió MercadoPago en
+    #: `external_reference`. Es el dato que ata un pago de Checkout Pro a su cobro: el pago
+    #: casi nunca trae `preference_id`. `None` si falta o no es un id nuestro.
+    cobro_id: UUID | None = None
 
     @property
     def esta_aprobado(self) -> bool:

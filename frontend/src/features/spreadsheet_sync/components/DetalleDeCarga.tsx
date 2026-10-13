@@ -154,6 +154,12 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
     <>
       {error !== null && <Alert tono="error">{error}</Alert>}
       {aviso !== null && <Alert tono="exito">{aviso}</Alert>}
+      {carga.estado === "FALLIDO" && (
+        <Alert tono="error">
+          No se pudo leer la planilla: {detalle.errores[0]?.motivo ?? "intentá procesarla de nuevo"}
+          . Revisá la conexión o la hoja de origen y volvé a procesar desde Planillas.
+        </Alert>
+      )}
 
       <div className="ing-tarjetas">
         <Card>
@@ -199,57 +205,62 @@ export function DetalleDeCarga({ inicial }: PropsDeDetalle): JSX.Element {
           </dl>
         </Card>
 
-        <Card>
-          <div className="ing-seccion">
-            <div>
-              <h2 className="ing-seccion__titulo">Filas con error</h2>
-              <p className="ing-seccion__sub">
-                El número de fila es el de tu archivo original, para que lo busques en el margen
-              </p>
+        {carga.estado !== "FALLIDO" && (
+          <Card>
+            <div className="ing-seccion">
+              <div>
+                <h2 className="ing-seccion__titulo">Filas con error</h2>
+                <p className="ing-seccion__sub">
+                  El número de fila es el de tu planilla original, para que lo busques en el margen
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="ing-proc-errores">
-            <Tabla
-              titulo="Filas con error"
-              columnas={columnasDeErrores(detalle.puede_reprocesar, setEditando)}
-              filas={detalle.errores}
-              claveDeFila={(e) => String(e.numero_fila)}
-              vacia="Esta carga no dejó ninguna fila con error."
-            />
-          </div>
+            <div className="ing-proc-errores">
+              <Tabla
+                titulo="Filas con error"
+                columnas={columnasDeErrores(
+                  detalle.puede_reprocesar && detalle.puede_corregir_filas !== false,
+                  setEditando,
+                )}
+                filas={detalle.errores}
+                claveDeFila={(e) => String(e.numero_fila)}
+                vacia="Esta carga no dejó ninguna fila con error."
+              />
+            </div>
 
-          {detalle.puede_reprocesar && (
-            // Lo que el reproceso hace y lo que no, dicho antes de apretar el botón: sin esto,
-            // «reprocesar» se lee como «volver a subir todo» y nadie lo toca por miedo a duplicar
-            // (HU-E3-06 RN-01 y RN-02).
-            <Desplegable titulo="Qué hace reprocesar" variante="simple">
-              Podés corregir cada fila desde acá, o arreglar los datos en tu planilla y reprocesar:
-              el sistema reutiliza el mapeo confirmado e incorpora sólo las filas pendientes, sin
-              duplicar las ya procesadas ni las que corregiste.
-            </Desplegable>
-          )}
-
-          <div className="ing-acciones">
             {detalle.puede_reprocesar && (
-              <Button
-                disabled={trabajando}
-                cargando={trabajando}
-                onClick={() => {
-                  void reprocesar();
-                }}
-              >
-                <Icono nombre="refrescar" />
-                Reprocesar las filas con error
-              </Button>
+              // Lo que el reproceso hace y lo que no, dicho antes de apretar el botón: sin esto,
+              // «reprocesar» se lee como «volver a subir todo» y nadie lo toca por miedo a duplicar
+              // (HU-E3-06 RN-01 y RN-02).
+              <Desplegable titulo="Qué hace reprocesar" variante="simple">
+                {detalle.puede_corregir_filas === false
+                  ? "Arreglá los datos en tu planilla de Google y reprocesá: el sistema reutiliza el mapeo confirmado e incorpora sólo las filas pendientes."
+                  : "Podés corregir cada fila desde acá, o arreglar los datos en tu planilla y reprocesar: el sistema reutiliza el mapeo confirmado e incorpora sólo las filas pendientes, sin duplicar las ya procesadas ni las que corregiste."}
+              </Desplegable>
             )}
-            {hayPendientes && (
-              <Button variante="secundario" onClick={descargar}>
-                <Icono nombre="descargar" />
-                Descargar el listado de errores
-              </Button>
-            )}
-          </div>
-        </Card>
+
+            <div className="ing-acciones">
+              {detalle.puede_reprocesar && (
+                <Button
+                  disabled={trabajando}
+                  cargando={trabajando}
+                  onClick={() => {
+                    void reprocesar();
+                  }}
+                >
+                  <Icono nombre="refrescar" />
+                  Reprocesar las filas con error
+                </Button>
+              )}
+              {hayPendientes && (
+                <Button variante="secundario" onClick={descargar}>
+                  <Icono nombre="descargar" />
+                  Descargar el listado de errores
+                </Button>
+              )}
+            </div>
+          </Card>
+        )}
       </div>
 
       <CorreccionDeFila

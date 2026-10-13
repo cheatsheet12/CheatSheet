@@ -107,21 +107,32 @@ async function fallar(respuesta: Response): Promise<never> {
   throw new ErrorDeBitacora(cuerpo.detalle ?? cuerpo.error ?? "No se pudo completar la operacion");
 }
 
-function consultaDe(filtros: FiltrosDeBitacora): string {
+function consultaDe(filtros: FiltrosDeBitacora, clientes: readonly string[]): string {
   const parametros = new URLSearchParams();
   for (const [clave, valor] of Object.entries(filtros)) {
     if (valor !== undefined && valor !== "" && valor !== 1) {
       parametros.set(clave, String(valor));
     }
   }
+  for (const cliente of clientes) {
+    parametros.append("cliente_id", cliente);
+  }
   const texto = parametros.toString();
   return texto === "" ? "" : `?${texto}`;
 }
 
+/**
+ * PAN-LOG-01. `clientes` son los ids de los clientes cuyo nombre coincide con `texto` (#176):
+ * la bitácora no guarda nombres (D72), así que la pantalla los resuelve antes contra
+ * `master_data` y la búsqueda trae también sus operaciones.
+ */
 export async function listarOperaciones(
   filtros: FiltrosDeBitacora = {},
+  clientes: readonly string[] = [],
 ): Promise<ListadoDeOperaciones> {
-  const respuesta = await fetch(`/api/bitacora${consultaDe(filtros)}`, { cache: "no-store" });
+  const respuesta = await fetch(`/api/bitacora${consultaDe(filtros, clientes)}`, {
+    cache: "no-store",
+  });
   if (!respuesta.ok) {
     await fallar(respuesta);
   }

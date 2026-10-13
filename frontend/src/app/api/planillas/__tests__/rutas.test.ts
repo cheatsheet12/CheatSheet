@@ -261,6 +261,22 @@ describe("con sesion", () => {
     });
   });
 
+  it("conserva la dirección de escritura junto al estado OAuth", async () => {
+    cookieDeSesion = "token";
+    llamarApi.mockResolvedValue({ url: "https://accounts.google.com/o/oauth2/v2/auth?state=abc" });
+    const respuesta = await postAutorizacion(
+      pedidoJson({
+        documento: "sheet-123",
+        direccion: "LECTURA_Y_ESCRITURA",
+      }),
+    );
+
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.headers.get("set-cookie")).toContain(
+      "planilla_oauth_direccion=LECTURA_Y_ESCRITURA",
+    );
+  });
+
   it("sin planilla elegida no sale hacia Google", async () => {
     // El identificador del documento no vuelve en el callback: lo conoce el panel y hay
     // que guardarlo antes de irse. Salir sin él vincularia una planilla que nadie eligio.

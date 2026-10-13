@@ -28,6 +28,7 @@ from cheatsheet.contexts.master_data.application.ingesta import (
 )
 from cheatsheet.contexts.master_data.application.ports import PortRepositorioCliente
 from cheatsheet.contexts.spreadsheet_sync.application.errors import (
+    PermisosDePlanillaInsuficientes,
     ProveedorDePlanillaNoDisponible,
 )
 from cheatsheet.contexts.spreadsheet_sync.application.ports import FilaParaEscribir
@@ -64,6 +65,8 @@ class EscrituraEnGoogleSheets:
     """`PortEscrituraDePlanilla` against the real Google Sheets API."""
 
     def __init__(self, configuracion: ConfiguracionDeEscritura) -> None:
+        if not configuracion.token:
+            raise ValueError("Falta el token de acceso de la empresa para Google Sheets")
         self._token = configuracion.token
 
     async def escribir(
@@ -72,20 +75,72 @@ class EscrituraEnGoogleSheets:
         if not filas:
             return
 
-        # `values.update` on a named range, which creates nothing outside that sheet. The
-        # range names the sheet explicitly, so a malformed name fails the call rather than
-        # writing into whatever sheet happens to be first.
-        rango = f"{hoja}!A1"
-        cuerpo = {"values": [list(ENCABEZADO), *[list(f.valores) for f in filas[:TAMANO_DE_LOTE]]]}
-        await self._pedir(
-            "PUT",
-            f"{URL_HOJAS}/{identificador}/values/{rango}",
-            params={"valueInputOption": "RAW"},
-            json=cuerpo,
-        )
-        logger.info("planilla_escrita", hoja=hoja, filas=len(filas[:TAMANO_DE_LOTE]))
+        await self._asegurar_hoja(identificador, hoja)
+        # Remove rows left by an earlier, larger snapshot. A retry reconstructs the
+        # same complete sheet, even if an earlier attempt stopped between batches.
+        await self._pedir("POST", f"{URL_HOJAS}/{identificador}/values/'{hoja}'!A:Z:clear")
+        # Each update names only our sheet. The header occupies row 1, so a later batch
+        # starts after every row already sent. No success is reported for a partial run.
+        for comienzo in range(0, len(filas), TAMANO_DE_LOTE):
+            lote = filas[comienzo : comienzo + TAMANO_DE_LOTE]
+            valores = [list(f.valores) for f in lote]
+            if comienzo == 0:
+                valores.insert(0, list(ENCABEZADO))
+            rango = f"'{hoja}'!A{comienzo + (1 if comienzo == 0 else 2)}"
+            await self._pedir(
+                "PUT",
+                f"{URL_HOJAS}/{identificador}/values/{rango}",
+                params={"valueInputOption": "RAW"},
+                json={"values": valores},
+            )
+        logger.info("planilla_escrita", hoja=hoja, filas=len(filas))
 
-    async def _pedir(self, metodo: str, url: str, **kwargs: Any) -> None:
+    async def _asegurar_hoja(self, identificador: str, hoja: str) -> None:
+        url = f"{URL_HOJAS}/{identificador}"
+        documento = await self._pedir(
+            "GET",
+            url,
+            params={"fields": "sheets(properties(sheetId,title),protectedRanges(range))"},
+        )
+        existentes = [
+            sheet
+            for sheet in documento.get("sheets", [])
+            if sheet.get("properties", {}).get("title") == hoja
+        ]
+        if existentes:
+            sheet = existentes[0]
+            sheet_id = sheet["properties"]["sheetId"]
+            if any(
+                item.get("range", {}).get("sheetId") == sheet_id
+                for item in sheet.get("protectedRanges", [])
+            ):
+                return
+        else:
+            creado = await self._pedir(
+                "POST",
+                f"{url}:batchUpdate",
+                json={"requests": [{"addSheet": {"properties": {"title": hoja}}}]},
+            )
+            sheet_id = creado["replies"][0]["addSheet"]["properties"]["sheetId"]
+        await self._pedir(
+            "POST",
+            f"{url}:batchUpdate",
+            json={
+                "requests": [
+                    {
+                        "addProtectedRange": {
+                            "protectedRange": {
+                                "range": {"sheetId": sheet_id},
+                                "description": "Managed by CheatSheet",
+                                "warningOnly": False,
+                            }
+                        }
+                    }
+                ]
+            },
+        )
+
+    async def _pedir(self, metodo: str, url: str, **kwargs: Any) -> dict[str, Any]:
         """Timeout and bounded retry, as CLAUDE.md section 5 requires."""
         ultimo: Exception | None = None
         for intento in range(1, MAX_INTENTOS + 1):
@@ -97,6 +152,10 @@ class EscrituraEnGoogleSheets:
                         headers={"Authorization": f"Bearer {self._token}"},
                         **kwargs,
                     )
+                if respuesta.status_code in (401, 403):
+                    raise PermisosDePlanillaInsuficientes(
+                        "Google ya no permite escribir en esta planilla; volvé a vincularla."
+                    )
                 if 400 <= respuesta.status_code < 500:
                     # Not retried: Google has decided. A revoked token or a deleted
                     # document will be just as revoked in two seconds.
@@ -104,7 +163,8 @@ class EscrituraEnGoogleSheets:
                         f"Google rechazo la escritura con {respuesta.status_code}"
                     )
                 respuesta.raise_for_status()
-                return
+                cuerpo: dict[str, Any] = respuesta.json()
+                return cuerpo
             except (httpx.TimeoutException, httpx.TransportError, httpx.HTTPStatusError) as exc:
                 ultimo = exc
                 if intento < MAX_INTENTOS:

@@ -6,15 +6,17 @@
  *
  * El cliente se elige antes, como en la emisión y en el cobro: es el dato que decide para
  * quién es el turno, y un selector más en este formulario lo haría más largo sin hacerlo más
- * claro.
+ * claro. El formulario sí dice para quién es (#167): el nombre se resuelve acá, del lado del
+ * servidor, y si no se puede leer se muestra «—».
  */
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import type { Cliente } from "@/features/master_data";
 import { NuevoTurno } from "@/features/scheduling";
 import type { ListadoDeRecursos, ServicioAgendable } from "@/features/scheduling";
-import { llamarApi } from "@/lib/api";
+import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -52,9 +54,10 @@ export default async function PaginaDeNuevoTurno({ searchParams }: Props): Promi
     );
   }
 
-  const [recursos, servicios] = await Promise.all([
+  const [recursos, servicios, clienteNombre] = await Promise.all([
     llamarApi<ListadoDeRecursos>("/recursos?solo_activos=true"),
     llamarApi<readonly ServicioAgendable[]>("/recursos/servicios"),
+    nombreDelCliente(clienteId),
   ]);
 
   return (
@@ -76,10 +79,23 @@ export default async function PaginaDeNuevoTurno({ searchParams }: Props): Promi
       </div>
       <NuevoTurno
         clienteId={clienteId}
+        clienteNombre={clienteNombre}
         recursos={recursos.recursos}
         servicios={servicios}
         puedeRegistrarAPosteriori={claims.rol === "ADMINISTRADOR"}
       />
     </div>
   );
+}
+
+/** El nombre del cliente al que se le agenda, o «—» si la API no lo devolvió. */
+async function nombreDelCliente(clienteId: string): Promise<string> {
+  try {
+    return (await llamarApi<Cliente>(`/clientes/${clienteId}`)).nombre;
+  } catch (error) {
+    if (error instanceof ErrorDeApi) {
+      return "—";
+    }
+    throw error;
+  }
 }

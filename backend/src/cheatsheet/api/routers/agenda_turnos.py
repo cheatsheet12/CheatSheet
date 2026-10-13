@@ -37,16 +37,32 @@ from cheatsheet.contexts.scheduling.infrastructure.ensamblado import Agenda
 from fastapi import APIRouter, Query, Request, status
 
 
+def _en_la_zona(instante: datetime) -> datetime:
+    """Una fecha sin zona (`?desde=2026-10-14`) es de la agenda, no de UTC (D34)."""
+    return instante if instante.tzinfo is not None else instante.replace(tzinfo=ZONA_DE_LA_AGENDA)
+
+
 def _rango(desde: datetime | None, hasta: datetime | None, hoy: date) -> tuple[datetime, datetime]:
-    """El rango pedido, o el día en curso (HU-E7-01 RN-01).
+    """El rango pedido, o el día en curso (HU-E7-01 RN-01). `hasta` es exclusivo.
 
     El día se define en la zona de la agenda y no en UTC: un turno de las 22 de un martes es
     del martes para quien lo atiende, aunque en UTC ya sea miércoles.
+
+    **Con una sola punta, la otra sale de ella y no de hoy** (#85, opción A del Gate 1): una
+    sola fecha es ese día completo. Completarla con hoy dejaba el rango invertido —solo
+    «desde» el 14 daba `[14, mañana)`— y la agenda vacía.
     """
+    un_dia = timedelta(days=1)
     if desde is not None and hasta is not None:
-        return desde, hasta
+        return _en_la_zona(desde), _en_la_zona(hasta)
+    if desde is not None:
+        inicio = _en_la_zona(desde)
+        return inicio, inicio + un_dia
+    if hasta is not None:
+        fin = _en_la_zona(hasta)
+        return fin - un_dia, fin
     inicio = datetime.combine(hoy, time.min, tzinfo=ZONA_DE_LA_AGENDA)
-    return desde or inicio, hasta or inicio + timedelta(days=1)
+    return inicio, inicio + un_dia
 
 
 def rutas_de_turnos(recursos: Recursos) -> APIRouter:

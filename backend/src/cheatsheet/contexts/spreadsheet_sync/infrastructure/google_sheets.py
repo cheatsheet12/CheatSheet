@@ -20,17 +20,21 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import httpx
 
+from cheatsheet.contexts.integrations.application.credenciales_oauth import CredencialOAuthRevocada
 from cheatsheet.contexts.spreadsheet_sync.application.errors import (
     PermisosDePlanillaInsuficientes,
     ProveedorDePlanillaNoDisponible,
 )
 from cheatsheet.contexts.spreadsheet_sync.application.ports import (
     DocumentoVinculado,
+    FilaLeida,
     HojaDePlanilla,
+    PlanillaLeida,
+    TokensDePlanilla,
 )
 from cheatsheet.contexts.spreadsheet_sync.domain.valores import MENSAJE_SIN_PERMISOS
 from cheatsheet.platform.settings import Entorno
@@ -48,6 +52,8 @@ ALCANCE = "https://www.googleapis.com/auth/drive.file"
 TIMEOUT_SEGUNDOS = 15.0
 MAX_INTENTOS = 3
 ESPERA_BASE = 0.5
+FILAS_POR_LOTE = 500
+LIMITE_LECTURA_BYTES = 25 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,7 +92,7 @@ class ProveedorGoogleSheets:
         }
         return f"{URL_AUTORIZACION}?{urlencode(parametros)}"
 
-    async def canjear_codigo(self, codigo: str) -> str:
+    async def canjear_codigo(self, codigo: str) -> TokensDePlanilla:
         datos = {
             "code": codigo,
             "client_id": self._config.client_id,
@@ -96,11 +102,37 @@ class ProveedorGoogleSheets:
         }
         respuesta = await self._pedir("POST", URL_TOKEN, data=datos)
         token = respuesta.get("access_token")
-        if not isinstance(token, str) or not token:
+        renovacion = respuesta.get("refresh_token")
+        if (
+            not isinstance(token, str)
+            or not token
+            or not isinstance(renovacion, str)
+            or not renovacion
+        ):
             # A code that buys no token is a consent the user did not give -- an expired
             # code looks the same from here, and both mean no link is created (RN-01).
             raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
-        return token
+        return TokensDePlanilla(acceso=token, renovacion=renovacion)
+
+    async def renovar(self, credencial: bytes) -> str:
+        """Exchange one encrypted-at-rest renewal credential for a short-lived access token."""
+        try:
+            respuesta = await self._pedir(
+                "POST",
+                URL_TOKEN,
+                data={
+                    "refresh_token": credencial.decode("utf-8"),
+                    "client_id": self._config.client_id,
+                    "client_secret": self._config.client_secret,
+                    "grant_type": "refresh_token",
+                },
+            )
+        except PermisosDePlanillaInsuficientes as exc:
+            raise CredencialOAuthRevocada("Google revoco la autorizacion de Sheets") from exc
+        acceso = respuesta.get("access_token")
+        if not isinstance(acceso, str) or not acceso:
+            raise CredencialOAuthRevocada("Google no devolvio un nuevo acceso a Sheets")
+        return acceso
 
     async def describir_documento(self, *, token: str, identificador: str) -> DocumentoVinculado:
         respuesta = await self._pedir(
@@ -129,6 +161,61 @@ class ProveedorGoogleSheets:
             hojas=hojas,
         )
 
+    async def leer_hoja(
+        self,
+        *,
+        token: str,
+        identificador: str,
+        hoja: str,
+        max_filas: int | None = None,
+    ) -> PlanillaLeida:
+        """Read formatted cell text in bounded requests, preserving Google row numbers."""
+        documento = await self.describir_documento(token=token, identificador=identificador)
+        fuente = next((item for item in documento.hojas if item.nombre == hoja), None)
+        if fuente is None:
+            raise ProveedorDePlanillaNoDisponible("La hoja vinculada ya no existe en Google Sheets")
+        hasta = fuente.filas_estimadas
+        if max_filas is not None:
+            hasta = min(hasta, max_filas)
+        columnas: tuple[str, ...] = ()
+        filas: list[FilaLeida] = []
+        tamanio = 0
+        nombre_rango = hoja.replace("'", "''")
+        for inicio in range(1, hasta + 1, FILAS_POR_LOTE):
+            fin = min(inicio + FILAS_POR_LOTE - 1, hasta)
+            rango = quote(f"'{nombre_rango}'!{inicio}:{fin}", safe="")
+            respuesta = await self._pedir(
+                "GET",
+                f"{URL_HOJAS}/{identificador}/values/{rango}",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"valueRenderOption": "FORMATTED_VALUE"},
+            )
+            valores = respuesta.get("values", [])
+            if not isinstance(valores, list):
+                raise ProveedorDePlanillaNoDisponible("Google devolvio filas con formato invalido")
+            for numero, celdas in enumerate(valores, start=inicio):
+                if not isinstance(celdas, list):
+                    raise ProveedorDePlanillaNoDisponible("Google devolvio una fila invalida")
+                textos = tuple(str(valor).strip() for valor in celdas)
+                tamanio += sum(len(valor.encode("utf-8")) for valor in textos)
+                if tamanio > LIMITE_LECTURA_BYTES:
+                    raise ProveedorDePlanillaNoDisponible(
+                        "La planilla supera el limite de 25 MB para procesar"
+                    )
+                if numero == 1:
+                    columnas = textos
+                elif any(textos):
+                    filas.append(
+                        FilaLeida(
+                            numero=numero,
+                            celdas={
+                                columna: textos[indice] if indice < len(textos) else ""
+                                for indice, columna in enumerate(columnas)
+                            },
+                        )
+                    )
+        return PlanillaLeida(columnas=columnas, filas=tuple(filas))
+
     async def _pedir(self, metodo: str, url: str, **kwargs: Any) -> dict[str, Any]:
         """One call, with the timeout and bounded retry CLAUDE.md §5 requires.
 
@@ -142,7 +229,25 @@ class ProveedorGoogleSheets:
                     respuesta = await cliente.request(metodo, url, **kwargs)
                 if respuesta.status_code in (401, 403):
                     raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
-                if 400 <= respuesta.status_code < 500:
+                if url == URL_TOKEN and respuesta.status_code == 400:
+                    raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
+                if 400 <= respuesta.status_code < 500 and respuesta.status_code != 429:
+                    detalle = _detalle_de_error_google(respuesta)
+                    logger.warning(
+                        "google_sheets_consulta_rechazada",
+                        codigo=respuesta.status_code,
+                        estado=detalle[0],
+                        razon=detalle[1],
+                    )
+                    if (
+                        respuesta.status_code == 400
+                        and detalle[2] is not None
+                        and "not supported for this document" in detalle[2].casefold()
+                    ):
+                        raise ProveedorDePlanillaNoDisponible(
+                            "El archivo elegido no es una Hoja de cálculo de Google. "
+                            "Convertí el Excel en Google Sheets o subilo desde Ingesta."
+                        )
                     raise ProveedorDePlanillaNoDisponible(
                         f"Google rechazo la consulta con {respuesta.status_code}"
                     )
@@ -158,6 +263,32 @@ class ProveedorGoogleSheets:
         raise ProveedorDePlanillaNoDisponible(
             "No pudimos comunicarnos con Google Sheets. Intentalo de nuevo en un momento."
         ) from ultimo
+
+
+def _detalle_de_error_google(
+    respuesta: httpx.Response,
+) -> tuple[str | None, str | None, str | None]:
+    """Extract only bounded diagnostic codes; never log the request URL, token or file ID."""
+    try:
+        cuerpo = respuesta.json()
+    except ValueError:
+        return None, None, None
+    if not isinstance(cuerpo, dict) or not isinstance(cuerpo.get("error"), dict):
+        return None, None, None
+    error = cuerpo["error"]
+    estado = error.get("status")
+    detalles = error.get("errors")
+    razon = (
+        detalles[0].get("reason")
+        if isinstance(detalles, list) and detalles and isinstance(detalles[0], dict)
+        else None
+    )
+    mensaje = error.get("message")
+    return (
+        estado[:80] if isinstance(estado, str) else None,
+        razon[:80] if isinstance(razon, str) else None,
+        mensaje if isinstance(mensaje, str) else None,
+    )
 
 
 class ProveedorDePlanillaSimulado:
@@ -187,10 +318,13 @@ class ProveedorDePlanillaSimulado:
         # Points back at our own callback, so the flow completes without leaving the app.
         return f"{self._callback}?state={estado}&code={self.PREFIJO}planilla-de-prueba"
 
-    async def canjear_codigo(self, codigo: str) -> str:
+    async def canjear_codigo(self, codigo: str) -> TokensDePlanilla:
         if not codigo.startswith(self.PREFIJO):
             raise PermisosDePlanillaInsuficientes(MENSAJE_SIN_PERMISOS)
-        return f"token-{codigo.removeprefix(self.PREFIJO)}"
+        return TokensDePlanilla(
+            acceso=f"token-{codigo.removeprefix(self.PREFIJO)}",
+            renovacion="",
+        )
 
     async def describir_documento(self, *, token: str, identificador: str) -> DocumentoVinculado:
         del token
@@ -198,4 +332,18 @@ class ProveedorDePlanillaSimulado:
             identificador_externo=identificador,
             nombre="Planilla de prueba",
             hojas=(HojaDePlanilla(nombre="Clientes", filas_estimadas=120),),
+        )
+
+    async def leer_hoja(
+        self,
+        *,
+        token: str,
+        identificador: str,
+        hoja: str,
+        max_filas: int | None = None,
+    ) -> PlanillaLeida:
+        del token, identificador, hoja, max_filas
+        return PlanillaLeida(
+            columnas=("Nombre", "CUIT"),
+            filas=(FilaLeida(numero=2, celdas={"Nombre": "Cliente de prueba", "CUIT": ""}),),
         )
