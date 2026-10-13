@@ -93,7 +93,7 @@ El primero se escribe **antes** del arreglo y tiene que fallar con el código ac
 |---|---|---|
 | 1 · Plan | 2026-10-13 | aprobado sin cambios |
 | 2 · Verificación | 2026-10-13 | Frontend: Prettier ✔, lint ✔, typecheck ✔, 1431 tests ✔, cobertura 91,03 %. Backend sin cambios |
-| 3 · PR | | |
+| 3 · PR | 2026-10-13 | PR #218 a `develop`. CI bloqueado por la facturación de Actions de la organización |
 
 ## Decisiones tomadas durante la unidad
 - La duración de una operación de un solo paso y el detalle vacío (D72) no se tocan: son decisiones documentadas, no bugs.
