@@ -252,8 +252,33 @@ describe("PAN-AGE-02 — detalle del turno", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Cancelar turno" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sí, cancelar el turno" }));
 
     expect(await screen.findByText("El turno ya fue cancelado")).toBeTruthy();
+  });
+
+  // #172: cancelar no se deshace y le avisa al cliente; ya no pasa al primer clic.
+  it("pide confirmación antes de cancelar, y «Volver» no cancela nada", async () => {
+    cancelarTurno.mockResolvedValue({ ...RESERVADO, estado: "CANCELADO" });
+    render(
+      <DetalleDeTurno
+        inicial={RESERVADO}
+        puedeGestionar
+        recurso="Consultorio 1"
+        servicio="Corte"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar turno" }));
+    expect(cancelarTurno).not.toHaveBeenCalled();
+    expect(screen.getByText(/se le avisa al cliente/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Volver" }));
+    expect(cancelarTurno).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar turno" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sí, cancelar el turno" }));
+    await waitFor(() => expect(cancelarTurno).toHaveBeenCalledWith("t1"));
   });
 
   it("enlaza la sena cuando el turno tiene un cobro asociado (HU-E6-07)", () => {
