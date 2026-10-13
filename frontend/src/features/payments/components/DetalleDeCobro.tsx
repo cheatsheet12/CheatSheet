@@ -43,12 +43,14 @@ import {
   ErrorDeCobro,
   LARGO_MINIMO_DE_MOTIVO,
   MENSAJE_LINK_COPIADO,
+  MENSAJE_LINK_REGENERADO,
   MENSAJE_MOTIVO_CORTO,
   MENSAJE_PAGO_HUERFANO,
   cancelarCobro,
   copiarLink,
   pendienteDeReembolso,
   reembolsarCobro,
+  regenerarLink,
   tieneReembolsos,
   tonoDeEstado,
   verCobro,
@@ -80,6 +82,7 @@ export function DetalleDeCobro({
   const [montoAReembolsar, setMontoAReembolsar] = useState(pendienteDeReembolso(inicial));
   const [trabajando, setTrabajando] = useState(false);
   const [copiando, setCopiando] = useState(false);
+  const [regenerando, setRegenerando] = useState(false);
 
   async function recargar(): Promise<void> {
     setCobro(await verCobro(cobro.id));
@@ -98,6 +101,22 @@ export function DetalleDeCobro({
     setCopiando(false);
     // Se dice cuando **no** se pudo: alguien que apretó «copiar» y no ve nada asume que copió.
     setAviso(copiado ? MENSAJE_LINK_COPIADO : "No se pudo copiar. Copialo a mano desde el link.");
+  }
+
+  /** HU-E6-03: un link nuevo invalida el anterior y activa el nuevo (Administrador u Operador). */
+  async function regenerar(): Promise<void> {
+    setError(null);
+    setAviso(null);
+    setRegenerando(true);
+    try {
+      await regenerarLink(cobro.id);
+      await recargar();
+      setAviso(MENSAJE_LINK_REGENERADO);
+    } catch (fallo) {
+      setError(mensajeDe(fallo, "No se pudo regenerar el link de pago."));
+    } finally {
+      setRegenerando(false);
+    }
   }
 
   async function cancelar(): Promise<void> {
@@ -246,6 +265,15 @@ export function DetalleDeCobro({
                 <Button variante="secundario" cargando={copiando} onClick={() => void copiar()}>
                   Copiar link
                 </Button>
+                {puedeGestionar && (
+                  <Button
+                    variante="secundario"
+                    cargando={regenerando}
+                    onClick={() => void regenerar()}
+                  >
+                    Regenerar link
+                  </Button>
+                )}
               </div>
             ) : (
               <p className="cob-vacio">

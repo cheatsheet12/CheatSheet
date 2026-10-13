@@ -108,6 +108,8 @@ export const MENSAJE_SIN_CONCEPTO = "Debe ingresar un concepto para el cobro.";
 export const MENSAJE_MONTO_NO_POSITIVO = "El monto debe ser mayor a cero.";
 export const MENSAJE_MOTIVO_CORTO = "El motivo debe tener al menos 10 caracteres.";
 export const MENSAJE_LINK_COPIADO = "Link copiado al portapapeles.";
+export const MENSAJE_LINK_REGENERADO =
+  "Se generó un nuevo link de pago; el anterior quedó invalidado.";
 export const MENSAJE_MP_CAIDO = "No se pudo generar el link de pago. Intente nuevamente.";
 
 /**

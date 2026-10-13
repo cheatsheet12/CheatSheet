@@ -21,6 +21,7 @@ const listarCobros = vi.fn();
 const verCobro = vi.fn();
 const generarCobro = vi.fn();
 const cancelarCobro = vi.fn();
+const regenerarLink = vi.fn();
 const reembolsarCobro = vi.fn();
 const actualizarReembolso = vi.fn();
 const registrarReembolso = vi.fn();
@@ -36,6 +37,7 @@ vi.mock("@/features/payments/api/cobro", async () => {
     verCobro: (...args: unknown[]) => verCobro(...args),
     generarCobro: (...args: unknown[]) => generarCobro(...args),
     cancelarCobro: (...args: unknown[]) => cancelarCobro(...args),
+    regenerarLink: (...args: unknown[]) => regenerarLink(...args),
     reembolsarCobro: (...args: unknown[]) => reembolsarCobro(...args),
     actualizarReembolso: (...args: unknown[]) => actualizarReembolso(...args),
     registrarReembolso: (...args: unknown[]) => registrarReembolso(...args),
@@ -245,6 +247,27 @@ describe("PAN-COB-02 — detalle del cobro", () => {
   it("no ofrece reembolsar sobre un cobro que no esta pagado", () => {
     render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar />);
     expect(screen.queryByRole("button", { name: "Reembolsar" })).toBeNull();
+  });
+
+  it("regenera el link activo y muestra el nuevo (HU-E6-03: invalida el anterior)", async () => {
+    regenerarLink.mockResolvedValue({
+      ...PENDIENTE,
+      url_de_pago: "https://mp.test/checkout/co1-nuevo",
+    });
+    verCobro.mockResolvedValue({ ...DETALLE, url_de_pago: "https://mp.test/checkout/co1-nuevo" });
+    render(<DetalleDeCobro inicial={DETALLE} puedeGestionar puedeReembolsar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Regenerar link" }));
+
+    await waitFor(() => {
+      expect(regenerarLink).toHaveBeenCalledWith("co1");
+    });
+    expect(await screen.findByText("https://mp.test/checkout/co1-nuevo")).toBeTruthy();
+  });
+
+  it("no ofrece regenerar el link a quien no puede gestionar (HU-E6-03: Admin/Operador)", () => {
+    render(<DetalleDeCobro inicial={DETALLE} puedeGestionar={false} puedeReembolsar={false} />);
+    expect(screen.queryByRole("button", { name: "Regenerar link" })).toBeNull();
   });
 
   it("le esconde el reembolso al Operador aunque el cobro este pagado (RN-05)", () => {
