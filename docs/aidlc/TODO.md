@@ -851,6 +851,15 @@ afuera (CLAUDE.md §8).
 - **La CUIT ficticia `30000000015` es compartida en homologación**: ARCA ya tenía Facturas A 1 y 2 de
   otro usuario. CheatSheet sincronizó y emitió la 3 (D18), así que no rompe nada, pero los números de
   staging no arrancan en 1.
+- ~~**Un ticket de WSAA recién emitido se pierde si el pedido que lo pidió falla.**~~ · **Arreglado en
+  `fix/integrations-ticket-de-plataforma-persistido`.** Visto en staging el 13/10/2026: verificar la
+  delegación de una empresa que no delegó (30-71555551-0) obtuvo un ticket WSFE, la conexión se rechazó
+  y el rollback se llevó el ticket. Desde ahí WSAA respondió `coe.alreadyAuthenticated` a todo pedido
+  —ninguna empresa pudo reconectar ARCA ni obtener CAE— hasta que venció, ≈ 06:57 UTC del 14/10/2026.
+  El mismo arreglo cubre el caso de dos pedidos simultáneos cuando todavía no había fila que bloquear.
+- **Una conexión de ARCA que falla por `TicketNoDisponible` muestra «No se pudo completar la
+  operacion».** La API devuelve 422 con el motivo, pero el panel muestra el texto genérico. Visto el
+  13/10/2026; fuera de `ticket-de-plataforma-persistido`.
 - **Una alícuota de IVA inválida en `POST /comprobantes` responde 500 en lugar de 422.** El router
   convierte el texto con `AlicuotaIVA(linea.alicuota_iva)` sin capturar el `ValueError`: un `"21"` en vez
   de `"0.21"` termina en `ErrorInterno`. El panel siempre manda un valor válido, así que solo lo ve quien

@@ -10,6 +10,7 @@ clients would not be one.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
@@ -40,15 +41,32 @@ class PortRepositorioIntegraciones(Protocol):
     ) -> list[ConfiguracionDeIntegracion]: ...
 
 
+class ReservaDeTicket(Protocol):
+    """One service's ticket, held exclusively until the reservation ends.
+
+    `guardado` is what was stored when the reservation began; `guardar` replaces it.
+    """
+
+    @property
+    def guardado(self) -> TicketDePlataforma | None: ...
+    async def guardar(self, ticket: TicketDePlataforma) -> None: ...
+
+
 class PortRepositorioTicketsDePlataforma(Protocol):
     """Where the platform certificate's sessions live, one per service (ADR-0014).
 
-    `buscar_para_renovar` locks the row: two requests minting at once would get one ticket
+    `reservar` is exclusive per service: two requests minting at once would get one ticket
     and one `coe.alreadyAuthenticated`, and the second would have nothing to use.
+
+    **What is saved inside a reservation is committed when the reservation ends, whatever
+    the caller does afterwards.** WSAA refuses a second ticket while the first is alive, so
+    a minted ticket lost to the caller's rollback is twelve hours without ARCA for every
+    company. A reservation that ends with an exception saves nothing.
     """
 
-    async def buscar_para_renovar(self, servicio: ServicioDeArca) -> TicketDePlataforma | None: ...
-    async def guardar(self, ticket: TicketDePlataforma) -> None: ...
+    def reservar(
+        self, servicio: ServicioDeArca
+    ) -> AbstractAsyncContextManager[ReservaDeTicket]: ...
 
 
 class PortCifradoDeCredenciales(Protocol):

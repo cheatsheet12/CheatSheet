@@ -21,7 +21,6 @@ from cheatsheet.contexts.integrations.application.ports import DatosDePadron
 from cheatsheet.contexts.integrations.application.tickets_de_plataforma import (
     ObtenerTicketDePlataforma,
 )
-from cheatsheet.contexts.integrations.domain.ticket import ServicioDeArca, TicketDePlataforma
 from cheatsheet.contexts.integrations.domain.valores import CLAVE_CUIT, SistemaExterno
 from cheatsheet.contexts.integrations.infrastructure.registro import ParDeAdaptadores
 from cheatsheet.shared.clock import RelojFijo
@@ -35,6 +34,7 @@ from tests.contexts.integrations.conftest import (
     EmisorProgramado,
     PadronProgramado,
     RegistroFalso,
+    TicketsEnMemoria,
     VerificadorProgramado,
 )
 
@@ -53,19 +53,6 @@ DATOS = DatosDePadron(
 )
 
 
-class TicketsDePlataformaEnMemoria:
-    """`PortRepositorioTicketsDePlataforma` sin base: una fila por servicio."""
-
-    def __init__(self) -> None:
-        self.filas: dict[ServicioDeArca, TicketDePlataforma] = {}
-
-    async def buscar_para_renovar(self, servicio: ServicioDeArca) -> TicketDePlataforma | None:
-        return self.filas.get(servicio)
-
-    async def guardar(self, ticket: TicketDePlataforma) -> None:
-        self.filas[ticket.servicio] = ticket
-
-
 async def _armar(
     padron: PadronProgramado, *, emisor: EmisorProgramado | None = None
 ) -> tuple[ConsultarPadron, EmisorProgramado]:
@@ -81,7 +68,7 @@ async def _armar(
         }
     )
     tickets = ObtenerTicketDePlataforma(
-        tickets=TicketsDePlataformaEnMemoria(),
+        tickets=TicketsEnMemoria(),
         cifrado=CifradoFalso(),
         emisor=emisor,
         credencial=b"credencial-de-plataforma",

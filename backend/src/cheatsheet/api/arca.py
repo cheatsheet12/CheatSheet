@@ -115,10 +115,10 @@ class CredencialesDesdeIntegraciones:
 def armar_credenciales(unidad: UnidadDeTrabajo, settings: Settings) -> PortCredencialesDeWsfe:
     """The platform's WSFEv1 token and sign, and the company's CUIT (ADR-0014).
 
-    The ticket use case is inside the same transaction because obtaining one may have to
-    mint one, and minting one persists it: ARCA refuses a second ticket while the first is
-    alive (ADR-0004), so that row has to be written together with everything else the
-    request does.
+    Obtaining a ticket may mint one, and a minted ticket is committed **apart from** this
+    request: ARCA refuses a second ticket while the first is alive (ADR-0004), so losing it to
+    this request's rollback — a rejected emission, say — would leave every company without
+    WSFE for twelve hours. The ticket repository holds its own transaction for that reason.
     """
     piezas = Integraciones.armar(unidad.sesion, settings)
     return CredencialesDesdeIntegraciones(
