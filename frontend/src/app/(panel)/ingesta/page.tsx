@@ -21,7 +21,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Ingesta de datos · CheatSheet" };
 
-export default async function PaginaDeIngesta(): Promise<JSX.Element> {
+export default async function PaginaDeIngesta({
+  searchParams,
+}: {
+  searchParams?: { error?: string };
+} = {}): Promise<JSX.Element> {
   const claims = leerClaims();
   if (claims === null) {
     redirect("/");
@@ -53,6 +57,7 @@ export default async function PaginaDeIngesta(): Promise<JSX.Element> {
         inicial={listado}
         cargasIniciales={cargas.cargas}
         puedeEditar={claims.rol === "ADMINISTRADOR"}
+        errorInicial={searchParams?.error?.slice(0, 300) ?? null}
       />
     </>
   );
