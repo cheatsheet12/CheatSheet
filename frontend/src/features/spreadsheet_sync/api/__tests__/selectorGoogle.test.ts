@@ -28,6 +28,7 @@ describe("selector de Google", () => {
     };
     const builder = {
       addView: vi.fn().mockReturnThis(),
+      setSelectableMimeTypes: vi.fn().mockReturnThis(),
       setOAuthToken: vi.fn().mockReturnThis(),
       setDeveloperKey: vi.fn().mockReturnThis(),
       setAppId: vi.fn().mockReturnThis(),
@@ -63,6 +64,9 @@ describe("selector de Google", () => {
     expect(await seleccionarPlanillaConGoogle()).toBe("sheet-123");
     expect(builder.setOAuthToken).toHaveBeenCalledWith("short-lived");
     expect(builder.setAppId).toHaveBeenCalledWith("12345");
+    expect(builder.setSelectableMimeTypes).toHaveBeenCalledWith(
+      "application/vnd.google-apps.spreadsheet",
+    );
     selection = { action: "cancel" };
     expect(await seleccionarPlanillaConGoogle()).toBeNull();
   });
