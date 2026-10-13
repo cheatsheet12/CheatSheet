@@ -3,7 +3,7 @@ entregable: matriz
 parte: filas-dallape
 responsable: Vincenzo Dallape
 estado: borrador
-hu: [HU-E5-01, HU-E5-02, HU-E5-03, HU-E5-04, HU-E5-05, HS-T4]
+hu: [HU-E5-01, HU-E5-02, HU-E5-03, HU-E5-04, HU-E5-05, HS-T4, HU-E10-01, HU-E10-02, HU-E10-03, HU-E10-04, HU-E10-05, HU-E10-06]
 fuentes:
   - docs/aidlc/inputs/historias-de-usuario.md
   - docs/aidlc/inputs/prototipos.md
@@ -43,6 +43,10 @@ observaciones: >
   contra ARCA; se usa «Simulada · pendiente de validar» como el valor cerrado más cercano. En
   HU-E5-05 la habilitación del punto de venta es simulada fuera de producción porque homologación no
   lleva registro de puntos de venta.
+  Las filas de Tablero e Indicadores y de Reportería y Paquete Contable (HU-E10-01 a HU-E10-06) se
+  probaron en staging el 13/10/2026 sobre la misma empresa (capturas de MAN-95): HU-E10-01 a 03 pasan
+  a Probado; HU-E10-04 a 06 quedan En desarrollo porque dependen del correo transaccional (modo
+  consola en staging) y porque invitar al contador responde 504 (bug mayor abierto).
 ---
 
 ## Filas — Vincenzo Dallape
@@ -55,6 +59,12 @@ observaciones: >
 | Facturación Electrónica | Anular un comprobante mediante una nota de crédito | HU-E5-04 | Administrador, Operador | Comprobante, ItemDeComprobante | PAN-FAC-04 | En desarrollo | Simulada · pendiente de validar | 24/10/2026 |
 | Facturación Electrónica | Configurar y administrar los puntos de venta | HU-E5-05 | Administrador | PuntoDeVenta | PAN-FAC-05 | Probado | Simulada · pendiente de validar | 13/10/2026 |
 | Facturación Electrónica | Sincronizar los parámetros fiscales desde ARCA con su vigencia | HS-T4 | Sistema | ParametroFiscal | Sin pantalla | Codificado | Simulada · pendiente de validar | 20/10/2026 |
+| Tablero e Indicadores | Visualizar los indicadores (KPIs) del tablero | HU-E10-01 | Administrador, Operador, Solo Lectura | Reporte | PAN-REP-01 | Probado | No aplica | 13/10/2026 |
+| Reportería y Paquete Contable | Previsualizar un reporte antes de generarlo | HU-E10-02 | Administrador, Operador | Reporte | PAN-REP-01 | Probado | No aplica | 13/10/2026 |
+| Reportería y Paquete Contable | Generar y descargar un reporte en el formato deseado | HU-E10-03 | Administrador, Operador | Reporte | PAN-REP-01 | Probado | No aplica | 13/10/2026 |
+| Reportería y Paquete Contable | Generar el paquete contable mensual | HU-E10-04 | Administrador | PaqueteContable | PAN-REP-02 | En desarrollo | Simulada · pendiente de validar | 24/10/2026 |
+| Reportería y Paquete Contable | Compartir el paquete contable con el contador mediante enlace | HU-E10-05 | Administrador | TokenDeAccesoContable | PAN-REP-02 | En desarrollo | Simulada · pendiente de validar | 24/10/2026 |
+| Reportería y Paquete Contable | Acceder al paquete contable como contador externo | HU-E10-06 | Contador externo | TokenDeAccesoContable, PaqueteContable | Enlace seguro | En desarrollo | Simulada · pendiente de validar | 24/10/2026 |
 
 ### Qué respalda cada estado
 
@@ -66,3 +76,9 @@ observaciones: >
 | HU-E5-04 | Unidad `nota-de-credito` mergeada en el PR #34: comprobante de origen obligatorio, tipo heredado, tope de monto y anulación total o parcial derivada de las notas autorizadas; el aviso de reembolso enlaza a la nota sin emitirla. La nota usa el adaptador real de WSFEv1 en staging pero no se emitió ninguna contra ARCA (TODO §21.5), y la herencia del período y del vencimiento de RN-06 depende de `tipos-de-comprobante-por-receptor`. Prueba manual en staging pendiente |
 | HU-E5-05 | Unidad `puntos-de-venta` mergeada en el PR #34, con tests de unicidad del número, numeración por tipo y desactivación sin borrar; parser real de habilitación probado con sobres grabados (TODO §19). En staging la habilitación es simulada (1 a 5 habilitados, 99 bloqueado) porque homologación no registra puntos de venta. Prueba en staging del 13/10/2026: el punto de venta 0003 se agrega y queda activo (Figura MAN-50-1). |
 | HS-T4 | Unidad `parametros-fiscales` mergeada en el PR #34: catálogo versionado por vigencia, un valor nuevo no pisa al anterior y una falla conserva el último vigente, con tests del adaptador real y del simulado. En staging la tarea de Beat usa el adaptador real de WSFEv1, sin una corrida verificada contra ARCA. Prueba manual en staging pendiente (verificación en la bitácora) |
+| HU-E10-01 | Unidades `reporteria-y-paquete-contable` (PR #35) e `indicadores-de-cobranza` (PR #52). Prueba en staging del 13/10/2026 sobre la empresa de demostración: con el período «Este mes» el tablero muestra Facturado $ 18.150,00, Cobrado $ 11.851,25, Pendiente de cobro, En mora, Turnos gestionados y Operaciones, con el período anterior, y los cuatro gráficos (Figuras MAN-95-1 y MAN-95-2). Diferencia menor: el encabezado tiene seis cifras y la HU nombra cuatro. |
+| HU-E10-02 | Unidad `reporteria-y-paquete-contable` (PR #35). Prueba en staging del 13/10/2026: al cambiar el tipo, la previsualización de Facturación muestra $ 18.150,00 y «Se van a exportar 1 registros del período seleccionado.» sin generar archivo (Figura MAN-95-3). Diferencia menor: la previsualización aparece recién al cambiar un filtro. |
+| HU-E10-03 | Unidades `reporteria-y-paquete-contable` (PR #35) y `reporte-fallido-persistido` (PR #56). Prueba en staging del 13/10/2026: el reporte de Facturación en CSV de octubre queda «Listo» en «Reportes generados» con su enlace «Descargar» (Figura MAN-95-4). |
+| HU-E10-04 | Unidad `reporteria-y-paquete-contable` (PR #35). Prueba en staging del 13/10/2026: configurar y activar el envío automático y generar el paquete de prueba funcionan; el paquete de septiembre 2026 queda en «Paquetes generados» con «Descargar» (Figura MAN-95-5). Sigue En desarrollo: el envío al contador depende del correo transaccional, que en staging corre en modo consola, y un paquete que falla al guardarse no queda visible (unidad pendiente `paquete-fallido-visible`). |
+| HU-E10-05 | Unidad `reporteria-y-paquete-contable` (PR #35). Prueba en staging del 13/10/2026: «Invitar» al contador corta a los 10 segundos con 504 y la invitación no queda registrada (bug mayor abierto). El envío del enlace depende del correo transaccional, simulado en staging. |
+| HU-E10-06 | Unidad `reporteria-y-paquete-contable` (PR #35): página pública `/contador/[valor]` con el token de acceso. No ejecutada en staging: requiere una invitación, bloqueada por el bug de HU-E10-05, y el enlace llega solo por correo, simulado en staging. |
