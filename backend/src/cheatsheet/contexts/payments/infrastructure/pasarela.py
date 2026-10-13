@@ -135,8 +135,8 @@ class PasarelaMercadoPago:
         )
         return PagoRecibido(
             payment_id=str(datos.get("id") or payment_id),
-            # `preference_id` no siempre viene; `external_reference` es el id del cobro y sí.
             preference_id=_preferencia_de(datos),
+            cobro_id=_cobro_de(datos),
             estado=str(datos.get("status") or ""),
             monto=_monto_de(datos),
             fecha_aprobacion=_fecha_de_aprobacion(datos),
@@ -310,8 +310,16 @@ def _texto_de_error(respuesta: httpx.Response) -> str:
 
 
 def _preferencia_de(datos: dict[str, Any]) -> str | None:
-    valor = datos.get("preference_id") or datos.get("order", {}).get("id")
+    valor = datos.get("preference_id")  # no `order.id`: es la merchant order
     return str(valor) if valor else None
+
+
+def _cobro_de(datos: dict[str, Any]) -> UUID | None:
+    """`external_reference`, que `crear_link` carga con el id del cobro. Otra cosa no es nuestra."""
+    try:
+        return UUID(str(datos.get("external_reference") or ""))
+    except ValueError:
+        return None
 
 
 def _monto_de(datos: dict[str, Any]) -> Decimal | None:

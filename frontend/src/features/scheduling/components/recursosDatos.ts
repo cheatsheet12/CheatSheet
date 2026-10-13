@@ -8,6 +8,7 @@
 
 import { DIAS } from "../api/recurso";
 import type { Excepcion, Patron } from "../api/recurso";
+import { DESFASE, horaEnAgenda } from "./calendario";
 
 /** La inicial de cada día, de lunes a domingo. La «X» del miércoles es la convención rioplatense. */
 export const INICIALES_DE_DIA: readonly string[] = ["L", "M", "X", "J", "V", "S", "D"];
@@ -99,4 +100,44 @@ export function hoyIso(ahora: Date = new Date()): string {
   const mes = String(ahora.getMonth() + 1).padStart(2, "0");
   const dia = String(ahora.getDate()).padStart(2, "0");
   return `${ahora.getFullYear()}-${mes}-${dia}`;
+}
+
+/** Los minutos desde la medianoche de una hora `HH:MM`, o `null` si no lo es. */
+function minutosDe(hora: string): number | null {
+  const partes = /^(\d{2}):(\d{2})$/.exec(hora);
+  if (partes === null) {
+    return null;
+  }
+  return Number(partes[1]) * 60 + Number(partes[2]);
+}
+
+/**
+ * La franja de un horario especial (#165), como la pide la API, o `null` si no se puede armar.
+ *
+ * El inicio va con el desfase de la agenda: el backend exige que caiga en la fecha de la
+ * excepción **en la zona de la agenda**, y un horario de la noche ya es el día siguiente en UTC.
+ * Una franja que cierra antes de abrir —o a la misma hora— no se arma.
+ */
+export function franjaDeApertura(
+  fecha: string,
+  desde: string,
+  hasta: string,
+): { readonly franja_inicio: string; readonly franja_duracion_min: number } | null {
+  const inicio = minutosDe(desde);
+  const fin = minutosDe(hasta);
+  if (fecha === "" || inicio === null || fin === null || fin <= inicio) {
+    return null;
+  }
+  return { franja_inicio: `${fecha}T${desde}:00${DESFASE}`, franja_duracion_min: fin - inicio };
+}
+
+/** El horario de una excepción para la tabla: «10:00–14:00», o «—» si es un día sin atención. */
+export function horarioDeExcepcion(excepcion: Excepcion): string {
+  if (excepcion.franja_inicio === null || excepcion.franja_duracion_min === null) {
+    return "—";
+  }
+  const fin = new Date(
+    Date.parse(excepcion.franja_inicio) + excepcion.franja_duracion_min * 60_000,
+  ).toISOString();
+  return `${horaEnAgenda(excepcion.franja_inicio)}–${horaEnAgenda(fin)}`;
 }

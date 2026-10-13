@@ -3,10 +3,10 @@
  *
  * El formulario de alta y el listado de lo abierto, que es lo que RN-04 deja consultar.
  *
- * **El mensaje de «el asunto y la descripción son obligatorios» lo escribe el backend.** Acá
- * el botón se deshabilita mientras falte alguno —que es cortesía— pero el texto que se muestra
- * cuando falla es el que vino, porque es la frase que el criterio pide palabra por palabra y
- * una copia local se desactualiza sin que nadie lo note.
+ * **«El asunto y la descripción son obligatorios.»** El criterio pide que, al intentar enviar
+ * sin alguno de los dos, se muestre esa frase y no se envíe (#174). Antes el botón quedaba
+ * deshabilitado sin decir por qué; ahora se puede tocar, y si falta algo se muestra la frase —la
+ * misma constante que comparte con el backend, `MENSAJE_CAMPOS_OBLIGATORIOS`— sin pedir nada.
  *
  * **No hay forma de cerrar un ticket desde el panel.** El estado lo mueve el equipo de
  * CheatSheet (RN-03): un botón de «resolver» del lado de la empresa convierte «resuelta» en
@@ -29,6 +29,7 @@ import type { Columna } from "@/shared";
 import {
   ETIQUETAS_DE_ESTADO,
   ErrorDeNotificacion,
+  MENSAJE_CAMPOS_OBLIGATORIOS,
   abrirSolicitud,
   listarSolicitudes,
 } from "../api/notificaciones";
@@ -81,6 +82,11 @@ export function Soporte({ inicial, puedeAbrir }: PropsDeSoporte): JSX.Element {
   const completo = asunto.trim() !== "" && descripcion.trim() !== "";
 
   async function enviar(): Promise<void> {
+    if (!completo) {
+      setAviso(null);
+      setError(MENSAJE_CAMPOS_OBLIGATORIOS);
+      return;
+    }
     setEnviando(true);
     setError(null);
     setAviso(null);
@@ -190,20 +196,21 @@ export function Soporte({ inicial, puedeAbrir }: PropsDeSoporte): JSX.Element {
             />
             {/* La acción de cierre va a la derecha, donde termina de leerse el formulario. */}
             <div className="log-soporte__pie">
-              <Button onClick={() => void enviar()} cargando={enviando} disabled={!completo}>
+              <Button onClick={() => void enviar()} cargando={enviando}>
                 Enviar
               </Button>
             </div>
           </Card>
         )}
 
-        <Card titulo="Mis solicitudes">
+        {/* #178: el listado es de la empresa, no de quien lo mira (D82). */}
+        <Card titulo="Solicitudes de la empresa">
           <Tabla
             titulo="Solicitudes de soporte"
             columnas={columnas}
             filas={solicitudes}
             claveDeFila={(fila) => fila.id}
-            vacia="Todavía no abriste ninguna solicitud."
+            vacia="La empresa todavía no abrió ninguna solicitud."
           />
         </Card>
       </div>

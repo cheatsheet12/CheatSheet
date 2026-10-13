@@ -221,6 +221,34 @@ class TestReservar:
         assert [clase for clase, _ in escena.notificador.avisos] == ["reserva"]
         assert "reservar_turno" in escena.publicador.acciones
 
+    async def test_el_evento_del_turno_dice_de_que_cliente_es_sin_su_nombre(self) -> None:
+        """#176 (HU-E12-01 RN-03): para que buscar un cliente encuentre sus turnos.
+
+        La bitácora guarda el id del cliente y nunca su nombre: es una tabla inmutable que lee
+        cualquiera con acceso a la auditoría (D72).
+        """
+        escena = Escena(un_recurso())
+        cliente = uuid4()
+        escena.con_contacto(cliente)
+
+        await escena.reservar().ejecutar(
+            empresa_id=EMPRESA,
+            usuario_id=USUARIO,
+            rol=RolUsuario.OPERADOR,
+            cliente_id=cliente,
+            servicio_id=CORTE.id,
+            recurso_id=escena.recurso.id,
+            inicio=local(15),
+            ahora=AHORA,
+        )
+
+        evento = next(
+            uno
+            for uno in escena.publicador.eventos
+            if getattr(uno, "accion", "") == "reservar_turno"
+        )
+        assert getattr(evento, "detalle", None) == {"cliente_id": str(cliente)}
+
     async def test_rechaza_un_servicio_que_no_se_presta_en_ese_recurso(self) -> None:
         """HU-E7-04 RN-02, y el tercer criterio de HU-E7-06."""
         escena = Escena(un_recurso())

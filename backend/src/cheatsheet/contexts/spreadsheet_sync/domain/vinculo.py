@@ -82,7 +82,9 @@ class VinculoDePlanilla:
     def escribe_de_vuelta(self) -> bool:
         """HU-E3-07 RN-01, asked as one question instead of two conditions at each site."""
         return (
-            self.direccion is DireccionSync.LECTURA_Y_ESCRITURA and self.proveedor.admite_escritura
+            self.direccion is DireccionSync.LECTURA_Y_ESCRITURA
+            and self.proveedor.admite_escritura
+            and not self.pausado
         )
 
     @property

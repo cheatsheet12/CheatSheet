@@ -15,11 +15,12 @@
  * respuesta, y el modelo se consulta una sola vez por estructura.
  */
 
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { RevisionDeMapeo } from "@/features/spreadsheet_sync";
 import type { Mapeo } from "@/features/spreadsheet_sync";
-import { llamarApi } from "@/lib/api";
+import { ErrorDeApi, llamarApi } from "@/lib/api";
 import { leerClaims } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -40,20 +41,32 @@ export default async function PaginaDeMapeo({
     redirect("/");
   }
 
-  const { columnas } = await llamarApi<Encabezados>(`/planillas/${params.vinculoId}/encabezados`);
-  const mapeo = await llamarApi<Mapeo>("/planillas/mapeos", {
-    method: "POST",
-    body: {
-      vinculo_id: params.vinculoId,
-      // El ejemplo viaja al panel y nunca al modelo (decisión D12). Se manda como
-      // `undefined` y no como `null` cuando la columna está vacía, porque el DTO del
-      // backend lo declara opcional.
-      columnas: columnas.map(({ nombre, ejemplo }) => ({
-        nombre,
-        ...(ejemplo !== null ? { ejemplo } : {}),
-      })),
-    },
-  });
+  let mapeo: Mapeo;
+  try {
+    const { columnas } = await llamarApi<Encabezados>(`/planillas/${params.vinculoId}/encabezados`);
+    mapeo = await llamarApi<Mapeo>("/planillas/mapeos", {
+      method: "POST",
+      body: {
+        vinculo_id: params.vinculoId,
+        // El ejemplo viaja al panel y nunca al modelo (decisión D12). Se manda como
+        // `undefined` y no como `null` cuando la columna está vacía, porque el DTO del
+        // backend lo declara opcional.
+        columnas: columnas.map(({ nombre, ejemplo }) => ({
+          nombre,
+          ...(ejemplo !== null ? { ejemplo } : {}),
+        })),
+      },
+    });
+  } catch (error) {
+    if (!(error instanceof ErrorDeApi)) throw error;
+    return (
+      <div className="ing-encabezado" role="alert">
+        <h1 className="ing-titulo">No pudimos revisar el mapeo</h1>
+        <p className="ing-subtitulo">{error.detalle}</p>
+        <Link href="/ingesta">Volver a Ingesta</Link>
+      </div>
+    );
+  }
 
   return (
     <>

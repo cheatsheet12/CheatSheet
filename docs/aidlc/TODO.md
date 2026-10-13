@@ -865,38 +865,35 @@ conectar un vendedor de prueba (HU-E2-02), rechazar una cuenta real, verificar e
 `TODO.md` §20.6). El diagnóstico está en
 [`units/cuenta-de-prueba-por-etiqueta.md`](units/cuenta-de-prueba-por-etiqueta.md).
 
-### 29.1 Bloqueante: ningún pago de prueba se completa · **te toca a vos**
+### 29.1 ~~Bloqueante: ningún pago de prueba se completa~~ · **Resuelto el 12/10/2026**
 
-El comprador de prueba llega al checkout, ve el monto correcto y al tocar «Pagar» MercadoPago
-responde «Oh, no, algo anduvo mal», con «Dinero disponible» y con tarjeta, en sandbox (antes de #95)
-y en el checkout normal (después). El pago nunca se crea: no llega ningún aviso a la API. Se
-descartaron la preferencia (leída con la API: bien armada), las credenciales de sandbox (#95) y la
-verificación de identidad de comprador y vendedor (hecha el 06/10).
+El comprador de prueba llegaba al checkout y MercadoPago respondía «Oh, no, algo anduvo mal»: el
+pago nunca se creaba. **Se confirmó la hipótesis:** la aplicación «CheatSheet staging» era de una
+**cuenta real**, y MercadoPago no deja mezclar cuentas reales y de prueba en una operación.
 
-**Hipótesis vigente, sin confirmar:** la aplicación «CheatSheet staging» pertenece a una **cuenta
-real** y cobra en nombre de un vendedor **de prueba** que le paga un comprador **de prueba**;
-MercadoPago no deja mezclar cuentas reales y de prueba en una operación. Para probarlo:
+Se resolvió con una aplicación nueva, «cheatsheet staging test» (Checkout Pro, API de Preferences,
+PKCE «Sí», permisos `read` · `offline access` · `write`), creada por una **cuenta de prueba
+vendedora** que hace de dueña de la plataforma. En Render (API y worker) se reemplazaron
+`MERCADOPAGO_CLIENT_ID`, `MERCADOPAGO_CLIENT_SECRET` y `MERCADOPAGO_WEBHOOK_SECRET` por los de esa
+aplicación, con sus **credenciales de producción** (las de una cuenta de prueba no mueven dinero
+real), y se reconectó MercadoPago en Estudio Ejemplo SRL.
 
-1. Desde la aplicación actual › «Cuentas de prueba», crear una tercera cuenta de prueba (vendedor)
-   que sea la dueña de la plataforma.
-2. Con esa cuenta, crear en el panel de desarrolladores una aplicación igual: Checkout Pro,
-   permisos `read` · `offline access` · `write`, PKCE «Sí», Redirect URL
-   `cheatsheet-panel.onrender.com/configuracion/integraciones`, Webhooks a la API.
-3. Activar sus credenciales de producción y reemplazar en Render (API y worker)
-   `MERCADOPAGO_CLIENT_ID`, `MERCADOPAGO_CLIENT_SECRET` y `MERCADOPAGO_WEBHOOK_SECRET`.
-4. Reconectar MercadoPago en la empresa de prueba, crear un cobro nuevo y pagarlo con el comprador.
+Con eso el pago se aprueba, pero destapó un bug: la API no encontraba el cobro del pago
+(`webhook_sin_cobro_asociado`), porque lo buscaba por `preference_id` y un pago de Checkout Pro casi
+nunca lo trae. Se corrigió en el PR #194: ahora se busca por `external_reference`, que es el id del
+cobro. Evidencia final: cobro **CB-4AA86961** ($ 2.350,75), pago `182830041803` con dinero
+disponible, evento `pago_confirmado` en los logs de `cheatsheet-api` a las 23:49:03 UTC, y el cobro
+en «Pagado» en el panel con fecha de pago 12/10/26 20:49.
 
-Si así tampoco se crea el pago, escribirle al soporte de MercadoPago con los `router-request-id`
-de los intentos fallidos. Sin esto, **HS-T1 y PRU-06 no se pueden ejecutar** y en la matriz siguen
-como «Simulada · pendiente de validar».
+HS-T1 y PRU-06 ya se pueden ejecutar contra MercadoPago real.
 
-### 29.2 Riesgo abierto: la firma del webhook enviado a la `notification_url`
+### 29.2 ~~Riesgo abierto: la firma del webhook enviado a la `notification_url`~~ · **Verificado el 12/10/2026**
 
-La documentación no aclara si el aviso a la URL de la preferencia llega con `x-signature` y con el
-secreto de la aplicación. Si llega sin firma, `_firma_valida` lo descarta (D22) y el cobro tampoco
-se imputa. Se puede verificar sin un pago real: aplicación › «Webhooks» › «Simular notificación»
-contra `https://cheatsheet-api-j4hv.onrender.com/webhooks/mercadopago/<empresa_id>` y leer los
-logs de `cheatsheet-api`.
+Cada pago genera tres avisos a la `notification_url` de la preferencia. El de formato nuevo
+(`?data.id=…&type=payment`) **llega firmado** con `x-signature` y el secreto de la aplicación: pasa
+`_firma_valida` y es el que confirma el pago. Los dos del formato viejo (`?id=…&topic=payment` y
+`?id=…&topic=merchant_order`) llegan sin firma y se registran como `webhook_rechazado` con
+`firma_invalida`, que es lo esperado (D22): no hace falta aceptarlos.
 
 ### 29.3 Bugs encontrados en la prueba manual, sin arreglar
 
@@ -914,4 +911,10 @@ logs de `cheatsheet-api`.
 - Cobro **CB-C8E23FB0** ($ 9.500,50): se pasó a pagado directamente en la base el 11/10/2026 para
   PRU-08 (`mp_payment_id = PRU-08-DATO-PREPARADO`). Ya no sirve para probar un pago: cuando 29.1 se
   resuelva hay que crear un cobro nuevo.
-- Las verificaciones de `TODO.md` §20 contra MercadoPago siguen pendientes por el mismo bloqueante.
+- Cobro **CB-090DC6B6** ($ 1.500,50): pagado en MercadoPago (pago `182828479111`) antes del
+  arreglo del PR #194, así que en el sistema quedó Pendiente. MercadoPago no reenvía el aviso
+  (se contestó 200). Se puede cancelar.
+- Cobro **CB-4AA86961** ($ 2.350,75): pagado de punta a punta el 12/10/2026, es la evidencia de
+  29.1. Sirve para probar reembolsos reales (HU-E6-05).
+- Las verificaciones de `TODO.md` §20 contra MercadoPago ya se pueden hacer: el bloqueante de 29.1
+  está resuelto.
