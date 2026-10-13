@@ -116,7 +116,7 @@ El primero se escribe **antes** del arreglo y tiene que fallar con el código ac
 |---|---|---|
 | 1 · Plan | 2026-10-13 | aprobado sin cambios |
 | 2 · Verificación | 2026-10-13 | Frontend: Prettier ✔, lint ✔, typecheck ✔, 1433 tests ✔, cobertura 90,88 %. Backend sin cambios |
-| 3 · PR | | |
+| 3 · PR | 2026-10-13 | PR #204 a `develop`. CI bloqueado por la facturación de Actions de la organización |
 
 ## Decisiones tomadas durante la unidad
 - El selector de fecha pasa de «Día sin atención» a «Fecha de la excepción», porque ahora sirve para los dos tipos; las horas se rotulan «Hora de apertura» y «Hora de cierre» para no repetir «Desde» / «Hasta» de las franjas en el mismo diálogo. El capítulo MAN-70 se actualiza en su PR (#183).
