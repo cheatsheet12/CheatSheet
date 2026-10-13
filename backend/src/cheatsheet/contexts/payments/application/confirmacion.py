@@ -99,7 +99,7 @@ class ConfirmarPago:
             logger.info("webhook_pago_no_aprobado", payment_id=payment_id, estado=pago.estado)
             return ResultadoDeConfirmacion(aprobado=False)
 
-        cobro = await self._encontrar(pago)
+        cobro = await self._encontrar(empresa_id, pago)
         if cobro is None:
             # MercadoPago manda eventos de la cuenta entera, y una empresa puede cobrar por
             # fuera del sistema. No es un error nuestro y no debe parecerlo.
@@ -108,8 +108,18 @@ class ConfirmarPago:
 
         return await self._aprobar(empresa_id=empresa_id, cobro=cobro, pago=pago, ahora=ahora)
 
-    async def _encontrar(self, pago: PagoRecibido) -> Cobro | None:
-        """A qué cobro corresponde. Por la preferencia, que es lo que nosotros generamos."""
+    async def _encontrar(self, empresa_id: EmpresaId, pago: PagoRecibido) -> Cobro | None:
+        """A qué cobro corresponde: por `external_reference`, y si no, por la preferencia.
+
+        Un pago de Checkout Pro casi nunca trae `preference_id`; `external_reference` sí, y es
+        el id del cobro porque lo cargamos así al crear el link. Buscarlo dentro de la sesión
+        de la empresa de la URL (RLS) es lo que impide que una referencia ajena encuentre algo;
+        comparar la empresa es la segunda línea.
+        """
+        if pago.cobro_id is not None:
+            cobro = await self._cobros.buscar_por_id(pago.cobro_id)
+            if cobro is not None and cobro.empresa_id == empresa_id:
+                return cobro
         if pago.preference_id is None:
             return None
         return await self._cobros.buscar_por_preference_id(pago.preference_id)
