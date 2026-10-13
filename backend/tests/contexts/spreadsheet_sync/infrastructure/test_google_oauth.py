@@ -29,7 +29,7 @@ async def test_exchange_keeps_refresh_token_for_scheduled_writes(
 
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(transport=httpx.MockTransport(respond), **kwargs),
     )
@@ -53,7 +53,7 @@ async def test_refresh_credential_yields_access_for_unattended_worker(
 
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(transport=httpx.MockTransport(respond), **kwargs),
     )
@@ -67,7 +67,7 @@ async def test_refresh_credential_yields_access_for_unattended_worker(
 async def test_revoked_refresh_token_requires_reconnection(monkeypatch: pytest.MonkeyPatch) -> None:
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(
             transport=httpx.MockTransport(
@@ -87,7 +87,7 @@ async def test_revoked_refresh_token_requires_reconnection(monkeypatch: pytest.M
 async def test_non_native_spreadsheet_has_actionable_error(monkeypatch: pytest.MonkeyPatch) -> None:
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(
             transport=httpx.MockTransport(

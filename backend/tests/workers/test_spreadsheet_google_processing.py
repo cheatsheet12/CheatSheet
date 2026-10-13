@@ -106,10 +106,12 @@ async def test_worker_processes_linked_google_rows_with_company_token(
 
     assert (
         await modulo.procesar_planilla(
-            SimpleNamespace(settings=settings), empresa_id=empresa, vinculo_id=vinculo.id
+            SimpleNamespace(settings=settings),  # type: ignore[arg-type]
+            empresa_id=empresa,
+            vinculo_id=vinculo.id,
         )
         == 1
-    )  # type: ignore[arg-type]
+    )
     lectura = llamada["lectura_remota"]
     assert callable(lectura)
     assert await lectura() == leida
