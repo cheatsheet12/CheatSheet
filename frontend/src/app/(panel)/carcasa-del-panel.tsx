@@ -137,7 +137,7 @@ export function CarcasaDelPanel({
           </button>
         </div>
 
-        <NavegacionLateral colapsada={colapsada} />
+        <NavegacionLateral colapsada={colapsada} rol={rol} />
 
         <div className="sidebar__pie">
           <div className="sidebar__empresa" title={colapsada ? nombre : undefined}>
