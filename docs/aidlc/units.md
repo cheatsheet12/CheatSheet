@@ -93,6 +93,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agenda y recursos | calendario-del-filtro | scheduling | HU-E7-01 | — | Emanuel | fix/scheduling-calendario-del-filtro | en revisión |
 | Agenda y recursos | horario-especial | scheduling | HU-E7-05 | — | Emanuel | fix/scheduling-horario-especial | en revisión |
 | Panel de auditoría y notificaciones | responsable-de-la-operacion | observability | HU-E12-02 | — | Emanuel | fix/observability-responsable-de-la-operacion | en revisión |
+| Panel de auditoría y notificaciones | rotulos-de-la-bitacora | observability | HU-E12-01 | — | Emanuel | fix/observability-rotulos-de-la-bitacora | en revisión |
 
 
 ---
