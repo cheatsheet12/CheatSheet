@@ -292,6 +292,20 @@ describe("PAN-CFG-NOT · el centro de notificaciones", () => {
 });
 
 describe("PAN-SOP-01 · soporte", () => {
+  // #178: el listado es de la empresa (D82), y «Mis solicitudes» hacía creer que era personal.
+  it("titula el listado como de la empresa, no como personal", () => {
+    render(<Soporte inicial={[SOLICITUD]} puedeAbrir={false} />);
+
+    expect(screen.getByRole("heading", { name: "Solicitudes de la empresa" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Mis solicitudes" })).toBeNull();
+  });
+
+  it("sin solicitudes, lo dice en nombre de la empresa", () => {
+    render(<Soporte inicial={[]} puedeAbrir={false} />);
+
+    expect(screen.getByText("La empresa todavía no abrió ninguna solicitud.")).toBeTruthy();
+  });
+
   it("el Operador ve lo abierto y no el formulario", () => {
     render(<Soporte inicial={[SOLICITUD]} puedeAbrir={false} />);
 
