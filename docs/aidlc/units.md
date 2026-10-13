@@ -78,6 +78,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | dobles-de-conversational-por-responsabilidad | conversational | HS-T2 | entregas-de-whatsapp | Luciano | fix/conversational-dobles-por-responsabilidad | mergeada |
 | Cobros y recordatorios | recordatorio-por-email | payments | HS-T3 | canal-real-de-whatsapp | Luciano | — | pendiente |
 | Cimientos, identidad y bitácora | integracion-en-neon | tests de integración (`backend/tests/integracion`, transversal) | — | — | Luciano | feature/infra-integracion-en-neon | mergeada |
+| Panel de auditoría y notificaciones | soporte-campos-obligatorios | observability | HU-E9-03 | — | Emanuel | fix/observability-soporte-campos-obligatorios | en revisión |
 
 
 ---

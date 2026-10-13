@@ -265,17 +265,15 @@ describe("PAN-SOP-01 · soporte", () => {
     expect(within(screen.getByRole("table")).getByText("No puedo emitir")).toBeTruthy();
   });
 
-  it("el botón está deshabilitado hasta que haya asunto y descripción", () => {
+  // #174: el botón deshabilitado no decía por qué; el criterio pide la frase de la historia.
+  it("enviar sin asunto o sin descripción muestra la frase de la historia y no manda nada", () => {
     render(<Soporte inicial={[]} puedeAbrir />);
 
-    const boton = screen.getByRole("button", { name: "Enviar" }) as HTMLButtonElement;
-    expect(boton.disabled).toBe(true);
-
     fireEvent.change(screen.getByLabelText("Asunto"), { target: { value: "No puedo emitir" } });
-    expect(boton.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
 
-    fireEvent.change(screen.getByLabelText("Descripción"), { target: { value: "ARCA falla" } });
-    expect(boton.disabled).toBe(false);
+    expect(screen.getByText(MENSAJE_CAMPOS_OBLIGATORIOS)).toBeTruthy();
+    expect(abrirSolicitud).not.toHaveBeenCalled();
   });
 
   it("enviar refresca el listado y limpia el formulario", async () => {
