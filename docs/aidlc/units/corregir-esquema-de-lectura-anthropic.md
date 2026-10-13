@@ -91,8 +91,8 @@ prompt o de modelo.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-13 | aprobado por Luciano |
-| 2 · Verificación | | |
-| 3 · PR | | |
+| 2 · Verificación | 2026-10-13 | aprobado por Luciano: `ruff format --check .` (875 archivos) y `ruff check .` en verde; `mypy .`: 16 errores preexistentes del entorno local, todos en tests de Google de `spreadsheet_sync`, `api` y `workers` (archivos no tocados), ninguno en `conversational`; `pytest`: 3318 passed, 655 skipped (PostgreSQL/Redis), 2 warnings preexistentes; `pytest backend/tests/contexts/conversational`: 579 passed; `guard_architecture.py --scan .`: 908 archivos sin cruces. Tests 1 y 2 en rojo antes del fix y en verde después. Falta la validación manual en staging (caso 7). |
+| 3 · PR | 2026-10-13 | abierto contra `develop` a pedido de Luciano. Pendientes el CI, el merge, el deploy y la PRU-05 en staging. |
 
 ## Decisiones tomadas durante la unidad
 
