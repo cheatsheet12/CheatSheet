@@ -211,13 +211,68 @@ describe("PaginaDeNuevoTurno", () => {
     expect(llamarApi).not.toHaveBeenCalled();
   });
 
-  it("pide elegir un cliente antes que nada", async () => {
+  // «Nuevo turno» terminaba en una tarjeta cuya única salida era irse a Clientes. Ahora es
+  // como Nuevo cobro: el selector de clientes arriba y el formulario abajo, sin poder reservar.
+  it("sin cliente muestra el selector y el formulario, ya no «Ir a Clientes»", async () => {
     leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) => Promise.resolve(porRuta(ruta)));
 
     const html = renderToString(await PaginaDeNuevoTurno({ searchParams: {} }));
 
-    expect(html).toContain("Elegí primero para quién es el turno");
-    expect(llamarApi).not.toHaveBeenCalled();
+    expect(html).toContain("Buscar cliente por nombre o CUIT");
+    expect(html).toContain("Reservar turno");
+    expect(html).toContain("Elegí primero el cliente.");
+    expect(html).not.toContain("Elegí primero para quién es el turno");
+    expect(llamarApi).not.toHaveBeenCalledWith(expect.stringMatching(/^\/clientes\//));
+  });
+
+  it("con un cliente lo muestra preseleccionado, y editable", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) => Promise.resolve(porRuta(ruta)));
+
+    const html = renderToString(await PaginaDeNuevoTurno({ searchParams: { cliente: "cl1" } }));
+
+    expect(html).toContain("Cliente seleccionado");
+    expect(html).toContain("Buscar cliente por nombre o CUIT");
+    expect(html).not.toContain("Elegí primero el cliente.");
+  });
+
+  it.each([
+    ["no existe", new ErrorDeApi(422, "No existe el cliente", "ClienteNoEncontrado")],
+    ["no es de esta empresa", new ErrorDeApi(404, "No existe", "ClienteNoEncontrado")],
+  ])("un cliente que %s se trata como sin cliente y se avisa", async (_caso, fallo) => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) =>
+      ruta.startsWith("/clientes/") ? Promise.reject(fallo) : Promise.resolve(porRuta(ruta)),
+    );
+
+    const html = renderToString(await PaginaDeNuevoTurno({ searchParams: { cliente: "viejo" } }));
+
+    expect(html).toContain("El cliente indicado no existe o está inactivo.");
+    expect(html).toContain("Elegí primero el cliente.");
+  });
+
+  it("un cliente inactivo se trata como sin cliente y se avisa", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) =>
+      Promise.resolve(ruta === "/clientes/cl1" ? { ...CLIENTE, activo: false } : porRuta(ruta)),
+    );
+
+    const html = renderToString(await PaginaDeNuevoTurno({ searchParams: { cliente: "cl1" } }));
+
+    expect(html).toContain("El cliente indicado no existe o está inactivo.");
+    expect(html).toContain("Elegí primero el cliente.");
+  });
+
+  it("un fallo del backend que no es «no existe» no se disfraza de cliente vacío", async () => {
+    leerClaims.mockReturnValue(CLAIMS_ADMIN);
+    llamarApi.mockImplementation((ruta: string) =>
+      ruta.startsWith("/clientes/")
+        ? Promise.reject(new ErrorDeApi(500, "Error interno", "ErrorInterno"))
+        : Promise.resolve(porRuta(ruta)),
+    );
+
+    await expect(PaginaDeNuevoTurno({ searchParams: { cliente: "cl1" } })).rejects.toThrow();
   });
 
   // #167: el cliente viajaba solo en la URL; el formulario no decía para quién era el turno.

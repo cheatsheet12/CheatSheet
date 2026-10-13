@@ -54,10 +54,13 @@ import type { Recurso, ServicioAgendable } from "../api/recurso";
 import { IconoDeReloj } from "./iconos";
 
 export interface PropsDeNuevoTurno {
-  /** A quién se le agenda. Se elige antes, como en la emisión y en el cobro. */
-  readonly clienteId: string;
+  /**
+   * A quién se le agenda, elegido en el selector de clientes de la página, como en el cobro.
+   * `null` mientras no se eligió: el formulario se muestra igual y «Reservar» queda deshabilitado.
+   */
+  readonly clienteId: string | null;
   /** Su nombre, resuelto del lado del servidor, para que el formulario diga para quién es (#167). */
-  readonly clienteNombre: string;
+  readonly clienteNombre: string | null;
   readonly recursos: readonly Recurso[];
   readonly servicios: readonly ServicioAgendable[];
   /** Sólo el Administrador puede cargar una atención ya realizada (HU-E7-06 RN-07). */
@@ -119,6 +122,9 @@ export function NuevoTurno({
   }
 
   async function reservar(): Promise<void> {
+    if (clienteId === null) {
+      return;
+    }
     setError(null);
     try {
       await ejecutar(
@@ -159,8 +165,14 @@ export function NuevoTurno({
         <div>
           <h2>Datos del turno</h2>
           <p>
-            Para <strong>{clienteNombre}</strong>. Elegí el recurso y el día; los horarios los
-            ofrece el recurso.
+            {clienteNombre === null ? (
+              "Elegí primero el cliente."
+            ) : (
+              <>
+                Para <strong>{clienteNombre}</strong>.
+              </>
+            )}{" "}
+            Elegí el recurso y el día; los horarios los ofrece el recurso.
           </p>
         </div>
       </div>
@@ -327,7 +339,7 @@ export function NuevoTurno({
         </Button>
         <Button
           type="submit"
-          disabled={servicioId === "" || inicioElegido === ""}
+          disabled={clienteId === null || servicioId === "" || inicioElegido === ""}
           cargando={reservando}
         >
           {aPosteriori ? "Registrar atención" : "Reservar turno"}

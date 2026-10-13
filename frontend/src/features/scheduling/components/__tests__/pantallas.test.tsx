@@ -469,6 +469,30 @@ describe("PAN-AGE-02 — nuevo turno", () => {
     expect(horario.options).toHaveLength(2);
   });
 
+  // Como en Nuevo cobro: sin cliente el formulario se ve, pero no se puede reservar.
+  it("sin cliente elegido no deja reservar aunque haya horario", async () => {
+    verDisponibilidad.mockResolvedValue({
+      fecha: "2027-09-07",
+      horarios: [{ inicio: "2027-09-07T19:00:00+00:00", ocupado: false }],
+    });
+    render(
+      <NuevoTurno clienteId={null} clienteNombre={null} recursos={[RECURSO]} servicios={[CORTE]} />,
+    );
+
+    expect(screen.getByText(/Elegí primero el cliente\./)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Recurso"), { target: { value: RECURSO.id } });
+    elegirFecha("Fecha", "2027-09-07");
+    fireEvent.change(screen.getByLabelText("Servicio"), { target: { value: CORTE.id } });
+    fireEvent.change(await screen.findByLabelText("Horario"), {
+      target: { value: "2027-09-07T19:00:00+00:00" },
+    });
+
+    const boton = screen.getByRole("button", { name: "Reservar turno" }) as HTMLButtonElement;
+    expect(boton.disabled).toBe(true);
+    fireEvent.click(boton);
+    expect(reservarTurno).not.toHaveBeenCalled();
+  });
+
   it("vuelve a pedir los horarios cuando alguien se adelanto (D28)", async () => {
     verDisponibilidad.mockResolvedValue({
       fecha: "2027-09-07",
