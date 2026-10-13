@@ -199,3 +199,39 @@ tienen por qué abrir el mismo ticket dos veces porque cada uno ve sólo el suyo
 
 Es la misma línea que separa la bandeja de notificaciones —que sí es personal, porque la escribe
 una preferencia personal— de todo lo demás, que es de la empresa.
+
+---
+
+## D101 — una **operación fallida** es una falla de ejecución, no un rechazo de validación
+
+> Agregada el 13/10/2026, durante las pruebas manuales de la Etapa 6 (issue #168), con el acuerdo
+> del revisor de HS-T5.
+
+La prueba en staging encontró que ningún rechazo de Agenda —franja ocupada, horario pasado,
+excepción duplicada, slot fuera de rango— llega a la bitácora con resultado `ERROR`, y lo leyó
+contra HS-T5 RN-04 («se registran tanto las exitosas como las fallidas»). Había que decidir qué
+cuenta como «fallida».
+
+**Lo que se decide:** una operación fallida es una operación que **se intentó ejecutar y no
+terminó bien** —ARCA rechazó el comprobante, MercadoPago no respondió, el padrón falló, una tarea
+agotó sus reintentos—. Un pedido que un caso de uso **rechaza por una regla de negocio antes de
+ejecutar nada** no es una operación fallida: no ocurrió, no cambió nada, y quien lo pidió ya ve
+el motivo en la pantalla con la frase de la historia. No va a la bitácora.
+
+Es lo que el sistema ya hace en todos los contextos: `billing`, `payments`, `identity`,
+`reference_data` y el envío de recordatorios publican `Resultado.ERROR` sólo ante fallas de
+ejecución, y ninguno lo hace ante un rechazo de validación.
+
+**Por qué no la otra lectura:**
+
+- La bitácora se escribe **en la misma transacción** que la operación (unidad
+  `cimientos-y-bitacora`). Un rechazo levanta una excepción y la transacción se deshace: registrarlo
+  obligaría a atrapar, confirmar y relanzar en cada ruta, el patrón de #47, sólo para guardar algo
+  que no pasó.
+- Cada evento `ERROR` se convierte en una notificación de **severidad alta** (D74). Con los
+  rechazos adentro, cada «El horario seleccionado no está disponible.» sería una alerta roja para
+  el Administrador, y el centro de notificaciones se llenaría de lo que D74 quiso evitar.
+
+**Consecuencia:** HS-T5 RN-04 queda cubierta por los errores de ejecución que ya se registran.
+Si alguna vez hace falta saber cuántas veces se intentó reservar una franja ocupada, eso es una
+métrica de uso, no una fila de auditoría.

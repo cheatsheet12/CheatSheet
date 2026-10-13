@@ -116,6 +116,29 @@ export function rangoDeVista(
   return { desde: `${desde}T00:00:00${DESFASE}`, hasta: `${hasta}T00:00:00${DESFASE}` };
 }
 
+/**
+ * El rango que pide el filtro «Desde / Hasta» de la vista Lista (#85).
+ *
+ * Quien elige fechas piensa en días, no en instantes: «Hasta 14/10» incluye el 14. La API
+ * espera instantes con `hasta` exclusivo, así que se mandan días completos en la zona de la
+ * agenda, con el mismo formato que `rangoDeVista`. Una sola fecha es ese día completo (Gate 1,
+ * opción A): la agenda no pagina, y «de ahí en adelante» sería una consulta sin tope.
+ */
+export function rangoDeFechas(
+  desde: string | undefined,
+  hasta: string | undefined,
+): { readonly desde?: string; readonly hasta?: string } {
+  const primero = desde || hasta;
+  const ultimo = hasta || desde;
+  if (!primero || !ultimo) {
+    return {};
+  }
+  return {
+    desde: `${primero}T00:00:00${DESFASE}`,
+    hasta: `${sumarDias(ultimo, 1)}T00:00:00${DESFASE}`,
+  };
+}
+
 /** El primer día (`AAAA-MM-01`) del mes que contiene a `dia`. */
 export function primeroDelMes(dia: string): string {
   return `${dia.slice(0, 7)}-01`;

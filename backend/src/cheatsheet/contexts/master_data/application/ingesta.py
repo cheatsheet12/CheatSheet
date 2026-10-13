@@ -326,9 +326,8 @@ class ListarClientesParaEscrituraDeVuelta:
     #: Ours to write back. `PLANILLA` is deliberately absent -- see the docstring.
     ORIGENES = (OrigenDato.PANEL, OrigenDato.AGENTE)
 
-    #: One write-back's worth. Google rejects very large bodies, and a sweep that pushed a
-    #: whole catalogue in one call would fail as a unit instead of making progress.
-    LIMITE = 500
+    #: `Pagina` accepts at most 200. Read every page; the Sheets adapter batches writes.
+    LIMITE = 200
 
     def __init__(self, clientes: PortRepositorioCliente) -> None:
         self._clientes = clientes
@@ -338,28 +337,32 @@ class ListarClientesParaEscrituraDeVuelta:
     ) -> tuple[RegistroParaPlanilla, ...]:
         registros: list[RegistroParaPlanilla] = []
         for origen in self.ORIGENES:
-            encontrados, _ = await self._clientes.listar(
-                empresa_id=empresa_id,
-                filtros=FiltrosDeCliente(origen=origen),
-                pagina=Pagina(limite=self.LIMITE, desplazamiento=0),
-            )
-            for cliente in encontrados:
-                # `desde` bounds the work, not the correctness: rewriting a record into
-                # our own sheet overwrites the same row. That is why this filter may be
-                # approximate while the `origen` one may not.
-                if desde is not None and cliente.actualizado_en <= desde:
-                    continue
-                registros.append(
-                    RegistroParaPlanilla(
-                        nombre=cliente.nombre,
-                        cuit=str(cliente.cuit) if cliente.cuit else "",
-                        contacto_whatsapp=(
-                            str(cliente.contacto_whatsapp) if cliente.contacto_whatsapp else ""
-                        ),
-                        contacto_email=(
-                            str(cliente.contacto_email) if cliente.contacto_email else ""
-                        ),
-                        origen=cliente.origen.value,
-                    )
+            desplazamiento = 0
+            while True:
+                encontrados, total = await self._clientes.listar(
+                    empresa_id=empresa_id,
+                    filtros=FiltrosDeCliente(origen=origen),
+                    pagina=Pagina(limite=self.LIMITE, desplazamiento=desplazamiento),
                 )
+                for cliente in encontrados:
+                    # `desde` bounds the work, not the correctness: rewriting a record
+                    # into our own sheet overwrites the same row.
+                    if desde is not None and cliente.actualizado_en <= desde:
+                        continue
+                    registros.append(
+                        RegistroParaPlanilla(
+                            nombre=cliente.nombre,
+                            cuit=str(cliente.cuit) if cliente.cuit else "",
+                            contacto_whatsapp=(
+                                str(cliente.contacto_whatsapp) if cliente.contacto_whatsapp else ""
+                            ),
+                            contacto_email=(
+                                str(cliente.contacto_email) if cliente.contacto_email else ""
+                            ),
+                            origen=cliente.origen.value,
+                        )
+                    )
+                desplazamiento += len(encontrados)
+                if desplazamiento >= total or not encontrados:
+                    break
         return tuple(registros)

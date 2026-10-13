@@ -24,6 +24,14 @@ vi.mock("@/features/observability/api/bitacora", async () => {
   return { ...real, listarOperaciones: (...args: unknown[]) => listarOperaciones(...args) };
 });
 
+// #176: la pantalla busca los clientes por nombre en master_data antes de pedir el listado.
+const listarClientes = vi.fn();
+vi.mock("@/features/master_data", async () => {
+  const real =
+    await vi.importActual<typeof import("@/features/master_data")>("@/features/master_data");
+  return { ...real, listarClientes: (...args: unknown[]) => listarClientes(...args) };
+});
+
 const marcarComoLeida = vi.fn();
 const abrirSolicitud = vi.fn();
 const listarSolicitudes = vi.fn();
@@ -162,6 +170,32 @@ describe("PAN-LOG-01 · el listado", () => {
 
     await waitFor(() => {
       expect(listarOperaciones).toHaveBeenLastCalledWith({ modulo: "payments", pagina: 1 });
+    });
+  });
+
+  // #176: por nombre no encontraba nada; ahora manda los ids de los clientes que coinciden.
+  it("buscar un nombre manda los ids de los clientes que coinciden", async () => {
+    listarClientes.mockResolvedValue({ clientes: [{ id: "c1" }, { id: "c2" }], total: 2 });
+    listarOperaciones.mockResolvedValue({ operaciones: [OPERACION], total: 1 });
+    render(<Bitacora inicial={{ operaciones: [OPERACION], total: 1 }} />);
+
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "Ana" } });
+
+    await waitFor(() => {
+      expect(listarClientes).toHaveBeenCalledWith({ texto: "Ana" });
+      expect(listarOperaciones).toHaveBeenLastCalledWith({ texto: "Ana", pagina: 1 }, ["c1", "c2"]);
+    });
+  });
+
+  it("si la búsqueda de clientes falla, busca solo por texto", async () => {
+    listarClientes.mockRejectedValue(new Error("sin conexión"));
+    listarOperaciones.mockResolvedValue({ operaciones: [OPERACION], total: 1 });
+    render(<Bitacora inicial={{ operaciones: [OPERACION], total: 1 }} />);
+
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "Ana" } });
+
+    await waitFor(() => {
+      expect(listarOperaciones).toHaveBeenLastCalledWith({ texto: "Ana", pagina: 1 });
     });
   });
 

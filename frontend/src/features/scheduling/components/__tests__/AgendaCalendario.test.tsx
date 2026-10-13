@@ -20,6 +20,7 @@ vi.mock("@/features/scheduling/api/turno", async () => {
 });
 
 import type { Recurso, Turno } from "@/features/scheduling";
+import { elegirFecha } from "@/shared/ui/__tests__/elegir-fecha";
 
 import {
   agruparPorDia,
@@ -28,6 +29,7 @@ import {
   horaEnAgenda,
   horasVisibles,
   lunesDe,
+  rangoDeFechas,
   rangoDeVista,
   rangoLegible,
   repartirEnCarriles,
@@ -119,6 +121,20 @@ describe("calendario.ts", () => {
     });
     expect(rangoLegible("semana", "2026-10-06")).toBe("5 – 11 de octubre");
     expect(rangoLegible("semana", "2026-10-29")).toContain("26 oct");
+  });
+
+  // #85: el filtro de la vista Lista manda días completos en la zona de la agenda, y «Hasta»
+  // incluye ese día; con una sola fecha, ese día (Gate 1, opción A).
+  it("convierte las fechas del filtro en días completos, con «Hasta» inclusivo", () => {
+    const dia = { desde: "2026-10-14T00:00:00-03:00", hasta: "2026-10-15T00:00:00-03:00" };
+    expect(rangoDeFechas("2026-10-14", "2026-10-14")).toEqual(dia);
+    expect(rangoDeFechas("2026-10-14", undefined)).toEqual(dia);
+    expect(rangoDeFechas(undefined, "2026-10-14")).toEqual(dia);
+    expect(rangoDeFechas("2026-10-12", "2026-10-14")).toEqual({
+      desde: "2026-10-12T00:00:00-03:00",
+      hasta: "2026-10-15T00:00:00-03:00",
+    });
+    expect(rangoDeFechas(undefined, undefined)).toEqual({});
   });
 
   it("arma las semanas del mes: octubre de 2026 empieza en jueves y ocupa cinco filas", () => {
@@ -299,6 +315,29 @@ describe("Agenda · vistas", () => {
     await waitFor(() => {
       expect(screen.queryByText("Ningún turno coincide con los filtros")).toBeNull();
     });
+  });
+
+  // #85: con solo «Desde», la lista quedaba vacía (la API completaba «Hasta» con mañana).
+  it("en la Lista, «Desde» y «Hasta» piden días completos en la zona de la agenda", async () => {
+    listarTurnos.mockResolvedValue({ turnos: [] });
+    render(<AgendaDelDia inicial={{ turnos: [A] }} {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Más filtros" }));
+
+    elegirFecha("Desde", "2026-10-14");
+    await waitFor(() =>
+      expect(listarTurnos).toHaveBeenLastCalledWith({
+        desde: "2026-10-14T00:00:00-03:00",
+        hasta: "2026-10-15T00:00:00-03:00",
+      }),
+    );
+
+    elegirFecha("Hasta", "2026-10-16");
+    await waitFor(() =>
+      expect(listarTurnos).toHaveBeenLastCalledWith({
+        desde: "2026-10-14T00:00:00-03:00",
+        hasta: "2026-10-17T00:00:00-03:00",
+      }),
+    );
   });
 
   it("la grilla vacía se dibuja igual, con el aviso arriba", async () => {
