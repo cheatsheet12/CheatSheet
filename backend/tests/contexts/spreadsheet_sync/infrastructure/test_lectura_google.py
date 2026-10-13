@@ -50,7 +50,7 @@ async def test_reads_source_rows_with_sheet_numbers_and_formatted_values(
 
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(transport=httpx.MockTransport(respond), **kwargs),
     )
@@ -70,7 +70,7 @@ async def test_reads_source_rows_with_sheet_numbers_and_formatted_values(
 async def test_read_rejects_revoked_sheet_permission(monkeypatch: pytest.MonkeyPatch) -> None:
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(
             transport=httpx.MockTransport(lambda _request: httpx.Response(403)), **kwargs
@@ -108,7 +108,7 @@ async def test_sheet_name_with_url_special_characters_stays_in_range(
 
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(transport=httpx.MockTransport(respond), **kwargs),
     )
@@ -145,7 +145,7 @@ async def test_reads_second_batch_without_resetting_google_row_numbers(
 
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        modulo.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: client(transport=httpx.MockTransport(respond), **kwargs),
     )

@@ -20,7 +20,9 @@ class RepositorioFalso:
     def __init__(self) -> None:
         self.rows: dict[EmpresaId, ConfiguracionDeIntegracion] = {}
 
-    async def buscar(self, empresa_id: EmpresaId, sistema: SistemaExterno):  # type: ignore[no-untyped-def]
+    async def buscar(
+        self, empresa_id: EmpresaId, sistema: SistemaExterno
+    ) -> ConfiguracionDeIntegracion | None:
         row = self.rows.get(empresa_id)
         return row if row is not None and row.sistema is sistema else None
 

@@ -51,7 +51,7 @@ async def test_google_link_reads_its_source_sheet_and_returns_examples() -> None
         vinculos=Vinculos(),  # type: ignore[arg-type]
         almacenamiento=None,  # type: ignore[arg-type]
         lector=None,  # type: ignore[arg-type]
-        lector_remoto=Google(),  # type: ignore[arg-type]
+        lector_remoto=Google(),
     ).ejecutar(vinculo_id=vinculo.id, token="company-token")
 
     assert [(columna.nombre, columna.ejemplo) for columna in columnas] == [
