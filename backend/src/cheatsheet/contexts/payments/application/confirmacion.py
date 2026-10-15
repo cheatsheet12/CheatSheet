@@ -59,6 +59,18 @@ class ResultadoDeConfirmacion:
     #: suya — sin ella la bitácora no podría distinguir el caso que hay que mirar hoy.
     huerfano: bool = False
 
+    @property
+    def recien_aprobado(self) -> bool:
+        """Este request fue el que aprobó el cobro: la única vez que corresponde avisar (RN-01).
+
+        Ni lo repetido (`ya_procesado`), ni el pago sobre un cobro cancelado (`huerfano`), ni lo
+        que MercadoPago todavía no aprobó. Es lo que vuelve idempotente el aviso: solo la
+        transacción que ganó el índice único de `payment_id` llega a ser `recien_aprobado`.
+        """
+        return (
+            self.aprobado and not self.ya_procesado and not self.huerfano and self.cobro is not None
+        )
+
 
 class ConfirmarPago:
     """Procesa una notificación ya autenticada. **Idempotente por construcción.**
