@@ -16,6 +16,7 @@ credenciales que `TODO.md` §5.3 todavía espera.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -31,6 +32,7 @@ from cheatsheet.contexts.payments.application.ports import (
     RespuestaDeReembolso,
 )
 from cheatsheet.contexts.payments.domain.cobro import Cobro
+from cheatsheet.contexts.payments.infrastructure import pasarela
 from cheatsheet.contexts.payments.infrastructure.pasarela import (
     PasarelaMercadoPago,
     PasarelaSimulada,
@@ -38,6 +40,9 @@ from cheatsheet.contexts.payments.infrastructure.pasarela import (
 )
 from cheatsheet.platform.settings import Entorno
 from cheatsheet.shared.empresa import EmpresaId
+from structlog.testing import capture_logs
+
+from tests.logs import logger_nuevo
 
 pytestmark = pytest.mark.asyncio
 
@@ -411,6 +416,26 @@ async def test_un_4xx_de_negocio_al_reembolsar_sigue_siendo_un_rechazo(estado: i
     respuesta = await _reembolsar(grabadora)
 
     assert respuesta.estado is EstadoDeReembolso.RECHAZADO
+
+
+@pytest.mark.parametrize(
+    ("estado", "evento"), [(401, "reembolso_incierto"), (400, "reembolso_rechazado")]
+)
+async def test_el_log_de_un_reembolso_fallido_lleva_el_motivo_de_mercadopago(
+    monkeypatch: pytest.MonkeyPatch, estado: int, evento: str
+) -> None:
+    """Staging, 13/10/2026: un 401 al reembolsar dejó sólo el número en el log, y MercadoPago
+    dice en el mensaje por qué no lo aceptó. El token, en cambio, nunca se registra."""
+    logger_nuevo(monkeypatch, pasarela)
+    grabadora = Grabadora(httpx.Response(estado, json={"message": "invalid access token"}))
+
+    with capture_logs() as registros, contextlib.suppress(PasarelaNoDisponible):
+        await _reembolsar(grabadora)
+
+    registro = next(r for r in registros if r["event"] == evento)
+    assert registro["estado"] == estado
+    assert registro["detalle"] == "invalid access token"
+    assert "APP_USR-token-de-prueba" not in str(registros)
 
 
 async def test_un_5xx_o_un_timeout_al_reembolsar_levantan_despues_de_los_intentos() -> None:
