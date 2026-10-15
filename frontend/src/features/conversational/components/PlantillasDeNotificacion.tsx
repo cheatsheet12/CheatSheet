@@ -33,6 +33,7 @@ import {
   CalendarClock,
   CalendarSync,
   CalendarX,
+  CircleCheck,
   CreditCard,
   Info,
   MessageCircle,
@@ -85,6 +86,7 @@ const ICONOS_DE_CODIGO: Readonly<Record<string, LucideIcon>> = {
   recordatorio_de_turno: CalendarClock,
   recordatorio_de_cobro: Bell,
   cobro_generado: CreditCard,
+  cobro_pagado: CircleCheck,
 };
 
 function iconoDe(plantilla: Plantilla): LucideIcon {

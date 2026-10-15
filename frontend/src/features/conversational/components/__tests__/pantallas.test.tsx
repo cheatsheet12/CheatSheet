@@ -550,6 +550,19 @@ describe("PAN-CFG-NOT — plantillas", () => {
     expect(screen.queryByText("recordatorio_de_turno")).toBeNull();
   });
 
+  it("muestra el nombre legible del aviso de cobro confirmado", () => {
+    const cobroPagado: Plantilla = {
+      ...PLANTILLA,
+      id: "p3",
+      codigo: "cobro_pagado",
+      variables: ["nombre", "monto", "concepto"],
+    };
+    render(<PlantillasDeNotificacion inicial={{ plantillas: [cobroPagado] }} puedeEditar />);
+
+    expect(screen.getByText("Cobro confirmado")).toBeTruthy();
+    expect(screen.queryByText("cobro_pagado")).toBeNull();
+  });
+
   it("avisa cuando hay plantillas sin aprobar (RN-04)", () => {
     render(<PlantillasDeNotificacion inicial={{ plantillas: [SIN_APROBAR] }} puedeEditar />);
 
