@@ -77,8 +77,8 @@ PR a `develop`, revisa **Vincenzo** (`reparto.md:36`: revisor de HU-E9-01; adem�
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-15 | Aprobado por Luciano con las decisiones 1–5 |
-| 2 · Verificación | | |
-| 3 · PR | | |
+| 2 · Verificación | 2026-10-15 | aprobado. CI local COMPLETE en `7a60953` (ruff, mypy, arquitectura, guardas, gitleaks, PostgreSQL, pytest-cov, integración, frontend install, format, lint, typecheck, R5 y Vitest). RED observado: 3 de 4 casos fallaban porque `listarConversaciones` nunca se llamaba; el cuarto es una guarda. La prueba en el navegador queda en `TODO.md` §22.78 |
+| 3 · PR | 2026-10-15 | PR a develop. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`run_local_ci.py`, ADR-0016 propuesta en #117), resumen en el PR |
 
 ## Decisiones tomadas en el Gate 1
 

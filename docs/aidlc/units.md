@@ -98,7 +98,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agenda y recursos | elegir-cliente-en-nuevo-turno | scheduling | HU-E7-06 | — | Emanuel | fix/scheduling-elegir-cliente-en-nuevo-turno | en curso |
 | Agenda y recursos | error-dentro-del-modal | scheduling | HU-E7-02, HU-E7-04, HU-E7-05 | — | Emanuel | fix/scheduling-error-dentro-del-modal | en revisión |
 | Conexión con los servicios externos | ticket-de-plataforma-persistido | integrations | HU-E2-01, HU-E2-05, HU-E5-03 | conexion-arca | Cristian | fix/integrations-ticket-de-plataforma-persistido | en revisión |
-| Agente de WhatsApp y atención humana | bandeja-tras-tomar | conversational (`features/conversational`, sólo frontend) | HU-E9-01 | — | Luciano | fix/conversational-bandeja-tras-tomar | en curso |
+| Agente de WhatsApp y atención humana | bandeja-tras-tomar | conversational (`features/conversational`, sólo frontend) | HU-E9-01 | — | Luciano | fix/conversational-bandeja-tras-tomar | en revisión |
 
 
 ---
