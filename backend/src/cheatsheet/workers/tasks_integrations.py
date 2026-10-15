@@ -134,8 +134,9 @@ async def sondear_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
-    # LIBERAR: the state change commits in one transaction and a repeated run finds
-    # nothing left to do, so the retry (`autoretry_for`) may safely run it again.
+    # LIBERAR: the state change commits before `_avisar`, so a run repeated after a
+    # failure finds nothing left to do. If only the notice failed it is lost, not
+    # duplicated (as before this unit); the retry (`autoretry_for`) may run it again.
     return (
         await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
             clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
@@ -186,7 +187,8 @@ async def revisar_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
-    # LIBERAR: same reasoning as `sondear_empresa`: repeating it is safe.
+    # LIBERAR: same as `sondear_empresa`: the state change commits before `_avisar`, so a
+    # repeated run finds nothing to do and a failed notice is lost, not duplicated.
     return (
         await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
             clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
@@ -239,8 +241,10 @@ async def renovar_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
-    # LIBERAR: the rotation commits in one transaction, and a repeated run finds the
-    # credential far from the margin and does nothing (see the docstring).
+    # LIBERAR: the token exchange runs outside the DB transaction. If it fails, nothing
+    # was saved and the retry asks again; once the renewal is saved, a repeated run finds
+    # the credential far from the margin and does nothing. A notice that fails after the
+    # commit is lost, not duplicated.
     return (
         await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
             clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR

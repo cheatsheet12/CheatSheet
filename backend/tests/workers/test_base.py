@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import pytest
-from cheatsheet.platform.cache import RegistroDeIdempotenciaEnMemoria
+from cheatsheet.platform.cache import (
+    ErrorDeRegistroDeIdempotencia,
+    RegistroDeIdempotenciaEnMemoria,
+)
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 from cheatsheet.workers import base
 from cheatsheet.workers.base import AnteUnaFalla, EjecutorIdempotente, PoliticaDeReintentos
-from redis.exceptions import RedisError
 from structlog.testing import capture_logs
 
 from tests.logs import logger_nuevo
@@ -125,7 +127,7 @@ async def test_con_retener_un_efecto_que_falla_deja_la_clave_tomada(empresa_id: 
 class _RegistroQueNoPuedeLiberar(RegistroDeIdempotenciaEnMemoria):
     async def liberar(self, clave: ClaveDeIdempotencia) -> None:
         del clave
-        raise RedisError("Redis no responde")
+        raise ErrorDeRegistroDeIdempotencia("ConnectionError")
 
 
 @pytest.mark.asyncio
@@ -144,7 +146,7 @@ async def test_si_liberar_falla_sube_la_excepcion_original(
 
     avisos = [r for r in registros if r["event"] == "liberacion_de_idempotencia_fallida"]
     assert len(avisos) == 1
-    assert avisos[0]["causa"] == "RedisError"
+    assert avisos[0]["causa"] == "ErrorDeRegistroDeIdempotencia"
 
 
 @pytest.mark.asyncio

@@ -33,9 +33,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TypeVar
 
-from redis.exceptions import RedisError
-
-from cheatsheet.platform.cache import RegistroDeIdempotencia
+from cheatsheet.platform.cache import ErrorDeRegistroDeIdempotencia, RegistroDeIdempotencia
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 
@@ -119,7 +117,7 @@ class EjecutorIdempotente:
         """Free the key; if the registry itself is down, say so but keep the real error."""
         try:
             await self._registro.liberar(clave)
-        except (RedisError, OSError) as error:
+        except ErrorDeRegistroDeIdempotencia as error:
             logger.error(
                 "liberacion_de_idempotencia_fallida",
                 clave=clave.valor,

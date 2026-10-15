@@ -19,12 +19,21 @@ from __future__ import annotations
 from typing import Protocol
 
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 
 from cheatsheet.platform.settings import Settings
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 
 PREFIJO_IDEMPOTENCIA = "idem:"
 TTL_IDEMPOTENCIA_SEGUNDOS = 7 * 24 * 60 * 60
+
+
+class ErrorDeRegistroDeIdempotencia(Exception):
+    """The idempotency registry could not be reached or refused the operation.
+
+    Adapters translate their store's errors into this one, so callers (`workers/base.py`)
+    never have to know which store is behind the port.
+    """
 
 
 class RegistroDeIdempotencia(Protocol):
@@ -35,7 +44,10 @@ class RegistroDeIdempotencia(Protocol):
         ...
 
     async def liberar(self, clave: ClaveDeIdempotencia) -> None:
-        """Forget this key so the next attempt may claim it. Idempotent: a missing key is fine."""
+        """Forget this key so the next attempt may claim it. Idempotent: a missing key is fine.
+
+        Raises `ErrorDeRegistroDeIdempotencia` when the store cannot be reached.
+        """
         ...
 
 
@@ -60,7 +72,10 @@ class RegistroDeIdempotenciaRedis:
         return bool(resultado)
 
     async def liberar(self, clave: ClaveDeIdempotencia) -> None:
-        await self._redis.delete(f"{PREFIJO_IDEMPOTENCIA}{clave.valor}")
+        try:
+            await self._redis.delete(f"{PREFIJO_IDEMPOTENCIA}{clave.valor}")
+        except (RedisError, OSError) as error:
+            raise ErrorDeRegistroDeIdempotencia(type(error).__name__) from error
 
 
 class RegistroDeIdempotenciaEnMemoria:
