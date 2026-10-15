@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Iterator
 from uuid import uuid4
 
 import httpx
 import pytest
+from cheatsheet.api import avisos_de_cobro
 from cheatsheet.contexts.conversational.domain.conversacion import (
     EstadoEntrega,
     OrigenDelMensaje,
@@ -35,8 +37,15 @@ from tests.api.montaje_webhook_aviso_de_pago import (
     notificar,
     un_cobro,
 )
+from tests.logs import logs_capturables
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def _logger_que_captura_logs(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Los tests de este archivo miran logs: que no dependan de qué corrió antes."""
+    yield from logs_capturables(monkeypatch, avisos_de_cobro)
 
 
 def _texto_enviado(montaje: Montaje) -> str:

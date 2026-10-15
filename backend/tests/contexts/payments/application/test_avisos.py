@@ -8,11 +8,13 @@ igual y que ningún log lleva datos personales.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from cheatsheet.contexts.payments.application import avisos as modulo_avisos
 from cheatsheet.contexts.payments.application.avisos import AvisarPagoConfirmado
 from cheatsheet.contexts.payments.application.confirmacion import ResultadoDeConfirmacion
 from cheatsheet.contexts.payments.application.ports_envio import (
@@ -23,7 +25,16 @@ from cheatsheet.contexts.payments.domain.cobro import Cobro
 from cheatsheet.shared.empresa import EmpresaId
 from structlog.testing import capture_logs
 
+from tests.logs import logs_capturables
+
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def _logger_que_captura_logs(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Los tests de este archivo miran logs: que no dependan de qué corrió antes."""
+    yield from logs_capturables(monkeypatch, modulo_avisos)
+
 
 AHORA = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
 EMPRESA = EmpresaId(uuid4())

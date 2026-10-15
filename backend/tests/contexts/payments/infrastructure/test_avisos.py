@@ -8,12 +8,13 @@ personales.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
 from cheatsheet.contexts.payments.application.ports_envio import DatosDeAvisoDePago
+from cheatsheet.contexts.payments.infrastructure import avisos as modulo_avisos
 from cheatsheet.contexts.payments.infrastructure.avisos import (
     CODIGO_COBRO_PAGADO,
     AvisoDePagoPorWhatsApp,
@@ -24,7 +25,16 @@ from cheatsheet.contexts.payments.infrastructure.avisos import (
 )
 from structlog.testing import capture_logs
 
+from tests.logs import logs_capturables
+
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def _logger_que_captura_logs(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Los tests de este archivo miran logs: que no dependan de qué corrió antes."""
+    yield from logs_capturables(monkeypatch, modulo_avisos)
+
 
 TELEFONO = "5491155550000"
 NOMBRE = "Rosa Diaz"
