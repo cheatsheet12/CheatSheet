@@ -38,10 +38,10 @@ from cheatsheet.platform.telemetry import obtener_logger
 
 logger = obtener_logger(__name__)
 
-#: Las seis plantillas son confirmaciones, avisos y recordatorios de algo que el cliente ya hizo.
+#: Las siete plantillas son confirmaciones, avisos y recordatorios de algo que el cliente ya hizo.
 CATEGORIA = "UTILITY"
 
-#: Tope de páginas de `estados()`: una empresa tiene a lo sumo seis plantillas propias, así que
+#: Tope de páginas de `estados()`: una empresa tiene a lo sumo siete plantillas propias, así que
 #: pasar de ahí es un cursor que no termina y no una WABA con mucho para leer.
 MAXIMO_DE_PAGINAS = 10
 

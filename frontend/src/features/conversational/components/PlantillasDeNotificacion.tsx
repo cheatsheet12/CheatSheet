@@ -21,7 +21,7 @@
  * sin enviar o rechazada sin tocar el texto.
  *
  * **El listado no muestra el cuerpo.** Una columna con `Hola {{nombre}}, te esperamos…`
- * repetida seis veces es la misma frase seis veces; lo que distingue una fila de la otra es el
+ * repetida siete veces es la misma frase siete veces; lo que distingue una fila de la otra es el
  * mensaje que representa, su canal y si Meta ya la aprobó.
  */
 
@@ -96,8 +96,8 @@ function iconoDe(plantilla: Plantilla): LucideIcon {
 /**
  * El único valor de una columna, o `null` si hay más de uno.
  *
- * Decide si la columna vale su ancho. Hoy las seis plantillas comparten canal e idioma: son
- * doce celdas idénticas ocupando un tercio del listado, mientras «Mensaje» —lo único que
+ * Decide si la columna vale su ancho. Hoy las siete plantillas comparten canal e idioma: son
+ * catorce celdas idénticas ocupando un tercio del listado, mientras «Mensaje» —lo único que
  * distingue una fila de otra— se queda con la mitad de ese lugar. Lo constante se dice una
  * vez arriba; la columna vuelve sola el día que el backend mande dos canales.
  */
