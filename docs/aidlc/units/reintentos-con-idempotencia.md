@@ -95,8 +95,8 @@ versionado en `develop`; correrlo desde donde se usó en los PRs anteriores.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-15 | Aprobado por Luciano con las decisiones 1–5 |
-| 2 · Verificación | | |
-| 3 · PR | | |
+| 2 · Verificación | 2026-10-15 | aprobado. CI local COMPLETE en `d3bec56` (ruff, mypy, arquitectura, guardas, gitleaks, PostgreSQL y Redis reales: pytest-cov e integración, incluidos los 3 casos de `test_idempotencia_redis.py`). RED observado: el reintento de la invitación devolvía `False` con `tarea_omitida_por_idempotencia`. Verificador independiente sin bloqueantes; sus tres correcciones aplicadas (`0e648fb`, `d3bec56`). Caso 8 (staging) pendiente: `TODO.md` §22.77 |
+| 3 · PR | 2026-10-15 | PR a develop. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`run_local_ci.py`, ADR-0016 propuesta en #117), resumen en el PR |
 
 ## Decisiones del Gate 1 (2026-10-15)
 
