@@ -22,7 +22,7 @@ Cuando el webhook de MercadoPago aprueba un cobro, el cliente recibe por WhatsAp
 - **Puertos y adaptadores**: `AvisoDePagoPorWhatsApp` en `payments/infrastructure/avisos.py`. Usa una plantilla aprobada (`cobro_pagado`) si la hay, y si no, el texto de fábrica. Pide los `Protocol` locales `CanalDeAvisos` y `PlantillasAprobadas` (R3). El monto va con `formatear_es_ar` (`Decimal`, `ROUND_HALF_UP`).
 - **Cuándo se dispara**: en `webhooks.py`, **después de que cierra** la unidad de trabajo del pago, y solo si el resultado es `aprobado and not ya_procesado and not huerfano`. Abre una segunda unidad de trabajo (canal, `NotificarAlCliente`, savepoint). Esto lo hace idempotente por construcción: solo la transacción que ganó el índice único `payment_id` llega a ese punto. Las repetidas cortan en `buscar_por_payment_id` y quedan `ya_procesado`, y la perdedora de una carrera falla al hacer commit, así que nunca envía.
 - **Otros contextos**: el puente es `api/avisos_de_cobro.py`, que une el `CanalDeAvisos` de payments con `NotificarAlCliente` de conversational y la plantilla de business_config. Es el mismo patrón que `api/avisos_de_turno.py`. Con esto, la fila 91 del Context Map (`docs/architecture.md`), que hoy dice «for scheduling notices», pasa a cubrir también los avisos de payments. Ver la decisión 2.
-- **Frontend**: no aplica. La plantilla nueva aparece sola en PAN-CFG-NOT por la siembra perezosa de `ListarPlantillas`.
+- **Frontend** (PAN-CFG-NOT): la plantilla nueva aparece sola por la siembra perezosa de `ListarPlantillas`, pero la pantalla tiene un mapa de etiquetas y otro de íconos por código y, sin entrada, mostraría `cobro_pagado` crudo. Se agregan ambos en `frontend/src/features/conversational/api/faq.ts` (etiqueta) y `frontend/src/features/conversational/components/PlantillasDeNotificacion.tsx` (ícono), con su test en `components/__tests__/pantallas.test.tsx`. **Desvío respecto del plan aprobado**, que decía «no aplica»; ver Decisiones durante la unidad.
 
 ## Infraestructura
 
@@ -74,8 +74,14 @@ Cuando el webhook de MercadoPago aprueba un cobro, el cliente recibe por WhatsAp
   huérfano, ni sin cobro) en `payments`, en vez de repetirla en el router.
 - **La nota de ADR-0011** va en el punto 6 de la decisión (donde se dice que los avisos se registran en
   la conversación), no en el 2.
-- **El frontend sí se toca**: PAN-CFG-NOT tiene un mapa de etiquetas y otro de íconos por código; sin
-  entrada, la pantalla mostraría `cobro_pagado` crudo.
+- **El frontend sí se toca** (desvío del plan, commit `3ace43f`): PAN-CFG-NOT tiene un mapa de etiquetas y
+  otro de íconos por código; sin entrada, la pantalla mostraría `cobro_pagado` crudo. Archivos:
+  `features/conversational/api/faq.ts`, `components/PlantillasDeNotificacion.tsx` y
+  `components/__tests__/pantallas.test.tsx`.
+- **El aviso tiene un plazo total** (`PLAZO_DEL_AVISO_EN_SEGUNDOS`, 8 s) en `api/avisos_de_cobro.py`, por
+  hallazgo del verificador independiente: el canal puede tardar ~33 s en el peor caso y MercadoPago deja de
+  esperar a los ~22 s. Si vence, se registra `aviso_de_pago_vencido` (sin datos personales) y el webhook
+  contesta 200 igual. Sigue la fila 22.64 de `TODO.md` por la E/S a Meta dentro de la segunda transacción.
 
 ## Decisiones aprobadas
 
@@ -99,7 +105,7 @@ Aprobadas por Luciano el 2026-10-15, junto con el plan.
   `cobro-por-transferencia`.
 - Reintento del aviso: no se reintenta (D6 de U7); la falla queda `FALLIDO` en el hilo.
 - Evento de dominio `PagoConfirmado` y cualquier trabajo asíncrono.
-- Frontend: la plantilla aparece sola en PAN-CFG-NOT.
+- Frontend más allá de la etiqueta y el ícono de `cobro_pagado`: la plantilla aparece sola en PAN-CFG-NOT.
 
 ## Registro
 
