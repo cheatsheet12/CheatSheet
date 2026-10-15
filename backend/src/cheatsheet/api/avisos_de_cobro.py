@@ -14,11 +14,13 @@ llega acá— y un fallo del aviso no puede deshacer un pago ya guardado.
 **Nunca levanta.** `NotificarAlCliente` ya convierte los errores del canal en el motivo del
 resultado, y esta función atrapa el resto (credencial ilegible, base caída al guardar el mensaje):
 el webhook contesta 200 igual, porque el pago está guardado. La llamada a Meta tiene timeout
-(`ConfiguracionDeMensajeria`) y el aviso no se reintenta (D6 de U7).
+(`ConfiguracionDeMensajeria`), el aviso entero tiene un plazo total
+(`PLAZO_DEL_AVISO_EN_SEGUNDOS`) y no se reintenta (D6 de U7).
 """
 
 from __future__ import annotations
 
+import asyncio
 from uuid import UUID
 
 from cheatsheet.api.dependencies import Recursos, UnidadDeTrabajo, unidad_de_trabajo
@@ -45,6 +47,16 @@ from cheatsheet.shared.clock import Reloj
 from cheatsheet.shared.empresa import EmpresaId
 
 logger = obtener_logger(__name__)
+
+#: Plazo total del aviso, en segundos, contado desde que arranca hasta que termina. El canal de
+#: WhatsApp (`canal_http.py`) puede tardar ~33 s en el peor caso (3 intentos de 10 s más el
+#: backoff) y MercadoPago deja de esperar la respuesta del webhook a los ~22 s: pasado eso lo da
+#: por fallido y reintenta, y el reintento ya no avisa (`ya_procesado`). 8 s cubre de sobra un
+#: envío sano a Meta (cientos de milisegundos), deja margen a la confirmación del pago que ya se
+#: hizo y queda lejos de los 22 s. Si vence, el aviso se abandona sin reintento (D6 de U7): su
+#: transacción se descarta, así que el mensaje puede no quedar en el hilo aunque Meta lo haya
+#: enviado, y eso es preferible a un webhook que MercadoPago ya no está esperando.
+PLAZO_DEL_AVISO_EN_SEGUNDOS = 8.0
 
 
 class CanalDeAvisosViaConversacion:
@@ -124,11 +136,19 @@ async def avisar_pago_confirmado(
     ese request (`ResultadoDeConfirmacion.recien_aprobado`).
     """
     try:
-        async for unidad in unidad_de_trabajo(recursos, empresa_id):
-            canal = await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id)
-            await armar_aviso_de_pago(unidad, empresa_id=empresa_id, canal=canal).ejecutar(
-                cobro=cobro
-            )
+        async with asyncio.timeout(PLAZO_DEL_AVISO_EN_SEGUNDOS):
+            async for unidad in unidad_de_trabajo(recursos, empresa_id):
+                canal = await armar_mensajeria(unidad, recursos.settings, empresa_id=empresa_id)
+                await armar_aviso_de_pago(unidad, empresa_id=empresa_id, canal=canal).ejecutar(
+                    cobro=cobro
+                )
+    except TimeoutError:
+        # Ni teléfono, ni nombre, ni texto: solo qué cobro y cuánto se esperó.
+        logger.warning(
+            "aviso_de_pago_vencido",
+            cobro_id=str(cobro.id),
+            plazo_en_segundos=PLAZO_DEL_AVISO_EN_SEGUNDOS,
+        )
     except Exception as exc:  # noqa: BLE001 — ver el docstring del módulo
         # El pago ya está confirmado: nada de acá puede hacer que MercadoPago reintente. Solo la
         # clase de la excepción, nunca su texto: puede traer el número.
@@ -136,6 +156,7 @@ async def avisar_pago_confirmado(
 
 
 __all__ = [
+    "PLAZO_DEL_AVISO_EN_SEGUNDOS",
     "CanalDeAvisosViaConversacion",
     "armar_aviso_de_pago",
     "armar_canal_de_avisos_de_cobro",

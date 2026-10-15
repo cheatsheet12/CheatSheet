@@ -10,6 +10,7 @@ Se prueba el router completo con repositorios en memoria y Meta falso. Lo que se
 
 from __future__ import annotations
 
+import asyncio
 import json
 from uuid import uuid4
 
@@ -198,3 +199,28 @@ async def test_la_empresa_sin_whatsapp_conectado_no_deja_hilo_ni_mensaje(
     assert respuesta.status_code == 200
     assert montaje.hilos.conversaciones.hilos == {}
     assert montaje.hilos.mensajes.mensajes == {}
+
+
+async def test_un_canal_lento_vence_el_plazo_del_aviso_y_el_webhook_sigue_en_200(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    montaje = await montar(monkeypatch)
+    monkeypatch.setattr("cheatsheet.api.avisos_de_cobro.PLAZO_DEL_AVISO_EN_SEGUNDOS", 0.05)
+
+    async def canal_lento(*_: object, **__: object) -> object:
+        await asyncio.sleep(30)  # la prueba no espera: el plazo lo corta a los 50 ms
+        raise AssertionError("el plazo tenia que cortar el aviso antes")
+
+    monkeypatch.setattr("cheatsheet.api.avisos_de_cobro.armar_mensajeria", canal_lento)
+
+    with capture_logs() as registros:
+        respuesta = await notificar(montaje)
+
+    assert respuesta.status_code == 200
+    (cobro,) = montaje.cobros.guardados.values()
+    assert cobro.estado is EstadoCobro.APROBADO
+    vencidos = [r for r in registros if r["event"] == "aviso_de_pago_vencido"]
+    assert [r["cobro_id"] for r in vencidos] == [str(cobro.id)]
+    assert not [r for r in registros if r["event"] == "aviso_de_pago_fallido"]
+    assert TELEFONO not in str(registros)
+    assert NOMBRE not in str(registros)
