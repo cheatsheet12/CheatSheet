@@ -954,7 +954,7 @@ código que corra— y Celery reentrega el mensaje (`task_acks_late` + `task_rej
 - **Arreglo previsto:** registro en dos estados (`en curso` con TTL corto, renovado mientras la tarea
   vive, y `hecho` con los 7 días) más un `task_time_limit` por cola. Exige decidir un límite de
   tiempo para cada una de las cinco colas; por eso no entró en esta unidad (decisión 2 del Gate 1).
-- **Dueño:** Cristian (autor de `workers/base.py` y `platform/cache.py`). **Sin unidad.**
+- **Sin unidad ni responsable.** Archivos: `workers/base.py`, `platform/cache.py`.
 - **Riesgo hoy:** una invitación o un sondeo que coincide con la caída de un worker se pierde hasta
   que el Administrador reenvía o corre el barrido siguiente. Las tareas de dinero y de comprobantes
   no usan este ejecutor.

@@ -43,10 +43,11 @@ Reservar antes (protege la concurrencia, no cambia) y **liberar si el efecto lan
 declarada por cada tarea:
 
 - `platform/cache.py`: el puerto gana `liberar(clave) -> None`; Redis hace `DEL idem:<clave>`, memoria
-  hace `discard`.
+  hace `discard`. Define `ErrorDeRegistroDeIdempotencia` junto al puerto; el adaptador Redis traduce
+  `RedisError`/`OSError` de `liberar` a esa excepción (`raise ... from`), así el ejecutor no conoce Redis.
 - `workers/base.py`: enum `AnteUnaFalla` (`LIBERAR` | `RETENER`) y argumento obligatorio en `ejecutar`.
   Con `LIBERAR`: `except Exception` → `liberar` → re-lanza la excepción original. Si `liberar` falla
-  (`RedisError`/`OSError`), log `liberacion_de_idempotencia_fallida` y sube la original igual.
+  (`ErrorDeRegistroDeIdempotencia`), log `liberacion_de_idempotencia_fallida` y sube la original igual.
   `CancelledError` no libera (resultado desconocido). Con `RETENER`, comportamiento actual.
 - Las cinco llamadas pasan `LIBERAR` con una línea de por qué. Se actualizan el docstring de `base.py`
   y el párrafo "Processing guarantees" de `docs/architecture.md`. No hace falta ADR: ADR-009 ya pide
@@ -64,6 +65,7 @@ declarada por cada tarea:
 - `backend/src/cheatsheet/platform/cache.py`, `workers/base.py`, `workers/tasks_identity.py`,
   `workers/tasks_integrations.py`, `workers/tasks.py`
 - `backend/tests/workers/test_base.py`, `test_tasks_identity.py`, `test_tasks_integrations.py`
+- `backend/tests/platform/test_registro_de_idempotencia_redis.py` (nuevo; sin red, Redis simulado)
 - `backend/tests/integracion/test_idempotencia_redis.py` (nuevo; se saltea sin Redis, como
   `test_tareas_en_loops_distintos.py`)
 - `docs/architecture.md`, `docs/aidlc/units.md` (fila) y este plan
@@ -76,7 +78,7 @@ declarada por cada tarea:
 | 2 | `test_base.py`: con `LIBERAR`, un efecto que lanza deja la clave libre y la segunda llamada ejecuta | unit | rojo antes del fix |
 | 3 | `sondear_empresa`: un efecto que lanza `OSError` se re-ejecuta en la misma ventana | unit | rojo antes del fix |
 | 4 | Con `RETENER`, un efecto que lanza deja la clave tomada y la segunda llamada devuelve `None` | unit | pendiente |
-| 5 | Si `liberar` falla, sube la excepción original y queda `liberacion_de_idempotencia_fallida` | unit | pendiente |
+| 5 | Si `liberar` falla (`ErrorDeRegistroDeIdempotencia`), sube la excepción original y queda `liberacion_de_idempotencia_fallida`; el adaptador Redis traduce `RedisError`/`OSError` a esa excepción | unit | pendiente |
 | 6 | Un efecto exitoso sigue sin repetirse (casos 30 y 23, `test_base.py:13`) | unit existente | verde antes y después |
 | 7 | Redis real: reservar, ver ocupada, liberar, volver a reservar; TTL de 7 días | integración | pendiente |
 | 8 | Staging: invitación a un mail no verificado en SES muestra un segundo `envio_de_email_fallido`, no `tarea_omitida_por_idempotencia` | manual | tras el deploy (`TODO.md` §22) |
