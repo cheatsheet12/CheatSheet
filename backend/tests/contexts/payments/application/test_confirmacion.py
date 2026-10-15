@@ -18,6 +18,7 @@ deuda dos veces lo hace incrementando ese número, y eso es lo que hay que ver.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -565,6 +566,106 @@ async def test_un_cobro_sin_comprobante_no_toca_ningun_saldo() -> None:
     )
 
     assert saldos.descuentos == []
+
+
+# ------------------------------------------------------------------ la carrera del mismo pago · #240
+
+
+class CobrosConLecturaVieja(CobrosFalsos):
+    """El instante de la carrera: el cobro se leyó sin bloqueo y otro webhook ya lo resolvió.
+
+    `buscar_por_id` y `buscar_por_preference_id` devuelven la copia que había **antes** de que
+    la otra transacción commiteara; `buscar_para_actualizar` --que en PostgreSQL espera el
+    bloqueo y relee la fila confirmada-- devuelve la fila fresca. `buscar_por_payment_id` no
+    ve nada, como en la ventana en que ninguna de las dos transacciones commiteó todavía.
+    """
+
+    def __init__(self, fresco: Cobro) -> None:
+        super().__init__()
+        self.vieja = deepcopy(fresco)
+        self.guardados[fresco.id] = fresco
+
+    async def buscar_por_payment_id(self, payment_id: str) -> Cobro | None:
+        del payment_id
+        return None
+
+    async def buscar_por_id(self, cobro_id: UUID) -> Cobro | None:
+        del cobro_id
+        return self.vieja
+
+    async def buscar_por_preference_id(self, preference_id: str) -> Cobro | None:
+        del preference_id
+        return self.vieja
+
+
+def _pasarela_que_encuentra(cobro: Cobro, *, por: str) -> PasarelaFalsa:
+    if por == "external_reference":
+        return PasarelaFalsa(preferencia=None, cobro_id=cobro.id)
+    return PasarelaFalsa(preferencia="pref-1", cobro_id=None)
+
+
+POR_DONDE_SE_ENCUENTRA = ["external_reference", "preference_id"]
+
+
+@pytest.mark.parametrize("por", POR_DONDE_SE_ENCUENTRA)
+async def test_con_el_bloqueo_tomado_un_cobro_ya_aprobado_por_el_mismo_pago_es_ya_procesado(
+    por: str,
+) -> None:
+    """#240. La otra transacción aprobó el cobro con este mismo `payment_id` entre mi lectura y
+    mi bloqueo. Con la fila fresca no hay nada que hacer: ni saldo, ni evento, ni escritura.
+    """
+    cobro = _cobro(comprobante_id=uuid4())
+    cobros = CobrosConLecturaVieja(cobro)
+    cobro.aprobar(payment_id="pago-1", ahora=AHORA)
+    saldos, publicador = SaldosFalsos(), PublicadorFalso()
+
+    resultado = await _confirmar(
+        cobros, _pasarela_que_encuentra(cobro, por=por), saldos, publicador
+    ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
+
+    assert resultado.ya_procesado
+    assert resultado.aprobado
+    assert cobros.bloqueados == [cobro.id]
+    assert cobros.escrituras == []
+    assert saldos.descuentos == []
+    assert publicador.eventos == []
+
+
+@pytest.mark.parametrize("por", POR_DONDE_SE_ENCUENTRA)
+async def test_con_el_bloqueo_tomado_un_pago_huerfano_ya_registrado_es_ya_procesado(
+    por: str,
+) -> None:
+    """#240. Lo mismo sobre un cobro cancelado: un solo huérfano, una sola alerta."""
+    cobro = _cobro(comprobante_id=uuid4())
+    cobro.cancelar(motivo="El cliente ya pago por transferencia", ahora=AHORA)
+    cobros = CobrosConLecturaVieja(cobro)
+    cobro.registrar_pago_huerfano(payment_id="pago-1", ahora=AHORA)
+    saldos, publicador = SaldosFalsos(), PublicadorFalso()
+
+    resultado = await _confirmar(
+        cobros, _pasarela_que_encuentra(cobro, por=por), saldos, publicador
+    ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
+
+    assert resultado.ya_procesado
+    assert not resultado.huerfano
+    assert cobros.escrituras == []
+    assert saldos.descuentos == []
+    assert publicador.eventos == []
+
+
+@pytest.mark.parametrize("por", POR_DONDE_SE_ENCUENTRA)
+async def test_aprobar_un_pago_carga_el_cobro_con_bloqueo_de_fila(por: str) -> None:
+    """Sin `FOR UPDATE` no hay forma de ver lo que commiteó la otra transacción (#240)."""
+    cobro = _cobro()
+    cobros = CobrosFalsos()
+    await cobros.agregar(cobro)
+
+    resultado = await _confirmar(
+        cobros, _pasarela_que_encuentra(cobro, por=por), SaldosFalsos(), PublicadorFalso()
+    ).ejecutar(empresa_id=EMPRESA, payment_id="pago-1", ahora=AHORA)
+
+    assert resultado.aprobado
+    assert cobros.bloqueados == [cobro.id]
 
 
 # ------------------------------------------------------------------ firma inválida · D22

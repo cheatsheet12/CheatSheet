@@ -62,10 +62,10 @@ Migraciones: ninguna. Asíncrono, configuración, integraciones: sin cambios.
 
 ## Archivos a tocar
 
-- [ ] `backend/src/cheatsheet/contexts/payments/application/confirmacion.py`
-- [ ] `backend/tests/integracion/test_webhook_concurrente_postgres.py` (nuevo)
-- [ ] `backend/tests/contexts/payments/application/test_confirmacion.py` (caso del `payment_id` ya atado tras el bloqueo)
-- [ ] `docs/aidlc/units/webhook-concurrente.md`
+- [x] `backend/src/cheatsheet/contexts/payments/application/confirmacion.py`
+- [x] `backend/tests/integracion/test_webhook_concurrente_postgres.py` (nuevo)
+- [x] `backend/tests/contexts/payments/application/test_confirmacion.py` (caso del `payment_id` ya atado tras el bloqueo)
+- [x] `docs/aidlc/units/webhook-concurrente.md`
 
 Estimado: ~25 líneas de producción, ~150-200 de tests.
 
@@ -73,10 +73,10 @@ Estimado: ~25 líneas de producción, ~150-200 de tests.
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED** `test_dos_webhooks_concurrentes_del_mismo_pago_bajan_el_saldo_una_sola_vez`: comprobante $ 1000, cobro $ 400; A procesa y queda abierto, B arranca, se espera en `pg_locks` hasta ver a alguien bloqueado, A commitea. Saldo $ 600, una sola `confirmar_pago`, uno `recien` y el otro `ya_procesado`. En `develop` falla con $ 200 y dos eventos | integración (PostgreSQL real) | pendiente |
-| 2 | Lo mismo, encontrando el cobro por `preference_id` (parametrizado) | integración | pendiente |
-| 3 | `test_dos_webhooks_concurrentes_sobre_un_cobro_cancelado_registran_un_solo_huerfano` | integración | pendiente |
-| 4 | Con el bloqueo tomado, un cobro con ese `payment_id` devuelve `ya_procesado` sin saldo ni evento | unit | pendiente |
+| 1 | **RED** `test_dos_webhooks_concurrentes_del_mismo_pago_bajan_el_saldo_una_sola_vez`: comprobante $ 1000, cobro $ 400; A procesa y queda abierto, B arranca, se espera en `pg_locks` hasta ver a alguien bloqueado, A commitea. Saldo $ 600, una sola `confirmar_pago`, uno `recien` y el otro `ya_procesado`. En `develop` falla con $ 200 y dos eventos | integración (PostgreSQL real) | hecho |
+| 2 | Lo mismo, encontrando el cobro por `preference_id` (parametrizado) | integración | hecho |
+| 3 | `test_dos_webhooks_concurrentes_sobre_un_cobro_cancelado_registran_un_solo_huerfano` | integración | hecho |
+| 4 | Con el bloqueo tomado, un cobro con ese `payment_id` devuelve `ya_procesado` sin saldo ni evento | unit | hecho |
 
 Patrón determinista de `tests/integracion/test_entregas_concurrentes_postgres.py:84-113` (A abierto a
 mano, B como tarea, sondeo de `pg_locks`, sin `sleep` para provocar el solapamiento). Pasarela falsa

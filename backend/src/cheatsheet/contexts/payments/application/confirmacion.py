@@ -92,6 +92,9 @@ class ConfirmarPago:
             logger.info("webhook_repetido", payment_id=payment_id, cobro_id=str(ya.id))
             return ResultadoDeConfirmacion(aprobado=True, ya_procesado=True, cobro=ya)
 
+        # La llamada de red va **antes** del bloqueo de fila (`_encontrar`): el cobro se retiene
+        # sólo mientras dura trabajo de base, hasta el commit de la unidad de trabajo, y nunca
+        # mientras se espera a MercadoPago.
         pago = await self._pasarela.consultar_pago(empresa_id=empresa_id, payment_id=payment_id)
         if not pago.esta_aprobado:
             # No es un error: `pending` e `in_process` llegan por este mismo webhook. Se
@@ -109,24 +112,46 @@ class ConfirmarPago:
         return await self._aprobar(empresa_id=empresa_id, cobro=cobro, pago=pago, ahora=ahora)
 
     async def _encontrar(self, empresa_id: EmpresaId, pago: PagoRecibido) -> Cobro | None:
-        """A qué cobro corresponde: por `external_reference`, y si no, por la preferencia.
+        """A qué cobro corresponde, **ya bloqueado**: por `external_reference`, y si no, por la
+        preferencia.
 
         Un pago de Checkout Pro casi nunca trae `preference_id`; `external_reference` sí, y es
         el id del cobro porque lo cargamos así al crear el link. Buscarlo dentro de la sesión
         de la empresa de la URL (RLS) es lo que impide que una referencia ajena encuentre algo;
         comparar la empresa es la segunda línea.
+
+        **El cobro se carga siempre con `SELECT ... FOR UPDATE` (#240).** MercadoPago manda la
+        misma notificación más de una vez y, a veces, a la vez: dos transacciones que pasan
+        `buscar_por_payment_id` porque ninguna commiteó todavía. Con una lectura sin bloqueo las
+        dos veían el cobro abierto y lo aprobaban --y la segunda le volvía a restar el monto al
+        saldo del comprobante--. Con el bloqueo la segunda espera, relee la fila que commiteó la
+        primera y `_aprobar` la reconoce. El bloqueo se toma acá, antes de bifurcar, para cubrir
+        la aprobación y el pago huérfano.
+
+        Por la preferencia son dos pasos (buscar el id, bloquear por id): un método más en el
+        puerto no justifica evitar una consulta barata, y es el camino menos habitual.
         """
         if pago.cobro_id is not None:
-            cobro = await self._cobros.buscar_por_id(pago.cobro_id)
+            cobro = await self._cobros.buscar_para_actualizar(pago.cobro_id)
             if cobro is not None and cobro.empresa_id == empresa_id:
                 return cobro
         if pago.preference_id is None:
             return None
-        return await self._cobros.buscar_por_preference_id(pago.preference_id)
+        encontrado = await self._cobros.buscar_por_preference_id(pago.preference_id)
+        if encontrado is None:
+            return None
+        return await self._cobros.buscar_para_actualizar(encontrado.id)
 
     async def _aprobar(
         self, *, empresa_id: EmpresaId, cobro: Cobro, pago: PagoRecibido, ahora: datetime
     ) -> ResultadoDeConfirmacion:
+        if cobro.mp_payment_id == pago.payment_id:
+            # Con el bloqueo tomado la fila es la que commiteó la otra transacción: este mismo
+            # pago ya se resolvió --aprobado, o registrado como huérfano-- mientras esperábamos
+            # (#240). Es la idempotencia de siempre, vista después del bloqueo en vez de antes.
+            logger.info("webhook_repetido", payment_id=pago.payment_id, cobro_id=str(cobro.id))
+            return ResultadoDeConfirmacion(aprobado=True, ya_procesado=True, cobro=cobro)
+
         if cobro.estado is EstadoCobro.CANCELADO:
             # Plata que entró por un link que debería estar muerto. **No es idempotencia**, y
             # tratarla como tal --que es lo que este código hacía-- dejaba el pago sin dueño,
