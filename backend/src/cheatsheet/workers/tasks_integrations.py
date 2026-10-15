@@ -66,7 +66,7 @@ from cheatsheet.shared.clock import RelojDelSistema
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 from cheatsheet.shared.roles import RolUsuario
-from cheatsheet.workers.base import EjecutorIdempotente, PoliticaDeReintentos
+from cheatsheet.workers.base import AnteUnaFalla, EjecutorIdempotente, PoliticaDeReintentos
 from cheatsheet.workers.celery_app import Cola, crear_celery
 from cheatsheet.workers.ejecucion import ejecutar_tarea
 
@@ -134,7 +134,14 @@ async def sondear_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
-    return await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto) or 0
+    # LIBERAR: the state change commits in one transaction and a repeated run finds
+    # nothing left to do, so the retry (`autoretry_for`) may safely run it again.
+    return (
+        await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
+            clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
+        )
+        or 0
+    )
 
 
 async def revisar_vencimientos(recursos: Recursos) -> int:
@@ -179,7 +186,13 @@ async def revisar_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
-    return await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto) or 0
+    # LIBERAR: same reasoning as `sondear_empresa`: repeating it is safe.
+    return (
+        await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
+            clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
+        )
+        or 0
+    )
 
 
 async def renovar_credenciales(recursos: Recursos) -> int:
@@ -226,7 +239,14 @@ async def renovar_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
-    return await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto) or 0
+    # LIBERAR: the rotation commits in one transaction, and a repeated run finds the
+    # credential far from the margin and does nothing (see the docstring).
+    return (
+        await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
+            clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
+        )
+        or 0
+    )
 
 
 async def _administradores(sesion: AsyncSession, empresa_id: EmpresaId) -> tuple[str, ...]:

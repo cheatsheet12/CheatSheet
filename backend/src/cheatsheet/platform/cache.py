@@ -8,6 +8,10 @@ space eventually costs.
 `registrar_si_es_nueva` is a single `SET NX EX`, and that matters: two workers
 picking up the same task at the same instant must not both see "not processed yet".
 A read followed by a write would let them.
+
+`liberar` exists for the one case where keeping the key is wrong: the effect raised, the
+queue is going to retry, and the retry must be allowed to run it (see
+`workers/base.py`, `AnteUnaFalla`).
 """
 
 from __future__ import annotations
@@ -28,6 +32,10 @@ class RegistroDeIdempotencia(Protocol):
 
     async def registrar_si_es_nueva(self, clave: ClaveDeIdempotencia) -> bool:
         """True when this key was not seen before — i.e. the caller should proceed."""
+        ...
+
+    async def liberar(self, clave: ClaveDeIdempotencia) -> None:
+        """Forget this key so the next attempt may claim it. Idempotent: a missing key is fine."""
         ...
 
 
@@ -51,6 +59,9 @@ class RegistroDeIdempotenciaRedis:
         )
         return bool(resultado)
 
+    async def liberar(self, clave: ClaveDeIdempotencia) -> None:
+        await self._redis.delete(f"{PREFIJO_IDEMPOTENCIA}{clave.valor}")
+
 
 class RegistroDeIdempotenciaEnMemoria:
     """In-process adapter for tests and for the local single-process runner."""
@@ -63,6 +74,9 @@ class RegistroDeIdempotenciaEnMemoria:
             return False
         self._vistas.add(clave.valor)
         return True
+
+    async def liberar(self, clave: ClaveDeIdempotencia) -> None:
+        self._vistas.discard(clave.valor)
 
 
 async def verificar_redis(redis: Redis) -> bool:

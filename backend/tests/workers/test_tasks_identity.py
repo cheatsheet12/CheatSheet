@@ -37,11 +37,15 @@ EMPRESA = EmpresaId(uuid4())
 
 
 class EnviadorEspia:
-    def __init__(self, *, falla: bool = False) -> None:
+    def __init__(self, *, falla: bool = False, fallos: int = 0) -> None:
         self.enviados: list[MensajeDeInvitacion] = []
         self._falla = falla
+        self._fallos_pendientes = fallos
 
     async def enviar_invitacion(self, mensaje: MensajeDeInvitacion) -> None:
+        if self._fallos_pendientes > 0:
+            self._fallos_pendientes -= 1
+            raise EnvioDeEmailFallido("El servidor de correo no respondio")
         if self._falla:
             raise EnvioDeEmailFallido("El servidor de correo no respondio")
         self.enviados.append(mensaje)
@@ -139,6 +143,30 @@ async def test_si_el_correo_falla_el_error_sube_para_que_celery_reintente(monkey
 
     with pytest.raises(EnvioDeEmailFallido):
         await _enviar(_recursos(settings), invitacion_id=uuid4())
+
+
+async def test_si_el_primer_envio_falla_el_reintento_manda_el_mail(monkeypatch, settings):
+    """Issue #216, the staging log. SES rejected the first attempt, Celery retried, and the
+    retry was skipped as "already sent" because the failed attempt had kept the key: the
+    task ended `succeeded: False` and the invitation was lost."""
+    registro = RegistroDeIdempotenciaEnMemoria()  # one registry for both attempts
+    monkeypatch.setattr(Recursos, "idempotencia", lambda _recursos: registro)
+    enviador = EnviadorEspia(fallos=1)
+    monkeypatch.setattr(tasks_identity, "crear_enviador", lambda _s: enviador)
+
+    async def contexto_falso(*args: object, **kwargs: object) -> tuple[str, str]:
+        return "Panaderia Dona Rosa", "Ana Perez"
+
+    monkeypatch.setattr(tasks_identity, "_contexto", contexto_falso)
+    recursos = _recursos(settings)
+    invitacion_id = uuid4()
+
+    with pytest.raises(EnvioDeEmailFallido):
+        await _enviar(recursos, invitacion_id=invitacion_id)
+    reintento = await _enviar(recursos, invitacion_id=invitacion_id)
+
+    assert reintento is True
+    assert len(enviador.enviados) == 1
 
 
 async def test_un_broker_caido_no_rompe_la_invitacion_ya_creada(monkeypatch, settings):
