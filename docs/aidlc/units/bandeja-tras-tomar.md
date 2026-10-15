@@ -44,10 +44,10 @@ Ninguno de la lista aplica (no toca dinero, fiscal, webhooks, aislamiento, LLM n
 
 ## Archivos a tocar
 
-- [ ] `frontend/src/features/conversational/components/AvisoDeBandeja.ts` (nuevo, ~20 líneas)
-- [ ] `frontend/src/features/conversational/components/BandejaDeConversaciones.tsx` (~15)
-- [ ] `frontend/src/features/conversational/components/HiloDeConversacion.tsx` (~6)
-- [ ] `frontend/src/features/conversational/components/__tests__/bandeja-tras-tomar.test.tsx` (nuevo, ~110; `pantallas.test.tsx` ya tiene 608 líneas)
+- [x] `frontend/src/features/conversational/components/AvisoDeBandeja.ts` (nuevo, ~20 líneas)
+- [x] `frontend/src/features/conversational/components/BandejaDeConversaciones.tsx` (~15)
+- [x] `frontend/src/features/conversational/components/HiloDeConversacion.tsx` (~6)
+- [x] `frontend/src/features/conversational/components/__tests__/bandeja-tras-tomar.test.tsx` (nuevo, ~110; `pantallas.test.tsx` ya tiene 608 líneas)
 
 Estimado: ~150 líneas cambiadas, la mayoría test.
 
@@ -57,10 +57,10 @@ Vitest + Testing Library (jsdom), mockeando `api/conversacion` como `pantallas.t
 
 | # | Caso | Tipo | Estado |
 |---|---|---|---|
-| 1 | **RED.** Tomar la conversación → dentro de la lista (`within(getByRole("list"))`) el renglón dice «En atención» y la etiqueta pasa de «2 esperan» a «1 espera»; `listarConversaciones` se llamó con el filtro vigente (`false`). Hoy falla: `listarConversaciones` nunca se llama | unit (componente) | pendiente |
-| 2 | «Dar por finalizada» también recarga la bandeja | unit | pendiente |
-| 3 | Si la recarga de la bandeja falla, el hilo queda actualizado y la bandeja muestra «No se pudo actualizar la bandeja.» | unit | pendiente |
-| 4 | Si la toma falla (`ErrorDeConversacion`), la bandeja **no** se recarga | unit | pendiente |
+| 1 | **RED.** Tomar la conversación → dentro de la lista (`within(getByRole("list"))`) el renglón dice «En atención» y la etiqueta pasa de «2 esperan» a «1 espera»; `listarConversaciones` se llamó con el filtro vigente (`false`). Hoy falla: `listarConversaciones` nunca se llama | unit (componente) | hecho · RED observado (la lista seguía en «Espera un asesor»), luego verde |
+| 2 | «Dar por finalizada» también recarga la bandeja | unit | hecho · verde |
+| 3 | Si la recarga de la bandeja falla, el hilo queda actualizado y la bandeja muestra «No se pudo actualizar la bandeja.» | unit | hecho · verde |
+| 4 | Si la toma falla (`ErrorDeConversacion`), la bandeja **no** se recarga | unit | hecho · verde |
 
 ## Verificación (Gate 2)
 
@@ -92,4 +92,5 @@ Aprobadas por Luciano el 2026-10-15, todas según la recomendación del borrador
 
 ## Decisiones tomadas durante la unidad
 
--
+- El caso 4 (la toma falla y no se recarga) ya pasaba en RED: es la guarda que impide que el arreglo recargue sin éxito de la acción, no la reproducción del defecto.
+- Al envolver la grilla en el `Provider`, `prettier` re-indenta el JSX de `BandejaDeConversaciones.tsx`: el diff bruto del archivo es grande, con `-w` son ~24 líneas.
