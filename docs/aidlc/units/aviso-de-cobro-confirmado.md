@@ -40,12 +40,13 @@ Cuando el webhook de MercadoPago aprueba un cobro, el cliente recibe por WhatsAp
 
 ## Archivos a tocar
 
-- [ ] `backend/src/cheatsheet/contexts/payments/application/avisos.py` (nuevo) · `ports_envio.py`
-- [ ] `backend/src/cheatsheet/contexts/payments/infrastructure/avisos.py` (nuevo)
-- [ ] `backend/src/cheatsheet/api/avisos_de_cobro.py` (nuevo) · `api/routers/webhooks.py`
-- [ ] `backend/src/cheatsheet/contexts/business_config/application/plantillas.py` · `domain/plantilla.py`
-- [ ] `docs/architecture.md` (fila 91 del Context Map, «six templates» → siete)
-- [ ] `backend/tests/contexts/payments/application/test_avisos.py`, `backend/tests/api/test_webhook_aviso_de_pago.py`
+- [x] `backend/src/cheatsheet/contexts/payments/application/avisos.py` (nuevo) · `ports_envio.py` · `confirmacion.py` (`recien_aprobado`)
+- [x] `backend/src/cheatsheet/contexts/payments/infrastructure/avisos.py` (nuevo)
+- [x] `backend/src/cheatsheet/api/avisos_de_cobro.py` (nuevo) · `api/routers/webhooks.py`
+- [x] `backend/src/cheatsheet/contexts/business_config/application/plantillas.py` · `domain/plantilla.py`
+- [x] `docs/architecture.md` (fila 91 del Context Map, «six templates» → siete) · nota en `docs/adr/0011-…`
+- [x] Frontend (PAN-CFG-NOT): etiqueta e ícono de `cobro_pagado` en `features/conversational` y su test
+- [x] `backend/tests/contexts/payments/application/test_avisos.py` · `backend/tests/contexts/payments/infrastructure/test_avisos.py` · `backend/tests/api/test_webhook_aviso_de_pago.py` (+ `montaje_webhook_aviso_de_pago.py`)
 
 ## Casos de prueba (RED primero)
 
@@ -62,6 +63,19 @@ Cuando el webhook de MercadoPago aprueba un cobro, el cliente recibe por WhatsAp
 ## Gates
 
 `ruff format --check .` · `ruff check .` · `mypy .` · `pytest` (cobertura ≥ 80 %). Se corre el **CI local** porque GitHub Actions no tiene cuota hasta el 2026-11-01. El volumen estimado es de unas 230 líneas de producción y 250 de tests, unas 480 en total: queda por encima de la referencia de 400 porque cada caso de idempotencia pide su propio test.
+
+## Decisiones tomadas durante la unidad
+
+- **Los casos 5 a 7 se probaron en dos niveles.** El caso de uso (`application/test_avisos.py`: contacto,
+  sin teléfono, nunca levanta, `recien_aprobado`) y el adaptador (`infrastructure/test_avisos.py`:
+  plantilla o texto de fábrica, formato del monto). El del hilo como `SISTEMA` se prueba en el test de
+  la API con `NotificarAlCliente` real.
+- **`ResultadoDeConfirmacion.recien_aprobado`** concentra la condición «aprobado ahora» (ni repetido, ni
+  huérfano, ni sin cobro) en `payments`, en vez de repetirla en el router.
+- **La nota de ADR-0011** va en el punto 6 de la decisión (donde se dice que los avisos se registran en
+  la conversación), no en el 2.
+- **El frontend sí se toca**: PAN-CFG-NOT tiene un mapa de etiquetas y otro de íconos por código; sin
+  entrada, la pantalla mostraría `cobro_pagado` crudo.
 
 ## Decisiones aprobadas
 
