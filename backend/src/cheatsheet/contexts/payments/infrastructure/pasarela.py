@@ -191,10 +191,19 @@ class PasarelaMercadoPago:
                 clave=clave,
             )
         except _RechazoDeMercadoPago as exc:
+            # MercadoPago's message goes into the log: a bare 401 says nothing about which of
+            # its several reasons applied. It carries no token and no personal data.
             if exc.estado in ESTADOS_AMBIGUOS_AL_REEMBOLSAR:
-                logger.warning("reembolso_incierto", payment_id=payment_id, estado=exc.estado)
+                logger.warning(
+                    "reembolso_incierto",
+                    payment_id=payment_id,
+                    estado=exc.estado,
+                    detalle=exc.detalle,
+                )
                 raise PasarelaNoDisponible(f"MercadoPago no confirmo el reembolso: {exc}") from exc
-            logger.warning("reembolso_rechazado", payment_id=payment_id, estado=exc.estado)
+            logger.warning(
+                "reembolso_rechazado", payment_id=payment_id, estado=exc.estado, detalle=exc.detalle
+            )
             return RespuestaDeReembolso(estado=EstadoDeReembolso.RECHAZADO, motivo=exc.detalle)
         return _respuesta_de_reembolso(datos)
 

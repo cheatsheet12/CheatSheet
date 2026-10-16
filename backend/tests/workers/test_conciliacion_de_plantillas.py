@@ -8,6 +8,7 @@ Meta, y la entrada de Beat.
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
@@ -173,3 +174,27 @@ async def test_la_tarea_de_una_empresa_concilia_con_la_cuenta_de_esa_empresa(
     assert armadas == [empresa]
     assert conciliadas == [(empresa, INSTANTE_FIJO)]
     assert resumen.enviadas == 6
+
+
+async def test_el_resultado_de_la_tarea_de_una_empresa_se_puede_guardar_en_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Celery stores the return value with the JSON serializer; a dataclass failed every run."""
+
+    def ejecutar(_settings: object, _trabajo: object) -> ResumenDeConciliacion:
+        del _trabajo
+        return ResumenDeConciliacion(enviadas=6, interrumpida="no_conectada")
+
+    monkeypatch.setattr(tasks_business_config, "ejecutar_tarea", ejecutar)
+
+    resultado = tasks_business_config.conciliar_empresa_sync(
+        settings_de_prueba(), empresa_id=str(uuid4())
+    )
+
+    assert json.loads(json.dumps(resultado)) == {
+        "sembradas": 0,
+        "enviadas": 6,
+        "actualizadas": 0,
+        "divergentes": 0,
+        "interrumpida": "no_conectada",
+    }

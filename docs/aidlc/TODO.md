@@ -857,6 +857,8 @@ afuera (CLAUDE.md §8).
   y el rollback se llevó el ticket. Desde ahí WSAA respondió `coe.alreadyAuthenticated` a todo pedido
   —ninguna empresa pudo reconectar ARCA ni obtener CAE— hasta que venció, ≈ 06:57 UTC del 14/10/2026.
   El mismo arreglo cubre el caso de dos pedidos simultáneos cuando todavía no había fila que bloquear.
+  Mergeado en #238 y comprobado en staging el 14/10/2026: un rechazo seguido de una reconexión ya no
+  pide un ticket nuevo.
 - **Una conexión de ARCA que falla por `TicketNoDisponible` muestra «No se pudo completar la
   operacion».** La API devuelve 422 con el motivo, pero el panel muestra el texto genérico. Visto el
   13/10/2026; fuera de `ticket-de-plataforma-persistido`.

@@ -92,10 +92,17 @@ empresas sin facturar medio día.
 | 4 | Si el emisor falla con `TicketTodaviaVigente` y hay uno guardado vigente, se devuelve el guardado y no se escribe nada | unit | verde |
 | 5 | Si el emisor falla y no hay ticket utilizable, `TicketNoDisponible` y nada se escribe | unit | verde |
 | 6 | El ticket se guarda cifrado; el texto plano nunca llega a la fila | integración | verde (ya cubierto por `test_arca_ciclo_de_vida.py::test_el_ticket_de_plataforma_se_guarda_cifrado`) |
-| 7 | **Staging**: verificar delegación con una empresa sin delegar (rechazo) y enseguida reconectar Estudio Ejemplo SRL → Conectada, con un solo `LoginCms` en el log | manual | pendiente |
+| 7 | **Staging**: verificar delegación con una empresa sin delegar (rechazo) y enseguida reconectar Estudio Ejemplo SRL → Conectada, con un solo `LoginCms` en el log | manual | verde (14/10/2026, ver abajo) |
 
-El caso 7 recién puede correrse cuando venza el ticket huérfano de hoy (≈ 06:57 UTC del 14/10/2026),
-o antes con un certificado de homologación nuevo.
+El caso 7 se corrió el 14/10/2026 con `07bcac1` desplegado en API y worker (log, hora UTC). ARCA
+liberó el ticket huérfano antes de lo esperado: a las 00:00:11 un pedido del worker obtuvo uno nuevo
+(`LoginCms` 200), el único `LoginCms` de toda la ventana. Después:
+
+| Hora | Qué pasó |
+|---|---|
+| 00:02:05 | Reconexión de Estudio Ejemplo SRL → 200, sin pedir ticket |
+| 00:03:52 | Verificación de una empresa sin delegar → `ConexionRechazada`, 422 y rollback del pedido |
+| 00:04:23 | Reconexión de Estudio Ejemplo SRL → 200, sin pedir ticket: el rechazo no se llevó el ticket |
 
 ## Registro
 
@@ -103,7 +110,7 @@ o antes con un certificado de homologación nuevo.
 |---|---|---|
 | 1 · Plan | 2026-10-13 | aprobado |
 | 2 · Verificación | 2026-10-13 | aprobado: ruff, mypy, arquitectura y guardas limpios; pytest 3986 pasan con PostgreSQL local; cobertura 90.05 %. Caso 7 (staging) pendiente del despliegue y del vencimiento del ticket huérfano |
-| 3 · PR | 2026-10-13 | push de la rama; PR abierto por el responsable |
+| 3 · PR | 2026-10-13 | PR #238, mergeado por el responsable; desplegado en staging el 2026-10-13 y caso 7 verde el 2026-10-14 |
 
 ## Decisiones tomadas durante la unidad
 
