@@ -99,9 +99,14 @@ falta en ambas es **credenciales reales**, y eso es una tarea de despliegue, no 
 
 - **Hoy:** `EMAIL_ADAPTADOR=consola` escribe el link de invitación en el log estructurado y **no
   abre ningún socket**. El flujo de invitación se puede completar en local copiando ese link.
-- **Falta:** elegir proveedor transaccional (SendGrid, Postmark, SES, el que sea — la decisión está
-  deliberadamente abierta porque el adaptador habla SMTP y no el SDK de nadie), cargar las
-  `SMTP_*` y poner `EMAIL_ADAPTADOR=smtp`.
+- **Staging hoy:** el correo sale por **Amazon SES (us-east-1) en modo sandbox**, por SMTP
+  (`EMAIL_ADAPTADOR=smtp`). El sandbox rechaza a todo destinatario no verificado con
+  `SMTPDataError`, así que una invitación a un mail cualquiera falla (visto en PRU-05, 13/10/2026).
+  La tarea reintenta desde `fix/infra-reintentos-con-idempotencia` (antes el reintento se omitía por
+  idempotencia, §30.1). Para que las invitaciones lleguen a cualquiera hay que sacar la cuenta de
+  SES del sandbox (pedido a AWS) o verificar cada destinatario de prueba.
+- **Producción — falta:** confirmar el proveedor transaccional (SES, SendGrid, Postmark: el
+  adaptador habla SMTP y no el SDK de nadie), cargar las `SMTP_*` y poner `EMAIL_ADAPTADOR=smtp`.
 - **Protección:** `Settings` rechaza `consola` en `production` al arrancar.
 
 ### 2.3 Worker de `notifications`
@@ -702,6 +707,7 @@ que dependen de ella. Cada unidad nueva suma acá lo que no pudo verificar.
 | 22.74 | **Costo de la verificación por solicitud con el bloqueo legal, en staging (caso 33).** 200 llamadas a `GET /auth/empresa` con la compute de Neon despierta y anotar el p95 agregado en el plan, junto al de §22.66. En la base local la consulta con `JOIN empresa` + `EXISTS` sobre `aceptacion_legal` da p50 2,30 ms y p95 2,66 ms (antes 2,01 y 2,23); umbral del plan de revocación: 5 ms | `terminos-y-privacidad` (tramo 3) |
 | 22.75 | **El bloqueo legal en el navegador, en staging de Render** (no se levanta la app en local). Con un usuario existente (sin aceptación de privacidad, como todos al desplegar): (a) entrar a `/panel` redirige a `/aceptacion-legal`, que muestra solo «Aceptar» y «Cerrar sesión» y los enlaces a los textos; (b) «Aceptar» lleva al panel y la solicitud siguiente ya no da 403; (c) un Administrador ve además los términos `1.1`, un Operador **no**; (d) «Cerrar sesión» funciona y no borra nada; (e) con la sesión ya abierta y una pantalla del panel cargada, publicar una versión nueva y tocar una acción: el 403 se convierte en el redirect, sin «No se pudo completar la operación»; (f) una navegación blanda (sin recargar) hacia una página del panel, con una versión recién vigente, termina en `/aceptacion-legal` y no en el error de Next (`llamarApi` redirige; decisión 25); (g) quien dejó `/onboarding/empresa` a medias acepta primero y completa después | `terminos-y-privacidad` (tramo 3) |
 | 22.76 | **Despliegue del tramo 3.** Todo usuario existente queda bloqueado en su próxima solicitud hasta aceptar la privacidad `1.0`, y todo Administrador además los términos `1.1` (decisión 3). Avisar antes del release; los clientes que no sean el frontend de este repo (scripts, pruebas de carga con un token ya emitido) reciben 403 `AceptacionLegalPendiente` hasta que ese usuario acepte. Backend y frontend se despliegan juntos (el frontend anterior no conoce `/aceptacion-legal`) | `terminos-y-privacidad` (tramo 3) |
+| 22.77 | **Reintento de la invitación en staging (caso 8 de `reintentos-con-idempotencia`).** Invitar desde «Sistema › Usuarios» a un mail que SES (sandbox) no tenga verificado y mirar los logs de `cheatsheet-worker`: tras `envio_de_email_fallido` y `Retry in …s` debe aparecer **otro** `envio_de_email_fallido` (el reintento llegó al envío), no `tarea_omitida_por_idempotencia`. Después, con un destinatario verificado en SES, la invitación sale y la tarea termina `succeeded: True`. Además, con Redis real: `pytest backend/tests/integracion/test_idempotencia_redis.py` (con `REDIS_URL` y la base configuradas) | `reintentos-con-idempotencia` |
 | 22.78 | **La bandeja se actualiza al actuar sobre un hilo, en staging de Render** (no se levanta la app en local). En «Atención › Conversaciones» con el filtro «Solo escaladas», abrir un hilo que espera un asesor y tocar «Tomar»: sin recargar, su fila pasa a «En atención» y el contador baja en uno. Lo mismo con «Devolver al agente», «Dar por finalizada» y al enviar una respuesta. Con el backend caído, la bandeja muestra «No se pudo actualizar la bandeja.» y el hilo conserva la acción hecha. Vitest pasa; nada de esto se vio en un navegador | `bandeja-tras-tomar` |
 
 **Archivos de más de 400 líneas (CLAUDE.md §5), vistos en `limites-e-intervalo-de-turnos`.** Ya superaban el límite antes de esa unidad y no se partieron (decisión P4): `scheduling/application/turnos.py` (~520), `api/routers/agenda.py` (~685), `RecursosReservables.tsx` (~640) y `tests/contexts/scheduling/application/test_agenda.py` (~1180). **El router ya se partió** (`router-de-agenda-por-responsabilidad`). Siguen sin unidad: `turnos.py` (extraer `Avisador` a `application/avisador.py`; U8 modifica `turnos.py`, conviene esperar), `RecursosReservables.tsx` y `test_agenda.py`.
@@ -858,6 +864,8 @@ afuera (CLAUDE.md §8).
   y el rollback se llevó el ticket. Desde ahí WSAA respondió `coe.alreadyAuthenticated` a todo pedido
   —ninguna empresa pudo reconectar ARCA ni obtener CAE— hasta que venció, ≈ 06:57 UTC del 14/10/2026.
   El mismo arreglo cubre el caso de dos pedidos simultáneos cuando todavía no había fila que bloquear.
+  Mergeado en #238 y comprobado en staging el 14/10/2026: un rechazo seguido de una reconexión ya no
+  pide un ticket nuevo.
 - **Una conexión de ARCA que falla por `TicketNoDisponible` muestra «No se pudo completar la
   operacion».** La API devuelve 422 con el motivo, pero el panel muestra el texto genérico. Visto el
   13/10/2026; fuera de `ticket-de-plataforma-persistido`.
@@ -928,3 +936,33 @@ Cada pago genera tres avisos a la `notification_url` de la preferencia. El de fo
   29.1. Sirve para probar reembolsos reales (HU-E6-05).
 - Las verificaciones de `TODO.md` §20 contra MercadoPago ya se pueden hacer: el bloqueante de 29.1
   está resuelto.
+
+## 30. Hallazgos de `reintentos-con-idempotencia`
+
+### 30.1 Qué cambió
+
+`EjecutorIdempotente.ejecutar` exige `ante_una_falla` (`LIBERAR` o `RETENER`) en cada llamada. Las
+cinco tareas que lo usan (`identity.enviar_invitacion`, `integrations.sondear_empresa`,
+`revisar_empresa`, `renovar_empresa` y `observability.registrar_latido`) liberan la clave si el
+efecto lanza, así que el reintento de Celery vuelve a ejecutarlo (issue #216). Una tarea nueva con
+dinero o comprobantes tiene que elegir; `RETENER` conserva la garantía anterior.
+
+### 30.2 Deuda declarada: la caída del worker sigue sin cubrirse
+
+Si el proceso muere con el efecto a medias (OOM, deploy, corte), la clave no se libera nunca —no hay
+código que corra— y Celery reentrega el mensaje (`task_acks_late` + `task_reject_on_worker_lost`,
+`celery_app.py`) pero la reentrega se omite por idempotencia durante 7 días. Tampoco hay
+`task_time_limit`, así que una tarea colgada ocupa el worker sin que nada la corte.
+
+- **Arreglo previsto:** registro en dos estados (`en curso` con TTL corto, renovado mientras la tarea
+  vive, y `hecho` con los 7 días) más un `task_time_limit` por cola. Exige decidir un límite de
+  tiempo para cada una de las cinco colas; por eso no entró en esta unidad (decisión 2 del Gate 1).
+- **Sin unidad ni responsable.** Archivos: `workers/base.py`, `platform/cache.py`.
+- **Riesgo hoy:** una invitación o un sondeo que coincide con la caída de un worker se pierde hasta
+  que el Administrador reenvía o corre el barrido siguiente. Las tareas de dinero y de comprobantes
+  no usan este ejecutor.
+
+### 30.3 Fuera de la unidad
+
+- `email_invitacion.py` registra `destinatario` (un email) en los logs de falla (`:90,96,113`).
+  Va a un issue aparte, contexto `identity` (regla de no registrar datos personales, `CLAUDE.md` §5).
