@@ -115,7 +115,7 @@ La bandeja muestra a la izquierda los hilos, con los contadores «N hilos» y «
 
 ![Figura MAN-80-1 — La bandeja de conversaciones filtrada por «Esperan a un asesor», con dos hilos en «Espera un asesor» y ningún hilo abierto a la derecha](capturas/MAN-80_1.png)
 
-Al abrir un hilo, la lista pasa a mostrar «Todas» y el historial completo aparece a la derecha, con el recuadro «Esperando a un asesor» y el motivo. Cada mensaje indica su autor («Cliente», «Agente», «Operador» o «Sistema», para los avisos automáticos de turnos), la hora, su clasificación («Turno», «Consulta», «Pago», «Pregunta frecuente» o «Sin clasificar») y, si salió, su estado: «Enviado», «Entregado», «Leído» o «No se pudo enviar», con el motivo debajo. El estado avanza cuando WhatsApp informa la entrega; si no la informa, queda en «Enviado».
+Al abrir un hilo, la lista pasa a mostrar «Todas» y el historial completo aparece a la derecha, con el recuadro «Esperando a un asesor» y el motivo. Cada mensaje indica su autor («Cliente», «Agente», «Operador» o «Sistema», para los avisos automáticos de turnos y de cobros), la hora, su clasificación («Turno», «Consulta», «Pago», «Pregunta frecuente» o «Sin clasificar») y, si salió, su estado: «Enviado», «Entregado», «Leído» o «No se pudo enviar», con el motivo debajo. El estado avanza cuando WhatsApp informa la entrega; si no la informa, queda en «Enviado».
 
 ![Figura MAN-80-2 — Un hilo escalado con el historial completo, el recuadro «Esperando a un asesor» y el botón «Tomar la conversación»](capturas/MAN-80_2.png)
 
@@ -124,13 +124,13 @@ Al abrir un hilo, la lista pasa a mostrar «Todas» y el historial completo apar
 1. Ingresar a «Menú › Operaciones › Agente WhatsApp».
 2. Identificar los hilos con la pastilla «Espera un asesor». Para buscar, escribir en «Buscar por motivo o estado».
 3. Hacer clic en el hilo y leer el historial: el cliente no tiene que repetir lo que ya dijo.
-4. Pulsar «Tomar la conversación». La pastilla pasa a «En atención» y el agente deja de responder. La toma queda en el Log de operaciones como «Tomar escalamiento». La lista de la izquierda sigue mostrando «Espera un asesor» hasta recargar la pantalla.
+4. Pulsar «Tomar la conversación». La pastilla pasa a «En atención» y el agente deja de responder. La toma queda en el Log de operaciones como «Tomar escalamiento». La lista de la izquierda también pasa a «En atención» y el contador «N esperan» baja en uno.
 5. Escribir la respuesta en el campo «Escribí tu respuesta…» y pulsar «Enviar». El mensaje sale por WhatsApp y aparece con el autor «Operador».
 6. Si el motivo es «Cancelación de turno con seña», decidir qué hacer con el turno desde «Menú › Operaciones › Agenda» (MAN-70) y avisar al cliente por este hilo.
 
 ![Figura MAN-80-3 — El hilo en «En atención», con la respuesta del Operador en el historial y la caja «Escribí tu respuesta…»](capturas/MAN-80_3.png)
 
-El hilo y la lista no se actualizan solos: para ver mensajes nuevos del cliente o el cambio de estado en la bandeja, recargar la pantalla y volver a abrir el hilo.
+La lista se actualiza al tomar, responder, devolver o dar por finalizada una conversación desde el hilo. No hay actualización automática: para ver mensajes nuevos del cliente o lo que hizo otra persona, recargar la pantalla y volver a abrir el hilo.
 
 #### Mensajes y errores frecuentes
 
@@ -238,12 +238,13 @@ El horario es una regla de negocio llamada «Horario de atención». Para volver
 
 ### Administrar las plantillas de notificación
 
-HU-E11-02 — Administrar las plantillas de notificación. Una plantilla es el texto de un mensaje automático que el sistema envía a los clientes por WhatsApp. Las seis plantillas las define el sistema: no se agregan ni se eliminan, solo se edita su texto, que admite variables entre llaves dobles que el sistema reemplaza al enviar. Cada tarjeta muestra el nombre del mensaje, su texto y su estado de aprobación; arriba figuran «N plantillas · N esperan la aprobación de Meta» y el canal y el idioma de todas.
+HU-E11-02 — Administrar las plantillas de notificación. Una plantilla es el texto de un mensaje automático que el sistema envía a los clientes por WhatsApp. Las siete plantillas las define el sistema: no se agregan ni se eliminan, solo se edita su texto, que admite variables entre llaves dobles que el sistema reemplaza al enviar. Cada tarjeta muestra el nombre del mensaje, su texto y su estado de aprobación; arriba figuran «N plantillas · N esperan la aprobación de Meta» y el canal y el idioma de todas.
 
 | Plantilla | Cuándo se envía | Variables disponibles |
 |---|---|---|
 | «Link de pago generado» | Ningún envío del sistema usa hoy esta plantilla | `{{concepto}}`, `{{link}}`, `{{monto}}`, `{{nombre}}` |
 | «Recordatorio de cobro» | Recordatorio de un cobro pendiente (MAN-60) | `{{concepto}}`, `{{link}}`, `{{monto}}`, `{{nombre}}`, `{{vencimiento}}` |
+| «Cobro confirmado» | Confirmación al cliente cuando MercadoPago aprueba el pago de un cobro, también la seña de un turno | `{{concepto}}`, `{{monto}}`, `{{nombre}}` |
 | «Recordatorio de turno» | Recordatorio automático según la regla «Agenda de notificaciones» (MAN-60) | `{{fecha}}`, `{{hora}}`, `{{nombre}}`, `{{servicio}}` |
 | «Cancelación de turno» | Aviso al cancelar un turno desde el panel | `{{fecha}}`, `{{hora}}`, `{{nombre}}`, `{{servicio}}` |
 | «Confirmación de turno» | Aviso al reservar un turno desde el panel | `{{fecha}}`, `{{hora}}`, `{{nombre}}`, `{{recurso}}`, `{{servicio}}` |
@@ -259,7 +260,7 @@ WhatsApp exige que Meta apruebe una plantilla antes de enviarla fuera de las 24 
 | «Rechazada» | Meta la rechazó; debajo figuran el motivo y el texto de Meta. Se corrige el texto o se pulsa «Enviar a revisión» |
 | «Pausada por Meta» | Meta la pausó; mientras tanto se envía el texto de fábrica |
 | «Deshabilitada por Meta» | Meta la deshabilitó; al editar su texto se vuelve a crear en Meta |
-| «No requiere aprobación» | Plantilla de un canal sin aprobación; las seis actuales son de WhatsApp |
+| «No requiere aprobación» | Plantilla de un canal sin aprobación; las siete actuales son de WhatsApp |
 
 Si los recordatorios de turno están activos, WhatsApp está conectado y «Recordatorio de turno» no está «Aprobada», aparece el aviso «Los recordatorios de turno pueden no llegar».
 
