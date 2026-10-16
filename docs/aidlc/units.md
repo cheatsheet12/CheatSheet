@@ -81,7 +81,7 @@ El estado del épico **se deriva** de estas filas; no se escribe en ningún lado
 | Agente de WhatsApp y atención humana | dobles-de-conversational-por-responsabilidad | conversational | HS-T2 | entregas-de-whatsapp | Luciano | fix/conversational-dobles-por-responsabilidad | mergeada |
 | Agente de WhatsApp y atención humana | corregir-esquema-de-lectura-anthropic | conversational | HU-E8-01, HU-E8-02 | agente-y-atencion-humana | Luciano | fix/conversational-esquema-de-lectura-anthropic | en revisión |
 | Cobros y recordatorios | recordatorio-por-email | payments | HS-T3 | canal-real-de-whatsapp | Luciano | — | pendiente |
-| Cobros y recordatorios | aviso-de-cobro-confirmado | payments | HU-E8-04 | canal-real-de-whatsapp, plantillas-de-whatsapp-en-meta | Luciano | feature/payments-aviso-de-cobro-confirmado | en revisión |
+| Cobros y recordatorios | aviso-de-cobro-confirmado | payments | HU-E8-04 | canal-real-de-whatsapp, plantillas-de-whatsapp-en-meta | Luciano | feature/payments-aviso-de-cobro-confirmado | mergeada (#250) |
 | Cimientos, identidad y bitácora | integracion-en-neon | tests de integración (`backend/tests/integracion`, transversal) | — | — | Luciano | feature/infra-integracion-en-neon | mergeada |
 | Cimientos, identidad y bitácora | mypy-en-pre-commit | infra (`.pre-commit-config.yaml`, transversal) | — (unidad técnica) | — | Emanuel | fix/infra-mypy-en-pre-commit | en revisión |
 | Agenda y recursos | agenda-con-una-sola-fecha | scheduling | HU-E7-01 | mypy-en-pre-commit | Emanuel | fix/scheduling-agenda-con-una-sola-fecha | en revisión |
