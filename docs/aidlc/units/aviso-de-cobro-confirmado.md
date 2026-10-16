@@ -20,7 +20,7 @@ Cuando el webhook de MercadoPago aprueba un cobro, el cliente recibe por WhatsAp
 - **Dominio**: no cambia. No se agrega un evento de dominio: el bus es síncrono y corre dentro de la transacción (`platform/events.py`). Un suscriptor que llama a Meta haría E/S dentro del webhook, y además le mandaría el mensaje también a la transacción perdedora de una carrera.
 - **Aplicación** (`payments`): un caso de uso nuevo, `AvisarPagoConfirmado`. Recibe el `Cobro` aprobado, pide el contacto (`PortContactoDeCliente`, que ya existe) y llama a un puerto nuevo, `PortAvisoDePago.avisar(...)`. **Nunca levanta**: un fallo del canal no puede voltear un pago ya guardado (mismo criterio D33 que los turnos).
 - **Puertos y adaptadores**: `AvisoDePagoPorWhatsApp` en `payments/infrastructure/avisos.py`. Usa una plantilla aprobada (`cobro_pagado`) si la hay, y si no, el texto de fábrica. Pide los `Protocol` locales `CanalDeAvisos` y `PlantillasAprobadas` (R3). El monto va con `formatear_es_ar` (`Decimal`, `ROUND_HALF_UP`).
-- **Cuándo se dispara**: en `webhooks.py`, **después de que cierra** la unidad de trabajo del pago, y solo si el resultado es `aprobado and not ya_procesado and not huerfano`. Abre una segunda unidad de trabajo (canal, `NotificarAlCliente`, savepoint). Esto lo hace idempotente por construcción: solo la transacción que ganó el índice único `payment_id` llega a ese punto. Las repetidas cortan en `buscar_por_payment_id` y quedan `ya_procesado`, y la perdedora de una carrera falla al hacer commit, así que nunca envía.
+- **Cuándo se dispara**: en `webhooks.py`, **después de que cierra** la unidad de trabajo del pago, y solo si el resultado es `aprobado and not ya_procesado and not huerfano`. Abre una segunda unidad de trabajo (canal, `NotificarAlCliente`, savepoint). Esto lo hace idempotente por construcción: las repetidas cortan en `buscar_por_payment_id` y quedan `ya_procesado`. Las simultáneas las serializa el bloqueo de fila del cobro que agrega la unidad `webhook-concurrente` (#240), sobre la que se apila esta: la que espera relee el cobro ya aprobado y también queda `ya_procesado`. Ver Decisiones tomadas durante la unidad.
 - **Otros contextos**: el puente es `api/avisos_de_cobro.py`, que une el `CanalDeAvisos` de payments con `NotificarAlCliente` de conversational y la plantilla de business_config. Es el mismo patrón que `api/avisos_de_turno.py`. Con esto, la fila 91 del Context Map (`docs/architecture.md`), que hoy dice «for scheduling notices», pasa a cubrir también los avisos de payments. Ver la decisión 2.
 - **Frontend** (PAN-CFG-NOT): la plantilla nueva aparece sola por la siembra perezosa de `ListarPlantillas`, pero la pantalla tiene un mapa de etiquetas y otro de íconos por código y, sin entrada, mostraría `cobro_pagado` crudo. Se agregan ambos en `frontend/src/features/conversational/api/faq.ts` (etiqueta) y `frontend/src/features/conversational/components/PlantillasDeNotificacion.tsx` (ícono), con su test en `components/__tests__/pantallas.test.tsx`. **Desvío respecto del plan aprobado**, que decía «no aplica»; ver Decisiones durante la unidad.
 
@@ -82,6 +82,11 @@ Cuando el webhook de MercadoPago aprueba un cobro, el cliente recibe por WhatsAp
   hallazgo del verificador independiente: el canal puede tardar ~33 s en el peor caso y MercadoPago deja de
   esperar a los ~22 s. Si vence, se registra `aviso_de_pago_vencido` (sin datos personales) y el webhook
   contesta 200 igual. Sigue la fila 22.64 de `TODO.md` por la E/S a Meta dentro de la segunda transacción.
+- **La unidad se apila sobre `webhook-concurrente` (#240).** El plan atribuía la idempotencia del aviso
+  al índice único de `payment_id`, pero dos notificaciones simultáneas del mismo pago escriben la
+  **misma fila** del cobro y el índice no salta: las dos quedaban `recien_aprobado` y se mandaban dos
+  avisos. La corrección es el `SELECT ... FOR UPDATE` de #240; esta rama lo incorpora por merge y el
+  docstring de `recien_aprobado` dice ahora que el mecanismo es el bloqueo.
 
 ## Decisiones aprobadas
 
