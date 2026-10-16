@@ -81,6 +81,10 @@ DE_FABRICA: dict[str, tuple[CanalNotificacion, str]] = {
         "Hola {{nombre}}, te dejamos el link para pagar {{concepto}} por $ {{monto}}: "
         "{{link}} Gracias.",
     ),
+    "cobro_pagado": (
+        CanalNotificacion.WHATSAPP,
+        "Hola {{nombre}}, recibimos tu pago de {{concepto}} por $ {{monto}}. ¡Gracias!",
+    ),
 }
 
 #: El idioma de fábrica. El DER le da columna a la plantilla, así que el día que haya dos

@@ -6,7 +6,8 @@ uno es un contrato del *consumidor* (`recordatorios.py` y el adaptador de envío
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
@@ -51,8 +52,32 @@ class PortContactoDeCliente(Protocol):
     async def contacto_de(self, cliente_id: UUID) -> ContactoDeCobro | None: ...
 
 
+@dataclass(frozen=True, slots=True)
+class DatosDeAvisoDePago:
+    """Lo que hace falta para decirle a un cliente que su pago llegó (HU-E8-04 RN-01).
+
+    El nombre y el teléfono son datos personales: no entran en el `repr`, para que un log o un
+    traceback que imprima el objeto no los filtre.
+    """
+
+    cobro_id: UUID
+    cliente_id: UUID
+    nombre: str = field(repr=False)
+    telefono: str = field(repr=False)
+    concepto: str
+    monto: Decimal
+
+
+class PortAvisoDePago(Protocol):
+    """Por dónde sale el aviso de un cobro confirmado. Lo implementa el adaptador de WhatsApp."""
+
+    async def avisar(self, datos: DatosDeAvisoDePago) -> None: ...
+
+
 __all__ = [
     "ContactoDeCobro",
+    "DatosDeAvisoDePago",
     "FallaDelCanal",
+    "PortAvisoDePago",
     "PortContactoDeCliente",
 ]

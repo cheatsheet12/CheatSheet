@@ -27,11 +27,13 @@ import hmac
 from typing import Any
 from uuid import UUID
 
+from cheatsheet.api.avisos_de_cobro import avisar_pago_confirmado
 from cheatsheet.api.dependencies import Recursos, unidad_de_trabajo
 from cheatsheet.api.mercadopago import armar_pasarela, armar_saldos
 from cheatsheet.contexts.payments.application.confirmacion import (
     ConfirmarPago,
     RegistrarWebhookRechazado,
+    ResultadoDeConfirmacion,
 )
 from cheatsheet.contexts.payments.application.errors import PasarelaNoDisponible
 from cheatsheet.contexts.payments.infrastructure.ensamblado import Cobros
@@ -84,10 +86,11 @@ def _rutas(recursos: Recursos) -> APIRouter:
             logger.info("webhook_sin_pago", empresa_id=str(empresa))
             return Response(status_code=status.HTTP_200_OK)
 
+        resultado: ResultadoDeConfirmacion | None = None
         try:
             async for unidad in unidad_de_trabajo(recursos, empresa):
                 piezas = Cobros.armar(unidad)
-                await ConfirmarPago(
+                resultado = await ConfirmarPago(
                     cobros=piezas.cobros,
                     pasarela=armar_pasarela(unidad, recursos.settings),
                     saldos=armar_saldos(unidad),
@@ -99,6 +102,11 @@ def _rutas(recursos: Recursos) -> APIRouter:
             logger.warning("webhook_sin_poder_consultar", payment_id=payment_id)
             return Response(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+        # HU-E8-04 RN-01. **Después del commit** del pago (el `async for` de arriba ya cerró) y solo
+        # si este request fue el que lo aprobó: la notificación repetida, el pago huérfano y el
+        # pendiente no avisan. No levanta: el pago está guardado y el webhook contesta 200.
+        if resultado is not None and resultado.recien_aprobado and resultado.cobro is not None:
+            await avisar_pago_confirmado(recursos, empresa_id=empresa, cobro=resultado.cobro)
         return Response(status_code=status.HTTP_200_OK)
 
     return router

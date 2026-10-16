@@ -12,8 +12,10 @@ from cheatsheet.contexts.business_config.application.plantillas import (
     ListarPlantillas,
 )
 from cheatsheet.contexts.business_config.domain.plantilla import (
+    VARIABLES_POR_CODIGO,
     EstadoDeAprobacion,
     empieza_o_termina_con_variable,
+    variables_de,
 )
 from cheatsheet.contexts.business_config.domain.regla import CanalNotificacion
 from cheatsheet.shared.empresa import EmpresaId
@@ -42,7 +44,16 @@ async def test_los_dos_textos_de_cobro_terminan_en_gracias() -> None:
     assert DE_FABRICA["cobro_generado"][1].endswith("{{link}} Gracias.")
 
 
-async def test_el_listado_siembra_las_seis_sin_enviar_con_el_codigo_como_nombre() -> None:
+async def test_cobro_pagado_es_de_whatsapp_y_usa_solo_nombre_concepto_y_monto() -> None:
+    """HU-E8-04 RN-01: el aviso de cobro confirmado tiene su plantilla de fábrica."""
+    canal, cuerpo = DE_FABRICA["cobro_pagado"]
+
+    assert canal is CanalNotificacion.WHATSAPP
+    assert variables_de(cuerpo) == VARIABLES_POR_CODIGO["cobro_pagado"]
+    assert VARIABLES_POR_CODIGO["cobro_pagado"] == {"nombre", "concepto", "monto"}
+
+
+async def test_el_listado_siembra_todas_sin_enviar_con_el_codigo_como_nombre() -> None:
     plantillas = RepositorioPlantillasEnMemoria()
 
     listadas = await ListarPlantillas(plantillas).ejecutar(empresa_id=EMPRESA, ahora=AHORA)

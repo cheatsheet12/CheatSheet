@@ -95,6 +95,7 @@ VARIABLES_POR_CODIGO: dict[str, frozenset[str]] = {
     "recordatorio_de_turno": frozenset({"nombre", "servicio", "fecha", "hora"}),
     "recordatorio_de_cobro": frozenset({"nombre", "monto", "concepto", "link", "vencimiento"}),
     "cobro_generado": frozenset({"nombre", "monto", "concepto", "link"}),
+    "cobro_pagado": frozenset({"nombre", "monto", "concepto"}),
 }
 
 

@@ -133,6 +133,7 @@ export const ETIQUETAS_DE_CODIGO: Readonly<Record<string, string>> = {
   recordatorio_de_turno: "Recordatorio de turno",
   recordatorio_de_cobro: "Recordatorio de cobro",
   cobro_generado: "Link de pago generado",
+  cobro_pagado: "Cobro confirmado",
 };
 
 /**

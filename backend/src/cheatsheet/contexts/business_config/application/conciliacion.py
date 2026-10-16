@@ -6,7 +6,7 @@ una plantilla quedaría `PENDIENTE` para siempre. Beat corre esto cada tanto, po
 
 1. Lee de Meta **todas** las plantillas de la WABA. Si Meta no responde, no se toca nada (ni se
    siembra): la corrida siguiente lee lo mismo y recupera.
-2. Siembra las seis de fábrica que falten (`ListarPlantillas`).
+2. Siembra las siete de fábrica que falten (`ListarPlantillas`).
 3. A cada plantilla de WhatsApp la busca en lo que Meta devolvió, por id y, si no, por nombre e
    idioma. Si la encuentra, aplica su estado, su motivo y detecta el texto divergente. Si no la
    encuentra y nunca se aceptó (`SIN_ENVIAR`), **la manda**: así una empresa que nunca entró a

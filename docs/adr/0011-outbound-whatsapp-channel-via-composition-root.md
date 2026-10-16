@@ -97,6 +97,14 @@ The detail needed to implement it without asking again:
    gives the notice a delivery status (HU-E8-04 RN-04) and gives the agent the context when the
    customer answers it. Before the history reaches the language model, a `SISTEMA` message is
    replaced by a descriptor without personal data (`CLAUDE.md` §3.6).
+
+   *Note (2026-10-15, unit `aviso-de-cobro-confirmado`):* the confirmation of an approved payment
+   (HU-E8-04 RN-01) follows the same path. `payments` declares its own `CanalDeAvisos`, and
+   `api/avisos_de_cobro.py` backs it with the same `NotificarAlCliente` use case. The existing
+   `conversational` → `payments` edge is unchanged; only what flows over it grows. The notice is
+   sent from the payment webhook request **after** the payment's unit of work has committed, in a
+   second unit of work, and only when that request approved the cobro; it never raises, so the
+   webhook still answers 200.
 7. **A failure of the channel never undoes what was already sent.** The consumer adapters never
    raise: a failed send is recorded as `FALLIDO`. A sweep that sends several messages in one
    transaction isolates each one (a savepoint per item), so a failure on item K does not roll
