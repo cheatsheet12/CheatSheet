@@ -117,3 +117,5 @@ Aprobadas por Luciano el 2026-10-15, junto con el plan.
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-15 | Aprobado por Luciano con las decisiones 1–5 |
+| 2 · Verificación | 2026-10-16 | Aprobado por Luciano. Verificador independiente con sus correcciones aplicadas (plazo de 8 s, nota G5, test de logs). CI local COMPLETE en `db79570`, con `webhook-concurrente` (#240) mergeada. La garantía de un solo aviso ante webhooks simultáneos la prueba el test concurrente de #240 (un solo `recien_aprobado`); esta unidad no suma un test concurrente propio |
+| 3 · PR | 2026-10-16 | PR a develop, después de #240. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`run_local_ci.py`, ADR-0016 propuesta en #117), resumen en el PR |
