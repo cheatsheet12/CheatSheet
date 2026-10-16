@@ -20,7 +20,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 
 import { Alert, Button, Select } from "@/shared";
 
@@ -32,6 +32,7 @@ import {
   verConversacion,
 } from "../api/conversacion";
 import type { DetalleDeConversacion, Intencion } from "../api/conversacion";
+import { ContextoDeAvisoDeBandeja } from "./AvisoDeBandeja";
 import { CajaDeRespuesta } from "./CajaDeRespuesta";
 import { etiquetaDe, tituloDe, tonoDeEstadoDe } from "./FilaDeConversacion";
 import { IconoDeBurbuja, IconoDeBurbujas, IconoDeVolver } from "./iconos";
@@ -61,6 +62,7 @@ export function HiloDeConversacion({
   const [clasificacion, setClasificacion] = useState("");
   const [trabajando, setTrabajando] = useState(false);
   const cuerpo = useRef<HTMLDivElement>(null);
+  const { avisarCambio } = useContext(ContextoDeAvisoDeBandeja);
 
   const tomado = hilo.estado_escalamiento === "ASIGNADO";
   const esperando = hilo.estado_escalamiento === "ABIERTO";
@@ -80,6 +82,8 @@ export function HiloDeConversacion({
     try {
       await accion();
       setHilo(await verConversacion(hilo.id));
+      // La bandeja de al lado muestra el mismo estado: que lo vuelva a pedir al backend.
+      avisarCambio();
     } catch (fallo) {
       setError(fallo instanceof ErrorDeConversacion ? fallo.message : porDefecto);
     } finally {

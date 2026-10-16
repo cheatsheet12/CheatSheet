@@ -36,6 +36,8 @@ import {
   listarConversaciones,
 } from "../api/conversacion";
 import type { ListadoDeConversaciones } from "../api/conversacion";
+import { ContextoDeAvisoDeBandeja } from "./AvisoDeBandeja";
+import type { AvisoDeBandeja } from "./AvisoDeBandeja";
 import { FilaDeConversacion, etiquetaDe, situacionDe, tituloDe } from "./FilaDeConversacion";
 import { IconoDeBandeja, IconoDeLimpiar, IconoDeLupa } from "./iconos";
 import { SinHiloElegido } from "./SinHiloElegido";
@@ -83,17 +85,24 @@ export function BandejaDeConversaciones({
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
 
-  async function cambiarFiltro(valor: boolean): Promise<void> {
-    setSoloEscaladas(valor);
+  async function recargar(filtro: boolean): Promise<void> {
     setError(null);
     try {
-      setListado(await listarConversaciones(valor));
+      setListado(await listarConversaciones(filtro));
     } catch (fallo) {
       setError(
         fallo instanceof ErrorDeConversacion ? fallo.message : "No se pudo actualizar la bandeja.",
       );
     }
   }
+
+  function cambiarFiltro(valor: boolean): Promise<void> {
+    setSoloEscaladas(valor);
+    return recargar(valor);
+  }
+
+  // El hilo abierto avisa cuando actúa: se vuelve a pedir el listado con el filtro vigente.
+  const aviso: AvisoDeBandeja = { avisarCambio: () => void recargar(soloEscaladas) };
 
   const hilos = listado.conversaciones;
   const esperando = hilos.filter((uno) => uno.estado_escalamiento === "ABIERTO").length;
@@ -123,110 +132,116 @@ export function BandejaDeConversaciones({
         <Alert tono="neutral">Con tu rol podés leer las conversaciones, pero no atenderlas.</Alert>
       )}
 
-      <div className={`cv-grid${conHilo ? " cv-grid--con-hilo" : ""}`}>
-        <section className="cv-panel cv-bandeja" aria-labelledby="wa-lista-titulo">
-          <header className="cv-bandeja__head">
-            <h2 className="cv-bandeja__titulo" id="wa-lista-titulo">
-              Conversaciones
-            </h2>
-            <span className="cv-etiquetas">
-              <span className="cv-etiqueta">{contar(hilos.length, "hilo", "hilos")}</span>
-              <span
-                className={`cv-etiqueta${esperando > 0 ? " cv-etiqueta--espera" : ""}`}
-                title="Hilos que esperan a un asesor"
-              >
-                {contar(esperando, "espera", "esperan")}
+      <ContextoDeAvisoDeBandeja.Provider value={aviso}>
+        <div className={`cv-grid${conHilo ? " cv-grid--con-hilo" : ""}`}>
+          <section className="cv-panel cv-bandeja" aria-labelledby="wa-lista-titulo">
+            <header className="cv-bandeja__head">
+              <h2 className="cv-bandeja__titulo" id="wa-lista-titulo">
+                Conversaciones
+              </h2>
+              <span className="cv-etiquetas">
+                <span className="cv-etiqueta">{contar(hilos.length, "hilo", "hilos")}</span>
+                <span
+                  className={`cv-etiqueta${esperando > 0 ? " cv-etiqueta--espera" : ""}`}
+                  title="Hilos que esperan a un asesor"
+                >
+                  {contar(esperando, "espera", "esperan")}
+                </span>
               </span>
-            </span>
-          </header>
+            </header>
 
-          <div className="cv-buscador">
-            <span className="cv-buscador__icono">
-              <IconoDeLupa />
-            </span>
-            <input
-              type="search"
-              className="cv-buscador__control"
-              placeholder="Buscar por motivo o estado"
-              aria-label="Buscar conversaciones"
-              value={busqueda}
-              onChange={(evento) => setBusqueda(evento.target.value)}
-            />
-            {busqueda !== "" && (
-              <button
-                type="button"
-                className="cv-buscador__limpiar"
-                aria-label="Limpiar búsqueda"
-                onClick={() => setBusqueda("")}
-              >
-                <IconoDeLimpiar />
-              </button>
-            )}
-          </div>
-
-          {/* Control segmentado y no botones verdes: en el resto del panel el verde sólido es
-              la acción principal de la pantalla, y acá esto es un estado. */}
-          <div className="cv-segmentos" role="group" aria-label="Filtros de la bandeja">
-            <button
-              type="button"
-              className="cv-segmento"
-              aria-pressed={soloEscaladas}
-              onClick={() => void cambiarFiltro(true)}
-            >
-              <span className="cv-segmento__punto" aria-hidden="true" />
-              Esperan a un asesor
-              <span className="cv-segmento__cuenta">{esperando}</span>
-            </button>
-            <button
-              type="button"
-              className="cv-segmento"
-              aria-pressed={!soloEscaladas}
-              onClick={() => void cambiarFiltro(false)}
-            >
-              Todas
-            </button>
-          </div>
-
-          {hilos.length === 0 ? (
-            <div className="cv-vacio">
-              <span className="cv-vacio__icono" aria-hidden="true">
-                <IconoDeBandeja />
-              </span>
-              <p className="cv-vacio__titulo">
-                {soloEscaladas ? MENSAJE_SIN_ESCALADAS : MENSAJE_SIN_CONVERSACIONES}
-              </p>
-              <p className="cv-vacio__texto">
-                {soloEscaladas
-                  ? "Cuando el agente derive un hilo a una persona, aparece acá."
-                  : "Los hilos nuevos aparecen acá apenas escribe un cliente."}
-              </p>
-            </div>
-          ) : visibles.length === 0 ? (
-            <div className="cv-vacio">
-              <span className="cv-vacio__icono" aria-hidden="true">
+            <div className="cv-buscador">
+              <span className="cv-buscador__icono">
                 <IconoDeLupa />
               </span>
-              <p className="cv-vacio__titulo">Ninguna conversación coincide con tu búsqueda.</p>
-              <button type="button" className="cv-vacio__accion" onClick={() => setBusqueda("")}>
-                Mostrar todas
+              <input
+                type="search"
+                className="cv-buscador__control"
+                placeholder="Buscar por motivo o estado"
+                aria-label="Buscar conversaciones"
+                value={busqueda}
+                onChange={(evento) => setBusqueda(evento.target.value)}
+              />
+              {busqueda !== "" && (
+                <button
+                  type="button"
+                  className="cv-buscador__limpiar"
+                  aria-label="Limpiar búsqueda"
+                  onClick={() => setBusqueda("")}
+                >
+                  <IconoDeLimpiar />
+                </button>
+              )}
+            </div>
+
+            {/* Control segmentado y no botones verdes: en el resto del panel el verde sólido es
+              la acción principal de la pantalla, y acá esto es un estado. */}
+            <div className="cv-segmentos" role="group" aria-label="Filtros de la bandeja">
+              <button
+                type="button"
+                className="cv-segmento"
+                aria-pressed={soloEscaladas}
+                onClick={() => void cambiarFiltro(true)}
+              >
+                <span className="cv-segmento__punto" aria-hidden="true" />
+                Esperan a un asesor
+                <span className="cv-segmento__cuenta">{esperando}</span>
+              </button>
+              <button
+                type="button"
+                className="cv-segmento"
+                aria-pressed={!soloEscaladas}
+                onClick={() => void cambiarFiltro(false)}
+              >
+                Todas
               </button>
             </div>
-          ) : (
-            <ul className="cv-lista" aria-labelledby="wa-lista-titulo" onKeyDown={moverConFlechas}>
-              {visibles.map((hilo, indice) => (
-                <FilaDeConversacion
-                  key={hilo.id}
-                  conversacion={hilo}
-                  seleccionada={hilo.id === seleccionadaId}
-                  indice={indice}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
 
-        {conHilo ? children : <SinHiloElegido />}
-      </div>
+            {hilos.length === 0 ? (
+              <div className="cv-vacio">
+                <span className="cv-vacio__icono" aria-hidden="true">
+                  <IconoDeBandeja />
+                </span>
+                <p className="cv-vacio__titulo">
+                  {soloEscaladas ? MENSAJE_SIN_ESCALADAS : MENSAJE_SIN_CONVERSACIONES}
+                </p>
+                <p className="cv-vacio__texto">
+                  {soloEscaladas
+                    ? "Cuando el agente derive un hilo a una persona, aparece acá."
+                    : "Los hilos nuevos aparecen acá apenas escribe un cliente."}
+                </p>
+              </div>
+            ) : visibles.length === 0 ? (
+              <div className="cv-vacio">
+                <span className="cv-vacio__icono" aria-hidden="true">
+                  <IconoDeLupa />
+                </span>
+                <p className="cv-vacio__titulo">Ninguna conversación coincide con tu búsqueda.</p>
+                <button type="button" className="cv-vacio__accion" onClick={() => setBusqueda("")}>
+                  Mostrar todas
+                </button>
+              </div>
+            ) : (
+              <ul
+                className="cv-lista"
+                aria-labelledby="wa-lista-titulo"
+                onKeyDown={moverConFlechas}
+              >
+                {visibles.map((hilo, indice) => (
+                  <FilaDeConversacion
+                    key={hilo.id}
+                    conversacion={hilo}
+                    seleccionada={hilo.id === seleccionadaId}
+                    indice={indice}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {conHilo ? children : <SinHiloElegido />}
+        </div>
+      </ContextoDeAvisoDeBandeja.Provider>
     </>
   );
 }
