@@ -40,7 +40,7 @@ from cheatsheet.platform.settings import Settings
 from cheatsheet.platform.telemetry import obtener_logger
 from cheatsheet.shared.empresa import EmpresaId, UsuarioId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
-from cheatsheet.workers.base import EjecutorIdempotente, PoliticaDeReintentos
+from cheatsheet.workers.base import AnteUnaFalla, EjecutorIdempotente, PoliticaDeReintentos
 from cheatsheet.workers.celery_app import Cola, crear_celery
 from cheatsheet.workers.ejecucion import ejecutar_tarea
 
@@ -90,7 +90,13 @@ async def enviar_invitacion(
         )
         return True
 
-    return bool(await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto))
+    # LIBERAR: if the sender raised, the mail did not go out, and `autoretry_for` must be
+    # able to send it. The residual risk is a mail accepted by the server whose reply
+    # was lost: the invitee may then get two, and the second link is as valid as the first.
+    enviado = await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
+        clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
+    )
+    return bool(enviado)
 
 
 async def _contexto(

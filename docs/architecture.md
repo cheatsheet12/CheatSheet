@@ -212,7 +212,12 @@ survive. This is a fiscal traceability requirement, not a preference.
 
 **Processing guarantees (ADR-009).** Every async task and inbound webhook carries a
 `ClaveDeIdempotencia` (company + type + payload fingerprint). Retries use exponential
-backoff with jitter. After N failures the task goes to the DLQ and emits
+backoff with jitter. The key is claimed before the effect runs; what happens to it when
+the effect raises is an explicit choice at every call site (`AnteUnaFalla`): `LIBERAR` frees
+it so the retry runs the effect again (effects that are safe to repeat), `RETENER` keeps it
+so the retry is skipped (effects that may have half happened, such as a charge). There is no
+default. A worker that dies mid-effect never releases the key: known debt, see `TODO.md`.
+After N failures the task goes to the DLQ and emits
 `TareaAsincronaDerivadaADLQ`. Webhooks are received by the API, which validates the
 signature, persists the event, and only then enqueues the real work.
 

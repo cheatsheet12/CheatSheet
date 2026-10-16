@@ -14,6 +14,7 @@ el resto se inyecta.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import replace
 from datetime import timedelta
 from typing import Any
@@ -39,7 +40,7 @@ from cheatsheet.workers import (
     tasks_scheduling,
     tasks_spreadsheet,
 )
-from cheatsheet.workers.base import EjecutorIdempotente
+from cheatsheet.workers.base import AnteUnaFalla, EjecutorIdempotente
 from cheatsheet.workers.beat import programacion
 from kombu.exceptions import OperationalError
 
@@ -65,6 +66,17 @@ class AvisoEspia:
 
     async def avisar(self, aviso: AvisoDeIntegracion) -> None:
         self.avisos.append(aviso)
+
+
+class RecursosFalsos:
+    """Just the part of `Recursos` these tasks touch before the effect runs."""
+
+    def __init__(self, registro: RegistroDeIdempotenciaEnMemoria) -> None:
+        self.settings = settings_de_prueba()
+        self._registro = registro
+
+    def idempotencia(self) -> RegistroDeIdempotenciaEnMemoria:
+        return self._registro
 
 
 def test_la_ventana_cambia_entre_corridas_y_no_dentro_de_una() -> None:
@@ -111,9 +123,48 @@ async def test_una_redelivery_de_la_misma_ventana_no_repite_el_efecto(
         payload={"ventana": "30m-123"},
     )
     for _ in range(3):
-        await EjecutorIdempotente(registro).ejecutar(clave, efecto)
+        await EjecutorIdempotente(registro).ejecutar(
+            clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
+        )
 
     assert len(corridas) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tarea", "ventana"),
+    [
+        (tasks_integrations.sondear_empresa, "30m-123"),
+        (tasks_integrations.revisar_empresa, "2026-10-15"),
+        (tasks_integrations.renovar_empresa, "2026-10-15"),
+    ],
+)
+async def test_un_efecto_que_falla_se_vuelve_a_ejecutar_en_la_misma_ventana(
+    tarea: Any,
+    ventana: str,
+    empresa_id: EmpresaId,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #216. `autoretry_for=(OSError,)` re-runs the task inside the same window; the
+    retry must reach the effect instead of being skipped by the failed attempt's key."""
+    intentos: list[int] = []
+
+    async def unidad_falsa(*_args: object, **_kwargs: object) -> AsyncIterator[None]:
+        intentos.append(1)
+        if len(intentos) == 1:
+            raise OSError("la red se cayo")
+        sin_unidades: list[None] = []  # the second attempt finds nothing to do
+        for unidad in sin_unidades:
+            yield unidad
+
+    monkeypatch.setattr(tasks_integrations, "unidad_de_trabajo", unidad_falsa)
+    recursos = RecursosFalsos(RegistroDeIdempotenciaEnMemoria())
+
+    with pytest.raises(OSError, match="la red se cayo"):
+        await tarea(recursos, empresa_id, ventana)
+    await tarea(recursos, empresa_id, ventana)
+
+    assert len(intentos) == 2
 
 
 @pytest.mark.asyncio
@@ -132,7 +183,9 @@ async def test_la_corrida_siguiente_si_vuelve_a_preguntar(empresa_id: EmpresaId)
             tipo=tasks_integrations.NOMBRE_EMPRESA,
             payload={"ventana": ventana},
         )
-        await EjecutorIdempotente(registro).ejecutar(clave, efecto)
+        await EjecutorIdempotente(registro).ejecutar(
+            clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
+        )
 
     assert len(corridas) == 2
 
