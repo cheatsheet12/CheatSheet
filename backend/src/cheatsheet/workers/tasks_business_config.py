@@ -18,6 +18,7 @@ otra vez.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from functools import lru_cache
 from typing import Any
 from uuid import UUID
@@ -115,9 +116,11 @@ def conciliar_plantillas_sync(settings: Settings) -> Any:
     return ejecutar_tarea(settings, conciliar_plantillas)
 
 
-def conciliar_empresa_sync(settings: Settings, *, empresa_id: str) -> Any:
+def conciliar_empresa_sync(settings: Settings, *, empresa_id: str) -> dict[str, Any]:
+    """The summary goes back as a dict: Celery stores results as JSON, and a dataclass is not."""
     identificador = EmpresaId(UUID(empresa_id))
-    return ejecutar_tarea(settings, lambda recursos: conciliar_empresa(recursos, identificador))
+    resumen = ejecutar_tarea(settings, lambda recursos: conciliar_empresa(recursos, identificador))
+    return asdict(resumen)
 
 
 def registrar(app: Celery, settings: Settings) -> None:
