@@ -966,3 +966,20 @@ código que corra— y Celery reentrega el mensaje (`task_acks_late` + `task_rej
 
 - `email_invitacion.py` registra `destinatario` (un email) en los logs de falla (`:90,96,113`).
   Va a un issue aparte, contexto `identity` (regla de no registrar datos personales, `CLAUDE.md` §5).
+
+## 31. Lo que esperan de otras unidades las filas de Luciano en la matriz
+
+Estado al 16/10/2026. Estas filas de `docs/aidlc/etapa-6/entregables/matriz/filas-oro.md` no pueden
+pasar a «Probado» con trabajo propio: esperan algo que está a cargo de otra unidad o de otro
+responsable. Quien lo resuelva, que avise en el issue o en la fila citada, para volver a probar en
+staging y actualizar la matriz.
+
+| Qué se espera | Dónde está registrado | Filas que destraba |
+|---|---|---|
+| App de Meta con número de prueba y sus credenciales en staging (`WHATSAPP_ADAPTADOR=meta`) | §22.30 | HU-E11-02 (revisión real de plantillas) y el canal real de HU-E8-04, HS-T2 y HU-E9-01 |
+| Unidad «ADR del proveedor de embeddings y de transcripción, y sus dos adaptadores» | `etapa-6/reparto.md` §2, issue #228 | HU-E8-03 y HS-T7 (y cierra #228) |
+| Correo de staging fuera del sandbox de Amazon SES, o el destinatario de prueba verificado | §2.2 | Paso 8 de `pruebas/PRU-05.md` (invitación del Operador) |
+| Unidades `cobro-por-transferencia` y `comprobante-por-whatsapp` (`units.md`, sin responsable) | `units.md` | HU-E8-05, criterio del motivo «pago no verificado» |
+
+HU-E8-04 tiene además una espera propia: la confirmación del cobro pagado (PR #250) se prueba en
+staging cuando `develop` se despliegue allí.
