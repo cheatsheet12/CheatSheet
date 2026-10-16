@@ -66,7 +66,7 @@ from cheatsheet.shared.clock import RelojDelSistema
 from cheatsheet.shared.empresa import EmpresaId
 from cheatsheet.shared.idempotencia import ClaveDeIdempotencia
 from cheatsheet.shared.roles import RolUsuario
-from cheatsheet.workers.base import EjecutorIdempotente, PoliticaDeReintentos
+from cheatsheet.workers.base import AnteUnaFalla, EjecutorIdempotente, PoliticaDeReintentos
 from cheatsheet.workers.celery_app import Cola, crear_celery
 from cheatsheet.workers.ejecucion import ejecutar_tarea
 
@@ -134,7 +134,15 @@ async def sondear_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
-    return await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto) or 0
+    # LIBERAR: the state change commits before `_avisar`, so a run repeated after a
+    # failure finds nothing left to do. If only the notice failed it is lost, not
+    # duplicated (as before this unit); the retry (`autoretry_for`) may run it again.
+    return (
+        await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
+            clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
+        )
+        or 0
+    )
 
 
 async def revisar_vencimientos(recursos: Recursos) -> int:
@@ -179,7 +187,14 @@ async def revisar_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
-    return await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto) or 0
+    # LIBERAR: same as `sondear_empresa`: the state change commits before `_avisar`, so a
+    # repeated run finds nothing to do and a failed notice is lost, not duplicated.
+    return (
+        await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
+            clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
+        )
+        or 0
+    )
 
 
 async def renovar_credenciales(recursos: Recursos) -> int:
@@ -226,7 +241,16 @@ async def renovar_empresa(recursos: Recursos, empresa_id: EmpresaId, ventana: st
         await _avisar(recursos.settings, desenlaces, destinatarios)
         return len(desenlaces)
 
-    return await EjecutorIdempotente(recursos.idempotencia()).ejecutar(clave, efecto) or 0
+    # LIBERAR: the token exchange runs outside the DB transaction. If it fails, nothing
+    # was saved and the retry asks again; once the renewal is saved, a repeated run finds
+    # the credential far from the margin and does nothing. A notice that fails after the
+    # commit is lost, not duplicated.
+    return (
+        await EjecutorIdempotente(recursos.idempotencia()).ejecutar(
+            clave, efecto, ante_una_falla=AnteUnaFalla.LIBERAR
+        )
+        or 0
+    )
 
 
 async def _administradores(sesion: AsyncSession, empresa_id: EmpresaId) -> tuple[str, ...]:

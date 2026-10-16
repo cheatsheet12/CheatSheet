@@ -127,8 +127,8 @@ de `payment_id`», lo que es falso (el índice no salta, ver Hallazgos): corregi
 | Gate | Fecha | Resultado |
 |---|---|---|
 | 1 · Plan | 2026-10-15 | Aprobado por Luciano con las decisiones 1–5 |
-| 2 · Verificación | | |
-| 3 · PR | | |
+| 2 · Verificación | 2026-10-16 | Aprobado por Luciano. RED observado sobre PostgreSQL (saldo $ 200 y dos eventos en `develop`), cuatro casos en verde, verificador independiente sin bloqueantes. CI local COMPLETE en `760ba45` (con `develop` mergeado) |
+| 3 · PR | 2026-10-16 | PR a develop. GitHub Actions sin cuota hasta el 2026-11-01: verificado con el CI local (`run_local_ci.py`, ADR-0016 propuesta en #117), resumen en el PR |
 
 ## Decisiones tomadas durante la unidad
 
